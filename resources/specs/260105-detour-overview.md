@@ -501,7 +501,7 @@ All shortcuts are user-configurable in Preferences.
 Future specs will detail each stage. This is the sequencing:
 
 ### Stage 1: Foundation
-- Spec: `yymmdd-foundation.md`
+- Spec: `260105-stage1-foundation.md`
 - Xcode project setup
 - Main window with split view
 - Single file list view (NSTableView)
