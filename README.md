@@ -30,9 +30,21 @@ detour/
 └── Tests/
 ```
 
+## Building
+
+```bash
+# Build and create app bundle
+./scripts/build-app.sh
+
+# Run
+open build/Detour.app
+```
+
+Requires macOS 14.0+ and Swift toolchain (Xcode Command Line Tools).
+
 ## Status
 
-In development. See `resources/specs/` for detailed specifications.
+Stage 1 complete - working dual-pane file browser with keyboard navigation. See `resources/specs/` for detailed specifications.
 
 ## License
 

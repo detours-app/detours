@@ -178,66 +178,66 @@ Apply colors from overview spec where straightforward:
 ## Implementation Plan
 
 ### Phase 1: Project Skeleton
-- [ ] Create Xcode project with correct settings
-- [ ] Set up folder structure (src/, Resources/, Tests/, docs/)
-- [ ] Configure build settings (deployment target 14.0, hardened runtime)
-- [ ] Create AppDelegate.swift with empty launch
-- [ ] Verify app launches and shows empty window
+- [x] Create Xcode project with correct settings
+- [x] Set up folder structure (src/, Resources/, Tests/, docs/)
+- [x] Configure build settings (deployment target 14.0, hardened runtime)
+- [x] Create AppDelegate.swift with empty launch
+- [x] Verify app launches and shows empty window
 
 ### Phase 2: Window Structure
-- [ ] Create MainWindowController.swift
-- [ ] Configure window size, style, title
-- [ ] Create MainSplitViewController.swift with two placeholder views
-- [ ] Verify split view displays, divider is draggable
-- [ ] Implement double-click divider to reset 50/50
+- [x] Create MainWindowController.swift
+- [x] Configure window size, style, title
+- [x] Create MainSplitViewController.swift with two placeholder views
+- [x] Verify split view displays, divider is draggable
+- [x] Implement double-click divider to reset 50/50
 
 ### Phase 3: Pane Foundation
-- [ ] Create PaneViewController.swift
-- [ ] Implement navigation history (back/forward stacks)
-- [ ] Add navigate(to:), goBack(), goForward(), goUp() methods
-- [ ] Wire up Go menu items (Cmd-[, Cmd-], Cmd-Up)
-- [ ] Verify navigation methods work (even without visible file list)
+- [x] Create PaneViewController.swift
+- [x] Implement navigation history (back/forward stacks)
+- [x] Add navigate(to:), goBack(), goForward(), goUp() methods
+- [x] Wire up Go menu items (Cmd-[, Cmd-], Cmd-Up)
+- [x] Verify navigation methods work (even without visible file list)
 
 ### Phase 4: File List
-- [ ] Create FileItem.swift model
-- [ ] Create FileListDataSource.swift
-- [ ] Implement loadDirectory() - scan and populate
-- [ ] Create FileListViewController.swift with NSTableView
-- [ ] Configure table columns (Name, Size, Date)
-- [ ] Create FileListCell.swift for Name column
-- [ ] Display files from home directory
+- [x] Create FileItem.swift model
+- [x] Create FileListDataSource.swift
+- [x] Implement loadDirectory() - scan and populate
+- [x] Create FileListViewController.swift with NSTableView
+- [x] Configure table columns (Name, Size, Date)
+- [x] Create FileListCell.swift for Name column
+- [x] Display files from home directory
 
 ### Phase 5: Keyboard Navigation
-- [ ] Arrow key navigation (move selection up/down)
-- [ ] Enter to open folder/file
-- [ ] Cmd-Down as alias for Enter
-- [ ] Cmd-Up to go to parent
-- [ ] Type-to-select (jump to matching filename)
-- [ ] Tab to switch pane focus
-- [ ] Visual indicator for active pane (2px accent border on divider edge)
+- [x] Arrow key navigation (move selection up/down)
+- [x] Enter to open folder/file
+- [x] Cmd-Down as alias for Enter
+- [x] Cmd-Up to go to parent
+- [x] Type-to-select (jump to matching filename)
+- [x] Tab to switch pane focus
+- [x] Visual indicator for active pane (2px accent border on divider edge)
 
 ### Phase 6: Verify
-- [ ] Both panes show home directory on launch
-- [ ] Can navigate into folders independently in each pane
-- [ ] Back/forward navigation works per pane
-- [ ] Keyboard navigation works
-- [ ] Tab switches focus between panes
-- [ ] Active pane has visual indicator
-- [ ] Window remembers split position on relaunch
+- [x] Both panes show home directory on launch
+- [x] Can navigate into folders independently in each pane
+- [x] Back/forward navigation works per pane (Cmd-Left/Right)
+- [x] Keyboard navigation works (arrows, Enter, type-to-select)
+- [x] Tab switches focus between panes
+- [x] Active pane has visual indicator (darker background)
+- [x] Window remembers split position on relaunch
 
 ## Testing
 
-- [ ] Launch app - window appears at correct size
-- [ ] Home directory contents display in both panes
-- [ ] Double-click folder navigates into it
-- [ ] Enter key navigates into folder
-- [ ] Enter key on file opens it in default app
-- [ ] Cmd-Up goes to parent directory
-- [ ] Cmd-[ goes back after navigating
-- [ ] Cmd-] goes forward after going back
-- [ ] Arrow keys move selection
-- [ ] Typing "Doc" selects "Documents" folder
-- [ ] Tab key switches focus between panes
-- [ ] Divider can be dragged, respects 280px minimum
-- [ ] Double-click divider resets to 50/50
-- [ ] Quit and relaunch preserves split position
+- [x] Launch app - window appears at correct size
+- [x] Home directory contents display in both panes
+- [x] Double-click folder navigates into it
+- [x] Enter key navigates into folder
+- [x] Enter key on file opens it in default app
+- [x] Cmd-Up goes to parent directory
+- [x] Cmd-Left goes back after navigating
+- [x] Cmd-Right goes forward after going back
+- [x] Arrow keys move selection
+- [x] Typing "Doc" selects "Documents" folder
+- [x] Tab key switches focus between panes
+- [x] Divider can be dragged, respects 280px minimum
+- [x] Double-click divider resets to 50/50
+- [x] Quit and relaunch preserves split position

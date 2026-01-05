@@ -500,47 +500,47 @@ All shortcuts are user-configurable in Preferences.
 
 Future specs will detail each stage. This is the sequencing:
 
-### Stage 1: Foundation
+### Stage 1: Foundation ✓
 - Spec: `260105-stage1-foundation.md`
-- Xcode project setup
-- Main window with split view
-- Single file list view (NSTableView)
-- Basic directory loading
-- Keyboard navigation within list
+- [x] Project setup (Swift Package Manager)
+- [x] Main window with split view
+- [x] Single file list view (NSTableView)
+- [x] Basic directory loading
+- [x] Keyboard navigation within list
 
 ### Stage 2: Tabs
 - Spec: `yymmdd-tab-system.md`
-- Tab bar component
-- Tab state management
-- Tab keyboard shortcuts
-- Drag tabs between panes
+- [ ] Tab bar component
+- [ ] Tab state management
+- [ ] Tab keyboard shortcuts
+- [ ] Drag tabs between panes
 
 ### Stage 3: File Operations
 - Spec: `yymmdd-file-operations.md`
-- Copy/paste/cut
-- Move/delete
-- Rename
-- Progress UI
+- [ ] Copy/paste/cut
+- [ ] Move/delete
+- [ ] Rename
+- [ ] Progress UI
 
 ### Stage 4: Quick Navigation
 - Spec: `yymmdd-quick-nav.md`
-- Cmd-P popover
-- Frecency tracking
-- Fuzzy matching
+- [ ] Cmd-P popover
+- [ ] Frecency tracking
+- [ ] Fuzzy matching
 
 ### Stage 5: System Integration
 - Spec: `yymmdd-system-integration.md`
-- Quick Look
-- Drag-drop with external apps
-- Open With / Services
-- FSEvents live updates
+- [ ] Quick Look
+- [ ] Drag-drop with external apps
+- [ ] Open With / Services
+- [ ] FSEvents live updates
 
 ### Stage 6: Polish
 - Spec: `yymmdd-polish.md`
-- Icon view mode
-- Preferences
-- Keyboard shortcut customization
-- Performance optimization
+- [ ] Icon view mode
+- [ ] Preferences
+- [ ] Keyboard shortcut customization
+- [ ] Performance optimization
 
 ## Decisions Made
 
