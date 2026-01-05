@@ -339,10 +339,10 @@ Base unit: **4px**
 - New tab (+) button: always visible at right of tab bar
 
 **File List Rows:**
-- Default: transparent background
+- Default: banded rows with subtle alternating background
 - Hover: Surface background
 - Selected: Accent background, Accent Text
-- Multi-selected: same as selected, no alternating
+- Multi-selected: same as selected (no banding)
 - Focused row (keyboard): 1px accent border inset
 - Folder icon: standard folder, no disclosure triangles (flat list)
 

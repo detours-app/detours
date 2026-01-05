@@ -1,5 +1,15 @@
 # Changelog
 
+## 260105 Add Navigation UI and Session Persistence
+- Added: Back/forward buttons in tab bar for navigation history
+- Added: Path bar with breadcrumb navigation under tabs (24px height)
+- Added: Home and iCloud Drive shortcut buttons in path bar
+- Added: Session persistence - tabs restore per pane on launch
+- Added: Cmd-R shortcut to refresh current directory
+- Added: Banded rows (alternating subtle background) in file list
+- Added: Codesigning during build for stable TCC identity (avoids repeated permission prompts)
+- Changed: File list uses `BandedTableView` subclass for alternating row colors
+
 ## 260105 Implement Stage 2 Tabs
 - Added: Finder-style tabs per pane with tab bar (32px height)
 - Added: Tab model (`PaneTab`) with independent navigation history per tab

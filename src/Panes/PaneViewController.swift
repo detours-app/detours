@@ -2,6 +2,9 @@ import AppKit
 
 final class PaneViewController: NSViewController {
     private let tabBar = PaneTabBar()
+    private let homeButton = NSButton()
+    private let iCloudButton = NSButton()
+    private let pathControl = NSPathControl()
     private let tabContainer = NSView()
 
     private(set) var tabs: [PaneTab] = []
@@ -23,6 +26,9 @@ final class PaneViewController: NSViewController {
         super.viewDidLoad()
 
         setupTabBar()
+        setupHomeButton()
+        setupICloudButton()
+        setupPathControl()
         setupTabContainer()
         setupConstraints()
 
@@ -37,6 +43,34 @@ final class PaneViewController: NSViewController {
         view.addSubview(tabBar)
     }
 
+    private func setupHomeButton() {
+        homeButton.bezelStyle = .inline
+        homeButton.image = NSImage(systemSymbolName: "house", accessibilityDescription: "Home")
+        homeButton.imagePosition = .imageOnly
+        homeButton.target = self
+        homeButton.action = #selector(homeClicked)
+        homeButton.toolTip = "Home"
+        view.addSubview(homeButton)
+    }
+
+    private func setupICloudButton() {
+        iCloudButton.bezelStyle = .inline
+        iCloudButton.image = NSImage(systemSymbolName: "icloud", accessibilityDescription: "iCloud Drive")
+        iCloudButton.imagePosition = .imageOnly
+        iCloudButton.target = self
+        iCloudButton.action = #selector(iCloudClicked)
+        iCloudButton.toolTip = "iCloud Drive"
+        view.addSubview(iCloudButton)
+    }
+
+    private func setupPathControl() {
+        pathControl.pathStyle = .standard
+        pathControl.isEditable = false
+        pathControl.target = self
+        pathControl.action = #selector(pathControlClicked(_:))
+        view.addSubview(pathControl)
+    }
+
     private func setupTabContainer() {
         tabContainer.wantsLayer = true
         view.addSubview(tabContainer)
@@ -44,6 +78,9 @@ final class PaneViewController: NSViewController {
 
     private func setupConstraints() {
         tabBar.translatesAutoresizingMaskIntoConstraints = false
+        homeButton.translatesAutoresizingMaskIntoConstraints = false
+        iCloudButton.translatesAutoresizingMaskIntoConstraints = false
+        pathControl.translatesAutoresizingMaskIntoConstraints = false
         tabContainer.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
@@ -53,8 +90,24 @@ final class PaneViewController: NSViewController {
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tabBar.heightAnchor.constraint(equalToConstant: 32),
 
+            // Path control under tab bar
+            pathControl.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            homeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            homeButton.centerYAnchor.constraint(equalTo: pathControl.centerYAnchor),
+            homeButton.widthAnchor.constraint(equalToConstant: 24),
+            homeButton.heightAnchor.constraint(equalToConstant: 24),
+
+            iCloudButton.leadingAnchor.constraint(equalTo: homeButton.trailingAnchor, constant: 4),
+            iCloudButton.centerYAnchor.constraint(equalTo: pathControl.centerYAnchor),
+            iCloudButton.widthAnchor.constraint(equalToConstant: 24),
+            iCloudButton.heightAnchor.constraint(equalToConstant: 24),
+
+            pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 6),
+            pathControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            pathControl.heightAnchor.constraint(equalToConstant: 24),
+
             // Tab container fills remaining space
-            tabContainer.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            tabContainer.topAnchor.constraint(equalTo: pathControl.bottomAnchor),
             tabContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tabContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -153,6 +206,8 @@ final class PaneViewController: NSViewController {
         tab.fileListViewController.view.isHidden = false
 
         tabBar.updateSelectedIndex(index)
+        updateNavigationControls()
+        updatePathControl()
 
         // Make first responder if this pane is active
         if isActive {
@@ -172,6 +227,8 @@ final class PaneViewController: NSViewController {
 
     private func reloadTabBar() {
         tabBar.reloadTabs(tabs, selectedIndex: selectedTabIndex)
+        updateNavigationControls()
+        updatePathControl()
     }
 
     // MARK: - Navigation (delegate to selected tab)
@@ -196,6 +253,36 @@ final class PaneViewController: NSViewController {
         reloadTabBar()
     }
 
+    func refresh() {
+        selectedTab?.refresh()
+        updateNavigationControls()
+    }
+
+    // MARK: - Session State
+
+    var tabDirectories: [URL] {
+        tabs.map { $0.currentDirectory }
+    }
+
+    func restoreTabs(from urls: [URL], selectedIndex: Int) {
+        guard !urls.isEmpty else { return }
+
+        tabs.forEach { tab in
+            tab.fileListViewController.view.removeFromSuperview()
+            tab.fileListViewController.removeFromParent()
+        }
+
+        tabs.removeAll()
+        selectedTabIndex = 0
+
+        for url in urls {
+            createTab(at: url, select: false)
+        }
+
+        let clampedIndex = min(max(0, selectedIndex), tabs.count - 1)
+        selectTab(at: clampedIndex)
+    }
+
     // MARK: - Active State
 
     func setActive(_ active: Bool) {
@@ -205,6 +292,55 @@ final class PaneViewController: NSViewController {
         if active, let tab = selectedTab {
             view.window?.makeFirstResponder(tab.fileListViewController.tableView)
         }
+    }
+
+    private func updateNavigationControls() {
+        guard let tab = selectedTab else {
+            tabBar.updateNavigationState(canGoBack: false, canGoForward: false)
+            return
+        }
+        tabBar.updateNavigationState(canGoBack: tab.canGoBack, canGoForward: tab.canGoForward)
+    }
+
+    private func updatePathControl() {
+        pathControl.url = selectedTab?.currentDirectory
+    }
+
+    @objc private func pathControlClicked(_ sender: NSPathControl) {
+        guard let url = sender.clickedPathItem?.url else { return }
+        navigate(to: url)
+    }
+
+    @objc private func homeClicked() {
+        navigate(to: FileManager.default.homeDirectoryForCurrentUser)
+    }
+
+    @objc private func iCloudClicked() {
+        guard let url = iCloudDriveURL() else { return }
+        navigate(to: url)
+    }
+
+    private func iCloudDriveURL() -> URL? {
+        let fileManager = FileManager.default
+        let home = fileManager.homeDirectoryForCurrentUser
+        let cloudStorageURL = home
+            .appendingPathComponent("Library")
+            .appendingPathComponent("CloudStorage")
+            .appendingPathComponent("iCloud Drive")
+        let mobileDocsURL = home
+            .appendingPathComponent("Library")
+            .appendingPathComponent("Mobile Documents")
+            .appendingPathComponent("com~apple~CloudDocs")
+
+        for url in [cloudStorageURL, mobileDocsURL] {
+            var isDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory),
+               isDirectory.boolValue {
+                return url
+            }
+        }
+
+        return nil
     }
 
     private func updateBackgroundTint() {
@@ -297,6 +433,14 @@ extension PaneViewController: PaneTabBarDelegate {
     func tabBarDidRequestNewTab() {
         let currentDir = selectedTab?.currentDirectory ?? FileManager.default.homeDirectoryForCurrentUser
         createTab(at: currentDir, select: true)
+    }
+
+    func tabBarDidRequestBack() {
+        goBack()
+    }
+
+    func tabBarDidRequestForward() {
+        goForward()
     }
 
     func tabBarDidReorderTab(from sourceIndex: Int, to destinationIndex: Int) {

@@ -10,7 +10,7 @@ protocol FileListNavigationDelegate: AnyObject {
 }
 
 final class FileListViewController: NSViewController {
-    let tableView = NSTableView()
+    let tableView = BandedTableView()
     private let scrollView = NSScrollView()
     private let dataSource = FileListDataSource()
 
@@ -18,6 +18,9 @@ final class FileListViewController: NSViewController {
 
     private var typeSelectBuffer = ""
     private var typeSelectTimer: Timer?
+    private var pendingDirectory: URL?
+    private var currentDirectory: URL?
+    private var hasLoadedDirectory = false
 
     override func loadView() {
         view = NSView()
@@ -32,6 +35,11 @@ final class FileListViewController: NSViewController {
 
         dataSource.tableView = tableView
 
+        if let pendingDirectory {
+            self.pendingDirectory = nil
+            loadDirectory(pendingDirectory)
+        }
+
         // Observe selection changes to detect when this pane becomes active
         NotificationCenter.default.addObserver(
             self,
@@ -39,6 +47,14 @@ final class FileListViewController: NSViewController {
             name: NSTableView.selectionDidChangeNotification,
             object: tableView
         )
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+
+        if !hasLoadedDirectory, let currentDirectory {
+            loadDirectory(currentDirectory)
+        }
     }
 
     @objc private func tableViewSelectionDidChange(_ notification: Notification) {
@@ -129,7 +145,16 @@ final class FileListViewController: NSViewController {
     }
 
     func loadDirectory(_ url: URL) {
+        currentDirectory = url
+
+        guard isViewLoaded else {
+            pendingDirectory = url
+            hasLoadedDirectory = false
+            return
+        }
+
         dataSource.loadDirectory(url)
+        hasLoadedDirectory = true
         if dataSource.items.count > 0 {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
@@ -163,6 +188,12 @@ final class FileListViewController: NSViewController {
 
     override func keyDown(with event: NSEvent) {
         let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
+
+        // Cmd-R: refresh current directory
+        if modifiers == .command && event.keyCode == 15 {
+            refreshCurrentDirectory()
+            return
+        }
 
         // Cmd-Shift-Down: open folder in new tab
         if modifiers == [.command, .shift] && event.keyCode == 125 {
@@ -236,6 +267,13 @@ final class FileListViewController: NSViewController {
                 self?.typeSelectBuffer = ""
             }
         }
+    }
+
+    // MARK: - Refresh
+
+    private func refreshCurrentDirectory() {
+        guard let currentDirectory else { return }
+        loadDirectory(currentDirectory)
     }
 
     // MARK: - First Responder

@@ -18,6 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        mainWindowController?.splitViewController.saveSession()
+    }
+
     // MARK: - Tab Actions
 
     @objc func newTab(_ sender: Any?) {
@@ -48,5 +52,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func goUp(_ sender: Any?) {
         mainWindowController?.splitViewController.goUp(sender)
+    }
+
+    @objc func refresh(_ sender: Any?) {
+        mainWindowController?.splitViewController.refresh(sender)
     }
 }

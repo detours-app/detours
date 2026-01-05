@@ -2,6 +2,8 @@ import AppKit
 
 final class PaneTabBar: NSView {
     private var tabButtons: [TabButton] = []
+    private let backButton = NSButton()
+    private let forwardButton = NSButton()
     private let newTabButton = NSButton()
     private let scrollView = NSScrollView()
     private let tabContainer = NSView()
@@ -74,9 +76,32 @@ final class PaneTabBar: NSView {
     private func setup() {
         wantsLayer = true
 
+        setupNavigationButtons()
         setupScrollView()
         setupNewTabButton()
         setupDragAndDrop()
+    }
+
+    private func setupNavigationButtons() {
+        backButton.bezelStyle = .inline
+        backButton.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")
+        backButton.imagePosition = .imageOnly
+        backButton.target = self
+        backButton.action = #selector(backClicked)
+        backButton.toolTip = "Back"
+
+        forwardButton.bezelStyle = .inline
+        forwardButton.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")
+        forwardButton.imagePosition = .imageOnly
+        forwardButton.target = self
+        forwardButton.action = #selector(forwardClicked)
+        forwardButton.toolTip = "Forward"
+
+        addSubview(backButton)
+        addSubview(forwardButton)
+
+        backButton.translatesAutoresizingMaskIntoConstraints = false
+        forwardButton.translatesAutoresizingMaskIntoConstraints = false
     }
 
     private func setupScrollView() {
@@ -105,12 +130,22 @@ final class PaneTabBar: NSView {
 
         newTabButton.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
+            backButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+            backButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            backButton.widthAnchor.constraint(equalToConstant: 24),
+            backButton.heightAnchor.constraint(equalToConstant: 24),
+
+            forwardButton.leadingAnchor.constraint(equalTo: backButton.trailingAnchor, constant: 2),
+            forwardButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            forwardButton.widthAnchor.constraint(equalToConstant: 24),
+            forwardButton.heightAnchor.constraint(equalToConstant: 24),
+
             newTabButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             newTabButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             newTabButton.widthAnchor.constraint(equalToConstant: 28),
             newTabButton.heightAnchor.constraint(equalToConstant: 28),
 
-            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: forwardButton.trailingAnchor, constant: 6),
             scrollView.topAnchor.constraint(equalTo: topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
             scrollView.trailingAnchor.constraint(equalTo: newTabButton.leadingAnchor, constant: -4),
@@ -175,6 +210,14 @@ final class PaneTabBar: NSView {
         scrollToTab(at: index)
     }
 
+    func updateNavigationState(canGoBack: Bool, canGoForward: Bool) {
+        backButton.isEnabled = canGoBack
+        backButton.alphaValue = canGoBack ? 1.0 : 0.4
+
+        forwardButton.isEnabled = canGoForward
+        forwardButton.alphaValue = canGoForward ? 1.0 : 0.4
+    }
+
     private func scrollToTab(at index: Int) {
         guard index >= 0 && index < tabButtons.count else { return }
         let button = tabButtons[index]
@@ -197,6 +240,8 @@ final class PaneTabBar: NSView {
 
     private func updateNewTabButtonColor() {
         newTabButton.contentTintColor = textSecondaryColor
+        backButton.contentTintColor = textSecondaryColor
+        forwardButton.contentTintColor = textSecondaryColor
     }
 
     // MARK: - Actions
@@ -211,6 +256,14 @@ final class PaneTabBar: NSView {
 
     @objc func newTabClicked() {
         delegate?.tabBarDidRequestNewTab()
+    }
+
+    @objc private func backClicked() {
+        delegate?.tabBarDidRequestBack()
+    }
+
+    @objc private func forwardClicked() {
+        delegate?.tabBarDidRequestForward()
     }
 
     // MARK: - Drag Source

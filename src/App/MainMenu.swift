@@ -88,6 +88,13 @@ func setupMainMenu(target: AppDelegate) {
     enclosingItem.target = target
     goMenu.addItem(enclosingItem)
 
+    goMenu.addItem(NSMenuItem.separator())
+
+    let refreshItem = NSMenuItem(title: "Refresh", action: #selector(AppDelegate.refresh(_:)), keyEquivalent: "r")
+    refreshItem.keyEquivalentModifierMask = .command
+    refreshItem.target = target
+    goMenu.addItem(refreshItem)
+
     // Window menu
     let windowMenu = NSMenu(title: "Window")
     let windowMenuItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")

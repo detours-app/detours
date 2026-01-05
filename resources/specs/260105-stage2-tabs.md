@@ -50,6 +50,7 @@ Each tab is represented by a `PaneTab` model that owns:
 - Height: 32px (per spec)
 - Contains:
   - Horizontally scrolling area for tab buttons
+  - Back/Forward buttons on the left
   - "+" button fixed at right edge
 - Properties:
   - `tabs: [PaneTab]` - reference to tabs array
@@ -67,6 +68,7 @@ Each tab is represented by a `PaneTab` model that owns:
   - Click tab: select it (call delegate)
   - Click ×: close tab (call delegate)
   - Click +: new tab (call delegate)
+  - Click back/forward: navigate tab history (call delegate)
   - Double-click tab: (reserved for future rename, no-op for now)
   - Drag tab: reorder within bar or drag to other pane
 - Tooltip: show `fullPath` on hover over tab
@@ -76,6 +78,8 @@ Each tab is represented by a `PaneTab` model that owns:
   - `tabBarDidSelectTab(at index: Int)`
   - `tabBarDidRequestCloseTab(at index: Int)`
   - `tabBarDidRequestNewTab()`
+  - `tabBarDidRequestBack()`
+  - `tabBarDidRequestForward()`
   - `tabBarDidReorderTab(from: Int, to: Int)`
   - `tabBarDidReceiveDroppedTab(_ tab: PaneTab, at index: Int)` - for cross-pane drag
 
@@ -88,9 +92,11 @@ Each tab is represented by a `PaneTab` model that owns:
   - `tabs: [PaneTab]` - array of open tabs
   - `selectedTabIndex: Int`
   - `tabBar: PaneTabBar`
+  - `pathControl: NSPathControl` - breadcrumb navigation
   - `tabContainer: NSView` - holds file list views
 - Layout:
   - Tab bar at top (32px)
+  - Path bar beneath tabs (24px height) with Home + iCloud Drive shortcuts
   - Tab container fills remaining space
 - Methods:
   - `createTab(at url: URL)` - creates new tab, selects it
@@ -108,8 +114,16 @@ Each tab is represented by a `PaneTab` model that owns:
 **src/Windows/MainSplitViewController.swift**
 - Add methods for cross-pane tab operations:
   - `moveTab(_ tab: PaneTab, fromPane: PaneViewController, toPane: PaneViewController, atIndex: Int)`
+- Persist open tabs and selected index per pane using `UserDefaults`
 - Update `activePane` references if needed
 - Add keyboard shortcut handling for tab operations (or delegate to pane)
+
+**src/App/AppDelegate.swift**
+- Save session state on terminate
+
+**scripts/build.sh** / **scripts/build-app.sh**
+- Codesign `build/Detour.app` with a stable local identity to avoid repeated TCC prompts
+- Support overrides via `CODESIGN_IDENTITY` and `CODESIGN_KEYCHAIN`
 
 **src/App/MainMenu.swift**
 - Add View menu items:
@@ -244,7 +258,15 @@ Colors (from overview):
 - [x] Dragging tab to other pane moves it
 - [x] Navigation (back/forward/up) works per-tab
 - [x] Active pane indicator still works
-- [x] Window remembers nothing about tabs (tabs not persisted yet)
+- [x] Tabs restore per pane on launch (directories + selected tab)
+- [x] Path bar shows current directory and breadcrumb navigation works
+- [x] Home and iCloud Drive shortcuts navigate correctly
+
+### Phase 9: Navigation UI & Session
+- [x] Add back/forward buttons in the tab bar
+- [x] Add path bar with Home + iCloud Drive shortcuts
+- [x] Persist tab directories and selected index across launches
+- [x] Codesign app bundle during build for stable TCC identity
 
 ## Testing
 
@@ -262,3 +284,5 @@ Colors (from overview):
 - [x] Tab bar scrolls horizontally with many tabs
 - [x] Close button only appears on hover
 - [x] Active tab has accent bottom border
+- [x] Breadcrumb segment click navigates to that folder
+- [x] Home/iCloud shortcuts navigate to expected roots

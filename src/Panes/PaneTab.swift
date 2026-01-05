@@ -78,6 +78,10 @@ final class PaneTab {
         return true
     }
 
+    func refresh() {
+        fileListViewController.loadDirectory(currentDirectory)
+    }
+
     /// Go to parent directory. Returns false if already at root.
     @discardableResult
     func goUp() -> Bool {

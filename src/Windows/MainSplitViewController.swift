@@ -4,6 +4,14 @@ final class MainSplitViewController: NSSplitViewController {
     private let leftPane = PaneViewController()
     private let rightPane = PaneViewController()
     private var activePaneIndex: Int = 0
+    private let defaults = UserDefaults.standard
+
+    private enum SessionKeys {
+        static let leftTabs = "Detour.LeftPaneTabs"
+        static let leftSelectedIndex = "Detour.LeftPaneSelectedIndex"
+        static let rightTabs = "Detour.RightPaneTabs"
+        static let rightSelectedIndex = "Detour.RightPaneSelectedIndex"
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,6 +32,8 @@ final class MainSplitViewController: NSSplitViewController {
 
         addSplitViewItem(leftItem)
         addSplitViewItem(rightItem)
+
+        restoreSession()
 
         // Set initial active pane
         setActivePane(0)
@@ -98,6 +108,42 @@ final class MainSplitViewController: NSSplitViewController {
         splitView.setPosition(paneWidth, ofDividerAt: 0)
     }
 
+    // MARK: - Session Persistence
+
+    func saveSession() {
+        defaults.set(leftPane.tabDirectories.map { $0.path }, forKey: SessionKeys.leftTabs)
+        defaults.set(leftPane.selectedTabIndex, forKey: SessionKeys.leftSelectedIndex)
+        defaults.set(rightPane.tabDirectories.map { $0.path }, forKey: SessionKeys.rightTabs)
+        defaults.set(rightPane.selectedTabIndex, forKey: SessionKeys.rightSelectedIndex)
+    }
+
+    private func restoreSession() {
+        let leftTabs = restoreTabs(forKey: SessionKeys.leftTabs)
+        if !leftTabs.isEmpty {
+            let selectedIndex = defaults.integer(forKey: SessionKeys.leftSelectedIndex)
+            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex)
+        }
+
+        let rightTabs = restoreTabs(forKey: SessionKeys.rightTabs)
+        if !rightTabs.isEmpty {
+            let selectedIndex = defaults.integer(forKey: SessionKeys.rightSelectedIndex)
+            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex)
+        }
+    }
+
+    private func restoreTabs(forKey key: String) -> [URL] {
+        guard let paths = defaults.array(forKey: key) as? [String] else { return [] }
+        return paths.compactMap { path in
+            let url = URL(fileURLWithPath: path)
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else {
+                return nil
+            }
+            return url
+        }
+    }
+
     // MARK: - Active Pane Management
 
     private func setActivePane(_ index: Int) {
@@ -138,6 +184,10 @@ final class MainSplitViewController: NSSplitViewController {
 
     @objc func goUp(_ sender: Any?) {
         activePane.goUp()
+    }
+
+    @objc func refresh(_ sender: Any?) {
+        activePane.refresh()
     }
 
     // MARK: - Tab Actions
