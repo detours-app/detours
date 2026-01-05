@@ -160,6 +160,13 @@ final class FileListViewController: NSViewController {
         }
     }
 
+    func ensureLoaded() {
+        guard let currentDirectory else { return }
+        if !hasLoadedDirectory {
+            loadDirectory(currentDirectory)
+        }
+    }
+
     // MARK: - Actions
 
     private func openSelectedItem() {

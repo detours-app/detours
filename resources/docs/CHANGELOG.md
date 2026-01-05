@@ -1,5 +1,9 @@
 # Changelog
 
+## 260105 Lazy Tab Loading and Keyboard Refresh
+- Changed: Tabs lazy-load directories only when selected (improves startup with many tabs)
+- Changed: Cmd-R refresh now handled at table view level for reliable focus handling
+
 ## 260105 Add Navigation UI and Session Persistence
 - Added: Back/forward buttons in tab bar for navigation history
 - Added: Path bar with breadcrumb navigation under tabs (24px height)

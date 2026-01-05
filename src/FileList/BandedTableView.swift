@@ -28,6 +28,16 @@ final class BandedTableView: NSTableView {
         }
     }
 
+    override func keyDown(with event: NSEvent) {
+        let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
+        if modifiers == .command && event.keyCode == 15 {
+            NSApp.sendAction(#selector(AppDelegate.refresh(_:)), to: nil, from: self)
+            return
+        }
+
+        super.keyDown(with: event)
+    }
+
     override func drawBackground(inClipRect clipRect: NSRect) {
         let rowStride = rowHeight + intercellSpacing.height
         guard rowStride > 0 else {

@@ -192,7 +192,22 @@ final class PaneViewController: NSViewController {
 
     func selectTab(at index: Int) {
         guard index >= 0 && index < tabs.count else { return }
-        guard index != selectedTabIndex || tabs.count == 1 else { return }
+
+        if index == selectedTabIndex {
+            let tab = tabs[index]
+            if tab.fileListViewController.view.isHidden {
+                tab.fileListViewController.view.isHidden = false
+                tabBar.updateSelectedIndex(index)
+                updateNavigationControls()
+                updatePathControl()
+                tab.fileListViewController.ensureLoaded()
+            }
+
+            if isActive {
+                view.window?.makeFirstResponder(tab.fileListViewController.tableView)
+            }
+            return
+        }
 
         // Hide current tab's view
         if selectedTabIndex < tabs.count {
@@ -204,6 +219,7 @@ final class PaneViewController: NSViewController {
         // Show new tab's view
         let tab = tabs[selectedTabIndex]
         tab.fileListViewController.view.isHidden = false
+        tab.fileListViewController.ensureLoaded()
 
         tabBar.updateSelectedIndex(index)
         updateNavigationControls()
@@ -290,6 +306,7 @@ final class PaneViewController: NSViewController {
         updateBackgroundTint()
 
         if active, let tab = selectedTab {
+            tab.fileListViewController.ensureLoaded()
             view.window?.makeFirstResponder(tab.fileListViewController.tableView)
         }
     }
