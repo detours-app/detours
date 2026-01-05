@@ -1,5 +1,18 @@
 # Changelog
 
+## 260105 Implement Stage 2 Tabs
+- Added: Finder-style tabs per pane with tab bar (32px height)
+- Added: Tab model (`PaneTab`) with independent navigation history per tab
+- Added: Tab keyboard shortcuts (Cmd-T new, Cmd-W close, Cmd-Shift-[/] switch)
+- Added: Cmd-Shift-Down to open folder in new tab
+- Added: Tab drag-and-drop within pane (reorder) and between panes (move)
+- Added: Tab bar with close buttons on hover, accent border for active tab
+- Added: AGENTS.md with repository guidelines for AI agents
+- Added: Debug build script (`scripts/build.sh`) for faster iteration
+- Changed: Pane architecture refactored - PaneViewController now manages tabs
+- Changed: Navigation history moved from pane level to tab level
+- Changed: Cmd-W closes tab (not window), Cmd-Shift-W closes window
+
 ## 260105 Implement Stage 1 Foundation
 - Added: Working dual-pane file manager app
 - Added: Swift Package Manager project structure (no Xcode required)

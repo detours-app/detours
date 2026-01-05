@@ -6,6 +6,7 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestParentNavigation()
     func fileListDidRequestSwitchPane()
     func fileListDidBecomeActive()
+    func fileListDidRequestOpenInNewTab(url: URL)
 }
 
 final class FileListViewController: NSViewController {
@@ -76,9 +77,25 @@ final class FileListViewController: NSViewController {
 
         tableView.dataSource = dataSource
         tableView.delegate = dataSource
-
         tableView.target = self
-        tableView.doubleAction = #selector(handleDoubleClick(_:))
+        tableView.doubleAction = #selector(tableViewDidDoubleClick(_:))
+    }
+
+    @objc private func tableViewDidDoubleClick(_ sender: Any?) {
+        let row = tableView.clickedRow
+        guard row >= 0 else { return }
+        handleDoubleClick(row: row)
+    }
+
+    private func handleDoubleClick(row: Int) {
+        guard row >= 0 && row < dataSource.items.count else { return }
+
+        let item = dataSource.items[row]
+        if item.isDirectory {
+            navigationDelegate?.fileListDidRequestNavigation(to: item.url)
+        } else {
+            NSWorkspace.shared.open(item.url)
+        }
     }
 
     private func setupColumns() {
@@ -87,6 +104,7 @@ final class FileListViewController: NSViewController {
         nameColumn.title = "Name"
         nameColumn.minWidth = 150
         nameColumn.resizingMask = .autoresizingMask
+        nameColumn.isEditable = false
         tableView.addTableColumn(nameColumn)
 
         // Size column - fixed 80px
@@ -96,6 +114,7 @@ final class FileListViewController: NSViewController {
         sizeColumn.minWidth = 80
         sizeColumn.maxWidth = 80
         sizeColumn.resizingMask = []
+        sizeColumn.isEditable = false
         tableView.addTableColumn(sizeColumn)
 
         // Date column - fixed 120px
@@ -105,6 +124,7 @@ final class FileListViewController: NSViewController {
         dateColumn.minWidth = 120
         dateColumn.maxWidth = 120
         dateColumn.resizingMask = []
+        dateColumn.isEditable = false
         tableView.addTableColumn(dateColumn)
     }
 
@@ -116,10 +136,6 @@ final class FileListViewController: NSViewController {
     }
 
     // MARK: - Actions
-
-    @objc private func handleDoubleClick(_ sender: Any?) {
-        openSelectedItem()
-    }
 
     private func openSelectedItem() {
         let row = tableView.selectedRow
@@ -133,17 +149,35 @@ final class FileListViewController: NSViewController {
         }
     }
 
+    private func openSelectedItemInNewTab() {
+        let row = tableView.selectedRow
+        guard row >= 0 && row < dataSource.items.count else { return }
+
+        let item = dataSource.items[row]
+        if item.isDirectory {
+            navigationDelegate?.fileListDidRequestOpenInNewTab(url: item.url)
+        }
+    }
+
     // MARK: - Keyboard Handling
 
     override func keyDown(with event: NSEvent) {
+        let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
+
+        // Cmd-Shift-Down: open folder in new tab
+        if modifiers == [.command, .shift] && event.keyCode == 125 {
+            openSelectedItemInNewTab()
+            return
+        }
+
         // Cmd-Down: open (same as Enter)
-        if event.modifierFlags.contains(.command) && event.keyCode == 125 {
+        if modifiers == .command && event.keyCode == 125 {
             openSelectedItem()
             return
         }
 
         // Cmd-Up: go to parent
-        if event.modifierFlags.contains(.command) && event.keyCode == 126 {
+        if modifiers == .command && event.keyCode == 126 {
             navigationDelegate?.fileListDidRequestParentNavigation()
             return
         }
@@ -159,7 +193,7 @@ final class FileListViewController: NSViewController {
             moveSelectionDown()
         default:
             // Type-to-select: handle character keys
-            if let chars = event.characters, !chars.isEmpty && event.modifierFlags.intersection([.command, .control, .option]).isEmpty {
+            if let chars = event.characters, !chars.isEmpty && modifiers.isEmpty {
                 handleTypeSelect(chars)
             } else {
                 super.keyDown(with: event)
