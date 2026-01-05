@@ -18,7 +18,6 @@ Detour is a native macOS file manager built as a full Finder replacement. Inspir
    - Two independent panes, side by side
    - Each pane has its own navigation history
    - Configurable split ratio (drag divider)
-   - Single-pane mode toggle
 
 2. **Tabs Per Pane**
    - Finder-style tabs within each pane
@@ -28,33 +27,43 @@ Detour is a native macOS file manager built as a full Finder replacement. Inspir
    - Tab shows directory name, full path on hover
 
 3. **Cmd-P Quick Navigation**
-   - Fuzzy search across:
-     - Recent directories
-     - Bookmarked locations
-     - Full path typing
+   - Fuzzy search: "tour" matches `~/Dev/detour`, "doc" matches `~/Documents`
+   - Searches recent directories (automatic frecency tracking)
+   - Also accepts full path typing
    - Ranked by frecency (frequency + recency)
    - Opens in active pane/tab
 
 4. **Keyboard Navigation**
    - Arrow keys: navigate files
-   - Enter: open file/folder
+   - Enter: open folder (same tab), open file (default app)
+   - Shift-Enter: rename
+   - Cmd-Down: open (Finder compat)
+   - Cmd-Shift-Down: open folder in new tab
    - Space: Quick Look preview
    - Tab: switch focus between panes
    - Type-to-select within directory
+   - Cmd-Shift-. : toggle hidden files
    - Vim-style optional (j/k/h/l)
+   - All shortcuts are user-configurable in Preferences
 
 5. **Basic File Operations**
-   - Copy (Cmd-C), Paste (Cmd-V), Cut (Cmd-X)
-   - Delete to Trash (Cmd-Delete)
-   - Rename (Enter when selected, or F2)
-   - New folder (Cmd-Shift-N)
+   - Copy (Cmd-C or F5)
+   - Paste (Cmd-V)
+   - Cut (Cmd-X)
+   - Move (F6) - moves to other pane's directory
+   - Delete to Trash (Cmd-Delete or F8)
+   - Rename (Shift-Enter or F2)
+   - New folder (Cmd-Shift-N or F7)
    - Duplicate (Cmd-D)
-   - Move between panes (keyboard shortcut)
+   - View/Open (F3) - Quick Look for files, enter folder for directories
+   - Edit (F4) - open in default editor
+   - All shortcuts are user-configurable in Preferences
 
 6. **View Modes**
    - List view (default, detailed) - MVP
    - Icon view (grid) - post-MVP, low priority
    - Column view (Miller columns) - not planned
+   - Sortable columns: click header to sort, click again to reverse
    - Persist per-directory or global preference
 
 7. **Essential Integrations**
@@ -64,13 +73,22 @@ Detour is a native macOS file manager built as a full Finder replacement. Inspir
    - Services menu
    - Trash integration
 
+8. **Context Menu**
+   - Open / Open With submenu
+   - Show in Finder (for edge cases)
+   - Copy, Cut, Paste, Duplicate
+   - Move to Trash
+   - Rename
+   - Get Info (system info panel)
+   - Copy Path (Cmd-Option-C)
+   - New Folder
+
 ### Post-MVP
 
 - Batch rename
 - Folder size calculation
 - Dual-pane sync navigation
 - Git status indicators
-- Custom themes
 - Split pane vertically option
 - Search within directory
 - Spotlight integration
@@ -89,7 +107,7 @@ Detour is a native macOS file manager built as a full Finder replacement. Inspir
 **AppKit (core UI):**
 - Main window and split view (`NSSplitViewController`)
 - Tab bar per pane (custom `NSView` or `NSTabView`)
-- File list/outline views (`NSTableView`, `NSOutlineView`)
+- File list view (`NSTableView` - flat list, no tree hierarchy)
 - Keyboard event handling (responder chain)
 - Drag-drop coordination
 - Context menus
@@ -97,8 +115,6 @@ Detour is a native macOS file manager built as a full Finder replacement. Inspir
 **SwiftUI (leaf UI):**
 - Cmd-P quick navigation popover
 - Preferences window
-- File info inspector panel
-- Toolbar customization sheet
 - Any modal dialogs
 
 ### Project Structure
@@ -143,8 +159,7 @@ detour/
 │   ├── Services/
 │   │   ├── FileSystemWatcher.swift       # FSEvents wrapper
 │   │   ├── QuickLookService.swift        # QLPreviewPanel integration
-│   │   ├── TrashService.swift            # Trash operations
-│   │   └── BookmarkService.swift         # Security-scoped bookmarks
+│   │   └── TrashService.swift            # Trash operations
 │   │
 │   ├── Preferences/
 │   │   ├── PreferencesWindowController.swift
@@ -161,7 +176,7 @@ detour/
 │   └── Localizable.strings
 │
 ├── Tests/
-└── resources/
+└── docs/
     └── specs/
 ```
 
@@ -186,7 +201,7 @@ Full App Sandbox is impractical for a Finder replacement - you'd need constant p
 - `@Observable` (Swift 5.9) for reactive state where needed
 - Coordinator pattern for cross-pane communication
 - `UserDefaults` for preferences
-- JSON file for frecency data, bookmarks
+- JSON file for frecency data
 
 **4. Concurrency**
 
@@ -215,10 +230,10 @@ Full App Sandbox is impractical for a Finder replacement - you'd need constant p
 │                                 │                                       │
 │  Name              Size    Date │  Name              Size    Date       │
 │  ─────────────────────────────  │  ─────────────────────────────────    │
-│  ▸ Documents          —    Dec 3│  ▸ src                 —    Jan 5     │
-│  ▸ Downloads          —    Jan 4│    README.md       2.1K    Jan 5      │
-│    notes.txt       847B    Jan 2│  ▸ Resources           —    Jan 5     │
-│    report.pdf      1.2M    Dec 1│  ▸ Tests               —    Jan 5     │
+│  📁 Documents          —  Dec 3 │  📁 src                 —    Jan 5    │
+│  📁 Downloads          —  Jan 4 │  📄 README.md       2.1K    Jan 5     │
+│  📄 notes.txt       847B  Jan 2 │  📁 Resources           —    Jan 5    │
+│  📄 report.pdf      1.2M  Dec 1 │  📁 Tests               —    Jan 5    │
 │                                 │                                       │
 │                                 │                                       │
 │                                 │                                       │
@@ -317,7 +332,7 @@ Base unit: **4px**
 
 **Tabs:**
 - Inactive: Surface background, Text Secondary
-- Active: Background color, Text Primary, bottom 2px accent border
+- Active: Background, Text Primary, bottom 2px accent border
 - Hover: Background + 5% darken
 - Close button: appears on hover, 16px hit area
 - Max tab width: 160px, truncate with ellipsis
@@ -329,7 +344,7 @@ Base unit: **4px**
 - Selected: Accent background, Accent Text
 - Multi-selected: same as selected, no alternating
 - Focused row (keyboard): 1px accent border inset
-- Disclosure triangle: 12px, Text Secondary, rotates 90° when expanded
+- Folder icon: standard folder, no disclosure triangles (flat list)
 
 **Pane Focus:**
 - Active pane: 2px accent border on inner edge of divider
@@ -406,7 +421,6 @@ Base unit: **4px**
 | Cmd-P dismiss | 80ms | ease-in | Fade out |
 | Cmd-P result selection | 0ms | — | Instant highlight |
 | Hover states | 100ms | ease-out | Background color transitions |
-| Disclosure triangle | 150ms | ease-in-out | Rotation |
 | Divider drag | 0ms | — | Immediate response |
 | Directory load spinner | — | — | Only appears after 200ms delay |
 
@@ -431,17 +445,62 @@ Use SF Symbols exclusively for consistency with macOS.
 | Cmd-P trigger | `magnifyingglass` | 14px |
 | View toggle | `list.bullet` | 14px |
 | Overflow menu | `ellipsis` | 14px |
-| Disclosure collapsed | `chevron.right` | 10px |
-| Disclosure expanded | `chevron.down` | 10px |
 | Frecent star | `star.fill` | 10px |
 
 File-type-specific icons: use system icons via `NSWorkspace.shared.icon(forFile:)`
 
+### Keyboard Shortcuts Reference
+
+All shortcuts are user-configurable in Preferences.
+
+**Navigation:**
+| Action | Default Shortcut |
+|--------|------------------|
+| Navigate files | Arrow keys |
+| Open (folder/file) | Enter |
+| Open (Finder compat) | Cmd-Down |
+| Open folder in new tab | Cmd-Shift-Down |
+| Go up to parent | Cmd-Up |
+| Back | Cmd-[ |
+| Forward | Cmd-] |
+| Switch pane focus | Tab |
+| Quick navigation | Cmd-P |
+| Toggle hidden files | Cmd-Shift-. |
+
+**Tabs:**
+| Action | Default Shortcut |
+|--------|------------------|
+| New tab | Cmd-T |
+| Close tab | Cmd-W |
+| Next tab | Cmd-Shift-] |
+| Previous tab | Cmd-Shift-[ |
+
+**File Operations:**
+| Action | Default Shortcut | Alt Shortcut |
+|--------|------------------|--------------|
+| View/Quick Look | Space | F3 |
+| Edit (open in editor) | — | F4 |
+| Copy | Cmd-C | F5 |
+| Move to other pane | — | F6 |
+| New folder | Cmd-Shift-N | F7 |
+| Delete to Trash | Cmd-Delete | F8 |
+| Paste | Cmd-V | — |
+| Cut | Cmd-X | — |
+| Rename | Shift-Enter | F2 |
+| Duplicate | Cmd-D | — |
+| Copy path | Cmd-Option-C | — |
+
+**Selection:**
+| Action | Default Shortcut |
+|--------|------------------|
+| Select all | Cmd-A |
+| Type-to-select | (just type) |
+
 ## Implementation Roadmap
 
-Future specs will detail each phase. This is the sequencing:
+Future specs will detail each stage. This is the sequencing:
 
-### Phase 1: Foundation
+### Stage 1: Foundation
 - Spec: `yymmdd-foundation.md`
 - Xcode project setup
 - Main window with split view
@@ -449,36 +508,36 @@ Future specs will detail each phase. This is the sequencing:
 - Basic directory loading
 - Keyboard navigation within list
 
-### Phase 2: Tabs
+### Stage 2: Tabs
 - Spec: `yymmdd-tab-system.md`
 - Tab bar component
 - Tab state management
 - Tab keyboard shortcuts
 - Drag tabs between panes
 
-### Phase 3: File Operations
+### Stage 3: File Operations
 - Spec: `yymmdd-file-operations.md`
 - Copy/paste/cut
 - Move/delete
 - Rename
 - Progress UI
 
-### Phase 4: Quick Navigation
+### Stage 4: Quick Navigation
 - Spec: `yymmdd-quick-nav.md`
 - Cmd-P popover
 - Frecency tracking
 - Fuzzy matching
 
-### Phase 5: System Integration
+### Stage 5: System Integration
 - Spec: `yymmdd-system-integration.md`
 - Quick Look
 - Drag-drop with external apps
 - Open With / Services
 - FSEvents live updates
 
-### Phase 6: Polish
+### Stage 6: Polish
 - Spec: `yymmdd-polish.md`
-- View modes (column, icon)
+- Icon view mode
 - Preferences
 - Keyboard shortcut customization
 - Performance optimization
