@@ -7,6 +7,8 @@ private let logger = Logger(subsystem: "com.detour", category: "filelist")
 protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestNavigation(to url: URL)
     func fileListDidRequestParentNavigation()
+    func fileListDidRequestBack()
+    func fileListDidRequestForward()
     func fileListDidRequestSwitchPane()
     func fileListDidBecomeActive()
     func fileListDidRequestOpenInNewTab(url: URL)
@@ -174,6 +176,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         }
 
         startWatching(url)
+
+        // Track directory visit for frecency
+        FrecencyStore.shared.recordVisit(url)
     }
 
     private func startWatching(_ url: URL) {
@@ -497,6 +502,18 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         // Cmd-Up: go to parent
         if modifiers == .command && event.keyCode == 126 {
             navigationDelegate?.fileListDidRequestParentNavigation()
+            return true
+        }
+
+        // Cmd-Left: go back
+        if modifiers == .command && event.keyCode == 123 {
+            navigationDelegate?.fileListDidRequestBack()
+            return true
+        }
+
+        // Cmd-Right: go forward
+        if modifiers == .command && event.keyCode == 124 {
+            navigationDelegate?.fileListDidRequestForward()
             return true
         }
 

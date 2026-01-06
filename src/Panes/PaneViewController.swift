@@ -68,6 +68,11 @@ final class PaneViewController: NSViewController {
         pathControl.isEditable = false
         pathControl.target = self
         pathControl.action = #selector(pathControlClicked(_:))
+        pathControl.delegate = self
+        pathControl.focusRingType = .none
+        // Compress gracefully when pane is narrow
+        pathControl.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        pathControl.setContentHuggingPriority(.defaultLow, for: .horizontal)
         view.addSubview(pathControl)
     }
 
@@ -337,6 +342,10 @@ final class PaneViewController: NSViewController {
 
     private func updatePathControl() {
         pathControl.url = selectedTab?.currentDirectory
+        // Remove folder icons to save space
+        for item in pathControl.pathItems {
+            item.image = nil
+        }
     }
 
     @objc private func pathControlClicked(_ sender: NSPathControl) {
@@ -489,6 +498,14 @@ extension PaneViewController: FileListNavigationDelegate {
         goUp()
     }
 
+    func fileListDidRequestBack() {
+        goBack()
+    }
+
+    func fileListDidRequestForward() {
+        goForward()
+    }
+
     func fileListDidRequestSwitchPane() {
         if let splitVC = parent as? MainSplitViewController {
             splitVC.switchToOtherPane()
@@ -520,6 +537,21 @@ extension PaneViewController: FileListNavigationDelegate {
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>) {
         if let splitVC = parent as? MainSplitViewController {
             splitVC.refreshPanes(matching: directories)
+        }
+    }
+}
+
+// MARK: - NSPathControlDelegate
+
+extension PaneViewController: NSPathControlDelegate {
+    func pathControl(_ pathControl: NSPathControl, willDisplay openPanel: NSOpenPanel) {
+        // Not used - we handle clicks ourselves
+    }
+
+    func pathControl(_ pathControl: NSPathControl, willPopUp menu: NSMenu) {
+        // Remove icons from path items
+        for item in menu.items {
+            item.image = nil
         }
     }
 }

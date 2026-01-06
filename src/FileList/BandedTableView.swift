@@ -36,6 +36,14 @@ final class BandedTableView: NSTableView {
         }
     }
 
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Handle Cmd-Left/Right before they get eaten by text system
+        if keyHandler?.handleKeyDown(event) == true {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
     override func keyDown(with event: NSEvent) {
         if keyHandler?.handleKeyDown(event) == true {
             return

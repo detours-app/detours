@@ -101,6 +101,13 @@ func setupMainMenu(target: AppDelegate) {
     goMenuItem.submenu = goMenu
     mainMenu.addItem(goMenuItem)
 
+    let quickOpenItem = NSMenuItem(title: "Quick Open", action: #selector(AppDelegate.quickOpen(_:)), keyEquivalent: "p")
+    quickOpenItem.keyEquivalentModifierMask = .command
+    quickOpenItem.target = target
+    goMenu.addItem(quickOpenItem)
+
+    goMenu.addItem(NSMenuItem.separator())
+
     let backItem = NSMenuItem(title: "Back", action: #selector(AppDelegate.goBack(_:)), keyEquivalent: "[")
     backItem.keyEquivalentModifierMask = .command
     backItem.target = target
