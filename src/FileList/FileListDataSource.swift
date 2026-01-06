@@ -1,9 +1,41 @@
 import AppKit
 
+/// Row view that hides selection when not active
+final class InactiveHidingRowView: NSTableRowView {
+    var isTableActive: Bool = true {
+        didSet {
+            if isTableActive != oldValue {
+                needsDisplay = true
+            }
+        }
+    }
+
+    override var isEmphasized: Bool {
+        get { isTableActive }
+        set { }
+    }
+
+    override func drawSelection(in dirtyRect: NSRect) {
+        guard isTableActive else { return }
+        super.drawSelection(in: dirtyRect)
+    }
+}
+
 @MainActor
 final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     private(set) var items: [FileItem] = []
     weak var tableView: NSTableView?
+    var isActive: Bool = true {
+        didSet {
+            guard isActive != oldValue else { return }
+            // Redraw all visible rows to update selection appearance
+            tableView?.enumerateAvailableRowViews { rowView, _ in
+                if let customRow = rowView as? InactiveHidingRowView {
+                    customRow.isTableActive = self.isActive
+                }
+            }
+        }
+    }
 
     func loadDirectory(_ url: URL) {
         do {
@@ -58,6 +90,12 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         return 24
+    }
+
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        let rowView = InactiveHidingRowView()
+        rowView.isTableActive = isActive
+        return rowView
     }
 
     // MARK: - Cell Creation

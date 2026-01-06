@@ -19,6 +19,7 @@ final class BandedTableView: NSTableView {
     }
 
     weak var keyHandler: FileListKeyHandling?
+    var onActivate: (() -> Void)?
 
     override func layout() {
         super.layout()
@@ -40,6 +41,20 @@ final class BandedTableView: NSTableView {
             return
         }
         super.keyDown(with: event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let clickedRow = row(at: point)
+
+        // If clicking empty space, just become first responder without deselecting
+        if clickedRow < 0 {
+            window?.makeFirstResponder(self)
+            onActivate?()
+            return
+        }
+
+        super.mouseDown(with: event)
     }
 
     override func drawBackground(inClipRect clipRect: NSRect) {

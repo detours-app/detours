@@ -1,5 +1,22 @@
 # Changelog
 
+## 260106 iCloud Drive Improvements
+- Added: iCloud button navigates to Mobile Documents (iCloud Drive root)
+- Added: Localized names for iCloud app folders (e.g., "Automator" instead of "com~apple~Automator")
+- Added: "Shared by X" label shown for iCloud shared items
+- Added: "Shared" display name for com~apple~CloudDocs folder
+- Changed: Navigating into iCloud app containers skips to Documents subfolder automatically
+- Changed: Cmd-Up from iCloud container goes directly to Mobile Documents
+- Changed: Cmd-Up stops at Mobile Documents (treats it as iCloud root)
+
+## 260106 Directory Watching and Session Persistence
+- Added: Directory watcher - file list auto-refreshes on external changes
+- Added: Persist selections per tab across app restart
+- Added: Persist active pane across app restart
+- Changed: Active pane indicator now Marta-style (only active pane shows blue selection, inactive shows nothing)
+- Fixed: Clicking empty space in file list activates pane without clearing selection
+- Fixed: Paste menu item validates clipboard files still exist
+
 ## 260106 Implement Stage 3 File Operations
 - Added: File operations - copy (Cmd-C), cut (Cmd-X), paste (Cmd-V), duplicate (Cmd-D)
 - Added: Delete to trash (Cmd-Delete)

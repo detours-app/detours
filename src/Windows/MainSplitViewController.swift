@@ -14,8 +14,11 @@ final class MainSplitViewController: NSSplitViewController {
     private enum SessionKeys {
         static let leftTabs = "Detour.LeftPaneTabs"
         static let leftSelectedIndex = "Detour.LeftPaneSelectedIndex"
+        static let leftSelections = "Detour.LeftPaneSelections"
         static let rightTabs = "Detour.RightPaneTabs"
         static let rightSelectedIndex = "Detour.RightPaneSelectedIndex"
+        static let rightSelections = "Detour.RightPaneSelections"
+        static let activePane = "Detour.ActivePane"
     }
 
     override func viewDidLoad() {
@@ -40,8 +43,9 @@ final class MainSplitViewController: NSSplitViewController {
 
         restoreSession()
 
-        // Set initial active pane
-        setActivePane(0)
+        // Restore active pane (defaults to 0 if not saved)
+        let savedActivePane = defaults.integer(forKey: SessionKeys.activePane)
+        setActivePane(savedActivePane)
 
         // Listen for focus changes to update active pane
         NotificationCenter.default.addObserver(
@@ -118,21 +122,35 @@ final class MainSplitViewController: NSSplitViewController {
     func saveSession() {
         defaults.set(leftPane.tabDirectories.map { $0.path }, forKey: SessionKeys.leftTabs)
         defaults.set(leftPane.selectedTabIndex, forKey: SessionKeys.leftSelectedIndex)
+        defaults.set(encodeSelections(leftPane.tabSelections), forKey: SessionKeys.leftSelections)
         defaults.set(rightPane.tabDirectories.map { $0.path }, forKey: SessionKeys.rightTabs)
         defaults.set(rightPane.selectedTabIndex, forKey: SessionKeys.rightSelectedIndex)
+        defaults.set(encodeSelections(rightPane.tabSelections), forKey: SessionKeys.rightSelections)
+        defaults.set(activePaneIndex, forKey: SessionKeys.activePane)
+    }
+
+    private func encodeSelections(_ selections: [[URL]]) -> [[String]] {
+        selections.map { urls in urls.map { $0.path } }
+    }
+
+    private func decodeSelections(_ data: Any?) -> [[URL]]? {
+        guard let paths = data as? [[String]] else { return nil }
+        return paths.map { pathList in pathList.compactMap { URL(fileURLWithPath: $0) } }
     }
 
     private func restoreSession() {
         let leftTabs = restoreTabs(forKey: SessionKeys.leftTabs)
         if !leftTabs.isEmpty {
             let selectedIndex = defaults.integer(forKey: SessionKeys.leftSelectedIndex)
-            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex)
+            let selections = decodeSelections(defaults.object(forKey: SessionKeys.leftSelections))
+            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex, selections: selections)
         }
 
         let rightTabs = restoreTabs(forKey: SessionKeys.rightTabs)
         if !rightTabs.isEmpty {
             let selectedIndex = defaults.integer(forKey: SessionKeys.rightSelectedIndex)
-            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex)
+            let selections = decodeSelections(defaults.object(forKey: SessionKeys.rightSelections))
+            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex, selections: selections)
         }
     }
 

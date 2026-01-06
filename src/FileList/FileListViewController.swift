@@ -44,6 +44,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         dataSource.tableView = tableView
         tableView.keyHandler = self
         tableView.nextResponder = self
+        tableView.onActivate = { [weak self] in
+            self?.navigationDelegate?.fileListDidBecomeActive()
+        }
         renameController.delegate = self
 
         if let pendingDirectory {
@@ -224,6 +227,23 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
 
     var selectedURLs: [URL] {
         selectedItems.map { $0.url }
+    }
+
+    func restoreSelection(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        let urlSet = Set(urls.map { $0.standardizedFileURL })
+        var newSelection = IndexSet()
+        for (index, item) in dataSource.items.enumerated() {
+            if urlSet.contains(item.url.standardizedFileURL) {
+                newSelection.insert(index)
+            }
+        }
+        if !newSelection.isEmpty {
+            tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
+            if let first = newSelection.first {
+                tableView.scrollRowToVisible(first)
+            }
+        }
     }
 
     private func openSelectedItem() {

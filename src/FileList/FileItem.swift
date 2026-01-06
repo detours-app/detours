@@ -7,32 +7,52 @@ struct FileItem {
     let size: Int64?
     let dateModified: Date
     let icon: NSImage
+    let sharedByName: String?
 
-    init(name: String, url: URL, isDirectory: Bool, size: Int64?, dateModified: Date, icon: NSImage) {
+    init(name: String, url: URL, isDirectory: Bool, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil) {
         self.name = name
         self.url = url
         self.isDirectory = isDirectory
         self.size = size
         self.dateModified = dateModified
         self.icon = icon
+        self.sharedByName = sharedByName
     }
 
     init(url: URL) {
         self.url = url
-        self.name = url.lastPathComponent
 
         let resourceKeys: Set<URLResourceKey> = [
             .isDirectoryKey,
             .fileSizeKey,
             .contentModificationDateKey,
+            .localizedNameKey,
+            .ubiquitousItemIsSharedKey,
+            .ubiquitousSharedItemCurrentUserRoleKey,
+            .ubiquitousSharedItemOwnerNameComponentsKey,
         ]
 
         let values = try? url.resourceValues(forKeys: resourceKeys)
 
+        // Show "Shared" for iCloud Drive folder (com~apple~CloudDocs)
+        if url.lastPathComponent == "com~apple~CloudDocs" {
+            self.name = "Shared"
+        } else {
+            self.name = values?.localizedName ?? url.lastPathComponent
+        }
         self.isDirectory = values?.isDirectory ?? false
         self.size = isDirectory ? nil : Int64(values?.fileSize ?? 0)
         self.dateModified = values?.contentModificationDate ?? Date()
         self.icon = NSWorkspace.shared.icon(forFile: url.path)
+
+        // Show "Shared by X" if shared and we're not the owner
+        if values?.ubiquitousItemIsShared == true,
+           values?.ubiquitousSharedItemCurrentUserRole == .participant,
+           let ownerComponents = values?.ubiquitousSharedItemOwnerNameComponents {
+            self.sharedByName = ownerComponents.formatted(.name(style: .short))
+        } else {
+            self.sharedByName = nil
+        }
     }
 
     // MARK: - Formatted Properties

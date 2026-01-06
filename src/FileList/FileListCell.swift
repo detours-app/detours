@@ -3,6 +3,7 @@ import AppKit
 final class FileListCell: NSTableCellView {
     private let iconView = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
+    private let sharedLabel = NSTextField(labelWithString: "")
     private var itemURL: URL?
 
     override init(frame frameRect: NSRect) {
@@ -28,12 +29,24 @@ final class FileListCell: NSTableCellView {
         nameLabel.isEditable = false
         nameLabel.isBordered = false
         nameLabel.drawsBackground = false
+        nameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         addSubview(nameLabel)
         self.textField = nameLabel
+
+        // Shared label setup - smaller, secondary color
+        sharedLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        sharedLabel.textColor = .secondaryLabelColor
+        sharedLabel.lineBreakMode = .byTruncatingTail
+        sharedLabel.isEditable = false
+        sharedLabel.isBordered = false
+        sharedLabel.drawsBackground = false
+        sharedLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        addSubview(sharedLabel)
 
         // Layout
         iconView.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
+        sharedLabel.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
             // Icon: 16x16, centered vertically, 4px from leading edge
@@ -42,10 +55,14 @@ final class FileListCell: NSTableCellView {
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
 
-            // Name: 8px after icon, fills remaining space
+            // Name: 8px after icon
             nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
-            nameLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            // Shared label: after name, before trailing edge
+            sharedLabel.leadingAnchor.constraint(equalTo: nameLabel.trailingAnchor, constant: 8),
+            sharedLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
+            sharedLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
 
         NotificationCenter.default.addObserver(
@@ -60,6 +77,15 @@ final class FileListCell: NSTableCellView {
         itemURL = item.url
         iconView.image = item.icon
         nameLabel.stringValue = item.name
+
+        if let sharedBy = item.sharedByName {
+            sharedLabel.stringValue = "Shared by \(sharedBy)"
+            sharedLabel.isHidden = false
+        } else {
+            sharedLabel.stringValue = ""
+            sharedLabel.isHidden = true
+        }
+
         updateCutAppearance()
     }
 
@@ -69,6 +95,7 @@ final class FileListCell: NSTableCellView {
         let alpha: CGFloat = isCut ? 0.5 : 1.0
         iconView.alphaValue = alpha
         nameLabel.alphaValue = alpha
+        sharedLabel.alphaValue = alpha
     }
 
     deinit {

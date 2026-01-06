@@ -284,7 +284,11 @@ final class PaneViewController: NSViewController {
         tabs.map { $0.currentDirectory }
     }
 
-    func restoreTabs(from urls: [URL], selectedIndex: Int) {
+    var tabSelections: [[URL]] {
+        tabs.map { $0.fileListViewController.selectedURLs }
+    }
+
+    func restoreTabs(from urls: [URL], selectedIndex: Int, selections: [[URL]]? = nil) {
         guard !urls.isEmpty else { return }
 
         tabs.forEach { tab in
@@ -295,8 +299,11 @@ final class PaneViewController: NSViewController {
         tabs.removeAll()
         selectedTabIndex = 0
 
-        for url in urls {
+        for (index, url) in urls.enumerated() {
             createTab(at: url, select: false)
+            if let selections, index < selections.count {
+                tabs[index].fileListViewController.restoreSelection(selections[index])
+            }
         }
 
         let clampedIndex = min(max(0, selectedIndex), tabs.count - 1)
@@ -308,6 +315,11 @@ final class PaneViewController: NSViewController {
     func setActive(_ active: Bool) {
         isActive = active
         updateBackgroundTint()
+
+        // Update all tabs' data sources with active state
+        for tab in tabs {
+            tab.fileListViewController.dataSource.isActive = active
+        }
 
         if active, let tab = selectedTab {
             tab.fileListViewController.ensureLoaded()
@@ -344,44 +356,21 @@ final class PaneViewController: NSViewController {
     private func iCloudDriveURL() -> URL? {
         let fileManager = FileManager.default
         let home = fileManager.homeDirectoryForCurrentUser
-        let cloudStorageURL = home
-            .appendingPathComponent("Library")
-            .appendingPathComponent("CloudStorage")
-            .appendingPathComponent("iCloud Drive")
         let mobileDocsURL = home
             .appendingPathComponent("Library")
             .appendingPathComponent("Mobile Documents")
-            .appendingPathComponent("com~apple~CloudDocs")
 
-        for url in [cloudStorageURL, mobileDocsURL] {
-            var isDirectory: ObjCBool = false
-            if fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory),
-               isDirectory.boolValue {
-                return url
-            }
+        var isDirectory: ObjCBool = false
+        if fileManager.fileExists(atPath: mobileDocsURL.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return mobileDocsURL
         }
 
         return nil
     }
 
     private func updateBackgroundTint() {
-        guard let layer = tabContainer.layer else { return }
-
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-
-        if isActive {
-            if isDark {
-                layer.backgroundColor = NSColor(white: 0.08, alpha: 1.0).cgColor
-            } else {
-                layer.backgroundColor = NSColor(white: 0.94, alpha: 1.0).cgColor
-            }
-        } else {
-            if isDark {
-                layer.backgroundColor = NSColor(white: 0.12, alpha: 1.0).cgColor
-            } else {
-                layer.backgroundColor = NSColor(white: 0.98, alpha: 1.0).cgColor
-            }
-        }
+        // No background tint - active pane indicated by blue selection color
     }
 
     // MARK: - Tab Transfer (for cross-pane drag)

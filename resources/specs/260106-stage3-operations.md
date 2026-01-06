@@ -389,6 +389,22 @@ Conflict resolution (for copy/move):
 - [x] Test: create file externally, verify auto-refresh
 - [x] Create `Tests/DirectoryWatcherTests.swift` (4 tests)
 
+### Phase 10b: Session Persistence and UX
+- [x] Persist selections per tab across app restarts (tabSelections in UserDefaults)
+- [x] Persist active pane across app restarts (activePaneIndex in UserDefaults)
+- [x] Active pane indicator: only active pane shows blue selection, inactive shows nothing (Marta-style)
+- [x] Clicking empty space activates pane without clearing selection
+- [x] Validate paste menu item against clipboard files that still exist (hasValidItems)
+
+### Phase 10c: iCloud Drive Integration
+- [x] iCloud button navigates to ~/Library/Mobile Documents (iCloud root)
+- [x] Use localizedName for file display (shows "Automator" instead of "com~apple~Automator")
+- [x] Show "Shared by X" label for iCloud shared items (ubiquitousItemIsShared, ownerNameComponents)
+- [x] Display com~apple~CloudDocs as "Shared"
+- [x] Auto-navigate into Documents subfolder for iCloud app containers
+- [x] Cmd-Up from container Documents goes directly to Mobile Documents
+- [x] Cmd-Up stops at Mobile Documents (treat as iCloud root)
+
 ### Phase 11: Verify
 - [x] Run `xcodebuild test -scheme Detour -destination 'platform=macOS'` - all 73 tests pass
 - [x] Cmd-C copies selected files to clipboard
@@ -408,6 +424,9 @@ Conflict resolution (for copy/move):
 - [ ] Cancel button stops operation mid-progress
 - [x] Copy over existing file shows Skip/Replace/Keep Both dialog
 - [ ] Menu items (Edit > Copy, etc.) enable/disable correctly
+- [x] Selections persist across app restart (per tab)
+- [x] Active pane persists across app restart
+- [x] File list auto-refreshes when external changes occur
 
 ## Testing
 

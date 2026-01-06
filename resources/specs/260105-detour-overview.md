@@ -515,12 +515,15 @@ Future specs will detail each stage. This is the sequencing:
 - [x] Tab keyboard shortcuts
 - [x] Drag tabs between panes
 
-### Stage 3: File Operations
-- Spec: `yymmdd-file-operations.md`
-- [ ] Copy/paste/cut
-- [ ] Move/delete
-- [ ] Rename
-- [ ] Progress UI
+### Stage 3: File Operations ✓
+- Spec: `260106-stage3-operations.md`
+- [x] Copy/paste/cut
+- [x] Move/delete
+- [x] Rename
+- [x] Progress UI
+- [x] Directory watcher (auto-refresh)
+- [x] Session persistence (tabs, selections, active pane)
+- [x] iCloud Drive integration (localized names, shared items, container navigation)
 
 ### Stage 4: Quick Navigation
 - Spec: `yymmdd-quick-nav.md`
