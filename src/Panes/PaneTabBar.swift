@@ -38,11 +38,7 @@ final class PaneTabBar: NSView {
     }
 
     private var accentColor: NSColor {
-        NSColor(name: nil) { appearance in
-            appearance.isDark
-                ? NSColor(red: 0x4A/255, green: 0x9D/255, blue: 0x9D/255, alpha: 1)
-                : NSColor(red: 0x2D/255, green: 0x6A/255, blue: 0x6A/255, alpha: 1)
-        }
+        detourAccentColor
     }
 
     private var textPrimaryColor: NSColor {

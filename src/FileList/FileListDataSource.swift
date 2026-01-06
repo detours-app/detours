@@ -1,9 +1,49 @@
 import AppKit
 
+/// Teal accent color used throughout the app
+let detourAccentColor = NSColor(name: nil) { appearance in
+    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        ? NSColor(red: 0x2D/255, green: 0x6A/255, blue: 0x6A/255, alpha: 1)
+        : NSColor(red: 0x1F/255, green: 0x4D/255, blue: 0x4D/255, alpha: 1)
+}
+
+/// Row view with teal selection color that hides when not active (Marta-style)
+final class InactiveHidingRowView: NSTableRowView {
+    var isTableActive: Bool = true {
+        didSet {
+            if isTableActive != oldValue {
+                needsDisplay = true
+            }
+        }
+    }
+
+    override var isEmphasized: Bool {
+        get { isTableActive }
+        set { }
+    }
+
+    override func drawSelection(in dirtyRect: NSRect) {
+        guard isTableActive, isSelected else { return }
+        detourAccentColor.setFill()
+        bounds.fill()
+    }
+}
+
 @MainActor
 final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     private(set) var items: [FileItem] = []
     weak var tableView: NSTableView?
+    var isActive: Bool = true {
+        didSet {
+            guard isActive != oldValue else { return }
+            // Redraw all visible rows to update selection appearance
+            tableView?.enumerateAvailableRowViews { rowView, _ in
+                if let customRow = rowView as? InactiveHidingRowView {
+                    customRow.isTableActive = self.isActive
+                }
+            }
+        }
+    }
 
     func loadDirectory(_ url: URL) {
         do {
@@ -29,6 +69,13 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         return items.count
     }
 
+    func items(at indexes: IndexSet) -> [FileItem] {
+        indexes.compactMap { index in
+            guard index >= 0 && index < items.count else { return nil }
+            return items[index]
+        }
+    }
+
     // MARK: - NSTableViewDelegate
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -51,6 +98,12 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         return 24
+    }
+
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        let rowView = InactiveHidingRowView()
+        rowView.isTableActive = isActive
+        return rowView
     }
 
     // MARK: - Cell Creation

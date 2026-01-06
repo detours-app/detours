@@ -33,28 +33,34 @@ final class PaneTab {
 
     init(directory: URL) {
         self.id = UUID()
-        self.currentDirectory = directory
+        self.currentDirectory = Self.normalizeDirectoryURL(directory)
     }
 
     // MARK: - Navigation
 
     /// Navigate to a directory, optionally adding current to history
-    func navigate(to url: URL, addToHistory: Bool = true) {
+    func navigate(to url: URL, addToHistory: Bool = true, skipContainerResolution: Bool = false) {
+        var normalized = Self.normalizeDirectoryURL(url)
         // Check if it's actually a directory
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+        guard FileManager.default.fileExists(atPath: normalized.path, isDirectory: &isDirectory),
               isDirectory.boolValue else {
             // It's a file, open it with default app
-            NSWorkspace.shared.open(url)
+            NSWorkspace.shared.open(normalized)
             return
         }
 
-        if addToHistory && currentDirectory != url {
+        // For iCloud app containers, skip directly to Documents subfolder
+        if !skipContainerResolution {
+            normalized = Self.resolveICloudContainer(normalized)
+        }
+
+        if addToHistory && currentDirectory != normalized {
             backStack.append(currentDirectory)
             forwardStack.removeAll()
         }
 
-        currentDirectory = url
+        currentDirectory = normalized
         fileListViewController.loadDirectory(currentDirectory)
     }
 
@@ -85,9 +91,20 @@ final class PaneTab {
     /// Go to parent directory. Returns false if already at root.
     @discardableResult
     func goUp() -> Bool {
-        let parent = currentDirectory.deletingLastPathComponent()
+        // Don't go up from Mobile Documents (treat it as iCloud root)
+        if Self.isMobileDocuments(currentDirectory) {
+            return false
+        }
+
+        var parent = Self.normalizeDirectoryURL(currentDirectory.deletingLastPathComponent())
         guard parent != currentDirectory else { return false }
-        navigate(to: parent)
+
+        // If we're in an iCloud container's Documents folder, skip the container and go to Mobile Documents
+        if Self.isICloudContainerDocuments(currentDirectory) {
+            parent = Self.normalizeDirectoryURL(parent.deletingLastPathComponent())
+        }
+
+        navigate(to: parent, skipContainerResolution: true)
         return true
     }
 
@@ -97,5 +114,62 @@ final class PaneTab {
 
     var canGoForward: Bool {
         !forwardStack.isEmpty
+    }
+
+    private static func normalizeDirectoryURL(_ url: URL) -> URL {
+        URL(fileURLWithPath: url.standardizedFileURL.path)
+    }
+
+    /// For iCloud app containers (inside Mobile Documents), skip to Documents subfolder
+    private static func resolveICloudContainer(_ url: URL) -> URL {
+        let path = url.path
+        let mobileDocsPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents").path
+
+        // Check if we're inside Mobile Documents but not in com~apple~CloudDocs (user files)
+        guard path.hasPrefix(mobileDocsPath),
+              !path.contains("com~apple~CloudDocs") else {
+            return url
+        }
+
+        // Check if this is a direct child of Mobile Documents (an app container)
+        let relativePath = String(path.dropFirst(mobileDocsPath.count + 1))
+        guard !relativePath.contains("/") else {
+            return url  // Already inside a container
+        }
+
+        // Check if Documents subfolder exists
+        let documentsURL = url.appendingPathComponent("Documents")
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: documentsURL.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return documentsURL
+        }
+
+        return url
+    }
+
+    /// Check if URL is inside an iCloud container's Documents folder
+    private static func isICloudContainerDocuments(_ url: URL) -> Bool {
+        let path = url.path
+        let mobileDocsPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents").path
+
+        guard path.hasPrefix(mobileDocsPath),
+              !path.contains("com~apple~CloudDocs") else {
+            return false
+        }
+
+        // Pattern: Mobile Documents/<container>/Documents[/...]
+        let relativePath = String(path.dropFirst(mobileDocsPath.count + 1))
+        let components = relativePath.split(separator: "/")
+        return components.count >= 2 && components[1] == "Documents"
+    }
+
+    /// Check if URL is the Mobile Documents folder (iCloud root)
+    private static func isMobileDocuments(_ url: URL) -> Bool {
+        let mobileDocsPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents").path
+        return url.path == mobileDocsPath
     }
 }

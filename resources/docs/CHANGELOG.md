@@ -1,5 +1,55 @@
 # Changelog
 
+## 260106 UX Polish and Visual Refinements
+- Added: Teal accent color for file selection, tab highlight, and folder icons
+- Added: iCloud download status icon for not-downloaded files
+- Added: Get Info panel (Cmd-I) - opens Finder info window positioned left of Detour
+- Added: Copy Path to clipboard (Cmd-Option-C)
+- Added: Show in Finder action (File menu)
+- Added: Undo support for rename operations (Cmd-Z)
+- Added: Shift-Arrow selection for extending file selection
+- Added: Info windows close automatically when Detour quits
+- Added: 6 new tests for Get Info, Copy Path, and menu validation
+- Changed: Folder icons tinted with teal accent color
+- Changed: Lighter file list background (improved readability)
+- Changed: Both panes refresh after paste/move if viewing affected directories
+- Changed: Info windows cascade down and left, accounting for existing windows
+- Fixed: Get Info no longer reveals in Finder first
+
+## 260106 iCloud Drive Improvements
+- Added: iCloud button navigates to Mobile Documents (iCloud Drive root)
+- Added: Localized names for iCloud app folders (e.g., "Automator" instead of "com~apple~Automator")
+- Added: "Shared by X" label shown for iCloud shared items
+- Added: "Shared" display name for com~apple~CloudDocs folder
+- Changed: Navigating into iCloud app containers skips to Documents subfolder automatically
+- Changed: Cmd-Up from iCloud container goes directly to Mobile Documents
+- Changed: Cmd-Up stops at Mobile Documents (treats it as iCloud root)
+
+## 260106 Directory Watching and Session Persistence
+- Added: Directory watcher - file list auto-refreshes on external changes
+- Added: Persist selections per tab across app restart
+- Added: Persist active pane across app restart
+- Changed: Active pane indicator now Marta-style (only active pane shows blue selection, inactive shows nothing)
+- Fixed: Clicking empty space in file list activates pane without clearing selection
+- Fixed: Paste menu item validates clipboard files still exist
+
+## 260106 Implement Stage 3 File Operations
+- Added: File operations - copy (Cmd-C), cut (Cmd-X), paste (Cmd-V), duplicate (Cmd-D)
+- Added: Delete to trash (Cmd-Delete)
+- Added: New folder (Cmd-Shift-N)
+- Added: Inline rename (F2 or Shift-Enter)
+- Added: Move to other pane (F6)
+- Added: F-key shortcuts (F5 copy, F7 new folder, F8 delete)
+- Added: Cut items appear dimmed (50% opacity)
+- Added: Progress window for operations with >5 items
+- Added: Conflict resolution dialog (Skip/Replace/Keep Both)
+- Added: Error alerts for failed operations
+- Added: Test infrastructure with 53 unit tests
+- Added: `src/Operations/` module with ClipboardManager, FileOperationQueue, RenameController
+- Added: `Tests/` directory with test suite
+- Changed: Edit menu now has file operation items
+- Changed: File menu now has New Folder item
+
 ## 260105 Lazy Tab Loading and Keyboard Refresh
 - Changed: Tabs lazy-load directories only when selected (improves startup with many tabs)
 - Changed: Cmd-R refresh now handled at table view level for reliable focus handling

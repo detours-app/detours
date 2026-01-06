@@ -1,17 +1,25 @@
 import AppKit
 
+@MainActor
+protocol FileListKeyHandling: AnyObject {
+    func handleKeyDown(_ event: NSEvent) -> Bool
+}
+
 final class BandedTableView: NSTableView {
     private static let evenRowColor = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 0.10, alpha: 1.0)
+            ? NSColor(white: 0.18, alpha: 1.0)
             : NSColor(white: 0.96, alpha: 1.0)
     }
 
     private static let oddRowColor = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 0.07, alpha: 1.0)
+            ? NSColor(white: 0.15, alpha: 1.0)
             : NSColor(white: 0.92, alpha: 1.0)
     }
+
+    weak var keyHandler: FileListKeyHandling?
+    var onActivate: (() -> Void)?
 
     override func layout() {
         super.layout()
@@ -29,13 +37,24 @@ final class BandedTableView: NSTableView {
     }
 
     override func keyDown(with event: NSEvent) {
-        let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
-        if modifiers == .command && event.keyCode == 15 {
-            NSApp.sendAction(#selector(AppDelegate.refresh(_:)), to: nil, from: self)
+        if keyHandler?.handleKeyDown(event) == true {
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let clickedRow = row(at: point)
+
+        // If clicking empty space, just become first responder without deselecting
+        if clickedRow < 0 {
+            window?.makeFirstResponder(self)
+            onActivate?()
             return
         }
 
-        super.keyDown(with: event)
+        super.mouseDown(with: event)
     }
 
     override func drawBackground(inClipRect clipRect: NSRect) {
