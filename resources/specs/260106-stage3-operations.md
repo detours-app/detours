@@ -344,7 +344,7 @@ Conflict resolution (for copy/move):
 - [x] Observe `ClipboardManager.cutItemsDidChange` to refresh cells
 
 ### Phase 10: Verify
-- [x] Run `xcodebuild test -scheme Detour -destination 'platform=macOS'` - all 53 tests pass
+- [x] Run `xcodebuild test -scheme Detour -destination 'platform=macOS'` - all 71 tests pass
 - [ ] Cmd-C copies selected files to clipboard
 - [ ] Cmd-V pastes files to current directory
 - [ ] Cmd-X cuts files (source dimmed at 50% opacity)
@@ -378,6 +378,18 @@ Run with: `xcodebuild test -scheme Detour -destination 'platform=macOS'`
 - [x] Write `testLoadDirectorySortsFoldersFirst` - folders before files
 - [x] Write `testLoadDirectorySortsAlphabetically` - items sorted case-insensitive
 - [x] Write `testLoadDirectoryHandlesEmptyDirectory` - empty directory returns empty items
+
+### Create Tests/FileListResponderTests.swift (14 tests)
+- [x] Cover Cmd-C/Cmd-X/Cmd-V behavior and cut paste moves
+- [x] Cover Cmd-D duplicate and Cmd-R refresh
+- [x] Cover F2/Shift-Enter rename triggers
+- [x] Cover F5/F6/F7/F8 shortcuts and delegate notifications
+
+### Create Tests/SystemKeyHandlerTests.swift (4 tests)
+- [x] Parse system-defined media key events for dictation/F5
+- [x] Route dictation key to copy in the active pane
+- [x] Route system-defined F5 to copy in the active pane
+- [x] Route global key-down F5 to copy in the active pane
 
 ### Create Tests/FileItemTests.swift (9 tests)
 - [x] Write `testInitFromFile` - FileItem loads name, size, date from file URL

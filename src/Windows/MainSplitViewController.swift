@@ -1,10 +1,15 @@
 import AppKit
+import os.log
+
+private let logger = Logger(subsystem: "com.detour", category: "split")
 
 final class MainSplitViewController: NSSplitViewController {
     private let leftPane = PaneViewController()
     private let rightPane = PaneViewController()
     private var activePaneIndex: Int = 0
     private let defaults = UserDefaults.standard
+    private var lastMediaKeyCode: Int?
+    private var lastMediaKeyTimestamp: TimeInterval = 0
 
     private enum SessionKeys {
         static let leftTabs = "Detour.LeftPaneTabs"
@@ -220,19 +225,114 @@ final class MainSplitViewController: NSSplitViewController {
         let destinationPane = otherPane(from: pane)
         guard let destination = destinationPane.currentDirectory else { return }
 
+        // Remember selection index to restore after move
+        let selectedIndex = pane.selectedTab?.fileListViewController.tableView.selectedRow ?? 0
+
         Task { @MainActor in
             do {
                 try await FileOperationQueue.shared.move(items: items, to: destination)
                 pane.refresh()
                 destinationPane.refresh()
+                // Select next file at same index (Norton Commander convention)
+                if let tab = pane.selectedTab {
+                    let tableView = tab.fileListViewController.tableView
+                    let itemCount = tab.fileListViewController.dataSource.items.count
+                    if itemCount > 0 {
+                        let newIndex = min(selectedIndex, itemCount - 1)
+                        tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                        tableView.scrollRowToVisible(newIndex)
+                    }
+                    view.window?.makeFirstResponder(tableView)
+                }
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
         }
     }
 
+    func copyItems(_ items: [URL], toOtherPaneFrom pane: PaneViewController) {
+        guard !items.isEmpty else { return }
+        let destinationPane = otherPane(from: pane)
+        guard let destination = destinationPane.currentDirectory else { return }
+
+        Task { @MainActor in
+            do {
+                try await FileOperationQueue.shared.copy(items: items, to: destination)
+                destinationPane.refresh()
+                // Keep focus on source pane (Norton Commander convention)
+                if let tab = pane.selectedTab {
+                    view.window?.makeFirstResponder(tab.fileListViewController.tableView)
+                }
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    func refreshPanes(matching directories: Set<URL>) {
+        guard !directories.isEmpty else { return }
+        let normalized = Set(directories.map { normalizeDirectory($0) })
+
+        if let leftDirectory = leftPane.currentDirectory,
+           normalized.contains(normalizeDirectory(leftDirectory)) {
+            refreshPanePreservingSelection(leftPane)
+        }
+
+        if let rightDirectory = rightPane.currentDirectory,
+           normalized.contains(normalizeDirectory(rightDirectory)) {
+            refreshPanePreservingSelection(rightPane)
+        }
+    }
+
+    private func refreshPanePreservingSelection(_ pane: PaneViewController) {
+        guard let tab = pane.selectedTab else {
+            pane.refresh()
+            return
+        }
+        let selectedIndex = tab.fileListViewController.tableView.selectedRow
+        pane.refresh()
+        let tableView = tab.fileListViewController.tableView
+        let itemCount = tab.fileListViewController.dataSource.items.count
+        if itemCount > 0 && selectedIndex >= 0 {
+            let newIndex = min(selectedIndex, itemCount - 1)
+            tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+            tableView.scrollRowToVisible(newIndex)
+        }
+    }
+
+    func handleSystemDefinedEvent(_ event: NSEvent) -> Bool {
+        guard let keyCode = SystemMediaKey.keyCodeIfKeyDown(from: event) ?? SystemMediaKey.keyCode(from: event),
+              SystemMediaKey.isCopyKeyCode(keyCode) else { return false }
+
+        let now = event.timestamp
+        if keyCode == lastMediaKeyCode, now - lastMediaKeyTimestamp < 0.2 {
+            return true
+        }
+
+        lastMediaKeyCode = keyCode
+        lastMediaKeyTimestamp = now
+        copySelectedItemsToOtherPane()
+        return true
+    }
+
+    func handleGlobalKeyDown(_ event: NSEvent) -> Bool {
+        if event.specialKey == .f5 || event.keyCode == SystemMediaKey.f5KeyCode {
+            copySelectedItemsToOtherPane()
+            return true
+        }
+        return false
+    }
+
+    private func copySelectedItemsToOtherPane() {
+        copyItems(activePane.selectedTab?.fileListViewController.selectedURLs ?? [], toOtherPaneFrom: activePane)
+    }
+
     func otherPane(from pane: PaneViewController) -> PaneViewController {
         pane === leftPane ? rightPane : leftPane
+    }
+
+    private func normalizeDirectory(_ url: URL) -> URL {
+        URL(fileURLWithPath: url.standardizedFileURL.path)
     }
 
     // MARK: - Keyboard Handling

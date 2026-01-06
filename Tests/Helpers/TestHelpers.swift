@@ -24,3 +24,14 @@ func createTestFolder(in directory: URL, name: String) throws -> URL {
 func cleanupTempDirectory(_ url: URL) {
     try? FileManager.default.removeItem(at: url)
 }
+
+func waitForFile(at url: URL, exists: Bool, timeout: TimeInterval = 2.0) async -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if FileManager.default.fileExists(atPath: url.path) == exists {
+            return true
+        }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+    }
+    return FileManager.default.fileExists(atPath: url.path) == exists
+}

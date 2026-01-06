@@ -30,11 +30,14 @@ temporary directories; avoid mocks. Run the full suite with `xcodebuild test`.
 
 ## Agent Communication
 When the user asks a question, answer it directly before running commands or
-making edits. Do not silently start changes until the question is addressed.
+making edits. Include a brief hint about what you plan to check or change
+before starting work (avoid “Working…” without context).
 
 ## Test Workflow
 Always follow this loop: run tests, fix failures, update `Tests/TEST_LOG.md`,
-then run the next test cycle if needed.
+then run the next test cycle if needed. Log every test with a per-test
+timestamp in `yyyy-mm-dd hh:mm:ss` format, and date-stamp notes like a
+changelog.
 
 ## Commit & Pull Request Guidelines
 Branch names use `feature/...` or `fix/...`. Commit messages are imperative and

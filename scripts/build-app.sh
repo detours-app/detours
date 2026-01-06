@@ -3,12 +3,30 @@ set -e
 
 cd "$(dirname "$0")/.."
 
+APP_NAME="Detour"
+APP_BUNDLE_ID="com.detour.app"
+APP_DIR="build/${APP_NAME}.app"
+
+if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+    echo "Detour is running; quitting before rebuild..."
+    osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
+    for _ in {1..50}; do
+        if ! pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.1
+    done
+    if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+        echo "Detour is still running; refusing to overwrite the app bundle."
+        exit 1
+    fi
+fi
+
 # Build the executable
 swift build -c release
 
 # Create app bundle structure
 APP_NAME="Detour"
-APP_DIR="build/${APP_NAME}.app"
 CONTENTS_DIR="${APP_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
@@ -64,7 +82,6 @@ echo -n "APPL????" > "${CONTENTS_DIR}/PkgInfo"
 # Copy icon
 cp resources/AppIcon.icns "${RESOURCES_DIR}/"
 
-APP_DIR="build/${APP_NAME}.app"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Detour Dev}"
 CODESIGN_KEYCHAIN="${CODESIGN_KEYCHAIN:-$HOME/Library/Keychains/detour-codesign.keychain-db}"
 

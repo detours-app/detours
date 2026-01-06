@@ -63,6 +63,7 @@ src/
 - Run with: `xcodebuild test` or Xcode Test Navigator
 - Test files go in `Tests/`
 - No mocks - prefer real file system operations with temp directories
+- Always build and run the app to verify changes work. Check Console.app or terminal logs to debug issues - don't ask the user to do it.
 
 ---
 

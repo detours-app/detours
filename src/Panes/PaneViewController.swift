@@ -521,4 +521,16 @@ extension PaneViewController: FileListNavigationDelegate {
             splitVC.moveItems(items, toOtherPaneFrom: self)
         }
     }
+
+    func fileListDidRequestCopyToOtherPane(items: [URL]) {
+        if let splitVC = parent as? MainSplitViewController {
+            splitVC.copyItems(items, toOtherPaneFrom: self)
+        }
+    }
+
+    func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>) {
+        if let splitVC = parent as? MainSplitViewController {
+            splitVC.refreshPanes(matching: directories)
+        }
+    }
 }

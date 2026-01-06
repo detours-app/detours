@@ -1,5 +1,10 @@
 import AppKit
 
+@MainActor
+protocol FileListKeyHandling: AnyObject {
+    func handleKeyDown(_ event: NSEvent) -> Bool
+}
+
 final class BandedTableView: NSTableView {
     private static let evenRowColor = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -12,6 +17,8 @@ final class BandedTableView: NSTableView {
             ? NSColor(white: 0.07, alpha: 1.0)
             : NSColor(white: 0.92, alpha: 1.0)
     }
+
+    weak var keyHandler: FileListKeyHandling?
 
     override func layout() {
         super.layout()
@@ -29,12 +36,9 @@ final class BandedTableView: NSTableView {
     }
 
     override func keyDown(with event: NSEvent) {
-        let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
-        if modifiers == .command && event.keyCode == 15 {
-            NSApp.sendAction(#selector(AppDelegate.refresh(_:)), to: nil, from: self)
+        if keyHandler?.handleKeyDown(event) == true {
             return
         }
-
         super.keyDown(with: event)
     }
 

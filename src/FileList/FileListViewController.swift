@@ -1,4 +1,7 @@
 import AppKit
+import os.log
+
+private let logger = Logger(subsystem: "com.detour", category: "filelist")
 
 @MainActor
 protocol FileListNavigationDelegate: AnyObject {
@@ -8,12 +11,14 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidBecomeActive()
     func fileListDidRequestOpenInNewTab(url: URL)
     func fileListDidRequestMoveToOtherPane(items: [URL])
+    func fileListDidRequestCopyToOtherPane(items: [URL])
+    func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>)
 }
 
-final class FileListViewController: NSViewController {
+final class FileListViewController: NSViewController, FileListKeyHandling {
     let tableView = BandedTableView()
     private let scrollView = NSScrollView()
-    private let dataSource = FileListDataSource()
+    let dataSource = FileListDataSource()
 
     weak var navigationDelegate: FileListNavigationDelegate?
 
@@ -36,6 +41,8 @@ final class FileListViewController: NSViewController {
         setupColumns()
 
         dataSource.tableView = tableView
+        tableView.keyHandler = self
+        tableView.nextResponder = self
         renameController.delegate = self
 
         if let pendingDirectory {
@@ -176,7 +183,7 @@ final class FileListViewController: NSViewController {
         dataSource.items(at: tableView.selectedRowIndexes)
     }
 
-    private var selectedURLs: [URL] {
+    var selectedURLs: [URL] {
         selectedItems.map { $0.url }
     }
 
@@ -204,8 +211,13 @@ final class FileListViewController: NSViewController {
 
     private func copySelection() {
         let urls = selectedURLs
-        guard !urls.isEmpty else { return }
+        logger.warning("copySelection called, urls=\(urls)")
+        guard !urls.isEmpty else {
+            logger.error("copySelection: no URLs selected")
+            return
+        }
         ClipboardManager.shared.copy(items: urls)
+        logger.warning("copySelection: copied \(urls.count) items to clipboard")
     }
 
     private func cutSelection() {
@@ -216,11 +228,33 @@ final class FileListViewController: NSViewController {
 
     private func pasteHere() {
         guard let currentDirectory else { return }
+        let wasCut = ClipboardManager.shared.isCut
+        let sourceDirectories: Set<URL>
+        let pastedNames = ClipboardManager.shared.items.map { $0.lastPathComponent }
+
+        if wasCut {
+            sourceDirectories = Set(
+                ClipboardManager.shared.items.map { $0.deletingLastPathComponent().standardizedFileURL }
+            )
+        } else {
+            sourceDirectories = []
+        }
 
         Task { @MainActor in
             do {
                 try await ClipboardManager.shared.paste(to: currentDirectory)
                 loadDirectory(currentDirectory)
+                // Select the first pasted file
+                if let firstName = pastedNames.first,
+                   let index = dataSource.items.firstIndex(where: { $0.name == firstName }) {
+                    tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                    tableView.scrollRowToVisible(index)
+                }
+                if wasCut, !sourceDirectories.isEmpty {
+                    navigationDelegate?.fileListDidRequestRefreshSourceDirectories(sourceDirectories)
+                }
+                // Keep focus on destination pane (where we pasted)
+                view.window?.makeFirstResponder(tableView)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -284,6 +318,12 @@ final class FileListViewController: NSViewController {
         navigationDelegate?.fileListDidRequestMoveToOtherPane(items: urls)
     }
 
+    private func copySelectionToOtherPane() {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+        navigationDelegate?.fileListDidRequestCopyToOtherPane(items: urls)
+    }
+
     private func selectItem(at url: URL) {
         if let index = dataSource.items.firstIndex(where: { $0.url == url }) {
             tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
@@ -293,29 +333,28 @@ final class FileListViewController: NSViewController {
 
     // MARK: - Keyboard Handling
 
-    override func keyDown(with event: NSEvent) {
+    func handleKeyDown(_ event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
 
-        // Cmd-R: refresh current directory
-        if modifiers == .command && event.keyCode == 15 {
-            refreshCurrentDirectory()
-            return
-        }
-
         if modifiers == .command, let chars = event.charactersIgnoringModifiers?.lowercased() {
+            if chars == "r" {
+                refreshCurrentDirectory()
+                return true
+            }
+
             switch chars {
             case "c":
                 copySelection()
-                return
+                return true
             case "x":
                 cutSelection()
-                return
+                return true
             case "v":
                 pasteHere()
-                return
+                return true
             case "d":
                 duplicateSelection()
-                return
+                return true
             default:
                 break
             }
@@ -325,76 +364,74 @@ final class FileListViewController: NSViewController {
            let chars = event.charactersIgnoringModifiers?.lowercased(),
            chars == "n" {
             createNewFolder()
-            return
+            return true
         }
 
         if modifiers == .command && event.keyCode == 51 {
             deleteSelection()
-            return
+            return true
         }
 
         if modifiers == .shift && event.keyCode == 36 {
             renameSelection()
-            return
+            return true
         }
 
-        if let specialKey = event.specialKey {
-            switch specialKey {
-            case .f2:
-                renameSelection()
-                return
-            case .f5:
-                copySelection()
-                return
-            case .f6:
-                moveSelectionToOtherPane()
-                return
-            case .f7:
-                createNewFolder()
-                return
-            case .f8:
-                deleteSelection()
-                return
-            default:
-                break
-            }
+        if let specialKey = event.specialKey, handleFunctionKey(specialKey) {
+            return true
+        }
+
+        if handleFunctionKeyCode(event.keyCode) {
+            return true
         }
 
         // Cmd-Shift-Down: open folder in new tab
         if modifiers == [.command, .shift] && event.keyCode == 125 {
             openSelectedItemInNewTab()
-            return
+            return true
         }
 
         // Cmd-Down: open (same as Enter)
         if modifiers == .command && event.keyCode == 125 {
             openSelectedItem()
-            return
+            return true
         }
 
         // Cmd-Up: go to parent
         if modifiers == .command && event.keyCode == 126 {
             navigationDelegate?.fileListDidRequestParentNavigation()
-            return
+            return true
         }
 
         switch event.keyCode {
         case 36: // Enter
             openSelectedItem()
+            return true
         case 48: // Tab
             navigationDelegate?.fileListDidRequestSwitchPane()
+            return true
         case 126: // Up arrow
             moveSelectionUp()
+            return true
         case 125: // Down arrow
             moveSelectionDown()
+            return true
         default:
             // Type-to-select: handle character keys
             if let chars = event.characters, !chars.isEmpty && modifiers.isEmpty {
                 handleTypeSelect(chars)
-            } else {
-                super.keyDown(with: event)
+                return true
             }
         }
+
+        return false
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if handleKeyDown(event) {
+            return
+        }
+        super.keyDown(with: event)
     }
 
     private func moveSelectionUp() {
@@ -439,6 +476,50 @@ final class FileListViewController: NSViewController {
     private func refreshCurrentDirectory() {
         guard let currentDirectory else { return }
         loadDirectory(currentDirectory)
+    }
+
+    private func handleFunctionKey(_ key: NSEvent.SpecialKey) -> Bool {
+        switch key {
+        case .f2:
+            renameSelection()
+            return true
+        case .f5:
+            copySelectionToOtherPane()
+            return true
+        case .f6:
+            moveSelectionToOtherPane()
+            return true
+        case .f7:
+            createNewFolder()
+            return true
+        case .f8:
+            deleteSelection()
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func handleFunctionKeyCode(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case 120: // F2
+            renameSelection()
+            return true
+        case 96: // F5
+            copySelectionToOtherPane()
+            return true
+        case 97: // F6
+            moveSelectionToOtherPane()
+            return true
+        case 98: // F7
+            createNewFolder()
+            return true
+        case 100: // F8
+            deleteSelection()
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - First Responder
