@@ -183,35 +183,35 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 ## Implementation Plan
 
 ### Phase 1: Frecency Store
-- [ ] Create `src/Navigation/` directory
-- [ ] Create `FrecencyStore.swift` with entry struct and storage
-- [ ] Implement `recordVisit()`, `load()`, `save()`
-- [ ] Implement `topDirectories(matching:limit:)` with fuzzy match
-- [ ] Implement frecency scoring with time decay
-- [ ] Create `Tests/FrecencyStoreTests.swift`
+- [x] Create `src/Navigation/` directory
+- [x] Create `FrecencyStore.swift` with entry struct and storage
+- [x] Implement `recordVisit()`, `load()`, `save()`
+- [x] Implement `topDirectories(matching:limit:)` with fuzzy match
+- [x] Implement frecency scoring with time decay
+- [x] Create `Tests/FrecencyStoreTests.swift`
 
 ### Phase 2: SwiftUI View
-- [ ] Create `QuickNavView.swift` with layout
-- [ ] Implement query binding and debounced search
-- [ ] Implement keyboard navigation (Up/Down/Enter/Escape)
-- [ ] Implement Tab autocomplete
-- [ ] Style according to overview spec (colors, fonts, spacing)
+- [x] Create `QuickNavView.swift` with layout
+- [x] Implement query binding and debounced search
+- [x] Implement keyboard navigation (Up/Down/Enter/Escape)
+- [x] Implement Tab autocomplete
+- [x] Style according to overview spec (colors, fonts, spacing)
 
 ### Phase 3: AppKit Integration
-- [ ] Create `QuickNavController.swift`
-- [ ] Implement popover presentation and positioning
-- [ ] Wire `onSelect` to dismiss and return URL
-- [ ] Add `quickNavController` property to `MainSplitViewController`
-- [ ] Implement `showQuickNav()` and `quickOpen(_:)` methods
+- [x] Create `QuickNavController.swift`
+- [x] Implement popover presentation and positioning
+- [x] Wire `onSelect` to dismiss and return URL
+- [x] Add `quickNavController` property to `MainSplitViewController`
+- [x] Implement `showQuickNav()` and `quickOpen(_:)` methods
 
 ### Phase 4: Menu and Recording
-- [ ] Add Go menu to `MainMenu.swift`
-- [ ] Add Cmd-P shortcut for Quick Open
-- [ ] Add `recordVisit()` call in `FileListViewController.loadDirectory()`
-- [ ] Verify frecency updates on every navigation
+- [x] Add Go menu to `MainMenu.swift`
+- [x] Add Cmd-P shortcut for Quick Open
+- [x] Add `recordVisit()` call in `FileListViewController.loadDirectory()`
+- [x] Verify frecency updates on every navigation
 
 ### Phase 5: Verify
-- [ ] Run all tests
+- [x] Run all tests
 - [ ] Cmd-P opens popover centered in window
 - [ ] Typing filters results with fuzzy matching
 - [ ] Empty query shows recent directories
@@ -228,18 +228,18 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 
 ### Automated Tests (Tests/FrecencyStoreTests.swift)
 
-- [ ] `testRecordVisitCreatesEntry` - new path creates entry with count=1
-- [ ] `testRecordVisitIncrementsCount` - existing path increments visitCount
-- [ ] `testRecordVisitUpdatesLastVisit` - lastVisit updated to now
-- [ ] `testFrecencyScoreDecaysOverTime` - older entries score lower
-- [ ] `testFuzzyMatchPartialName` - "dtour" matches "detour"
-- [ ] `testFuzzyMatchCaseInsensitive` - "DOC" matches "Documents"
-- [ ] `testFuzzyMatchCharactersInOrder` - "dtr" matches "detour", "rdt" doesn't
-- [ ] `testTopDirectoriesSortedByFrecency` - higher frecency first
-- [ ] `testTopDirectoriesLimit` - respects limit parameter
-- [ ] `testLoadSaveRoundTrip` - data persists and loads correctly
-- [ ] `testTildeExpansion` - "~" expands to home directory
-- [ ] `testNonDirectoryExcluded` - files don't appear in results
+- [x] `testRecordVisitCreatesEntry` - new path creates entry with count=1
+- [x] `testRecordVisitIncrementsCount` - existing path increments visitCount
+- [x] `testRecordVisitUpdatesLastVisit` - lastVisit updated to now
+- [x] `testFrecencyScoreDecaysOverTime` - older entries score lower
+- [x] `testFuzzyMatchPartialName` - "dtour" matches "detour"
+- [x] `testFuzzyMatchCaseInsensitive` - "DOC" matches "Documents"
+- [x] `testFuzzyMatchCharactersInOrder` - "dtr" matches "detour", "trd" doesn't
+- [x] `testTopDirectoriesSortedByFrecency` - higher frecency first
+- [x] `testTopDirectoriesLimit` - respects limit parameter
+- [x] `testLoadSaveRoundTrip` - data persists and loads correctly
+- [x] `testTildeExpansion` - "~" expands to home directory
+- [x] `testNonDirectoryExcluded` - files don't appear in results
 
 ### Manual Verification
 

@@ -174,6 +174,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         }
 
         startWatching(url)
+
+        // Track directory visit for frecency
+        FrecencyStore.shared.recordVisit(url)
     }
 
     private func startWatching(_ url: URL) {

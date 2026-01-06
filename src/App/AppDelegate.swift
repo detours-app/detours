@@ -102,4 +102,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func refresh(_ sender: Any?) {
         mainWindowController?.splitViewController.refresh(sender)
     }
+
+    @objc func quickOpen(_ sender: Any?) {
+        mainWindowController?.splitViewController.quickOpen(sender)
+    }
 }

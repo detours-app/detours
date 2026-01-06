@@ -1,5 +1,15 @@
 # Changelog
 
+## 260106 Stage 4 Quick Navigation (Cmd-P)
+- Added: Quick navigation popover (Cmd-P) for fast directory access
+- Added: Frecency tracking - frequently/recently visited directories rank higher
+- Added: Filesystem search across Documents, Downloads, Desktop, dev, iCloud
+- Added: Go menu with Quick Open, Back, Forward, Enclosing Folder, Refresh
+- Added: Star icon for frecent directories in results
+- Added: Tab autocomplete in quick nav popover
+- Added: 17 new tests for frecency and quick nav functionality
+- Changed: Search uses substring matching (not fuzzy) for accurate results
+
 ## 260106 UX Polish and Visual Refinements
 - Added: Teal accent color for file selection, tab highlight, and folder icons
 - Added: iCloud download status icon for not-downloaded files

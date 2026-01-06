@@ -10,6 +10,7 @@ final class MainSplitViewController: NSSplitViewController {
     private let defaults = UserDefaults.standard
     private var lastMediaKeyCode: Int?
     private var lastMediaKeyTimestamp: TimeInterval = 0
+    private var quickNavController: QuickNavController?
 
     private enum SessionKeys {
         static let leftTabs = "Detour.LeftPaneTabs"
@@ -211,6 +212,27 @@ final class MainSplitViewController: NSSplitViewController {
 
     @objc func refresh(_ sender: Any?) {
         activePane.refresh()
+    }
+
+    @objc func quickOpen(_ sender: Any?) {
+        showQuickNav()
+    }
+
+    private func showQuickNav() {
+        guard let window = view.window else { return }
+
+        if quickNavController == nil {
+            quickNavController = QuickNavController()
+        }
+
+        quickNavController?.show(in: window) { [weak self] url in
+            self?.navigateActivePane(to: url)
+        }
+    }
+
+    private func navigateActivePane(to url: URL) {
+        activePane.navigate(to: url)
+        FrecencyStore.shared.recordVisit(url)
     }
 
     // MARK: - Tab Actions
