@@ -215,6 +215,22 @@ final class MainSplitViewController: NSSplitViewController {
         toPane.insertTab(removed, at: atIndex)
     }
 
+    func moveItems(_ items: [URL], toOtherPaneFrom pane: PaneViewController) {
+        guard !items.isEmpty else { return }
+        let destinationPane = otherPane(from: pane)
+        guard let destination = destinationPane.currentDirectory else { return }
+
+        Task { @MainActor in
+            do {
+                try await FileOperationQueue.shared.move(items: items, to: destination)
+                pane.refresh()
+                destinationPane.refresh()
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
     func otherPane(from pane: PaneViewController) -> PaneViewController {
         pane === leftPane ? rightPane : leftPane
     }

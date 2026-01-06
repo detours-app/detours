@@ -7,6 +7,7 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestSwitchPane()
     func fileListDidBecomeActive()
     func fileListDidRequestOpenInNewTab(url: URL)
+    func fileListDidRequestMoveToOtherPane(items: [URL])
 }
 
 final class FileListViewController: NSViewController {
@@ -21,6 +22,7 @@ final class FileListViewController: NSViewController {
     private var pendingDirectory: URL?
     private var currentDirectory: URL?
     private var hasLoadedDirectory = false
+    private let renameController = RenameController()
 
     override func loadView() {
         view = NSView()
@@ -34,6 +36,7 @@ final class FileListViewController: NSViewController {
         setupColumns()
 
         dataSource.tableView = tableView
+        renameController.delegate = self
 
         if let pendingDirectory {
             self.pendingDirectory = nil
@@ -169,6 +172,14 @@ final class FileListViewController: NSViewController {
 
     // MARK: - Actions
 
+    private var selectedItems: [FileItem] {
+        dataSource.items(at: tableView.selectedRowIndexes)
+    }
+
+    private var selectedURLs: [URL] {
+        selectedItems.map { $0.url }
+    }
+
     private func openSelectedItem() {
         let row = tableView.selectedRow
         guard row >= 0 && row < dataSource.items.count else { return }
@@ -191,6 +202,95 @@ final class FileListViewController: NSViewController {
         }
     }
 
+    private func copySelection() {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+        ClipboardManager.shared.copy(items: urls)
+    }
+
+    private func cutSelection() {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+        ClipboardManager.shared.cut(items: urls)
+    }
+
+    private func pasteHere() {
+        guard let currentDirectory else { return }
+
+        Task { @MainActor in
+            do {
+                try await ClipboardManager.shared.paste(to: currentDirectory)
+                loadDirectory(currentDirectory)
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    private func deleteSelection() {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+
+        Task { @MainActor in
+            do {
+                try await FileOperationQueue.shared.delete(items: urls)
+                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent())
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    private func duplicateSelection() {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+
+        Task { @MainActor in
+            do {
+                _ = try await FileOperationQueue.shared.duplicate(items: urls)
+                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent())
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    private func createNewFolder() {
+        guard let currentDirectory else { return }
+
+        Task { @MainActor in
+            do {
+                let newFolder = try await FileOperationQueue.shared.createFolder(in: currentDirectory, name: "untitled folder")
+                loadDirectory(currentDirectory)
+                selectItem(at: newFolder)
+                renameSelection()
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    private func renameSelection() {
+        guard tableView.selectedRowIndexes.count == 1 else { return }
+        let row = tableView.selectedRow
+        guard row >= 0 && row < dataSource.items.count else { return }
+        let item = dataSource.items[row]
+        renameController.beginRename(for: item, in: tableView, at: row)
+    }
+
+    private func moveSelectionToOtherPane() {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+        navigationDelegate?.fileListDidRequestMoveToOtherPane(items: urls)
+    }
+
+    private func selectItem(at url: URL) {
+        if let index = dataSource.items.firstIndex(where: { $0.url == url }) {
+            tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+            tableView.scrollRowToVisible(index)
+        }
+    }
+
     // MARK: - Keyboard Handling
 
     override func keyDown(with event: NSEvent) {
@@ -200,6 +300,64 @@ final class FileListViewController: NSViewController {
         if modifiers == .command && event.keyCode == 15 {
             refreshCurrentDirectory()
             return
+        }
+
+        if modifiers == .command, let chars = event.charactersIgnoringModifiers?.lowercased() {
+            switch chars {
+            case "c":
+                copySelection()
+                return
+            case "x":
+                cutSelection()
+                return
+            case "v":
+                pasteHere()
+                return
+            case "d":
+                duplicateSelection()
+                return
+            default:
+                break
+            }
+        }
+
+        if modifiers == [.command, .shift],
+           let chars = event.charactersIgnoringModifiers?.lowercased(),
+           chars == "n" {
+            createNewFolder()
+            return
+        }
+
+        if modifiers == .command && event.keyCode == 51 {
+            deleteSelection()
+            return
+        }
+
+        if modifiers == .shift && event.keyCode == 36 {
+            renameSelection()
+            return
+        }
+
+        if let specialKey = event.specialKey {
+            switch specialKey {
+            case .f2:
+                renameSelection()
+                return
+            case .f5:
+                copySelection()
+                return
+            case .f6:
+                moveSelectionToOtherPane()
+                return
+            case .f7:
+                createNewFolder()
+                return
+            case .f8:
+                deleteSelection()
+                return
+            default:
+                break
+            }
         }
 
         // Cmd-Shift-Down: open folder in new tab
@@ -289,5 +447,60 @@ final class FileListViewController: NSViewController {
 
     override func becomeFirstResponder() -> Bool {
         return tableView.becomeFirstResponder()
+    }
+}
+
+// MARK: - Responder Actions
+
+extension FileListViewController {
+    @objc func copy(_ sender: Any?) {
+        copySelection()
+    }
+
+    @objc func cut(_ sender: Any?) {
+        cutSelection()
+    }
+
+    @objc func paste(_ sender: Any?) {
+        pasteHere()
+    }
+
+    @objc func delete(_ sender: Any?) {
+        deleteSelection()
+    }
+
+    @objc func duplicate(_ sender: Any?) {
+        duplicateSelection()
+    }
+
+    @objc func newFolder(_ sender: Any?) {
+        createNewFolder()
+    }
+}
+
+// MARK: - Menu Validation
+
+extension FileListViewController: NSMenuItemValidation {
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(copy(_:)), #selector(cut(_:)), #selector(delete(_:)), #selector(duplicate(_:)):
+            return !selectedURLs.isEmpty
+        case #selector(paste(_:)):
+            return ClipboardManager.shared.hasItems && currentDirectory != nil
+        case #selector(newFolder(_:)):
+            return currentDirectory != nil
+        default:
+            return true
+        }
+    }
+}
+
+// MARK: - RenameControllerDelegate
+
+extension FileListViewController: RenameControllerDelegate {
+    func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL) {
+        guard let currentDirectory else { return }
+        loadDirectory(currentDirectory)
+        selectItem(at: newURL)
     }
 }

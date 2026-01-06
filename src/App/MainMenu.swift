@@ -20,6 +20,11 @@ func setupMainMenu(target: AppDelegate) {
     fileMenuItem.submenu = fileMenu
     mainMenu.addItem(fileMenuItem)
 
+    let newFolderItem = NSMenuItem(title: "New Folder", action: #selector(FileListViewController.newFolder(_:)), keyEquivalent: "n")
+    newFolderItem.keyEquivalentModifierMask = [.command, .shift]
+    fileMenu.addItem(newFolderItem)
+    fileMenu.addItem(NSMenuItem.separator())
+
     // Close Tab is now Cmd-W, Close Window is Cmd-Shift-W
     let closeTabItem = NSMenuItem(title: "Close Tab", action: #selector(AppDelegate.closeTab(_:)), keyEquivalent: "w")
     closeTabItem.target = target
@@ -29,19 +34,31 @@ func setupMainMenu(target: AppDelegate) {
     closeWindowItem.keyEquivalentModifierMask = [.command, .shift]
     fileMenu.addItem(closeWindowItem)
 
-    // Edit menu - needs at least one item to be valid
+    // Edit menu
     let editMenu = NSMenu(title: "Edit")
     let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
     editMenuItem.submenu = editMenu
     mainMenu.addItem(editMenuItem)
 
-    // Add standard edit items so the menu isn't empty
     editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
     editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
     editMenu.addItem(NSMenuItem.separator())
-    editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-    editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-    editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+
+    let cutItem = NSMenuItem(title: "Cut", action: #selector(FileListViewController.cut(_:)), keyEquivalent: "x")
+    let copyItem = NSMenuItem(title: "Copy", action: #selector(FileListViewController.copy(_:)), keyEquivalent: "c")
+    let pasteItem = NSMenuItem(title: "Paste", action: #selector(FileListViewController.paste(_:)), keyEquivalent: "v")
+    let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(FileListViewController.duplicate(_:)), keyEquivalent: "d")
+
+    editMenu.addItem(cutItem)
+    editMenu.addItem(copyItem)
+    editMenu.addItem(pasteItem)
+    editMenu.addItem(duplicateItem)
+    editMenu.addItem(NSMenuItem.separator())
+
+    let deleteItem = NSMenuItem(title: "Move to Trash", action: #selector(FileListViewController.delete(_:)), keyEquivalent: String(Character(UnicodeScalar(NSDeleteCharacter)!)))
+    deleteItem.keyEquivalentModifierMask = NSEvent.ModifierFlags.command
+    editMenu.addItem(deleteItem)
+    editMenu.addItem(NSMenuItem.separator())
     editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
 
     // View menu - Tab controls

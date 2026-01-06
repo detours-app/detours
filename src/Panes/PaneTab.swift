@@ -33,28 +33,29 @@ final class PaneTab {
 
     init(directory: URL) {
         self.id = UUID()
-        self.currentDirectory = directory
+        self.currentDirectory = Self.normalizeDirectoryURL(directory)
     }
 
     // MARK: - Navigation
 
     /// Navigate to a directory, optionally adding current to history
     func navigate(to url: URL, addToHistory: Bool = true) {
+        let normalized = Self.normalizeDirectoryURL(url)
         // Check if it's actually a directory
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+        guard FileManager.default.fileExists(atPath: normalized.path, isDirectory: &isDirectory),
               isDirectory.boolValue else {
             // It's a file, open it with default app
-            NSWorkspace.shared.open(url)
+            NSWorkspace.shared.open(normalized)
             return
         }
 
-        if addToHistory && currentDirectory != url {
+        if addToHistory && currentDirectory != normalized {
             backStack.append(currentDirectory)
             forwardStack.removeAll()
         }
 
-        currentDirectory = url
+        currentDirectory = normalized
         fileListViewController.loadDirectory(currentDirectory)
     }
 
@@ -85,7 +86,7 @@ final class PaneTab {
     /// Go to parent directory. Returns false if already at root.
     @discardableResult
     func goUp() -> Bool {
-        let parent = currentDirectory.deletingLastPathComponent()
+        let parent = Self.normalizeDirectoryURL(currentDirectory.deletingLastPathComponent())
         guard parent != currentDirectory else { return false }
         navigate(to: parent)
         return true
@@ -97,5 +98,9 @@ final class PaneTab {
 
     var canGoForward: Bool {
         !forwardStack.isEmpty
+    }
+
+    private static func normalizeDirectoryURL(_ url: URL) -> URL {
+        URL(fileURLWithPath: url.standardizedFileURL.path)
     }
 }

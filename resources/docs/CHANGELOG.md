@@ -1,5 +1,22 @@
 # Changelog
 
+## 260106 Implement Stage 3 File Operations
+- Added: File operations - copy (Cmd-C), cut (Cmd-X), paste (Cmd-V), duplicate (Cmd-D)
+- Added: Delete to trash (Cmd-Delete)
+- Added: New folder (Cmd-Shift-N)
+- Added: Inline rename (F2 or Shift-Enter)
+- Added: Move to other pane (F6)
+- Added: F-key shortcuts (F5 copy, F7 new folder, F8 delete)
+- Added: Cut items appear dimmed (50% opacity)
+- Added: Progress window for operations with >5 items
+- Added: Conflict resolution dialog (Skip/Replace/Keep Both)
+- Added: Error alerts for failed operations
+- Added: Test infrastructure with 53 unit tests
+- Added: `src/Operations/` module with ClipboardManager, FileOperationQueue, RenameController
+- Added: `Tests/` directory with test suite
+- Changed: Edit menu now has file operation items
+- Changed: File menu now has New Folder item
+
 ## 260105 Lazy Tab Loading and Keyboard Refresh
 - Changed: Tabs lazy-load directories only when selected (improves startup with many tabs)
 - Changed: Cmd-R refresh now handled at table view level for reliable focus handling

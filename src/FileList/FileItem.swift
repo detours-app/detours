@@ -8,6 +8,15 @@ struct FileItem {
     let dateModified: Date
     let icon: NSImage
 
+    init(name: String, url: URL, isDirectory: Bool, size: Int64?, dateModified: Date, icon: NSImage) {
+        self.name = name
+        self.url = url
+        self.isDirectory = isDirectory
+        self.size = size
+        self.dateModified = dateModified
+        self.icon = icon
+    }
+
     init(url: URL) {
         self.url = url
         self.name = url.lastPathComponent

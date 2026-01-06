@@ -269,6 +269,10 @@ final class PaneViewController: NSViewController {
         reloadTabBar()
     }
 
+    var currentDirectory: URL? {
+        selectedTab?.currentDirectory
+    }
+
     func refresh() {
         selectedTab?.refresh()
         updateNavigationControls()
@@ -510,5 +514,11 @@ extension PaneViewController: FileListNavigationDelegate {
 
     func fileListDidRequestOpenInNewTab(url: URL) {
         createTab(at: url, select: true)
+    }
+
+    func fileListDidRequestMoveToOtherPane(items: [URL]) {
+        if let splitVC = parent as? MainSplitViewController {
+            splitVC.moveItems(items, toOtherPaneFrom: self)
+        }
     }
 }

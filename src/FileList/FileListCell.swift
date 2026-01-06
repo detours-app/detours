@@ -3,6 +3,7 @@ import AppKit
 final class FileListCell: NSTableCellView {
     private let iconView = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
+    private var itemURL: URL?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -46,10 +47,35 @@ final class FileListCell: NSTableCellView {
             nameLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleCutItemsChanged),
+            name: ClipboardManager.cutItemsDidChange,
+            object: nil
+        )
     }
 
     func configure(with item: FileItem) {
+        itemURL = item.url
         iconView.image = item.icon
         nameLabel.stringValue = item.name
+        updateCutAppearance()
+    }
+
+    private func updateCutAppearance() {
+        guard let url = itemURL else { return }
+        let isCut = ClipboardManager.shared.isItemCut(url)
+        let alpha: CGFloat = isCut ? 0.5 : 1.0
+        iconView.alphaValue = alpha
+        nameLabel.alphaValue = alpha
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func handleCutItemsChanged() {
+        updateCutAppearance()
     }
 }

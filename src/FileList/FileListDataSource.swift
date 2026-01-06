@@ -29,6 +29,13 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         return items.count
     }
 
+    func items(at indexes: IndexSet) -> [FileItem] {
+        indexes.compactMap { index in
+            guard index >= 0 && index < items.count else { return nil }
+            return items[index]
+        }
+    }
+
     // MARK: - NSTableViewDelegate
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {

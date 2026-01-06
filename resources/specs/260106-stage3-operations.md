@@ -271,80 +271,80 @@ Conflict resolution (for copy/move):
 ## Implementation Plan
 
 ### Phase 0: Test Infrastructure
-- [ ] Add test target to Xcode project (DetourTests)
-- [ ] Create `Tests/Helpers/TestHelpers.swift` with temp directory utilities
-- [ ] Create `Tests/FileListDataSourceTests.swift` (5 tests)
-- [ ] Create `Tests/FileItemTests.swift` (9 tests)
-- [ ] Create `Tests/PaneTabTests.swift` (10 tests)
-- [ ] Create `Tests/PaneViewControllerTests.swift` (8 tests)
-- [ ] Run `xcodebuild test` - all 32 Stage 1-2 tests pass
+- [x] Add test target to Xcode project (DetourTests)
+- [x] Create `Tests/Helpers/TestHelpers.swift` with temp directory utilities
+- [x] Create `Tests/FileListDataSourceTests.swift` (5 tests)
+- [x] Create `Tests/FileItemTests.swift` (9 tests)
+- [x] Create `Tests/PaneTabTests.swift` (10 tests)
+- [x] Create `Tests/PaneViewControllerTests.swift` (8 tests)
+- [x] Run `xcodebuild test` - all 32 Stage 1-2 tests pass
 
 ### Phase 1: Operation Infrastructure
-- [ ] Create `src/Operations/` directory
-- [ ] Create `FileOperation.swift` enum
-- [ ] Create `FileOperationProgress.swift` struct
-- [ ] Create `FileOperationError.swift` enum with localized messages
-- [ ] Create `FileOperationQueue.swift` skeleton with async method signatures
+- [x] Create `src/Operations/` directory
+- [x] Create `FileOperation.swift` enum
+- [x] Create `FileOperationProgress.swift` struct
+- [x] Create `FileOperationError.swift` enum with localized messages
+- [x] Create `FileOperationQueue.swift` skeleton with async method signatures
 
 ### Phase 2: Basic Operations
-- [ ] Implement `FileOperationQueue.delete()` using `NSWorkspace.recycle`
-- [ ] Implement `FileOperationQueue.createFolder()`
-- [ ] Implement `FileOperationQueue.rename()`
-- [ ] Add `selectedURLs` computed property to `FileListViewController`
-- [ ] Wire Cmd-Delete in `FileListViewController.keyDown` to call delete
-- [ ] Wire Cmd-Shift-N to call createFolder
-- [ ] Create `Tests/FileOperationQueueTests.swift` with tests for delete, createFolder, rename
+- [x] Implement `FileOperationQueue.delete()` using `NSWorkspace.recycle`
+- [x] Implement `FileOperationQueue.createFolder()`
+- [x] Implement `FileOperationQueue.rename()`
+- [x] Add `selectedURLs` computed property to `FileListViewController`
+- [x] Wire Cmd-Delete in `FileListViewController.keyDown` to call delete
+- [x] Wire Cmd-Shift-N to call createFolder
+- [x] Create `Tests/FileOperationQueueTests.swift` with tests for delete, createFolder, rename
 
 ### Phase 3: Clipboard Operations
-- [ ] Create `ClipboardManager.swift`
-- [ ] Implement `copy()` - write URLs to pasteboard
-- [ ] Implement `cut()` - write URLs and set isCut flag
-- [ ] Implement `hasItems` check
-- [ ] Implement `FileOperationQueue.copy()` with destination conflict handling
-- [ ] Implement `ClipboardManager.paste()` - calls copy or move based on isCut
-- [ ] Wire Cmd-C, Cmd-X, Cmd-V in FileListViewController
-- [ ] Create `Tests/ClipboardManagerTests.swift`
-- [ ] Add copy/move tests to FileOperationQueueTests
+- [x] Create `ClipboardManager.swift`
+- [x] Implement `copy()` - write URLs to pasteboard
+- [x] Implement `cut()` - write URLs and set isCut flag
+- [x] Implement `hasItems` check
+- [x] Implement `FileOperationQueue.copy()` with destination conflict handling
+- [x] Implement `ClipboardManager.paste()` - calls copy or move based on isCut
+- [x] Wire Cmd-C, Cmd-X, Cmd-V in FileListViewController
+- [x] Create `Tests/ClipboardManagerTests.swift`
+- [x] Add copy/move tests to FileOperationQueueTests
 
 ### Phase 4: Duplicate and Move
-- [ ] Implement `FileOperationQueue.duplicate()`
-- [ ] Wire Cmd-D in FileListViewController
-- [ ] Add `fileListDidRequestMoveToOtherPane` to delegate protocol
-- [ ] Implement move-to-other-pane in MainSplitViewController
-- [ ] Wire F6 in FileListViewController
-- [ ] Add duplicate tests to FileOperationQueueTests
+- [x] Implement `FileOperationQueue.duplicate()`
+- [x] Wire Cmd-D in FileListViewController
+- [x] Add `fileListDidRequestMoveToOtherPane` to delegate protocol
+- [x] Implement move-to-other-pane in MainSplitViewController
+- [x] Wire F6 in FileListViewController
+- [x] Add duplicate tests to FileOperationQueueTests
 
 ### Phase 5: Rename
-- [ ] Create `RenameController.swift`
-- [ ] Implement inline text field overlay
-- [ ] Wire Shift-Enter and F2 in FileListViewController
-- [ ] Handle commit (Enter) and cancel (Escape)
-- [ ] Refresh file list after rename
-- [ ] Select renamed item
+- [x] Create `RenameController.swift`
+- [x] Implement inline text field overlay
+- [x] Wire Shift-Enter and F2 in FileListViewController
+- [x] Handle commit (Enter) and cancel (Escape)
+- [x] Refresh file list after rename
+- [x] Select renamed item
 
 ### Phase 6: Menu Integration
-- [ ] Add Edit menu items in MainMenu.swift
-- [ ] Add File > New Folder menu item
-- [ ] Implement `validateMenuItem:` in FileListViewController
+- [x] Add Edit menu items in MainMenu.swift
+- [x] Add File > New Folder menu item
+- [x] Implement `validateMenuItem:` in FileListViewController
 
 ### Phase 7: Progress UI
-- [ ] Create `ProgressView.swift` SwiftUI view
-- [ ] Create `ProgressWindowController.swift`
-- [ ] Update `FileOperationQueue` to show progress for operations with >5 items
-- [ ] Add cancel support (sets cancelled flag, operation checks between items)
+- [x] Create `ProgressView.swift` SwiftUI view
+- [x] Create `ProgressWindowController.swift`
+- [x] Update `FileOperationQueue` to show progress for operations with >5 items
+- [x] Add cancel support (sets cancelled flag, operation checks between items)
 
 ### Phase 8: Error Handling
-- [ ] Implement conflict resolution alert (Skip/Replace/Keep Both/Apply to All)
-- [ ] Implement error alert for single failures
-- [ ] Implement partial failure summary ("X of Y items failed")
+- [x] Implement conflict resolution alert (Skip/Replace/Keep Both/Apply to All)
+- [x] Implement error alert for single failures
+- [x] Implement partial failure summary ("X of Y items failed")
 
 ### Phase 9: F-Key Shortcuts and Cut Dimming
-- [ ] Wire F5 (copy), F7 (new folder), F8 (delete) in keyDown
-- [ ] Update FileListCell to dim cut items (50% opacity)
-- [ ] Observe `ClipboardManager.cutItemsDidChange` to refresh cells
+- [x] Wire F5 (copy), F7 (new folder), F8 (delete) in keyDown
+- [x] Update FileListCell to dim cut items (50% opacity)
+- [x] Observe `ClipboardManager.cutItemsDidChange` to refresh cells
 
 ### Phase 10: Verify
-- [ ] Run `xcodebuild test -scheme Detour -destination 'platform=macOS'` - all 53 tests pass
+- [x] Run `xcodebuild test -scheme Detour -destination 'platform=macOS'` - all 53 tests pass
 - [ ] Cmd-C copies selected files to clipboard
 - [ ] Cmd-V pastes files to current directory
 - [ ] Cmd-X cuts files (source dimmed at 50% opacity)
@@ -373,66 +373,66 @@ Run with: `xcodebuild test -scheme Detour -destination 'platform=macOS'`
 - `cleanupTempDirectory(_:)` - removes temp dir and contents
 
 ### Create Tests/FileListDataSourceTests.swift (5 tests)
-- [ ] Write `testLoadDirectory` - loads files from directory into items array
-- [ ] Write `testLoadDirectoryExcludesHidden` - hidden files (dot prefix) excluded by default
-- [ ] Write `testLoadDirectorySortsFoldersFirst` - folders before files
-- [ ] Write `testLoadDirectorySortsAlphabetically` - items sorted case-insensitive
-- [ ] Write `testLoadDirectoryHandlesEmptyDirectory` - empty directory returns empty items
+- [x] Write `testLoadDirectory` - loads files from directory into items array
+- [x] Write `testLoadDirectoryExcludesHidden` - hidden files (dot prefix) excluded by default
+- [x] Write `testLoadDirectorySortsFoldersFirst` - folders before files
+- [x] Write `testLoadDirectorySortsAlphabetically` - items sorted case-insensitive
+- [x] Write `testLoadDirectoryHandlesEmptyDirectory` - empty directory returns empty items
 
 ### Create Tests/FileItemTests.swift (9 tests)
-- [ ] Write `testInitFromFile` - FileItem loads name, size, date from file URL
-- [ ] Write `testInitFromDirectory` - FileItem sets isDirectory=true, size=nil
-- [ ] Write `testFormattedSizeBytes` - <1000 returns "X B"
-- [ ] Write `testFormattedSizeKB` - 1000-999999 returns "X.X KB"
-- [ ] Write `testFormattedSizeMB` - 1M-999M returns "X.X MB"
-- [ ] Write `testFormattedSizeGB` - 1G+ returns "X.X GB"
-- [ ] Write `testFormattedDateSameYear` - returns "MMM d"
-- [ ] Write `testFormattedDateDifferentYear` - returns "MMM d, yyyy"
-- [ ] Write `testSortFoldersFirst` - folders before files, each group alphabetical
+- [x] Write `testInitFromFile` - FileItem loads name, size, date from file URL
+- [x] Write `testInitFromDirectory` - FileItem sets isDirectory=true, size=nil
+- [x] Write `testFormattedSizeBytes` - <1000 returns "X B"
+- [x] Write `testFormattedSizeKB` - 1000-999999 returns "X.X KB"
+- [x] Write `testFormattedSizeMB` - 1M-999M returns "X.X MB"
+- [x] Write `testFormattedSizeGB` - 1G+ returns "X.X GB"
+- [x] Write `testFormattedDateSameYear` - returns "MMM d"
+- [x] Write `testFormattedDateDifferentYear` - returns "MMM d, yyyy"
+- [x] Write `testSortFoldersFirst` - folders before files, each group alphabetical
 
 ### Create Tests/PaneTabTests.swift (10 tests)
-- [ ] Write `testInitialState` - new tab has empty back/forward stacks
-- [ ] Write `testNavigateAddsToBackStack` - navigate pushes previous to backStack
-- [ ] Write `testGoBackMovesToForwardStack` - goBack pops back, pushes to forward
-- [ ] Write `testGoForwardMovesFromForwardStack` - goForward pops forward, pushes to back
-- [ ] Write `testGoUpNavigatesToParent` - goUp changes to parent directory
-- [ ] Write `testGoUpAtRootReturnsFalse` - goUp at "/" returns false
-- [ ] Write `testTitleReturnsLastComponent` - title is directory name
-- [ ] Write `testCanGoBackWhenStackEmpty` - canGoBack false when empty
-- [ ] Write `testCanGoBackWhenStackHasItems` - canGoBack true when has history
-- [ ] Write `testNavigateClearsForwardStack` - new navigation clears forward
+- [x] Write `testInitialState` - new tab has empty back/forward stacks
+- [x] Write `testNavigateAddsToBackStack` - navigate pushes previous to backStack
+- [x] Write `testGoBackMovesToForwardStack` - goBack pops back, pushes to forward
+- [x] Write `testGoForwardMovesFromForwardStack` - goForward pops forward, pushes to back
+- [x] Write `testGoUpNavigatesToParent` - goUp changes to parent directory
+- [x] Write `testGoUpAtRootReturnsFalse` - goUp at "/" returns false
+- [x] Write `testTitleReturnsLastComponent` - title is directory name
+- [x] Write `testCanGoBackWhenStackEmpty` - canGoBack false when empty
+- [x] Write `testCanGoBackWhenStackHasItems` - canGoBack true when has history
+- [x] Write `testNavigateClearsForwardStack` - new navigation clears forward
 
 ### Create Tests/PaneViewControllerTests.swift (8 tests)
-- [ ] Write `testCreateTabAddsToArray` - createTab adds tab to tabs array
-- [ ] Write `testCreateTabSelectsNewTab` - new tab becomes selected
-- [ ] Write `testCloseTabRemovesFromArray` - closeTab removes tab
-- [ ] Write `testCloseTabSelectsRightNeighbor` - closing selects right neighbor
-- [ ] Write `testCloseTabSelectsLeftWhenNoRight` - closing rightmost selects left
-- [ ] Write `testCloseLastTabCreatesNewHome` - can't have zero tabs, creates home tab
-- [ ] Write `testSelectNextTabWraps` - selectNextTab wraps to first
-- [ ] Write `testSelectPreviousTabWraps` - selectPreviousTab wraps to last
+- [x] Write `testCreateTabAddsToArray` - createTab adds tab to tabs array
+- [x] Write `testCreateTabSelectsNewTab` - new tab becomes selected
+- [x] Write `testCloseTabRemovesFromArray` - closeTab removes tab
+- [x] Write `testCloseTabSelectsRightNeighbor` - closing selects right neighbor
+- [x] Write `testCloseTabSelectsLeftWhenNoRight` - closing rightmost selects left
+- [x] Write `testCloseLastTabCreatesNewHome` - can't have zero tabs, creates home tab
+- [x] Write `testSelectNextTabWraps` - selectNextTab wraps to first
+- [x] Write `testSelectPreviousTabWraps` - selectPreviousTab wraps to last
 
 ### Create Tests/FileOperationQueueTests.swift (13 tests)
-- [ ] Write `testCreateFolder` - creates directory at path
-- [ ] Write `testCreateFolderNameCollision` - appends " 2", " 3" for conflicts
-- [ ] Write `testRenameFile` - changes file name, returns new URL
-- [ ] Write `testRenameInvalidCharacters` - throws error for "/" or ":"
-- [ ] Write `testRenameToExistingName` - throws destinationExists error
-- [ ] Write `testCopyFile` - copies file, source still exists
-- [ ] Write `testCopyToSameDirectory` - creates "filename copy"
-- [ ] Write `testCopyMultipleConflicts` - creates "filename copy 2", " 3"
-- [ ] Write `testCopyDirectory` - copies recursively
-- [ ] Write `testMoveFile` - moves file, source no longer exists
-- [ ] Write `testDeleteFile` - file no longer at path (in trash)
-- [ ] Write `testDuplicateFile` - creates "filename copy" in same dir
-- [ ] Write `testDuplicateMultiple` - each gets unique copy name
+- [x] Write `testCreateFolder` - creates directory at path
+- [x] Write `testCreateFolderNameCollision` - appends " 2", " 3" for conflicts
+- [x] Write `testRenameFile` - changes file name, returns new URL
+- [x] Write `testRenameInvalidCharacters` - throws error for "/" or ":"
+- [x] Write `testRenameToExistingName` - throws destinationExists error
+- [x] Write `testCopyFile` - copies file, source still exists
+- [x] Write `testCopyToSameDirectory` - creates "filename copy"
+- [x] Write `testCopyMultipleConflicts` - creates "filename copy 2", " 3"
+- [x] Write `testCopyDirectory` - copies recursively
+- [x] Write `testMoveFile` - moves file, source no longer exists
+- [x] Write `testDeleteFile` - file no longer at path (in trash)
+- [x] Write `testDuplicateFile` - creates "filename copy" in same dir
+- [x] Write `testDuplicateMultiple` - each gets unique copy name
 
 ### Create Tests/ClipboardManagerTests.swift (8 tests)
-- [ ] Write `testCopyWritesToPasteboard` - URLs readable from pasteboard
-- [ ] Write `testCutSetsIsCutFlag` - isCut is true after cut
-- [ ] Write `testCopyClearsIsCutFlag` - isCut is false after copy
-- [ ] Write `testHasItemsTrue` - hasItems true when pasteboard has URLs
-- [ ] Write `testHasItemsFalse` - hasItems false when pasteboard empty
-- [ ] Write `testClearResetsState` - clear removes URLs and resets isCut
-- [ ] Write `testCutPopulatesCutItemURLs` - cut items in cutItemURLs set
-- [ ] Write `testIsItemCut` - isItemCut returns true for cut items, false for others
+- [x] Write `testCopyWritesToPasteboard` - URLs readable from pasteboard
+- [x] Write `testCutSetsIsCutFlag` - isCut is true after cut
+- [x] Write `testCopyClearsIsCutFlag` - isCut is false after copy
+- [x] Write `testHasItemsTrue` - hasItems true when pasteboard has URLs
+- [x] Write `testHasItemsFalse` - hasItems false when pasteboard empty
+- [x] Write `testClearResetsState` - clear removes URLs and resets isCut
+- [x] Write `testCutPopulatesCutItemURLs` - cut items in cutItemURLs set
+- [x] Write `testIsItemCut` - isItemCut returns true for cut items, false for others
