@@ -269,20 +269,20 @@ Full App Sandbox is impractical for a Finder replacement - you'd need constant p
 | Text Primary | `#1A1918` | Filenames, primary content |
 | Text Secondary | `#6B6965` | Metadata (size, date), hints |
 | Text Tertiary | `#9C9990` | Disabled states, placeholders |
-| Accent | `#2D6A6A` | Selection background, active indicators |
+| Accent | `#1F4D4D` | Selection background, active tab indicator, folder icons |
 | Accent Text | `#FFFFFF` | Text on accent background |
 
 **Dark Mode:**
 | Role | Hex | Usage |
 |------|-----|-------|
-| Background | `#1A1918` | Window, pane backgrounds |
+| Background | `#2E2E2E` / `#262626` | File list rows (alternating banded) |
 | Surface | `#242322` | Tab bar, status bar, toolbar |
 | Border | `#3D3A38` | Dividers, separators |
 | Text Primary | `#FAFAF8` | Filenames, primary content |
 | Text Secondary | `#9C9990` | Metadata (size, date), hints |
 | Text Tertiary | `#6B6965` | Disabled states, placeholders |
-| Accent | `#4A9D9D` | Selection background, active indicators |
-| Accent Text | `#1A1918` | Text on accent background |
+| Accent | `#2D6A6A` | Selection background, active tab indicator, folder icons |
+| Accent Text | `#FFFFFF` | Text on accent background |
 
 No gradients. No drop shadows except for popovers/modals. 1px borders only.
 

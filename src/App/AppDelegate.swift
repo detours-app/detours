@@ -48,6 +48,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         mainWindowController?.splitViewController.saveSession()
 
+        // Close any Finder info windows we opened
+        let script = NSAppleScript(source: """
+            tell application "Finder"
+                close every information window
+            end tell
+            """)
+        script?.executeAndReturnError(nil)
+
         if let monitor = systemEventMonitor {
             NSEvent.removeMonitor(monitor)
             systemEventMonitor = nil

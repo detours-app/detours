@@ -8,13 +8,13 @@ protocol FileListKeyHandling: AnyObject {
 final class BandedTableView: NSTableView {
     private static let evenRowColor = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 0.10, alpha: 1.0)
+            ? NSColor(white: 0.18, alpha: 1.0)
             : NSColor(white: 0.96, alpha: 1.0)
     }
 
     private static let oddRowColor = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 0.07, alpha: 1.0)
+            ? NSColor(white: 0.15, alpha: 1.0)
             : NSColor(white: 0.92, alpha: 1.0)
     }
 

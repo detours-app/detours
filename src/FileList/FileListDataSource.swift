@@ -1,6 +1,13 @@
 import AppKit
 
-/// Row view that hides selection when not active
+/// Teal accent color used throughout the app
+let detourAccentColor = NSColor(name: nil) { appearance in
+    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        ? NSColor(red: 0x2D/255, green: 0x6A/255, blue: 0x6A/255, alpha: 1)
+        : NSColor(red: 0x1F/255, green: 0x4D/255, blue: 0x4D/255, alpha: 1)
+}
+
+/// Row view with teal selection color that hides when not active (Marta-style)
 final class InactiveHidingRowView: NSTableRowView {
     var isTableActive: Bool = true {
         didSet {
@@ -16,8 +23,9 @@ final class InactiveHidingRowView: NSTableRowView {
     }
 
     override func drawSelection(in dirtyRect: NSRect) {
-        guard isTableActive else { return }
-        super.drawSelection(in: dirtyRect)
+        guard isTableActive, isSelected else { return }
+        detourAccentColor.setFill()
+        bounds.fill()
     }
 }
 

@@ -288,16 +288,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
     private func pasteHere() {
         guard let currentDirectory else { return }
         let wasCut = ClipboardManager.shared.isCut
-        let sourceDirectories: Set<URL>
         let pastedNames = ClipboardManager.shared.items.map { $0.lastPathComponent }
 
+        // Collect directories to refresh: source dirs for cut, destination for both
+        var directoriesToRefresh = Set<URL>()
         if wasCut {
-            sourceDirectories = Set(
-                ClipboardManager.shared.items.map { $0.deletingLastPathComponent().standardizedFileURL }
-            )
-        } else {
-            sourceDirectories = []
+            for item in ClipboardManager.shared.items {
+                directoriesToRefresh.insert(item.deletingLastPathComponent().standardizedFileURL)
+            }
         }
+        // Also refresh destination in other pane (if viewing same directory)
+        directoriesToRefresh.insert(currentDirectory.standardizedFileURL)
 
         Task { @MainActor in
             do {
@@ -309,9 +310,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
                     tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
                     tableView.scrollRowToVisible(index)
                 }
-                if wasCut, !sourceDirectories.isEmpty {
-                    navigationDelegate?.fileListDidRequestRefreshSourceDirectories(sourceDirectories)
-                }
+                // Refresh other pane if showing affected directories
+                navigationDelegate?.fileListDidRequestRefreshSourceDirectories(directoriesToRefresh)
                 // Keep focus on destination pane (where we pasted)
                 view.window?.makeFirstResponder(tableView)
             } catch {
@@ -427,12 +427,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
 
         if modifiers == .command, let chars = event.charactersIgnoringModifiers?.lowercased() {
-            if chars == "r" {
+            switch chars {
+            case "r":
                 refreshCurrentDirectory()
                 return true
-            }
-
-            switch chars {
             case "c":
                 copySelection()
                 return true
@@ -445,9 +443,18 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
             case "d":
                 duplicateSelection()
                 return true
+            case "i":
+                getInfo(nil)
+                return true
             default:
                 break
             }
+        }
+
+        // Cmd-Option-C: Copy path
+        if modifiers == [.command, .option], let chars = event.charactersIgnoringModifiers?.lowercased(), chars == "c" {
+            copyPath(nil)
+            return true
         }
 
         if modifiers == [.command, .shift],
@@ -501,10 +508,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
             navigationDelegate?.fileListDidRequestSwitchPane()
             return true
         case 126: // Up arrow
-            moveSelectionUp()
+            moveSelectionUp(extendSelection: modifiers.contains(.shift))
             return true
         case 125: // Down arrow
-            moveSelectionDown()
+            moveSelectionDown(extendSelection: modifiers.contains(.shift))
             return true
         default:
             // Type-to-select: handle character keys
@@ -524,18 +531,18 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         super.keyDown(with: event)
     }
 
-    private func moveSelectionUp() {
+    private func moveSelectionUp(extendSelection: Bool) {
         let current = tableView.selectedRow
         if current > 0 {
-            tableView.selectRowIndexes(IndexSet(integer: current - 1), byExtendingSelection: false)
+            tableView.selectRowIndexes(IndexSet(integer: current - 1), byExtendingSelection: extendSelection)
             tableView.scrollRowToVisible(current - 1)
         }
     }
 
-    private func moveSelectionDown() {
+    private func moveSelectionDown(extendSelection: Bool) {
         let current = tableView.selectedRow
         if current < dataSource.items.count - 1 {
-            tableView.selectRowIndexes(IndexSet(integer: current + 1), byExtendingSelection: false)
+            tableView.selectRowIndexes(IndexSet(integer: current + 1), byExtendingSelection: extendSelection)
             tableView.scrollRowToVisible(current + 1)
         }
     }
@@ -647,6 +654,66 @@ extension FileListViewController {
     @objc func newFolder(_ sender: Any?) {
         createNewFolder()
     }
+
+    @objc func getInfo(_ sender: Any?) {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+
+        // Get window position to place info window to the left of Detour
+        let windowFrame = view.window?.frame ?? NSRect(x: 100, y: 100, width: 800, height: 600)
+        let screenHeight = Int(NSScreen.main?.frame.height ?? 900)
+
+        // Info window is about 265x630
+        let infoWidth = 265
+        let infoHeight = 630
+        let baseX = Int(windowFrame.minX) - infoWidth - 20  // 20px gap to the left
+        let baseY = screenHeight - Int(windowFrame.midY) - infoHeight / 2
+
+        // Get count of existing info windows BEFORE opening new ones
+        var existingCount = 0
+        if let result = NSAppleScript(source: "tell application \"Finder\" to count of information windows")?.executeAndReturnError(nil) {
+            existingCount = Int(result.int32Value)
+        }
+
+        // Open the windows
+        let openLines = urls.map { "open information window of (POSIX file \"\($0.path)\" as alias)" }
+        let openScript = "tell application \"Finder\"\n    activate\n" + openLines.map { "    " + $0 }.joined(separator: "\n") + "\nend tell"
+        NSAppleScript(source: openScript)?.executeAndReturnError(nil)
+
+        // Position windows after a brief delay - cascade down and LEFT
+        let capturedURLs = urls
+        let capturedBaseX = baseX
+        let capturedBaseY = baseY
+        let startIndex = existingCount
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            var positionLines: [String] = []
+            for (i, url) in capturedURLs.enumerated() {
+                let offset = startIndex + i
+                let x1 = capturedBaseX - (offset * 25)  // CASCADE LEFT
+                let y1 = capturedBaseY + (offset * 25)  // CASCADE DOWN
+                let x2 = x1 + infoWidth
+                let y2 = y1 + infoHeight
+                let windowName = url.lastPathComponent + " Info"
+                positionLines.append("set bounds of information window \"\(windowName)\" to {\(x1), \(y1), \(x2), \(y2)}")
+            }
+            let positionScript = "tell application \"Finder\"\n" + positionLines.map { "    " + $0 }.joined(separator: "\n") + "\nend tell"
+            NSAppleScript(source: positionScript)?.executeAndReturnError(nil)
+        }
+    }
+
+    @objc func copyPath(_ sender: Any?) {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+        let paths = urls.map { $0.path }.joined(separator: "\n")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(paths, forType: .string)
+    }
+
+    @objc func showInFinder(_ sender: Any?) {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
 }
 
 // MARK: - Menu Validation
@@ -654,7 +721,8 @@ extension FileListViewController {
 extension FileListViewController: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(copy(_:)), #selector(cut(_:)), #selector(delete(_:)), #selector(duplicate(_:)):
+        case #selector(copy(_:)), #selector(cut(_:)), #selector(delete(_:)), #selector(duplicate(_:)),
+             #selector(getInfo(_:)), #selector(copyPath(_:)), #selector(showInFinder(_:)):
             return !selectedURLs.isEmpty
         case #selector(paste(_:)):
             return ClipboardManager.shared.hasValidItems && currentDirectory != nil

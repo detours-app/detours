@@ -81,11 +81,28 @@ final class RenameController: NSObject, NSTextFieldDelegate {
             return
         }
 
+        let oldURL = item.url
+        let oldName = item.name
+        let undoManager = tableView?.window?.undoManager
         cancelRename()
 
         Task { @MainActor in
             do {
-                let newURL = try await FileOperationQueue.shared.rename(item: item.url, to: newName)
+                let newURL = try await FileOperationQueue.shared.rename(item: oldURL, to: newName)
+
+                // Register undo action
+                undoManager?.registerUndo(withTarget: self) { [weak self] _ in
+                    Task { @MainActor in
+                        do {
+                            let restoredURL = try await FileOperationQueue.shared.rename(item: newURL, to: oldName)
+                            self?.delegate?.renameController(self!, didRename: FileItem(url: newURL), to: restoredURL)
+                        } catch {
+                            FileOperationQueue.shared.presentError(error)
+                        }
+                    }
+                }
+                undoManager?.setActionName("Rename")
+
                 delegate?.renameController(self, didRename: item, to: newURL)
             } catch {
                 FileOperationQueue.shared.presentError(error)

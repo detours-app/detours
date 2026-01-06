@@ -1,5 +1,21 @@
 # Changelog
 
+## 260106 UX Polish and Visual Refinements
+- Added: Teal accent color for file selection, tab highlight, and folder icons
+- Added: iCloud download status icon for not-downloaded files
+- Added: Get Info panel (Cmd-I) - opens Finder info window positioned left of Detour
+- Added: Copy Path to clipboard (Cmd-Option-C)
+- Added: Show in Finder action (File menu)
+- Added: Undo support for rename operations (Cmd-Z)
+- Added: Shift-Arrow selection for extending file selection
+- Added: Info windows close automatically when Detour quits
+- Added: 6 new tests for Get Info, Copy Path, and menu validation
+- Changed: Folder icons tinted with teal accent color
+- Changed: Lighter file list background (improved readability)
+- Changed: Both panes refresh after paste/move if viewing affected directories
+- Changed: Info windows cascade down and left, accounting for existing windows
+- Fixed: Get Info no longer reveals in Finder first
+
 ## 260106 iCloud Drive Improvements
 - Added: iCloud button navigates to Mobile Documents (iCloud Drive root)
 - Added: Localized names for iCloud app folders (e.g., "Automator" instead of "com~apple~Automator")

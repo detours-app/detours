@@ -2,6 +2,7 @@ import AppKit
 
 final class FileListCell: NSTableCellView {
     private let iconView = NSImageView()
+    private let cloudIcon = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
     private let sharedLabel = NSTextField(labelWithString: "")
     private var itemURL: URL?
@@ -21,6 +22,12 @@ final class FileListCell: NSTableCellView {
         iconView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(iconView)
         self.imageView = iconView
+
+        // Cloud icon for iCloud status - 12x12
+        cloudIcon.imageScaling = .scaleProportionallyUpOrDown
+        cloudIcon.contentTintColor = .secondaryLabelColor
+        cloudIcon.isHidden = true
+        addSubview(cloudIcon)
 
         // Name label setup - SF Mono 13px
         nameLabel.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
@@ -45,6 +52,7 @@ final class FileListCell: NSTableCellView {
 
         // Layout
         iconView.translatesAutoresizingMaskIntoConstraints = false
+        cloudIcon.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         sharedLabel.translatesAutoresizingMaskIntoConstraints = false
 
@@ -54,6 +62,12 @@ final class FileListCell: NSTableCellView {
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
+
+            // Cloud icon: 12x12, bottom-right of main icon
+            cloudIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
+            cloudIcon.bottomAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 4),
+            cloudIcon.widthAnchor.constraint(equalToConstant: 12),
+            cloudIcon.heightAnchor.constraint(equalToConstant: 12),
 
             // Name: 8px after icon
             nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
@@ -78,6 +92,18 @@ final class FileListCell: NSTableCellView {
         iconView.image = item.icon
         nameLabel.stringValue = item.name
 
+        // iCloud status indicator
+        switch item.iCloudStatus {
+        case .notDownloaded:
+            cloudIcon.image = NSImage(systemSymbolName: "icloud.and.arrow.down", accessibilityDescription: "Not downloaded")
+            cloudIcon.isHidden = false
+        case .downloading:
+            cloudIcon.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: "Downloading")
+            cloudIcon.isHidden = false
+        case .downloaded, .local:
+            cloudIcon.isHidden = true
+        }
+
         if let sharedBy = item.sharedByName {
             sharedLabel.stringValue = "Shared by \(sharedBy)"
             sharedLabel.isHidden = false
@@ -94,6 +120,7 @@ final class FileListCell: NSTableCellView {
         let isCut = ClipboardManager.shared.isItemCut(url)
         let alpha: CGFloat = isCut ? 0.5 : 1.0
         iconView.alphaValue = alpha
+        cloudIcon.alphaValue = alpha
         nameLabel.alphaValue = alpha
         sharedLabel.alphaValue = alpha
     }

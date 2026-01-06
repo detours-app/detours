@@ -25,6 +25,13 @@ func setupMainMenu(target: AppDelegate) {
     fileMenu.addItem(newFolderItem)
     fileMenu.addItem(NSMenuItem.separator())
 
+    let getInfoItem = NSMenuItem(title: "Get Info", action: #selector(FileListViewController.getInfo(_:)), keyEquivalent: "i")
+    fileMenu.addItem(getInfoItem)
+
+    let showInFinderItem = NSMenuItem(title: "Show in Finder", action: #selector(FileListViewController.showInFinder(_:)), keyEquivalent: "")
+    fileMenu.addItem(showInFinderItem)
+    fileMenu.addItem(NSMenuItem.separator())
+
     // Close Tab is now Cmd-W, Close Window is Cmd-Shift-W
     let closeTabItem = NSMenuItem(title: "Close Tab", action: #selector(AppDelegate.closeTab(_:)), keyEquivalent: "w")
     closeTabItem.target = target
@@ -53,6 +60,11 @@ func setupMainMenu(target: AppDelegate) {
     editMenu.addItem(copyItem)
     editMenu.addItem(pasteItem)
     editMenu.addItem(duplicateItem)
+    editMenu.addItem(NSMenuItem.separator())
+
+    let copyPathItem = NSMenuItem(title: "Copy Path", action: #selector(FileListViewController.copyPath(_:)), keyEquivalent: "c")
+    copyPathItem.keyEquivalentModifierMask = [.command, .option]
+    editMenu.addItem(copyPathItem)
     editMenu.addItem(NSMenuItem.separator())
 
     let deleteItem = NSMenuItem(title: "Move to Trash", action: #selector(FileListViewController.delete(_:)), keyEquivalent: String(Character(UnicodeScalar(NSDeleteCharacter)!)))

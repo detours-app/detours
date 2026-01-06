@@ -404,9 +404,20 @@ Conflict resolution (for copy/move):
 - [x] Auto-navigate into Documents subfolder for iCloud app containers
 - [x] Cmd-Up from container Documents goes directly to Mobile Documents
 - [x] Cmd-Up stops at Mobile Documents (treat as iCloud root)
+- [x] Show iCloud download status icon for not-downloaded files
+
+### Phase 10d: UX Polish
+- [x] Teal accent color for file selection, tab highlight, and folder icons
+- [x] Lighter file list background (0.18/0.15 white banded rows)
+- [x] Refresh both panes after paste/move if viewing affected directories
+- [x] Undo support for rename operations (Cmd-Z)
+- [x] Get Info panel (Cmd-I) - opens Finder info window directly (no reveal)
+- [x] Copy Path to clipboard (Cmd-Option-C)
+- [x] Show in Finder action (File menu)
+- [x] Tests for Cmd-I, Cmd-Option-C, Show in Finder menu validation
 
 ### Phase 11: Verify
-- [x] Run `xcodebuild test -scheme Detour -destination 'platform=macOS'` - all 73 tests pass
+- [x] Run `xcodebuild test -scheme Detour -destination 'platform=macOS'` - all 78 tests pass
 - [x] Cmd-C copies selected files to clipboard
 - [x] Cmd-V pastes files to current directory
 - [x] Cmd-X cuts files (source dimmed at 50% opacity)
