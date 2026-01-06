@@ -1,7 +1,7 @@
 import AppKit
 
 final class MainWindowController: NSWindowController {
-    private let splitViewController = MainSplitViewController()
+    let splitViewController = MainSplitViewController()
 
     init() {
         let window = NSWindow(
@@ -14,6 +14,7 @@ final class MainWindowController: NSWindowController {
         window.title = "Detour"
         window.minSize = NSSize(width: 800, height: 400)
         window.center()
+        window.tabbingMode = .disallowed
 
         // Unified title bar with toolbar appearance
         window.titlebarAppearsTransparent = false

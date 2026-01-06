@@ -15,9 +15,11 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
 
             items = FileItem.sortFoldersFirst(contents.map { FileItem(url: $0) })
             tableView?.reloadData()
+            tableView?.needsLayout = true
         } catch {
             items = []
             tableView?.reloadData()
+            tableView?.needsLayout = true
         }
     }
 

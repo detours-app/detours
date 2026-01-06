@@ -1,5 +1,32 @@
 # Changelog
 
+## 260105 Lazy Tab Loading and Keyboard Refresh
+- Changed: Tabs lazy-load directories only when selected (improves startup with many tabs)
+- Changed: Cmd-R refresh now handled at table view level for reliable focus handling
+
+## 260105 Add Navigation UI and Session Persistence
+- Added: Back/forward buttons in tab bar for navigation history
+- Added: Path bar with breadcrumb navigation under tabs (24px height)
+- Added: Home and iCloud Drive shortcut buttons in path bar
+- Added: Session persistence - tabs restore per pane on launch
+- Added: Cmd-R shortcut to refresh current directory
+- Added: Banded rows (alternating subtle background) in file list
+- Added: Codesigning during build for stable TCC identity (avoids repeated permission prompts)
+- Changed: File list uses `BandedTableView` subclass for alternating row colors
+
+## 260105 Implement Stage 2 Tabs
+- Added: Finder-style tabs per pane with tab bar (32px height)
+- Added: Tab model (`PaneTab`) with independent navigation history per tab
+- Added: Tab keyboard shortcuts (Cmd-T new, Cmd-W close, Cmd-Shift-[/] switch)
+- Added: Cmd-Shift-Down to open folder in new tab
+- Added: Tab drag-and-drop within pane (reorder) and between panes (move)
+- Added: Tab bar with close buttons on hover, accent border for active tab
+- Added: AGENTS.md with repository guidelines for AI agents
+- Added: Debug build script (`scripts/build.sh`) for faster iteration
+- Changed: Pane architecture refactored - PaneViewController now manages tabs
+- Changed: Navigation history moved from pane level to tab level
+- Changed: Cmd-W closes tab (not window), Cmd-Shift-W closes window
+
 ## 260105 Implement Stage 1 Foundation
 - Added: Working dual-pane file manager app
 - Added: Swift Package Manager project structure (no Xcode required)

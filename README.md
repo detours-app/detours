@@ -44,7 +44,7 @@ Requires macOS 14.0+ and Swift toolchain (Xcode Command Line Tools).
 
 ## Status
 
-Stage 1 complete - working dual-pane file browser with keyboard navigation. See `resources/specs/` for detailed specifications.
+Stage 2 complete - dual-pane file browser with Finder-style tabs. See `resources/specs/` for detailed specifications.
 
 ## License
 

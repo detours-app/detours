@@ -339,10 +339,10 @@ Base unit: **4px**
 - New tab (+) button: always visible at right of tab bar
 
 **File List Rows:**
-- Default: transparent background
+- Default: banded rows with subtle alternating background
 - Hover: Surface background
 - Selected: Accent background, Accent Text
-- Multi-selected: same as selected, no alternating
+- Multi-selected: same as selected (no banding)
 - Focused row (keyboard): 1px accent border inset
 - Folder icon: standard folder, no disclosure triangles (flat list)
 
@@ -508,12 +508,12 @@ Future specs will detail each stage. This is the sequencing:
 - [x] Basic directory loading
 - [x] Keyboard navigation within list
 
-### Stage 2: Tabs
-- Spec: `yymmdd-tab-system.md`
-- [ ] Tab bar component
-- [ ] Tab state management
-- [ ] Tab keyboard shortcuts
-- [ ] Drag tabs between panes
+### Stage 2: Tabs ✓
+- Spec: `260105-stage2-tabs.md`
+- [x] Tab bar component
+- [x] Tab state management
+- [x] Tab keyboard shortcuts
+- [x] Drag tabs between panes
 
 ### Stage 3: File Operations
 - Spec: `yymmdd-file-operations.md`

@@ -4,6 +4,14 @@ final class MainSplitViewController: NSSplitViewController {
     private let leftPane = PaneViewController()
     private let rightPane = PaneViewController()
     private var activePaneIndex: Int = 0
+    private let defaults = UserDefaults.standard
+
+    private enum SessionKeys {
+        static let leftTabs = "Detour.LeftPaneTabs"
+        static let leftSelectedIndex = "Detour.LeftPaneSelectedIndex"
+        static let rightTabs = "Detour.RightPaneTabs"
+        static let rightSelectedIndex = "Detour.RightPaneSelectedIndex"
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,6 +32,8 @@ final class MainSplitViewController: NSSplitViewController {
 
         addSplitViewItem(leftItem)
         addSplitViewItem(rightItem)
+
+        restoreSession()
 
         // Set initial active pane
         setActivePane(0)
@@ -98,6 +108,42 @@ final class MainSplitViewController: NSSplitViewController {
         splitView.setPosition(paneWidth, ofDividerAt: 0)
     }
 
+    // MARK: - Session Persistence
+
+    func saveSession() {
+        defaults.set(leftPane.tabDirectories.map { $0.path }, forKey: SessionKeys.leftTabs)
+        defaults.set(leftPane.selectedTabIndex, forKey: SessionKeys.leftSelectedIndex)
+        defaults.set(rightPane.tabDirectories.map { $0.path }, forKey: SessionKeys.rightTabs)
+        defaults.set(rightPane.selectedTabIndex, forKey: SessionKeys.rightSelectedIndex)
+    }
+
+    private func restoreSession() {
+        let leftTabs = restoreTabs(forKey: SessionKeys.leftTabs)
+        if !leftTabs.isEmpty {
+            let selectedIndex = defaults.integer(forKey: SessionKeys.leftSelectedIndex)
+            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex)
+        }
+
+        let rightTabs = restoreTabs(forKey: SessionKeys.rightTabs)
+        if !rightTabs.isEmpty {
+            let selectedIndex = defaults.integer(forKey: SessionKeys.rightSelectedIndex)
+            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex)
+        }
+    }
+
+    private func restoreTabs(forKey key: String) -> [URL] {
+        guard let paths = defaults.array(forKey: key) as? [String] else { return [] }
+        return paths.compactMap { path in
+            let url = URL(fileURLWithPath: path)
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else {
+                return nil
+            }
+            return url
+        }
+    }
+
     // MARK: - Active Pane Management
 
     private func setActivePane(_ index: Int) {
@@ -109,7 +155,9 @@ final class MainSplitViewController: NSSplitViewController {
     func switchToOtherPane() {
         setActivePane(activePaneIndex == 0 ? 1 : 0)
         let targetPane = activePaneIndex == 0 ? leftPane : rightPane
-        view.window?.makeFirstResponder(targetPane.fileListViewController.tableView)
+        if let tab = targetPane.selectedTab {
+            view.window?.makeFirstResponder(tab.fileListViewController.tableView)
+        }
     }
 
     var activePane: PaneViewController {
@@ -138,6 +186,39 @@ final class MainSplitViewController: NSSplitViewController {
         activePane.goUp()
     }
 
+    @objc func refresh(_ sender: Any?) {
+        activePane.refresh()
+    }
+
+    // MARK: - Tab Actions
+
+    @objc func newTab(_ sender: Any?) {
+        activePane.tabBarDidRequestNewTab()
+    }
+
+    @objc func closeTab(_ sender: Any?) {
+        activePane.closeTab(at: activePane.selectedTabIndex)
+    }
+
+    @objc func selectNextTab(_ sender: Any?) {
+        activePane.selectNextTab()
+    }
+
+    @objc func selectPreviousTab(_ sender: Any?) {
+        activePane.selectPreviousTab()
+    }
+
+    // MARK: - Cross-Pane Tab Movement
+
+    func moveTab(_ tab: PaneTab, fromPane: PaneViewController, toPane: PaneViewController, atIndex: Int) {
+        guard let removed = fromPane.removeTab(tab) else { return }
+        toPane.insertTab(removed, at: atIndex)
+    }
+
+    func otherPane(from pane: PaneViewController) -> PaneViewController {
+        pane === leftPane ? rightPane : leftPane
+    }
+
     // MARK: - Keyboard Handling
 
     override func keyDown(with event: NSEvent) {
@@ -157,46 +238,5 @@ final class MainSplitViewController: NSSplitViewController {
     // Handle double-click on divider to reset 50/50
     override func splitViewDidResizeSubviews(_ notification: Notification) {
         // Handled by autosave
-    }
-}
-
-// MARK: - Double-click Divider Extension
-
-extension MainSplitViewController {
-    override func viewDidLayout() {
-        super.viewDidLayout()
-
-        // Add double-click gesture to divider area if not already added
-        if splitView.gestureRecognizers.isEmpty {
-            let doubleClick = NSClickGestureRecognizer(target: self, action: #selector(handleDividerDoubleClick(_:)))
-            doubleClick.numberOfClicksRequired = 2
-            splitView.addGestureRecognizer(doubleClick)
-        }
-    }
-
-    @objc private func handleDividerDoubleClick(_ gesture: NSClickGestureRecognizer) {
-        let location = gesture.location(in: splitView)
-        let dividerRect = dividerRect()
-
-        if dividerRect.contains(location) {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.15
-                resetSplitTo5050()
-            }
-        }
-    }
-
-    private func dividerRect() -> NSRect {
-        guard splitViewItems.count >= 2 else { return .zero }
-        let leftWidth = splitView.subviews[0].frame.width
-        let dividerThickness = splitView.dividerThickness
-        // Expand grab area to 8px as per spec
-        let grabArea: CGFloat = 8
-        return NSRect(
-            x: leftWidth - (grabArea - dividerThickness) / 2,
-            y: 0,
-            width: grabArea,
-            height: splitView.bounds.height
-        )
     }
 }
