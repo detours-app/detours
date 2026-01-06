@@ -391,7 +391,14 @@ final class MainSplitViewController: NSSplitViewController {
         return false
     }
 
-    // Handle double-click on divider to reset 50/50
+    override func splitView(_ splitView: NSSplitView, effectiveRect proposedEffectiveRect: NSRect, forDrawnRect drawnRect: NSRect, ofDividerAt dividerIndex: Int) -> NSRect {
+        // Expand hit area to 9px for easier grabbing
+        var rect = proposedEffectiveRect
+        rect.origin.x -= 4
+        rect.size.width += 8
+        return rect
+    }
+
     override func splitViewDidResizeSubviews(_ notification: Notification) {
         // Handled by autosave
     }

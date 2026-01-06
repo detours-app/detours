@@ -1,5 +1,12 @@
 # Changelog
 
+## 260106 UX Fixes
+- Added: Cmd-Left/Right for back/forward navigation
+- Fixed: Split view divider now easier to grab (expanded hit area)
+- Fixed: Breadcrumb path control no longer shows folder icons (saves space)
+- Fixed: Breadcrumb compresses gracefully when pane is narrow
+- Fixed: Breadcrumb no longer shows focus ring when clicked
+
 ## 260106 Stage 4 Quick Navigation (Cmd-P)
 - Added: Quick navigation popover (Cmd-P) for fast directory access
 - Added: Frecency tracking - frequently/recently visited directories rank higher

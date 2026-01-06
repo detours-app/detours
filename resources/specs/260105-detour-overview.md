@@ -27,7 +27,7 @@ Detour is a native macOS file manager built as a full Finder replacement. Inspir
    - Tab shows directory name, full path on hover
 
 3. **Cmd-P Quick Navigation**
-   - Fuzzy search: "tour" matches `~/Dev/detour`, "doc" matches `~/Documents`
+   - Substring search: "tour" matches `~/Dev/detour`, "doc" matches `~/Documents`
    - Searches recent directories (automatic frecency tracking)
    - Also accepts full path typing
    - Ranked by frecency (frequency + recency)
@@ -525,11 +525,11 @@ Future specs will detail each stage. This is the sequencing:
 - [x] Session persistence (tabs, selections, active pane)
 - [x] iCloud Drive integration (localized names, shared items, container navigation)
 
-### Stage 4: Quick Navigation
-- Spec: `yymmdd-quick-nav.md`
-- [ ] Cmd-P popover
-- [ ] Frequency tracking
-- [ ] Fuzzy matching
+### Stage 4: Quick Navigation ✓
+- Spec: `260106-stage4-quick-nav.md`
+- [x] Cmd-P popover
+- [x] Frecency tracking
+- [x] Substring matching
 
 ### Stage 5: System Integration
 - Spec: `yymmdd-system-integration.md`

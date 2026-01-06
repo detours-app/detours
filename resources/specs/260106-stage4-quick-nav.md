@@ -1,7 +1,7 @@
 # Stage 4: Quick Navigation (Cmd-P)
 
 ## Meta
-- Status: Draft
+- Status: Complete
 - Branch: feature/stage4-quick-nav
 - Parent: [260105-detour-overview.md](260105-detour-overview.md)
 
@@ -11,7 +11,7 @@ Navigating to a directory requires clicking through folders or typing full paths
 
 ## Solution
 
-Add a Cmd-P popover with fuzzy search. Type partial directory names to find matches, ranked by frecency. Press Enter to navigate.
+Add a Cmd-P popover with substring search. Type partial directory names to find matches, ranked by frecency. Press Enter to navigate.
 
 ### What is Frecency?
 
@@ -64,11 +64,11 @@ Persists directory visit history and calculates frecency scores.
 - Frecency calculation:
   - For each entry, compute `score = visitCount * recencyWeight(lastVisit)`
   - `recencyWeight` returns 1.0/0.7/0.5/0.3/0.1 based on time buckets above
-- Fuzzy matching:
-  - Query "dtour" matches "/Users/marco/Dev/detour"
+- Substring matching:
+  - Query "tour" matches "/Users/marco/Dev/detour"
   - Match against last path component first, then full path
   - Case-insensitive
-  - Characters must appear in order but not consecutively
+  - Query must be a contiguous substring (not fuzzy)
 - Pruning:
   - Remove entries with score < 0.1 and no visits in 90 days
   - Run on load, not on every query
@@ -186,7 +186,7 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 - [x] Create `src/Navigation/` directory
 - [x] Create `FrecencyStore.swift` with entry struct and storage
 - [x] Implement `recordVisit()`, `load()`, `save()`
-- [x] Implement `topDirectories(matching:limit:)` with fuzzy match
+- [x] Implement `topDirectories(matching:limit:)` with substring match
 - [x] Implement frecency scoring with time decay
 - [x] Create `Tests/FrecencyStoreTests.swift`
 
@@ -212,17 +212,17 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 
 ### Phase 5: Verify
 - [x] Run all tests
-- [ ] Cmd-P opens popover centered in window
-- [ ] Typing filters results with fuzzy matching
-- [ ] Empty query shows recent directories
-- [ ] Up/Down moves selection
-- [ ] Enter navigates to selected directory
-- [ ] Escape dismisses without navigation
-- [ ] Tab autocompletes path
-- [ ] ★ appears on frecent items
-- [ ] Frecency persists across app restart
-- [ ] Directories visited more recently rank higher
-- [ ] Invalid/non-directory paths don't appear in results
+- [x] Cmd-P opens popover centered in window
+- [x] Typing filters results with substring matching
+- [x] Empty query shows recent directories
+- [x] Up/Down moves selection
+- [x] Enter navigates to selected directory
+- [x] Escape dismisses without navigation
+- [x] Tab autocompletes path
+- [x] ★ appears on frecent items
+- [x] Frecency persists across app restart
+- [x] Directories visited more recently rank higher
+- [x] Invalid/non-directory paths don't appear in results
 
 ## Testing
 
@@ -232,9 +232,9 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 - [x] `testRecordVisitIncrementsCount` - existing path increments visitCount
 - [x] `testRecordVisitUpdatesLastVisit` - lastVisit updated to now
 - [x] `testFrecencyScoreDecaysOverTime` - older entries score lower
-- [x] `testFuzzyMatchPartialName` - "dtour" matches "detour"
+- [x] `testFuzzyMatchPartialName` - "dtour" matches "detour" (substring in frecency)
 - [x] `testFuzzyMatchCaseInsensitive` - "DOC" matches "Documents"
-- [x] `testFuzzyMatchCharactersInOrder` - "dtr" matches "detour", "trd" doesn't
+- [x] `testFuzzyMatchCharactersInOrder` - "dtr" matches "detour" (frecency substring)
 - [x] `testTopDirectoriesSortedByFrecency` - higher frecency first
 - [x] `testTopDirectoriesLimit` - respects limit parameter
 - [x] `testLoadSaveRoundTrip` - data persists and loads correctly
@@ -244,8 +244,8 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 ### Manual Verification
 
 After implementation:
-- [ ] Popover appears centered, styled correctly
-- [ ] Results update as you type (no lag)
-- [ ] Keyboard navigation feels responsive
-- [ ] Selection navigates and popover closes
-- [ ] Frecency ranking feels intuitive after a few uses
+- [x] Popover appears centered, styled correctly
+- [x] Results update as you type (no lag)
+- [x] Keyboard navigation feels responsive
+- [x] Selection navigates and popover closes
+- [x] Frecency ranking feels intuitive after a few uses
