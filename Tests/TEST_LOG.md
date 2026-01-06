@@ -1,11 +1,19 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-06 10:55:21
-- Ended: 2026-01-06 10:55:22
-- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS'`
+- Started: 2026-01-06 15:45:35
+- Ended: 2026-01-06 15:45:36
+- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/DirectoryWatcherTests`
 - Status: PASS
-- Total tests: 71
+- Total tests: 77 (73 XCTest + 4 Swift Testing)
+
+### DirectoryWatcherTests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| Detects file creation | PASS | 0.517s | 2026-01-06 15:45:35 |
+| Detects file deletion | PASS | 0.516s | 2026-01-06 15:45:35 |
+| Detects file rename | PASS | 0.517s | 2026-01-06 15:45:35 |
+| Stop prevents further callbacks | PASS | 0.517s | 2026-01-06 15:45:35 |
 
 ### ClipboardManagerTests
 | Test | Status | Duration | Last Run |
@@ -115,3 +123,4 @@
 - 2026-01-06 10:25:43: Per-test timestamps are derived from the run start time plus reported durations in xcresult order.
 - 2026-01-06 10:55:22: Added F5 system-defined and global key-down coverage in SystemKeyHandlerTests.
 - 2026-01-06 10:55:22: SystemMediaKey parsing now uses unsigned data1 to avoid sign issues.
+- 2026-01-06 15:45:35: Added DirectoryWatcherTests (4 tests) using Swift Testing framework for filesystem watching.

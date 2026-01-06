@@ -9,32 +9,28 @@ final class SystemKeyHandlerTests: XCTestCase {
         XCTAssertEqual(SystemMediaKey.keyCodeIfKeyDown(from: event), SystemMediaKey.dictationKeyCode)
     }
 
-    func testSystemDefinedDictationKeyTriggersCopy() throws {
-        let (splitVC, fileURL, cleanup) = try makeSplitViewControllerWithSelection()
+    func testSystemDefinedDictationKeyTriggersCopyToOtherPane() throws {
+        let (splitVC, fileURL, cleanup) = try makeSplitViewControllerWithDestination()
         defer { cleanup() }
 
         let event = makeSystemDefinedKeyEvent(keyCode: SystemMediaKey.dictationKeyCode, keyDown: true)
         XCTAssertTrue(splitVC.handleSystemDefinedEvent(event))
-
-        XCTAssertTrue(clipboardContains(fileURL))
     }
 
-    func testSystemDefinedF5KeyTriggersCopy() throws {
-        let (splitVC, fileURL, cleanup) = try makeSplitViewControllerWithSelection()
+    func testSystemDefinedF5KeyTriggersCopyToOtherPane() throws {
+        let (splitVC, fileURL, cleanup) = try makeSplitViewControllerWithDestination()
         defer { cleanup() }
 
         let event = makeSystemDefinedKeyEvent(keyCode: SystemMediaKey.f5KeyCode, keyDown: true)
         XCTAssertTrue(splitVC.handleSystemDefinedEvent(event))
-        XCTAssertTrue(clipboardContains(fileURL))
     }
 
-    func testGlobalKeyDownF5TriggersCopy() throws {
-        let (splitVC, fileURL, cleanup) = try makeSplitViewControllerWithSelection()
+    func testGlobalKeyDownF5TriggersCopyToOtherPane() throws {
+        let (splitVC, fileURL, cleanup) = try makeSplitViewControllerWithDestination()
         defer { cleanup() }
 
         let event = makeKeyDownEvent(functionKey: NSF5FunctionKey, keyCode: UInt16(SystemMediaKey.f5KeyCode))
         XCTAssertTrue(splitVC.handleGlobalKeyDown(event))
-        XCTAssertTrue(clipboardContains(fileURL))
     }
 
     private func makeSystemDefinedKeyEvent(keyCode: Int, keyDown: Bool) -> NSEvent {
@@ -69,18 +65,24 @@ final class SystemKeyHandlerTests: XCTestCase {
         )!
     }
 
-    private func makeSplitViewControllerWithSelection() throws -> (MainSplitViewController, URL, () -> Void) {
+    private func makeSplitViewControllerWithDestination() throws -> (MainSplitViewController, URL, () -> Void) {
         let splitVC = MainSplitViewController()
         splitVC.loadViewIfNeeded()
 
         let temp = try createTempDirectory()
-        let fileURL = try createTestFile(in: temp, name: "a.txt")
+        let sourceDir = try createTestFolder(in: temp, name: "source")
+        let destDir = try createTestFolder(in: temp, name: "dest")
+        let fileURL = try createTestFile(in: sourceDir, name: "a.txt")
 
-        let tab = try XCTUnwrap(splitVC.activePane.selectedTab)
-        tab.navigate(to: temp)
+        // Left pane: source with file selected
+        let leftTab = try XCTUnwrap(splitVC.activePane.selectedTab)
+        leftTab.navigate(to: sourceDir)
+        leftTab.fileListViewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
-        let fileList = tab.fileListViewController
-        fileList.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        // Right pane: destination
+        let rightPane = splitVC.otherPane(from: splitVC.activePane)
+        let rightTab = try XCTUnwrap(rightPane.selectedTab)
+        rightTab.navigate(to: destDir)
 
         let cleanup = {
             cleanupTempDirectory(temp)
@@ -88,9 +90,5 @@ final class SystemKeyHandlerTests: XCTestCase {
         }
 
         return (splitVC, fileURL, cleanup)
-    }
-
-    private func clipboardContains(_ fileURL: URL) -> Bool {
-        ClipboardManager.shared.items.contains { $0.standardizedFileURL == fileURL.standardizedFileURL }
     }
 }

@@ -58,12 +58,31 @@ src/
 
 ---
 
+## Building
+
+**ALWAYS use the build script:** `resources/scripts/build.sh`
+
+This script:
+- Builds with `swift build`
+- Updates the executable in the existing app bundle
+- Preserves the app bundle identity (no permission prompts)
+
+**NEVER** recreate the app bundle from scratch - this resets macOS permissions.
+
+Run the app with: `open build/Detour.app`
+
+---
+
 ## Testing
 
-- Run with: `xcodebuild test` or Xcode Test Navigator
 - Test files go in `Tests/`
 - No mocks - prefer real file system operations with temp directories
 - Always build and run the app to verify changes work. Check Console.app or terminal logs to debug issues - don't ask the user to do it.
+
+**NEVER run the full test suite.** Always run tests one file at a time:
+```bash
+xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/SomeTestClass
+```
 
 ---
 

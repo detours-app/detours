@@ -157,6 +157,12 @@ Create `src/Operations/` to house all file operation logic.
 - Add method to get items by row indexes:
   - `items(at indexes: IndexSet) -> [FileItem]`
 
+**src/FileList/FileListViewController.swift**
+- Add `DirectoryWatcher` property
+- Start watcher when loading a directory
+- Stop previous watcher when changing directories
+- On change callback: reload directory preserving selection
+
 **src/FileList/FileListCell.swift**
 - Check `ClipboardManager.shared.isItemCut(url)` when rendering
 - If cut: render text and icon at 50% opacity
@@ -192,14 +198,17 @@ Create `src/Operations/` to house all file operation logic.
 
 | Action | Primary | Alt | Menu |
 |--------|---------|-----|------|
-| Copy | Cmd-C | F5 | Edit > Copy |
+| Copy to Clipboard | Cmd-C | — | Edit > Copy |
+| Copy to Other Pane | F5 | — | — |
 | Cut | Cmd-X | — | Edit > Cut |
 | Paste | Cmd-V | — | Edit > Paste |
 | Duplicate | Cmd-D | — | Edit > Duplicate |
 | Delete | Cmd-Delete | F8 | Edit > Move to Trash |
-| Move to Other Pane | — | F6 | — |
+| Move to Other Pane | F6 | — | — |
 | New Folder | Cmd-Shift-N | F7 | File > New Folder |
 | Rename | Shift-Enter | F2 | — |
+| Go to Parent | Cmd-Up | — | — |
+| Refresh | Cmd-R | — | — |
 
 ### Responder Chain
 
@@ -239,11 +248,19 @@ File operation actions flow through the responder chain:
 3. Directories: duplicate recursively
 
 **New Folder:**
-1. Create with name "untitled folder"
-2. If exists, try "untitled folder 2", etc.
-3. Use `FileManager.createDirectory(at:withIntermediateDirectories:)`
-4. Select the new folder
-5. Immediately begin rename
+1. If a folder is selected, create inside it and navigate into it
+2. Otherwise create in current directory
+3. Name: "Folder" (if exists, try "Folder 2", etc.)
+4. Use `FileManager.createDirectory(at:withIntermediateDirectories:)`
+5. Select the new folder
+6. Immediately begin rename with name selected
+
+**Rename UX:**
+- Select name only, not extension (for files)
+- For folders, select entire name
+- Esc cancels and restores focus to table (selection stays blue)
+- Enter with unchanged name simply cancels (no error)
+- Text field has background color and high z-position to overlay table cell
 
 ### Error Handling
 
@@ -258,6 +275,21 @@ Conflict resolution (for copy/move):
 - Replace: delete destination, then copy
 - Keep Both: append number suffix to destination name
 - Apply to All: remember choice for remaining conflicts
+
+**src/FileList/DirectoryWatcher.swift**
+- Monitors a directory for changes using `DispatchSource.makeFileSystemObjectSource`
+- Properties:
+  - `url: URL` - directory being watched
+  - `onChange: (() -> Void)?` - callback when changes detected
+- Methods:
+  - `init(url: URL, onChange: @escaping () -> Void)`
+  - `start()` - begins monitoring
+  - `stop()` - stops monitoring and releases resources
+- Implementation:
+  - Open file descriptor with `open(path, O_EVTONLY)`
+  - Create `DispatchSource` with `.write` event mask (covers add/delete/rename)
+  - Call `onChange` on main queue when events fire
+  - Close file descriptor in `stop()` and deinit
 
 ### What's NOT in Stage 3
 
@@ -339,25 +371,42 @@ Conflict resolution (for copy/move):
 - [x] Implement partial failure summary ("X of Y items failed")
 
 ### Phase 9: F-Key Shortcuts and Cut Dimming
-- [x] Wire F5 (copy), F7 (new folder), F8 (delete) in keyDown
+- [x] Wire F5 (copy to other pane), F7 (new folder), F8 (delete) in keyDown
 - [x] Update FileListCell to dim cut items (50% opacity)
 - [x] Observe `ClipboardManager.cutItemsDidChange` to refresh cells
+- [x] F5 copies to other pane (Norton Commander style), not clipboard
+- [x] F6 move keeps selection on next file in source pane
+- [x] Cut/paste selects pasted file and keeps focus on destination pane
+- [x] Cmd-D selects the duplicate after creation
+- [x] Rename selects name only (not extension) for files
+- [x] Esc during rename restores focus to table (selection stays blue)
 
-### Phase 10: Verify
-- [x] Run `xcodebuild test -scheme Detour -destination 'platform=macOS'` - all 71 tests pass
-- [ ] Cmd-C copies selected files to clipboard
-- [ ] Cmd-V pastes files to current directory
-- [ ] Cmd-X cuts files (source dimmed at 50% opacity)
-- [ ] Cmd-V after cut moves files (source gone, dimming clears)
-- [ ] Cmd-Delete moves to trash (verify in Finder Trash)
-- [ ] Cmd-D duplicates in place with " copy" suffix
-- [ ] Cmd-Shift-N creates "untitled folder" and begins rename
-- [ ] Shift-Enter / F2 begins inline rename
-- [ ] Enter commits rename, Escape cancels
-- [ ] F6 moves selection to other pane's current directory
-- [ ] Progress UI appears for copying folder with >5 items
+### Phase 10: Directory Watching
+- [x] Create `DirectoryWatcher.swift` using DispatchSource
+- [x] Add watcher property to FileListViewController
+- [x] Start/stop watcher on directory changes
+- [x] Reload preserving selection when changes detected
+- [x] Test: create file externally, verify auto-refresh
+- [x] Create `Tests/DirectoryWatcherTests.swift` (4 tests)
+
+### Phase 11: Verify
+- [x] Run `xcodebuild test -scheme Detour -destination 'platform=macOS'` - all 73 tests pass
+- [x] Cmd-C copies selected files to clipboard
+- [x] Cmd-V pastes files to current directory
+- [x] Cmd-X cuts files (source dimmed at 50% opacity)
+- [x] Cmd-V after cut moves files (source gone, dimming clears)
+- [x] Cmd-Delete moves to trash (verify in Finder Trash)
+- [x] Cmd-D duplicates in place with " copy" suffix, selects duplicate
+- [x] Cmd-Shift-N / F7 creates "Folder" (inside selected folder if applicable), navigates, begins rename
+- [x] Shift-Enter / F2 begins inline rename, selects name only (not extension)
+- [x] Enter commits rename, Escape cancels (keeps selection blue)
+- [x] F5 copies selection to other pane (focus stays on source)
+- [x] F6 moves selection to other pane (selection moves to next file in source)
+- [x] Cmd-Up goes to parent directory
+- [x] Cmd-R refreshes current directory
+- [x] Progress UI appears for copying folder with >5 items
 - [ ] Cancel button stops operation mid-progress
-- [ ] Copy over existing file shows Skip/Replace/Keep Both dialog
+- [x] Copy over existing file shows Skip/Replace/Keep Both dialog
 - [ ] Menu items (Edit > Copy, etc.) enable/disable correctly
 
 ## Testing

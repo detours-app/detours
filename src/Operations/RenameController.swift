@@ -23,6 +23,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         let rowRect = tableView.rect(ofRow: row)
         let columnRect = tableView.rect(ofColumn: 0)
+
         let targetRect = NSRect(
             x: columnRect.minX + 24,
             y: rowRect.minY + 2,
@@ -36,9 +37,24 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         field.isBordered = true
         field.focusRingType = .none
         field.delegate = self
+        field.drawsBackground = true
+        field.backgroundColor = .textBackgroundColor
+        field.wantsLayer = true
+        field.layer?.zPosition = 1000
         tableView.addSubview(field)
+        tableView.scrollRowToVisible(row)
         tableView.window?.makeFirstResponder(field)
-        field.currentEditor()?.selectAll(nil)
+
+        // Select name only, not extension (unless it's a folder or has no extension)
+        if let editor = field.currentEditor() {
+            let name = item.name
+            let extensionStart = (name as NSString).range(of: ".", options: .backwards)
+            if extensionStart.location != NSNotFound && extensionStart.location > 0 && !item.isDirectory {
+                editor.selectedRange = NSRange(location: 0, length: extensionStart.location)
+            } else {
+                editor.selectAll(nil)
+            }
+        }
 
         textField = field
     }
@@ -50,6 +66,12 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         if newName.isEmpty || newName.rangeOfCharacter(from: invalidChars) != nil {
             NSSound.beep()
+            return
+        }
+
+        // If name unchanged, just cancel without error
+        if newName == item.name {
+            cancelRename()
             return
         }
 
@@ -72,11 +94,14 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     }
 
     func cancelRename() {
+        let tv = tableView
         textField?.removeFromSuperview()
         textField = nil
         tableView = nil
         currentItem = nil
         currentRow = nil
+        // Restore focus to tableView so selection shows blue
+        tv?.window?.makeFirstResponder(tv)
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {

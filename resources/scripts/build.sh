@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 APP_NAME="Detour"
 APP_BUNDLE_ID="com.detour.app"

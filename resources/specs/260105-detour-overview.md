@@ -525,7 +525,7 @@ Future specs will detail each stage. This is the sequencing:
 ### Stage 4: Quick Navigation
 - Spec: `yymmdd-quick-nav.md`
 - [ ] Cmd-P popover
-- [ ] Frecency tracking
+- [ ] Frequency tracking
 - [ ] Fuzzy matching
 
 ### Stage 5: System Integration

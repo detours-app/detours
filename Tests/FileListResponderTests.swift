@@ -77,14 +77,15 @@ final class FileListResponderTests: XCTestCase {
         XCTAssertTrue(ClipboardManager.shared.cutItemURLs.isEmpty)
     }
 
-    func testHandleKeyDownHandlesF5CopyShortcut() throws {
-        let (viewController, _, cleanup) = try makeViewControllerWithSelection()
+    func testHandleKeyDownHandlesF5CopyToOtherPane() throws {
+        let spy = NavigationDelegateSpy()
+        let (viewController, fileURL, cleanup) = try makeViewControllerWithSelection(delegate: spy)
         defer { cleanup() }
 
         let event = makeFunctionKeyEvent(keyCode: 96, functionKey: NSF5FunctionKey)
         XCTAssertTrue(viewController.handleKeyDown(event))
-        XCTAssertTrue(ClipboardManager.shared.hasItems)
-        XCTAssertFalse(ClipboardManager.shared.isCut)
+        let copiedItems = spy.copyToOtherPaneItems.map { $0.standardizedFileURL }
+        XCTAssertEqual(copiedItems, [fileURL.standardizedFileURL])
     }
 
     func testHandleKeyDownHandlesF6MoveToOtherPaneShortcut() throws {
@@ -166,9 +167,41 @@ final class FileListResponderTests: XCTestCase {
         let event = makeFunctionKeyEvent(keyCode: 98, functionKey: NSF7FunctionKey)
         XCTAssertTrue(viewController.handleKeyDown(event))
 
-        let newFolder = temp.appendingPathComponent("untitled folder")
+        let newFolder = temp.appendingPathComponent("Folder")
         let folderExists = await waitForFile(at: newFolder, exists: true)
-        XCTAssertTrue(folderExists)
+        XCTAssertTrue(folderExists, "New folder should be created with name 'Folder'")
+    }
+
+    func testHandleKeyDownHandlesF7NewFolderInsideSelectedFolder() async throws {
+        let temp = try createTempDirectory()
+        let existingFolder = try createTestFolder(in: temp, name: "existing")
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        viewController.loadDirectory(temp)
+        viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        let cleanup = {
+            cleanupTempDirectory(temp)
+            ClipboardManager.shared.clear()
+        }
+        defer { cleanup() }
+
+        let event = makeFunctionKeyEvent(keyCode: 98, functionKey: NSF7FunctionKey)
+        XCTAssertTrue(viewController.handleKeyDown(event))
+
+        let newFolder = existingFolder.appendingPathComponent("Folder")
+        let folderExists = await waitForFile(at: newFolder, exists: true)
+        XCTAssertTrue(folderExists, "New folder should be created inside selected folder")
+    }
+
+    func testHandleKeyDownHandlesCmdUpParentNavigation() throws {
+        let spy = NavigationDelegateSpy()
+        let (viewController, _, cleanup) = try makeViewControllerWithSelection(delegate: spy)
+        defer { cleanup() }
+
+        let event = makeKeyEvent(characters: "", keyCode: 126, modifiers: [.command])
+        XCTAssertTrue(viewController.handleKeyDown(event))
+        XCTAssertTrue(spy.parentNavigationRequested, "Cmd-Up should request parent navigation")
     }
 
     func testHandleKeyDownHandlesF8Delete() async throws {
@@ -265,10 +298,17 @@ final class FileListResponderTests: XCTestCase {
 @MainActor
 private final class NavigationDelegateSpy: FileListNavigationDelegate {
     var moveToOtherPaneItems: [URL] = []
+    var copyToOtherPaneItems: [URL] = []
     var refreshSourceDirectories: Set<URL> = []
+    var navigatedTo: URL?
+    var parentNavigationRequested = false
 
-    func fileListDidRequestNavigation(to url: URL) {}
-    func fileListDidRequestParentNavigation() {}
+    func fileListDidRequestNavigation(to url: URL) {
+        navigatedTo = url
+    }
+    func fileListDidRequestParentNavigation() {
+        parentNavigationRequested = true
+    }
     func fileListDidRequestSwitchPane() {}
     func fileListDidBecomeActive() {}
     func fileListDidRequestOpenInNewTab(url: URL) {}
@@ -277,7 +317,9 @@ private final class NavigationDelegateSpy: FileListNavigationDelegate {
         moveToOtherPaneItems = items
     }
 
-    func fileListDidRequestCopyToOtherPane(items: [URL]) {}
+    func fileListDidRequestCopyToOtherPane(items: [URL]) {
+        copyToOtherPaneItems = items
+    }
 
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>) {
         refreshSourceDirectories = directories

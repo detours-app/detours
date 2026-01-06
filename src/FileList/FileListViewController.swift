@@ -28,6 +28,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
     private var currentDirectory: URL?
     private var hasLoadedDirectory = false
     private let renameController = RenameController()
+    private var directoryWatcher: DirectoryWatcher?
 
     override func loadView() {
         view = NSView()
@@ -168,6 +169,44 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         if dataSource.items.count > 0 {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
+
+        startWatching(url)
+    }
+
+    private func startWatching(_ url: URL) {
+        directoryWatcher?.stop()
+        directoryWatcher = DirectoryWatcher(url: url) { [weak self] in
+            self?.handleDirectoryChange()
+        }
+        directoryWatcher?.start()
+    }
+
+    private func handleDirectoryChange() {
+        guard let currentDirectory else { return }
+
+        // Preserve current selection
+        let selectedNames = Set(selectedItems.map { $0.name })
+        let firstSelectedRow = tableView.selectedRow
+
+        dataSource.loadDirectory(currentDirectory)
+
+        // Restore selection by name
+        var newSelection = IndexSet()
+        for (index, item) in dataSource.items.enumerated() {
+            if selectedNames.contains(item.name) {
+                newSelection.insert(index)
+            }
+        }
+
+        if !newSelection.isEmpty {
+            tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
+        } else if dataSource.items.count > 0 {
+            // Selection was deleted - select nearby item
+            let newIndex = min(firstSelectedRow, dataSource.items.count - 1)
+            if newIndex >= 0 {
+                tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+            }
+        }
     }
 
     func ensureLoaded() {
@@ -265,10 +304,20 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
 
+        // Remember selection index to restore after delete
+        let selectedIndex = tableView.selectedRow
+
         Task { @MainActor in
             do {
                 try await FileOperationQueue.shared.delete(items: urls)
                 loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent())
+                // Select next file at same index
+                let itemCount = dataSource.items.count
+                if itemCount > 0 && selectedIndex >= 0 {
+                    let newIndex = min(selectedIndex, itemCount - 1)
+                    tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                    tableView.scrollRowToVisible(newIndex)
+                }
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -281,8 +330,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
 
         Task { @MainActor in
             do {
-                _ = try await FileOperationQueue.shared.duplicate(items: urls)
+                let duplicatedURLs = try await FileOperationQueue.shared.duplicate(items: urls)
                 loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent())
+                // Select the first duplicated file
+                if let firstName = duplicatedURLs.first?.lastPathComponent,
+                   let index = dataSource.items.firstIndex(where: { $0.name == firstName }) {
+                    tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                    tableView.scrollRowToVisible(index)
+                }
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -292,10 +347,24 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
     private func createNewFolder() {
         guard let currentDirectory else { return }
 
+        // If a folder is selected, create inside it; otherwise create in current directory
+        let targetDirectory: URL
+        if let selectedItem = selectedItems.first, selectedItem.isDirectory {
+            targetDirectory = selectedItem.url
+        } else {
+            targetDirectory = currentDirectory
+        }
+
         Task { @MainActor in
             do {
-                let newFolder = try await FileOperationQueue.shared.createFolder(in: currentDirectory, name: "untitled folder")
-                loadDirectory(currentDirectory)
+                let newFolder = try await FileOperationQueue.shared.createFolder(in: targetDirectory, name: "Folder")
+                // If created inside selected folder, navigate into that folder first
+                if targetDirectory != currentDirectory {
+                    navigationDelegate?.fileListDidRequestNavigation(to: targetDirectory)
+                    // Small delay to let navigation complete, then select and rename
+                    try await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+                }
+                loadDirectory(targetDirectory)
                 selectItem(at: newFolder)
                 renameSelection()
             } catch {
@@ -325,7 +394,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
     }
 
     private func selectItem(at url: URL) {
-        if let index = dataSource.items.firstIndex(where: { $0.url == url }) {
+        let targetPath = url.standardizedFileURL.path
+        if let index = dataSource.items.firstIndex(where: { $0.url.standardizedFileURL.path == targetPath }) {
             tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
             tableView.scrollRowToVisible(index)
         }
@@ -567,7 +637,7 @@ extension FileListViewController: NSMenuItemValidation {
         case #selector(copy(_:)), #selector(cut(_:)), #selector(delete(_:)), #selector(duplicate(_:)):
             return !selectedURLs.isEmpty
         case #selector(paste(_:)):
-            return ClipboardManager.shared.hasItems && currentDirectory != nil
+            return ClipboardManager.shared.hasValidItems && currentDirectory != nil
         case #selector(newFolder(_:)):
             return currentDirectory != nil
         default:

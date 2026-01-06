@@ -19,6 +19,12 @@ final class ClipboardManager {
         !readItems().isEmpty
     }
 
+    var hasValidItems: Bool {
+        let items = readItems()
+        guard !items.isEmpty else { return false }
+        return items.contains { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
     func copy(items: [URL]) {
         write(items: items)
         isCut = false
