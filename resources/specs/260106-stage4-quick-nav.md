@@ -249,3 +249,171 @@ After implementation:
 - [x] Keyboard navigation feels responsive
 - [x] Selection navigates and popover closes
 - [x] Frecency ranking feels intuitive after a few uses
+
+---
+
+## Phase 6: Async Spotlight Search (260107)
+
+### Problem
+
+The synchronous MDQuery blocks the main thread during typing, causing lag. Also, the current query only searches `kMDItemDisplayName` and misses some folders.
+
+### Solution
+
+Replace synchronous MDQuery with async NSMetadataQuery that streams results progressively:
+
+1. **Instant frecency results** - Show frecency matches immediately (dictionary lookup)
+2. **Async Spotlight search** - Stream in Spotlight results as they're found
+3. **Cancellable** - Cancel and restart query on each keystroke
+4. **Broader search** - Search both display name and filesystem name
+
+### Implementation
+
+**src/Navigation/SpotlightSearch.swift** (new file)
+
+Manages async NSMetadataQuery for folder search.
+
+```swift
+@MainActor
+final class SpotlightSearch {
+    private var query: NSMetadataQuery?
+    private var onResults: (([URL]) -> Void)?
+
+    func search(for searchText: String, onResults: @escaping ([URL]) -> Void) {
+        // Cancel any existing query
+        cancel()
+
+        self.onResults = onResults
+
+        let query = NSMetadataQuery()
+        query.searchScopes = [
+            NSMetadataQueryLocalComputerScope,
+            NSMetadataQueryUserHomeScope
+        ]
+
+        // Search display name OR filesystem name (finds more matches)
+        let escaped = searchText.replacingOccurrences(of: "'", with: "\\'")
+        query.predicate = NSPredicate(
+            format: "kMDItemContentType == 'public.folder' AND (kMDItemDisplayName CONTAINS[cd] %@ OR kMDItemFSName CONTAINS[cd] %@)",
+            escaped, escaped
+        )
+
+        // Observe notifications
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(queryDidUpdate(_:)),
+            name: .NSMetadataQueryDidUpdate,
+            object: query
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(queryDidFinish(_:)),
+            name: .NSMetadataQueryDidFinishGathering,
+            object: query
+        )
+
+        self.query = query
+        query.start()
+    }
+
+    func cancel() {
+        query?.stop()
+        if let query = query {
+            NotificationCenter.default.removeObserver(self, name: .NSMetadataQueryDidUpdate, object: query)
+            NotificationCenter.default.removeObserver(self, name: .NSMetadataQueryDidFinishGathering, object: query)
+        }
+        query = nil
+        onResults = nil
+    }
+
+    @objc private func queryDidUpdate(_ notification: Notification) {
+        deliverResults()
+    }
+
+    @objc private func queryDidFinish(_ notification: Notification) {
+        deliverResults()
+        cancel()
+    }
+
+    private func deliverResults() {
+        guard let query = query else { return }
+        query.disableUpdates()
+
+        var urls: [URL] = []
+        for i in 0..<query.resultCount {
+            guard let item = query.result(at: i) as? NSMetadataItem,
+                  let path = item.value(forAttribute: kMDItemPath as String) as? String else {
+                continue
+            }
+
+            // Skip system/hidden paths
+            if path.contains("/.") ||
+               path.hasPrefix("/System") ||
+               path.hasPrefix("/Library") ||
+               path.contains("/Library/") ||
+               path.hasPrefix("/private") ||
+               path.contains(".app/") {
+                continue
+            }
+
+            urls.append(URL(fileURLWithPath: path))
+        }
+
+        query.enableUpdates()
+        onResults?(urls)
+    }
+}
+```
+
+**Modify QuickNavView.swift**
+
+- Add `@State private var spotlightSearch = SpotlightSearch()`
+- On query change:
+  1. Immediately show frecency matches (instant)
+  2. Start async Spotlight search
+  3. When Spotlight returns results, merge with frecency (frecent items first, then Spotlight additions)
+- On new keystroke: cancel previous search, start new one
+
+**Modify FrecencyStore.swift**
+
+- Add `frecencyMatches(for query: String, limit: Int) -> [URL]` - returns just frecency matches without Spotlight (fast)
+- Keep existing `topDirectories` for backward compatibility but mark as used only for empty query
+
+### Search Flow
+
+```
+User types "rev"
+    │
+    ├─► Immediately: Show frecency matches for "rev" (instant)
+    │
+    └─► Async: Start NSMetadataQuery for folders containing "rev"
+            │
+            ├─► Batch 1 arrives: Merge with frecency, update UI
+            ├─► Batch 2 arrives: Merge with frecency, update UI
+            └─► Done: Final merge, cancel query
+
+User types "revi" (before search completes)
+    │
+    ├─► Cancel previous query
+    ├─► Immediately: Show frecency matches for "revi"
+    └─► Async: Start new NSMetadataQuery for "revi"
+```
+
+### Benefits
+
+- **No UI lag** - Main thread never blocks
+- **Instant feedback** - Frecency results appear immediately
+- **Progressive** - Spotlight results stream in
+- **Cancellable** - Typing cancels stale searches
+- **More results** - Searches both display name and FS name
+
+### Checklist
+
+- [x] Create `SpotlightSearch.swift`
+- [x] Add `frecencyMatches` to FrecencyStore
+- [x] Update QuickNavView to use async search
+- [x] Test: typing is smooth, no lag
+- [x] Test: frecency results appear instantly
+- [x] Test: Spotlight results stream in
+- [x] Test: "Revision" folders are found
+- [x] Test: cancellation works on rapid typing

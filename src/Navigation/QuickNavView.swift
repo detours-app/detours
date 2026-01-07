@@ -4,8 +4,10 @@ import SwiftUI
 struct QuickNavView: View {
     @State private var query: String = ""
     @State private var results: [URL] = []
+    @State private var frecencyResults: [URL] = []
+    @State private var spotlightResults: [URL] = []
     @State private var selectedIndex: Int = 0
-    @State private var debounceTask: Task<Void, Never>?
+    @State private var spotlightSearch = SpotlightSearch()
     @FocusState private var isTextFieldFocused: Bool
 
     let onSelect: (URL) -> Void
@@ -26,7 +28,7 @@ struct QuickNavView: View {
                     selectCurrent()
                 }
                 .onChange(of: query) { _, newValue in
-                    debounceSearch(newValue)
+                    performSearch(newValue)
                 }
 
             Divider()
@@ -55,7 +57,7 @@ struct QuickNavView: View {
                         }
                         .padding(.vertical, 4)
                     }
-                    .frame(maxHeight: CGFloat(min(results.count, maxResults)) * 36 + 8)
+                    .frame(height: CGFloat(maxResults) * 36 + 8)
                     .onChange(of: selectedIndex) { _, newIndex in
                         withAnimation {
                             proxy.scrollTo(newIndex, anchor: .center)
@@ -65,26 +67,23 @@ struct QuickNavView: View {
             }
 
             // Footer with keyboard hints
-            if !results.isEmpty {
-                Divider()
-                HStack(spacing: 16) {
-                    Text("↑↓ navigate")
-                    Text("↵ open")
-                    Text("⇥ autocomplete")
-                }
-                .font(Font(NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)))
-                .foregroundColor(.secondary)
-                .padding(.vertical, 6)
+            Divider()
+            HStack(spacing: 16) {
+                Text("↑↓ navigate")
+                Text("↵ open")
+                Text("⇥ autocomplete")
             }
+            .font(Font(NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)))
+            .foregroundColor(.secondary)
+            .padding(.vertical, 6)
         }
-        .frame(width: 700)
+        .frame(width: 900)
         .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear {
+        .task {
             loadInitialResults()
             // Delay focus slightly to ensure window is ready
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                isTextFieldFocused = true
-            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            isTextFieldFocused = true
         }
         .onKeyPress(.upArrow) {
             moveSelection(by: -1)
@@ -107,18 +106,43 @@ struct QuickNavView: View {
     // MARK: - Actions
 
     private func loadInitialResults() {
-        results = FrecencyStore.shared.topDirectories(matching: "", limit: maxResults)
+        // Show top frecent directories on initial load
+        frecencyResults = FrecencyStore.shared.frecencyMatches(for: "", limit: maxResults)
+        spotlightResults = []
+        updateMergedResults()
         selectedIndex = 0
     }
 
-    private func debounceSearch(_ newQuery: String) {
-        debounceTask?.cancel()
-        debounceTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms debounce
-            guard !Task.isCancelled else { return }
-            results = FrecencyStore.shared.topDirectories(matching: newQuery, limit: maxResults)
-            selectedIndex = results.isEmpty ? 0 : min(selectedIndex, results.count - 1)
+    private func performSearch(_ newQuery: String) {
+        // Cancel any existing Spotlight search
+        spotlightSearch.cancel()
+
+        // Empty query: just show frecency
+        if newQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+            frecencyResults = FrecencyStore.shared.frecencyMatches(for: "", limit: maxResults)
+            spotlightResults = []
+            updateMergedResults()
+            return
         }
+
+        // INSTANTLY show frecency matches (no blocking)
+        frecencyResults = FrecencyStore.shared.frecencyMatches(for: newQuery, limit: maxResults)
+        updateMergedResults()
+
+        // Start async Spotlight search - results stream in via callback
+        spotlightSearch.search(for: newQuery) { [self] urls in
+            spotlightResults = urls
+            updateMergedResults()
+        }
+    }
+
+    private func updateMergedResults() {
+        results = FrecencyStore.shared.mergeResults(
+            frecency: frecencyResults,
+            spotlight: spotlightResults,
+            limit: maxResults
+        )
+        selectedIndex = results.isEmpty ? 0 : min(selectedIndex, results.count - 1)
     }
 
     private func moveSelection(by delta: Int) {
@@ -173,7 +197,7 @@ private struct ResultRow: View {
             Text(displayPath)
                 .font(Font(NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)))
                 .lineLimit(1)
-                .truncationMode(.middle)
+                .truncationMode(.head)
 
             Spacer()
 

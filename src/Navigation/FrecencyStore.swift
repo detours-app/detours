@@ -1,4 +1,3 @@
-import CoreServices
 import Foundation
 import os.log
 
@@ -94,17 +93,94 @@ final class FrecencyStore {
             }
         }
 
-        // Search filesystem
-        let filesystemMatches = searchFilesystem(query: expandedQuery, limit: limit * 2)
-        for url in filesystemMatches {
-            if results[url] == nil {
-                results[url] = 0.0
-            }
-        }
+        // Note: Filesystem search is now handled by SpotlightSearch (async)
+        // This method returns frecency matches only for backward compatibility
 
         // Sort by score descending, take top N
         let sorted = results.sorted { $0.value > $1.value }
         return Array(sorted.prefix(limit).map { $0.key })
+    }
+
+    /// Get frecency matches only (no Spotlight search). Fast, for instant results.
+    func frecencyMatches(for query: String, limit: Int = 10) -> [URL] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespaces)
+
+        // Empty query: return frecent directories only
+        if trimmedQuery.isEmpty {
+            return topFrecent(limit: limit)
+        }
+
+        // Expand ~ to home directory
+        let expandedQuery: String
+        if trimmedQuery.hasPrefix("~") {
+            let home = FileManager.default.homeDirectoryForCurrentUser.path
+            expandedQuery = home + trimmedQuery.dropFirst()
+        } else {
+            expandedQuery = trimmedQuery
+        }
+
+        // If query looks like an absolute path, check if it exists
+        if expandedQuery.hasPrefix("/") {
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: expandedQuery, isDirectory: &isDirectory),
+               isDirectory.boolValue {
+                return [URL(fileURLWithPath: expandedQuery)]
+            }
+        }
+
+        // Search frecency entries only (no filesystem search)
+        var results: [(URL, Double)] = []
+        let queryLower = expandedQuery.lowercased()
+
+        for (path, entry) in entries {
+            let lastComponent = URL(fileURLWithPath: path).lastPathComponent.lowercased()
+            if lastComponent.contains(queryLower) || path.lowercased().contains(queryLower) {
+                var isDirectory: ObjCBool = false
+                if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+                   isDirectory.boolValue {
+                    results.append((URL(fileURLWithPath: path), frecencyScore(for: entry)))
+                }
+            }
+        }
+
+        // Sort by score descending, take top N
+        results.sort { $0.1 > $1.1 }
+        return Array(results.prefix(limit).map { $0.0 })
+    }
+
+    /// Merge frecency results with Spotlight results.
+    /// Frecency items come first (sorted by score), then Spotlight additions.
+    func mergeResults(frecency: [URL], spotlight: [URL], limit: Int = 10) -> [URL] {
+        var seen = Set<URL>()
+        var merged: [URL] = []
+
+        // Add frecency results first (they're already sorted by score)
+        for url in frecency {
+            if !seen.contains(url) {
+                seen.insert(url)
+                merged.append(url)
+            }
+        }
+
+        // Add Spotlight results that aren't already in frecency
+        // Give them scores based on frecency if they have any
+        var spotlightWithScores: [(URL, Double)] = []
+        for url in spotlight {
+            if !seen.contains(url) {
+                let score = entries[url.path].map { frecencyScore(for: $0) } ?? 0.0
+                spotlightWithScores.append((url, score))
+            }
+        }
+
+        // Sort Spotlight additions by score (frecent ones first)
+        spotlightWithScores.sort { $0.1 > $1.1 }
+
+        for (url, _) in spotlightWithScores {
+            if merged.count >= limit { break }
+            merged.append(url)
+        }
+
+        return Array(merged.prefix(limit))
     }
 
     /// Return top frecent directories (for empty query)
@@ -122,59 +198,6 @@ final class FrecencyStore {
 
         scored.sort { $0.1 > $1.1 }
         return Array(scored.prefix(limit).map { $0.0 })
-    }
-
-    /// Search filesystem for directories matching query using Spotlight
-    private func searchFilesystem(query: String, limit: Int) -> [URL] {
-        let queryLower = query.lowercased()
-
-        // Use Spotlight MDQuery for fast search
-        // Query: folders whose name contains the search term, excluding hidden and system paths
-        let escaped = queryLower.replacingOccurrences(of: "'", with: "\\'")
-        let queryString = "kMDItemContentType == 'public.folder' && kMDItemDisplayName == '*\(escaped)*'cd"
-
-        guard let mdQuery = MDQueryCreate(kCFAllocatorDefault, queryString as CFString, nil, nil) else {
-            logger.error("Failed to create MDQuery")
-            return []
-        }
-
-        // Execute synchronously - this is fast because Spotlight index is pre-built
-        let options = CFOptionFlags(kMDQuerySynchronous.rawValue)
-        guard MDQueryExecute(mdQuery, options) else {
-            logger.error("MDQuery execution failed")
-            return []
-        }
-
-        var results: [URL] = []
-        let count = MDQueryGetResultCount(mdQuery)
-
-        for i in 0..<count {
-            guard let rawPtr = MDQueryGetResultAtIndex(mdQuery, i) else { continue }
-            let item = Unmanaged<MDItem>.fromOpaque(rawPtr).takeUnretainedValue()
-
-            guard let path = MDItemCopyAttribute(item, kMDItemPath) as? String else { continue }
-
-            // Skip hidden paths and system directories
-            if path.contains("/.") ||
-               path.hasPrefix("/System") ||
-               path.hasPrefix("/Library") ||
-               path.contains("/Library/") ||
-               path.hasPrefix("/private") ||
-               path.contains(".app/") ||
-               path.contains(".xcodeproj/") ||
-               path.contains(".xcworkspace/") ||
-               path.contains("node_modules/") ||
-               path.contains(".git/") {
-                continue
-            }
-
-            results.append(URL(fileURLWithPath: path))
-            if results.count >= limit {
-                break
-            }
-        }
-
-        return results
     }
 
     /// Check if a directory is "frecent" (high score) - used for showing star icon

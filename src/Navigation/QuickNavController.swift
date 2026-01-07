@@ -31,11 +31,14 @@ final class QuickNavController {
         )
 
         let hostingController = NSHostingController(rootView: quickNavView)
-        let contentSize = hostingController.view.fittingSize
+
+        // Fixed size - don't rely on fittingSize since results are empty at creation
+        let panelWidth: CGFloat = 900
+        let panelHeight: CGFloat = 450  // Room for search + 10 results + footer
 
         // Create borderless floating panel
         let panel = FloatingPanel(
-            contentRect: NSRect(x: 0, y: 0, width: contentSize.width, height: contentSize.height),
+            contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -56,8 +59,8 @@ final class QuickNavController {
 
         // Position: centered horizontally, near top of parent window
         let windowFrame = window.frame
-        let panelX = windowFrame.midX - contentSize.width / 2
-        let panelY = windowFrame.maxY - 120 - contentSize.height
+        let panelX = windowFrame.midX - panelWidth / 2
+        let panelY = windowFrame.maxY - 120 - panelHeight
         panel.setFrameOrigin(NSPoint(x: panelX, y: panelY))
 
         self.panel = panel
