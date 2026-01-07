@@ -1,5 +1,10 @@
 # Changelog
 
+## 260107 Folder Sizes
+- Added: Folders now show calculated size in Size column
+- Added: Async folder size calculation (UI stays responsive)
+- Added: Size cache to avoid recalculation when returning to directories
+
 ## 260107 Scrolling Fix and iCloud Breadcrumbs
 - Fixed: Mouse/trackpad scrolling now works in file list panes
 - Fixed: Breadcrumbs show friendly iCloud names (iCloud Drive, Shared) instead of raw paths

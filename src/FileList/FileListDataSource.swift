@@ -1,5 +1,81 @@
 import AppKit
 
+// MARK: - Folder Size Cache
+
+/// Caches calculated folder sizes to avoid recalculation
+@MainActor
+final class FolderSizeCache {
+    static let shared = FolderSizeCache()
+
+    private var cache: [URL: Int64] = [:]
+    private var pending: Set<URL> = []
+
+    func size(for url: URL) -> Int64? {
+        cache[url]
+    }
+
+    func calculateAsync(for url: URL, onComplete: @escaping @Sendable (Int64) -> Void) {
+        // Already cached
+        if let cached = cache[url] {
+            onComplete(cached)
+            return
+        }
+
+        // Already calculating
+        if pending.contains(url) {
+            return
+        }
+
+        pending.insert(url)
+
+        Task {
+            let size = await Self.calculateFolderSize(at: url)
+            cache[url] = size
+            pending.remove(url)
+            onComplete(size)
+        }
+    }
+
+    private static func calculateFolderSize(at url: URL) async -> Int64 {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                let fileManager = FileManager.default
+                var totalSize: Int64 = 0
+
+                guard let enumerator = fileManager.enumerator(
+                    at: url,
+                    includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey],
+                    options: [.skipsHiddenFiles]
+                ) else {
+                    continuation.resume(returning: 0)
+                    return
+                }
+
+                for case let fileURL as URL in enumerator {
+                    do {
+                        let values = try fileURL.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey])
+                        if values.isDirectory != true {
+                            totalSize += Int64(values.fileSize ?? 0)
+                        }
+                    } catch {
+                        // Skip files we can't read
+                    }
+                }
+
+                continuation.resume(returning: totalSize)
+            }
+        }
+    }
+
+    func invalidate(url: URL) {
+        cache.removeValue(forKey: url)
+    }
+
+    func invalidateAll() {
+        cache.removeAll()
+    }
+}
+
 /// Teal accent color used throughout the app
 let detourAccentColor = NSColor(name: nil) { appearance in
     appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -198,7 +274,7 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         case "Name":
             return makeNameCell(for: item, tableView: tableView, row: row)
         case "Size":
-            return makeTextCell(text: item.formattedSize, tableView: tableView, identifier: "SizeCell", alignment: .right)
+            return makeSizeCell(for: item, tableView: tableView, row: row)
         case "Date":
             return makeTextCell(text: item.formattedDate, tableView: tableView, identifier: "DateCell", alignment: .right)
         default:
@@ -217,6 +293,50 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
     }
 
     // MARK: - Cell Creation
+
+    private func makeSizeCell(for item: FileItem, tableView: NSTableView, row: Int) -> NSView {
+        // For files, just show the size
+        if !item.isDirectory {
+            return makeTextCell(text: item.formattedSize, tableView: tableView, identifier: "SizeCell", alignment: .right)
+        }
+
+        // For folders, check cache or calculate async
+        let url = item.url
+        if let cachedSize = FolderSizeCache.shared.size(for: url) {
+            let formatted = formatSize(cachedSize)
+            return makeTextCell(text: formatted, tableView: tableView, identifier: "SizeCell", alignment: .right)
+        }
+
+        // Show placeholder and calculate async
+        let cell = makeTextCell(text: "—", tableView: tableView, identifier: "SizeCell", alignment: .right)
+
+        FolderSizeCache.shared.calculateAsync(for: url) { [weak self, weak tableView] _ in
+            Task { @MainActor in
+                guard let self, let tableView else { return }
+                // Find current row for this item (it may have moved)
+                if let currentRow = self.items.firstIndex(where: { $0.url == url }) {
+                    tableView.reloadData(forRowIndexes: IndexSet(integer: currentRow), columnIndexes: IndexSet(integer: 1))
+                }
+            }
+        }
+
+        return cell
+    }
+
+    private func formatSize(_ size: Int64) -> String {
+        if size < 1000 {
+            return "\(size) B"
+        } else if size < 1_000_000 {
+            let kb = Double(size) / 1000
+            return String(format: "%.1f KB", kb)
+        } else if size < 1_000_000_000 {
+            let mb = Double(size) / 1_000_000
+            return String(format: "%.1f MB", mb)
+        } else {
+            let gb = Double(size) / 1_000_000_000
+            return String(format: "%.1f GB", gb)
+        }
+    }
 
     private func makeNameCell(for item: FileItem, tableView: NSTableView, row: Int) -> NSView {
         let identifier = NSUserInterfaceItemIdentifier("NameCell")

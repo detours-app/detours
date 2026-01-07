@@ -1,7 +1,7 @@
 # Stage 5: System Integration
 
 ## Meta
-- Status: Draft
+- Status: Complete
 - Branch: feature/stage5-system-integration
 
 ---
@@ -245,6 +245,6 @@ After implementation, manually verify:
 - [x] Go menu shows keyboard shortcuts (Cmd+arrows)
 - [x] "Reveal in Finder" appears in File menu
 - [x] About Detour shows icon, version 0.7.1, and description
-- [ ] Mouse scrolling works in file list
-- [ ] Hidden files are dimmed when displayed
-- [ ] showHiddenFiles persists per tab across sessions
+- [x] Mouse scrolling works in file list
+- [x] Hidden files are dimmed when displayed
+- [x] showHiddenFiles persists per tab across sessions
