@@ -25,6 +25,9 @@ final class QuickNavController {
             onSelect: { [weak self] url in
                 self?.handleSelection(url)
             },
+            onReveal: { [weak self] url in
+                self?.handleSelection(url)
+            },
             onDismiss: { [weak self] in
                 self?.dismiss()
             }

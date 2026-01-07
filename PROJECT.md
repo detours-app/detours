@@ -157,6 +157,8 @@ If you've tried 2-3 approaches and something still doesn't work, **stop hacking 
 
 Don't keep trying random fixes. Research first, then implement with understanding.
 
+**CRITICAL:** If Marco starts yelling or getting frustrated, this is a STRONG signal you're fundamentally misunderstanding something. STOP immediately. Do not try another variation. Go research the problem properly before writing any more code.
+
 ---
 
 ## What NOT to Do

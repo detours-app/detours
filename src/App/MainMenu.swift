@@ -97,6 +97,16 @@ func setupMainMenu(target: AppDelegate) {
 
     viewMenu.addItem(NSMenuItem.separator())
 
+    // Cmd+1 through Cmd+9 for tab selection
+    for i in 1...9 {
+        let tabItem = NSMenuItem(title: "Select Tab \(i)", action: #selector(AppDelegate.selectTabByNumber(_:)), keyEquivalent: "\(i)")
+        tabItem.tag = i
+        tabItem.target = target
+        viewMenu.addItem(tabItem)
+    }
+
+    viewMenu.addItem(NSMenuItem.separator())
+
     let toggleHiddenItem = NSMenuItem(title: "Toggle Hidden Files", action: #selector(AppDelegate.toggleHiddenFiles(_:)), keyEquivalent: ".")
     toggleHiddenItem.keyEquivalentModifierMask = [.command, .shift]
     toggleHiddenItem.target = target
@@ -130,7 +140,9 @@ func setupMainMenu(target: AppDelegate) {
 
     goMenu.addItem(NSMenuItem.separator())
 
-    let refreshItem = NSMenuItem(title: "Refresh", action: #selector(PaneViewController.refresh(_:)), keyEquivalent: "r")
+    let refreshItem = NSMenuItem(title: "Refresh", action: #selector(AppDelegate.refresh(_:)), keyEquivalent: "r")
+    refreshItem.keyEquivalentModifierMask = .command
+    refreshItem.target = target
     goMenu.addItem(refreshItem)
 
     // Window menu

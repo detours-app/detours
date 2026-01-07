@@ -536,9 +536,6 @@ final class PaneViewController: NSViewController {
             current = current.deletingLastPathComponent()
         }
 
-        // Always show root
-        components.insert(("/", URL(fileURLWithPath: "/")), at: 0)
-
         // Collapse iCloud path: replace ~/Library/Mobile Documents with iCloud Drive
         components = collapseICloudPath(components)
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 260107 UI Improvements
+- Added: Refresh indicator (spinner) when pressing Cmd-R
+- Added: Cmd-1 through Cmd-9 for direct tab selection
+- Added: Cmd-Enter in Quick Open to reveal file in enclosing folder
+- Changed: Breadcrumbs no longer show leading "/" (cleaner look)
+- Changed: Quick Open legend font larger and more readable
+- Fixed: Refresh now preserves file selection instead of jumping to first item
+
 ## 260107 Folder Sizes
 - Added: Folders now show calculated size in Size column
 - Added: Async folder size calculation (UI stays responsive)

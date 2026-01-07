@@ -163,6 +163,54 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         tableView.addTableColumn(dateColumn)
     }
 
+    /// Refresh current directory, preserving selection
+    func refresh() {
+        guard let currentDirectory else { return }
+
+        // Preserve current selection BEFORE any changes
+        let selectedNames = Set(selectedItems.map { $0.name })
+        let firstSelectedRow = tableView.selectedRow
+
+        // Spinner
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .regular
+        spinner.sizeToFit()
+        spinner.frame.origin = NSPoint(
+            x: (view.bounds.width - spinner.bounds.width) / 2,
+            y: (view.bounds.height - spinner.bounds.height) / 2
+        )
+        view.addSubview(spinner, positioned: .above, relativeTo: scrollView)
+        spinner.startAnimation(nil)
+
+        // Reload data
+        dataSource.loadDirectory(currentDirectory)
+
+        // Restore selection by name
+        var newSelection = IndexSet()
+        for (index, item) in dataSource.items.enumerated() {
+            if selectedNames.contains(item.name) {
+                newSelection.insert(index)
+            }
+        }
+
+        if !newSelection.isEmpty {
+            tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
+        } else if !dataSource.items.isEmpty {
+            // Selection was deleted - select nearby item
+            let newIndex = min(firstSelectedRow, dataSource.items.count - 1)
+            if newIndex >= 0 {
+                tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+            }
+        }
+
+        // Remove spinner after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            spinner.stopAnimation(nil)
+            spinner.removeFromSuperview()
+        }
+    }
+
     func loadDirectory(_ url: URL) {
         currentDirectory = url
 
@@ -626,8 +674,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     // MARK: - Refresh
 
     private func refreshCurrentDirectory() {
-        guard let currentDirectory else { return }
-        loadDirectory(currentDirectory)
+        refresh()
     }
 
     private func handleFunctionKey(_ key: NSEvent.SpecialKey) -> Bool {

@@ -263,6 +263,10 @@ final class MainSplitViewController: NSSplitViewController {
         activePane.selectPreviousTab()
     }
 
+    @objc func selectTab(at index: Int, sender: Any?) {
+        activePane.selectTab(at: index)
+    }
+
     // MARK: - Cross-Pane Tab Movement
 
     func moveTab(_ tab: PaneTab, fromPane: PaneViewController, toPane: PaneViewController, atIndex: Int) {

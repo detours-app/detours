@@ -85,6 +85,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindowController?.splitViewController.selectPreviousTab(sender)
     }
 
+    @objc func selectTabByNumber(_ sender: Any?) {
+        guard let menuItem = sender as? NSMenuItem else { return }
+        let tabIndex = menuItem.tag - 1  // tag is 1-based, index is 0-based
+        mainWindowController?.splitViewController.selectTab(at: tabIndex, sender: sender)
+    }
+
     // MARK: - Navigation Actions
 
     @objc func goBack(_ sender: Any?) {

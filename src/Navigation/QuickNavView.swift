@@ -11,6 +11,7 @@ struct QuickNavView: View {
     @FocusState private var isTextFieldFocused: Bool
 
     let onSelect: (URL) -> Void
+    let onReveal: (URL) -> Void
     let onDismiss: () -> Void
 
     private let maxResults = 10
@@ -71,11 +72,12 @@ struct QuickNavView: View {
             HStack(spacing: 16) {
                 Text("↑↓ navigate")
                 Text("↵ open")
+                Text("⌘↵ reveal")
                 Text("⇥ autocomplete")
             }
-            .font(Font(NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)))
+            .font(Font(NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)))
             .foregroundColor(.secondary)
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
         }
         .frame(width: 900)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -100,6 +102,14 @@ struct QuickNavView: View {
         .onKeyPress(.tab) {
             autocomplete()
             return .handled
+        }
+        .onKeyPress(.return) {
+            if NSEvent.modifierFlags.contains(.command) {
+                revealCurrent()
+                return .handled
+            }
+            // Plain Return is handled by onSubmit
+            return .ignored
         }
     }
 
@@ -156,6 +166,18 @@ struct QuickNavView: View {
     private func selectCurrent() {
         guard !results.isEmpty && selectedIndex < results.count else { return }
         onSelect(results[selectedIndex])
+    }
+
+    private func revealCurrent() {
+        guard !results.isEmpty && selectedIndex < results.count else { return }
+        let selected = results[selectedIndex]
+        // For files, reveal = go to enclosing folder. For folders, same as select.
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: selected.path, isDirectory: &isDir), !isDir.boolValue {
+            onReveal(selected.deletingLastPathComponent())
+        } else {
+            onReveal(selected)
+        }
     }
 
     private func autocomplete() {
@@ -264,6 +286,7 @@ private struct ResultRow: View {
 #Preview {
     QuickNavView(
         onSelect: { url in print("Selected: \(url)") },
+        onReveal: { url in print("Reveal: \(url)") },
         onDismiss: { print("Dismissed") }
     )
 }
