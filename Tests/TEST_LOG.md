@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-07 10:26:07
-- Ended: 2026-01-07 10:26:07
-- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/DroppablePathControlTests`
+- Started: 2026-01-07 18:26:27
+- Ended: 2026-01-07 18:26:27
+- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/PreferencesTests`
 - Status: PASS
-- Total tests: 5
+- Total tests: 11
 
 ### DirectoryWatcherTests (Swift Testing)
 | Test | Status | Duration | Last Run |
@@ -190,7 +190,23 @@
 | testViewMenuHasToggleHiddenFiles | PASS | 0.001s | 2026-01-07 12:36:30 |
 | testAboutPanelVersion | PASS | 0.001s | 2026-01-07 12:36:30 |
 
+### PreferencesTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testCodableColorFromHex | PASS | 0.003s | 2026-01-07 18:26:27 |
+| testCodableColorHexRoundtrip | PASS | 0.001s | 2026-01-07 18:26:27 |
+| testFontSizeClamping | PASS | 0.002s | 2026-01-07 18:26:27 |
+| testKeyComboDisplayString | PASS | 0.001s | 2026-01-07 18:26:27 |
+| testKeyComboMatches | PASS | 0.001s | 2026-01-07 18:26:27 |
+| testSettingsCodable | PASS | 0.001s | 2026-01-07 18:26:27 |
+| testSettingsEquatable | PASS | 0.001s | 2026-01-07 18:26:27 |
+| testSettingsManagerDefaults | PASS | 0.001s | 2026-01-07 18:26:27 |
+| testSettingsManagerPersistence | PASS | 0.001s | 2026-01-07 18:26:27 |
+| testShortcutActionDisplayNames | PASS | 0.001s | 2026-01-07 18:26:27 |
+| testThemeChoiceDisplayNames | PASS | 0.001s | 2026-01-07 18:26:27 |
+
 ## Notes
+- 2026-01-07: Added PreferencesTests (11 tests) for Stage 6 settings infrastructure, SettingsManager, KeyCombo, CodableColor.
 - 2026-01-07: Fixed FileListResponderTests - changed testHandleKeyDownHandlesCmdIGetInfo to testMenuValidationForCmdIGetInfo to avoid opening real Finder info panels during tests.
 - 2026-01-07: Fixed DirectoryWatcherTests - increased timeout from 500ms to 2s with polling loop for FSEvents latency.
 - 2026-01-07: Fixed QuickNavTests - same substring vs fuzzy issue. 5 tests pass.

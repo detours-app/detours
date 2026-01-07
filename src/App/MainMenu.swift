@@ -12,6 +12,12 @@ func setupMainMenu(target: AppDelegate) {
 
     appMenu.addItem(withTitle: "About Detour", action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
     appMenu.addItem(NSMenuItem.separator())
+
+    let prefsItem = NSMenuItem(title: "Preferences...", action: #selector(AppDelegate.showPreferences(_:)), keyEquivalent: ",")
+    prefsItem.target = target
+    appMenu.addItem(prefsItem)
+    appMenu.addItem(NSMenuItem.separator())
+
     appMenu.addItem(withTitle: "Quit Detour", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
     // File menu

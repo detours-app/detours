@@ -134,4 +134,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .credits: credits
         ])
     }
+
+    // MARK: - Preferences
+
+    @objc func showPreferences(_ sender: Any?) {
+        PreferencesWindowController.shared.showWindow(nil)
+    }
 }

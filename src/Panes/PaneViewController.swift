@@ -271,9 +271,14 @@ final class PaneViewController: NSViewController {
     // MARK: - Tab Management
 
     @discardableResult
-    func createTab(at url: URL, select: Bool = true) -> PaneTab {
+    func createTab(at url: URL, select: Bool = true, useDefaultHiddenSetting: Bool = true) -> PaneTab {
         let tab = PaneTab(directory: url)
         tab.fileListViewController.navigationDelegate = self
+
+        // Apply show hidden files default from preferences for new tabs
+        if useDefaultHiddenSetting {
+            tab.fileListViewController.dataSource.showHiddenFiles = SettingsManager.shared.showHiddenByDefault
+        }
 
         tabs.append(tab)
 
@@ -479,7 +484,8 @@ final class PaneViewController: NSViewController {
         selectedTabIndex = 0
 
         for (index, url) in urls.enumerated() {
-            createTab(at: url, select: false)
+            // Don't apply default hidden setting - we'll set it explicitly from saved state
+            createTab(at: url, select: false, useDefaultHiddenSetting: false)
             // Set showHiddenFiles before loading directory
             if let showHiddenFiles, index < showHiddenFiles.count {
                 tabs[index].fileListViewController.dataSource.showHiddenFiles = showHiddenFiles[index]

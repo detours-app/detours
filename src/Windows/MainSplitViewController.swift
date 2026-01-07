@@ -144,6 +144,15 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func restoreSession() {
+        // Check if session restore is enabled in preferences
+        guard SettingsManager.shared.restoreSession else {
+            // Start fresh with home directory
+            let homeDir = FileManager.default.homeDirectoryForCurrentUser
+            leftPane.restoreTabs(from: [homeDir], selectedIndex: 0, selections: nil, showHiddenFiles: nil)
+            rightPane.restoreTabs(from: [homeDir], selectedIndex: 0, selections: nil, showHiddenFiles: nil)
+            return
+        }
+
         let leftTabs = restoreTabs(forKey: SessionKeys.leftTabs)
         if !leftTabs.isEmpty {
             let selectedIndex = defaults.integer(forKey: SessionKeys.leftSelectedIndex)

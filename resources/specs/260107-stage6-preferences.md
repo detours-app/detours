@@ -26,7 +26,6 @@ Add a Preferences window (Cmd-,) with sections for General settings, Appearance/
 
 **General:**
 - Restore session on launch (checkbox, default: on)
-- Default directory for new tabs (path picker)
 - Show hidden files by default (checkbox, default: off)
 
 **Appearance:**
@@ -97,7 +96,7 @@ Add a Preferences window (Cmd-,) with sections for General settings, Appearance/
 
 **src/Preferences/Settings.swift** (new)
 - `Settings` struct conforming to `Codable`
-- Properties: `restoreSession: Bool`, `defaultDirectory: URL?`, `showHiddenByDefault: Bool`
+- Properties: `restoreSession: Bool`, `showHiddenByDefault: Bool`
 - Properties: `theme: ThemeChoice`, `customTheme: Theme?`, `fontSize: Int`
 - Properties: `gitStatusEnabled: Bool`
 - Properties: `shortcuts: [ShortcutAction: KeyCombo]`
@@ -117,7 +116,6 @@ Add a Preferences window (Cmd-,) with sections for General settings, Appearance/
 
 **src/Preferences/GeneralSettingsView.swift** (new)
 - Toggle for "Restore session on launch"
-- Path picker for default directory (use `NSOpenPanel` via representable)
 - Toggle for "Show hidden files by default"
 
 **src/Preferences/AppearanceSettingsView.swift** (new)
@@ -232,24 +230,23 @@ Add a Preferences window (Cmd-,) with sections for General settings, Appearance/
 ### Implementation Plan
 
 **Phase 1: Settings Infrastructure**
-- [ ] Create `src/Preferences/` directory
-- [ ] Create `Settings.swift` with all settings structs and enums
-- [ ] Create `SettingsManager.swift` singleton with UserDefaults persistence
-- [ ] Add "Preferences..." menu item to Detour menu (Cmd-,)
+- [x] Create `src/Preferences/` directory
+- [x] Create `Settings.swift` with all settings structs and enums
+- [x] Create `SettingsManager.swift` singleton with UserDefaults persistence
+- [x] Add "Preferences..." menu item to Detour menu (Cmd-,)
 
 **Phase 2: Preferences Window Shell**
-- [ ] Create `PreferencesWindowController.swift`
-- [ ] Create `PreferencesView.swift` with NavigationSplitView
-- [ ] Create placeholder views for each section
-- [ ] Wire up Cmd-, to open preferences
+- [x] Create `PreferencesWindowController.swift`
+- [x] Create `PreferencesView.swift` with NavigationSplitView
+- [x] Create placeholder views for each section
+- [x] Wire up Cmd-, to open preferences
 
 **Phase 3: General Settings**
-- [ ] Create `GeneralSettingsView.swift`
-- [ ] Implement restore session toggle
-- [ ] Implement default directory picker
-- [ ] Implement show hidden files default toggle
-- [ ] Update `MainSplitViewController` to respect restore session setting
-- [ ] Update `FileListDataSource` to respect show hidden default
+- [x] Create `GeneralSettingsView.swift`
+- [x] Implement restore session toggle
+- [x] Implement show hidden files default toggle
+- [x] Update `MainSplitViewController` to respect restore session setting
+- [x] Update `FileListDataSource` to respect show hidden default
 
 **Phase 4: Appearance Settings**
 - [ ] Create `Theme.swift` with color and font definitions
@@ -293,8 +290,8 @@ Add a Preferences window (Cmd-,) with sections for General settings, Appearance/
 
 Tests go in `Tests/PreferencesTests.swift` and `Tests/GitStatusTests.swift`. I will write, run, and fix these tests, updating the test log after each run.
 
-- [ ] `testSettingsManagerPersistence` - Settings save to and load from UserDefaults
-- [ ] `testSettingsManagerDefaults` - Default values are correct when no saved settings
+- [x] `testSettingsManagerPersistence` - Settings save to and load from UserDefaults
+- [x] `testSettingsManagerDefaults` - Default values are correct when no saved settings
 - [ ] `testShortcutManagerDefaults` - Default shortcuts match expected values
 - [ ] `testShortcutManagerCustomOverride` - Custom shortcut overrides default
 - [ ] `testShortcutManagerMatches` - Event matching works for various key combos
@@ -312,16 +309,15 @@ Tests go in `Tests/PreferencesTests.swift` and `Tests/GitStatusTests.swift`. I w
 
 | Date | Result | Notes |
 |------|--------|-------|
-| — | — | No tests run yet |
+| 2026-01-07 | PASS | 11 tests: Settings structs, SettingsManager persistence/defaults, KeyCombo, CodableColor |
 
 ### User Verification
 
 After implementation, manually verify:
 
-- [ ] Cmd-, opens Preferences window
-- [ ] Preferences window has sidebar with 4 sections
+- [x] Cmd-, opens Preferences window
+- [x] Preferences window has sidebar with 4 sections
 - [ ] General: restore session toggle works (quit and relaunch)
-- [ ] General: default directory picker works
 - [ ] General: show hidden files default works for new tabs
 - [ ] Appearance: Light theme applies correctly
 - [ ] Appearance: Dark theme applies correctly

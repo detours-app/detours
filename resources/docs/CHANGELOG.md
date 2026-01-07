@@ -1,5 +1,12 @@
 # Changelog
 
+## 260107 Stage 6 Preferences (Phases 1-3)
+- Added: Preferences window with Cmd-, shortcut
+- Added: Settings infrastructure with UserDefaults persistence
+- Added: General settings: restore session toggle, show hidden files default
+- Added: NavigationSplitView with General, Appearance, Shortcuts, Git sections
+- Added: 11 unit tests for Settings, SettingsManager, KeyCombo, CodableColor
+
 ## 260107 Stage 6 Spec
 - Added: Stage 6 Preferences & Customization spec (`260107-stage6-preferences.md`)
 - Added: Preferences window design (General, Appearance, Shortcuts, Git sections)

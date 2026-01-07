@@ -15,7 +15,8 @@ let package = Package(
         .testTarget(
             name: "DetourTests",
             dependencies: ["Detour"],
-            path: "Tests"
+            path: "Tests",
+            exclude: ["TEST_LOG.md"]
         ),
     ]
 )
