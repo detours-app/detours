@@ -1,3 +1,4 @@
+import CoreServices
 import Foundation
 import os.log
 
@@ -123,57 +124,53 @@ final class FrecencyStore {
         return Array(scored.prefix(limit).map { $0.0 })
     }
 
-    /// Search filesystem for directories matching query
+    /// Search filesystem for directories matching query using Spotlight
     private func searchFilesystem(query: String, limit: Int) -> [URL] {
-        var results: [URL] = []
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-
-        // Common search roots (not home itself - too large)
-        let iCloudDocs = home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
-        let searchRoots = [
-            home.appendingPathComponent("Documents"),
-            home.appendingPathComponent("Downloads"),
-            home.appendingPathComponent("Desktop"),
-            home.appendingPathComponent("dev"),
-            home.appendingPathComponent("Developer"),
-            home.appendingPathComponent("Projects"),
-            iCloudDocs,
-            iCloudDocs.appendingPathComponent("Documents"),
-            URL(fileURLWithPath: "/Applications"),
-        ]
-
         let queryLower = query.lowercased()
 
-        for root in searchRoots {
-            guard let enumerator = fm.enumerator(
-                at: root,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else { continue }
+        // Use Spotlight MDQuery for fast search
+        // Query: folders whose name contains the search term, excluding hidden and system paths
+        let escaped = queryLower.replacingOccurrences(of: "'", with: "\\'")
+        let queryString = "kMDItemContentType == 'public.folder' && kMDItemDisplayName == '*\(escaped)*'cd"
 
-            while let url = enumerator.nextObject() as? URL {
-                // Only go 5 levels deep
-                let depth = url.pathComponents.count - root.pathComponents.count
-                if depth > 5 {
-                    enumerator.skipDescendants()
-                    continue
-                }
+        guard let mdQuery = MDQueryCreate(kCFAllocatorDefault, queryString as CFString, nil, nil) else {
+            logger.error("Failed to create MDQuery")
+            return []
+        }
 
-                // Check if directory
-                guard let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey]),
-                      resourceValues.isDirectory == true else {
-                    continue
-                }
+        // Execute synchronously - this is fast because Spotlight index is pre-built
+        let options = CFOptionFlags(kMDQuerySynchronous.rawValue)
+        guard MDQueryExecute(mdQuery, options) else {
+            logger.error("MDQuery execution failed")
+            return []
+        }
 
-                // Check if name contains query (no fuzzy match - too loose)
-                let name = url.lastPathComponent.lowercased()
-                if name.contains(queryLower) {
-                    results.append(url)
-                    if results.count >= limit {
-                        return results
-                    }
-                }
+        var results: [URL] = []
+        let count = MDQueryGetResultCount(mdQuery)
+
+        for i in 0..<count {
+            guard let rawPtr = MDQueryGetResultAtIndex(mdQuery, i) else { continue }
+            let item = Unmanaged<MDItem>.fromOpaque(rawPtr).takeUnretainedValue()
+
+            guard let path = MDItemCopyAttribute(item, kMDItemPath) as? String else { continue }
+
+            // Skip hidden paths and system directories
+            if path.contains("/.") ||
+               path.hasPrefix("/System") ||
+               path.hasPrefix("/Library") ||
+               path.contains("/Library/") ||
+               path.hasPrefix("/private") ||
+               path.contains(".app/") ||
+               path.contains(".xcodeproj/") ||
+               path.contains(".xcworkspace/") ||
+               path.contains("node_modules/") ||
+               path.contains(".git/") {
+                continue
+            }
+
+            results.append(URL(fileURLWithPath: path))
+            if results.count >= limit {
+                break
             }
         }
 

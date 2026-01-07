@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-07 09:34:51
-- Ended: 2026-01-07 09:34:52
-- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/FrecencyStoreTests -only-testing:DetourTests/QuickNavTests`
+- Started: 2026-01-07 10:26:07
+- Ended: 2026-01-07 10:26:07
+- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/DroppablePathControlTests`
 - Status: PASS
-- Total tests: 17 (FrecencyStoreTests: 12, QuickNavTests: 5)
+- Total tests: 5
 
 ### DirectoryWatcherTests (Swift Testing)
 | Test | Status | Duration | Last Run |
@@ -168,6 +168,15 @@
 | testDropTargetRowTracking | PASS | 0.002s | 2026-01-07 09:25:09 |
 | testOpenWithAppsForImage | PASS | 0.008s | 2026-01-07 09:25:09 |
 | testOpenWithAppsForTextFile | PASS | 0.003s | 2026-01-07 09:25:09 |
+
+### DroppablePathControlTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testCalculateItemRectsReturnsRectForEachItem | PASS | 0.001s | 2026-01-07 10:26:07 |
+| testCalculateItemRectsAreContiguous | PASS | 0.032s | 2026-01-07 10:26:07 |
+| testPathItemIndexReturnsCorrectIndex | PASS | 0.001s | 2026-01-07 10:26:07 |
+| testPathItemIndexReturnsNilForPointOutsideItems | PASS | 0.001s | 2026-01-07 10:26:07 |
+| testPathItemIndexReturnsNilForEmptyPathItems | PASS | 0.001s | 2026-01-07 10:26:07 |
 
 ## Notes
 - 2026-01-07: Fixed FileListResponderTests - changed testHandleKeyDownHandlesCmdIGetInfo to testMenuValidationForCmdIGetInfo to avoid opening real Finder info panels during tests.

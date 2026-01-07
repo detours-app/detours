@@ -18,6 +18,7 @@ final class PaneTabBar: NSView {
     static let tabPasteboardType = NSPasteboard.PasteboardType("com.detour.tab")
     private var draggedTabIndex: Int?
     private var dropIndicatorIndex: Int?
+    private var fileDropTargetTabIndex: Int?
 
     // MARK: - Colors
 
@@ -149,7 +150,7 @@ final class PaneTabBar: NSView {
     }
 
     private func setupDragAndDrop() {
-        registerForDraggedTypes([Self.tabPasteboardType])
+        registerForDraggedTypes([Self.tabPasteboardType, .fileURL])
     }
 
     override var intrinsicContentSize: NSSize {
@@ -289,21 +290,56 @@ final class PaneTabBar: NSView {
     // MARK: - Drop Target
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard sender.draggingPasteboard.canReadItem(withDataConformingToTypes: [Self.tabPasteboardType.rawValue]) else {
-            return []
+        // Tab drag
+        if sender.draggingPasteboard.canReadItem(withDataConformingToTypes: [Self.tabPasteboardType.rawValue]) {
+            return .move
         }
-        return .move
+        // File drag
+        if sender.draggingPasteboard.canReadItem(withDataConformingToTypes: [NSPasteboard.PasteboardType.fileURL.rawValue]) {
+            let isCopy = NSEvent.modifierFlags.contains(.option)
+            return isCopy ? .copy : .move
+        }
+        return []
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         let location = convert(sender.draggingLocation, from: nil)
-        dropIndicatorIndex = insertionIndex(for: location.x)
-        needsDisplay = true
-        return .move
+
+        // Tab drag - show insertion indicator
+        if sender.draggingPasteboard.canReadItem(withDataConformingToTypes: [Self.tabPasteboardType.rawValue]) {
+            dropIndicatorIndex = insertionIndex(for: location.x)
+            fileDropTargetTabIndex = nil
+            needsDisplay = true
+            return .move
+        }
+
+        // File drag - highlight target tab
+        if sender.draggingPasteboard.canReadItem(withDataConformingToTypes: [NSPasteboard.PasteboardType.fileURL.rawValue]) {
+            dropIndicatorIndex = nil
+            let tabIndex = tabIndexAt(x: location.x)
+            if tabIndex != fileDropTargetTabIndex {
+                // Update highlight
+                if let old = fileDropTargetTabIndex, old < tabButtons.count {
+                    tabButtons[old].setDropTarget(false)
+                }
+                if let new = tabIndex, new < tabButtons.count {
+                    tabButtons[new].setDropTarget(true)
+                }
+                fileDropTargetTabIndex = tabIndex
+            }
+            let isCopy = NSEvent.modifierFlags.contains(.option)
+            return isCopy ? .copy : .move
+        }
+
+        return []
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         dropIndicatorIndex = nil
+        if let old = fileDropTargetTabIndex, old < tabButtons.count {
+            tabButtons[old].setDropTarget(false)
+        }
+        fileDropTargetTabIndex = nil
         needsDisplay = true
     }
 
@@ -311,9 +347,24 @@ final class PaneTabBar: NSView {
         defer {
             dropIndicatorIndex = nil
             draggedTabIndex = nil
+            if let old = fileDropTargetTabIndex, old < tabButtons.count {
+                tabButtons[old].setDropTarget(false)
+            }
+            fileDropTargetTabIndex = nil
             needsDisplay = true
         }
 
+        // File drop onto tab
+        if let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
+           !urls.isEmpty,
+           let tabIndex = fileDropTargetTabIndex,
+           let destination = delegate?.tabBarCurrentDirectory(forTabAt: tabIndex) {
+            let isCopy = NSEvent.modifierFlags.contains(.option)
+            delegate?.tabBarDidReceiveFileDrop(urls: urls, to: destination, isCopy: isCopy)
+            return true
+        }
+
+        // Tab reorder/move
         guard let dropIndex = dropIndicatorIndex else { return false }
 
         // Check if this is from the same tab bar (reorder) or different (cross-pane)
@@ -363,6 +414,21 @@ final class PaneTabBar: NSView {
         }
 
         return tabButtons.count
+    }
+
+    private func tabIndexAt(x: CGFloat) -> Int? {
+        // Convert x from tab bar coordinates to tab container coordinates
+        let locationInContainer = tabContainer.convert(NSPoint(x: x, y: 0), from: self)
+        var xOffset: CGFloat = 0
+
+        for (index, button) in tabButtons.enumerated() {
+            if locationInContainer.x >= xOffset && locationInContainer.x < xOffset + button.frame.width {
+                return index
+            }
+            xOffset += button.frame.width
+        }
+
+        return nil
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -421,6 +487,7 @@ private final class TabButton: NSView {
     private let closeButton = NSButton()
     private var isSelected: Bool = false
     private var isHovered: Bool = false
+    private var isDropTarget: Bool = false
     private var trackingArea: NSTrackingArea?
     private let colors: Colors
 
@@ -501,8 +568,16 @@ private final class TabButton: NSView {
         updateAppearance()
     }
 
+    func setDropTarget(_ dropTarget: Bool) {
+        isDropTarget = dropTarget
+        updateAppearance()
+    }
+
     private func updateAppearance() {
-        if isSelected {
+        if isDropTarget {
+            layer?.backgroundColor = colors.accent.withAlphaComponent(0.3).cgColor
+            titleLabel.textColor = colors.textPrimary
+        } else if isSelected {
             layer?.backgroundColor = colors.background.cgColor
             titleLabel.textColor = colors.textPrimary
         } else if isHovered {
@@ -523,8 +598,8 @@ private final class TabButton: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        // Draw accent border on bottom for selected tab
-        if isSelected {
+        // Draw accent border on bottom for selected tab or drop target
+        if isSelected || isDropTarget {
             let borderRect = NSRect(x: 0, y: 0, width: bounds.width, height: 2)
             colors.accent.setFill()
             borderRect.fill()

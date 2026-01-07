@@ -31,7 +31,7 @@ cp .build/arm64-apple-macosx/debug/Detour build/Detour.app/Contents/MacOS/Detour
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Detour Dev}"
 CODESIGN_KEYCHAIN="${CODESIGN_KEYCHAIN:-$HOME/Library/Keychains/detour-codesign.keychain-db}"
 
-ENTITLEMENTS="resources/Detour.entitlements"
+ENTITLEMENTS="Detour.entitlements"
 
 if [ -d "$APP_DIR" ] && [ -f "$CODESIGN_KEYCHAIN" ]; then
     security unlock-keychain -p "" "$CODESIGN_KEYCHAIN" >/dev/null 2>&1 || true

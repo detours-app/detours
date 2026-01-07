@@ -121,12 +121,21 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
             return []
         }
 
+        // If hovering over a folder row, retarget to drop ON the folder
+        var targetRow = row
+        var targetOperation = dropOperation
+        if row >= 0 && row < items.count && items[row].isDirectory {
+            targetRow = row
+            targetOperation = .on
+            tableView.setDropRow(targetRow, dropOperation: .on)
+        }
+
         // Determine destination
         let destination: URL
-        if dropOperation == .on && row >= 0 && row < items.count && items[row].isDirectory {
+        if targetOperation == .on && targetRow >= 0 && targetRow < items.count && items[targetRow].isDirectory {
             // Dropping on a folder row
-            destination = items[row].url
-            dropTargetRow = row
+            destination = items[targetRow].url
+            dropTargetRow = targetRow
         } else {
             // Dropping on background or between rows - use current directory
             destination = currentDir
@@ -142,8 +151,7 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         }
 
         // Check for Option key (force copy)
-        let isCopy = info.draggingSourceOperationMask.contains(.copy) ||
-                     NSEvent.modifierFlags.contains(.option)
+        let isCopy = NSEvent.modifierFlags.contains(.option)
 
         return isCopy ? .copy : .move
     }
@@ -164,8 +172,7 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
             destination = currentDir
         }
 
-        let isCopy = info.draggingSourceOperationMask.contains(.copy) ||
-                     NSEvent.modifierFlags.contains(.option)
+        let isCopy = NSEvent.modifierFlags.contains(.option)
 
         dropDelegate?.handleDrop(urls: urls, to: destination, isCopy: isCopy)
         dropTargetRow = nil

@@ -172,8 +172,8 @@ Add Quick Look (Space to preview), context menus, file drag-drop with external a
 **Phase 5: Polish**
 - [ ] Verify all context menu items work correctly
 - [ ] Verify keyboard shortcuts in context menu match main menu
-- [ ] Test Quick Look with edge cases (no selection, folder selected)
-- [ ] Test drag-drop with various file types
+- [x] Test Quick Look with edge cases (no selection, folder selected)
+- [x] Test drag-drop with various file types
 - [ ] Fix any visual glitches
 
 ---
@@ -199,6 +199,7 @@ Tests go in `Tests/SystemIntegrationTests.swift`. I will write, run, and fix the
 | 2026-01-07 | 7 passed | All automated tests pass |
 | 2026-01-07 | 29 passed | Added navigation tests including critical first-responder fix |
 | 2026-01-07 | 17 passed | Fixed FrecencyStoreTests and QuickNavTests (substring vs fuzzy matching) |
+| 2026-01-07 | 5 passed | Added DroppablePathControlTests for breadcrumb drop targeting |
 
 ### User Verification
 
@@ -220,5 +221,7 @@ After implementation, manually verify:
 - [x] Drag file to Terminal pastes path
 - [x] Drag file to Mail creates attachment
 - [x] Drop file from Finder into Detour copies/moves file
-- [ ] Drop onto folder row moves into that folder - No
-- [ ] Option+drop forces copy instead of move - No
+- [x] Drop onto folder row moves into that folder
+- [x] Option+drop forces copy instead of move
+- [x] Drop onto tab moves into that tab's directory
+- [x] Drop onto breadcrumb segment moves into that directory

@@ -1,5 +1,13 @@
 # Changelog
 
+## 260107 Quick Open Improvements
+- Changed: Quick Open now uses Spotlight (MDQuery) for instant search across entire disk
+- Changed: Quick Open panel is now a clean floating panel (no popover arrow)
+- Changed: Quick Open panel wider (700px) with SF Mono font to match file list
+- Changed: Placeholder text changed to "Quick Open..."
+- Updated: PROJECT.md with standard repo structure and code signing docs
+- Moved: Detour.entitlements to project root
+
 ## 260106 UX Fixes
 - Added: Cmd-Left/Right for back/forward navigation
 - Fixed: Split view divider now easier to grab (expanded hit area)

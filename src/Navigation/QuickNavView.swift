@@ -6,6 +6,7 @@ struct QuickNavView: View {
     @State private var results: [URL] = []
     @State private var selectedIndex: Int = 0
     @State private var debounceTask: Task<Void, Never>?
+    @FocusState private var isTextFieldFocused: Bool
 
     let onSelect: (URL) -> Void
     let onDismiss: () -> Void
@@ -15,11 +16,12 @@ struct QuickNavView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Search field
-            TextField("Go to folder...", text: $query)
+            TextField("Quick Open...", text: $query)
                 .textFieldStyle(.plain)
-                .font(.system(size: 18, weight: .regular))
+                .font(Font(NSFont.monospacedSystemFont(ofSize: 15, weight: .regular)))
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.vertical, 14)
+                .focused($isTextFieldFocused)
                 .onSubmit {
                     selectCurrent()
                 }
@@ -53,7 +55,7 @@ struct QuickNavView: View {
                         }
                         .padding(.vertical, 4)
                     }
-                    .frame(maxHeight: CGFloat(min(results.count, maxResults)) * 32 + 8)
+                    .frame(maxHeight: CGFloat(min(results.count, maxResults)) * 36 + 8)
                     .onChange(of: selectedIndex) { _, newIndex in
                         withAnimation {
                             proxy.scrollTo(newIndex, anchor: .center)
@@ -70,15 +72,19 @@ struct QuickNavView: View {
                     Text("↵ open")
                     Text("⇥ autocomplete")
                 }
-                .font(.system(size: 10))
+                .font(Font(NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)))
                 .foregroundColor(.secondary)
                 .padding(.vertical, 6)
             }
         }
-        .frame(width: 400)
+        .frame(width: 700)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             loadInitialResults()
+            // Delay focus slightly to ensure window is ready
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                isTextFieldFocused = true
+            }
         }
         .onKeyPress(.upArrow) {
             moveSelection(by: -1)
@@ -165,7 +171,7 @@ private struct ResultRow: View {
 
             // Path display
             Text(displayPath)
-                .font(.system(size: 13))
+                .font(Font(NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)))
                 .lineLimit(1)
                 .truncationMode(.middle)
 
@@ -174,13 +180,13 @@ private struct ResultRow: View {
             // Enter symbol for selected row
             if isSelected {
                 Text("↵")
-                    .font(.system(size: 12))
+                    .font(Font(NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)))
                     .foregroundColor(.secondary)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .frame(height: 32)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .frame(height: 36)
         .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
         .contentShape(Rectangle())
     }

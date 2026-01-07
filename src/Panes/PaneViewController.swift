@@ -1,16 +1,159 @@
 import AppKit
 
+// MARK: - Droppable Path Control
+
+@MainActor
+protocol DroppablePathControlDelegate: AnyObject {
+    func pathControlDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool)
+    func pathControlDestinationURL(forItemAt index: Int) -> URL?
+}
+
+final class DroppablePathControl: NSPathControl {
+    weak var dropDelegate: DroppablePathControlDelegate?
+    private var highlightedItemIndex: Int?
+    private var highlightLayer: CALayer?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setup()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
+    }
+
+    private func setup() {
+        registerForDraggedTypes([.fileURL])
+        wantsLayer = true
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard sender.draggingPasteboard.canReadItem(
+            withDataConformingToTypes: [NSPasteboard.PasteboardType.fileURL.rawValue]
+        ) else {
+            return []
+        }
+        let isCopy = NSEvent.modifierFlags.contains(.option)
+        return isCopy ? .copy : .move
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let location = convert(sender.draggingLocation, from: nil)
+        let newIndex = pathItemIndex(at: location)
+
+        if newIndex != highlightedItemIndex {
+            highlightedItemIndex = newIndex
+            updateHighlight()
+        }
+
+        let isCopy = NSEvent.modifierFlags.contains(.option)
+        return isCopy ? .copy : .move
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        highlightedItemIndex = nil
+        updateHighlight()
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        defer {
+            highlightedItemIndex = nil
+            updateHighlight()
+        }
+
+        guard let urls = sender.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self], options: nil
+        ) as? [URL], !urls.isEmpty else {
+            return false
+        }
+
+        guard let index = highlightedItemIndex,
+              let destination = dropDelegate?.pathControlDestinationURL(forItemAt: index) else {
+            return false
+        }
+
+        let isCopy = NSEvent.modifierFlags.contains(.option)
+        dropDelegate?.pathControlDidReceiveFileDrop(urls: urls, to: destination, isCopy: isCopy)
+        return true
+    }
+
+    private func pathItemIndex(at point: NSPoint) -> Int? {
+        let rects = calculateItemRects()
+        for (index, rect) in rects.enumerated() {
+            if rect.contains(point) {
+                return index
+            }
+        }
+        return nil
+    }
+
+    private func calculateItemRects() -> [NSRect] {
+        var rects: [NSRect] = []
+        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        let separatorWidth: CGFloat = 12  // " › " separator
+        var x: CGFloat = 0
+
+        for (index, item) in pathItems.enumerated() {
+            let title = item.title
+            let textWidth = (title as NSString).size(withAttributes: [.font: font]).width
+            let itemWidth = textWidth + 4  // minimal padding
+
+            // Hit area includes separator after (except for last item)
+            let hitWidth = index < pathItems.count - 1 ? itemWidth + separatorWidth : itemWidth
+            let rect = NSRect(x: x, y: 0, width: hitWidth, height: bounds.height)
+            rects.append(rect)
+            x += hitWidth
+        }
+
+        return rects
+    }
+
+    private func updateHighlight() {
+        highlightLayer?.removeFromSuperlayer()
+        highlightLayer = nil
+
+        guard let index = highlightedItemIndex else { return }
+
+        let rects = calculateItemRects()
+        guard index < rects.count else { return }
+
+        // Highlight just the text area, not the separator
+        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        let title = pathItems[index].title
+        let textWidth = (title as NSString).size(withAttributes: [.font: font]).width
+
+        let fullRect = rects[index]
+        let highlightRect = NSRect(
+            x: fullRect.minX,
+            y: 2,
+            width: textWidth + 4,
+            height: bounds.height - 4
+        )
+
+        let layer = CALayer()
+        layer.frame = highlightRect
+        layer.backgroundColor = detourAccentColor.withAlphaComponent(0.5).cgColor
+        layer.cornerRadius = 4
+        self.layer?.addSublayer(layer)
+        highlightLayer = layer
+    }
+}
+
+// MARK: - Pane View Controller
+
 final class PaneViewController: NSViewController {
     private let tabBar = PaneTabBar()
     private let homeButton = NSButton()
     private let iCloudButton = NSButton()
-    private let pathControl = NSPathControl()
+    private let pathControl = DroppablePathControl()
     private let tabContainer = NSView()
 
     private(set) var tabs: [PaneTab] = []
     private(set) var selectedTabIndex: Int = 0
 
     private var isActive: Bool = false
+    private var pathItemURLs: [URL?] = []  // URLs for each path item (nil for ellipsis)
 
     var selectedTab: PaneTab? {
         guard selectedTabIndex >= 0 && selectedTabIndex < tabs.count else { return nil }
@@ -35,6 +178,11 @@ final class PaneViewController: NSViewController {
         // Create initial tab at home directory
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         createTab(at: homeDir, select: true)
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        updatePathControl()
     }
 
     private func setupTabBar() {
@@ -69,6 +217,7 @@ final class PaneViewController: NSViewController {
         pathControl.target = self
         pathControl.action = #selector(pathControlClicked(_:))
         pathControl.delegate = self
+        pathControl.dropDelegate = self
         pathControl.focusRingType = .none
         // Compress gracefully when pane is narrow
         pathControl.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -357,15 +506,94 @@ final class PaneViewController: NSViewController {
     }
 
     private func updatePathControl() {
-        pathControl.url = selectedTab?.currentDirectory
-        // Remove folder icons to save space
-        for item in pathControl.pathItems {
-            item.image = nil
+        guard let url = selectedTab?.currentDirectory else {
+            pathControl.pathItems = []
+            pathItemURLs = []
+            return
         }
+
+        // Build path items manually to control truncation
+        var components: [(String, URL)] = []
+        var current = url
+        while current.path != "/" {
+            components.insert((current.lastPathComponent, current), at: 0)
+            current = current.deletingLastPathComponent()
+        }
+
+        // Always show root
+        components.insert(("/", URL(fileURLWithPath: "/")), at: 0)
+
+        // Calculate available width and determine how many items fit
+        let availableWidth = pathControl.bounds.width
+        let separatorWidth: CGFloat = 16 // approximate width of " › "
+        let ellipsisWidth: CGFloat = 24
+
+        // Create items and measure
+        var items: [NSPathControlItem] = []
+        var totalWidth: CGFloat = 0
+
+        for (name, _) in components {
+            let item = NSPathControlItem()
+            item.title = name
+            items.append(item)
+
+            // Approximate width: use font metrics
+            let textWidth = (name as NSString).size(
+                withAttributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
+            ).width
+            totalWidth += textWidth + separatorWidth
+        }
+
+        // If it fits, use all items
+        if totalWidth <= availableWidth || items.count <= 3 {
+            pathControl.pathItems = items
+            pathItemURLs = components.map { $0.1 }
+            return
+        }
+
+        // Truncate: keep first item, ellipsis, and as many trailing items as fit
+        let firstItem = items[0]
+        var trailingItems: [(NSPathControlItem, URL)] = []
+        var trailingWidth: CGFloat = 0
+
+        // Reserve space for first item + ellipsis
+        let firstWidth = (components[0].0 as NSString).size(
+            withAttributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
+        ).width + separatorWidth
+        let reservedWidth = firstWidth + ellipsisWidth + separatorWidth
+
+        // Add items from the end until we run out of space
+        for i in stride(from: items.count - 1, through: 1, by: -1) {
+            let name = components[i].0
+            let textWidth = (name as NSString).size(
+                withAttributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
+            ).width + separatorWidth
+
+            if trailingWidth + textWidth + reservedWidth <= availableWidth {
+                trailingWidth += textWidth
+                trailingItems.insert((items[i], components[i].1), at: 0)
+            } else {
+                break
+            }
+        }
+
+        // Build final path: first + ellipsis + trailing
+        let ellipsisItem = NSPathControlItem()
+        ellipsisItem.title = "…"
+
+        var finalItems = [firstItem, ellipsisItem]
+        finalItems.append(contentsOf: trailingItems.map { $0.0 })
+        pathControl.pathItems = finalItems
+
+        // Build URL mapping: first item URL, nil for ellipsis, then trailing URLs
+        pathItemURLs = [components[0].1, nil] + trailingItems.map { $0.1 }
     }
 
     @objc private func pathControlClicked(_ sender: NSPathControl) {
-        guard let url = sender.clickedPathItem?.url else { return }
+        guard let clickedItem = sender.clickedPathItem,
+              let index = sender.pathItems.firstIndex(of: clickedItem),
+              index < pathItemURLs.count,
+              let url = pathItemURLs[index] else { return }
         navigate(to: url)
     }
 
@@ -501,6 +729,34 @@ extension PaneViewController: PaneTabBarDelegate {
     func tabBarDidReceiveDroppedTab(_ tab: PaneTab, at index: Int) {
         insertTab(tab, at: index)
     }
+
+    func tabBarDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool) {
+        Task { @MainActor in
+            do {
+                if isCopy {
+                    try await FileOperationQueue.shared.copy(items: urls, to: destination)
+                } else {
+                    try await FileOperationQueue.shared.move(items: urls, to: destination)
+                }
+                // Refresh relevant directories
+                var directoriesToRefresh = Set<URL>()
+                for url in urls {
+                    directoriesToRefresh.insert(url.deletingLastPathComponent().standardizedFileURL)
+                }
+                directoriesToRefresh.insert(destination.standardizedFileURL)
+                if let splitVC = parent as? MainSplitViewController {
+                    splitVC.refreshPanes(matching: directoriesToRefresh)
+                }
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    func tabBarCurrentDirectory(forTabAt index: Int) -> URL? {
+        guard index >= 0 && index < tabs.count else { return nil }
+        return tabs[index].currentDirectory
+    }
 }
 
 // MARK: - FileListNavigationDelegate
@@ -569,5 +825,37 @@ extension PaneViewController: NSPathControlDelegate {
         for item in menu.items {
             item.image = nil
         }
+    }
+}
+
+// MARK: - DroppablePathControlDelegate
+
+extension PaneViewController: DroppablePathControlDelegate {
+    func pathControlDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool) {
+        Task { @MainActor in
+            do {
+                if isCopy {
+                    try await FileOperationQueue.shared.copy(items: urls, to: destination)
+                } else {
+                    try await FileOperationQueue.shared.move(items: urls, to: destination)
+                }
+                // Refresh relevant directories
+                var directoriesToRefresh = Set<URL>()
+                for url in urls {
+                    directoriesToRefresh.insert(url.deletingLastPathComponent().standardizedFileURL)
+                }
+                directoriesToRefresh.insert(destination.standardizedFileURL)
+                if let splitVC = parent as? MainSplitViewController {
+                    splitVC.refreshPanes(matching: directoriesToRefresh)
+                }
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    func pathControlDestinationURL(forItemAt index: Int) -> URL? {
+        guard index < pathItemURLs.count else { return nil }
+        return pathItemURLs[index]
     }
 }

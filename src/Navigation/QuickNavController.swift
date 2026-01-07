@@ -1,22 +1,25 @@
 import AppKit
 import SwiftUI
 
-/// AppKit controller that hosts the QuickNavView SwiftUI popover.
+/// Borderless floating panel that can receive keyboard input.
+private class FloatingPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
+/// AppKit controller that hosts the QuickNavView as a floating panel.
 @MainActor
 final class QuickNavController {
-    private var popover: NSPopover?
+    private var panel: FloatingPanel?
     private var onNavigate: ((URL) -> Void)?
+    private var eventMonitor: Any?
 
-    /// Show the quick navigation popover centered in the window.
+    /// Show the quick navigation panel centered in the window.
     func show(in window: NSWindow, onNavigate: @escaping (URL) -> Void) {
-        // Dismiss any existing popover
+        // Dismiss any existing panel
         dismiss()
 
         self.onNavigate = onNavigate
-
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.animates = true
 
         let quickNavView = QuickNavView(
             onSelect: { [weak self] url in
@@ -28,27 +31,67 @@ final class QuickNavController {
         )
 
         let hostingController = NSHostingController(rootView: quickNavView)
-        popover.contentViewController = hostingController
+        let contentSize = hostingController.view.fittingSize
 
-        self.popover = popover
-
-        // Position: centered horizontally, 20% from top
-        // We show relative to a temporary positioning view
-        let contentView = window.contentView!
-        let targetRect = NSRect(
-            x: contentView.bounds.midX,
-            y: contentView.bounds.height * 0.8,
-            width: 1,
-            height: 1
+        // Create borderless floating panel
+        let panel = FloatingPanel(
+            contentRect: NSRect(x: 0, y: 0, width: contentSize.width, height: contentSize.height),
+            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
         )
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.hasShadow = true
+        panel.backgroundColor = .windowBackgroundColor
+        panel.isOpaque = false
+        panel.contentViewController = hostingController
 
-        popover.show(relativeTo: targetRect, of: contentView, preferredEdge: .minY)
+        // Rounded corners
+        if let contentView = panel.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.cornerRadius = 8
+            contentView.layer?.masksToBounds = true
+        }
+
+        // Position: centered horizontally, near top of parent window
+        let windowFrame = window.frame
+        let panelX = windowFrame.midX - contentSize.width / 2
+        let panelY = windowFrame.maxY - 120 - contentSize.height
+        panel.setFrameOrigin(NSPoint(x: panelX, y: panelY))
+
+        self.panel = panel
+
+        // Show as child window
+        window.addChildWindow(panel, ordered: .above)
+        panel.makeKeyAndOrderFront(nil)
+
+        // Ensure the panel's content view can receive keyboard input
+        if let contentView = panel.contentView {
+            panel.makeFirstResponder(contentView)
+        }
+
+        // Monitor for clicks outside to dismiss
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self = self, let panel = self.panel else { return event }
+            if event.window != panel {
+                self.dismiss()
+            }
+            return event
+        }
     }
 
-    /// Dismiss the popover.
+    /// Dismiss the panel.
     func dismiss() {
-        popover?.close()
-        popover = nil
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+        if let panel = panel, let parent = panel.parent {
+            parent.removeChildWindow(panel)
+        }
+        panel?.close()
+        panel = nil
         onNavigate = nil
     }
 

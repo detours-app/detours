@@ -9,4 +9,6 @@ protocol PaneTabBarDelegate: AnyObject {
     func tabBarDidRequestForward()
     func tabBarDidReorderTab(from sourceIndex: Int, to destinationIndex: Int)
     func tabBarDidReceiveDroppedTab(_ tab: PaneTab, at index: Int)
+    func tabBarDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool)
+    func tabBarCurrentDirectory(forTabAt index: Int) -> URL?
 }
