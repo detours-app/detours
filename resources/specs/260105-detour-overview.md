@@ -545,19 +545,19 @@ Future specs will detail each stage. This is the sequencing:
 - [x] Tab selection by number (Cmd-1-9)
 - [x] Quick Open reveal (Cmd-Enter)
 
-### Stage 6: Folder Expansion
-- Spec: `260106-stage6-folder-expansion.md`
+### Stage 6: Preferences & Customization
+- Spec: `yymmdd-stage6-preferences.md`
+- [ ] Preferences window
+- [ ] Keyboard shortcut customization
+- [ ] Custom theming
+- [ ] Git status indicators
+
+### Stage 7: Folder Expansion
+- Spec: `260106-stage7-folder-expansion.md`
 - [ ] NSOutlineView conversion
 - [ ] Disclosure triangles for inline folder expansion
 - [ ] Multi-directory watching
 - [ ] Expansion state persistence
-
-### Stage 7: Polish
-- Spec: `yymmdd-polish.md`
-- [ ] Icon view mode
-- [ ] Preferences
-- [ ] Keyboard shortcut customization
-- [ ] Performance optimization
 
 ## Decisions Made
 

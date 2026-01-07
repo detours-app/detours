@@ -1,5 +1,10 @@
 # Changelog
 
+## 260107 Roadmap Reorganization
+- Changed: Stage 6 is now Preferences & Customization (preferences window, shortcuts, theming, git indicators)
+- Changed: Stage 7 is now Folder Expansion (moved from Stage 6)
+- Removed: Icon view and performance optimization from roadmap (not needed)
+
 ## 260107 UI Improvements
 - Added: Refresh indicator (spinner) when pressing Cmd-R
 - Added: Cmd-1 through Cmd-9 for direct tab selection

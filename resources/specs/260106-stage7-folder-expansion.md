@@ -1,8 +1,8 @@
-# Stage 6: Folder Expansion
+# Stage 7: Folder Expansion
 
 ## Meta
 - Status: Draft
-- Branch: feature/stage6-folder-expansion
+- Branch: feature/stage7-folder-expansion
 
 ---
 
