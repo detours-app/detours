@@ -189,6 +189,15 @@ Add Quick Look (Space to preview), context menus, file drag-drop with external a
 - [x] Dim hidden files (files starting with `.`) in file list
 - [x] Persist showHiddenFiles per tab (saved/restored with session)
 
+**Phase 7: UI Polish**
+- [x] Add refresh spinner (visual feedback when pressing Cmd-R)
+- [x] Add Cmd-1 through Cmd-9 for direct tab selection
+- [x] Add Cmd-Enter in Quick Open to reveal file in enclosing folder
+- [x] Remove leading "/" from breadcrumbs (cleaner look)
+- [x] Increase Quick Open legend font size for readability
+- [x] Fix refresh to preserve file selection instead of resetting to first item
+- [x] Fix Cmd-R menu routing through AppDelegate
+
 ---
 
 ## Testing
@@ -248,3 +257,7 @@ After implementation, manually verify:
 - [x] Mouse scrolling works in file list
 - [x] Hidden files are dimmed when displayed
 - [x] showHiddenFiles persists per tab across sessions
+- [x] Cmd-R shows spinner and preserves selection
+- [x] Cmd-1 through Cmd-9 select tabs directly
+- [x] Cmd-Enter in Quick Open reveals file in enclosing folder
+- [x] Breadcrumbs show clean path without leading "/"

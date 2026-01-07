@@ -409,7 +409,7 @@ Base unit: **4px**
 
 **Footer:**
 - 10px Text Tertiary
-- Keyboard hints, separated by spaces
+- Keyboard hints: ↑↓ navigate, ↵ open, ⌘↵ reveal (go to enclosing folder), ⇥ autocomplete
 
 ### Animation & Timing
 
@@ -465,6 +465,7 @@ All shortcuts are user-configurable in Preferences.
 | Forward | Cmd-] |
 | Switch pane focus | Tab |
 | Quick navigation | Cmd-P |
+| Refresh | Cmd-R |
 | Toggle hidden files | Cmd-Shift-. |
 
 **Tabs:**
@@ -474,6 +475,7 @@ All shortcuts are user-configurable in Preferences.
 | Close tab | Cmd-W |
 | Next tab | Cmd-Shift-] |
 | Previous tab | Cmd-Shift-[ |
+| Select tab 1-9 | Cmd-1 through Cmd-9 |
 
 **File Operations:**
 | Action | Default Shortcut | Alt Shortcut |
