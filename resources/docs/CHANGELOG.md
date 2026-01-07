@@ -1,5 +1,13 @@
 # Changelog
 
+## 260107 Stage 6 Spec
+- Added: Stage 6 Preferences & Customization spec (`260107-stage6-preferences.md`)
+- Added: Preferences window design (General, Appearance, Shortcuts, Git sections)
+- Added: Keyboard shortcut customization for FM-specific actions
+- Added: Four built-in themes: Light, Dark, Foolscap (warm/Courier), Drafting (cool/Menlo)
+- Added: Custom theme support with color and font pickers
+- Added: Git status indicators (2px vertical bars in left gutter)
+
 ## 260107 Roadmap Reorganization
 - Changed: Stage 6 is now Preferences & Customization (preferences window, shortcuts, theming, git indicators)
 - Changed: Stage 7 is now Folder Expansion (moved from Stage 6)
