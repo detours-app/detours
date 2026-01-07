@@ -157,7 +157,8 @@ extension FileItem {
             ctx.saveGState()
             ctx.clip(to: rect, mask: icon.cgImage(forProposedRect: nil, context: nil, hints: nil)!)
             ctx.setBlendMode(.color)
-            ctx.setFillColor(detourAccentColor.cgColor)
+            let accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
+            ctx.setFillColor(accentColor.cgColor)
             ctx.fill(rect)
             ctx.restoreGState()
 

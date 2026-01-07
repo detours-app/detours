@@ -1,5 +1,21 @@
 # Changelog
 
+## 260107 Stage 6 Preferences - Phase 4 Appearance (continued)
+- Fixed: Column headers now use themed text colors (custom ThemedHeaderCell)
+- Fixed: Breadcrumbs/path control now use themed text colors
+- Fixed: SF Symbol icons (home, iCloud, back, forward, +) now use themed colors via paletteColors
+- Fixed: Banded rows now extend to bottom of panel (not just to last row)
+
+## 260107 Stage 6 Preferences - Phase 4 Appearance
+- Added: Theme system with ThemeManager singleton
+- Added: Four built-in themes: Light, Dark, Foolscap (warm cream/Courier), Drafting (cool blue/Menlo)
+- Added: Custom theme editor with 8 color pickers + font picker
+- Added: Font size stepper (10-16px)
+- Added: Live theme preview in Appearance settings
+- Added: Theme colors applied to file list, tab bar, path bar, and window
+- Changed: BandedTableView now uses theme colors for row backgrounds
+- Changed: File list cells use theme fonts and colors
+
 ## 260107 Stage 6 Preferences (Phases 1-3)
 - Added: Preferences window with Cmd-, shortcut
 - Added: Settings infrastructure with UserDefaults persistence

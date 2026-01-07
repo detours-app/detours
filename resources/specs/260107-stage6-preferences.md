@@ -249,14 +249,14 @@ Add a Preferences window (Cmd-,) with sections for General settings, Appearance/
 - [x] Update `FileListDataSource` to respect show hidden default
 
 **Phase 4: Appearance Settings**
-- [ ] Create `Theme.swift` with color and font definitions
-- [ ] Create `ThemeManager.swift` singleton
-- [ ] Define built-in themes: Light, Dark, Foolscap, Drafting
-- [ ] Create `AppearanceSettingsView.swift`
-- [ ] Implement theme picker (System/Light/Dark/Foolscap/Drafting/Custom)
-- [ ] Implement custom theme editor (colors + font) - only shown when Custom selected
-- [ ] Implement font size stepper (applies to all themes)
-- [ ] Apply theme colors and fonts to existing UI components
+- [x] Create `Theme.swift` with color and font definitions
+- [x] Create `ThemeManager.swift` singleton
+- [x] Define built-in themes: Light, Dark, Foolscap, Drafting
+- [x] Create `AppearanceSettingsView.swift`
+- [x] Implement theme picker (System/Light/Dark/Foolscap/Drafting/Custom)
+- [x] Implement custom theme editor (colors + font) - only shown when Custom selected
+- [x] Implement font size stepper (applies to all themes)
+- [x] Apply theme colors and fonts to existing UI components
 
 **Phase 5: Keyboard Shortcuts**
 - [ ] Create `ShortcutManager.swift` with default mappings

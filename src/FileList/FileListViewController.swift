@@ -65,6 +65,28 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             name: NSTableView.selectionDidChangeNotification,
             object: tableView
         )
+
+        // Observe theme changes to reload table with new colors/fonts
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func handleThemeChange() {
+        // Apply new theme background and force table redraw
+        applyThemeBackground()
+        updateColumnHeaderColors()
+        tableView.needsDisplay = true
+        tableView.reloadData()
+    }
+
+    private func applyThemeBackground() {
+        // Table view draws its own themed background via drawBackground(inClipRect:)
+        // Just ensure scroll view doesn't draw over it
+        scrollView.drawsBackground = false
     }
 
     override func viewDidAppear() {
@@ -137,6 +159,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Name column - flexible width
         let nameColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Name"))
         nameColumn.title = "Name"
+        nameColumn.headerCell = ThemedHeaderCell(textCell: "Name")
         nameColumn.minWidth = 150
         nameColumn.resizingMask = .autoresizingMask
         nameColumn.isEditable = false
@@ -145,6 +168,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Size column - fixed 80px
         let sizeColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Size"))
         sizeColumn.title = "Size"
+        sizeColumn.headerCell = ThemedHeaderCell(textCell: "Size")
         sizeColumn.width = 80
         sizeColumn.minWidth = 80
         sizeColumn.maxWidth = 80
@@ -155,12 +179,20 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Date column - fixed 120px
         let dateColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Date"))
         dateColumn.title = "Date Modified"
+        dateColumn.headerCell = ThemedHeaderCell(textCell: "Date Modified")
         dateColumn.width = 120
         dateColumn.minWidth = 120
         dateColumn.maxWidth = 120
         dateColumn.resizingMask = []
         dateColumn.isEditable = false
         tableView.addTableColumn(dateColumn)
+
+        // Set up themed header view
+        tableView.headerView = ThemedHeaderView()
+    }
+
+    private func updateColumnHeaderColors() {
+        tableView.headerView?.needsDisplay = true
     }
 
     /// Refresh current directory, preserving selection

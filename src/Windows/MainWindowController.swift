@@ -20,19 +20,35 @@ final class MainWindowController: NSWindowController {
         window.titlebarAppearsTransparent = false
         window.titleVisibility = .visible
 
-        // Set window background color
-        window.backgroundColor = NSColor(named: "Background") ?? NSColor.windowBackgroundColor
-
         super.init(window: window)
 
         window.contentViewController = splitViewController
 
         // Persist window frame
         window.setFrameAutosaveName("MainWindow")
+
+        // Apply theme background
+        applyThemeBackground()
+
+        // Observe theme changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChange,
+            object: nil
+        )
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc private func handleThemeChange() {
+        applyThemeBackground()
+    }
+
+    private func applyThemeBackground() {
+        window?.backgroundColor = ThemeManager.shared.currentTheme.background
     }
 }

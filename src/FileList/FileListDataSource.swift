@@ -76,14 +76,13 @@ final class FolderSizeCache {
     }
 }
 
-/// Teal accent color used throughout the app
-let detourAccentColor = NSColor(name: nil) { appearance in
-    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        ? NSColor(red: 0x2D/255, green: 0x6A/255, blue: 0x6A/255, alpha: 1)
-        : NSColor(red: 0x1F/255, green: 0x4D/255, blue: 0x4D/255, alpha: 1)
+/// Accent color from the current theme
+@MainActor
+var detourAccentColor: NSColor {
+    ThemeManager.shared.currentTheme.accent
 }
 
-/// Row view with teal selection color that hides when not active (Marta-style)
+/// Row view with theme-aware selection color (background is drawn by BandedTableView)
 final class InactiveHidingRowView: NSTableRowView {
     var isTableActive: Bool = true {
         didSet {
@@ -100,7 +99,8 @@ final class InactiveHidingRowView: NSTableRowView {
 
     override func drawSelection(in dirtyRect: NSRect) {
         guard isTableActive, isSelected else { return }
-        detourAccentColor.setFill()
+        let accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
+        accentColor.setFill()
         bounds.fill()
     }
 }
@@ -355,9 +355,13 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
 
     private func makeTextCell(text: String, tableView: NSTableView, identifier: String, alignment: NSTextAlignment) -> NSView {
         let id = NSUserInterfaceItemIdentifier(identifier)
+        let theme = ThemeManager.shared.currentTheme
 
         if let cell = tableView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView {
             cell.textField?.stringValue = text
+            // Always update theme colors on reused cells
+            cell.textField?.font = theme.font(size: ThemeManager.shared.fontSize - 1)
+            cell.textField?.textColor = theme.textSecondary
             return cell
         }
 
@@ -365,8 +369,8 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         cell.identifier = id
 
         let textField = NSTextField(labelWithString: text)
-        textField.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        textField.textColor = .secondaryLabelColor
+        textField.font = theme.font(size: ThemeManager.shared.fontSize - 1)
+        textField.textColor = theme.textSecondary
         textField.alignment = alignment
         textField.lineBreakMode = .byTruncatingTail
 

@@ -1,5 +1,38 @@
 import AppKit
 
+// MARK: - Themed Pane View
+
+/// View that draws theme surface color as background
+final class ThemedPaneView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupThemeObserver()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupThemeObserver()
+    }
+
+    private func setupThemeObserver() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(themeDidChange),
+            name: ThemeManager.themeDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func themeDidChange() {
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        ThemeManager.shared.currentTheme.surface.setFill()
+        bounds.fill()
+    }
+}
+
 // MARK: - Droppable Path Control
 
 @MainActor
@@ -133,7 +166,7 @@ final class DroppablePathControl: NSPathControl {
 
         let layer = CALayer()
         layer.frame = highlightRect
-        layer.backgroundColor = detourAccentColor.withAlphaComponent(0.5).cgColor
+        layer.backgroundColor = ThemeManager.shared.currentTheme.accent.withAlphaComponent(0.5).cgColor
         layer.cornerRadius = 4
         self.layer?.addSublayer(layer)
         highlightLayer = layer
@@ -161,8 +194,8 @@ final class PaneViewController: NSViewController {
     }
 
     override func loadView() {
-        view = NSView()
-        view.wantsLayer = true
+        let themedView = ThemedPaneView()
+        view = themedView
     }
 
     override func viewDidLoad() {
@@ -175,9 +208,26 @@ final class PaneViewController: NSViewController {
         setupTabContainer()
         setupConstraints()
 
+        // Apply initial theme colors
+        updateButtonColors()
+
+        // Observe theme changes to refresh the view
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChange,
+            object: nil
+        )
+
         // Create initial tab at home directory
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         createTab(at: homeDir, select: true)
+    }
+
+    @objc private func handleThemeChange() {
+        view.needsDisplay = true
+        updatePathControlColors()
+        updateButtonColors()
     }
 
     override func viewDidLayout() {
@@ -211,6 +261,20 @@ final class PaneViewController: NSViewController {
         view.addSubview(iCloudButton)
     }
 
+    private func updateButtonColors() {
+        let color = ThemeManager.shared.currentTheme.textSecondary
+        let config = NSImage.SymbolConfiguration(paletteColors: [color])
+
+        if let homeImage = NSImage(systemSymbolName: "house", accessibilityDescription: "Home")?
+            .withSymbolConfiguration(config) {
+            homeButton.image = homeImage
+        }
+        if let iCloudImage = NSImage(systemSymbolName: "icloud", accessibilityDescription: "iCloud Drive")?
+            .withSymbolConfiguration(config) {
+            iCloudButton.image = iCloudImage
+        }
+    }
+
     private func setupPathControl() {
         pathControl.pathStyle = .standard
         pathControl.isEditable = false
@@ -223,10 +287,25 @@ final class PaneViewController: NSViewController {
         pathControl.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         pathControl.setContentHuggingPriority(.defaultLow, for: .horizontal)
         view.addSubview(pathControl)
+
+        // Apply theme colors
+        updatePathControlColors()
+    }
+
+    private func updatePathControlColors() {
+        let theme = ThemeManager.shared.currentTheme
+        // Update path item colors by rebuilding them with attributed titles
+        for item in pathControl.pathItems {
+            let attrs: [NSAttributedString.Key: Any] = [
+                .foregroundColor: theme.textSecondary,
+                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize)
+            ]
+            item.attributedTitle = NSAttributedString(string: item.title, attributes: attrs)
+        }
+        pathControl.needsDisplay = true
     }
 
     private func setupTabContainer() {
-        tabContainer.wantsLayer = true
         view.addSubview(tabContainer)
     }
 
@@ -406,6 +485,11 @@ final class PaneViewController: NSViewController {
         updatePathControl()
     }
 
+    /// Public method to refresh the tab bar (e.g., when theme changes)
+    func refreshTabBar() {
+        reloadTabBar()
+    }
+
     // MARK: - Navigation (delegate to selected tab)
 
     func navigate(to url: URL) {
@@ -570,6 +654,7 @@ final class PaneViewController: NSViewController {
         if totalWidth <= availableWidth || items.count <= 3 {
             pathControl.pathItems = items
             pathItemURLs = components.map { $0.1 }
+            updatePathControlColors()
             return
         }
 
@@ -609,6 +694,7 @@ final class PaneViewController: NSViewController {
 
         // Build URL mapping: first item URL, nil for ellipsis, then trailing URLs
         pathItemURLs = [components[0].1, nil] + trailingItems.map { $0.1 }
+        updatePathControlColors()
     }
 
     private func friendlyPathComponentName(for url: URL) -> String {

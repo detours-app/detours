@@ -31,9 +31,8 @@ final class FileListCell: NSTableCellView {
         cloudIcon.isHidden = true
         addSubview(cloudIcon)
 
-        // Name label setup - SF Mono 13px
-        nameLabel.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        nameLabel.textColor = .labelColor
+        // Name label setup
+        updateThemeColors()
         nameLabel.lineBreakMode = .byTruncatingTail
         nameLabel.isEditable = false
         nameLabel.isBordered = false
@@ -43,8 +42,6 @@ final class FileListCell: NSTableCellView {
         self.textField = nameLabel
 
         // Shared label setup - smaller, secondary color
-        sharedLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        sharedLabel.textColor = .secondaryLabelColor
         sharedLabel.lineBreakMode = .byTruncatingTail
         sharedLabel.isEditable = false
         sharedLabel.isBordered = false
@@ -87,6 +84,27 @@ final class FileListCell: NSTableCellView {
             name: ClipboardManager.cutItemsDidChange,
             object: nil
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChange,
+            object: nil
+        )
+    }
+
+    private func updateThemeColors() {
+        let theme = ThemeManager.shared.currentTheme
+        let fontSize = ThemeManager.shared.fontSize
+        nameLabel.font = theme.font(size: fontSize)
+        nameLabel.textColor = theme.textPrimary
+        sharedLabel.font = theme.font(size: fontSize - 2)
+        sharedLabel.textColor = theme.textSecondary
+        cloudIcon.contentTintColor = theme.textSecondary
+    }
+
+    @objc private func handleThemeChange() {
+        updateThemeColors()
     }
 
     func configure(with item: FileItem, isDropTarget: Bool = false) {
@@ -95,6 +113,9 @@ final class FileListCell: NSTableCellView {
         self.isHiddenFile = item.isHiddenFile
         iconView.image = item.icon
         nameLabel.stringValue = item.name
+
+        // Update theme colors in case they changed
+        updateThemeColors()
 
         // iCloud status indicator
         switch item.iCloudStatus {
@@ -123,7 +144,7 @@ final class FileListCell: NSTableCellView {
     private func updateDropTargetAppearance() {
         if isDropTarget {
             wantsLayer = true
-            layer?.borderColor = detourAccentColor.cgColor
+            layer?.borderColor = ThemeManager.shared.currentTheme.accent.cgColor
             layer?.borderWidth = 2
             layer?.cornerRadius = 4
         } else {
