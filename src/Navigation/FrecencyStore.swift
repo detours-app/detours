@@ -93,17 +93,98 @@ final class FrecencyStore {
             }
         }
 
-        // Search filesystem
-        let filesystemMatches = searchFilesystem(query: expandedQuery, limit: limit * 2)
-        for url in filesystemMatches {
-            if results[url] == nil {
-                results[url] = 0.0
-            }
-        }
+        // Note: Filesystem search is now handled by SpotlightSearch (async)
+        // This method returns frecency matches only for backward compatibility
 
         // Sort by score descending, take top N
         let sorted = results.sorted { $0.value > $1.value }
         return Array(sorted.prefix(limit).map { $0.key })
+    }
+
+    /// Get frecency matches only (no Spotlight search). Fast, for instant results.
+    func frecencyMatches(for query: String, limit: Int = 10) -> [URL] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespaces)
+
+        // Empty query: return frecent directories only
+        if trimmedQuery.isEmpty {
+            return topFrecent(limit: limit)
+        }
+
+        // Expand ~ to home directory
+        let expandedQuery: String
+        if trimmedQuery.hasPrefix("~") {
+            let home = FileManager.default.homeDirectoryForCurrentUser.path
+            expandedQuery = home + trimmedQuery.dropFirst()
+        } else {
+            expandedQuery = trimmedQuery
+        }
+
+        // If query looks like an absolute path, check if it exists
+        if expandedQuery.hasPrefix("/") {
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: expandedQuery, isDirectory: &isDirectory),
+               isDirectory.boolValue {
+                return [URL(fileURLWithPath: expandedQuery)]
+            }
+        }
+
+        // Search frecency entries only (no filesystem search)
+        var results: [(URL, Double)] = []
+        let queryLower = expandedQuery.lowercased()
+
+        for (path, entry) in entries {
+            let lastComponent = URL(fileURLWithPath: path).lastPathComponent.lowercased()
+            if lastComponent.contains(queryLower) || path.lowercased().contains(queryLower) {
+                var isDirectory: ObjCBool = false
+                if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+                   isDirectory.boolValue {
+                    results.append((URL(fileURLWithPath: path), frecencyScore(for: entry)))
+                }
+            }
+        }
+
+        // Sort by score descending, take top N
+        results.sort { $0.1 > $1.1 }
+        return Array(results.prefix(limit).map { $0.0 })
+    }
+
+    /// Merge frecency results with Spotlight results.
+    /// Folders come first, then files. Within each group, sorted by frecency score.
+    func mergeResults(frecency: [URL], spotlight: [URL], limit: Int = 10) -> [URL] {
+        var seen = Set<URL>()
+        var allResults: [(url: URL, score: Double, isDirectory: Bool)] = []
+
+        // Add frecency results with their scores
+        for url in frecency {
+            if !seen.contains(url) {
+                seen.insert(url)
+                let score = entries[url.path].map { frecencyScore(for: $0) } ?? 0.0
+                var isDir: ObjCBool = false
+                let isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
+                allResults.append((url, score, isDirectory))
+            }
+        }
+
+        // Add Spotlight results that aren't already in frecency
+        for url in spotlight {
+            if !seen.contains(url) {
+                seen.insert(url)
+                let score = entries[url.path].map { frecencyScore(for: $0) } ?? 0.0
+                var isDir: ObjCBool = false
+                let isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
+                allResults.append((url, score, isDirectory))
+            }
+        }
+
+        // Sort: folders first, then by score descending
+        allResults.sort { lhs, rhs in
+            if lhs.isDirectory != rhs.isDirectory {
+                return lhs.isDirectory  // folders come first
+            }
+            return lhs.score > rhs.score
+        }
+
+        return Array(allResults.prefix(limit).map { $0.url })
     }
 
     /// Return top frecent directories (for empty query)
@@ -121,63 +202,6 @@ final class FrecencyStore {
 
         scored.sort { $0.1 > $1.1 }
         return Array(scored.prefix(limit).map { $0.0 })
-    }
-
-    /// Search filesystem for directories matching query
-    private func searchFilesystem(query: String, limit: Int) -> [URL] {
-        var results: [URL] = []
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-
-        // Common search roots (not home itself - too large)
-        let iCloudDocs = home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
-        let searchRoots = [
-            home.appendingPathComponent("Documents"),
-            home.appendingPathComponent("Downloads"),
-            home.appendingPathComponent("Desktop"),
-            home.appendingPathComponent("dev"),
-            home.appendingPathComponent("Developer"),
-            home.appendingPathComponent("Projects"),
-            iCloudDocs,
-            iCloudDocs.appendingPathComponent("Documents"),
-            URL(fileURLWithPath: "/Applications"),
-        ]
-
-        let queryLower = query.lowercased()
-
-        for root in searchRoots {
-            guard let enumerator = fm.enumerator(
-                at: root,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else { continue }
-
-            while let url = enumerator.nextObject() as? URL {
-                // Only go 5 levels deep
-                let depth = url.pathComponents.count - root.pathComponents.count
-                if depth > 5 {
-                    enumerator.skipDescendants()
-                    continue
-                }
-
-                // Check if directory
-                guard let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey]),
-                      resourceValues.isDirectory == true else {
-                    continue
-                }
-
-                // Check if name contains query (no fuzzy match - too loose)
-                let name = url.lastPathComponent.lowercased()
-                if name.contains(queryLower) {
-                    results.append(url)
-                    if results.count >= limit {
-                        return results
-                    }
-                }
-            }
-        }
-
-        return results
     }
 
     /// Check if a directory is "frecent" (high score) - used for showing star icon

@@ -1,0 +1,18 @@
+excluded:
+  - .build
+  - DerivedData
+
+disabled_rules:
+  - identifier_name
+  - line_length
+  - file_length
+  - type_body_length
+  - large_tuple
+  - trailing_comma
+  - function_body_length
+  - cyclomatic_complexity
+  - for_where
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing

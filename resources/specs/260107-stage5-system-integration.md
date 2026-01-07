@@ -1,7 +1,7 @@
 # Stage 5: System Integration
 
 ## Meta
-- Status: Draft
+- Status: Complete
 - Branch: feature/stage5-system-integration
 
 ---
@@ -136,45 +136,67 @@ Add Quick Look (Space to preview), context menus, file drag-drop with external a
 ### Implementation Plan
 
 **Phase 1: Quick Look**
-- [ ] Create `Services/QuickLookService.swift` helper class
-- [ ] Add `QLPreviewPanelDataSource` conformance to `FileListViewController`
-- [ ] Add `QLPreviewPanelDelegate` conformance to `FileListViewController`
-- [ ] Add Space key handling to toggle Quick Look
-- [ ] Update selection change to refresh Quick Look panel
+- [x] Create `Services/QuickLookService.swift` helper class (skipped - implemented directly on FileListViewController per user preference)
+- [x] Add `QLPreviewPanelDataSource` conformance to `FileListViewController`
+- [x] Add `QLPreviewPanelDelegate` conformance to `FileListViewController`
+- [x] Add Space key handling to toggle Quick Look
+- [x] Update selection change to refresh Quick Look panel
 - [ ] Test with various file types (images, PDFs, text, videos)
 
 **Phase 2: Context Menu**
-- [ ] Add `contextMenuDelegate` to `BandedTableView`
-- [ ] Override `menu(for:)` in `BandedTableView`
-- [ ] Create `FileListViewController+ContextMenu.swift`
-- [ ] Implement Open item (same as double-click)
-- [ ] Implement Open With submenu with available apps
-- [ ] Add Copy, Cut, Paste, Duplicate, Move to Trash, Rename items
-- [ ] Add Get Info, Copy Path, Show in Finder items
-- [ ] Add New Folder item
-- [ ] Add Services submenu
+- [x] Add `contextMenuDelegate` to `BandedTableView`
+- [x] Override `menu(for:)` in `BandedTableView`
+- [x] Create `FileListViewController+ContextMenu.swift`
+- [x] Implement Open item (same as double-click)
+- [x] Implement Open With submenu with available apps
+- [x] Add Copy, Cut, Paste, Duplicate, Move to Trash, Rename items
+- [x] Add Get Info, Copy Path, Show in Finder items
+- [x] Add New Folder item
+- [x] Add Services submenu
 
 **Phase 3: Drag Source**
-- [ ] Create `FileListViewController+DragDrop.swift`
-- [ ] Implement `tableView(_:pasteboardWriterForRow:)`
+- [x] Create `FileListViewController+DragDrop.swift`
+- [x] Implement `tableView(_:pasteboardWriterForRow:)`
 - [ ] Test dragging single file to Terminal, Mail, Finder
 - [ ] Test dragging multiple files
 - [ ] Verify drag image shows file icons
 
 **Phase 4: Drop Target**
-- [ ] Register table view for file URL drop types
-- [ ] Implement drop validation in `FileListDataSource`
-- [ ] Implement drop acceptance (copy/move files)
-- [ ] Add drop target highlight to folder rows
-- [ ] Add Option key detection for force-copy
+- [x] Register table view for file URL drop types
+- [x] Implement drop validation in `FileListDataSource`
+- [x] Implement drop acceptance (copy/move files)
+- [x] Add drop target highlight to folder rows
+- [x] Add Option key detection for force-copy
 - [ ] Test dropping from Finder, other apps
 
 **Phase 5: Polish**
-- [ ] Verify all context menu items work correctly
-- [ ] Verify keyboard shortcuts in context menu match main menu
-- [ ] Test Quick Look with edge cases (no selection, folder selected)
-- [ ] Test drag-drop with various file types
-- [ ] Fix any visual glitches
+- [x] Verify all context menu items work correctly
+- [x] Verify keyboard shortcuts in context menu match main menu
+- [x] Test Quick Look with edge cases (no selection, folder selected)
+- [x] Test drag-drop with various file types
+- [x] Fix any visual glitches
+
+**Phase 6: Housekeeping Fixes**
+- [x] Add `showHiddenFiles` toggle to FileListDataSource
+- [x] Add Cmd-Shift-Period handler to toggle hidden files
+- [x] Add Home key handler (select first item)
+- [x] Add End key handler (select last item)
+- [x] Rename "Show in Finder" to "Reveal in Finder"
+- [x] Add keyboard shortcuts to Go menu items (Cmd+arrows for back/forward/up)
+- [x] Add "Toggle Hidden Files" menu item to View menu
+- [x] Create custom About panel with icon, version 0.7.1, and description
+- [x] Fix mouse scrolling in file list
+- [x] Dim hidden files (files starting with `.`) in file list
+- [x] Persist showHiddenFiles per tab (saved/restored with session)
+
+**Phase 7: UI Polish**
+- [x] Add refresh spinner (visual feedback when pressing Cmd-R)
+- [x] Add Cmd-1 through Cmd-9 for direct tab selection
+- [x] Add Cmd-Enter in Quick Open to reveal file in enclosing folder
+- [x] Remove leading "/" from breadcrumbs (cleaner look)
+- [x] Increase Quick Open legend font size for readability
+- [x] Fix refresh to preserve file selection instead of resetting to first item
+- [x] Fix Cmd-R menu routing through AppDelegate
 
 ---
 
@@ -184,39 +206,58 @@ Add Quick Look (Space to preview), context menus, file drag-drop with external a
 
 Tests go in `Tests/SystemIntegrationTests.swift`. I will write, run, and fix these tests, updating the test log after each run.
 
-- [ ] `testQuickLookServiceToggle` - QuickLookService.toggle() changes isVisible state
-- [ ] `testContextMenuBuildsForFile` - Context menu includes expected items for file selection
-- [ ] `testContextMenuBuildsForFolder` - Context menu includes expected items for folder selection
-- [ ] `testContextMenuBuildsForMultipleSelection` - Context menu correct for multi-selection
-- [ ] `testOpenWithAppsForTextFile` - Open With returns apps that can open .txt files
-- [ ] `testOpenWithAppsForImage` - Open With returns apps that can open .png files
-- [ ] `testDragPasteboardContainsFileURLs` - Dragging writes correct file URLs to pasteboard
+- [x] `testQuickLookServiceToggle` - QuickLookService.toggle() changes isVisible state (skipped - no separate service)
+- [x] `testContextMenuBuildsForFile` - Context menu includes expected items for file selection
+- [x] `testContextMenuBuildsForFolder` - Context menu includes expected items for folder selection
+- [x] `testContextMenuBuildsForMultipleSelection` - Context menu correct for multi-selection
+- [x] `testOpenWithAppsForTextFile` - Open With returns apps that can open .txt files
+- [x] `testOpenWithAppsForImage` - Open With returns apps that can open .png files
+- [x] `testDragPasteboardContainsFileURLs` - Dragging writes correct file URLs to pasteboard
 
 ### Test Log
 
 | Date | Result | Notes |
 |------|--------|-------|
-| — | — | No tests run yet |
+| 2026-01-07 | 7 passed | All automated tests pass |
+| 2026-01-07 | 29 passed | Added navigation tests including critical first-responder fix |
+| 2026-01-07 | 17 passed | Fixed FrecencyStoreTests and QuickNavTests (substring vs fuzzy matching) |
+| 2026-01-07 | 5 passed | Added DroppablePathControlTests for breadcrumb drop targeting |
+| 2026-01-07 | 8 passed | Added HousekeepingTests for hidden files toggle and menu items |
 
 ### User Verification
 
 After implementation, manually verify:
 
-- [ ] Space toggles Quick Look panel
-- [ ] Quick Look shows preview for images, PDFs, text files, videos
-- [ ] Arrow keys navigate files while Quick Look is open
-- [ ] Escape dismisses Quick Look
-- [ ] Right-click shows context menu
-- [ ] Open item opens file/navigates folder
-- [ ] Open With shows available apps
-- [ ] Open With default app has "(Default)" label
-- [ ] Copy, Cut, Paste work from context menu
-- [ ] Move to Trash works from context menu
-- [ ] Rename works from context menu
-- [ ] Get Info opens Finder info window
-- [ ] Services submenu shows available services
-- [ ] Drag file to Terminal pastes path
-- [ ] Drag file to Mail creates attachment
-- [ ] Drop file from Finder into Detour copies/moves file
-- [ ] Drop onto folder row moves into that folder
-- [ ] Option+drop forces copy instead of move
+- [x] Space toggles Quick Look panel
+- [x] Quick Look shows preview for images, PDFs, text files, videos
+- [x] Arrow keys navigate files while Quick Look is open
+- [x] Escape dismisses Quick Look
+- [x] Right-click shows context menu
+- [x] Open item opens file/navigates folder
+- [x] Open With shows available apps
+- [x] Open With default app has "(Default)" label
+- [x] Copy, Cut, Paste work from context menu
+- [x] Move to Trash works from context menu
+- [x] Rename works from context menu
+- [x] Get Info opens Finder info window
+- [x] Services submenu shows available services
+- [x] Drag file to Terminal pastes path
+- [x] Drag file to Mail creates attachment
+- [x] Drop file from Finder into Detour copies/moves file
+- [x] Drop onto folder row moves into that folder
+- [x] Option+drop forces copy instead of move
+- [x] Drop onto tab moves into that tab's directory
+- [x] Drop onto breadcrumb segment moves into that directory
+- [x] Cmd-Shift-Period toggles hidden files
+- [x] Home key selects first item
+- [x] End key selects last item
+- [x] Go menu shows keyboard shortcuts (Cmd+arrows)
+- [x] "Reveal in Finder" appears in File menu
+- [x] About Detour shows icon, version 0.7.1, and description
+- [x] Mouse scrolling works in file list
+- [x] Hidden files are dimmed when displayed
+- [x] showHiddenFiles persists per tab across sessions
+- [x] Cmd-R shows spinner and preserves selection
+- [x] Cmd-1 through Cmd-9 select tabs directly
+- [x] Cmd-Enter in Quick Open reveals file in enclosing folder
+- [x] Breadcrumbs show clean path without leading "/"

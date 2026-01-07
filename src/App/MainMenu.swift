@@ -10,7 +10,7 @@ func setupMainMenu(target: AppDelegate) {
     appMenuItem.submenu = appMenu
     mainMenu.addItem(appMenuItem)
 
-    appMenu.addItem(withTitle: "About Detour", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+    appMenu.addItem(withTitle: "About Detour", action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
     appMenu.addItem(NSMenuItem.separator())
     appMenu.addItem(withTitle: "Quit Detour", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
@@ -28,8 +28,8 @@ func setupMainMenu(target: AppDelegate) {
     let getInfoItem = NSMenuItem(title: "Get Info", action: #selector(FileListViewController.getInfo(_:)), keyEquivalent: "i")
     fileMenu.addItem(getInfoItem)
 
-    let showInFinderItem = NSMenuItem(title: "Show in Finder", action: #selector(FileListViewController.showInFinder(_:)), keyEquivalent: "")
-    fileMenu.addItem(showInFinderItem)
+    let revealInFinderItem = NSMenuItem(title: "Reveal in Finder", action: #selector(FileListViewController.showInFinder(_:)), keyEquivalent: "")
+    fileMenu.addItem(revealInFinderItem)
     fileMenu.addItem(NSMenuItem.separator())
 
     // Close Tab is now Cmd-W, Close Window is Cmd-Shift-W
@@ -95,6 +95,23 @@ func setupMainMenu(target: AppDelegate) {
     prevTabItem.target = target
     viewMenu.addItem(prevTabItem)
 
+    viewMenu.addItem(NSMenuItem.separator())
+
+    // Cmd+1 through Cmd+9 for tab selection
+    for i in 1...9 {
+        let tabItem = NSMenuItem(title: "Select Tab \(i)", action: #selector(AppDelegate.selectTabByNumber(_:)), keyEquivalent: "\(i)")
+        tabItem.tag = i
+        tabItem.target = target
+        viewMenu.addItem(tabItem)
+    }
+
+    viewMenu.addItem(NSMenuItem.separator())
+
+    let toggleHiddenItem = NSMenuItem(title: "Toggle Hidden Files", action: #selector(AppDelegate.toggleHiddenFiles(_:)), keyEquivalent: ".")
+    toggleHiddenItem.keyEquivalentModifierMask = [.command, .shift]
+    toggleHiddenItem.target = target
+    viewMenu.addItem(toggleHiddenItem)
+
     // Go menu
     let goMenu = NSMenu(title: "Go")
     let goMenuItem = NSMenuItem(title: "Go", action: nil, keyEquivalent: "")
@@ -108,20 +125,17 @@ func setupMainMenu(target: AppDelegate) {
 
     goMenu.addItem(NSMenuItem.separator())
 
-    let backItem = NSMenuItem(title: "Back", action: #selector(AppDelegate.goBack(_:)), keyEquivalent: "[")
+    // Navigation items - Cmd+arrows for back/forward
+    let backItem = NSMenuItem(title: "Back", action: #selector(FileListViewController.goBack(_:)), keyEquivalent: String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!)))
     backItem.keyEquivalentModifierMask = .command
-    backItem.target = target
     goMenu.addItem(backItem)
 
-    let forwardItem = NSMenuItem(title: "Forward", action: #selector(AppDelegate.goForward(_:)), keyEquivalent: "]")
+    let forwardItem = NSMenuItem(title: "Forward", action: #selector(FileListViewController.goForward(_:)), keyEquivalent: String(Character(UnicodeScalar(NSRightArrowFunctionKey)!)))
     forwardItem.keyEquivalentModifierMask = .command
-    forwardItem.target = target
     goMenu.addItem(forwardItem)
 
-    let enclosingItem = NSMenuItem(title: "Enclosing Folder", action: #selector(AppDelegate.goUp(_:)), keyEquivalent: "")
+    let enclosingItem = NSMenuItem(title: "Enclosing Folder", action: #selector(FileListViewController.goUp(_:)), keyEquivalent: String(Character(UnicodeScalar(NSUpArrowFunctionKey)!)))
     enclosingItem.keyEquivalentModifierMask = .command
-    enclosingItem.keyEquivalent = String(Character(UnicodeScalar(NSUpArrowFunctionKey)!))
-    enclosingItem.target = target
     goMenu.addItem(enclosingItem)
 
     goMenu.addItem(NSMenuItem.separator())

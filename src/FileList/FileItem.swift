@@ -11,16 +11,18 @@ struct FileItem {
     let name: String
     let url: URL
     let isDirectory: Bool
+    let isHiddenFile: Bool
     let size: Int64?
     let dateModified: Date
     let icon: NSImage
     let sharedByName: String?
     let iCloudStatus: ICloudStatus
 
-    init(name: String, url: URL, isDirectory: Bool, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local) {
+    init(name: String, url: URL, isDirectory: Bool, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false) {
         self.name = name
         self.url = url
         self.isDirectory = isDirectory
+        self.isHiddenFile = isHiddenFile
         self.size = size
         self.dateModified = dateModified
         self.icon = icon
@@ -52,6 +54,7 @@ struct FileItem {
             self.name = values?.localizedName ?? url.lastPathComponent
         }
         self.isDirectory = values?.isDirectory ?? false
+        self.isHiddenFile = url.lastPathComponent.hasPrefix(".")
         self.size = isDirectory ? nil : Int64(values?.fileSize ?? 0)
         self.dateModified = values?.contentModificationDate ?? Date()
 
@@ -140,7 +143,7 @@ extension FileItem {
 
 extension FileItem {
     /// Creates a teal-tinted version of the folder icon preserving shading
-    private static func tintedFolderIcon(_ icon: NSImage) -> NSImage {
+    static func tintedFolderIcon(_ icon: NSImage) -> NSImage {
         let size = icon.size
         guard size.width > 0, size.height > 0 else { return icon }
 

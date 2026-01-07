@@ -5,6 +5,11 @@ protocol FileListKeyHandling: AnyObject {
     func handleKeyDown(_ event: NSEvent) -> Bool
 }
 
+@MainActor
+protocol FileListContextMenuDelegate: AnyObject {
+    func buildContextMenu(for selection: IndexSet, clickedRow: Int) -> NSMenu?
+}
+
 final class BandedTableView: NSTableView {
     private static let evenRowColor = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -19,25 +24,14 @@ final class BandedTableView: NSTableView {
     }
 
     weak var keyHandler: FileListKeyHandling?
+    weak var contextMenuDelegate: FileListContextMenuDelegate?
     var onActivate: (() -> Void)?
 
-    override func layout() {
-        super.layout()
-
-        guard let clipView = enclosingScrollView?.contentView else { return }
-
-        let rowStride = rowHeight + intercellSpacing.height
-        let contentHeight = rowStride * CGFloat(numberOfRows)
-        let minHeight = clipView.bounds.height
-        let desiredHeight = max(minHeight, contentHeight)
-
-        if abs(frame.height - desiredHeight) > 0.5 {
-            frame.size.height = desiredHeight
-        }
-    }
-
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        // Handle Cmd-Left/Right before they get eaten by text system
+        // Only handle if we are the first responder - otherwise the wrong pane handles it
+        guard window?.firstResponder === self else {
+            return super.performKeyEquivalent(with: event)
+        }
         if keyHandler?.handleKeyDown(event) == true {
             return true
         }
@@ -63,6 +57,18 @@ final class BandedTableView: NSTableView {
         }
 
         super.mouseDown(with: event)
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let point = convert(event.locationInWindow, from: nil)
+        let clickedRow = row(at: point)
+
+        // If right-clicking on a row not in selection, select that row
+        if clickedRow >= 0 && !selectedRowIndexes.contains(clickedRow) {
+            selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
+        }
+
+        return contextMenuDelegate?.buildContextMenu(for: selectedRowIndexes, clickedRow: clickedRow)
     }
 
     override func drawBackground(inClipRect clipRect: NSRect) {

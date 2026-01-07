@@ -16,9 +16,11 @@ final class MainSplitViewController: NSSplitViewController {
         static let leftTabs = "Detour.LeftPaneTabs"
         static let leftSelectedIndex = "Detour.LeftPaneSelectedIndex"
         static let leftSelections = "Detour.LeftPaneSelections"
+        static let leftShowHiddenFiles = "Detour.LeftPaneShowHiddenFiles"
         static let rightTabs = "Detour.RightPaneTabs"
         static let rightSelectedIndex = "Detour.RightPaneSelectedIndex"
         static let rightSelections = "Detour.RightPaneSelections"
+        static let rightShowHiddenFiles = "Detour.RightPaneShowHiddenFiles"
         static let activePane = "Detour.ActivePane"
     }
 
@@ -124,9 +126,11 @@ final class MainSplitViewController: NSSplitViewController {
         defaults.set(leftPane.tabDirectories.map { $0.path }, forKey: SessionKeys.leftTabs)
         defaults.set(leftPane.selectedTabIndex, forKey: SessionKeys.leftSelectedIndex)
         defaults.set(encodeSelections(leftPane.tabSelections), forKey: SessionKeys.leftSelections)
+        defaults.set(leftPane.tabShowHiddenFiles, forKey: SessionKeys.leftShowHiddenFiles)
         defaults.set(rightPane.tabDirectories.map { $0.path }, forKey: SessionKeys.rightTabs)
         defaults.set(rightPane.selectedTabIndex, forKey: SessionKeys.rightSelectedIndex)
         defaults.set(encodeSelections(rightPane.tabSelections), forKey: SessionKeys.rightSelections)
+        defaults.set(rightPane.tabShowHiddenFiles, forKey: SessionKeys.rightShowHiddenFiles)
         defaults.set(activePaneIndex, forKey: SessionKeys.activePane)
     }
 
@@ -144,14 +148,16 @@ final class MainSplitViewController: NSSplitViewController {
         if !leftTabs.isEmpty {
             let selectedIndex = defaults.integer(forKey: SessionKeys.leftSelectedIndex)
             let selections = decodeSelections(defaults.object(forKey: SessionKeys.leftSelections))
-            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex, selections: selections)
+            let showHiddenFiles = defaults.array(forKey: SessionKeys.leftShowHiddenFiles) as? [Bool]
+            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles)
         }
 
         let rightTabs = restoreTabs(forKey: SessionKeys.rightTabs)
         if !rightTabs.isEmpty {
             let selectedIndex = defaults.integer(forKey: SessionKeys.rightSelectedIndex)
             let selections = decodeSelections(defaults.object(forKey: SessionKeys.rightSelections))
-            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex, selections: selections)
+            let showHiddenFiles = defaults.array(forKey: SessionKeys.rightShowHiddenFiles) as? [Bool]
+            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles)
         }
     }
 
@@ -214,6 +220,10 @@ final class MainSplitViewController: NSSplitViewController {
         activePane.refresh()
     }
 
+    @objc func toggleHiddenFiles(_ sender: Any?) {
+        activePane.toggleHiddenFiles()
+    }
+
     @objc func quickOpen(_ sender: Any?) {
         showQuickNav()
     }
@@ -251,6 +261,10 @@ final class MainSplitViewController: NSSplitViewController {
 
     @objc func selectPreviousTab(_ sender: Any?) {
         activePane.selectPreviousTab()
+    }
+
+    @objc func selectTab(at index: Int, sender: Any?) {
+        activePane.selectTab(at: index)
     }
 
     // MARK: - Cross-Pane Tab Movement

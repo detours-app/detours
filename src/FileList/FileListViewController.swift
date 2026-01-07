@@ -1,5 +1,6 @@
 import AppKit
 import os.log
+@preconcurrency import Quartz
 
 private let logger = Logger(subsystem: "com.detour", category: "filelist")
 
@@ -17,7 +18,7 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>)
 }
 
-final class FileListViewController: NSViewController, FileListKeyHandling {
+final class FileListViewController: NSViewController, FileListKeyHandling, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     let tableView = BandedTableView()
     private let scrollView = NSScrollView()
     let dataSource = FileListDataSource()
@@ -27,9 +28,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
     private var typeSelectBuffer = ""
     private var typeSelectTimer: Timer?
     private var pendingDirectory: URL?
-    private var currentDirectory: URL?
+    private(set) var currentDirectory: URL?
     private var hasLoadedDirectory = false
-    private let renameController = RenameController()
+    let renameController = RenameController()
     private var directoryWatcher: DirectoryWatcher?
 
     override func loadView() {
@@ -45,11 +46,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
 
         dataSource.tableView = tableView
         tableView.keyHandler = self
-        tableView.nextResponder = self
+        tableView.contextMenuDelegate = self
         tableView.onActivate = { [weak self] in
             self?.navigationDelegate?.fileListDidBecomeActive()
         }
         renameController.delegate = self
+        setupDragDrop()
 
         if let pendingDirectory {
             self.pendingDirectory = nil
@@ -75,6 +77,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
 
     @objc private func tableViewSelectionDidChange(_ notification: Notification) {
         navigationDelegate?.fileListDidBecomeActive()
+        refreshQuickLookPanel()
     }
 
     private func setupScrollView() {
@@ -160,6 +163,54 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         tableView.addTableColumn(dateColumn)
     }
 
+    /// Refresh current directory, preserving selection
+    func refresh() {
+        guard let currentDirectory else { return }
+
+        // Preserve current selection BEFORE any changes
+        let selectedNames = Set(selectedItems.map { $0.name })
+        let firstSelectedRow = tableView.selectedRow
+
+        // Spinner
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .regular
+        spinner.sizeToFit()
+        spinner.frame.origin = NSPoint(
+            x: (view.bounds.width - spinner.bounds.width) / 2,
+            y: (view.bounds.height - spinner.bounds.height) / 2
+        )
+        view.addSubview(spinner, positioned: .above, relativeTo: scrollView)
+        spinner.startAnimation(nil)
+
+        // Reload data
+        dataSource.loadDirectory(currentDirectory)
+
+        // Restore selection by name
+        var newSelection = IndexSet()
+        for (index, item) in dataSource.items.enumerated() {
+            if selectedNames.contains(item.name) {
+                newSelection.insert(index)
+            }
+        }
+
+        if !newSelection.isEmpty {
+            tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
+        } else if !dataSource.items.isEmpty {
+            // Selection was deleted - select nearby item
+            let newIndex = min(firstSelectedRow, dataSource.items.count - 1)
+            if newIndex >= 0 {
+                tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+            }
+        }
+
+        // Remove spinner after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            spinner.stopAnimation(nil)
+            spinner.removeFromSuperview()
+        }
+    }
+
     func loadDirectory(_ url: URL) {
         currentDirectory = url
 
@@ -171,7 +222,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
 
         dataSource.loadDirectory(url)
         hasLoadedDirectory = true
-        if dataSource.items.count > 0 {
+        if !dataSource.items.isEmpty {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
 
@@ -208,7 +259,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
 
         if !newSelection.isEmpty {
             tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
-        } else if dataSource.items.count > 0 {
+        } else if !dataSource.items.isEmpty {
             // Selection was deleted - select nearby item
             let newIndex = min(firstSelectedRow, dataSource.items.count - 1)
             if newIndex >= 0 {
@@ -469,6 +520,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
             return true
         }
 
+        // Cmd-Shift-Period: toggle hidden files
+        if modifiers == [.command, .shift],
+           let chars = event.charactersIgnoringModifiers,
+           chars == "." {
+            toggleHiddenFiles()
+            return true
+        }
+
         if modifiers == .command && event.keyCode == 51 {
             deleteSelection()
             return true
@@ -524,11 +583,20 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         case 48: // Tab
             navigationDelegate?.fileListDidRequestSwitchPane()
             return true
+        case 49: // Space
+            toggleQuickLook()
+            return true
         case 126: // Up arrow
             moveSelectionUp(extendSelection: modifiers.contains(.shift))
             return true
         case 125: // Down arrow
             moveSelectionDown(extendSelection: modifiers.contains(.shift))
+            return true
+        case 115: // Home
+            selectFirstItem()
+            return true
+        case 119: // End
+            selectLastItem()
             return true
         default:
             // Type-to-select: handle character keys
@@ -564,6 +632,24 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
         }
     }
 
+    private func selectFirstItem() {
+        guard !dataSource.items.isEmpty else { return }
+        tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        tableView.scrollRowToVisible(0)
+    }
+
+    private func selectLastItem() {
+        guard !dataSource.items.isEmpty else { return }
+        let lastIndex = dataSource.items.count - 1
+        tableView.selectRowIndexes(IndexSet(integer: lastIndex), byExtendingSelection: false)
+        tableView.scrollRowToVisible(lastIndex)
+    }
+
+    private func toggleHiddenFiles() {
+        dataSource.showHiddenFiles.toggle()
+        refreshCurrentDirectory()
+    }
+
     // MARK: - Type-to-Select
 
     private func handleTypeSelect(_ chars: String) {
@@ -588,8 +674,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
     // MARK: - Refresh
 
     private func refreshCurrentDirectory() {
-        guard let currentDirectory else { return }
-        loadDirectory(currentDirectory)
+        refresh()
     }
 
     private func handleFunctionKey(_ key: NSEvent.SpecialKey) -> Bool {
@@ -642,6 +727,85 @@ final class FileListViewController: NSViewController, FileListKeyHandling {
 
     override func becomeFirstResponder() -> Bool {
         return tableView.becomeFirstResponder()
+    }
+
+    // MARK: - Quick Look
+
+    private func toggleQuickLook() {
+        guard let panel = QLPreviewPanel.shared() else { return }
+
+        if panel.isVisible {
+            panel.orderOut(nil)
+        } else {
+            panel.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        return true
+    }
+
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        MainActor.assumeIsolated {
+            panel.dataSource = self
+            panel.delegate = self
+        }
+    }
+
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        MainActor.assumeIsolated {
+            panel.dataSource = nil
+            panel.delegate = nil
+        }
+    }
+
+    // MARK: - QLPreviewPanelDataSource
+
+    nonisolated func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
+        MainActor.assumeIsolated {
+            return selectedURLs.count
+        }
+    }
+
+    nonisolated func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
+        MainActor.assumeIsolated {
+            let urls = selectedURLs
+            guard index >= 0 && index < urls.count else { return nil }
+            return urls[index] as NSURL
+        }
+    }
+
+    // MARK: - QLPreviewPanelDelegate
+
+    nonisolated func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
+        guard let event else { return false }
+        // Handle arrow keys to navigate the file list while Quick Look is open
+        if event.type == .keyDown {
+            let keyCode = event.keyCode
+            // Up (126), Down (125) arrow keys - navigate selection
+            if keyCode == 126 || keyCode == 125 {
+                MainActor.assumeIsolated {
+                    let current = tableView.selectedRow
+                    let itemCount = dataSource.items.count
+                    if keyCode == 126 && current > 0 {
+                        // Up arrow
+                        tableView.selectRowIndexes(IndexSet(integer: current - 1), byExtendingSelection: false)
+                        tableView.scrollRowToVisible(current - 1)
+                    } else if keyCode == 125 && current < itemCount - 1 {
+                        // Down arrow
+                        tableView.selectRowIndexes(IndexSet(integer: current + 1), byExtendingSelection: false)
+                        tableView.scrollRowToVisible(current + 1)
+                    }
+                }
+                return true
+            }
+        }
+        return false
+    }
+
+    private func refreshQuickLookPanel() {
+        guard let panel = QLPreviewPanel.shared(), panel.isVisible else { return }
+        panel.reloadData()
     }
 }
 
@@ -730,6 +894,20 @@ extension FileListViewController {
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
         NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
+
+    // MARK: - Navigation Actions (for menu responder chain)
+
+    @objc func goBack(_ sender: Any?) {
+        navigationDelegate?.fileListDidRequestBack()
+    }
+
+    @objc func goForward(_ sender: Any?) {
+        navigationDelegate?.fileListDidRequestForward()
+    }
+
+    @objc func goUp(_ sender: Any?) {
+        navigationDelegate?.fileListDidRequestParentNavigation()
     }
 }
 

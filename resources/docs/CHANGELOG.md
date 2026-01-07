@@ -1,5 +1,31 @@
 # Changelog
 
+## 260107 UI Improvements
+- Added: Refresh indicator (spinner) when pressing Cmd-R
+- Added: Cmd-1 through Cmd-9 for direct tab selection
+- Added: Cmd-Enter in Quick Open to reveal file in enclosing folder
+- Changed: Breadcrumbs no longer show leading "/" (cleaner look)
+- Changed: Quick Open legend font larger and more readable
+- Fixed: Refresh now preserves file selection instead of jumping to first item
+
+## 260107 Folder Sizes
+- Added: Folders now show calculated size in Size column
+- Added: Async folder size calculation (UI stays responsive)
+- Added: Size cache to avoid recalculation when returning to directories
+
+## 260107 Scrolling Fix and iCloud Breadcrumbs
+- Fixed: Mouse/trackpad scrolling now works in file list panes
+- Fixed: Breadcrumbs show friendly iCloud names (iCloud Drive, Shared) instead of raw paths
+- Fixed: Breadcrumbs collapse ~/Library/Mobile Documents prefix for cleaner display
+
+## 260107 Quick Open Improvements
+- Changed: Quick Open now uses Spotlight (MDQuery) for instant search across entire disk
+- Changed: Quick Open panel is now a clean floating panel (no popover arrow)
+- Changed: Quick Open panel wider (700px) with SF Mono font to match file list
+- Changed: Placeholder text changed to "Quick Open..."
+- Updated: PROJECT.md with standard repo structure and code signing docs
+- Moved: Detour.entitlements to project root
+
 ## 260106 UX Fixes
 - Added: Cmd-Left/Right for back/forward navigation
 - Fixed: Split view divider now easier to grab (expanded hit area)

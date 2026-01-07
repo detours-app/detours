@@ -85,7 +85,7 @@ final class PaneTab {
     }
 
     func refresh() {
-        fileListViewController.loadDirectory(currentDirectory)
+        fileListViewController.refresh()
     }
 
     /// Go to parent directory. Returns false if already at root.
