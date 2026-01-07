@@ -533,13 +533,17 @@ Future specs will detail each stage. This is the sequencing:
 - [x] Frecency tracking
 - [x] Substring matching
 
-### Stage 5: System Integration
+### Stage 5: System Integration ✓
 - Spec: `260107-stage5-system-integration.md`
-- [ ] Quick Look (Space to preview)
-- [ ] Context menu (right-click)
-- [ ] Drag-drop with external apps
-- [ ] Open With submenu
-- [ ] Services menu
+- [x] Quick Look (Space to preview)
+- [x] Context menu (right-click)
+- [x] Drag-drop with external apps
+- [x] Open With submenu
+- [x] Services menu
+- [x] Hidden files toggle (Cmd-Shift-.)
+- [x] Refresh with spinner (Cmd-R)
+- [x] Tab selection by number (Cmd-1-9)
+- [x] Quick Open reveal (Cmd-Enter)
 
 ### Stage 6: Folder Expansion
 - Spec: `260106-stage6-folder-expansion.md`
