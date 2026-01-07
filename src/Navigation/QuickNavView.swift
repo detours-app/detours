@@ -57,7 +57,7 @@ struct QuickNavView: View {
                         }
                         .padding(.vertical, 4)
                     }
-                    .frame(height: CGFloat(maxResults) * 36 + 8)
+                    .frame(height: CGFloat(maxResults) * ResultRow.height + 8)
                     .onChange(of: selectedIndex) { _, newIndex in
                         withAnimation {
                             proxy.scrollTo(newIndex, anchor: .center)
@@ -180,24 +180,58 @@ private struct ResultRow: View {
     let url: URL
     let isSelected: Bool
     let isFrecent: Bool
+    let isDirectory: Bool
+    let icon: NSImage
+
+    private static let rowHeight: CGFloat = 48
+
+    init(url: URL, isSelected: Bool, isFrecent: Bool) {
+        self.url = url
+        self.isSelected = isSelected
+        self.isFrecent = isFrecent
+
+        // Check if directory and get appropriate icon
+        var isDir: ObjCBool = false
+        self.isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
+
+        let systemIcon = NSWorkspace.shared.icon(forFile: url.path)
+        systemIcon.size = NSSize(width: 20, height: 20)
+        if self.isDirectory {
+            self.icon = FileItem.tintedFolderIcon(systemIcon)
+        } else {
+            self.icon = systemIcon
+        }
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
-            // Star icon for frecent items
-            if isFrecent {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-            } else {
-                Color.clear
-                    .frame(width: 10)
-            }
+        HStack(alignment: .center, spacing: 10) {
+            // File/folder icon
+            Image(nsImage: icon)
+                .frame(width: 20, height: 20)
 
-            // Path display
-            Text(displayPath)
-                .font(Font(NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)))
-                .lineLimit(1)
-                .truncationMode(.head)
+            // Two-line display: filename + path
+            VStack(alignment: .leading, spacing: 2) {
+                // Line 1: Filename with star if frecent
+                HStack(spacing: 6) {
+                    Text(url.lastPathComponent)
+                        .font(Font(NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    if isFrecent {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                // Line 2: Full path (secondary, smaller)
+                Text(displayPath)
+                    .font(Font(NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
 
             Spacer()
 
@@ -209,8 +243,8 @@ private struct ResultRow: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .frame(height: 36)
+        .padding(.vertical, 6)
+        .frame(height: Self.rowHeight)
         .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
         .contentShape(Rectangle())
     }
@@ -223,6 +257,8 @@ private struct ResultRow: View {
         }
         return path
     }
+
+    static var height: CGFloat { rowHeight }
 }
 
 #Preview {

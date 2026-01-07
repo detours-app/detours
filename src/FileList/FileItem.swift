@@ -140,7 +140,7 @@ extension FileItem {
 
 extension FileItem {
     /// Creates a teal-tinted version of the folder icon preserving shading
-    private static func tintedFolderIcon(_ icon: NSImage) -> NSImage {
+    static func tintedFolderIcon(_ icon: NSImage) -> NSImage {
         let size = icon.size
         guard size.width > 0, size.height > 0 else { return icon }
 

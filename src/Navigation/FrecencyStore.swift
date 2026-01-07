@@ -149,38 +149,42 @@ final class FrecencyStore {
     }
 
     /// Merge frecency results with Spotlight results.
-    /// Frecency items come first (sorted by score), then Spotlight additions.
+    /// Folders come first, then files. Within each group, sorted by frecency score.
     func mergeResults(frecency: [URL], spotlight: [URL], limit: Int = 10) -> [URL] {
         var seen = Set<URL>()
-        var merged: [URL] = []
+        var allResults: [(url: URL, score: Double, isDirectory: Bool)] = []
 
-        // Add frecency results first (they're already sorted by score)
+        // Add frecency results with their scores
         for url in frecency {
             if !seen.contains(url) {
                 seen.insert(url)
-                merged.append(url)
+                let score = entries[url.path].map { frecencyScore(for: $0) } ?? 0.0
+                var isDir: ObjCBool = false
+                let isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
+                allResults.append((url, score, isDirectory))
             }
         }
 
         // Add Spotlight results that aren't already in frecency
-        // Give them scores based on frecency if they have any
-        var spotlightWithScores: [(URL, Double)] = []
         for url in spotlight {
             if !seen.contains(url) {
+                seen.insert(url)
                 let score = entries[url.path].map { frecencyScore(for: $0) } ?? 0.0
-                spotlightWithScores.append((url, score))
+                var isDir: ObjCBool = false
+                let isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
+                allResults.append((url, score, isDirectory))
             }
         }
 
-        // Sort Spotlight additions by score (frecent ones first)
-        spotlightWithScores.sort { $0.1 > $1.1 }
-
-        for (url, _) in spotlightWithScores {
-            if merged.count >= limit { break }
-            merged.append(url)
+        // Sort: folders first, then by score descending
+        allResults.sort { lhs, rhs in
+            if lhs.isDirectory != rhs.isDirectory {
+                return lhs.isDirectory  // folders come first
+            }
+            return lhs.score > rhs.score
         }
 
-        return Array(merged.prefix(limit))
+        return Array(allResults.prefix(limit).map { $0.url })
     }
 
     /// Return top frecent directories (for empty query)

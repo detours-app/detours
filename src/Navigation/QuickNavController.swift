@@ -34,7 +34,7 @@ final class QuickNavController {
 
         // Fixed size - don't rely on fittingSize since results are empty at creation
         let panelWidth: CGFloat = 900
-        let panelHeight: CGFloat = 450  // Room for search + 10 results + footer
+        let panelHeight: CGFloat = 580  // Room for search + 10 results (48px each) + footer
 
         // Create borderless floating panel
         let panel = FloatingPanel(
