@@ -532,13 +532,21 @@ Future specs will detail each stage. This is the sequencing:
 - [x] Substring matching
 
 ### Stage 5: System Integration
-- Spec: `yymmdd-system-integration.md`
-- [ ] Quick Look
+- Spec: `260107-stage5-system-integration.md`
+- [ ] Quick Look (Space to preview)
+- [ ] Context menu (right-click)
 - [ ] Drag-drop with external apps
-- [ ] Open With / Services
-- [ ] FSEvents live updates
+- [ ] Open With submenu
+- [ ] Services menu
 
-### Stage 6: Polish
+### Stage 6: Folder Expansion
+- Spec: `260106-stage6-folder-expansion.md`
+- [ ] NSOutlineView conversion
+- [ ] Disclosure triangles for inline folder expansion
+- [ ] Multi-directory watching
+- [ ] Expansion state persistence
+
+### Stage 7: Polish
 - Spec: `yymmdd-polish.md`
 - [ ] Icon view mode
 - [ ] Preferences
