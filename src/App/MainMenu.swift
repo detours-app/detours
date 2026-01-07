@@ -108,27 +108,20 @@ func setupMainMenu(target: AppDelegate) {
 
     goMenu.addItem(NSMenuItem.separator())
 
-    let backItem = NSMenuItem(title: "Back", action: #selector(AppDelegate.goBack(_:)), keyEquivalent: "[")
-    backItem.keyEquivalentModifierMask = .command
-    backItem.target = target
+    // Navigation items - NO key equivalents here, handled via performKeyEquivalent in BandedTableView
+    // This ensures the focused pane receives the key event, not a random responder
+    let backItem = NSMenuItem(title: "Back", action: #selector(FileListViewController.goBack(_:)), keyEquivalent: "")
     goMenu.addItem(backItem)
 
-    let forwardItem = NSMenuItem(title: "Forward", action: #selector(AppDelegate.goForward(_:)), keyEquivalent: "]")
-    forwardItem.keyEquivalentModifierMask = .command
-    forwardItem.target = target
+    let forwardItem = NSMenuItem(title: "Forward", action: #selector(FileListViewController.goForward(_:)), keyEquivalent: "")
     goMenu.addItem(forwardItem)
 
-    let enclosingItem = NSMenuItem(title: "Enclosing Folder", action: #selector(AppDelegate.goUp(_:)), keyEquivalent: "")
-    enclosingItem.keyEquivalentModifierMask = .command
-    enclosingItem.keyEquivalent = String(Character(UnicodeScalar(NSUpArrowFunctionKey)!))
-    enclosingItem.target = target
+    let enclosingItem = NSMenuItem(title: "Enclosing Folder", action: #selector(FileListViewController.goUp(_:)), keyEquivalent: "")
     goMenu.addItem(enclosingItem)
 
     goMenu.addItem(NSMenuItem.separator())
 
-    let refreshItem = NSMenuItem(title: "Refresh", action: #selector(AppDelegate.refresh(_:)), keyEquivalent: "r")
-    refreshItem.keyEquivalentModifierMask = .command
-    refreshItem.target = target
+    let refreshItem = NSMenuItem(title: "Refresh", action: #selector(PaneViewController.refresh(_:)), keyEquivalent: "")
     goMenu.addItem(refreshItem)
 
     // Window menu

@@ -264,14 +264,26 @@ final class PaneViewController: NSViewController {
         reloadTabBar()
     }
 
+    @objc func goBack(_ sender: Any?) {
+        goBack()
+    }
+
     func goForward() {
         selectedTab?.goForward()
         reloadTabBar()
     }
 
+    @objc func goForward(_ sender: Any?) {
+        goForward()
+    }
+
     func goUp() {
         selectedTab?.goUp()
         reloadTabBar()
+    }
+
+    @objc func goUp(_ sender: Any?) {
+        goUp()
     }
 
     var currentDirectory: URL? {
@@ -281,6 +293,10 @@ final class PaneViewController: NSViewController {
     func refresh() {
         selectedTab?.refresh()
         updateNavigationControls()
+    }
+
+    @objc func refresh(_ sender: Any?) {
+        refresh()
     }
 
     // MARK: - Session State

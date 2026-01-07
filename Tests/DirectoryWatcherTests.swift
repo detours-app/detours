@@ -23,8 +23,11 @@ struct DirectoryWatcherTests {
         let testFile = tempDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        // Wait for detection
-        try await Task.sleep(nanoseconds: 500_000_000)
+        // Wait for detection (FSEvents can be slow)
+        for _ in 0..<20 {
+            if changeDetected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
 
         #expect(changeDetected)
         watcher.stop()
@@ -51,8 +54,11 @@ struct DirectoryWatcherTests {
         // Delete the file
         try FileManager.default.removeItem(at: testFile)
 
-        // Wait for detection
-        try await Task.sleep(nanoseconds: 500_000_000)
+        // Wait for detection (FSEvents can be slow)
+        for _ in 0..<20 {
+            if changeDetected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
 
         #expect(changeDetected)
         watcher.stop()
@@ -80,8 +86,11 @@ struct DirectoryWatcherTests {
         let renamedFile = tempDir.appendingPathComponent("renamed.txt")
         try FileManager.default.moveItem(at: testFile, to: renamedFile)
 
-        // Wait for detection
-        try await Task.sleep(nanoseconds: 500_000_000)
+        // Wait for detection (FSEvents can be slow)
+        for _ in 0..<20 {
+            if changeDetected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
 
         #expect(changeDetected)
         watcher.stop()

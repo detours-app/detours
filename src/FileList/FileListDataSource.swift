@@ -30,9 +30,28 @@ final class InactiveHidingRowView: NSTableRowView {
 }
 
 @MainActor
+protocol FileListDropDelegate: AnyObject {
+    func handleDrop(urls: [URL], to destination: URL, isCopy: Bool)
+    var currentDirectoryURL: URL? { get }
+}
+
+@MainActor
 final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     private(set) var items: [FileItem] = []
     weak var tableView: NSTableView?
+    weak var dropDelegate: FileListDropDelegate?
+    var dropTargetRow: Int? {
+        didSet {
+            guard dropTargetRow != oldValue else { return }
+            // Redraw affected rows
+            if let old = oldValue {
+                tableView?.reloadData(forRowIndexes: IndexSet(integer: old), columnIndexes: IndexSet(integer: 0))
+            }
+            if let new = dropTargetRow {
+                tableView?.reloadData(forRowIndexes: IndexSet(integer: new), columnIndexes: IndexSet(integer: 0))
+            }
+        }
+    }
     var isActive: Bool = true {
         didSet {
             guard isActive != oldValue else { return }
@@ -76,6 +95,84 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         }
     }
 
+    // MARK: - Drag Source
+
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
+        guard row >= 0 && row < items.count else { return nil }
+        return items[row].url as NSURL
+    }
+
+    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forRowIndexes rowIndexes: IndexSet) {
+        // Use standard drag image behavior from NSTableView
+    }
+
+    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        dropTargetRow = nil
+    }
+
+    // MARK: - Drop Target
+
+    func tableView(_ tableView: NSTableView, validateDrop info: any NSDraggingInfo, proposedRow row: Int, proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
+        guard let currentDir = dropDelegate?.currentDirectoryURL else { return [] }
+
+        // Get dragged URLs
+        guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
+              !urls.isEmpty else {
+            return []
+        }
+
+        // Determine destination
+        let destination: URL
+        if dropOperation == .on && row >= 0 && row < items.count && items[row].isDirectory {
+            // Dropping on a folder row
+            destination = items[row].url
+            dropTargetRow = row
+        } else {
+            // Dropping on background or between rows - use current directory
+            destination = currentDir
+            dropTargetRow = nil
+        }
+
+        // Don't allow dropping into itself or its own subdirectory
+        for url in urls {
+            if destination.path.hasPrefix(url.path) || url.deletingLastPathComponent() == destination {
+                dropTargetRow = nil
+                return []
+            }
+        }
+
+        // Check for Option key (force copy)
+        let isCopy = info.draggingSourceOperationMask.contains(.copy) ||
+                     NSEvent.modifierFlags.contains(.option)
+
+        return isCopy ? .copy : .move
+    }
+
+    func tableView(_ tableView: NSTableView, acceptDrop info: any NSDraggingInfo, row: Int, dropOperation: NSTableView.DropOperation) -> Bool {
+        guard let currentDir = dropDelegate?.currentDirectoryURL else { return false }
+
+        guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
+              !urls.isEmpty else {
+            return false
+        }
+
+        // Determine destination
+        let destination: URL
+        if dropOperation == .on && row >= 0 && row < items.count && items[row].isDirectory {
+            destination = items[row].url
+        } else {
+            destination = currentDir
+        }
+
+        let isCopy = info.draggingSourceOperationMask.contains(.copy) ||
+                     NSEvent.modifierFlags.contains(.option)
+
+        dropDelegate?.handleDrop(urls: urls, to: destination, isCopy: isCopy)
+        dropTargetRow = nil
+
+        return true
+    }
+
     // MARK: - NSTableViewDelegate
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -86,7 +183,7 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
 
         switch columnIdentifier.rawValue {
         case "Name":
-            return makeNameCell(for: item, tableView: tableView)
+            return makeNameCell(for: item, tableView: tableView, row: row)
         case "Size":
             return makeTextCell(text: item.formattedSize, tableView: tableView, identifier: "SizeCell", alignment: .right)
         case "Date":
@@ -108,17 +205,18 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
 
     // MARK: - Cell Creation
 
-    private func makeNameCell(for item: FileItem, tableView: NSTableView) -> NSView {
+    private func makeNameCell(for item: FileItem, tableView: NSTableView, row: Int) -> NSView {
         let identifier = NSUserInterfaceItemIdentifier("NameCell")
+        let isDropTarget = dropTargetRow == row
 
         if let cell = tableView.makeView(withIdentifier: identifier, owner: nil) as? FileListCell {
-            cell.configure(with: item)
+            cell.configure(with: item, isDropTarget: isDropTarget)
             return cell
         }
 
         let cell = FileListCell()
         cell.identifier = identifier
-        cell.configure(with: item)
+        cell.configure(with: item, isDropTarget: isDropTarget)
         return cell
     }
 

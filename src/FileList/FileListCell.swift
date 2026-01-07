@@ -6,6 +6,7 @@ final class FileListCell: NSTableCellView {
     private let nameLabel = NSTextField(labelWithString: "")
     private let sharedLabel = NSTextField(labelWithString: "")
     private var itemURL: URL?
+    private var isDropTarget: Bool = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -87,8 +88,9 @@ final class FileListCell: NSTableCellView {
         )
     }
 
-    func configure(with item: FileItem) {
+    func configure(with item: FileItem, isDropTarget: Bool = false) {
         itemURL = item.url
+        self.isDropTarget = isDropTarget
         iconView.image = item.icon
         nameLabel.stringValue = item.name
 
@@ -113,6 +115,18 @@ final class FileListCell: NSTableCellView {
         }
 
         updateCutAppearance()
+        updateDropTargetAppearance()
+    }
+
+    private func updateDropTargetAppearance() {
+        if isDropTarget {
+            wantsLayer = true
+            layer?.borderColor = detourAccentColor.cgColor
+            layer?.borderWidth = 2
+            layer?.cornerRadius = 4
+        } else {
+            layer?.borderWidth = 0
+        }
     }
 
     private func updateCutAppearance() {

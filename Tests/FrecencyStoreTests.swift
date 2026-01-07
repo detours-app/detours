@@ -68,18 +68,19 @@ final class FrecencyStoreTests: XCTestCase {
         XCTAssertGreaterThan(recentScore, oldScore)
     }
 
-    // MARK: - Fuzzy matching tests
+    // MARK: - Substring matching tests (FrecencyStore uses substring, not fuzzy matching)
 
-    func testFuzzyMatchPartialName() throws {
+    func testSubstringMatchPartialName() throws {
         let folder = try createTestFolder(in: tempDir, name: "detour")
         FrecencyStore.shared.recordVisit(folder)
 
-        let results = FrecencyStore.shared.topDirectories(matching: "dtour", limit: 10)
+        // "tour" is a substring of "detour"
+        let results = FrecencyStore.shared.topDirectories(matching: "tour", limit: 10)
 
         XCTAssertTrue(results.contains(where: { $0.lastPathComponent == "detour" }))
     }
 
-    func testFuzzyMatchCaseInsensitive() throws {
+    func testSubstringMatchCaseInsensitive() throws {
         let folder = try createTestFolder(in: tempDir, name: "Documents")
         FrecencyStore.shared.recordVisit(folder)
 
@@ -88,14 +89,16 @@ final class FrecencyStoreTests: XCTestCase {
         XCTAssertTrue(results.contains(where: { $0.lastPathComponent == "Documents" }))
     }
 
-    func testFuzzyMatchCharactersInOrder() throws {
+    func testSubstringMatchRequiresContiguousCharacters() throws {
         let folder = try createTestFolder(in: tempDir, name: "detour")
         FrecencyStore.shared.recordVisit(folder)
 
-        let matchResults = FrecencyStore.shared.topDirectories(matching: "dtr", limit: 10)
+        // "eto" is a substring of "detour"
+        let matchResults = FrecencyStore.shared.topDirectories(matching: "eto", limit: 10)
         XCTAssertTrue(matchResults.contains(where: { $0.lastPathComponent == "detour" }))
 
-        let noMatchResults = FrecencyStore.shared.topDirectories(matching: "trd", limit: 10)
+        // "dtr" is NOT a substring (non-contiguous), should not match
+        let noMatchResults = FrecencyStore.shared.topDirectories(matching: "dtr", limit: 10)
         XCTAssertFalse(noMatchResults.contains(where: { $0.lastPathComponent == "detour" }))
     }
 

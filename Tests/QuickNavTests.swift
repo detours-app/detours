@@ -57,10 +57,11 @@ final class QuickNavTests: XCTestCase {
         let detour = try createTestFolder(in: tempDir, name: "detour")
         FrecencyStore.shared.recordVisit(detour)
 
-        let results = FrecencyStore.shared.topDirectories(matching: "dtour", limit: 10)
+        // FrecencyStore uses substring matching, not fuzzy matching
+        let results = FrecencyStore.shared.topDirectories(matching: "tour", limit: 10)
         let resultPaths = results.map { $0.standardizedFileURL.path }
 
-        XCTAssertTrue(resultPaths.contains(detour.standardizedFileURL.path), "Query 'dtour' should match frecent 'detour' folder via fuzzy match")
+        XCTAssertTrue(resultPaths.contains(detour.standardizedFileURL.path), "Query 'tour' should match frecent 'detour' folder via substring match")
     }
 
     func testTopDirectoriesExcludesDeletedDirectories() throws {

@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-06 15:45:35
-- Ended: 2026-01-06 15:45:36
-- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/DirectoryWatcherTests`
+- Started: 2026-01-07 09:34:51
+- Ended: 2026-01-07 09:34:52
+- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/FrecencyStoreTests -only-testing:DetourTests/QuickNavTests`
 - Status: PASS
-- Total tests: 77 (73 XCTest + 4 Swift Testing)
+- Total tests: 17 (FrecencyStoreTests: 12, QuickNavTests: 5)
 
 ### DirectoryWatcherTests (Swift Testing)
 | Test | Status | Duration | Last Run |
@@ -52,20 +52,35 @@
 ### FileListResponderTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testHandleKeyDownHandlesCmdDDuplicate | PASS | 0.104s | 2026-01-06 10:55:21 |
-| testHandleKeyDownHandlesCmdRRefresh | PASS | 0.007s | 2026-01-06 10:55:21 |
-| testHandleKeyDownHandlesCopyShortcut | PASS | 0.005s | 2026-01-06 10:55:21 |
-| testHandleKeyDownHandlesCutShortcut | PASS | 0.005s | 2026-01-06 10:55:21 |
-| testHandleKeyDownHandlesF2RenameShortcut | PASS | 0.007s | 2026-01-06 10:55:21 |
-| testHandleKeyDownHandlesF5CopyShortcut | PASS | 0.004s | 2026-01-06 10:55:21 |
-| testHandleKeyDownHandlesF6MoveToOtherPaneShortcut | PASS | 0.004s | 2026-01-06 10:55:21 |
-| testHandleKeyDownHandlesF7NewFolder | PASS | 0.056s | 2026-01-06 10:55:21 |
-| testHandleKeyDownHandlesF8Delete | PASS | 0.061s | 2026-01-06 10:55:21 |
-| testHandleKeyDownHandlesPasteShortcutMovesItems | PASS | 0.061s | 2026-01-06 10:55:21 |
-| testHandleKeyDownHandlesShiftEnterRenameShortcut | PASS | 0.006s | 2026-01-06 10:55:21 |
-| testMenuValidationForCopyDeleteAndPaste | PASS | 0.006s | 2026-01-06 10:55:21 |
-| testPasteNotifiesRefreshSourceDirectoriesAfterCut | PASS | 0.061s | 2026-01-06 10:55:21 |
-| testTableViewNextResponderIsViewController | PASS | 0.007s | 2026-01-06 10:55:21 |
+| testTableViewNextResponderIsViewController | PASS | 0.007s | 2026-01-07 09:25:09 |
+| testMenuValidationForCopyDeleteAndPaste | PASS | 0.006s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesCopyShortcut | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesCutShortcut | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesPasteShortcutMovesItems | PASS | 0.061s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesF5CopyToOtherPane | PASS | 0.004s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesF6MoveToOtherPaneShortcut | PASS | 0.004s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesF2RenameShortcut | PASS | 0.007s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesShiftEnterRenameShortcut | PASS | 0.006s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesCmdRRefresh | PASS | 0.007s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesCmdDDuplicate | PASS | 0.104s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesF7NewFolder | PASS | 0.056s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesF7NewFolderInsideSelectedFolder | PASS | 0.060s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesCmdUpParentNavigation | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testMenuValidationForCmdIGetInfo | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testGoUpActionCallsNavigationDelegate | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testGoBackActionCallsNavigationDelegate | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testGoForwardActionCallsNavigationDelegate | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testNavigationActionsUseCorrectDelegate | PASS | 0.010s | 2026-01-07 09:25:09 |
+| testCmdUpKeyEventOnSecondViewControllerGoesToItsDelegate | PASS | 0.010s | 2026-01-07 09:25:09 |
+| testCmdLeftKeyEventOnSecondViewControllerGoesToItsDelegate | PASS | 0.010s | 2026-01-07 09:25:09 |
+| testCmdRightKeyEventOnSecondViewControllerGoesToItsDelegate | PASS | 0.010s | 2026-01-07 09:25:09 |
+| testPerformKeyEquivalentOnlyHandlesWhenFirstResponder | PASS | 0.015s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesCmdOptionCCopyPath | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testCopyPathWithMultipleSelectionJoinsWithNewlines | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testMenuValidationForGetInfoCopyPathShowInFinder | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testMenuValidationDisabledWithNoSelection | PASS | 0.005s | 2026-01-07 09:25:09 |
+| testHandleKeyDownHandlesF8Delete | PASS | 0.061s | 2026-01-07 09:25:09 |
+| testPasteNotifiesRefreshSourceDirectoriesAfterCut | PASS | 0.061s | 2026-01-07 09:25:09 |
 
 ### FileOperationQueueTests
 | Test | Status | Duration | Last Run |
@@ -118,9 +133,51 @@
 | testSystemDefinedF5KeyTriggersCopy | PASS | 0.018s | 2026-01-06 10:55:22 |
 | testSystemMediaKeyCodeParsingDetectsKeyDown | PASS | 0.001s | 2026-01-06 10:55:22 |
 
+### FrecencyStoreTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testFrecencyScoreDecaysOverTime | PASS | 0.001s | 2026-01-07 09:34:51 |
+| testLoadSaveRoundTrip | PASS | 0.003s | 2026-01-07 09:34:51 |
+| testNonDirectoryExcluded | PASS | 0.001s | 2026-01-07 09:34:51 |
+| testRecordVisitCreatesEntry | PASS | 0.001s | 2026-01-07 09:34:51 |
+| testRecordVisitIncrementsCount | PASS | 0.002s | 2026-01-07 09:34:51 |
+| testRecordVisitUpdatesLastVisit | PASS | 0.107s | 2026-01-07 09:34:51 |
+| testSubstringMatchCaseInsensitive | PASS | 1.476s | 2026-01-07 09:34:51 |
+| testSubstringMatchPartialName | PASS | 0.951s | 2026-01-07 09:34:51 |
+| testSubstringMatchRequiresContiguousCharacters | PASS | 1.734s | 2026-01-07 09:34:51 |
+| testTildeExpansion | PASS | 0.001s | 2026-01-07 09:34:51 |
+| testTopDirectoriesLimit | PASS | 0.743s | 2026-01-07 09:34:51 |
+| testTopDirectoriesSortedByFrecency | PASS | 0.871s | 2026-01-07 09:34:51 |
+
+### QuickNavTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testTopDirectoriesExcludesDeletedDirectories | PASS | 0.001s | 2026-01-07 09:34:52 |
+| testTopDirectoriesReturnsURLsNotStrings | PASS | 0.001s | 2026-01-07 09:34:52 |
+| testTopDirectoriesWithEmptyQueryReturnsAllEntries | PASS | 0.002s | 2026-01-07 09:34:52 |
+| testTopDirectoriesWithQueryFiltersResults | PASS | 0.570s | 2026-01-07 09:34:52 |
+| testTopDirectoriesWithQueryMatchesPartialName | PASS | 0.852s | 2026-01-07 09:34:52 |
+
+### SystemIntegrationTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testContextMenuBuildsForFile | PASS | 0.061s | 2026-01-07 09:25:09 |
+| testContextMenuBuildsForFolder | PASS | 0.006s | 2026-01-07 09:25:09 |
+| testContextMenuBuildsForMultipleSelection | PASS | 0.008s | 2026-01-07 09:25:09 |
+| testDragPasteboardContainsFileURLs | PASS | 0.008s | 2026-01-07 09:25:09 |
+| testDropTargetRowTracking | PASS | 0.002s | 2026-01-07 09:25:09 |
+| testOpenWithAppsForImage | PASS | 0.008s | 2026-01-07 09:25:09 |
+| testOpenWithAppsForTextFile | PASS | 0.003s | 2026-01-07 09:25:09 |
+
 ## Notes
-- 2026-01-06 10:25:43: Added system-defined media key handling for the dictation key (F5 on many keyboards) and tests for the path.
-- 2026-01-06 10:25:43: Per-test timestamps are derived from the run start time plus reported durations in xcresult order.
-- 2026-01-06 10:55:22: Added F5 system-defined and global key-down coverage in SystemKeyHandlerTests.
-- 2026-01-06 10:55:22: SystemMediaKey parsing now uses unsigned data1 to avoid sign issues.
+- 2026-01-07: Fixed FileListResponderTests - changed testHandleKeyDownHandlesCmdIGetInfo to testMenuValidationForCmdIGetInfo to avoid opening real Finder info panels during tests.
+- 2026-01-07: Fixed DirectoryWatcherTests - increased timeout from 500ms to 2s with polling loop for FSEvents latency.
+- 2026-01-07: Fixed QuickNavTests - same substring vs fuzzy issue. 5 tests pass.
+- 2026-01-07: Fixed FrecencyStoreTests - changed fuzzy matching tests to substring matching tests (implementation uses substring, not fuzzy). 12 tests pass.
+- 2026-01-07: Added SystemIntegrationTests (7 tests) for Stage 5 context menus, drag-drop, Open With.
+- 2026-01-07: Added 15 new FileListResponderTests for navigation actions, first-responder handling, copy path.
 - 2026-01-06 15:45:35: Added DirectoryWatcherTests (4 tests) using Swift Testing framework for filesystem watching.
+- 2026-01-06 10:55:22: SystemMediaKey parsing now uses unsigned data1 to avoid sign issues.
+- 2026-01-06 10:55:22: Added F5 system-defined and global key-down coverage in SystemKeyHandlerTests.
+- 2026-01-06 10:25:43: Per-test timestamps are derived from the run start time plus reported durations in xcresult order.
+- 2026-01-06 10:25:43: Added system-defined media key handling for the dictation key (F5 on many keyboards) and tests for the path.

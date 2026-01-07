@@ -84,6 +84,10 @@ Run the app with: `open build/Detour.app`
 xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/SomeTestClass
 ```
 
+**NEVER use "pre-existing" as an excuse.** If a test fails, fix it. All failures are your responsibility.
+
+**Update test logs in BOTH places:** The spec file AND `Tests/TEST_LOG.md`. Update immediately after EVERY test run - not at the end, not in batches.
+
 ---
 
 ## Git
