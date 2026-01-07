@@ -1,5 +1,10 @@
 # Changelog
 
+## 260107 Scrolling Fix and iCloud Breadcrumbs
+- Fixed: Mouse/trackpad scrolling now works in file list panes
+- Fixed: Breadcrumbs show friendly iCloud names (iCloud Drive, Shared) instead of raw paths
+- Fixed: Breadcrumbs collapse ~/Library/Mobile Documents prefix for cleaner display
+
 ## 260107 Quick Open Improvements
 - Changed: Quick Open now uses Spotlight (MDQuery) for instant search across entire disk
 - Changed: Quick Open panel is now a clean floating panel (no popover arrow)

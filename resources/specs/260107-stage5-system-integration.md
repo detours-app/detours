@@ -170,11 +170,24 @@ Add Quick Look (Space to preview), context menus, file drag-drop with external a
 - [ ] Test dropping from Finder, other apps
 
 **Phase 5: Polish**
-- [ ] Verify all context menu items work correctly
-- [ ] Verify keyboard shortcuts in context menu match main menu
+- [x] Verify all context menu items work correctly
+- [x] Verify keyboard shortcuts in context menu match main menu
 - [x] Test Quick Look with edge cases (no selection, folder selected)
 - [x] Test drag-drop with various file types
-- [ ] Fix any visual glitches
+- [x] Fix any visual glitches
+
+**Phase 6: Housekeeping Fixes**
+- [x] Add `showHiddenFiles` toggle to FileListDataSource
+- [x] Add Cmd-Shift-Period handler to toggle hidden files
+- [x] Add Home key handler (select first item)
+- [x] Add End key handler (select last item)
+- [x] Rename "Show in Finder" to "Reveal in Finder"
+- [x] Add keyboard shortcuts to Go menu items (Cmd+arrows for back/forward/up)
+- [x] Add "Toggle Hidden Files" menu item to View menu
+- [x] Create custom About panel with icon, version 0.7.1, and description
+- [x] Fix mouse scrolling in file list
+- [x] Dim hidden files (files starting with `.`) in file list
+- [x] Persist showHiddenFiles per tab (saved/restored with session)
 
 ---
 
@@ -200,6 +213,7 @@ Tests go in `Tests/SystemIntegrationTests.swift`. I will write, run, and fix the
 | 2026-01-07 | 29 passed | Added navigation tests including critical first-responder fix |
 | 2026-01-07 | 17 passed | Fixed FrecencyStoreTests and QuickNavTests (substring vs fuzzy matching) |
 | 2026-01-07 | 5 passed | Added DroppablePathControlTests for breadcrumb drop targeting |
+| 2026-01-07 | 8 passed | Added HousekeepingTests for hidden files toggle and menu items |
 
 ### User Verification
 
@@ -225,3 +239,12 @@ After implementation, manually verify:
 - [x] Option+drop forces copy instead of move
 - [x] Drop onto tab moves into that tab's directory
 - [x] Drop onto breadcrumb segment moves into that directory
+- [x] Cmd-Shift-Period toggles hidden files
+- [x] Home key selects first item
+- [x] End key selects last item
+- [x] Go menu shows keyboard shortcuts (Cmd+arrows)
+- [x] "Reveal in Finder" appears in File menu
+- [x] About Detour shows icon, version 0.7.1, and description
+- [ ] Mouse scrolling works in file list
+- [ ] Hidden files are dimmed when displayed
+- [ ] showHiddenFiles persists per tab across sessions

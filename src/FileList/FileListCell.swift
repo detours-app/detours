@@ -7,6 +7,7 @@ final class FileListCell: NSTableCellView {
     private let sharedLabel = NSTextField(labelWithString: "")
     private var itemURL: URL?
     private var isDropTarget: Bool = false
+    private var isHiddenFile: Bool = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -91,6 +92,7 @@ final class FileListCell: NSTableCellView {
     func configure(with item: FileItem, isDropTarget: Bool = false) {
         itemURL = item.url
         self.isDropTarget = isDropTarget
+        self.isHiddenFile = item.isHiddenFile
         iconView.image = item.icon
         nameLabel.stringValue = item.name
 
@@ -132,7 +134,15 @@ final class FileListCell: NSTableCellView {
     private func updateCutAppearance() {
         guard let url = itemURL else { return }
         let isCut = ClipboardManager.shared.isItemCut(url)
-        let alpha: CGFloat = isCut ? 0.5 : 1.0
+        // Cut items at 0.5, hidden files at 0.6, normal at 1.0
+        let alpha: CGFloat
+        if isCut {
+            alpha = 0.5
+        } else if isHiddenFile {
+            alpha = 0.6
+        } else {
+            alpha = 1.0
+        }
         iconView.alphaValue = alpha
         cloudIcon.alphaValue = alpha
         nameLabel.alphaValue = alpha

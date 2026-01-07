@@ -444,6 +444,11 @@ final class PaneViewController: NSViewController {
         updateNavigationControls()
     }
 
+    func toggleHiddenFiles() {
+        selectedTab?.fileListViewController.dataSource.showHiddenFiles.toggle()
+        refresh()
+    }
+
     @objc func refresh(_ sender: Any?) {
         refresh()
     }
@@ -458,7 +463,11 @@ final class PaneViewController: NSViewController {
         tabs.map { $0.fileListViewController.selectedURLs }
     }
 
-    func restoreTabs(from urls: [URL], selectedIndex: Int, selections: [[URL]]? = nil) {
+    var tabShowHiddenFiles: [Bool] {
+        tabs.map { $0.fileListViewController.dataSource.showHiddenFiles }
+    }
+
+    func restoreTabs(from urls: [URL], selectedIndex: Int, selections: [[URL]]? = nil, showHiddenFiles: [Bool]? = nil) {
         guard !urls.isEmpty else { return }
 
         tabs.forEach { tab in
@@ -471,6 +480,12 @@ final class PaneViewController: NSViewController {
 
         for (index, url) in urls.enumerated() {
             createTab(at: url, select: false)
+            // Set showHiddenFiles before loading directory
+            if let showHiddenFiles, index < showHiddenFiles.count {
+                tabs[index].fileListViewController.dataSource.showHiddenFiles = showHiddenFiles[index]
+                // Reload to apply hidden files setting
+                tabs[index].fileListViewController.loadDirectory(url)
+            }
             if let selections, index < selections.count {
                 tabs[index].fileListViewController.restoreSelection(selections[index])
             }
@@ -516,12 +531,16 @@ final class PaneViewController: NSViewController {
         var components: [(String, URL)] = []
         var current = url
         while current.path != "/" {
-            components.insert((current.lastPathComponent, current), at: 0)
+            let name = friendlyPathComponentName(for: current)
+            components.insert((name, current), at: 0)
             current = current.deletingLastPathComponent()
         }
 
         // Always show root
         components.insert(("/", URL(fileURLWithPath: "/")), at: 0)
+
+        // Collapse iCloud path: replace ~/Library/Mobile Documents with iCloud Drive
+        components = collapseICloudPath(components)
 
         // Calculate available width and determine how many items fit
         let availableWidth = pathControl.bounds.width
@@ -587,6 +606,32 @@ final class PaneViewController: NSViewController {
 
         // Build URL mapping: first item URL, nil for ellipsis, then trailing URLs
         pathItemURLs = [components[0].1, nil] + trailingItems.map { $0.1 }
+    }
+
+    private func friendlyPathComponentName(for url: URL) -> String {
+        let name = url.lastPathComponent
+        switch name {
+        case "com~apple~CloudDocs":
+            return "Shared"
+        case "Mobile Documents":
+            return "iCloud Drive"
+        default:
+            return name
+        }
+    }
+
+    private func collapseICloudPath(_ components: [(String, URL)]) -> [(String, URL)] {
+        // Find "iCloud Drive" (Mobile Documents) in the path
+        guard let iCloudIndex = components.firstIndex(where: { $0.0 == "iCloud Drive" }) else {
+            return components
+        }
+
+        // Keep root, then iCloud Drive, then everything after it
+        // This removes: Users, username, Library
+        var result: [(String, URL)] = []
+        result.append(components[0]) // root
+        result.append(contentsOf: components[iCloudIndex...])
+        return result
     }
 
     @objc private func pathControlClicked(_ sender: NSPathControl) {

@@ -47,7 +47,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         dataSource.tableView = tableView
         tableView.keyHandler = self
         tableView.contextMenuDelegate = self
-        tableView.nextResponder = self
         tableView.onActivate = { [weak self] in
             self?.navigationDelegate?.fileListDidBecomeActive()
         }
@@ -473,6 +472,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             return true
         }
 
+        // Cmd-Shift-Period: toggle hidden files
+        if modifiers == [.command, .shift],
+           let chars = event.charactersIgnoringModifiers,
+           chars == "." {
+            toggleHiddenFiles()
+            return true
+        }
+
         if modifiers == .command && event.keyCode == 51 {
             deleteSelection()
             return true
@@ -537,6 +544,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         case 125: // Down arrow
             moveSelectionDown(extendSelection: modifiers.contains(.shift))
             return true
+        case 115: // Home
+            selectFirstItem()
+            return true
+        case 119: // End
+            selectLastItem()
+            return true
         default:
             // Type-to-select: handle character keys
             if let chars = event.characters, !chars.isEmpty && modifiers.isEmpty {
@@ -569,6 +582,24 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             tableView.selectRowIndexes(IndexSet(integer: current + 1), byExtendingSelection: extendSelection)
             tableView.scrollRowToVisible(current + 1)
         }
+    }
+
+    private func selectFirstItem() {
+        guard !dataSource.items.isEmpty else { return }
+        tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        tableView.scrollRowToVisible(0)
+    }
+
+    private func selectLastItem() {
+        guard !dataSource.items.isEmpty else { return }
+        let lastIndex = dataSource.items.count - 1
+        tableView.selectRowIndexes(IndexSet(integer: lastIndex), byExtendingSelection: false)
+        tableView.scrollRowToVisible(lastIndex)
+    }
+
+    private func toggleHiddenFiles() {
+        dataSource.showHiddenFiles.toggle()
+        refreshCurrentDirectory()
     }
 
     // MARK: - Type-to-Select

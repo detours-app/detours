@@ -64,12 +64,18 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         }
     }
 
+    var showHiddenFiles: Bool = false
+
     func loadDirectory(_ url: URL) {
         do {
+            var options: FileManager.DirectoryEnumerationOptions = []
+            if !showHiddenFiles {
+                options.insert(.skipsHiddenFiles)
+            }
             let contents = try FileManager.default.contentsOfDirectory(
                 at: url,
                 includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
-                options: [.skipsHiddenFiles]
+                options: options
             )
 
             items = FileItem.sortFoldersFirst(contents.map { FileItem(url: $0) })

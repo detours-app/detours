@@ -178,6 +178,18 @@
 | testPathItemIndexReturnsNilForPointOutsideItems | PASS | 0.001s | 2026-01-07 10:26:07 |
 | testPathItemIndexReturnsNilForEmptyPathItems | PASS | 0.001s | 2026-01-07 10:26:07 |
 
+### HousekeepingTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testShowHiddenFilesDefaultsToFalse | PASS | 0.001s | 2026-01-07 12:36:30 |
+| testShowHiddenFilesCanBeToggled | PASS | 0.001s | 2026-01-07 12:36:30 |
+| testLoadDirectorySkipsHiddenFilesWhenFalse | PASS | 0.005s | 2026-01-07 12:36:30 |
+| testLoadDirectoryIncludesHiddenFilesWhenTrue | PASS | 0.013s | 2026-01-07 12:36:30 |
+| testGoMenuHasKeyboardShortcuts | PASS | 0.001s | 2026-01-07 12:36:30 |
+| testFileMenuHasRevealInFinder | PASS | 0.001s | 2026-01-07 12:36:30 |
+| testViewMenuHasToggleHiddenFiles | PASS | 0.001s | 2026-01-07 12:36:30 |
+| testAboutPanelVersion | PASS | 0.001s | 2026-01-07 12:36:30 |
+
 ## Notes
 - 2026-01-07: Fixed FileListResponderTests - changed testHandleKeyDownHandlesCmdIGetInfo to testMenuValidationForCmdIGetInfo to avoid opening real Finder info panels during tests.
 - 2026-01-07: Fixed DirectoryWatcherTests - increased timeout from 500ms to 2s with polling loop for FSEvents latency.

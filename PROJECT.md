@@ -134,6 +134,31 @@ Before creating date-stamped files or doing web searches, run `date` to check to
 
 ---
 
+## Implementation Workflow
+
+**Always add to spec first.** Before implementing any feature or fix:
+1. Create or update a spec in `resources/specs/`
+2. Get approval if it's a new spec
+3. Then implement, updating checkboxes as you go
+
+**Always add automated tests.** Every feature or fix should have corresponding tests in `Tests/`. Write tests, run them, fix failures.
+
+---
+
+## When You Get Stuck
+
+If you've tried 2-3 approaches and something still doesn't work, **stop hacking and research**:
+
+1. Search online for the specific issue
+2. Check Apple developer documentation
+3. Look for user reports, Stack Overflow, Reddit discussions
+4. Read relevant framework source or headers
+5. Present findings and options to Marco
+
+Don't keep trying random fixes. Research first, then implement with understanding.
+
+---
+
 ## What NOT to Do
 
 - Don't add features not in the current spec

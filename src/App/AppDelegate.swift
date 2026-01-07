@@ -106,4 +106,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func quickOpen(_ sender: Any?) {
         mainWindowController?.splitViewController.quickOpen(sender)
     }
+
+    @objc func toggleHiddenFiles(_ sender: Any?) {
+        mainWindowController?.splitViewController.toggleHiddenFiles(sender)
+    }
+
+    @objc func showAbout(_ sender: Any?) {
+        let credits = NSAttributedString(
+            string: "A fast, keyboard-driven file manager for macOS with dual-pane layout, tabs, and Quick Open navigation.",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11),
+                .foregroundColor: NSColor.secondaryLabelColor
+            ]
+        )
+
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationIcon: NSApp.applicationIconImage as Any,
+            .applicationName: "Detour",
+            .applicationVersion: "0.7.1",
+            .version: "",  // Hide build number
+            .credits: credits
+        ])
+    }
 }
