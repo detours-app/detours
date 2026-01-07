@@ -73,6 +73,12 @@ Run the app with: `open build/Detour.app`
 
 ---
 
+## Linting
+
+Run `swiftlint lint --quiet` before committing. Config is in `.swiftlint.yml`.
+
+---
+
 ## Testing
 
 - Test files go in `Tests/`

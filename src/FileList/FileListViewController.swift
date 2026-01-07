@@ -175,7 +175,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         dataSource.loadDirectory(url)
         hasLoadedDirectory = true
-        if dataSource.items.count > 0 {
+        if !dataSource.items.isEmpty {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
 
@@ -212,7 +212,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         if !newSelection.isEmpty {
             tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
-        } else if dataSource.items.count > 0 {
+        } else if !dataSource.items.isEmpty {
             // Selection was deleted - select nearby item
             let newIndex = min(firstSelectedRow, dataSource.items.count - 1)
             if newIndex >= 0 {
