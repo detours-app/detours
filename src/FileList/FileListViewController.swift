@@ -80,7 +80,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         applyThemeBackground()
         updateColumnHeaderColors()
         tableView.needsDisplay = true
-        tableView.reloadData()
+        // Reload directory to re-tint folder icons with new accent color
+        if let currentDirectory {
+            dataSource.loadDirectory(currentDirectory)
+        }
     }
 
     private func applyThemeBackground() {

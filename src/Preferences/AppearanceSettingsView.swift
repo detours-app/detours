@@ -27,6 +27,7 @@ struct AppearanceSettingsView: View {
 
             Section {
                 Stepper("Font size: \(fontSize)px", value: $fontSize, in: 10...16)
+                    .controlSize(.small)
                     .onChange(of: fontSize) { _, newValue in
                         SettingsManager.shared.fontSize = newValue
                     }
@@ -34,6 +35,7 @@ struct AppearanceSettingsView: View {
 
             Section("Preview") {
                 ThemePreview(theme: previewTheme, fontSize: fontSize)
+                    .id(selectedTheme)
             }
         }
         .formStyle(.grouped)
@@ -132,8 +134,8 @@ struct ThemePreview: View {
             // File list preview
             VStack(alignment: .leading, spacing: 0) {
                 FileRowPreview(name: "Projects", isDirectory: true, isSelected: true, theme: theme, fontSize: fontSize)
+                FileRowPreview(name: "Archive", isDirectory: true, isSelected: false, theme: theme, fontSize: fontSize)
                 FileRowPreview(name: "notes.txt", isDirectory: false, isSelected: false, theme: theme, fontSize: fontSize)
-                FileRowPreview(name: "readme.md", isDirectory: false, isSelected: false, theme: theme, fontSize: fontSize)
             }
         }
         .background(Color(theme.background))
@@ -152,10 +154,25 @@ struct FileRowPreview: View {
     let theme: Theme
     let fontSize: Int
 
+    private var folderColor: Color {
+        Color(theme.accent)
+    }
+
+    private var fileColor: Color {
+        Color(theme.textSecondary)
+    }
+
+    private var iconColor: Color {
+        if isSelected {
+            return Color(theme.accentText)
+        }
+        return isDirectory ? folderColor : fileColor
+    }
+
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: isDirectory ? "folder.fill" : "doc")
-                .foregroundColor(isDirectory ? .yellow : Color(theme.textSecondary))
+                .foregroundColor(iconColor)
                 .frame(width: 16)
             Text(name)
                 .font(.custom(theme.monoFont, size: CGFloat(fontSize)))
