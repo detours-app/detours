@@ -69,17 +69,17 @@ extension Theme {
         monoFont: "Courier"
     )
 
-    /// Drafting theme: cool blue-white, blue accent, Menlo - technical precision
+    /// Drafting theme: cool blue-white, blue accent, JetBrains Mono - technical precision
     static let drafting = Theme(
-        background: NSColor(hex: "#F7F9FC"),
-        surface: NSColor(hex: "#EDF1F7"),
-        border: NSColor(hex: "#D0D7E2"),
-        textPrimary: NSColor(hex: "#1E2A3B"),
-        textSecondary: NSColor(hex: "#5A6B7F"),
+        background: NSColor(hex: "#F8FAFC"),
+        surface: NSColor(hex: "#E8EEF5"),
+        border: NSColor(hex: "#CBD5E1"),
+        textPrimary: NSColor(hex: "#1E293B"),
+        textSecondary: NSColor(hex: "#475569"),
         textTertiary: NSColor(hex: "#94A3B8"),
         accent: NSColor(hex: "#2563EB"),
         accentText: NSColor(hex: "#FFFFFF"),
-        monoFont: "Menlo"
+        monoFont: "JetBrains Mono NL"
     )
 
     /// Create a theme from custom colors stored in settings

@@ -142,7 +142,7 @@ extension FileItem {
 // MARK: - Icon Tinting
 
 extension FileItem {
-    /// Creates a teal-tinted version of the folder icon preserving shading
+    /// Creates a tinted version of the folder icon using theme accent color
     static func tintedFolderIcon(_ icon: NSImage) -> NSImage {
         let size = icon.size
         guard size.width > 0, size.height > 0 else { return icon }
@@ -150,17 +150,14 @@ extension FileItem {
         let tinted = NSImage(size: size, flipped: false) { rect in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
 
-            // Draw the original icon into a layer
+            // Draw the original icon
             icon.draw(in: rect)
 
-            // Create a tint layer: draw icon as mask, fill with teal
-            ctx.saveGState()
-            ctx.clip(to: rect, mask: icon.cgImage(forProposedRect: nil, context: nil, hints: nil)!)
-            ctx.setBlendMode(.color)
+            // Apply accent color directly for vibrant result
+            ctx.setBlendMode(.sourceAtop)
             let accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
             ctx.setFillColor(accentColor.cgColor)
             ctx.fill(rect)
-            ctx.restoreGState()
 
             return true
         }

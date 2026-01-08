@@ -106,6 +106,10 @@ final class InactiveHidingRowView: NSTableRowView {
         didSet {
             if isTableActive != oldValue {
                 needsDisplay = true
+                // Update cell colors when active state changes
+                for subview in subviews {
+                    updateCellBackgroundStyle(subview)
+                }
             }
         }
     }
