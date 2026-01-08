@@ -5,21 +5,47 @@ import SwiftUI
 final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
 
+    private static let frameAutosaveName = "PreferencesWindow"
+
     private init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 400),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 450),
+            styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Preferences"
-        window.center()
+        window.minSize = NSSize(width: 500, height: 350)
+        window.maxSize = NSSize(width: 900, height: 800)
 
         super.init(window: window)
 
         let preferencesView = PreferencesView()
-        let hostingController = NSHostingController(rootView: preferencesView)
-        window.contentViewController = hostingController
+        let hostingView = NSHostingView(rootView: preferencesView)
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Create a container view that clips its content
+        let containerView = NSView()
+        containerView.wantsLayer = true
+        containerView.layer?.masksToBounds = true
+        containerView.addSubview(hostingView)
+
+        NSLayoutConstraint.activate([
+            hostingView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor)
+        ])
+
+        window.contentView = containerView
+
+        // Set autosave name after window is fully configured
+        window.setFrameAutosaveName(Self.frameAutosaveName)
+
+        // Restore saved frame if it exists, otherwise center
+        if !window.setFrameUsingName(Self.frameAutosaveName) {
+            window.center()
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -27,7 +53,6 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     override func showWindow(_ sender: Any?) {
-        window?.center()
         super.showWindow(sender)
         window?.makeKeyAndOrderFront(nil)
     }

@@ -42,6 +42,7 @@ struct AppearanceSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .clipped()
         .navigationTitle("Appearance")
     }
 
@@ -69,7 +70,33 @@ struct AppearanceSettingsView: View {
 struct CustomThemeEditor: View {
     @Binding var colors: CustomThemeColors
 
-    private let availableFonts = ["SF Mono", "Menlo", "Courier", "Monaco", "Andale Mono"]
+    private let availableFonts = [
+        // System fonts
+        "SF Pro",
+        "SF Pro Text",
+        "Helvetica Neue",
+        "Helvetica",
+        "Lucida Grande",
+        // Elegant sans-serif
+        "Avenir",
+        "Avenir Next",
+        "Optima",
+        "Gill Sans",
+        "Futura",
+        // Humanist
+        "Verdana",
+        "Trebuchet MS",
+        "Geneva",
+        // Classic
+        "Arial",
+        "Tahoma",
+        // Monospace (for classic file manager look)
+        "SF Mono",
+        "Menlo",
+        "Monaco",
+        "Courier",
+        "Andale Mono"
+    ]
 
     var body: some View {
         Group {

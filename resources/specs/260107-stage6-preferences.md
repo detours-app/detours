@@ -317,13 +317,13 @@ After implementation, manually verify:
 
 - [x] Cmd-, opens Preferences window
 - [x] Preferences window has sidebar with 4 sections
-- [ ] General: restore session toggle works (quit and relaunch)
-- [ ] General: show hidden files default works for new tabs
-- [ ] Appearance: Light theme applies correctly
-- [ ] Appearance: Dark theme applies correctly
-- [ ] Appearance: Foolscap theme shows warm cream bg, terracotta accent, Courier font
-- [ ] Appearance: Drafting theme shows cool blue-white bg, blue accent, Menlo font
-- [ ] Appearance: Custom theme editor appears when Custom selected
+- [x] General: restore session toggle works (quit and relaunch)
+- [x] General: show hidden files default works for new tabs
+- [x] Appearance: Light theme applies correctly
+- [x] Appearance: Dark theme applies correctly
+- [x] Appearance: Foolscap theme shows warm cream bg, terracotta accent, Courier font
+- [x] Appearance: Drafting theme shows cool blue-white bg, blue accent, Menlo font
+- [x] Appearance: Custom theme editor appears when Custom selected
 - [ ] Appearance: custom theme color pickers work
 - [ ] Appearance: custom theme font picker works
 - [ ] Appearance: font size stepper changes file list size (all themes)

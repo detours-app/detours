@@ -42,7 +42,8 @@ struct PreferencesView: View {
             detailView(for: selectedSection)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 600, height: 400)
+        .frame(minWidth: 500, minHeight: 350)
+        .clipped()
     }
 
     @ViewBuilder

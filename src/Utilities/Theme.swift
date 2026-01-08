@@ -10,20 +10,26 @@ struct Theme: Equatable {
     var textTertiary: NSColor
     var accent: NSColor
     var accentText: NSColor
-    var monoFont: String
+    var fontName: String
+
+    // Legacy accessor for compatibility
+    var monoFont: String { fontName }
 
     /// The font used for file lists at the given size
     func font(size: CGFloat) -> NSFont {
-        // Try to get the specified font, fall back to system monospace
-        if let font = NSFont(name: monoFont, size: size) {
-            return font
+        // Handle SF system fonts specially
+        if fontName == "SF Pro" || fontName == "SF Pro Text" {
+            return NSFont.systemFont(ofSize: size, weight: .regular)
         }
-        // SF Mono variants
-        if monoFont == "SF Mono" {
+        if fontName == "SF Mono" {
             return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
         }
-        // Fallback
-        return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        // Try to get the specified font
+        if let font = NSFont(name: fontName, size: size) {
+            return font
+        }
+        // Fallback to system font
+        return NSFont.systemFont(ofSize: size, weight: .regular)
     }
 }
 
@@ -40,7 +46,7 @@ extension Theme {
         textTertiary: NSColor(hex: "#9C9990"),
         accent: NSColor(hex: "#1F4D4D"),
         accentText: NSColor(hex: "#FFFFFF"),
-        monoFont: "SF Mono"
+        fontName: "SF Mono"
     )
 
     /// Dark theme: neutral dark, teal accent, SF Mono
@@ -53,7 +59,7 @@ extension Theme {
         textTertiary: NSColor(hex: "#6B6965"),
         accent: NSColor(hex: "#2D6A6A"),
         accentText: NSColor(hex: "#FFFFFF"),
-        monoFont: "SF Mono"
+        fontName: "SF Mono"
     )
 
     /// Foolscap theme: warm cream, terracotta accent, Courier - analog comfort
@@ -66,7 +72,7 @@ extension Theme {
         textTertiary: NSColor(hex: "#A69F93"),
         accent: NSColor(hex: "#B85C38"),
         accentText: NSColor(hex: "#FFFFFF"),
-        monoFont: "Courier"
+        fontName: "Courier"
     )
 
     /// Drafting theme: cool blue-white, blue accent, JetBrains Mono - technical precision
@@ -79,7 +85,7 @@ extension Theme {
         textTertiary: NSColor(hex: "#94A3B8"),
         accent: NSColor(hex: "#2563EB"),
         accentText: NSColor(hex: "#FFFFFF"),
-        monoFont: "JetBrains Mono NL"
+        fontName: "JetBrains Mono NL"
     )
 
     /// Create a theme from custom colors stored in settings
@@ -93,7 +99,7 @@ extension Theme {
             textTertiary: colors.textTertiary.nsColor,
             accent: colors.accent.nsColor,
             accentText: colors.accentText.nsColor,
-            monoFont: colors.fontName
+            fontName: colors.fontName
         )
     }
 }

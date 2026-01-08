@@ -1,5 +1,12 @@
 # Changelog
 
+## 260108 Preferences Window Polish
+- Added: Preferences window is now resizable (500-900px wide, 350-800px tall)
+- Added: Window position and size persists across app restarts
+- Added: Expanded font selection with proportional fonts (SF Pro, Avenir, Helvetica, etc.)
+- Fixed: Content no longer scrolls over window title bar (container view clipping)
+- Changed: Renamed Theme.monoFont to fontName (supports proportional fonts)
+
 ## 260107 Stage 6 Preferences - Phase 4 Appearance (continued)
 - Fixed: Column headers now use themed text colors (custom ThemedHeaderCell)
 - Fixed: Breadcrumbs/path control now use themed text colors
