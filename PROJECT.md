@@ -68,6 +68,17 @@ Specs live in `resources/specs/` with date prefix format `yymmdd-description.md`
 
 **ALWAYS use the build script:** `resources/scripts/build.sh`
 
+```bash
+# CORRECT - always use this:
+resources/scripts/build.sh
+
+# WRONG - NEVER do this:
+swift build          # NO!
+swift build 2>&1     # NO!
+```
+
+**NEVER run `swift build` directly.** Always use the build script. No exceptions.
+
 This script:
 - Builds with `swift build`
 - Updates the executable in the existing app bundle

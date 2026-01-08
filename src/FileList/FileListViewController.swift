@@ -65,6 +65,31 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             name: NSTableView.selectionDidChangeNotification,
             object: tableView
         )
+
+        // Observe theme changes to reload table with new colors/fonts
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func handleThemeChange() {
+        // Apply new theme background and force table redraw
+        applyThemeBackground()
+        updateColumnHeaderColors()
+        tableView.needsDisplay = true
+        // Reload directory to re-tint folder icons with new accent color
+        if let currentDirectory {
+            dataSource.loadDirectory(currentDirectory)
+        }
+    }
+
+    private func applyThemeBackground() {
+        // Table view draws its own themed background via drawBackground(inClipRect:)
+        // Just ensure scroll view doesn't draw over it
+        scrollView.drawsBackground = false
     }
 
     override func viewDidAppear() {
@@ -137,6 +162,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Name column - flexible width
         let nameColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Name"))
         nameColumn.title = "Name"
+        nameColumn.headerCell = ThemedHeaderCell(textCell: "Name")
         nameColumn.minWidth = 150
         nameColumn.resizingMask = .autoresizingMask
         nameColumn.isEditable = false
@@ -145,6 +171,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Size column - fixed 80px
         let sizeColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Size"))
         sizeColumn.title = "Size"
+        sizeColumn.headerCell = ThemedHeaderCell(textCell: "Size")
         sizeColumn.width = 80
         sizeColumn.minWidth = 80
         sizeColumn.maxWidth = 80
@@ -155,12 +182,20 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Date column - fixed 120px
         let dateColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Date"))
         dateColumn.title = "Date Modified"
+        dateColumn.headerCell = ThemedHeaderCell(textCell: "Date Modified")
         dateColumn.width = 120
         dateColumn.minWidth = 120
         dateColumn.maxWidth = 120
         dateColumn.resizingMask = []
         dateColumn.isEditable = false
         tableView.addTableColumn(dateColumn)
+
+        // Set up themed header view
+        tableView.headerView = ThemedHeaderView()
+    }
+
+    private func updateColumnHeaderColors() {
+        tableView.headerView?.needsDisplay = true
     }
 
     /// Refresh current directory, preserving selection
@@ -481,12 +516,53 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     func handleKeyDown(_ event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
+        let sm = ShortcutManager.shared
 
+        // Customizable shortcuts (via ShortcutManager)
+        if sm.matches(event: event, action: .quickLook) {
+            toggleQuickLook()
+            return true
+        }
+        if sm.matches(event: event, action: .openInEditor) {
+            openInEditor()
+            return true
+        }
+        if sm.matches(event: event, action: .refresh) {
+            refreshCurrentDirectory()
+            return true
+        }
+        if sm.matches(event: event, action: .newFolder) {
+            createNewFolder()
+            return true
+        }
+        if sm.matches(event: event, action: .deleteToTrash) {
+            deleteSelection()
+            return true
+        }
+        if sm.matches(event: event, action: .rename) {
+            renameSelection()
+            return true
+        }
+        if sm.matches(event: event, action: .copyToOtherPane) {
+            copySelectionToOtherPane()
+            return true
+        }
+        if sm.matches(event: event, action: .moveToOtherPane) {
+            moveSelectionToOtherPane()
+            return true
+        }
+        if sm.matches(event: event, action: .openInNewTab) {
+            openSelectedItemInNewTab()
+            return true
+        }
+        if sm.matches(event: event, action: .toggleHiddenFiles) {
+            toggleHiddenFiles()
+            return true
+        }
+
+        // System shortcuts (not customizable)
         if modifiers == .command, let chars = event.charactersIgnoringModifiers?.lowercased() {
             switch chars {
-            case "r":
-                refreshCurrentDirectory()
-                return true
             case "c":
                 copySelection()
                 return true
@@ -510,45 +586,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Cmd-Option-C: Copy path
         if modifiers == [.command, .option], let chars = event.charactersIgnoringModifiers?.lowercased(), chars == "c" {
             copyPath(nil)
-            return true
-        }
-
-        if modifiers == [.command, .shift],
-           let chars = event.charactersIgnoringModifiers?.lowercased(),
-           chars == "n" {
-            createNewFolder()
-            return true
-        }
-
-        // Cmd-Shift-Period: toggle hidden files
-        if modifiers == [.command, .shift],
-           let chars = event.charactersIgnoringModifiers,
-           chars == "." {
-            toggleHiddenFiles()
-            return true
-        }
-
-        if modifiers == .command && event.keyCode == 51 {
-            deleteSelection()
-            return true
-        }
-
-        if modifiers == .shift && event.keyCode == 36 {
-            renameSelection()
-            return true
-        }
-
-        if let specialKey = event.specialKey, handleFunctionKey(specialKey) {
-            return true
-        }
-
-        if handleFunctionKeyCode(event.keyCode) {
-            return true
-        }
-
-        // Cmd-Shift-Down: open folder in new tab
-        if modifiers == [.command, .shift] && event.keyCode == 125 {
-            openSelectedItemInNewTab()
             return true
         }
 
@@ -582,9 +619,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             return true
         case 48: // Tab
             navigationDelegate?.fileListDidRequestSwitchPane()
-            return true
-        case 49: // Space
-            toggleQuickLook()
             return true
         case 126: // Up arrow
             moveSelectionUp(extendSelection: modifiers.contains(.shift))
@@ -677,48 +711,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         refresh()
     }
 
-    private func handleFunctionKey(_ key: NSEvent.SpecialKey) -> Bool {
-        switch key {
-        case .f2:
-            renameSelection()
-            return true
-        case .f5:
-            copySelectionToOtherPane()
-            return true
-        case .f6:
-            moveSelectionToOtherPane()
-            return true
-        case .f7:
-            createNewFolder()
-            return true
-        case .f8:
-            deleteSelection()
-            return true
-        default:
-            return false
-        }
-    }
+    // MARK: - Open in Editor
 
-    private func handleFunctionKeyCode(_ keyCode: UInt16) -> Bool {
-        switch keyCode {
-        case 120: // F2
-            renameSelection()
-            return true
-        case 96: // F5
-            copySelectionToOtherPane()
-            return true
-        case 97: // F6
-            moveSelectionToOtherPane()
-            return true
-        case 98: // F7
-            createNewFolder()
-            return true
-        case 100: // F8
-            deleteSelection()
-            return true
-        default:
-            return false
-        }
+    private func openInEditor() {
+        guard let url = selectedURLs.first else { return }
+        NSWorkspace.shared.open(
+            [url],
+            withApplicationAt: URL(fileURLWithPath: "/System/Applications/TextEdit.app"),
+            configuration: NSWorkspace.OpenConfiguration()
+        )
     }
 
     // MARK: - First Responder

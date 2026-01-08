@@ -76,19 +76,40 @@ final class FolderSizeCache {
     }
 }
 
-/// Teal accent color used throughout the app
-let detourAccentColor = NSColor(name: nil) { appearance in
-    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        ? NSColor(red: 0x2D/255, green: 0x6A/255, blue: 0x6A/255, alpha: 1)
-        : NSColor(red: 0x1F/255, green: 0x4D/255, blue: 0x4D/255, alpha: 1)
+/// Accent color from the current theme
+@MainActor
+var detourAccentColor: NSColor {
+    ThemeManager.shared.currentTheme.accent
 }
 
-/// Row view with teal selection color that hides when not active (Marta-style)
+/// Text cell that responds to background style for proper selection colors
+final class ThemedTextCell: NSTableCellView {
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            updateTextColor()
+        }
+    }
+
+    private func updateTextColor() {
+        let theme = ThemeManager.shared.currentTheme
+        if backgroundStyle == .emphasized {
+            textField?.textColor = theme.accentText
+        } else {
+            textField?.textColor = theme.textSecondary
+        }
+    }
+}
+
+/// Row view with theme-aware selection color (background is drawn by BandedTableView)
 final class InactiveHidingRowView: NSTableRowView {
     var isTableActive: Bool = true {
         didSet {
             if isTableActive != oldValue {
                 needsDisplay = true
+                // Update cell colors when active state changes
+                for subview in subviews {
+                    updateCellBackgroundStyle(subview)
+                }
             }
         }
     }
@@ -100,8 +121,27 @@ final class InactiveHidingRowView: NSTableRowView {
 
     override func drawSelection(in dirtyRect: NSRect) {
         guard isTableActive, isSelected else { return }
-        detourAccentColor.setFill()
+        let accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
+        accentColor.setFill()
         bounds.fill()
+    }
+
+    override func didAddSubview(_ subview: NSView) {
+        super.didAddSubview(subview)
+        updateCellBackgroundStyle(subview)
+    }
+
+    override var isSelected: Bool {
+        didSet {
+            for subview in subviews {
+                updateCellBackgroundStyle(subview)
+            }
+        }
+    }
+
+    private func updateCellBackgroundStyle(_ view: NSView) {
+        guard let cellView = view as? NSTableCellView else { return }
+        cellView.backgroundStyle = (isSelected && isTableActive) ? .emphasized : .normal
     }
 }
 
@@ -141,6 +181,8 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
     }
 
     var showHiddenFiles: Bool = false
+    private var currentDirectoryForGit: URL?
+    private var gitStatuses: [URL: GitStatus] = [:]
 
     func loadDirectory(_ url: URL) {
         do {
@@ -155,12 +197,53 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
             )
 
             items = FileItem.sortFoldersFirst(contents.map { FileItem(url: $0) })
+            currentDirectoryForGit = url
+            gitStatuses = [:]
             tableView?.reloadData()
             tableView?.needsLayout = true
+
+            // Fetch git status asynchronously if enabled
+            if SettingsManager.shared.settings.gitStatusEnabled {
+                fetchGitStatus(for: url)
+            }
         } catch {
             items = []
+            currentDirectoryForGit = nil
+            gitStatuses = [:]
             tableView?.reloadData()
             tableView?.needsLayout = true
+        }
+    }
+
+    private func fetchGitStatus(for directory: URL) {
+        Task {
+            let statuses = await GitStatusProvider.shared.status(for: directory)
+
+            // Update on main thread
+            await MainActor.run {
+                // Make sure we're still viewing the same directory
+                guard currentDirectoryForGit == directory else { return }
+
+                gitStatuses = statuses
+
+                // Update items with git status
+                for i in items.indices {
+                    items[i].gitStatus = statuses[items[i].url]
+                }
+
+                // Reload only the name column to show git indicators
+                if let tableView = tableView {
+                    tableView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<items.count), columnIndexes: IndexSet(integer: 0))
+                }
+            }
+        }
+    }
+
+    /// Invalidate git status cache for current directory (call after file operations)
+    func invalidateGitStatus() {
+        guard let directory = currentDirectoryForGit else { return }
+        Task {
+            await GitStatusProvider.shared.invalidateCache(for: directory)
         }
     }
 
@@ -355,18 +438,22 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
 
     private func makeTextCell(text: String, tableView: NSTableView, identifier: String, alignment: NSTextAlignment) -> NSView {
         let id = NSUserInterfaceItemIdentifier(identifier)
+        let theme = ThemeManager.shared.currentTheme
 
-        if let cell = tableView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView {
+        if let cell = tableView.makeView(withIdentifier: id, owner: nil) as? ThemedTextCell {
             cell.textField?.stringValue = text
+            // Always update theme colors on reused cells
+            cell.textField?.font = theme.font(size: ThemeManager.shared.fontSize - 1)
+            cell.textField?.textColor = theme.textSecondary
             return cell
         }
 
-        let cell = NSTableCellView()
+        let cell = ThemedTextCell()
         cell.identifier = id
 
         let textField = NSTextField(labelWithString: text)
-        textField.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        textField.textColor = .secondaryLabelColor
+        textField.font = theme.font(size: ThemeManager.shared.fontSize - 1)
+        textField.textColor = theme.textSecondary
         textField.alignment = alignment
         textField.lineBreakMode = .byTruncatingTail
 

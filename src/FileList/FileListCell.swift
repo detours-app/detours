@@ -1,6 +1,7 @@
 import AppKit
 
 final class FileListCell: NSTableCellView {
+    private let gitStatusBar = NSView()
     private let iconView = NSImageView()
     private let cloudIcon = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
@@ -8,6 +9,8 @@ final class FileListCell: NSTableCellView {
     private var itemURL: URL?
     private var isDropTarget: Bool = false
     private var isHiddenFile: Bool = false
+    private var originalIcon: NSImage?
+    private var gitStatus: GitStatus?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -20,6 +23,12 @@ final class FileListCell: NSTableCellView {
     }
 
     private func setup() {
+        // Git status bar - 2px wide, 14px tall, in 8px gutter
+        gitStatusBar.wantsLayer = true
+        gitStatusBar.layer?.cornerRadius = 1
+        gitStatusBar.isHidden = true
+        addSubview(gitStatusBar)
+
         // Icon setup - 16x16
         iconView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(iconView)
@@ -31,9 +40,8 @@ final class FileListCell: NSTableCellView {
         cloudIcon.isHidden = true
         addSubview(cloudIcon)
 
-        // Name label setup - SF Mono 13px
-        nameLabel.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        nameLabel.textColor = .labelColor
+        // Name label setup
+        updateThemeColors()
         nameLabel.lineBreakMode = .byTruncatingTail
         nameLabel.isEditable = false
         nameLabel.isBordered = false
@@ -43,8 +51,6 @@ final class FileListCell: NSTableCellView {
         self.textField = nameLabel
 
         // Shared label setup - smaller, secondary color
-        sharedLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        sharedLabel.textColor = .secondaryLabelColor
         sharedLabel.lineBreakMode = .byTruncatingTail
         sharedLabel.isEditable = false
         sharedLabel.isBordered = false
@@ -53,14 +59,21 @@ final class FileListCell: NSTableCellView {
         addSubview(sharedLabel)
 
         // Layout
+        gitStatusBar.translatesAutoresizingMaskIntoConstraints = false
         iconView.translatesAutoresizingMaskIntoConstraints = false
         cloudIcon.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         sharedLabel.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            // Icon: 16x16, centered vertically, 4px from leading edge
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            // Git status bar: 2px × 14px, 3px from leading edge, centered vertically
+            gitStatusBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            gitStatusBar.centerYAnchor.constraint(equalTo: centerYAnchor),
+            gitStatusBar.widthAnchor.constraint(equalToConstant: 2),
+            gitStatusBar.heightAnchor.constraint(equalToConstant: 14),
+
+            // Icon: 16x16, centered vertically, after 8px gutter
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
@@ -87,14 +100,45 @@ final class FileListCell: NSTableCellView {
             name: ClipboardManager.cutItemsDidChange,
             object: nil
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChange,
+            object: nil
+        )
+    }
+
+    private func updateThemeColors() {
+        let theme = ThemeManager.shared.currentTheme
+        let fontSize = ThemeManager.shared.fontSize
+        nameLabel.font = theme.font(size: fontSize)
+        nameLabel.textColor = theme.textPrimary
+        sharedLabel.font = theme.font(size: fontSize - 2)
+        sharedLabel.textColor = theme.textSecondary
+        cloudIcon.contentTintColor = theme.textSecondary
+    }
+
+    @objc private func handleThemeChange() {
+        updateThemeColors()
     }
 
     func configure(with item: FileItem, isDropTarget: Bool = false) {
         itemURL = item.url
         self.isDropTarget = isDropTarget
         self.isHiddenFile = item.isHiddenFile
+        self.gitStatus = item.gitStatus
+        originalIcon = item.icon
         iconView.image = item.icon
         nameLabel.stringValue = item.name
+
+        // Update theme colors in case they changed
+        updateThemeColors()
+        // Update selection colors based on current background style
+        updateColorsForBackgroundStyle()
+
+        // Git status indicator
+        updateGitStatusBar()
 
         // iCloud status indicator
         switch item.iCloudStatus {
@@ -120,10 +164,20 @@ final class FileListCell: NSTableCellView {
         updateDropTargetAppearance()
     }
 
+    private func updateGitStatusBar() {
+        guard let status = gitStatus, status != .clean else {
+            gitStatusBar.isHidden = true
+            return
+        }
+
+        gitStatusBar.isHidden = false
+        gitStatusBar.layer?.backgroundColor = status.color(for: effectiveAppearance).cgColor
+    }
+
     private func updateDropTargetAppearance() {
         if isDropTarget {
             wantsLayer = true
-            layer?.borderColor = detourAccentColor.cgColor
+            layer?.borderColor = ThemeManager.shared.currentTheme.accent.cgColor
             layer?.borderWidth = 2
             layer?.cornerRadius = 4
         } else {
@@ -155,5 +209,55 @@ final class FileListCell: NSTableCellView {
 
     @objc private func handleCutItemsChanged() {
         updateCutAppearance()
+    }
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            updateColorsForBackgroundStyle()
+        }
+    }
+
+    private func updateColorsForBackgroundStyle() {
+        let theme = ThemeManager.shared.currentTheme
+        let isEmphasized = backgroundStyle == .emphasized
+
+        if isEmphasized {
+            // Selected row: use accentText (white) for text visibility
+            nameLabel.textColor = theme.accentText
+            sharedLabel.textColor = theme.accentText
+            cloudIcon.contentTintColor = theme.accentText
+            // Create light-tinted icon for selection
+            if let original = originalIcon {
+                iconView.image = Self.lightenedIcon(original, amount: 0.7)
+            }
+        } else {
+            // Normal row: use theme colors
+            nameLabel.textColor = theme.textPrimary
+            sharedLabel.textColor = theme.textSecondary
+            cloudIcon.contentTintColor = theme.textSecondary
+            // Restore original icon
+            iconView.image = originalIcon
+        }
+    }
+
+    /// Creates a lightened version of an icon by blending with white
+    private static func lightenedIcon(_ icon: NSImage, amount: CGFloat) -> NSImage {
+        let size = icon.size
+        guard size.width > 0, size.height > 0 else { return icon }
+
+        let lightened = NSImage(size: size, flipped: false) { rect in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+
+            // Draw original icon
+            icon.draw(in: rect)
+
+            // Overlay white with partial opacity to lighten
+            ctx.setBlendMode(.sourceAtop)
+            ctx.setFillColor(NSColor.white.withAlphaComponent(amount).cgColor)
+            ctx.fill(rect)
+
+            return true
+        }
+        return lightened
     }
 }

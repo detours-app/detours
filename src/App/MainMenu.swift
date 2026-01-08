@@ -1,5 +1,9 @@
 import AppKit
 
+/// Menu items that update when shortcuts change
+@MainActor
+private var dynamicMenuItems: [ShortcutAction: NSMenuItem] = [:]
+
 @MainActor
 func setupMainMenu(target: AppDelegate) {
     let mainMenu = NSMenu()
@@ -12,6 +16,12 @@ func setupMainMenu(target: AppDelegate) {
 
     appMenu.addItem(withTitle: "About Detour", action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
     appMenu.addItem(NSMenuItem.separator())
+
+    let prefsItem = NSMenuItem(title: "Preferences...", action: #selector(AppDelegate.showPreferences(_:)), keyEquivalent: ",")
+    prefsItem.target = target
+    appMenu.addItem(prefsItem)
+    appMenu.addItem(NSMenuItem.separator())
+
     appMenu.addItem(withTitle: "Quit Detour", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
     // File menu
@@ -20,8 +30,11 @@ func setupMainMenu(target: AppDelegate) {
     fileMenuItem.submenu = fileMenu
     mainMenu.addItem(fileMenuItem)
 
-    let newFolderItem = NSMenuItem(title: "New Folder", action: #selector(FileListViewController.newFolder(_:)), keyEquivalent: "n")
-    newFolderItem.keyEquivalentModifierMask = [.command, .shift]
+    let newFolderItem = createDynamicMenuItem(
+        title: "New Folder",
+        action: #selector(FileListViewController.newFolder(_:)),
+        shortcutAction: .newFolder
+    )
     fileMenu.addItem(newFolderItem)
     fileMenu.addItem(NSMenuItem.separator())
 
@@ -107,9 +120,12 @@ func setupMainMenu(target: AppDelegate) {
 
     viewMenu.addItem(NSMenuItem.separator())
 
-    let toggleHiddenItem = NSMenuItem(title: "Toggle Hidden Files", action: #selector(AppDelegate.toggleHiddenFiles(_:)), keyEquivalent: ".")
-    toggleHiddenItem.keyEquivalentModifierMask = [.command, .shift]
-    toggleHiddenItem.target = target
+    let toggleHiddenItem = createDynamicMenuItem(
+        title: "Toggle Hidden Files",
+        action: #selector(AppDelegate.toggleHiddenFiles(_:)),
+        shortcutAction: .toggleHiddenFiles,
+        target: target
+    )
     viewMenu.addItem(toggleHiddenItem)
 
     // Go menu
@@ -118,9 +134,12 @@ func setupMainMenu(target: AppDelegate) {
     goMenuItem.submenu = goMenu
     mainMenu.addItem(goMenuItem)
 
-    let quickOpenItem = NSMenuItem(title: "Quick Open", action: #selector(AppDelegate.quickOpen(_:)), keyEquivalent: "p")
-    quickOpenItem.keyEquivalentModifierMask = .command
-    quickOpenItem.target = target
+    let quickOpenItem = createDynamicMenuItem(
+        title: "Quick Open",
+        action: #selector(AppDelegate.quickOpen(_:)),
+        shortcutAction: .quickOpen,
+        target: target
+    )
     goMenu.addItem(quickOpenItem)
 
     goMenu.addItem(NSMenuItem.separator())
@@ -140,9 +159,12 @@ func setupMainMenu(target: AppDelegate) {
 
     goMenu.addItem(NSMenuItem.separator())
 
-    let refreshItem = NSMenuItem(title: "Refresh", action: #selector(AppDelegate.refresh(_:)), keyEquivalent: "r")
-    refreshItem.keyEquivalentModifierMask = .command
-    refreshItem.target = target
+    let refreshItem = createDynamicMenuItem(
+        title: "Refresh",
+        action: #selector(AppDelegate.refresh(_:)),
+        shortcutAction: .refresh,
+        target: target
+    )
     goMenu.addItem(refreshItem)
 
     // Window menu
@@ -165,4 +187,49 @@ func setupMainMenu(target: AppDelegate) {
     NSApp.helpMenu = helpMenu
 
     NSApp.mainMenu = mainMenu
+
+    // Observe shortcut changes to update menu key equivalents
+    NotificationCenter.default.addObserver(
+        forName: ShortcutManager.shortcutsDidChange,
+        object: nil,
+        queue: .main
+    ) { _ in
+        Task { @MainActor in
+            updateDynamicMenuItems()
+        }
+    }
+}
+
+// MARK: - Dynamic Menu Items
+
+@MainActor
+private func createDynamicMenuItem(
+    title: String,
+    action: Selector,
+    shortcutAction: ShortcutAction,
+    target: AnyObject? = nil
+) -> NSMenuItem {
+    let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+    item.target = target
+    applyShortcut(to: item, for: shortcutAction)
+    dynamicMenuItems[shortcutAction] = item
+    return item
+}
+
+@MainActor
+private func applyShortcut(to item: NSMenuItem, for shortcutAction: ShortcutAction) {
+    if let keyEquivalent = ShortcutManager.shared.keyEquivalent(for: shortcutAction) {
+        item.keyEquivalent = keyEquivalent
+        item.keyEquivalentModifierMask = ShortcutManager.shared.keyEquivalentModifierMask(for: shortcutAction)
+    } else {
+        item.keyEquivalent = ""
+        item.keyEquivalentModifierMask = []
+    }
+}
+
+@MainActor
+private func updateDynamicMenuItems() {
+    for (action, item) in dynamicMenuItems {
+        applyShortcut(to: item, for: action)
+    }
 }

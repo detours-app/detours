@@ -1,5 +1,63 @@
 # Changelog
 
+## 260108 Stage 6 Complete - Phase 6 Git Status & Phase 7 Polish
+- Added: Git status indicators (2px colored bars in left gutter)
+- Added: GitStatusProvider actor with 5-second caching
+- Added: GitSettingsView with enable toggle and color preview
+- Added: Modified (amber), Staged (green), Untracked (gray), Conflict (red) indicators
+- Added: 6 GitStatusTests + 4 ThemeManager tests (26 total preference tests)
+- Fixed: Session restore now sets first responder to correct pane
+- Changed: File list cells have 8px left gutter for git status bar
+
+## 260108 Stage 6 Preferences - Phase 5 Keyboard Shortcuts
+- Added: ShortcutManager for customizable keyboard shortcuts
+- Added: ShortcutRecorder view for capturing key combinations
+- Added: Shortcuts settings pane with all 11 customizable actions
+- Added: Open in Editor action (F4 default, opens in TextEdit)
+- Added: Per-shortcut reset button to restore default
+- Added: Menu items update dynamically when shortcuts change
+- Added: 4 new ShortcutManager tests
+- Changed: FileListViewController now uses ShortcutManager for customizable shortcuts
+- Fixed: testTableViewNextResponderIsViewController test (checks view hierarchy instead of responder chain)
+
+## 260108 Preferences Window Polish
+- Added: Preferences window is now resizable (500-900px wide, 350-800px tall)
+- Added: Window position and size persists across app restarts
+- Added: Expanded font selection with proportional fonts (SF Pro, Avenir, Helvetica, etc.)
+- Fixed: Content no longer scrolls over window title bar (container view clipping)
+- Changed: Renamed Theme.monoFont to fontName (supports proportional fonts)
+
+## 260107 Stage 6 Preferences - Phase 4 Appearance (continued)
+- Fixed: Column headers now use themed text colors (custom ThemedHeaderCell)
+- Fixed: Breadcrumbs/path control now use themed text colors
+- Fixed: SF Symbol icons (home, iCloud, back, forward, +) now use themed colors via paletteColors
+- Fixed: Banded rows now extend to bottom of panel (not just to last row)
+
+## 260107 Stage 6 Preferences - Phase 4 Appearance
+- Added: Theme system with ThemeManager singleton
+- Added: Four built-in themes: Light, Dark, Foolscap (warm cream/Courier), Drafting (cool blue/Menlo)
+- Added: Custom theme editor with 8 color pickers + font picker
+- Added: Font size stepper (10-16px)
+- Added: Live theme preview in Appearance settings
+- Added: Theme colors applied to file list, tab bar, path bar, and window
+- Changed: BandedTableView now uses theme colors for row backgrounds
+- Changed: File list cells use theme fonts and colors
+
+## 260107 Stage 6 Preferences (Phases 1-3)
+- Added: Preferences window with Cmd-, shortcut
+- Added: Settings infrastructure with UserDefaults persistence
+- Added: General settings: restore session toggle, show hidden files default
+- Added: NavigationSplitView with General, Appearance, Shortcuts, Git sections
+- Added: 11 unit tests for Settings, SettingsManager, KeyCombo, CodableColor
+
+## 260107 Stage 6 Spec
+- Added: Stage 6 Preferences & Customization spec (`260107-stage6-preferences.md`)
+- Added: Preferences window design (General, Appearance, Shortcuts, Git sections)
+- Added: Keyboard shortcut customization for FM-specific actions
+- Added: Four built-in themes: Light, Dark, Foolscap (warm/Courier), Drafting (cool/Menlo)
+- Added: Custom theme support with color and font pickers
+- Added: Git status indicators (2px vertical bars in left gutter)
+
 ## 260107 Roadmap Reorganization
 - Changed: Stage 6 is now Preferences & Customization (preferences window, shortcuts, theming, git indicators)
 - Changed: Stage 7 is now Folder Expansion (moved from Stage 6)

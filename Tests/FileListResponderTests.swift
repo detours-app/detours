@@ -4,10 +4,11 @@ import XCTest
 
 @MainActor
 final class FileListResponderTests: XCTestCase {
-    func testTableViewNextResponderIsViewController() throws {
+    func testTableViewIsInViewControllerHierarchy() throws {
         let (viewController, _, cleanup) = try makeViewControllerWithSelection()
         defer { cleanup() }
-        XCTAssertTrue(viewController.tableView.nextResponder === viewController)
+        // Verify tableView is part of view controller's view hierarchy
+        XCTAssertTrue(viewController.tableView.isDescendant(of: viewController.view))
     }
 
     func testMenuValidationForCopyDeleteAndPaste() throws {

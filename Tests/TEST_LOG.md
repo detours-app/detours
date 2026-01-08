@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-07 10:26:07
-- Ended: 2026-01-07 10:26:07
-- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/DroppablePathControlTests`
+- Started: 2026-01-08 12:11:17
+- Ended: 2026-01-08 12:11:18
+- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/PreferencesTests`
 - Status: PASS
-- Total tests: 5
+- Total tests: 20 (PreferencesTests) + 6 (GitStatusTests)
 
 ### DirectoryWatcherTests (Swift Testing)
 | Test | Status | Duration | Last Run |
@@ -52,7 +52,7 @@
 ### FileListResponderTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testTableViewNextResponderIsViewController | PASS | 0.007s | 2026-01-07 09:25:09 |
+| testTableViewIsInViewControllerHierarchy | PASS | 0.091s | 2026-01-08 11:29:04 |
 | testMenuValidationForCopyDeleteAndPaste | PASS | 0.006s | 2026-01-07 09:25:09 |
 | testHandleKeyDownHandlesCopyShortcut | PASS | 0.005s | 2026-01-07 09:25:09 |
 | testHandleKeyDownHandlesCutShortcut | PASS | 0.005s | 2026-01-07 09:25:09 |
@@ -190,7 +190,47 @@
 | testViewMenuHasToggleHiddenFiles | PASS | 0.001s | 2026-01-07 12:36:30 |
 | testAboutPanelVersion | PASS | 0.001s | 2026-01-07 12:36:30 |
 
+### PreferencesTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testCodableColorFromHex | PASS | 0.002s | 2026-01-08 11:26:56 |
+| testCodableColorHexRoundtrip | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testFontSizeClamping | PASS | 0.001s | 2026-01-08 11:26:56 |
+| testKeyComboDisplayString | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testKeyComboMatches | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testSettingsCodable | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testSettingsEquatable | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testSettingsManagerDefaults | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testSettingsManagerPersistence | PASS | 0.001s | 2026-01-08 11:26:56 |
+| testShortcutActionDisplayNames | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testShortcutManagerCustomOverride | PASS | 0.001s | 2026-01-08 11:26:56 |
+| testShortcutManagerDefaults | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testShortcutManagerKeyEquivalent | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testShortcutManagerRestoreDefaults | PASS | 0.001s | 2026-01-08 11:26:56 |
+| testThemeChoiceDisplayNames | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testGitStatusColors | PASS | 0.006s | 2026-01-08 12:11:17 |
+| testThemeChoiceSystemResolvesToLightOrDark | PASS | 0.001s | 2026-01-08 12:11:17 |
+| testThemeFontReturnsValidFont | PASS | 0.024s | 2026-01-08 12:11:17 |
+| testThemeManagerBuiltInThemes | PASS | 0.001s | 2026-01-08 12:11:17 |
+| testThemeManagerCustomTheme | PASS | 0.001s | 2026-01-08 12:11:17 |
+
+### GitStatusTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testFileItemGitStatusProperty | PASS | 0.001s | 2026-01-08 11:56:25 |
+| testFileItemURLInitHasNilGitStatus | PASS | 0.008s | 2026-01-08 11:56:25 |
+| testGitStatusCaching | PASS | 1.153s | 2026-01-08 11:56:25 |
+| testGitStatusInGitRepo | PASS | 0.001s | 2026-01-08 11:56:25 |
+| testGitStatusInvalidateCache | PASS | 0.012s | 2026-01-08 11:56:25 |
+| testGitStatusNonRepo | PASS | 0.013s | 2026-01-08 11:56:25 |
+
 ## Notes
+- 2026-01-08: Added ThemeManager tests (4 tests): built-in themes, custom theme, system choice, font validation.
+- 2026-01-08: Added GitStatusTests (6 tests) for Phase 6 git integration: non-repo handling, caching, FileItem property.
+- 2026-01-08: Added testGitStatusColors to PreferencesTests for git status color verification.
+- 2026-01-08: Fixed testTableViewNextResponderIsViewController - renamed to testTableViewIsInViewControllerHierarchy, checks view hierarchy instead of responder chain (which requires a window).
+- 2026-01-08: Added ShortcutManager tests (4 tests) for Phase 5 keyboard shortcuts: defaults, custom override, restore defaults, key equivalents.
+- 2026-01-07: Added PreferencesTests (11 tests) for Stage 6 settings infrastructure, SettingsManager, KeyCombo, CodableColor.
 - 2026-01-07: Fixed FileListResponderTests - changed testHandleKeyDownHandlesCmdIGetInfo to testMenuValidationForCmdIGetInfo to avoid opening real Finder info panels during tests.
 - 2026-01-07: Fixed DirectoryWatcherTests - increased timeout from 500ms to 2s with polling loop for FSEvents latency.
 - 2026-01-07: Fixed QuickNavTests - same substring vs fuzzy issue. 5 tests pass.

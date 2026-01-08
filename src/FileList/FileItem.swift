@@ -17,8 +17,9 @@ struct FileItem {
     let icon: NSImage
     let sharedByName: String?
     let iCloudStatus: ICloudStatus
+    var gitStatus: GitStatus?
 
-    init(name: String, url: URL, isDirectory: Bool, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false) {
+    init(name: String, url: URL, isDirectory: Bool, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
         self.name = name
         self.url = url
         self.isDirectory = isDirectory
@@ -28,6 +29,7 @@ struct FileItem {
         self.icon = icon
         self.sharedByName = sharedByName
         self.iCloudStatus = iCloudStatus
+        self.gitStatus = gitStatus
     }
 
     init(url: URL) {
@@ -90,6 +92,9 @@ struct FileItem {
         } else {
             self.iCloudStatus = .local
         }
+
+        // Git status is set externally by data source
+        self.gitStatus = nil
     }
 
     // MARK: - Formatted Properties
@@ -142,7 +147,7 @@ extension FileItem {
 // MARK: - Icon Tinting
 
 extension FileItem {
-    /// Creates a teal-tinted version of the folder icon preserving shading
+    /// Creates a tinted version of the folder icon using theme accent color
     static func tintedFolderIcon(_ icon: NSImage) -> NSImage {
         let size = icon.size
         guard size.width > 0, size.height > 0 else { return icon }
@@ -150,16 +155,14 @@ extension FileItem {
         let tinted = NSImage(size: size, flipped: false) { rect in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
 
-            // Draw the original icon into a layer
+            // Draw the original icon
             icon.draw(in: rect)
 
-            // Create a tint layer: draw icon as mask, fill with teal
-            ctx.saveGState()
-            ctx.clip(to: rect, mask: icon.cgImage(forProposedRect: nil, context: nil, hints: nil)!)
-            ctx.setBlendMode(.color)
-            ctx.setFillColor(detourAccentColor.cgColor)
+            // Apply accent color directly for vibrant result
+            ctx.setBlendMode(.sourceAtop)
+            let accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
+            ctx.setFillColor(accentColor.cgColor)
             ctx.fill(rect)
-            ctx.restoreGState()
 
             return true
         }

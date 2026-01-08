@@ -20,42 +20,26 @@ final class PaneTabBar: NSView {
     private var dropIndicatorIndex: Int?
     private var fileDropTargetTabIndex: Int?
 
-    // MARK: - Colors
+    // MARK: - Colors (from theme)
 
     private var surfaceColor: NSColor {
-        NSColor(name: nil) { appearance in
-            appearance.isDark
-                ? NSColor(red: 0x24/255, green: 0x23/255, blue: 0x22/255, alpha: 1)
-                : NSColor(red: 0xF5/255, green: 0xF5/255, blue: 0xF3/255, alpha: 1)
-        }
+        ThemeManager.shared.currentTheme.surface
     }
 
     private var backgroundColor: NSColor {
-        NSColor(name: nil) { appearance in
-            appearance.isDark
-                ? NSColor(red: 0x1A/255, green: 0x19/255, blue: 0x18/255, alpha: 1)
-                : NSColor(red: 0xFA/255, green: 0xFA/255, blue: 0xF8/255, alpha: 1)
-        }
+        ThemeManager.shared.currentTheme.background
     }
 
     private var accentColor: NSColor {
-        detourAccentColor
+        ThemeManager.shared.currentTheme.accent
     }
 
     private var textPrimaryColor: NSColor {
-        NSColor(name: nil) { appearance in
-            appearance.isDark
-                ? NSColor(red: 0xFA/255, green: 0xFA/255, blue: 0xF8/255, alpha: 1)
-                : NSColor(red: 0x1A/255, green: 0x19/255, blue: 0x18/255, alpha: 1)
-        }
+        ThemeManager.shared.currentTheme.textPrimary
     }
 
     private var textSecondaryColor: NSColor {
-        NSColor(name: nil) { appearance in
-            appearance.isDark
-                ? NSColor(red: 0x9C/255, green: 0x99/255, blue: 0x90/255, alpha: 1)
-                : NSColor(red: 0x6B/255, green: 0x69/255, blue: 0x65/255, alpha: 1)
-        }
+        ThemeManager.shared.currentTheme.textSecondary
     }
 
     // MARK: - Initialization
@@ -71,12 +55,31 @@ final class PaneTabBar: NSView {
     }
 
     private func setup() {
-        wantsLayer = true
-
         setupNavigationButtons()
         setupScrollView()
         setupNewTabButton()
         setupDragAndDrop()
+
+        // Apply initial theme colors
+        updateNewTabButtonColor()
+
+        // Observe theme changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func handleThemeChange() {
+        // Force redisplay to trigger updateLayer with new theme colors
+        needsDisplay = true
+        needsLayout = true
+        // Update button colors
+        updateNewTabButtonColor()
+        // Re-pass colors to tabs
+        paneViewController?.refreshTabBar()
     }
 
     private func setupNavigationButtons() {
@@ -157,8 +160,19 @@ final class PaneTabBar: NSView {
         NSSize(width: NSView.noIntrinsicMetric, height: 32)
     }
 
-    override func updateLayer() {
-        layer?.backgroundColor = surfaceColor.cgColor
+    override var isOpaque: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        ThemeManager.shared.currentTheme.surface.setFill()
+        bounds.fill()
+
+        // Draw drop indicator if needed
+        if let dropIndex = dropIndicatorIndex {
+            let x = xPositionForIndex(dropIndex)
+            let indicatorRect = NSRect(x: x - 1, y: 4, width: 2, height: bounds.height - 8)
+            ThemeManager.shared.currentTheme.accent.setFill()
+            indicatorRect.fill()
+        }
     }
 
     // MARK: - Public API
@@ -236,9 +250,24 @@ final class PaneTabBar: NSView {
     }
 
     private func updateNewTabButtonColor() {
-        newTabButton.contentTintColor = textSecondaryColor
-        backButton.contentTintColor = textSecondaryColor
-        forwardButton.contentTintColor = textSecondaryColor
+        let color = textSecondaryColor
+        let config = NSImage.SymbolConfiguration(paletteColors: [color])
+
+        if let backImage = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")?
+            .withSymbolConfiguration(config) {
+            backButton.image = backImage
+        }
+        if let forwardImage = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")?
+            .withSymbolConfiguration(config) {
+            forwardButton.image = forwardImage
+        }
+
+        // New tab button uses text, set attributed title
+        let attrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: color,
+            .font: NSFont.systemFont(ofSize: 18, weight: .light)
+        ]
+        newTabButton.attributedTitle = NSAttributedString(string: "+", attributes: attrs)
     }
 
     // MARK: - Actions
@@ -429,18 +458,6 @@ final class PaneTabBar: NSView {
         }
 
         return nil
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        // Draw drop indicator
-        if let dropIndex = dropIndicatorIndex {
-            let x = xPositionForIndex(dropIndex)
-            let indicatorRect = NSRect(x: x - 1, y: 4, width: 2, height: bounds.height - 8)
-            accentColor.setFill()
-            indicatorRect.fill()
-        }
     }
 
     private func xPositionForIndex(_ index: Int) -> CGFloat {
