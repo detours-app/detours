@@ -1,4 +1,7 @@
 import AppKit
+import os.log
+
+private let dragLogger = Logger(subsystem: "com.detours", category: "drag")
 
 final class PaneTabBar: NSView {
     private var tabButtons: [TabButton] = []
@@ -299,6 +302,7 @@ final class PaneTabBar: NSView {
               let pane = paneViewController,
               index < pane.tabs.count else { return }
 
+        dragLogger.error("beginDraggingTab: index=\(index)")
         draggedTabIndex = index
         let button = tabButtons[index]
         let tab = pane.tabs[index]
@@ -336,7 +340,9 @@ final class PaneTabBar: NSView {
 
         // Tab drag - show insertion indicator
         if sender.draggingPasteboard.canReadItem(withDataConformingToTypes: [Self.tabPasteboardType.rawValue]) {
-            dropIndicatorIndex = insertionIndex(for: location.x)
+            let idx = insertionIndex(for: location.x)
+            dragLogger.error("draggingUpdated: x=\(location.x), idx=\(idx), count=\(self.tabButtons.count)")
+            dropIndicatorIndex = idx
             fileDropTargetTabIndex = nil
             needsDisplay = true
             return .move
@@ -399,9 +405,15 @@ final class PaneTabBar: NSView {
         // Check if this is from the same tab bar (reorder) or different (cross-pane)
         if let sourceIndex = draggedTabIndex {
             // Same tab bar - reorder
-            if sourceIndex != dropIndex && sourceIndex != dropIndex - 1 {
-                let adjustedDrop = dropIndex > sourceIndex ? dropIndex - 1 : dropIndex
+            // Calculate where the tab would actually end up after removal and insertion
+            let adjustedDrop = dropIndex > sourceIndex ? dropIndex - 1 : dropIndex
+            dragLogger.error("performDrag: src=\(sourceIndex), drop=\(dropIndex), adj=\(adjustedDrop)")
+            // Only reorder if the tab would actually move
+            if adjustedDrop != sourceIndex {
+                dragLogger.error("performDrag: calling reorder")
                 delegate?.tabBarDidReorderTab(from: sourceIndex, to: adjustedDrop)
+            } else {
+                dragLogger.error("performDrag: no-op")
             }
             return true
         }
@@ -430,12 +442,14 @@ final class PaneTabBar: NSView {
     }
 
     private func insertionIndex(for x: CGFloat) -> Int {
+        // Convert x from tab bar coordinates to tab container coordinates
+        let locationInContainer = tabContainer.convert(NSPoint(x: x, y: 0), from: self)
         var index = 0
         var xOffset: CGFloat = 0
 
         for button in tabButtons {
             let midX = xOffset + button.frame.width / 2
-            if x < midX {
+            if locationInContainer.x < midX {
                 return index
             }
             xOffset += button.frame.width
@@ -461,11 +475,14 @@ final class PaneTabBar: NSView {
     }
 
     private func xPositionForIndex(_ index: Int) -> CGFloat {
-        var x: CGFloat = 0
+        // Calculate x position in tab container coordinates
+        var xInContainer: CGFloat = 0
         for i in 0..<min(index, tabButtons.count) {
-            x += tabButtons[i].frame.width
+            xInContainer += tabButtons[i].frame.width
         }
-        return x
+        // Convert to tab bar coordinates for drawing
+        let pointInTabBar = convert(NSPoint(x: xInContainer, y: 0), from: tabContainer)
+        return pointInTabBar.x
     }
 }
 
@@ -477,6 +494,7 @@ extension PaneTabBar: NSDraggingSource {
     }
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        dragLogger.error("dragEnded: op=\(operation.rawValue), idx=\(String(describing: self.draggedTabIndex))")
         draggedTabIndex = nil
     }
 }

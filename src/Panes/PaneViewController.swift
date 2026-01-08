@@ -838,18 +838,18 @@ extension PaneViewController: PaneTabBarDelegate {
 
     func tabBarDidReorderTab(from sourceIndex: Int, to destinationIndex: Int) {
         guard sourceIndex >= 0 && sourceIndex < tabs.count else { return }
-        guard destinationIndex >= 0 && destinationIndex <= tabs.count else { return }
+        guard destinationIndex >= 0 && destinationIndex < tabs.count else { return }
+        guard sourceIndex != destinationIndex else { return }
 
         let tab = tabs.remove(at: sourceIndex)
-        let adjustedDestination = destinationIndex > sourceIndex ? destinationIndex - 1 : destinationIndex
-        tabs.insert(tab, at: adjustedDestination)
+        tabs.insert(tab, at: destinationIndex)
 
         // Update selected index if needed
         if selectedTabIndex == sourceIndex {
-            selectedTabIndex = adjustedDestination
-        } else if sourceIndex < selectedTabIndex && adjustedDestination >= selectedTabIndex {
+            selectedTabIndex = destinationIndex
+        } else if sourceIndex < selectedTabIndex && destinationIndex >= selectedTabIndex {
             selectedTabIndex -= 1
-        } else if sourceIndex > selectedTabIndex && adjustedDestination <= selectedTabIndex {
+        } else if sourceIndex > selectedTabIndex && destinationIndex <= selectedTabIndex {
             selectedTabIndex += 1
         }
 

@@ -4,10 +4,16 @@ import AppKit
 /// Each tab maintains its own directory and navigation history.
 @MainActor
 final class PaneTab {
+    /// Navigation history entry storing directory and selection to restore
+    private struct HistoryEntry {
+        let directory: URL
+        let selectionToRestore: URL?  // Item to select when returning to this directory
+    }
+
     let id: UUID
     private(set) var currentDirectory: URL
-    private var backStack: [URL] = []
-    private var forwardStack: [URL] = []
+    private var backStack: [HistoryEntry] = []
+    private var forwardStack: [HistoryEntry] = []
 
     /// Lazily created file list view controller for this tab
     lazy var fileListViewController: FileListViewController = {
@@ -71,7 +77,9 @@ final class PaneTab {
         }
 
         if addToHistory && currentDirectory != normalized {
-            backStack.append(currentDirectory)
+            // Store current directory with the folder we're navigating into as the selection to restore
+            let entry = HistoryEntry(directory: currentDirectory, selectionToRestore: normalized)
+            backStack.append(entry)
             forwardStack.removeAll()
         }
 
@@ -83,9 +91,11 @@ final class PaneTab {
     @discardableResult
     func goBack() -> Bool {
         guard let previous = backStack.popLast() else { return false }
-        forwardStack.append(currentDirectory)
-        currentDirectory = previous
-        fileListViewController.loadDirectory(currentDirectory)
+        // When going back, store current directory; when user goes forward again, select where they came from
+        let entry = HistoryEntry(directory: currentDirectory, selectionToRestore: previous.selectionToRestore)
+        forwardStack.append(entry)
+        currentDirectory = previous.directory
+        fileListViewController.loadDirectory(currentDirectory, selectingItem: previous.selectionToRestore)
         return true
     }
 
@@ -93,9 +103,11 @@ final class PaneTab {
     @discardableResult
     func goForward() -> Bool {
         guard let next = forwardStack.popLast() else { return false }
-        backStack.append(currentDirectory)
-        currentDirectory = next
-        fileListViewController.loadDirectory(currentDirectory)
+        // When going forward, store current directory with the target as selection to restore on back
+        let entry = HistoryEntry(directory: currentDirectory, selectionToRestore: next.directory)
+        backStack.append(entry)
+        currentDirectory = next.directory
+        fileListViewController.loadDirectory(currentDirectory, selectingItem: next.selectionToRestore)
         return true
     }
 
@@ -111,6 +123,7 @@ final class PaneTab {
             return false
         }
 
+        let currentDir = currentDirectory
         var parent = Self.normalizeDirectoryURL(currentDirectory.deletingLastPathComponent())
         guard parent != currentDirectory else { return false }
 
@@ -119,7 +132,12 @@ final class PaneTab {
             parent = Self.normalizeDirectoryURL(parent.deletingLastPathComponent())
         }
 
-        navigate(to: parent, skipContainerResolution: true)
+        // Navigate to parent, selecting the folder we just left
+        let entry = HistoryEntry(directory: currentDir, selectionToRestore: currentDir)
+        backStack.append(entry)
+        forwardStack.removeAll()
+        currentDirectory = parent
+        fileListViewController.loadDirectory(parent, selectingItem: currentDir)
         return true
     }
 

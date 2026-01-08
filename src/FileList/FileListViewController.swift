@@ -246,7 +246,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
-    func loadDirectory(_ url: URL) {
+    func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil) {
         currentDirectory = url
 
         guard isViewLoaded else {
@@ -257,7 +257,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         dataSource.loadDirectory(url)
         hasLoadedDirectory = true
-        if !dataSource.items.isEmpty {
+
+        // Select the specified item if provided, otherwise select first item
+        if let itemToSelect = itemToSelect {
+            let standardized = itemToSelect.standardizedFileURL
+            if let index = dataSource.items.firstIndex(where: { $0.url.standardizedFileURL == standardized }) {
+                tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                tableView.scrollRowToVisible(index)
+            } else if !dataSource.items.isEmpty {
+                tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            }
+        } else if !dataSource.items.isEmpty {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
 
