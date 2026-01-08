@@ -14,6 +14,7 @@ extension FileListViewController: FileListDropDelegate {
                     try await FileOperationQueue.shared.move(items: urls, to: destination)
                 }
                 // Refresh the view
+                dataSource.invalidateGitStatus()
                 if let current = currentDirectory {
                     loadDirectory(current)
                 }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 260108 Fix Git Status for Files with Special Characters
+- Fixed: Git status markers now appear for files with spaces or special characters in names
+- Fixed: Untracked marker visibility improved (brighter in dark mode)
+- Changed: Git status bar moved closer to file icon
+
 ## 260108 Release Script and Documentation
 - Added: Release script (resources/scripts/release.sh) for building, notarizing, and tagging
 - Added: RELEASING.md with public repo sync and release workflow

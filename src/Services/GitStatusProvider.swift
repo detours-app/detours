@@ -110,11 +110,16 @@ actor GitStatusProvider {
             let filename = String(line.dropFirst(3))
 
             // Handle renamed files (format: "R  old -> new")
-            let actualFilename: String
+            var actualFilename: String
             if let arrowRange = filename.range(of: " -> ") {
                 actualFilename = String(filename[arrowRange.upperBound...])
             } else {
                 actualFilename = filename
+            }
+
+            // Strip quotes from filenames with special characters
+            if actualFilename.hasPrefix("\"") && actualFilename.hasSuffix("\"") {
+                actualFilename = String(actualFilename.dropFirst().dropLast())
             }
 
             let fileURL = gitRoot.appendingPathComponent(actualFilename)

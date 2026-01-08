@@ -332,7 +332,7 @@ enum GitStatus: String, Codable {
         case .staged:
             return isDark ? NSColor(hex: "#4CAF50") : NSColor(hex: "#2E7D32")
         case .untracked:
-            return isDark ? NSColor(hex: "#636366") : NSColor(hex: "#8E8E93")
+            return isDark ? NSColor(hex: "#8E8E93") : NSColor(hex: "#636366")
         case .conflict:
             return isDark ? NSColor(hex: "#EF5350") : NSColor(hex: "#C62828")
         case .clean:

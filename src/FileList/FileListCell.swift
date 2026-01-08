@@ -66,8 +66,8 @@ final class FileListCell: NSTableCellView {
         sharedLabel.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            // Git status bar: 2px × 14px, 3px from leading edge, centered vertically
-            gitStatusBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            // Git status bar: 2px × 14px, 5px from leading edge, centered vertically
+            gitStatusBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
             gitStatusBar.centerYAnchor.constraint(equalTo: centerYAnchor),
             gitStatusBar.widthAnchor.constraint(equalToConstant: 2),
             gitStatusBar.heightAnchor.constraint(equalToConstant: 14),

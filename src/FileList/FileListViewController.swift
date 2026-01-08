@@ -431,6 +431,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         Task { @MainActor in
             do {
                 try await FileOperationQueue.shared.delete(items: urls)
+                dataSource.invalidateGitStatus()
                 loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent())
                 // Select next file at same index
                 let itemCount = dataSource.items.count
@@ -452,6 +453,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         Task { @MainActor in
             do {
                 let duplicatedURLs = try await FileOperationQueue.shared.duplicate(items: urls)
+                dataSource.invalidateGitStatus()
                 loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent())
                 // Select the first duplicated file
                 if let firstName = duplicatedURLs.first?.lastPathComponent,
@@ -945,6 +947,7 @@ extension FileListViewController: NSMenuItemValidation {
 extension FileListViewController: RenameControllerDelegate {
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL) {
         guard let currentDirectory else { return }
+        dataSource.invalidateGitStatus()
         loadDirectory(currentDirectory)
         selectItem(at: newURL)
     }
