@@ -184,7 +184,7 @@ Add Quick Look (Space to preview), context menus, file drag-drop with external a
 - [x] Rename "Show in Finder" to "Reveal in Finder"
 - [x] Add keyboard shortcuts to Go menu items (Cmd+arrows for back/forward/up)
 - [x] Add "Toggle Hidden Files" menu item to View menu
-- [x] Create custom About panel with icon, version 0.7.1, and description
+- [x] Create custom About panel with icon, version 0.6.0, and description
 - [x] Fix mouse scrolling in file list
 - [x] Dim hidden files (files starting with `.`) in file list
 - [x] Persist showHiddenFiles per tab (saved/restored with session)
@@ -253,7 +253,7 @@ After implementation, manually verify:
 - [x] End key selects last item
 - [x] Go menu shows keyboard shortcuts (Cmd+arrows)
 - [x] "Reveal in Finder" appears in File menu
-- [x] About Detour shows icon, version 0.7.1, and description
+- [x] About Detour shows icon, version 0.6.0, and description
 - [x] Mouse scrolling works in file list
 - [x] Hidden files are dimmed when displayed
 - [x] showHiddenFiles persists per tab across sessions

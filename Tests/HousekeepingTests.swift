@@ -79,8 +79,8 @@ final class HousekeepingTests: XCTestCase {
     // MARK: - About Panel
 
     func testAboutPanelVersion() {
-        // The About panel should show version 0.7.1
+        // The About panel should show version 0.6.0
         // This is set in AppDelegate.showAbout()
-        // Verified by code inspection - version string is "0.7.1"
+        // Verified by code inspection - version string is "0.6.0"
     }
 }
