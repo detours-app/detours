@@ -181,6 +181,8 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
     }
 
     var showHiddenFiles: Bool = false
+    private var currentDirectoryForGit: URL?
+    private var gitStatuses: [URL: GitStatus] = [:]
 
     func loadDirectory(_ url: URL) {
         do {
@@ -195,12 +197,53 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
             )
 
             items = FileItem.sortFoldersFirst(contents.map { FileItem(url: $0) })
+            currentDirectoryForGit = url
+            gitStatuses = [:]
             tableView?.reloadData()
             tableView?.needsLayout = true
+
+            // Fetch git status asynchronously if enabled
+            if SettingsManager.shared.settings.gitStatusEnabled {
+                fetchGitStatus(for: url)
+            }
         } catch {
             items = []
+            currentDirectoryForGit = nil
+            gitStatuses = [:]
             tableView?.reloadData()
             tableView?.needsLayout = true
+        }
+    }
+
+    private func fetchGitStatus(for directory: URL) {
+        Task {
+            let statuses = await GitStatusProvider.shared.status(for: directory)
+
+            // Update on main thread
+            await MainActor.run {
+                // Make sure we're still viewing the same directory
+                guard currentDirectoryForGit == directory else { return }
+
+                gitStatuses = statuses
+
+                // Update items with git status
+                for i in items.indices {
+                    items[i].gitStatus = statuses[items[i].url]
+                }
+
+                // Reload only the name column to show git indicators
+                if let tableView = tableView {
+                    tableView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<items.count), columnIndexes: IndexSet(integer: 0))
+                }
+            }
+        }
+    }
+
+    /// Invalidate git status cache for current directory (call after file operations)
+    func invalidateGitStatus() {
+        guard let directory = currentDirectoryForGit else { return }
+        Task {
+            await GitStatusProvider.shared.invalidateCache(for: directory)
         }
     }
 

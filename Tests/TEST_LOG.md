@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-08 11:26:56
-- Ended: 2026-01-08 11:26:57
-- Command: `swift test --filter PreferencesTests`
+- Started: 2026-01-08 12:11:17
+- Ended: 2026-01-08 12:11:18
+- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/PreferencesTests`
 - Status: PASS
-- Total tests: 15
+- Total tests: 20 (PreferencesTests) + 6 (GitStatusTests)
 
 ### DirectoryWatcherTests (Swift Testing)
 | Test | Status | Duration | Last Run |
@@ -208,8 +208,26 @@
 | testShortcutManagerKeyEquivalent | PASS | 0.000s | 2026-01-08 11:26:56 |
 | testShortcutManagerRestoreDefaults | PASS | 0.001s | 2026-01-08 11:26:56 |
 | testThemeChoiceDisplayNames | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testGitStatusColors | PASS | 0.006s | 2026-01-08 12:11:17 |
+| testThemeChoiceSystemResolvesToLightOrDark | PASS | 0.001s | 2026-01-08 12:11:17 |
+| testThemeFontReturnsValidFont | PASS | 0.024s | 2026-01-08 12:11:17 |
+| testThemeManagerBuiltInThemes | PASS | 0.001s | 2026-01-08 12:11:17 |
+| testThemeManagerCustomTheme | PASS | 0.001s | 2026-01-08 12:11:17 |
+
+### GitStatusTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testFileItemGitStatusProperty | PASS | 0.001s | 2026-01-08 11:56:25 |
+| testFileItemURLInitHasNilGitStatus | PASS | 0.008s | 2026-01-08 11:56:25 |
+| testGitStatusCaching | PASS | 1.153s | 2026-01-08 11:56:25 |
+| testGitStatusInGitRepo | PASS | 0.001s | 2026-01-08 11:56:25 |
+| testGitStatusInvalidateCache | PASS | 0.012s | 2026-01-08 11:56:25 |
+| testGitStatusNonRepo | PASS | 0.013s | 2026-01-08 11:56:25 |
 
 ## Notes
+- 2026-01-08: Added ThemeManager tests (4 tests): built-in themes, custom theme, system choice, font validation.
+- 2026-01-08: Added GitStatusTests (6 tests) for Phase 6 git integration: non-repo handling, caching, FileItem property.
+- 2026-01-08: Added testGitStatusColors to PreferencesTests for git status color verification.
 - 2026-01-08: Fixed testTableViewNextResponderIsViewController - renamed to testTableViewIsInViewControllerHierarchy, checks view hierarchy instead of responder chain (which requires a window).
 - 2026-01-08: Added ShortcutManager tests (4 tests) for Phase 5 keyboard shortcuts: defaults, custom override, restore defaults, key equivalents.
 - 2026-01-07: Added PreferencesTests (11 tests) for Stage 6 settings infrastructure, SettingsManager, KeyCombo, CodableColor.

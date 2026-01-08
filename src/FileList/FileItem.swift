@@ -17,8 +17,9 @@ struct FileItem {
     let icon: NSImage
     let sharedByName: String?
     let iCloudStatus: ICloudStatus
+    var gitStatus: GitStatus?
 
-    init(name: String, url: URL, isDirectory: Bool, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false) {
+    init(name: String, url: URL, isDirectory: Bool, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
         self.name = name
         self.url = url
         self.isDirectory = isDirectory
@@ -28,6 +29,7 @@ struct FileItem {
         self.icon = icon
         self.sharedByName = sharedByName
         self.iCloudStatus = iCloudStatus
+        self.gitStatus = gitStatus
     }
 
     init(url: URL) {
@@ -90,6 +92,9 @@ struct FileItem {
         } else {
             self.iCloudStatus = .local
         }
+
+        // Git status is set externally by data source
+        self.gitStatus = nil
     }
 
     // MARK: - Formatted Properties

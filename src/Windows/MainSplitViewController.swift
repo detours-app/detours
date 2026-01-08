@@ -59,7 +59,18 @@ final class MainSplitViewController: NSSplitViewController {
         )
     }
 
+    private var hasSetInitialFirstResponder = false
+
     @objc private func windowDidUpdateFirstResponder(_ notification: Notification) {
+        // On first window activation, set first responder to the restored active pane
+        if !hasSetInitialFirstResponder {
+            hasSetInitialFirstResponder = true
+            let targetPane = activePaneIndex == 0 ? leftPane : rightPane
+            if let tab = targetPane.selectedTab {
+                view.window?.makeFirstResponder(tab.fileListViewController.tableView)
+            }
+            return
+        }
         updateActivePaneFromFirstResponder()
     }
 

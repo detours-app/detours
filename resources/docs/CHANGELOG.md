@@ -1,5 +1,14 @@
 # Changelog
 
+## 260108 Stage 6 Complete - Phase 6 Git Status & Phase 7 Polish
+- Added: Git status indicators (2px colored bars in left gutter)
+- Added: GitStatusProvider actor with 5-second caching
+- Added: GitSettingsView with enable toggle and color preview
+- Added: Modified (amber), Staged (green), Untracked (gray), Conflict (red) indicators
+- Added: 6 GitStatusTests + 4 ThemeManager tests (26 total preference tests)
+- Fixed: Session restore now sets first responder to correct pane
+- Changed: File list cells have 8px left gutter for git status bar
+
 ## 260108 Stage 6 Preferences - Phase 5 Keyboard Shortcuts
 - Added: ShortcutManager for customizable keyboard shortcuts
 - Added: ShortcutRecorder view for capturing key combinations

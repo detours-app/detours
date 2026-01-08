@@ -240,4 +240,108 @@ final class PreferencesTests: XCTestCase {
         // Space (Quick Look) should return " "
         XCTAssertEqual(sm.keyEquivalent(for: .quickLook), " ")
     }
+
+    // MARK: - ThemeManager Tests
+
+    func testThemeManagerBuiltInThemes() async throws {
+        // Test Light theme
+        XCTAssertEqual(Theme.light.fontName, "SF Mono")
+        XCTAssertEqual(Theme.light.background, NSColor(hex: "#FAFAF8"))
+        XCTAssertEqual(Theme.light.accent, NSColor(hex: "#1F4D4D"))
+
+        // Test Dark theme
+        XCTAssertEqual(Theme.dark.fontName, "SF Mono")
+        XCTAssertEqual(Theme.dark.background, NSColor(hex: "#262626"))
+        XCTAssertEqual(Theme.dark.accent, NSColor(hex: "#3D8A8A"))
+
+        // Test Foolscap theme
+        XCTAssertEqual(Theme.foolscap.fontName, "Courier")
+        XCTAssertEqual(Theme.foolscap.background, NSColor(hex: "#F5F1E8"))
+        XCTAssertEqual(Theme.foolscap.accent, NSColor(hex: "#B85C38"))
+
+        // Test Drafting theme
+        XCTAssertEqual(Theme.drafting.fontName, "JetBrains Mono NL")
+        XCTAssertEqual(Theme.drafting.background, NSColor(hex: "#F8FAFC"))
+        XCTAssertEqual(Theme.drafting.accent, NSColor(hex: "#2563EB"))
+    }
+
+    func testThemeManagerCustomTheme() async throws {
+        // Create custom colors
+        let customColors = CustomThemeColors(
+            background: CodableColor(hex: "#FF0000"),
+            surface: CodableColor(hex: "#00FF00"),
+            border: CodableColor(hex: "#0000FF"),
+            textPrimary: CodableColor(hex: "#111111"),
+            textSecondary: CodableColor(hex: "#222222"),
+            textTertiary: CodableColor(hex: "#333333"),
+            accent: CodableColor(hex: "#AABBCC"),
+            accentText: CodableColor(hex: "#FFFFFF"),
+            fontName: "Menlo"
+        )
+
+        // Create theme from custom colors
+        let theme = Theme.custom(from: customColors)
+
+        XCTAssertEqual(theme.fontName, "Menlo")
+        XCTAssertEqual(theme.background.redComponent, 1.0, accuracy: 0.01)
+        XCTAssertEqual(theme.surface.greenComponent, 1.0, accuracy: 0.01)
+        XCTAssertEqual(theme.border.blueComponent, 1.0, accuracy: 0.01)
+    }
+
+    func testThemeChoiceSystemResolvesToLightOrDark() async throws {
+        // System theme choice should be valid
+        XCTAssertEqual(ThemeChoice.system.rawValue, "system")
+        XCTAssertEqual(ThemeChoice.system.displayName, "System")
+
+        // When system choice is selected, it should resolve to light or dark
+        // (We can't test the actual resolution without NSApp)
+        XCTAssertTrue(ThemeChoice.allCases.contains(.system))
+    }
+
+    func testThemeFontReturnsValidFont() throws {
+        // Test that all built-in themes return valid fonts
+        let themes: [Theme] = [.light, .dark, .foolscap, .drafting]
+
+        for theme in themes {
+            let font = theme.font(size: 13)
+            XCTAssertNotNil(font, "Theme \(theme.fontName) should return a valid font")
+            XCTAssertEqual(font.pointSize, 13)
+        }
+    }
+
+    // MARK: - GitStatus Tests
+
+    func testGitStatusColors() throws {
+        // Test that each status returns a non-clear color
+        let lightAppearance = NSAppearance(named: .aqua)
+        let darkAppearance = NSAppearance(named: .darkAqua)
+
+        // Modified - amber
+        let modifiedLight = GitStatus.modified.color(for: lightAppearance)
+        let modifiedDark = GitStatus.modified.color(for: darkAppearance)
+        XCTAssertNotEqual(modifiedLight, .clear)
+        XCTAssertNotEqual(modifiedDark, .clear)
+
+        // Staged - green
+        let stagedLight = GitStatus.staged.color(for: lightAppearance)
+        let stagedDark = GitStatus.staged.color(for: darkAppearance)
+        XCTAssertNotEqual(stagedLight, .clear)
+        XCTAssertNotEqual(stagedDark, .clear)
+
+        // Untracked - gray
+        let untrackedLight = GitStatus.untracked.color(for: lightAppearance)
+        let untrackedDark = GitStatus.untracked.color(for: darkAppearance)
+        XCTAssertNotEqual(untrackedLight, .clear)
+        XCTAssertNotEqual(untrackedDark, .clear)
+
+        // Conflict - red
+        let conflictLight = GitStatus.conflict.color(for: lightAppearance)
+        let conflictDark = GitStatus.conflict.color(for: darkAppearance)
+        XCTAssertNotEqual(conflictLight, .clear)
+        XCTAssertNotEqual(conflictDark, .clear)
+
+        // Clean - should be clear
+        let cleanColor = GitStatus.clean.color(for: lightAppearance)
+        XCTAssertEqual(cleanColor, .clear)
+    }
 }

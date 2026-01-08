@@ -1,6 +1,7 @@
 import AppKit
 
 final class FileListCell: NSTableCellView {
+    private let gitStatusBar = NSView()
     private let iconView = NSImageView()
     private let cloudIcon = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
@@ -9,6 +10,7 @@ final class FileListCell: NSTableCellView {
     private var isDropTarget: Bool = false
     private var isHiddenFile: Bool = false
     private var originalIcon: NSImage?
+    private var gitStatus: GitStatus?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -21,6 +23,12 @@ final class FileListCell: NSTableCellView {
     }
 
     private func setup() {
+        // Git status bar - 2px wide, 14px tall, in 8px gutter
+        gitStatusBar.wantsLayer = true
+        gitStatusBar.layer?.cornerRadius = 1
+        gitStatusBar.isHidden = true
+        addSubview(gitStatusBar)
+
         // Icon setup - 16x16
         iconView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(iconView)
@@ -51,14 +59,21 @@ final class FileListCell: NSTableCellView {
         addSubview(sharedLabel)
 
         // Layout
+        gitStatusBar.translatesAutoresizingMaskIntoConstraints = false
         iconView.translatesAutoresizingMaskIntoConstraints = false
         cloudIcon.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         sharedLabel.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            // Icon: 16x16, centered vertically, 4px from leading edge
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            // Git status bar: 2px × 14px, 3px from leading edge, centered vertically
+            gitStatusBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            gitStatusBar.centerYAnchor.constraint(equalTo: centerYAnchor),
+            gitStatusBar.widthAnchor.constraint(equalToConstant: 2),
+            gitStatusBar.heightAnchor.constraint(equalToConstant: 14),
+
+            // Icon: 16x16, centered vertically, after 8px gutter
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
@@ -112,6 +127,7 @@ final class FileListCell: NSTableCellView {
         itemURL = item.url
         self.isDropTarget = isDropTarget
         self.isHiddenFile = item.isHiddenFile
+        self.gitStatus = item.gitStatus
         originalIcon = item.icon
         iconView.image = item.icon
         nameLabel.stringValue = item.name
@@ -120,6 +136,9 @@ final class FileListCell: NSTableCellView {
         updateThemeColors()
         // Update selection colors based on current background style
         updateColorsForBackgroundStyle()
+
+        // Git status indicator
+        updateGitStatusBar()
 
         // iCloud status indicator
         switch item.iCloudStatus {
@@ -143,6 +162,16 @@ final class FileListCell: NSTableCellView {
 
         updateCutAppearance()
         updateDropTargetAppearance()
+    }
+
+    private func updateGitStatusBar() {
+        guard let status = gitStatus, status != .clean else {
+            gitStatusBar.isHidden = true
+            return
+        }
+
+        gitStatusBar.isHidden = false
+        gitStatusBar.layer?.backgroundColor = status.color(for: effectiveAppearance).cgColor
     }
 
     private func updateDropTargetAppearance() {
