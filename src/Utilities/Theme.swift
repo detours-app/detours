@@ -57,7 +57,7 @@ extension Theme {
         textPrimary: NSColor(hex: "#FAFAF8"),
         textSecondary: NSColor(hex: "#9C9990"),
         textTertiary: NSColor(hex: "#6B6965"),
-        accent: NSColor(hex: "#2D6A6A"),
+        accent: NSColor(hex: "#3D8A8A"),
         accentText: NSColor(hex: "#FFFFFF"),
         fontName: "SF Mono"
     )
