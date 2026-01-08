@@ -8,6 +8,7 @@ final class FileListCell: NSTableCellView {
     private var itemURL: URL?
     private var isDropTarget: Bool = false
     private var isHiddenFile: Bool = false
+    private var originalIcon: NSImage?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -111,11 +112,14 @@ final class FileListCell: NSTableCellView {
         itemURL = item.url
         self.isDropTarget = isDropTarget
         self.isHiddenFile = item.isHiddenFile
+        originalIcon = item.icon
         iconView.image = item.icon
         nameLabel.stringValue = item.name
 
         // Update theme colors in case they changed
         updateThemeColors()
+        // Update selection colors based on current background style
+        updateColorsForBackgroundStyle()
 
         // iCloud status indicator
         switch item.iCloudStatus {
@@ -176,5 +180,55 @@ final class FileListCell: NSTableCellView {
 
     @objc private func handleCutItemsChanged() {
         updateCutAppearance()
+    }
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            updateColorsForBackgroundStyle()
+        }
+    }
+
+    private func updateColorsForBackgroundStyle() {
+        let theme = ThemeManager.shared.currentTheme
+        let isEmphasized = backgroundStyle == .emphasized
+
+        if isEmphasized {
+            // Selected row: use accentText (white) for text visibility
+            nameLabel.textColor = theme.accentText
+            sharedLabel.textColor = theme.accentText
+            cloudIcon.contentTintColor = theme.accentText
+            // Create light-tinted icon for selection
+            if let original = originalIcon {
+                iconView.image = Self.lightenedIcon(original, amount: 0.7)
+            }
+        } else {
+            // Normal row: use theme colors
+            nameLabel.textColor = theme.textPrimary
+            sharedLabel.textColor = theme.textSecondary
+            cloudIcon.contentTintColor = theme.textSecondary
+            // Restore original icon
+            iconView.image = originalIcon
+        }
+    }
+
+    /// Creates a lightened version of an icon by blending with white
+    private static func lightenedIcon(_ icon: NSImage, amount: CGFloat) -> NSImage {
+        let size = icon.size
+        guard size.width > 0, size.height > 0 else { return icon }
+
+        let lightened = NSImage(size: size, flipped: false) { rect in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+
+            // Draw original icon
+            icon.draw(in: rect)
+
+            // Overlay white with partial opacity to lighten
+            ctx.setBlendMode(.sourceAtop)
+            ctx.setFillColor(NSColor.white.withAlphaComponent(amount).cgColor)
+            ctx.fill(rect)
+
+            return true
+        }
+        return lightened
     }
 }

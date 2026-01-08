@@ -26,11 +26,14 @@ struct AppearanceSettingsView: View {
             }
 
             Section {
-                Stepper("Font size: \(fontSize)px", value: $fontSize, in: 10...16)
-                    .controlSize(.small)
-                    .onChange(of: fontSize) { _, newValue in
-                        SettingsManager.shared.fontSize = newValue
+                Picker("Font size", selection: $fontSize) {
+                    ForEach(10...16, id: \.self) { size in
+                        Text("\(size)px").tag(size)
                     }
+                }
+                .onChange(of: fontSize) { _, newValue in
+                    SettingsManager.shared.fontSize = newValue
+                }
             }
 
             Section("Preview") {
@@ -164,9 +167,19 @@ struct FileRowPreview: View {
 
     private var iconColor: Color {
         if isSelected {
-            return Color(theme.accentText)
+            // Light version of accent color for selected icon
+            return Color(Self.lightenedColor(theme.accent, amount: 0.7))
         }
         return isDirectory ? folderColor : fileColor
+    }
+
+    /// Creates a lightened version of a color by blending with white
+    private static func lightenedColor(_ color: NSColor, amount: CGFloat) -> NSColor {
+        guard let rgb = color.usingColorSpace(.sRGB) else { return color }
+        let r = rgb.redComponent + (1 - rgb.redComponent) * amount
+        let g = rgb.greenComponent + (1 - rgb.greenComponent) * amount
+        let b = rgb.blueComponent + (1 - rgb.blueComponent) * amount
+        return NSColor(red: r, green: g, blue: b, alpha: 1.0)
     }
 
     var body: some View {

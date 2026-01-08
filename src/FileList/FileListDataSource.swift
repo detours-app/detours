@@ -82,6 +82,24 @@ var detourAccentColor: NSColor {
     ThemeManager.shared.currentTheme.accent
 }
 
+/// Text cell that responds to background style for proper selection colors
+final class ThemedTextCell: NSTableCellView {
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            updateTextColor()
+        }
+    }
+
+    private func updateTextColor() {
+        let theme = ThemeManager.shared.currentTheme
+        if backgroundStyle == .emphasized {
+            textField?.textColor = theme.accentText
+        } else {
+            textField?.textColor = theme.textSecondary
+        }
+    }
+}
+
 /// Row view with theme-aware selection color (background is drawn by BandedTableView)
 final class InactiveHidingRowView: NSTableRowView {
     var isTableActive: Bool = true {
@@ -102,6 +120,24 @@ final class InactiveHidingRowView: NSTableRowView {
         let accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
         accentColor.setFill()
         bounds.fill()
+    }
+
+    override func didAddSubview(_ subview: NSView) {
+        super.didAddSubview(subview)
+        updateCellBackgroundStyle(subview)
+    }
+
+    override var isSelected: Bool {
+        didSet {
+            for subview in subviews {
+                updateCellBackgroundStyle(subview)
+            }
+        }
+    }
+
+    private func updateCellBackgroundStyle(_ view: NSView) {
+        guard let cellView = view as? NSTableCellView else { return }
+        cellView.backgroundStyle = (isSelected && isTableActive) ? .emphasized : .normal
     }
 }
 
@@ -357,7 +393,7 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         let id = NSUserInterfaceItemIdentifier(identifier)
         let theme = ThemeManager.shared.currentTheme
 
-        if let cell = tableView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView {
+        if let cell = tableView.makeView(withIdentifier: id, owner: nil) as? ThemedTextCell {
             cell.textField?.stringValue = text
             // Always update theme colors on reused cells
             cell.textField?.font = theme.font(size: ThemeManager.shared.fontSize - 1)
@@ -365,7 +401,7 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
             return cell
         }
 
-        let cell = NSTableCellView()
+        let cell = ThemedTextCell()
         cell.identifier = id
 
         let textField = NSTextField(labelWithString: text)
