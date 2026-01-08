@@ -715,12 +715,8 @@ final class PaneViewController: NSViewController {
             return components
         }
 
-        // Keep root, then iCloud Drive, then everything after it
-        // This removes: Users, username, Library
-        var result: [(String, URL)] = []
-        result.append(components[0]) // root
-        result.append(contentsOf: components[iCloudIndex...])
-        return result
+        // Start from iCloud Drive, removing Users/username/Library
+        return Array(components[iCloudIndex...])
     }
 
     @objc private func pathControlClicked(_ sender: NSPathControl) {

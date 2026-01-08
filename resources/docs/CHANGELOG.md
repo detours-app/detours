@@ -1,5 +1,14 @@
 # Changelog
 
+## 260108 Prepare for Open Source Release
+- Added: MIT license
+- Added: Public README with features, build instructions, keyboard shortcuts
+- Added: Screenshot for README
+- Changed: iCloud breadcrumbs now start at "iCloud Drive" (removed "Users" prefix)
+- Changed: Git history rewritten with detours-app author
+- Removed: PROJECT.md, AGENTS.md (moved to .claude/CLAUDE.local.md, gitignored)
+- Removed: detour.png icon sheet (redundant with AppIcon.iconset)
+
 ## 260108 Rename Detour to Detours
 - Changed: App renamed from Detour to Detours (naming conflict)
 - Changed: Bundle ID from com.detour.app to com.detours.app

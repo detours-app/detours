@@ -1,4 +1,6 @@
 .DS_Store
+.claude/
+resources/docs/scratch.md
 /.build
 /build
 /Packages
