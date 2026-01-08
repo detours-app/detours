@@ -55,10 +55,14 @@ private struct ShortcutRow: View {
             ShortcutRecorder(action: action, isRecording: $isRecording)
 
             if ShortcutManager.shared.isCustomized(action) {
-                Image(systemName: "pencil.circle.fill")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-                    .help("Custom shortcut")
+                Button {
+                    ShortcutManager.shared.setKeyCombo(nil, for: action)
+                } label: {
+                    Image(systemName: "arrow.uturn.backward.circle")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Reset to default")
             }
         }
     }
