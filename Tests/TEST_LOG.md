@@ -3,7 +3,7 @@
 ## Latest Run
 - Started: 2026-01-08 12:11:17
 - Ended: 2026-01-08 12:11:18
-- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/PreferencesTests`
+- Command: `xcodebuild test -scheme Detours -destination 'platform=macOS' -only-testing:DetoursTests/PreferencesTests`
 - Status: PASS
 - Total tests: 20 (PreferencesTests) + 6 (GitStatusTests)
 

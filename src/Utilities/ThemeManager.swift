@@ -1,7 +1,7 @@
 import AppKit
 import os.log
 
-private let logger = Logger(subsystem: "com.detour", category: "theme")
+private let logger = Logger(subsystem: "com.detours", category: "theme")
 
 /// Manages the current theme and applies it to UI components
 @MainActor

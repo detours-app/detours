@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Detour is a native macOS app. Source lives in `src/` with feature folders like
+Detours is a native macOS app. Source lives in `src/` with feature folders like
 `src/App/` (entry/menu), `src/Windows/`, `src/Panes/`, `src/FileList/`,
 `src/Operations/`, and `src/Services/`. Specs are in `resources/specs/` with
 date-prefixed names (e.g. `260105-stage1-foundation.md`), and docs live in
@@ -9,9 +9,9 @@ date-prefixed names (e.g. `260105-stage1-foundation.md`), and docs live in
 in `Tests/`.
 
 ## Build, Test, and Development Commands
-- `./scripts/build-app.sh`: release build and create `build/Detour.app`.
+- `./scripts/build-app.sh`: release build and create `build/Detours.app`.
 - `./scripts/build.sh`: debug build and refresh the existing app bundle in `build/`.
-- `open build/Detour.app`: launch the built app.
+- `open build/Detours.app`: launch the built app.
 - `swift build`: compile the Swift package without packaging.
 - `xcodebuild test`: run tests from Xcode or the command line.
 

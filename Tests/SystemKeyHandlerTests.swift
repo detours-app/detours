@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import Detour
+@testable import Detours
 
 @MainActor
 final class SystemKeyHandlerTests: XCTestCase {

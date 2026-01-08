@@ -1,4 +1,4 @@
-# Detour - macOS File Manager Overview
+# Detours - macOS File Manager Overview
 
 ## Meta
 - Status: Draft
@@ -6,7 +6,7 @@
 
 ## Vision
 
-Detour is a native macOS file manager built as a full Finder replacement. Inspired by Bloom's refined dual-pane experience, Detour adds the missing piece: Finder-style tabs within each pane.
+Detours is a native macOS file manager built as a full Finder replacement. Inspired by Bloom's refined dual-pane experience, Detours adds the missing piece: Finder-style tabs within each pane.
 
 **Core philosophy:** Keyboard-first, dual-pane, tabbed, fast.
 
@@ -27,7 +27,7 @@ Detour is a native macOS file manager built as a full Finder replacement. Inspir
    - Tab shows directory name, full path on hover
 
 3. **Cmd-P Quick Navigation**
-   - Substring search: "tour" matches `~/Dev/detour`, "doc" matches `~/Documents`
+   - Substring search: "tour" matches `~/Dev/detours`, "doc" matches `~/Documents`
    - Searches recent directories (automatic frecency tracking)
    - Also accepts full path typing
    - Ranked by frecency (frequency + recency)
@@ -120,11 +120,11 @@ Detour is a native macOS file manager built as a full Finder replacement. Inspir
 ### Project Structure
 
 ```
-detour/
-├── Detour.xcodeproj
+detours/
+├── Detours.xcodeproj
 ├── src/
 │   ├── App/
-│   │   ├── DetourApp.swift           # App entry point
+│   │   ├── DetoursApp.swift           # App entry point
 │   │   ├── AppDelegate.swift         # NSApplicationDelegate
 │   │   └── MainMenu.swift            # Menu bar setup
 │   │
@@ -238,7 +238,7 @@ Full App Sandbox is impractical for a Finder replacement - you'd need constant p
 │                                 │                                       │
 │                                 │                                       │
 ├─────────────────────────────────┴───────────────────────────────────────┤
-│ 4 items                                              ~/Dev/detour       │
+│ 4 items                                              ~/Dev/detours       │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -378,7 +378,7 @@ Base unit: **4px**
 │     ~/Dev/det▌                             │
 │                                            │
 ├────────────────────────────────────────────┤
-│  ★  ~/Dev/detour                      ↵    │
+│  ★  ~/Dev/detours                      ↵    │
 │  ★  ~/Documents                            │
 │     ~/Dev/other-project                    │
 │     ~/Downloads                            │
@@ -550,7 +550,7 @@ Future specs will detail each stage. This is the sequencing:
 - [x] Preferences window
 - [x] Keyboard shortcut customization
 - [x] Custom theming
-- [ ] Git status indicators
+- [x] Git status indicators
 
 ### Stage 7: Folder Expansion
 - Spec: `260106-stage7-folder-expansion.md`

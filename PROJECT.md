@@ -1,12 +1,12 @@
 # PROJECT.md
 
-Project-specific instructions for AI agents working on Detour.
+Project-specific instructions for AI agents working on Detours.
 
 ---
 
 ## Project Overview
 
-Detour is a native macOS file manager - a Finder replacement with dual-pane layout and tabs.
+Detours is a native macOS file manager - a Finder replacement with dual-pane layout and tabs.
 
 **Tech stack:** Swift 5.9+, AppKit, SwiftUI (for dialogs), macOS 14.0+
 
@@ -92,8 +92,8 @@ This script:
 
 To avoid permission prompts on every rebuild, we use a dedicated keychain with a self-signed certificate:
 
-1. Created a separate keychain: `~/Library/Keychains/detour-codesign.keychain-db`
-2. Generated a self-signed certificate named "Detour Dev" in that keychain
+1. Created a separate keychain: `~/Library/Keychains/detours-codesign.keychain-db`
+2. Generated a self-signed certificate named "Detours Dev" in that keychain
 3. The keychain has no password, so it unlocks automatically
 4. The build script signs the app with this certificate on every build
 
@@ -115,7 +115,7 @@ Run `swiftlint lint --quiet` before building and committing. Config is in `.swif
 
 **NEVER run the full test suite.** Always run tests one file at a time:
 ```bash
-xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/SomeTestClass
+xcodebuild test -scheme Detours -destination 'platform=macOS' -only-testing:DetoursTests/SomeTestClass
 ```
 
 **NEVER use "pre-existing" as an excuse.** If a test fails, fix it. All failures are your responsibility.

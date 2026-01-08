@@ -3,18 +3,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "Detour",
+    name: "Detours",
     platforms: [
         .macOS(.v14)
     ],
     targets: [
         .executableTarget(
-            name: "Detour",
+            name: "Detours",
             path: "src"
         ),
         .testTarget(
-            name: "DetourTests",
-            dependencies: ["Detour"],
+            name: "DetoursTests",
+            dependencies: ["Detours"],
             path: "Tests",
             exclude: ["TEST_LOG.md"]
         ),

@@ -3,7 +3,7 @@
 ## Meta
 - Status: Complete
 - Branch: feature/stage2-tabs
-- Parent: [260105-detour-overview.md](260105-detour-overview.md)
+- Parent: [260105-detours-overview.md](260105-detours-overview.md)
 
 ## Goal
 
@@ -122,7 +122,7 @@ Each tab is represented by a `PaneTab` model that owns:
 - Save session state on terminate
 
 **scripts/build.sh** / **scripts/build-app.sh**
-- Codesign `build/Detour.app` with a stable local identity to avoid repeated TCC prompts
+- Codesign `build/Detours.app` with a stable local identity to avoid repeated TCC prompts
 - Support overrides via `CODESIGN_IDENTITY` and `CODESIGN_KEYCHAIN`
 
 **src/App/MainMenu.swift**
@@ -158,7 +158,7 @@ Tab dragging uses `NSPasteboardItem` with a custom UTI for internal drag.
   2. Target pane inserts tab at drop index
   3. Both tab bars reload
 
-**UTI:** `com.detour.tab` (private, internal only)
+**UTI:** `com.detours.tab` (private, internal only)
 
 ### Visual Specifications
 

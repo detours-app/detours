@@ -1,5 +1,5 @@
 import XCTest
-@testable import Detour
+@testable import Detours
 
 final class GitStatusTests: XCTestCase {
 

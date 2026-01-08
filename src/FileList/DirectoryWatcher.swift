@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-private let logger = Logger(subsystem: "com.detour", category: "watcher")
+private let logger = Logger(subsystem: "com.detours", category: "watcher")
 
 /// Monitors a directory for filesystem changes using DispatchSource.
 final class DirectoryWatcher {

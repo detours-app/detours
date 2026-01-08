@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-private let logger = Logger(subsystem: "com.detour", category: "frecency")
+private let logger = Logger(subsystem: "com.detours", category: "frecency")
 
 /// Persists directory visit history and calculates frecency scores.
 /// Frecency = frequency + recency - ranks items by combining visit count with time decay.
@@ -15,7 +15,7 @@ final class FrecencyStore {
 
     private let storageURL: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let detourDir = appSupport.appendingPathComponent("Detour")
+        let detourDir = appSupport.appendingPathComponent("Detours")
         try? FileManager.default.createDirectory(at: detourDir, withIntermediateDirectories: true)
         return detourDir.appendingPathComponent("frecency.json")
     }()

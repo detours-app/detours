@@ -86,7 +86,7 @@ Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchic
 - Save/restore expansion state on tab switch
 
 **Windows/MainSplitViewController.swift**
-- Add session keys: `Detour.LeftPaneExpansions`, `Detour.RightPaneExpansions`
+- Add session keys: `Detours.LeftPaneExpansions`, `Detours.RightPaneExpansions`
 - Update `saveSession()` / `restoreSession()` to encode/decode expansion per tab
 
 ### Customization Preservation

@@ -1,5 +1,11 @@
 # Changelog
 
+## 260108 Rename Detour to Detours
+- Changed: App renamed from Detour to Detours (naming conflict)
+- Changed: Bundle ID from com.detour.app to com.detours.app
+- Changed: GitHub repo renamed to MAF27/detours
+- Changed: All source files, tests, docs, and build scripts updated
+
 ## 260108 Stage 6 Complete - Phase 6 Git Status & Phase 7 Polish
 - Added: Git status indicators (2px colored bars in left gutter)
 - Added: GitStatusProvider actor with 5-second caching
@@ -87,7 +93,7 @@
 - Changed: Quick Open panel wider (700px) with SF Mono font to match file list
 - Changed: Placeholder text changed to "Quick Open..."
 - Updated: PROJECT.md with standard repo structure and code signing docs
-- Moved: Detour.entitlements to project root
+- Moved: Detours.entitlements to project root
 
 ## 260106 UX Fixes
 - Added: Cmd-Left/Right for back/forward navigation
@@ -109,12 +115,12 @@
 ## 260106 UX Polish and Visual Refinements
 - Added: Teal accent color for file selection, tab highlight, and folder icons
 - Added: iCloud download status icon for not-downloaded files
-- Added: Get Info panel (Cmd-I) - opens Finder info window positioned left of Detour
+- Added: Get Info panel (Cmd-I) - opens Finder info window positioned left of Detours
 - Added: Copy Path to clipboard (Cmd-Option-C)
 - Added: Show in Finder action (File menu)
 - Added: Undo support for rename operations (Cmd-Z)
 - Added: Shift-Arrow selection for extending file selection
-- Added: Info windows close automatically when Detour quits
+- Added: Info windows close automatically when Detours quits
 - Added: 6 new tests for Get Info, Copy Path, and menu validation
 - Changed: Folder icons tinted with teal accent color
 - Changed: Lighter file list background (improved readability)

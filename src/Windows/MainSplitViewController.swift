@@ -1,7 +1,7 @@
 import AppKit
 import os.log
 
-private let logger = Logger(subsystem: "com.detour", category: "split")
+private let logger = Logger(subsystem: "com.detours", category: "split")
 
 final class MainSplitViewController: NSSplitViewController {
     private let leftPane = PaneViewController()
@@ -13,15 +13,15 @@ final class MainSplitViewController: NSSplitViewController {
     private var quickNavController: QuickNavController?
 
     private enum SessionKeys {
-        static let leftTabs = "Detour.LeftPaneTabs"
-        static let leftSelectedIndex = "Detour.LeftPaneSelectedIndex"
-        static let leftSelections = "Detour.LeftPaneSelections"
-        static let leftShowHiddenFiles = "Detour.LeftPaneShowHiddenFiles"
-        static let rightTabs = "Detour.RightPaneTabs"
-        static let rightSelectedIndex = "Detour.RightPaneSelectedIndex"
-        static let rightSelections = "Detour.RightPaneSelections"
-        static let rightShowHiddenFiles = "Detour.RightPaneShowHiddenFiles"
-        static let activePane = "Detour.ActivePane"
+        static let leftTabs = "Detours.LeftPaneTabs"
+        static let leftSelectedIndex = "Detours.LeftPaneSelectedIndex"
+        static let leftSelections = "Detours.LeftPaneSelections"
+        static let leftShowHiddenFiles = "Detours.LeftPaneShowHiddenFiles"
+        static let rightTabs = "Detours.RightPaneTabs"
+        static let rightSelectedIndex = "Detours.RightPaneSelectedIndex"
+        static let rightSelections = "Detours.RightPaneSelections"
+        static let rightShowHiddenFiles = "Detours.RightPaneShowHiddenFiles"
+        static let activePane = "Detours.ActivePane"
     }
 
     override func viewDidLoad() {

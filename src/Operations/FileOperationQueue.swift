@@ -308,11 +308,11 @@ final class FileOperationQueue {
 
         let invalidChars = CharacterSet(charactersIn: ":/")
         if newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            throw FileOperationError.unknown(NSError(domain: "Detour", code: 1, userInfo: [NSLocalizedDescriptionKey: "Name cannot be empty."]))
+            throw FileOperationError.unknown(NSError(domain: "Detours", code: 1, userInfo: [NSLocalizedDescriptionKey: "Name cannot be empty."]))
         }
 
         if newName.rangeOfCharacter(from: invalidChars) != nil {
-            throw FileOperationError.unknown(NSError(domain: "Detour", code: 1, userInfo: [NSLocalizedDescriptionKey: "Name contains invalid characters."]))
+            throw FileOperationError.unknown(NSError(domain: "Detours", code: 1, userInfo: [NSLocalizedDescriptionKey: "Name contains invalid characters."]))
         }
 
         let destination = item.deletingLastPathComponent().appendingPathComponent(newName)

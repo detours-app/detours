@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-private let logger = Logger(subsystem: "com.detour", category: "spotlight")
+private let logger = Logger(subsystem: "com.detours", category: "spotlight")
 
 /// Manages async NSMetadataQuery for folder search.
 /// Results stream in progressively via callback, never blocking the main thread.

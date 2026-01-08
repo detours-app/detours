@@ -18,7 +18,22 @@ final class PaneTab {
 
     /// Directory name for tab title
     var title: String {
-        currentDirectory.lastPathComponent
+        let name = currentDirectory.lastPathComponent
+        switch name {
+        case "com~apple~CloudDocs":
+            return "Shared"
+        case "Mobile Documents":
+            return "iCloud Drive"
+        default:
+            // Check for iCloud app container names (e.g., "com~apple~Automator")
+            if name.hasPrefix("com~apple~") || name.hasPrefix("com~") {
+                // Try to get localized name from file system
+                if let localizedName = try? currentDirectory.resourceValues(forKeys: [.localizedNameKey]).localizedName {
+                    return localizedName
+                }
+            }
+            return name
+        }
     }
 
     /// Full path for tooltip, with ~ for home directory

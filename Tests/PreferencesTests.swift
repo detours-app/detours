@@ -1,19 +1,19 @@
 import XCTest
-@testable import Detour
+@testable import Detours
 
 @MainActor
 final class PreferencesTests: XCTestCase {
 
     override func setUp() async throws {
         // Clear any saved settings before each test
-        UserDefaults.standard.removeObject(forKey: "Detour.Settings")
+        UserDefaults.standard.removeObject(forKey: "Detours.Settings")
     }
 
     // MARK: - Settings Manager Tests
 
     func testSettingsManagerDefaults() async throws {
         // Clear settings to get fresh defaults
-        UserDefaults.standard.removeObject(forKey: "Detour.Settings")
+        UserDefaults.standard.removeObject(forKey: "Detours.Settings")
 
         // Create a fresh instance by accessing the settings
         let settings = SettingsManager.shared.settings
@@ -35,7 +35,7 @@ final class PreferencesTests: XCTestCase {
         SettingsManager.shared.fontSize = 14
 
         // Verify settings were saved to UserDefaults
-        guard let data = UserDefaults.standard.data(forKey: "Detour.Settings"),
+        guard let data = UserDefaults.standard.data(forKey: "Detours.Settings"),
               let savedSettings = try? JSONDecoder().decode(Settings.self, from: data) else {
             XCTFail("Settings should be saved to UserDefaults")
             return

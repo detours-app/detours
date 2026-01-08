@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Detour
+@testable import Detours
 
 @Suite("DirectoryWatcher Tests")
 struct DirectoryWatcherTests {

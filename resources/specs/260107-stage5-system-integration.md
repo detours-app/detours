@@ -10,7 +10,7 @@
 
 ### Problem
 
-Detour lacks standard macOS file manager integrations: no Quick Look preview, no right-click context menu, no drag-drop with external apps, and no Open With or Services support. Users expect these features from any native file manager.
+Detours lacks standard macOS file manager integrations: no Quick Look preview, no right-click context menu, no drag-drop with external apps, and no Open With or Services support. Users expect these features from any native file manager.
 
 ### Solution
 
@@ -45,8 +45,8 @@ Add Quick Look (Space to preview), context menus, file drag-drop with external a
 - Services > (standard macOS Services submenu)
 
 **Drag-Drop:**
-- Drag files out of Detour to external apps (Mail, Terminal, Slack, etc.)
-- Drop files into Detour from Finder or other apps
+- Drag files out of Detours to external apps (Mail, Terminal, Slack, etc.)
+- Drop files into Detours from Finder or other apps
 - Drop onto folder: move/copy into that folder
 - Drop onto file list background: move/copy into current directory
 - Hold Option while dropping: always copy (don't move)
@@ -243,7 +243,7 @@ After implementation, manually verify:
 - [x] Services submenu shows available services
 - [x] Drag file to Terminal pastes path
 - [x] Drag file to Mail creates attachment
-- [x] Drop file from Finder into Detour copies/moves file
+- [x] Drop file from Finder into Detours copies/moves file
 - [x] Drop onto folder row moves into that folder
 - [x] Option+drop forces copy instead of move
 - [x] Drop onto tab moves into that tab's directory
@@ -253,7 +253,7 @@ After implementation, manually verify:
 - [x] End key selects last item
 - [x] Go menu shows keyboard shortcuts (Cmd+arrows)
 - [x] "Reveal in Finder" appears in File menu
-- [x] About Detour shows icon, version 0.6.0, and description
+- [x] About Detours shows icon, version 0.6.0, and description
 - [x] Mouse scrolling works in file list
 - [x] Hidden files are dimmed when displayed
 - [x] showHiddenFiles persists per tab across sessions

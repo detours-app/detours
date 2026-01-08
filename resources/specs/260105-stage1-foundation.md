@@ -3,7 +3,7 @@
 ## Meta
 - Status: Draft
 - Branch: feature/stage1-foundation
-- Parent: [260105-detour-overview.md](260105-detour-overview.md)
+- Parent: [260105-detours-overview.md](260105-detours-overview.md)
 
 ## Goal
 
@@ -14,16 +14,16 @@ Get a working dual-pane window displaying directory contents with basic keyboard
 ### Project Setup
 
 Create Xcode project with:
-- Product name: Detour
-- Bundle identifier: `com.detour.app`
+- Product name: Detours
+- Bundle identifier: `com.detours.app`
 - Language: Swift
 - Interface: XIB (not SwiftUI App, not Storyboard)
 - Deployment target: macOS 14.0
 
 Project structure per overview spec:
 ```
-detour/
-├── Detour.xcodeproj
+detours/
+├── Detours.xcodeproj
 ├── src/
 │   ├── App/
 │   ├── Windows/
@@ -49,7 +49,7 @@ detour/
 **src/App/MainMenu.swift**
 - Programmatic menu bar setup (not XIB-based menus beyond the minimal MainMenu.xib)
 - Menus for Stage 1:
-  - Detour menu: About, Quit
+  - Detours menu: About, Quit
   - File menu: Close Window (Cmd-W)
   - Edit menu: (empty placeholder)
   - View menu: (empty placeholder)
@@ -60,7 +60,7 @@ detour/
 **src/Windows/MainWindowController.swift**
 - `NSWindowController` subclass
 - Window configuration:
-  - Title: "Detour"
+  - Title: "Detours"
   - Initial size: 1200 × 700
   - Minimum size: 800 × 400
   - Style: titled, closable, miniaturizable, resizable
@@ -149,7 +149,7 @@ detour/
 - Standard macOS app plist
 - `LSUIElement`: NO (we want dock icon)
 - `NSHumanReadableCopyright`: "Copyright © 2026"
-- `CFBundleDisplayName`: "Detour"
+- `CFBundleDisplayName`: "Detours"
 
 ### Visual Styling (Stage 1 - Minimal)
 

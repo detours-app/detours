@@ -1,4 +1,4 @@
-# Detour Problem List
+# Detours Problem List
 
 ## Input and Shortcuts
 - (none currently)

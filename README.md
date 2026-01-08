@@ -1,4 +1,4 @@
-# Detour
+# Detours
 
 A native macOS file manager built as a full Finder replacement.
 
@@ -21,7 +21,7 @@ A native macOS file manager built as a full Finder replacement.
 ## Project Structure
 
 ```
-detour/
+detours/
 ├── src/              # Source code
 ├── resources/
 │   ├── docs/         # Documentation
@@ -37,7 +37,7 @@ detour/
 ./scripts/build-app.sh
 
 # Run
-open build/Detour.app
+open build/Detours.app
 ```
 
 Requires macOS 14.0+ and Swift toolchain (Xcode Command Line Tools).

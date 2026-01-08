@@ -3,13 +3,13 @@
 ## Meta
 - Status: Draft
 - Branch: feature/stage3-operations
-- Parent: [260105-detour-overview.md](260105-detour-overview.md)
+- Parent: [260105-detours-overview.md](260105-detours-overview.md)
 
 ## Goal
 
 Add core file manipulation capabilities: copy, cut, paste, move, delete, rename, duplicate, and new folder. Include progress UI for long-running operations. All operations must be undoable via Cmd-Z where the system supports it (trash).
 
-**True cut & paste:** Unlike Finder (which only has copy), Detour supports real Cmd-X to cut files. Cut files are moved on paste, not copied. Visual feedback shows cut files are pending move (dimmed in source).
+**True cut & paste:** Unlike Finder (which only has copy), Detours supports real Cmd-X to cut files. Cut files are moved on paste, not copied. Visual feedback shows cut files are pending move (dimmed in source).
 
 This stage also establishes the XCTest infrastructure for the project and includes unit tests for Stages 1-3.
 
@@ -303,7 +303,7 @@ Conflict resolution (for copy/move):
 ## Implementation Plan
 
 ### Phase 0: Test Infrastructure
-- [x] Add test target to Xcode project (DetourTests)
+- [x] Add test target to Xcode project (DetoursTests)
 - [x] Create `Tests/Helpers/TestHelpers.swift` with temp directory utilities
 - [x] Create `Tests/FileListDataSourceTests.swift` (5 tests)
 - [x] Create `Tests/FileItemTests.swift` (9 tests)
@@ -417,7 +417,7 @@ Conflict resolution (for copy/move):
 - [x] Tests for Cmd-I, Cmd-Option-C, Show in Finder menu validation
 
 ### Phase 11: Verify
-- [x] Run `xcodebuild test -scheme Detour -destination 'platform=macOS'` - all 78 tests pass
+- [x] Run `xcodebuild test -scheme Detours -destination 'platform=macOS'` - all 78 tests pass
 - [x] Cmd-C copies selected files to clipboard
 - [x] Cmd-V pastes files to current directory
 - [x] Cmd-X cuts files (source dimmed at 50% opacity)
@@ -443,7 +443,7 @@ Conflict resolution (for copy/move):
 
 Write and run these tests. All tests use real file system with temp directories. No mocks.
 
-Run with: `xcodebuild test -scheme Detour -destination 'platform=macOS'`
+Run with: `xcodebuild test -scheme Detours -destination 'platform=macOS'`
 
 ### Create Tests/Helpers/TestHelpers.swift
 - `createTempDirectory()` - creates unique temp dir, returns URL

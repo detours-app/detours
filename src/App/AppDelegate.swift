@@ -1,7 +1,7 @@
 import AppKit
 import os.log
 
-private let logger = Logger(subsystem: "com.detour", category: "events")
+private let logger = Logger(subsystem: "com.detours", category: "events")
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -128,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationIcon: NSApp.applicationIconImage as Any,
-            .applicationName: "Detour",
+            .applicationName: "Detours",
             .applicationVersion: "0.6.0",
             .version: "",  // Hide build number
             .credits: credits

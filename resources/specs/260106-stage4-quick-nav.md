@@ -3,7 +3,7 @@
 ## Meta
 - Status: Complete
 - Branch: feature/stage4-quick-nav
-- Parent: [260105-detour-overview.md](260105-detour-overview.md)
+- Parent: [260105-detours-overview.md](260105-detours-overview.md)
 
 ## Problem
 
@@ -44,11 +44,11 @@ Create `src/Navigation/` for quick navigation components.
 
 Persists directory visit history and calculates frecency scores.
 
-- Storage: JSON file at `~/Library/Application Support/Detour/frecency.json`
+- Storage: JSON file at `~/Library/Application Support/Detours/frecency.json`
 - Data structure:
   ```
   struct FrecencyEntry: Codable {
-      let path: String           // Full path like "/Users/marco/Dev/detour"
+      let path: String           // Full path like "/Users/marco/Dev/detours"
       var visitCount: Int        // Total visits
       var lastVisit: Date        // Most recent visit
   }
@@ -65,7 +65,7 @@ Persists directory visit history and calculates frecency scores.
   - For each entry, compute `score = visitCount * recencyWeight(lastVisit)`
   - `recencyWeight` returns 1.0/0.7/0.5/0.3/0.1 based on time buckets above
 - Substring matching:
-  - Query "tour" matches "/Users/marco/Dev/detour"
+  - Query "tour" matches "/Users/marco/Dev/detours"
   - Match against last path component first, then full path
   - Case-insensitive
   - Query must be a contiguous substring (not fuzzy)
@@ -84,7 +84,7 @@ SwiftUI view for the popover content.
   │     ~/Dev/det▌                             │
   │                                            │
   ├────────────────────────────────────────────┤
-  │  ★  ~/Dev/detour                      ↵    │
+  │  ★  ~/Dev/detours                      ↵    │
   │  ★  ~/Documents                            │
   │     ~/Dev/other-project                    │
   │     ~/Downloads                            │
@@ -232,9 +232,9 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 - [x] `testRecordVisitIncrementsCount` - existing path increments visitCount
 - [x] `testRecordVisitUpdatesLastVisit` - lastVisit updated to now
 - [x] `testFrecencyScoreDecaysOverTime` - older entries score lower
-- [x] `testFuzzyMatchPartialName` - "dtour" matches "detour" (substring in frecency)
+- [x] `testFuzzyMatchPartialName` - "dtour" matches "detours" (substring in frecency)
 - [x] `testFuzzyMatchCaseInsensitive` - "DOC" matches "Documents"
-- [x] `testFuzzyMatchCharactersInOrder` - "dtr" matches "detour" (frecency substring)
+- [x] `testFuzzyMatchCharactersInOrder` - "dtr" matches "detours" (frecency substring)
 - [x] `testTopDirectoriesSortedByFrecency` - higher frecency first
 - [x] `testTopDirectoriesLimit` - respects limit parameter
 - [x] `testLoadSaveRoundTrip` - data persists and loads correctly

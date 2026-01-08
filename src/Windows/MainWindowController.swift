@@ -11,7 +11,7 @@ final class MainWindowController: NSWindowController {
             defer: false
         )
 
-        window.title = "Detour"
+        window.title = "Detours"
         window.minSize = NSSize(width: 800, height: 400)
         window.center()
         window.tabbingMode = .disallowed

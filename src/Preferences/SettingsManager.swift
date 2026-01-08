@@ -1,7 +1,7 @@
 import AppKit
 import os.log
 
-private let logger = Logger(subsystem: "com.detour", category: "settings")
+private let logger = Logger(subsystem: "com.detours", category: "settings")
 
 @MainActor
 @Observable
@@ -18,7 +18,7 @@ final class SettingsManager {
     static let settingsDidChange = Notification.Name("SettingsManager.settingsDidChange")
 
     private let defaults = UserDefaults.standard
-    private let settingsKey = "Detour.Settings"
+    private let settingsKey = "Detours.Settings"
 
     private init() {
         if let data = defaults.data(forKey: settingsKey),

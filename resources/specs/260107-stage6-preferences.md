@@ -10,7 +10,7 @@
 
 ### Problem
 
-Detour has no user preferences - all keyboard shortcuts are hardcoded, there's no way to customize appearance beyond system dark/light mode, and there's no git integration to show file status. Power users expect to customize their file manager.
+Detours has no user preferences - all keyboard shortcuts are hardcoded, there's no way to customize appearance beyond system dark/light mode, and there's no git integration to show file status. Power users expect to customize their file manager.
 
 ### Solution
 
@@ -135,7 +135,7 @@ Add a Preferences window (Cmd-,) with sections for General settings, Appearance/
 **src/Preferences/GitSettingsView.swift** (new)
 - Toggle for "Show git status indicators"
 - Preview showing what the indicators look like
-- Note: "Detour shows status for files in git repositories"
+- Note: "Detours shows status for files in git repositories"
 
 **src/Preferences/ShortcutRecorder.swift** (new)
 - SwiftUI view for capturing keyboard shortcuts
@@ -199,7 +199,7 @@ Add a Preferences window (Cmd-,) with sections for General settings, Appearance/
 - Import `ShortcutManager`
 - For customizable menu items, read key equivalent from `ShortcutManager`
 - Example: `quickOpenItem.keyEquivalent = ShortcutManager.shared.keyEquivalent(for: .quickOpen)`
-- Add "Preferences..." item to Detour menu with Cmd-, shortcut
+- Add "Preferences..." item to Detours menu with Cmd-, shortcut
 
 **src/App/AppDelegate.swift**
 - Add `@objc func showPreferences(_:)` method
@@ -233,7 +233,7 @@ Add a Preferences window (Cmd-,) with sections for General settings, Appearance/
 - [x] Create `src/Preferences/` directory
 - [x] Create `Settings.swift` with all settings structs and enums
 - [x] Create `SettingsManager.swift` singleton with UserDefaults persistence
-- [x] Add "Preferences..." menu item to Detour menu (Cmd-,)
+- [x] Add "Preferences..." menu item to Detours menu (Cmd-,)
 
 **Phase 2: Preferences Window Shell**
 - [x] Create `PreferencesWindowController.swift`

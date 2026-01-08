@@ -15,7 +15,7 @@ final class PaneTabBar: NSView {
     weak var paneViewController: PaneViewController?
 
     // Drag and drop
-    static let tabPasteboardType = NSPasteboard.PasteboardType("com.detour.tab")
+    static let tabPasteboardType = NSPasteboard.PasteboardType("com.detours.tab")
     private var draggedTabIndex: Int?
     private var dropIndicatorIndex: Int?
     private var fileDropTargetTabIndex: Int?

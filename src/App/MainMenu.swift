@@ -8,13 +8,13 @@ private var dynamicMenuItems: [ShortcutAction: NSMenuItem] = [:]
 func setupMainMenu(target: AppDelegate) {
     let mainMenu = NSMenu()
 
-    // Detour menu
+    // Detours menu
     let appMenu = NSMenu()
-    let appMenuItem = NSMenuItem(title: "Detour", action: nil, keyEquivalent: "")
+    let appMenuItem = NSMenuItem(title: "Detours", action: nil, keyEquivalent: "")
     appMenuItem.submenu = appMenu
     mainMenu.addItem(appMenuItem)
 
-    appMenu.addItem(withTitle: "About Detour", action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
+    appMenu.addItem(withTitle: "About Detours", action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
     appMenu.addItem(NSMenuItem.separator())
 
     let prefsItem = NSMenuItem(title: "Preferences...", action: #selector(AppDelegate.showPreferences(_:)), keyEquivalent: ",")
@@ -22,7 +22,7 @@ func setupMainMenu(target: AppDelegate) {
     appMenu.addItem(prefsItem)
     appMenu.addItem(NSMenuItem.separator())
 
-    appMenu.addItem(withTitle: "Quit Detour", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+    appMenu.addItem(withTitle: "Quit Detours", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
     // File menu
     let fileMenu = NSMenu(title: "File")

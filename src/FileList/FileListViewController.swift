@@ -2,7 +2,7 @@ import AppKit
 import os.log
 @preconcurrency import Quartz
 
-private let logger = Logger(subsystem: "com.detour", category: "filelist")
+private let logger = Logger(subsystem: "com.detours", category: "filelist")
 
 @MainActor
 protocol FileListNavigationDelegate: AnyObject {
@@ -841,7 +841,7 @@ extension FileListViewController {
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
 
-        // Get window position to place info window to the left of Detour
+        // Get window position to place info window to the left of Detours
         let windowFrame = view.window?.frame ?? NSRect(x: 100, y: 100, width: 800, height: 600)
         let screenHeight = Int(NSScreen.main?.frame.height ?? 900)
 
