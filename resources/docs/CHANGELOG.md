@@ -1,5 +1,10 @@
 # Changelog
 
+## 260108 Open Folder from External Sources
+- Added: Open folder handler in AppDelegate (`application(_:open:)`)
+- Added: `openFolder(_:)` method in MainSplitViewController
+- Note: Attempted DefaultFolder X integration (Finder-click) but unsuccessful. Tried: AppleScript scripting dictionary (NSAppleScriptEnabled + .sdef), CFBundleDocumentTypes folder handler, setting window.representedURL for AXDocument attribute, bundle ID impersonation. None worked - DefaultFolder X appears to use hardcoded app detection beyond AXDocument.
+
 ## 260108 Prepare for Open Source Release
 - Added: MIT license
 - Added: Public README with features, build instructions, keyboard shortcuts

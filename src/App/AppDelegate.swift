@@ -45,6 +45,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.hasDirectoryPath {
+            mainWindowController?.splitViewController.openFolder(url)
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         mainWindowController?.splitViewController.saveSession()
 

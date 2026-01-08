@@ -265,6 +265,11 @@ final class MainSplitViewController: NSSplitViewController {
         FrecencyStore.shared.recordVisit(url)
     }
 
+    /// Navigate to a folder opened from an external source (e.g., DefaultFolder X, Finder)
+    func openFolder(_ url: URL) {
+        navigateActivePane(to: url)
+    }
+
     // MARK: - Tab Actions
 
     @objc func newTab(_ sender: Any?) {
