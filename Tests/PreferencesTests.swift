@@ -153,4 +153,91 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(ShortcutAction.openInEditor.displayName, "Open in Editor")
         XCTAssertEqual(ShortcutAction.refresh.displayName, "Refresh")
     }
+
+    // MARK: - ShortcutManager Tests
+
+    func testShortcutManagerDefaults() async throws {
+        // Clear any custom shortcuts
+        SettingsManager.shared.clearAllCustomShortcuts()
+
+        let sm = ShortcutManager.shared
+
+        // Verify default shortcuts match expected values
+        XCTAssertEqual(sm.keyCombo(for: .quickLook)?.keyCode, 49, "Quick Look default should be Space (keyCode 49)")
+        XCTAssertEqual(sm.keyCombo(for: .openInEditor)?.keyCode, 118, "Open in Editor default should be F4")
+        XCTAssertEqual(sm.keyCombo(for: .copyToOtherPane)?.keyCode, 96, "Copy to Other Pane default should be F5")
+        XCTAssertEqual(sm.keyCombo(for: .moveToOtherPane)?.keyCode, 97, "Move to Other Pane default should be F6")
+        XCTAssertEqual(sm.keyCombo(for: .newFolder)?.keyCode, 98, "New Folder default should be F7")
+        XCTAssertEqual(sm.keyCombo(for: .deleteToTrash)?.keyCode, 100, "Delete to Trash default should be F8")
+        XCTAssertEqual(sm.keyCombo(for: .rename)?.keyCode, 120, "Rename default should be F2")
+
+        // Shortcuts with modifiers
+        let quickOpen = sm.keyCombo(for: .quickOpen)
+        XCTAssertEqual(quickOpen?.keyCode, 35, "Quick Open should be P key (keyCode 35)")
+        XCTAssertTrue(quickOpen?.modifierFlags.contains(.command) ?? false, "Quick Open should have Command modifier")
+
+        let refresh = sm.keyCombo(for: .refresh)
+        XCTAssertEqual(refresh?.keyCode, 15, "Refresh should be R key (keyCode 15)")
+        XCTAssertTrue(refresh?.modifierFlags.contains(.command) ?? false, "Refresh should have Command modifier")
+    }
+
+    func testShortcutManagerCustomOverride() async throws {
+        // Clear any custom shortcuts first
+        SettingsManager.shared.clearAllCustomShortcuts()
+
+        let sm = ShortcutManager.shared
+
+        // Set a custom shortcut
+        let customCombo = KeyCombo(keyCode: 15, modifiers: .command) // Cmd-R for Quick Look
+        sm.setKeyCombo(customCombo, for: .quickLook)
+
+        // Verify custom shortcut is returned
+        let result = sm.keyCombo(for: .quickLook)
+        XCTAssertEqual(result?.keyCode, 15, "Custom shortcut should override default")
+        XCTAssertTrue(result?.modifierFlags.contains(.command) ?? false)
+
+        // Verify isCustomized returns true
+        XCTAssertTrue(sm.isCustomized(.quickLook), "Should report customized")
+
+        // Clear and verify default is restored
+        sm.setKeyCombo(nil, for: .quickLook)
+        XCTAssertEqual(sm.keyCombo(for: .quickLook)?.keyCode, 49, "Should return to default after clearing")
+        XCTAssertFalse(sm.isCustomized(.quickLook), "Should not report customized after clearing")
+    }
+
+    func testShortcutManagerRestoreDefaults() async throws {
+        let sm = ShortcutManager.shared
+
+        // Set multiple custom shortcuts
+        sm.setKeyCombo(KeyCombo(keyCode: 0, modifiers: .command), for: .quickLook) // Cmd-A
+        sm.setKeyCombo(KeyCombo(keyCode: 1, modifiers: .command), for: .refresh) // Cmd-S
+
+        XCTAssertTrue(sm.isCustomized(.quickLook))
+        XCTAssertTrue(sm.isCustomized(.refresh))
+
+        // Restore defaults
+        sm.restoreDefaults()
+
+        // Verify all are back to defaults
+        XCTAssertFalse(sm.isCustomized(.quickLook))
+        XCTAssertFalse(sm.isCustomized(.refresh))
+        XCTAssertEqual(sm.keyCombo(for: .quickLook)?.keyCode, 49, "Should be back to Space")
+        XCTAssertEqual(sm.keyCombo(for: .refresh)?.keyCode, 15, "Should be back to R")
+    }
+
+    func testShortcutManagerKeyEquivalent() async throws {
+        SettingsManager.shared.clearAllCustomShortcuts()
+        let sm = ShortcutManager.shared
+
+        // Quick Open (Cmd-P) should return "p"
+        XCTAssertEqual(sm.keyEquivalent(for: .quickOpen), "p")
+        XCTAssertEqual(sm.keyEquivalentModifierMask(for: .quickOpen), .command)
+
+        // Refresh (Cmd-R) should return "r"
+        XCTAssertEqual(sm.keyEquivalent(for: .refresh), "r")
+        XCTAssertEqual(sm.keyEquivalentModifierMask(for: .refresh), .command)
+
+        // Space (Quick Look) should return " "
+        XCTAssertEqual(sm.keyEquivalent(for: .quickLook), " ")
+    }
 }

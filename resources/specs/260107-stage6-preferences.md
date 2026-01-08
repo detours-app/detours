@@ -259,12 +259,12 @@ Add a Preferences window (Cmd-,) with sections for General settings, Appearance/
 - [x] Apply theme colors and fonts to existing UI components
 
 **Phase 5: Keyboard Shortcuts**
-- [ ] Create `ShortcutManager.swift` with default mappings
-- [ ] Create `ShortcutRecorder.swift` view for capturing keys
-- [ ] Create `ShortcutsSettingsView.swift`
-- [ ] Update `MainMenu.swift` to read from ShortcutManager
-- [ ] Update `FileListViewController.handleKeyDown(_:)` to use ShortcutManager
-- [ ] Implement "Restore Defaults" button
+- [x] Create `ShortcutManager.swift` with default mappings
+- [x] Create `ShortcutRecorder.swift` view for capturing keys
+- [x] Create `ShortcutsSettingsView.swift`
+- [x] Update `MainMenu.swift` to read from ShortcutManager
+- [x] Update `FileListViewController.handleKeyDown(_:)` to use ShortcutManager
+- [x] Implement "Restore Defaults" button
 
 **Phase 6: Git Status**
 - [ ] Create `GitStatusProvider.swift` actor
@@ -292,9 +292,9 @@ Tests go in `Tests/PreferencesTests.swift` and `Tests/GitStatusTests.swift`. I w
 
 - [x] `testSettingsManagerPersistence` - Settings save to and load from UserDefaults
 - [x] `testSettingsManagerDefaults` - Default values are correct when no saved settings
-- [ ] `testShortcutManagerDefaults` - Default shortcuts match expected values
-- [ ] `testShortcutManagerCustomOverride` - Custom shortcut overrides default
-- [ ] `testShortcutManagerMatches` - Event matching works for various key combos
+- [x] `testShortcutManagerDefaults` - Default shortcuts match expected values
+- [x] `testShortcutManagerCustomOverride` - Custom shortcut overrides default
+- [x] `testShortcutManagerKeyEquivalent` - Key equivalents for menu items work correctly
 - [ ] `testThemeManagerSystemTheme` - System theme follows NSAppearance
 - [ ] `testThemeManagerBuiltInThemes` - Light, Dark, Foolscap, Drafting have correct colors and fonts
 - [ ] `testThemeManagerCustomTheme` - Custom theme applies user colors and font
@@ -310,6 +310,7 @@ Tests go in `Tests/PreferencesTests.swift` and `Tests/GitStatusTests.swift`. I w
 | Date | Result | Notes |
 |------|--------|-------|
 | 2026-01-07 | PASS | 11 tests: Settings structs, SettingsManager persistence/defaults, KeyCombo, CodableColor |
+| 2026-01-08 | PASS | 15 tests: Added 4 ShortcutManager tests (defaults, custom override, key equivalent, restore defaults) |
 
 ### User Verification
 

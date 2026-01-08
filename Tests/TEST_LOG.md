@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-07 18:26:27
-- Ended: 2026-01-07 18:26:27
-- Command: `xcodebuild test -scheme Detour -destination 'platform=macOS' -only-testing:DetourTests/PreferencesTests`
+- Started: 2026-01-08 11:26:56
+- Ended: 2026-01-08 11:26:57
+- Command: `swift test --filter PreferencesTests`
 - Status: PASS
-- Total tests: 11
+- Total tests: 15
 
 ### DirectoryWatcherTests (Swift Testing)
 | Test | Status | Duration | Last Run |
@@ -52,7 +52,7 @@
 ### FileListResponderTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testTableViewNextResponderIsViewController | PASS | 0.007s | 2026-01-07 09:25:09 |
+| testTableViewIsInViewControllerHierarchy | PASS | 0.091s | 2026-01-08 11:29:04 |
 | testMenuValidationForCopyDeleteAndPaste | PASS | 0.006s | 2026-01-07 09:25:09 |
 | testHandleKeyDownHandlesCopyShortcut | PASS | 0.005s | 2026-01-07 09:25:09 |
 | testHandleKeyDownHandlesCutShortcut | PASS | 0.005s | 2026-01-07 09:25:09 |
@@ -193,19 +193,25 @@
 ### PreferencesTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testCodableColorFromHex | PASS | 0.003s | 2026-01-07 18:26:27 |
-| testCodableColorHexRoundtrip | PASS | 0.001s | 2026-01-07 18:26:27 |
-| testFontSizeClamping | PASS | 0.002s | 2026-01-07 18:26:27 |
-| testKeyComboDisplayString | PASS | 0.001s | 2026-01-07 18:26:27 |
-| testKeyComboMatches | PASS | 0.001s | 2026-01-07 18:26:27 |
-| testSettingsCodable | PASS | 0.001s | 2026-01-07 18:26:27 |
-| testSettingsEquatable | PASS | 0.001s | 2026-01-07 18:26:27 |
-| testSettingsManagerDefaults | PASS | 0.001s | 2026-01-07 18:26:27 |
-| testSettingsManagerPersistence | PASS | 0.001s | 2026-01-07 18:26:27 |
-| testShortcutActionDisplayNames | PASS | 0.001s | 2026-01-07 18:26:27 |
-| testThemeChoiceDisplayNames | PASS | 0.001s | 2026-01-07 18:26:27 |
+| testCodableColorFromHex | PASS | 0.002s | 2026-01-08 11:26:56 |
+| testCodableColorHexRoundtrip | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testFontSizeClamping | PASS | 0.001s | 2026-01-08 11:26:56 |
+| testKeyComboDisplayString | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testKeyComboMatches | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testSettingsCodable | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testSettingsEquatable | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testSettingsManagerDefaults | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testSettingsManagerPersistence | PASS | 0.001s | 2026-01-08 11:26:56 |
+| testShortcutActionDisplayNames | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testShortcutManagerCustomOverride | PASS | 0.001s | 2026-01-08 11:26:56 |
+| testShortcutManagerDefaults | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testShortcutManagerKeyEquivalent | PASS | 0.000s | 2026-01-08 11:26:56 |
+| testShortcutManagerRestoreDefaults | PASS | 0.001s | 2026-01-08 11:26:56 |
+| testThemeChoiceDisplayNames | PASS | 0.000s | 2026-01-08 11:26:56 |
 
 ## Notes
+- 2026-01-08: Fixed testTableViewNextResponderIsViewController - renamed to testTableViewIsInViewControllerHierarchy, checks view hierarchy instead of responder chain (which requires a window).
+- 2026-01-08: Added ShortcutManager tests (4 tests) for Phase 5 keyboard shortcuts: defaults, custom override, restore defaults, key equivalents.
 - 2026-01-07: Added PreferencesTests (11 tests) for Stage 6 settings infrastructure, SettingsManager, KeyCombo, CodableColor.
 - 2026-01-07: Fixed FileListResponderTests - changed testHandleKeyDownHandlesCmdIGetInfo to testMenuValidationForCmdIGetInfo to avoid opening real Finder info panels during tests.
 - 2026-01-07: Fixed DirectoryWatcherTests - increased timeout from 500ms to 2s with polling loop for FSEvents latency.

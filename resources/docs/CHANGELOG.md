@@ -1,5 +1,15 @@
 # Changelog
 
+## 260108 Stage 6 Preferences - Phase 5 Keyboard Shortcuts
+- Added: ShortcutManager for customizable keyboard shortcuts
+- Added: ShortcutRecorder view for capturing key combinations
+- Added: Shortcuts settings pane with all 11 customizable actions
+- Added: Restore Defaults button to reset all shortcuts
+- Added: Menu items update dynamically when shortcuts change
+- Added: 4 new ShortcutManager tests
+- Changed: FileListViewController now uses ShortcutManager for customizable shortcuts
+- Fixed: testTableViewNextResponderIsViewController test (checks view hierarchy instead of responder chain)
+
 ## 260108 Preferences Window Polish
 - Added: Preferences window is now resizable (500-900px wide, 350-800px tall)
 - Added: Window position and size persists across app restarts
