@@ -4,7 +4,8 @@
 - Added: ShortcutManager for customizable keyboard shortcuts
 - Added: ShortcutRecorder view for capturing key combinations
 - Added: Shortcuts settings pane with all 11 customizable actions
-- Added: Restore Defaults button to reset all shortcuts
+- Added: Open in Editor action (F4 default, opens in TextEdit)
+- Added: Per-shortcut reset button to restore default
 - Added: Menu items update dynamically when shortcuts change
 - Added: 4 new ShortcutManager tests
 - Changed: FileListViewController now uses ShortcutManager for customizable shortcuts
