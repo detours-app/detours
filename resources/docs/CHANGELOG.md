@@ -1,5 +1,9 @@
 # Changelog
 
+## 260108 Release Script and Documentation
+- Added: Release script (resources/scripts/release.sh) for building, notarizing, and tagging
+- Added: RELEASING.md with public repo sync and release workflow
+
 ## 260108 Tab Reorder and Folder Navigation Selection
 - Added: Tab reordering via drag and drop (including to rightmost position)
 - Added: Selection preserved when navigating up (Cmd+Up) - folder you left stays selected
