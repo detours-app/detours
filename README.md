@@ -31,6 +31,9 @@ cd detours-app
 # Build the app bundle
 ./resources/scripts/build.sh
 
+# Or build and install to ~/Applications
+./resources/scripts/build.sh --install
+
 # Run
 open build/Detours.app
 ```
