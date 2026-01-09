@@ -1,5 +1,9 @@
 # Changelog
 
+## 260109 Focus and Copy Selection
+- Fixed: Window now restores focus to active pane when tabbing back to app
+- Changed: Copy to other pane now selects copied files in destination pane
+
 ## 260109 Package Handling and Move Selection
 - Added: Packages (.app, .sparsebundle, etc.) now open on Enter/double-click instead of navigating into them
 - Added: "Show Package Contents" in File menu and context menu to navigate into packages

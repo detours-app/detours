@@ -336,13 +336,25 @@ final class MainSplitViewController: NSSplitViewController {
         let destinationPane = otherPane(from: pane)
         guard let destination = destinationPane.currentDirectory else { return }
 
+        // Remember the copied file names to select in destination
+        let copiedNames = items.map { $0.lastPathComponent }
+
         Task { @MainActor in
             do {
                 try await FileOperationQueue.shared.copy(items: items, to: destination)
                 destinationPane.refresh()
-                // Keep focus on source pane (Norton Commander convention)
-                if let tab = pane.selectedTab {
-                    view.window?.makeFirstResponder(tab.fileListViewController.tableView)
+                // Select copied files in destination pane
+                if let tab = destinationPane.selectedTab {
+                    let tableView = tab.fileListViewController.tableView
+                    let dataSource = tab.fileListViewController.dataSource
+                    let indicesToSelect = dataSource.items.enumerated()
+                        .filter { copiedNames.contains($0.element.name) }
+                        .map { $0.offset }
+                    if !indicesToSelect.isEmpty {
+                        tableView.selectRowIndexes(IndexSet(indicesToSelect), byExtendingSelection: false)
+                        tableView.scrollRowToVisible(indicesToSelect.first!)
+                    }
+                    view.window?.makeFirstResponder(tableView)
                 }
             } catch {
                 FileOperationQueue.shared.presentError(error)

@@ -1,6 +1,6 @@
 import AppKit
 
-final class MainWindowController: NSWindowController {
+final class MainWindowController: NSWindowController, NSWindowDelegate {
     let splitViewController = MainSplitViewController()
 
     init() {
@@ -23,6 +23,7 @@ final class MainWindowController: NSWindowController {
 
         super.init(window: window)
 
+        window.delegate = self
         window.contentViewController = splitViewController
 
         // Persist window frame
@@ -51,5 +52,14 @@ final class MainWindowController: NSWindowController {
 
     private func applyThemeBackground() {
         window?.backgroundColor = ThemeManager.shared.currentTheme.background
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        // Restore focus to the active pane's table view
+        if let tableView = splitViewController.activePane.selectedTab?.fileListViewController.tableView {
+            window?.makeFirstResponder(tableView)
+        }
     }
 }
