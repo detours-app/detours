@@ -475,24 +475,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func createNewFolder() {
         guard let currentDirectory else { return }
 
-        // If a folder is selected, create inside it; otherwise create in current directory
-        let targetDirectory: URL
-        if let selectedItem = selectedItems.first, selectedItem.isDirectory {
-            targetDirectory = selectedItem.url
-        } else {
-            targetDirectory = currentDirectory
-        }
-
         Task { @MainActor in
             do {
-                let newFolder = try await FileOperationQueue.shared.createFolder(in: targetDirectory, name: "Folder")
-                // If created inside selected folder, navigate into that folder first
-                if targetDirectory != currentDirectory {
-                    navigationDelegate?.fileListDidRequestNavigation(to: targetDirectory)
-                    // Small delay to let navigation complete, then select and rename
-                    try await Task.sleep(nanoseconds: 100_000_000) // 0.1s
-                }
-                loadDirectory(targetDirectory)
+                let newFolder = try await FileOperationQueue.shared.createFolder(in: currentDirectory, name: "Folder")
+                loadDirectory(currentDirectory)
                 selectItem(at: newFolder)
                 renameSelection()
             } catch {

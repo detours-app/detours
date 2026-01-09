@@ -34,6 +34,10 @@ Add Finder-style disclosure triangles to expand folders inline. Expansion state 
 - Restored on tab switch and app launch
 - When a folder is deleted externally, its expansion entry is removed
 
+**New Folder:**
+- If a folder is selected, Cmd-Shift-N creates new folder inside the selected folder and expands it
+- If no folder selected (or file selected), creates in current directory as before
+
 ---
 
 ## Technical
