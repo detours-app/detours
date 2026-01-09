@@ -70,6 +70,13 @@ final class SettingsManager {
         set { settings.fontSize = max(10, min(16, newValue)) }
     }
 
+    // MARK: - View Settings
+
+    var showStatusBar: Bool {
+        get { settings.showStatusBar }
+        set { settings.showStatusBar = newValue }
+    }
+
     // MARK: - Git Settings
 
     var gitStatusEnabled: Bool {

@@ -16,6 +16,8 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestMoveToOtherPane(items: [URL])
     func fileListDidRequestCopyToOtherPane(items: [URL])
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>)
+    func fileListDidChangeSelection()
+    func fileListDidLoadDirectory()
 }
 
 final class FileListViewController: NSViewController, FileListKeyHandling, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
@@ -102,6 +104,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     @objc private func tableViewSelectionDidChange(_ notification: Notification) {
         navigationDelegate?.fileListDidBecomeActive()
+        navigationDelegate?.fileListDidChangeSelection()
         refreshQuickLookPanel()
     }
 
@@ -275,6 +278,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         // Track directory visit for frecency
         FrecencyStore.shared.recordVisit(url)
+
+        navigationDelegate?.fileListDidLoadDirectory()
     }
 
     private func startWatching(_ url: URL) {
@@ -629,9 +634,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         case 36: // Enter
             openSelectedItem()
             return true
-        case 48: // Tab
-            navigationDelegate?.fileListDidRequestSwitchPane()
-            return true
+        case 48: // Tab without modifiers switches pane
+            if modifiers.isEmpty {
+                navigationDelegate?.fileListDidRequestSwitchPane()
+                return true
+            }
         case 126: // Up arrow
             moveSelectionUp(extendSelection: modifiers.contains(.shift))
             return true

@@ -12,6 +12,9 @@ struct Settings: Codable, Equatable {
     var customTheme: CustomThemeColors?
     var fontSize: Int = 13
 
+    // View
+    var showStatusBar: Bool = true
+
     // Git
     var gitStatusEnabled: Bool = true
 

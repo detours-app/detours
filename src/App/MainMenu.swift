@@ -4,6 +4,10 @@ import AppKit
 @MainActor
 private var dynamicMenuItems: [ShortcutAction: NSMenuItem] = [:]
 
+/// Reference to the view menu for dynamic tab updates
+@MainActor
+private var viewMenuDelegate: ViewMenuDelegate?
+
 @MainActor
 func setupMainMenu(target: AppDelegate) {
     let mainMenu = NSMenu()
@@ -98,27 +102,14 @@ func setupMainMenu(target: AppDelegate) {
 
     viewMenu.addItem(NSMenuItem.separator())
 
-    let nextTabItem = NSMenuItem(title: "Show Next Tab", action: #selector(AppDelegate.selectNextTab(_:)), keyEquivalent: "]")
-    nextTabItem.keyEquivalentModifierMask = [.command, .shift]
-    nextTabItem.target = target
-    viewMenu.addItem(nextTabItem)
+    // Dynamic tab selection items - populated by delegate
+    let tabSectionStart = NSMenuItem.separator()
+    tabSectionStart.tag = 1000  // Marker for tab section start
+    viewMenu.addItem(tabSectionStart)
 
-    let prevTabItem = NSMenuItem(title: "Show Previous Tab", action: #selector(AppDelegate.selectPreviousTab(_:)), keyEquivalent: "[")
-    prevTabItem.keyEquivalentModifierMask = [.command, .shift]
-    prevTabItem.target = target
-    viewMenu.addItem(prevTabItem)
-
-    viewMenu.addItem(NSMenuItem.separator())
-
-    // Cmd+1 through Cmd+9 for tab selection
-    for i in 1...9 {
-        let tabItem = NSMenuItem(title: "Select Tab \(i)", action: #selector(AppDelegate.selectTabByNumber(_:)), keyEquivalent: "\(i)")
-        tabItem.tag = i
-        tabItem.target = target
-        viewMenu.addItem(tabItem)
-    }
-
-    viewMenu.addItem(NSMenuItem.separator())
+    // Set up delegate to dynamically populate tab items
+    viewMenuDelegate = ViewMenuDelegate(target: target, tabSectionStartTag: 1000)
+    viewMenu.delegate = viewMenuDelegate
 
     let toggleHiddenItem = createDynamicMenuItem(
         title: "Toggle Hidden Files",
@@ -127,6 +118,12 @@ func setupMainMenu(target: AppDelegate) {
         target: target
     )
     viewMenu.addItem(toggleHiddenItem)
+
+    viewMenu.addItem(NSMenuItem.separator())
+
+    let showStatusBarItem = NSMenuItem(title: "Show Status Bar", action: #selector(AppDelegate.toggleStatusBar(_:)), keyEquivalent: "")
+    showStatusBarItem.target = target
+    viewMenu.addItem(showStatusBarItem)
 
     // Go menu
     let goMenu = NSMenu(title: "Go")
@@ -166,6 +163,19 @@ func setupMainMenu(target: AppDelegate) {
         target: target
     )
     goMenu.addItem(refreshItem)
+
+    goMenu.addItem(NSMenuItem.separator())
+
+    // Tab navigation - Ctrl+Tab / Ctrl+Shift+Tab (Tab without modifier switches pane)
+    let nextTabItem = NSMenuItem(title: "Next Tab", action: #selector(AppDelegate.selectNextTab(_:)), keyEquivalent: "\t")
+    nextTabItem.keyEquivalentModifierMask = .control
+    nextTabItem.target = target
+    goMenu.addItem(nextTabItem)
+
+    let prevTabItem = NSMenuItem(title: "Previous Tab", action: #selector(AppDelegate.selectPreviousTab(_:)), keyEquivalent: "\t")
+    prevTabItem.keyEquivalentModifierMask = [.control, .shift]
+    prevTabItem.target = target
+    goMenu.addItem(prevTabItem)
 
     // Window menu
     let windowMenu = NSMenu(title: "Window")
@@ -231,5 +241,67 @@ private func applyShortcut(to item: NSMenuItem, for shortcutAction: ShortcutActi
 private func updateDynamicMenuItems() {
     for (action, item) in dynamicMenuItems {
         applyShortcut(to: item, for: action)
+    }
+}
+
+// MARK: - View Menu Delegate
+
+/// Delegate that dynamically populates tab selection items in the View menu
+@MainActor
+final class ViewMenuDelegate: NSObject, NSMenuDelegate {
+    private weak var target: AppDelegate?
+    private let tabSectionStartTag: Int
+
+    init(target: AppDelegate, tabSectionStartTag: Int) {
+        self.target = target
+        self.tabSectionStartTag = tabSectionStartTag
+        super.init()
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        updateTabItems(in: menu)
+    }
+
+    private func updateTabItems(in menu: NSMenu) {
+        // Find the tab section start marker
+        guard let startIndex = menu.items.firstIndex(where: { $0.tag == tabSectionStartTag }) else {
+            return
+        }
+
+        // Remove existing dynamic tab items (tags 1-9)
+        let itemsToRemove = menu.items.filter { $0.tag >= 1 && $0.tag <= 9 }
+        for item in itemsToRemove {
+            menu.removeItem(item)
+        }
+
+        // Get current tabs from the active pane
+        guard let appDelegate = NSApp.delegate as? AppDelegate,
+              let splitVC = appDelegate.mainWindowController?.splitViewController else {
+            return
+        }
+
+        let activePane = splitVC.activePane
+        let tabs = activePane.tabs
+
+        // Insert tab items after the marker, limited to 9
+        let insertIndex = startIndex + 1
+        for (index, tab) in tabs.prefix(9).enumerated() {
+            let tabNumber = index + 1
+            let title = "Tab \(tabNumber). \(tab.title)"
+            let item = NSMenuItem(
+                title: title,
+                action: #selector(AppDelegate.selectTabByNumber(_:)),
+                keyEquivalent: "\(tabNumber)"
+            )
+            item.tag = tabNumber
+            item.target = target
+
+            // Mark current tab
+            if index == activePane.selectedTabIndex {
+                item.state = .on
+            }
+
+            menu.insertItem(item, at: insertIndex + index)
+        }
     }
 }

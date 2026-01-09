@@ -181,12 +181,15 @@ final class PaneViewController: NSViewController {
     private let iCloudButton = NSButton()
     private let pathControl = DroppablePathControl()
     private let tabContainer = NSView()
+    private let statusBar = StatusBarView()
 
     private(set) var tabs: [PaneTab] = []
     private(set) var selectedTabIndex: Int = 0
 
     private var isActive: Bool = false
     private var pathItemURLs: [URL?] = []  // URLs for each path item (nil for ellipsis)
+    private var statusBarBottomConstraint: NSLayoutConstraint?
+    private var tabContainerBottomConstraint: NSLayoutConstraint?
 
     var selectedTab: PaneTab? {
         guard selectedTabIndex >= 0 && selectedTabIndex < tabs.count else { return nil }
@@ -206,6 +209,7 @@ final class PaneViewController: NSViewController {
         setupICloudButton()
         setupPathControl()
         setupTabContainer()
+        setupStatusBar()
         setupConstraints()
 
         // Apply initial theme colors
@@ -216,6 +220,14 @@ final class PaneViewController: NSViewController {
             self,
             selector: #selector(handleThemeChange),
             name: ThemeManager.themeDidChange,
+            object: nil
+        )
+
+        // Observe settings changes for status bar visibility
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSettingsChange),
+            name: SettingsManager.settingsDidChange,
             object: nil
         )
 
@@ -309,12 +321,41 @@ final class PaneViewController: NSViewController {
         view.addSubview(tabContainer)
     }
 
+    private func setupStatusBar() {
+        view.addSubview(statusBar)
+        statusBar.isHidden = !SettingsManager.shared.settings.showStatusBar
+    }
+
+    @objc private func handleSettingsChange() {
+        updateStatusBarVisibility()
+    }
+
+    private func updateStatusBarVisibility() {
+        let shouldShow = SettingsManager.shared.settings.showStatusBar
+        statusBar.isHidden = !shouldShow
+
+        // Update constraints
+        tabContainerBottomConstraint?.isActive = false
+        statusBarBottomConstraint?.isActive = false
+
+        if shouldShow {
+            tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: statusBar.topAnchor)
+            statusBarBottomConstraint = statusBar.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        } else {
+            tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        }
+
+        tabContainerBottomConstraint?.isActive = true
+        statusBarBottomConstraint?.isActive = true
+    }
+
     private func setupConstraints() {
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         homeButton.translatesAutoresizingMaskIntoConstraints = false
         iCloudButton.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
         tabContainer.translatesAutoresizingMaskIntoConstraints = false
+        statusBar.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
             // Tab bar at top, 32px height
@@ -339,12 +380,19 @@ final class PaneViewController: NSViewController {
             pathControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
             pathControl.heightAnchor.constraint(equalToConstant: 24),
 
-            // Tab container fills remaining space
+            // Tab container fills remaining space (bottom constraint handled dynamically)
             tabContainer.topAnchor.constraint(equalTo: pathControl.bottomAnchor),
             tabContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tabContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            // Status bar at bottom, 20px height
+            statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            statusBar.heightAnchor.constraint(equalToConstant: 20),
         ])
+
+        // Set up dynamic bottom constraints based on status bar visibility
+        updateStatusBarVisibility()
     }
 
     // MARK: - Tab Management
@@ -488,6 +536,78 @@ final class PaneViewController: NSViewController {
     /// Public method to refresh the tab bar (e.g., when theme changes)
     func refreshTabBar() {
         reloadTabBar()
+    }
+
+    /// Update status bar with current directory and selection info
+    func updateStatusBar() {
+        guard let tab = selectedTab else {
+            statusBar.update(itemCount: 0, selectedCount: 0, hiddenCount: 0, selectionSize: 0, availableSpace: 0)
+            return
+        }
+
+        let dataSource = tab.fileListViewController.dataSource
+        let itemCount = dataSource.items.count
+        let selectedIndexes = tab.fileListViewController.tableView.selectedRowIndexes
+        let selectedCount = selectedIndexes.count
+
+        // Calculate hidden file count (only when not showing hidden files)
+        var hiddenCount = 0
+        if !dataSource.showHiddenFiles {
+            hiddenCount = countHiddenFiles(in: tab.currentDirectory)
+        }
+
+        // Calculate selection size
+        var selectionSize: Int64 = 0
+        for index in selectedIndexes {
+            if index < dataSource.items.count {
+                let item = dataSource.items[index]
+                if item.isDirectory {
+                    if let size = FolderSizeCache.shared.size(for: item.url) {
+                        selectionSize += size
+                    }
+                } else if let size = item.size {
+                    selectionSize += size
+                }
+            }
+        }
+
+        // Get available disk space
+        let availableSpace = getAvailableDiskSpace(for: tab.currentDirectory)
+
+        statusBar.update(
+            itemCount: itemCount,
+            selectedCount: selectedCount,
+            hiddenCount: hiddenCount,
+            selectionSize: selectionSize,
+            availableSpace: availableSpace
+        )
+    }
+
+    private func countHiddenFiles(in directory: URL) -> Int {
+        do {
+            let allContents = try FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil,
+                options: []
+            )
+            let visibleContents = try FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+            return allContents.count - visibleContents.count
+        } catch {
+            return 0
+        }
+    }
+
+    private func getAvailableDiskSpace(for url: URL) -> Int64 {
+        do {
+            let values = try url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            return values.volumeAvailableCapacityForImportantUsage ?? 0
+        } catch {
+            return 0
+        }
     }
 
     // MARK: - Navigation (delegate to selected tab)
@@ -940,6 +1060,14 @@ extension PaneViewController: FileListNavigationDelegate {
         if let splitVC = parent as? MainSplitViewController {
             splitVC.refreshPanes(matching: directories)
         }
+    }
+
+    func fileListDidChangeSelection() {
+        updateStatusBar()
+    }
+
+    func fileListDidLoadDirectory() {
+        updateStatusBar()
     }
 }
 

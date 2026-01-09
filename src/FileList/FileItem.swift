@@ -158,14 +158,45 @@ extension FileItem {
             // Draw the original icon
             icon.draw(in: rect)
 
+            // Get accent color and brighten for dark mode
+            var accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
+            let isDark = MainActor.assumeIsolated {
+                NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            }
+            if isDark {
+                accentColor = accentColor.brighterForDarkMode()
+            }
+
             // Apply accent color directly for vibrant result
             ctx.setBlendMode(.sourceAtop)
-            let accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
             ctx.setFillColor(accentColor.cgColor)
             ctx.fill(rect)
 
             return true
         }
         return tinted
+    }
+}
+
+// MARK: - Color Brightness Adjustment
+
+extension NSColor {
+    /// Returns a brighter version of the color for use in dark mode folder icons
+    func brighterForDarkMode() -> NSColor {
+        guard let color = self.usingColorSpace(.sRGB) else { return self }
+
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+
+        color.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+
+        // Increase brightness by 25%, cap at 1.0
+        let newBrightness = min(brightness + 0.25, 1.0)
+        // Slightly reduce saturation to avoid oversaturation
+        let newSaturation = saturation * 0.9
+
+        return NSColor(hue: hue, saturation: newSaturation, brightness: newBrightness, alpha: alpha)
     }
 }

@@ -5,7 +5,7 @@ private let logger = Logger(subsystem: "com.detours", category: "events")
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var mainWindowController: MainWindowController?
+    private(set) var mainWindowController: MainWindowController?
     private var systemEventMonitor: Any?
     private var keyDownEventMonitor: Any?
 
@@ -123,6 +123,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindowController?.splitViewController.toggleHiddenFiles(sender)
     }
 
+    @objc func toggleStatusBar(_ sender: Any?) {
+        SettingsManager.shared.showStatusBar.toggle()
+    }
+
     @objc func showAbout(_ sender: Any?) {
         let credits = NSAttributedString(
             string: "A fast, keyboard-driven file manager for macOS with dual-pane layout, tabs, and Quick Open navigation.",
@@ -145,5 +149,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func showPreferences(_ sender: Any?) {
         PreferencesWindowController.shared.showWindow(nil)
+    }
+}
+
+// MARK: - Menu Validation
+
+extension AppDelegate: NSMenuItemValidation {
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(toggleStatusBar(_:)) {
+            menuItem.state = SettingsManager.shared.settings.showStatusBar ? .on : .off
+        }
+        return true
     }
 }

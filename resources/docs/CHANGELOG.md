@@ -1,5 +1,14 @@
 # Changelog
 
+## 260109 Status Bar and Menu Improvements
+- Added: Finder-style status bar at bottom of each pane (item count, selection count, size selected, hidden count, available disk space)
+- Added: Toggle status bar via View menu (setting persists)
+- Added: Dynamic tab items in View menu showing "Tab 1. foldername" for existing tabs only
+- Added: Next/Previous Tab in Go menu (Ctrl+Tab / Ctrl+Shift+Tab)
+- Changed: Folder icons brighter in dark mode for better visibility
+- Changed: Tab without modifiers switches pane; Ctrl+Tab switches tabs
+- Added: /remember skill for refreshing project context
+
 ## 260108 Fix Git Status for Files with Special Characters
 - Fixed: Git status markers now appear for files with spaces or special characters in names
 - Fixed: Untracked marker visibility improved (brighter in dark mode)

@@ -417,7 +417,8 @@ final class MainSplitViewController: NSSplitViewController {
     // MARK: - Keyboard Handling
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 48 { // Tab key
+        let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
+        if event.keyCode == 48 && modifiers.isEmpty { // Tab without modifiers
             switchToOtherPane()
         } else {
             super.keyDown(with: event)
