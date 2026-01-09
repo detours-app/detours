@@ -11,6 +11,7 @@ struct FileItem {
     let name: String
     let url: URL
     let isDirectory: Bool
+    let isPackage: Bool
     let isHiddenFile: Bool
     let size: Int64?
     let dateModified: Date
@@ -19,10 +20,11 @@ struct FileItem {
     let iCloudStatus: ICloudStatus
     var gitStatus: GitStatus?
 
-    init(name: String, url: URL, isDirectory: Bool, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
+    init(name: String, url: URL, isDirectory: Bool, isPackage: Bool = false, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
         self.name = name
         self.url = url
         self.isDirectory = isDirectory
+        self.isPackage = isPackage
         self.isHiddenFile = isHiddenFile
         self.size = size
         self.dateModified = dateModified
@@ -37,6 +39,7 @@ struct FileItem {
 
         let resourceKeys: Set<URLResourceKey> = [
             .isDirectoryKey,
+            .isPackageKey,
             .fileSizeKey,
             .contentModificationDateKey,
             .localizedNameKey,
@@ -56,13 +59,14 @@ struct FileItem {
             self.name = values?.localizedName ?? url.lastPathComponent
         }
         self.isDirectory = values?.isDirectory ?? false
+        self.isPackage = values?.isPackage ?? false
         self.isHiddenFile = url.lastPathComponent.hasPrefix(".")
         self.size = isDirectory ? nil : Int64(values?.fileSize ?? 0)
         self.dateModified = values?.contentModificationDate ?? Date()
 
-        // Get system icon and tint folders with accent color
+        // Get system icon and tint folders (but not packages) with accent color
         let systemIcon = NSWorkspace.shared.icon(forFile: url.path)
-        if self.isDirectory {
+        if self.isDirectory && !self.isPackage {
             self.icon = Self.tintedFolderIcon(systemIcon)
         } else {
             self.icon = systemIcon
@@ -137,9 +141,14 @@ struct FileItem {
 // MARK: - Sorting
 
 extension FileItem {
+    /// True if this is a navigable folder (directory but not a package like .app)
+    var isNavigableFolder: Bool {
+        isDirectory && !isPackage
+    }
+
     static func sortFoldersFirst(_ items: [FileItem]) -> [FileItem] {
-        let folders = items.filter { $0.isDirectory }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        let files = items.filter { !$0.isDirectory }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        let folders = items.filter { $0.isNavigableFolder }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        let files = items.filter { !$0.isNavigableFolder }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         return folders + files
     }
 }

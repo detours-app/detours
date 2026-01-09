@@ -156,7 +156,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         guard row >= 0 && row < dataSource.items.count else { return }
 
         let item = dataSource.items[row]
-        if item.isDirectory {
+        if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         } else {
             NSWorkspace.shared.open(item.url)
@@ -359,7 +359,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         guard row >= 0 && row < dataSource.items.count else { return }
 
         let item = dataSource.items[row]
-        if item.isDirectory {
+        if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         } else {
             NSWorkspace.shared.open(item.url)
@@ -371,8 +371,18 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         guard row >= 0 && row < dataSource.items.count else { return }
 
         let item = dataSource.items[row]
-        if item.isDirectory {
+        if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestOpenInNewTab(url: item.url)
+        }
+    }
+
+    @objc func showPackageContents() {
+        let row = tableView.selectedRow
+        guard row >= 0 && row < dataSource.items.count else { return }
+
+        let item = dataSource.items[row]
+        if item.isPackage {
+            navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         }
     }
 
@@ -966,6 +976,10 @@ extension FileListViewController: NSMenuItemValidation {
             return ClipboardManager.shared.hasValidItems && currentDirectory != nil
         case #selector(newFolder(_:)):
             return currentDirectory != nil
+        case #selector(showPackageContents):
+            let row = tableView.selectedRow
+            guard row >= 0 && row < dataSource.items.count else { return false }
+            return dataSource.items[row].isPackage
         default:
             return true
         }

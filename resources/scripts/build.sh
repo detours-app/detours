@@ -44,12 +44,12 @@ fi
 echo "Touching app bundle to refresh Spotlight..."
 touch build/Detours.app
 
-if [ "$1" = "--install" ]; then
+if [ "$1" = "--no-install" ]; then
+    echo "Done! App bundle updated at build/Detours.app"
+else
     echo "Installing to ~/Applications..."
     mkdir -p ~/Applications
     rm -rf ~/Applications/Detours.app
     cp -R build/Detours.app ~/Applications/Detours.app
     echo "Done! App installed to ~/Applications/Detours.app"
-else
-    echo "Done! App bundle updated at build/Detours.app"
 fi

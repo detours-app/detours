@@ -9,6 +9,7 @@ final class FileListCell: NSTableCellView {
     private var itemURL: URL?
     private var isDropTarget: Bool = false
     private var isHiddenFile: Bool = false
+    private var isNavigableFolder: Bool = false
     private var originalIcon: NSImage?
     private var gitStatus: GitStatus?
 
@@ -127,6 +128,7 @@ final class FileListCell: NSTableCellView {
         itemURL = item.url
         self.isDropTarget = isDropTarget
         self.isHiddenFile = item.isHiddenFile
+        self.isNavigableFolder = item.isNavigableFolder
         self.gitStatus = item.gitStatus
         originalIcon = item.icon
         iconView.image = item.icon
@@ -226,8 +228,8 @@ final class FileListCell: NSTableCellView {
             nameLabel.textColor = theme.accentText
             sharedLabel.textColor = theme.accentText
             cloudIcon.contentTintColor = theme.accentText
-            // Create light-tinted icon for selection
-            if let original = originalIcon {
+            // Only lighten folder icons (which are tinted), not file/app icons
+            if isNavigableFolder, let original = originalIcon {
                 iconView.image = Self.lightenedIcon(original, amount: 0.7)
             }
         } else {

@@ -13,8 +13,15 @@ extension FileListViewController: FileListContextMenuDelegate {
             openItem.target = self
             menu.addItem(openItem)
 
-            // Open With submenu
-            if let singleFile = singleItem, !singleFile.isDirectory {
+            // Show Package Contents (only for single package selection)
+            if let singleFile = singleItem, singleFile.isPackage {
+                let showContentsItem = NSMenuItem(title: "Show Package Contents", action: #selector(showPackageContentsFromContextMenu(_:)), keyEquivalent: "")
+                showContentsItem.target = self
+                menu.addItem(showContentsItem)
+            }
+
+            // Open With submenu (for files and packages, not folders)
+            if let singleFile = singleItem, !singleFile.isNavigableFolder {
                 let openWithMenu = buildOpenWithMenu(for: singleFile.url)
                 let openWithItem = NSMenuItem(title: "Open With", action: nil, keyEquivalent: "")
                 openWithItem.submenu = openWithMenu
@@ -159,11 +166,15 @@ extension FileListViewController: FileListContextMenuDelegate {
         guard row >= 0 && row < dataSource.items.count else { return }
 
         let item = dataSource.items[row]
-        if item.isDirectory {
+        if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         } else {
             NSWorkspace.shared.open(item.url)
         }
+    }
+
+    @objc private func showPackageContentsFromContextMenu(_ sender: Any?) {
+        showPackageContents()
     }
 
     @objc private func openWithApp(_ sender: NSMenuItem) {

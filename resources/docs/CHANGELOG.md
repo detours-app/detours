@@ -1,5 +1,13 @@
 # Changelog
 
+## 260109 Package Handling and Move Selection
+- Added: Packages (.app, .sparsebundle, etc.) now open on Enter/double-click instead of navigating into them
+- Added: "Show Package Contents" in File menu and context menu to navigate into packages
+- Added: Packages sort with files, not folders
+- Changed: App/package icons keep their original appearance when selected (no lightening effect)
+- Changed: Move to other pane now selects moved files in destination pane
+- Changed: build.sh installs to ~/Applications by default (use --no-install to skip)
+
 ## 260109 Quick Open Fix
 - Fixed: Quick Open now finds items in iCloud Drive (removed overly aggressive Library filter)
 

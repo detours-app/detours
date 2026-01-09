@@ -51,6 +51,9 @@ func setupMainMenu(target: AppDelegate) {
 
     let revealInFinderItem = NSMenuItem(title: "Reveal in Finder", action: #selector(FileListViewController.showInFinder(_:)), keyEquivalent: "")
     fileMenu.addItem(revealInFinderItem)
+
+    let showPackageContentsItem = NSMenuItem(title: "Show Package Contents", action: #selector(FileListViewController.showPackageContents), keyEquivalent: "")
+    fileMenu.addItem(showPackageContentsItem)
     fileMenu.addItem(NSMenuItem.separator())
 
     // Close Tab is now Cmd-W, Close Window is Cmd-Shift-W

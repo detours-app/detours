@@ -304,22 +304,24 @@ final class MainSplitViewController: NSSplitViewController {
         let destinationPane = otherPane(from: pane)
         guard let destination = destinationPane.currentDirectory else { return }
 
-        // Remember selection index to restore after move
-        let selectedIndex = pane.selectedTab?.fileListViewController.tableView.selectedRow ?? 0
+        // Remember the moved file names to select in destination
+        let movedNames = items.map { $0.lastPathComponent }
 
         Task { @MainActor in
             do {
                 try await FileOperationQueue.shared.move(items: items, to: destination)
                 pane.refresh()
                 destinationPane.refresh()
-                // Select next file at same index (Norton Commander convention)
-                if let tab = pane.selectedTab {
+                // Select moved files in destination pane
+                if let tab = destinationPane.selectedTab {
                     let tableView = tab.fileListViewController.tableView
-                    let itemCount = tab.fileListViewController.dataSource.items.count
-                    if itemCount > 0 {
-                        let newIndex = min(selectedIndex, itemCount - 1)
-                        tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
-                        tableView.scrollRowToVisible(newIndex)
+                    let dataSource = tab.fileListViewController.dataSource
+                    let indicesToSelect = dataSource.items.enumerated()
+                        .filter { movedNames.contains($0.element.name) }
+                        .map { $0.offset }
+                    if !indicesToSelect.isEmpty {
+                        tableView.selectRowIndexes(IndexSet(indicesToSelect), byExtendingSelection: false)
+                        tableView.scrollRowToVisible(indicesToSelect.first!)
                     }
                     view.window?.makeFirstResponder(tableView)
                 }
