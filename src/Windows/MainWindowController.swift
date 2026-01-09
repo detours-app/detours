@@ -15,6 +15,7 @@ final class MainWindowController: NSWindowController {
         window.minSize = NSSize(width: 800, height: 400)
         window.center()
         window.tabbingMode = .disallowed
+        window.collectionBehavior = .fullScreenNone
 
         // Unified title bar with toolbar appearance
         window.titlebarAppearsTransparent = false

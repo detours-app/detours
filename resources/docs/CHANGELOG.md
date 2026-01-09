@@ -1,5 +1,12 @@
 # Changelog
 
+## 260109 Menu Polish
+- Changed: View menu tab items show just folder name (Safari/Finder style), not "Tab N. name"
+- Changed: Status Bar menu item swaps between "Show/Hide Status Bar" (macOS HIG pattern)
+- Changed: Toggle Hidden Files moved to same section as Status Bar
+- Removed: Full screen support (green button, menu item, Ctrl+Cmd+F)
+- Fixed: Shift+Up/Down selection now works correctly with anchor/cursor pattern
+
 ## 260109 Status Bar and Menu Improvements
 - Added: Finder-style status bar at bottom of each pane (item count, selection count, size selected, hidden count, available disk space)
 - Added: Toggle status bar via View menu (setting persists)

@@ -157,7 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleStatusBar(_:)) {
-            menuItem.state = SettingsManager.shared.settings.showStatusBar ? .on : .off
+            menuItem.title = SettingsManager.shared.settings.showStatusBar ? "Hide Status Bar" : "Show Status Bar"
         }
         return true
     }

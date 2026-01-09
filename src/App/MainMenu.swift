@@ -8,6 +8,10 @@ private var dynamicMenuItems: [ShortcutAction: NSMenuItem] = [:]
 @MainActor
 private var viewMenuDelegate: ViewMenuDelegate?
 
+/// Reference to the window menu delegate
+@MainActor
+private var windowMenuDelegate: WindowMenuDelegate?
+
 @MainActor
 func setupMainMenu(target: AppDelegate) {
     let mainMenu = NSMenu()
@@ -111,6 +115,8 @@ func setupMainMenu(target: AppDelegate) {
     viewMenuDelegate = ViewMenuDelegate(target: target, tabSectionStartTag: 1000)
     viewMenu.delegate = viewMenuDelegate
 
+    viewMenu.addItem(NSMenuItem.separator())
+
     let toggleHiddenItem = createDynamicMenuItem(
         title: "Toggle Hidden Files",
         action: #selector(AppDelegate.toggleHiddenFiles(_:)),
@@ -118,8 +124,6 @@ func setupMainMenu(target: AppDelegate) {
         target: target
     )
     viewMenu.addItem(toggleHiddenItem)
-
-    viewMenu.addItem(NSMenuItem.separator())
 
     let showStatusBarItem = NSMenuItem(title: "Show Status Bar", action: #selector(AppDelegate.toggleStatusBar(_:)), keyEquivalent: "")
     showStatusBarItem.target = target
@@ -187,6 +191,10 @@ func setupMainMenu(target: AppDelegate) {
     windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
 
     NSApp.windowsMenu = windowMenu
+
+    // Remove "Enter Full Screen" that macOS adds automatically
+    windowMenuDelegate = WindowMenuDelegate()
+    windowMenu.delegate = windowMenuDelegate
 
     // Help menu
     let helpMenu = NSMenu(title: "Help")
@@ -260,6 +268,13 @@ final class ViewMenuDelegate: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         updateTabItems(in: menu)
+        removeFullScreenItem(from: menu)
+    }
+
+    private func removeFullScreenItem(from menu: NSMenu) {
+        for item in menu.items where item.action == #selector(NSWindow.toggleFullScreen(_:)) {
+            menu.removeItem(item)
+        }
     }
 
     private func updateTabItems(in menu: NSMenu) {
@@ -287,7 +302,7 @@ final class ViewMenuDelegate: NSObject, NSMenuDelegate {
         let insertIndex = startIndex + 1
         for (index, tab) in tabs.prefix(9).enumerated() {
             let tabNumber = index + 1
-            let title = "Tab \(tabNumber). \(tab.title)"
+            let title = tab.title
             let item = NSMenuItem(
                 title: title,
                 action: #selector(AppDelegate.selectTabByNumber(_:)),
@@ -302,6 +317,19 @@ final class ViewMenuDelegate: NSObject, NSMenuDelegate {
             }
 
             menu.insertItem(item, at: insertIndex + index)
+        }
+    }
+}
+
+// MARK: - Window Menu Delegate
+
+/// Delegate that removes the "Enter Full Screen" item macOS automatically adds
+@MainActor
+final class WindowMenuDelegate: NSObject, NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        // Remove any Full Screen items that macOS adds
+        for item in menu.items where item.action == #selector(NSWindow.toggleFullScreen(_:)) {
+            menu.removeItem(item)
         }
     }
 }

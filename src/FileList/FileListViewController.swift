@@ -34,6 +34,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var hasLoadedDirectory = false
     let renameController = RenameController()
     private var directoryWatcher: DirectoryWatcher?
+    private var selectionAnchor: Int?
+    private var selectionCursor: Int?
 
     override func loadView() {
         view = NSView()
@@ -656,18 +658,53 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func moveSelectionUp(extendSelection: Bool) {
-        let current = tableView.selectedRow
-        if current > 0 {
-            tableView.selectRowIndexes(IndexSet(integer: current - 1), byExtendingSelection: extendSelection)
-            tableView.scrollRowToVisible(current - 1)
+        let selection = tableView.selectedRowIndexes
+        guard !selection.isEmpty else { return }
+
+        if extendSelection {
+            // Set anchor and cursor on first shift-select
+            if selectionAnchor == nil {
+                selectionAnchor = tableView.selectedRow
+                selectionCursor = tableView.selectedRow
+            }
+            let anchor = selectionAnchor!
+            let newCursor = max(0, selectionCursor! - 1)
+            selectionCursor = newCursor
+            let range = min(anchor, newCursor)...max(anchor, newCursor)
+            tableView.selectRowIndexes(IndexSet(integersIn: range), byExtendingSelection: false)
+            tableView.scrollRowToVisible(newCursor)
+        } else {
+            selectionAnchor = nil
+            selectionCursor = nil
+            let newRow = max(0, selection.first! - 1)
+            tableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
+            tableView.scrollRowToVisible(newRow)
         }
     }
 
     private func moveSelectionDown(extendSelection: Bool) {
-        let current = tableView.selectedRow
-        if current < dataSource.items.count - 1 {
-            tableView.selectRowIndexes(IndexSet(integer: current + 1), byExtendingSelection: extendSelection)
-            tableView.scrollRowToVisible(current + 1)
+        let selection = tableView.selectedRowIndexes
+        guard !selection.isEmpty else { return }
+        let maxRow = dataSource.items.count - 1
+
+        if extendSelection {
+            // Set anchor and cursor on first shift-select
+            if selectionAnchor == nil {
+                selectionAnchor = tableView.selectedRow
+                selectionCursor = tableView.selectedRow
+            }
+            let anchor = selectionAnchor!
+            let newCursor = min(maxRow, selectionCursor! + 1)
+            selectionCursor = newCursor
+            let range = min(anchor, newCursor)...max(anchor, newCursor)
+            tableView.selectRowIndexes(IndexSet(integersIn: range), byExtendingSelection: false)
+            tableView.scrollRowToVisible(newCursor)
+        } else {
+            selectionAnchor = nil
+            selectionCursor = nil
+            let newRow = min(maxRow, selection.last! + 1)
+            tableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
+            tableView.scrollRowToVisible(newRow)
         }
     }
 
