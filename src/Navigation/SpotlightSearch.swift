@@ -107,7 +107,6 @@ final class SpotlightSearch {
             if path.contains("/.") ||
                path.hasPrefix("/System") ||
                path.hasPrefix("/Library") ||
-               path.contains("/Library/") ||
                path.hasPrefix("/private") ||
                path.contains(".app/") ||
                path.contains(".xcodeproj/") ||

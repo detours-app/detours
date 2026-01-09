@@ -1,5 +1,8 @@
 # Changelog
 
+## 260109 Quick Open Fix
+- Fixed: Quick Open now finds items in iCloud Drive (removed overly aggressive Library filter)
+
 ## 260109 Menu Polish
 - Changed: View menu tab items show just folder name (Safari/Finder style), not "Tab N. name"
 - Changed: Status Bar menu item swaps between "Show/Hide Status Bar" (macOS HIG pattern)
