@@ -1,5 +1,17 @@
 # Changelog
 
+## 260110 Sidebar
+- Added: Collapsible sidebar with Devices and Favorites sections
+- Added: Devices section shows mounted volumes with capacity indicators
+- Added: Click device/favorite to navigate active pane
+- Added: Right-click device to eject (for ejectable volumes)
+- Added: Default favorites: Home, Applications, Documents, Downloads
+- Added: Drag folders from file list to add to Favorites
+- Added: Drag to reorder Favorites
+- Added: Right-click favorite to remove from Favorites
+- Added: Toggle Sidebar menu item (View menu) with Cmd-0 shortcut (customizable)
+- Added: Sidebar visibility and favorites persist across app restarts
+
 ## 260109 Focus and Copy Selection
 - Fixed: Window now restores focus to active pane when tabbing back to app
 - Changed: Copy to other pane now selects copied files in destination pane

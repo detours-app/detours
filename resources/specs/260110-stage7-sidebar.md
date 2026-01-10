@@ -1,7 +1,7 @@
 # Stage 7: Sidebar
 
 ## Meta
-- Status: Draft
+- Status: Implemented
 - Branch: feature/stage7-sidebar
 
 ---
@@ -175,41 +175,41 @@ Favorites are stored in `UserDefaults` as an array of path strings, managed by `
 ### Implementation Plan
 
 **Phase 1: Sidebar Infrastructure**
-- [ ] Create `src/Sidebar/` directory
-- [ ] Create `SidebarItem.swift` with enums and `VolumeInfo` struct
-- [ ] Create `SidebarDelegate.swift` protocol
-- [ ] Create `VolumeMonitor.swift` singleton with mount/unmount observation
-- [ ] Add `sidebarVisible` and `favorites` to `Settings.swift`
-- [ ] Add `.toggleSidebar` to `ShortcutAction` enum
-- [ ] Add default shortcut (Cmd-0) to `ShortcutManager.swift`
+- [x] Create `src/Sidebar/` directory
+- [x] Create `SidebarItem.swift` with enums and `VolumeInfo` struct
+- [x] Create `SidebarDelegate.swift` protocol
+- [x] Create `VolumeMonitor.swift` singleton with mount/unmount observation
+- [x] Add `sidebarVisible` and `favorites` to `Settings.swift`
+- [x] Add `.toggleSidebar` to `ShortcutAction` enum
+- [x] Add default shortcut (Cmd-0) to `ShortcutManager.swift`
 
 **Phase 2: Sidebar UI**
-- [ ] Create `SidebarItemView.swift` custom cell view
-- [ ] Create `SidebarViewController.swift` with `NSOutlineView`
-- [ ] Implement data source for Devices and Favorites sections
-- [ ] Implement selection handling (click to navigate)
-- [ ] Style with theme colors (Surface background, proper text colors)
+- [x] Create `SidebarItemView.swift` custom cell view
+- [x] Create `SidebarViewController.swift` with `NSOutlineView`
+- [x] Implement data source for Devices and Favorites sections
+- [x] Implement selection handling (click to navigate)
+- [x] Style with theme colors (Surface background, proper text colors)
 
 **Phase 3: Integration**
-- [ ] Add sidebar to `MainSplitViewController` as collapsible split item
-- [ ] Implement `toggleSidebar()` method
-- [ ] Wire up `SidebarDelegate` to navigate active pane
-- [ ] Add "Toggle Sidebar" menu item to View menu
-- [ ] Add `toggleSidebar(_:)` to `AppDelegate`
-- [ ] Save/restore sidebar visibility in session
+- [x] Add sidebar to `MainSplitViewController` as collapsible split item
+- [x] Implement `toggleSidebar()` method
+- [x] Wire up `SidebarDelegate` to navigate active pane
+- [x] Add "Toggle Sidebar" menu item to View menu
+- [x] Add `toggleSidebar(_:)` to `AppDelegate`
+- [x] Save/restore sidebar visibility in session
 
 **Phase 4: Device Features**
-- [ ] Implement context menu for devices with "Eject" option
-- [ ] Wire up eject to `NSWorkspace.unmountAndEjectDevice(at:)`
-- [ ] Handle eject errors gracefully (show system alert)
+- [x] Implement context menu for devices with "Eject" option
+- [x] Wire up eject to `NSWorkspace.unmountAndEjectDevice(at:)`
+- [x] Handle eject errors gracefully (show system alert)
 - [ ] Test with DMGs, sparse bundles, external drives, NAS
 
 **Phase 5: Favorites Features**
-- [ ] Implement drag-drop to add folders to Favorites
-- [ ] Implement drag-drop reordering within Favorites
-- [ ] Implement context menu with "Remove from Favorites"
-- [ ] Persist favorites to `UserDefaults` via `SettingsManager`
-- [ ] Handle missing favorites (deleted folders) gracefully
+- [x] Implement drag-drop to add folders to Favorites
+- [x] Implement drag-drop reordering within Favorites
+- [x] Implement context menu with "Remove from Favorites"
+- [x] Persist favorites to `UserDefaults` via `SettingsManager`
+- [x] Handle missing favorites (deleted folders) gracefully
 
 **Phase 6: Polish**
 - [ ] Test keyboard shortcut customization works
@@ -226,41 +226,53 @@ Favorites are stored in `UserDefaults` as an array of path strings, managed by `
 
 Tests go in `Tests/SidebarTests.swift`. I will write, run, and fix these tests, updating the test log after each run.
 
-- [ ] `testVolumeMonitorReturnsVolumes` - VolumeMonitor.volumes is non-empty (at least boot volume)
-- [ ] `testVolumeInfoProperties` - VolumeInfo has name, URL, icon for boot volume
-- [ ] `testSidebarItemEquality` - SidebarItem enum equality works correctly
-- [ ] `testSettingsSidebarVisibleDefault` - Default sidebarVisible is true
-- [ ] `testSettingsFavoritesDefault` - Default favorites contains home, Applications, Documents, Downloads
-- [ ] `testSettingsFavoritesPersistence` - Favorites save and load from UserDefaults
-- [ ] `testShortcutManagerToggleSidebarDefault` - Default shortcut is Cmd-0
-- [ ] `testVolumeCapacityFormatting` - Capacity formats correctly (bytes to "997G", "1.2T", etc.)
+- [x] `testVolumeMonitorReturnsVolumes` - VolumeMonitor.volumes is non-empty (at least boot volume)
+- [x] `testVolumeInfoProperties` - VolumeInfo has name, URL, icon for boot volume
+- [x] `testSidebarItemEquality` - SidebarItem enum equality works correctly
+- [x] `testSettingsSidebarVisibleDefault` - Default sidebarVisible is true
+- [x] `testSettingsFavoritesDefault` - Default favorites contains home, Applications, Documents, Downloads
+- [x] `testSettingsFavoritesPersistence` - Favorites save and load from UserDefaults
+- [x] `testShortcutManagerToggleSidebarDefault` - Default shortcut is Cmd-0
+- [x] `testVolumeCapacityFormatting` - Capacity formats correctly (bytes to "997G", "1.2T", etc.)
 
 ### Test Log
 
 | Date | Result | Notes |
 |------|--------|-------|
-| — | — | No tests run yet |
+| 2026-01-10 | 8/8 pass | All sidebar tests pass |
 
-### User Verification
+### UI Verification (MCP Automated)
 
-After implementation, manually verify:
+Use the `macos-ui-automation` MCP server to verify UI behavior. Launch app in background (`open -g`) to avoid disturbing work.
 
-- [ ] Cmd-0 toggles sidebar visibility
-- [ ] Sidebar shows "Devices" section with Macintosh HD
-- [ ] Sidebar shows "Favorites" section with default folders
-- [ ] Click device navigates active pane to volume
-- [ ] Click favorite navigates active pane to folder
-- [ ] Mount a DMG - it appears in Devices
-- [ ] Right-click DMG shows "Eject" option
-- [ ] Eject DMG removes it from Devices
-- [ ] Drag folder from file list to Favorites adds it
-- [ ] Drag to reorder Favorites works
-- [ ] Right-click favorite shows "Remove from Favorites"
-- [ ] Remove favorite removes it from list
-- [ ] Quit and relaunch - sidebar visibility persists
-- [ ] Quit and relaunch - favorites persist
-- [ ] Customize Cmd-0 in Preferences - new shortcut works
-- [ ] Sidebar looks correct in Light theme
-- [ ] Sidebar looks correct in Dark theme
-- [ ] Sidebar looks correct in Foolscap theme
-- [ ] Sidebar looks correct in Drafting theme
+**Sidebar Toggle:**
+- [ ] Find sidebar element, verify visible by default
+- [ ] Simulate Cmd-0 keystroke, verify sidebar hidden
+- [ ] Simulate Cmd-0 again, verify sidebar visible
+
+**Devices Section:**
+- [ ] Find "Devices" section header in sidebar
+- [ ] Find at least one volume (boot disk) in devices list
+- [ ] Click a device, verify file list navigates to volume root
+
+**Favorites Section:**
+- [ ] Find "Favorites" section header
+- [ ] Find default favorites (Home, Applications, Documents, Downloads)
+- [ ] Click a favorite, verify file list navigates to folder
+
+**Eject (manual - requires mounting DMG):**
+- [ ] Mount a DMG manually, verify it appears in Devices via MCP
+- [ ] Right-click DMG device, verify "Eject" menu item appears
+- [ ] Click Eject, verify DMG removed from Devices list
+
+**Favorites Management (manual - drag/drop not MCP-automatable):**
+- [ ] Drag folder to Favorites - verify it appears
+- [ ] Drag to reorder - verify order changes
+- [ ] Right-click favorite, select "Remove from Favorites" - verify removed
+
+**Persistence:**
+- [ ] Quit app, relaunch, verify sidebar visibility state preserved
+- [ ] Verify favorites list preserved after relaunch
+
+**Theme Verification:**
+- [ ] Verify sidebar renders without errors in each theme (visual spot-check)

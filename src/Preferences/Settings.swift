@@ -14,12 +14,27 @@ struct Settings: Codable, Equatable {
 
     // View
     var showStatusBar: Bool = true
+    var sidebarVisible: Bool = true
+
+    // Sidebar
+    var favorites: [String] = Settings.defaultFavorites
 
     // Git
     var gitStatusEnabled: Bool = true
 
     // Shortcuts
     var shortcuts: [ShortcutAction: KeyCombo] = [:]
+
+    /// Default favorite paths: Home, Applications, Documents, Downloads
+    static let defaultFavorites: [String] = {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return [
+            home.path,
+            "/Applications",
+            home.appendingPathComponent("Documents").path,
+            home.appendingPathComponent("Downloads").path
+        ]
+    }()
 }
 
 // MARK: - Theme Choice
@@ -136,6 +151,7 @@ enum ShortcutAction: String, Codable, CaseIterable {
     case toggleHiddenFiles
     case quickOpen
     case refresh
+    case toggleSidebar
 
     var displayName: String {
         switch self {
@@ -150,6 +166,7 @@ enum ShortcutAction: String, Codable, CaseIterable {
         case .toggleHiddenFiles: return "Toggle Hidden Files"
         case .quickOpen: return "Quick Open"
         case .refresh: return "Refresh"
+        case .toggleSidebar: return "Toggle Sidebar"
         }
     }
 }

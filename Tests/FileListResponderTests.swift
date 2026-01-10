@@ -646,4 +646,8 @@ private final class NavigationDelegateSpy: FileListNavigationDelegate {
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>) {
         refreshSourceDirectories = directories
     }
+
+    func fileListDidChangeSelection() {}
+
+    func fileListDidLoadDirectory() {}
 }

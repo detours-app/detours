@@ -4,6 +4,8 @@ import os.log
 private let logger = Logger(subsystem: "com.detours", category: "split")
 
 final class MainSplitViewController: NSSplitViewController {
+    private let sidebarViewController = SidebarViewController()
+    private var sidebarItem: NSSplitViewItem!
     private let leftPane = PaneViewController()
     private let rightPane = PaneViewController()
     private var activePaneIndex: Int = 0
@@ -22,6 +24,7 @@ final class MainSplitViewController: NSSplitViewController {
         static let rightSelections = "Detours.RightPaneSelections"
         static let rightShowHiddenFiles = "Detours.RightPaneShowHiddenFiles"
         static let activePane = "Detours.ActivePane"
+        static let sidebarVisible = "Detours.SidebarVisible"
     }
 
     override func viewDidLoad() {
@@ -32,6 +35,13 @@ final class MainSplitViewController: NSSplitViewController {
         splitView.isVertical = true
         splitView.autosaveName = "MainSplitView"
 
+        // Create sidebar item
+        sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
+        sidebarItem.canCollapse = true
+        sidebarItem.minimumThickness = SidebarViewController.width
+        sidebarItem.maximumThickness = SidebarViewController.width
+        sidebarViewController.delegate = self
+
         // Create split view items
         let leftItem = NSSplitViewItem(viewController: leftPane)
         leftItem.minimumThickness = 280
@@ -41,10 +51,15 @@ final class MainSplitViewController: NSSplitViewController {
         rightItem.minimumThickness = 280
         rightItem.holdingPriority = .defaultLow
 
+        addSplitViewItem(sidebarItem)
         addSplitViewItem(leftItem)
         addSplitViewItem(rightItem)
 
         restoreSession()
+
+        // Restore sidebar visibility
+        let sidebarVisible = defaults.object(forKey: SessionKeys.sidebarVisible) as? Bool ?? SettingsManager.shared.sidebarVisible
+        sidebarItem.isCollapsed = !sidebarVisible
 
         // Restore active pane (defaults to 0 if not saved)
         let savedActivePane = defaults.integer(forKey: SessionKeys.activePane)
@@ -143,6 +158,18 @@ final class MainSplitViewController: NSSplitViewController {
         defaults.set(encodeSelections(rightPane.tabSelections), forKey: SessionKeys.rightSelections)
         defaults.set(rightPane.tabShowHiddenFiles, forKey: SessionKeys.rightShowHiddenFiles)
         defaults.set(activePaneIndex, forKey: SessionKeys.activePane)
+        defaults.set(!sidebarItem.isCollapsed, forKey: SessionKeys.sidebarVisible)
+    }
+
+    // MARK: - Sidebar
+
+    func toggleSidebar() {
+        sidebarItem.animator().isCollapsed.toggle()
+        SettingsManager.shared.sidebarVisible = !sidebarItem.isCollapsed
+    }
+
+    var isSidebarVisible: Bool {
+        !sidebarItem.isCollapsed
     }
 
     private func encodeSelections(_ selections: [[URL]]) -> [[String]] {
@@ -455,5 +482,47 @@ final class MainSplitViewController: NSSplitViewController {
 
     override func splitViewDidResizeSubviews(_ notification: Notification) {
         // Handled by autosave
+    }
+}
+
+// MARK: - SidebarDelegate
+
+extension MainSplitViewController: SidebarDelegate {
+    func sidebarDidSelectItem(_ item: SidebarItem) {
+        guard let url = item.url else { return }
+        navigateActivePane(to: url)
+    }
+
+    func sidebarDidRequestEject(_ volume: VolumeInfo) {
+        do {
+            try NSWorkspace.shared.unmountAndEjectDevice(at: volume.url)
+        } catch {
+            logger.error("Failed to eject volume: \(error.localizedDescription)")
+            // Show alert for eject failure
+            let alert = NSAlert()
+            alert.messageText = "Could not eject \"\(volume.name)\""
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
+    func sidebarDidAddFavorite(_ url: URL) {
+        var favorites = SettingsManager.shared.favorites
+        let path = url.path
+        guard !favorites.contains(path) else { return }
+        favorites.append(path)
+        SettingsManager.shared.favorites = favorites
+    }
+
+    func sidebarDidRemoveFavorite(_ url: URL) {
+        var favorites = SettingsManager.shared.favorites
+        favorites.removeAll { $0 == url.path }
+        SettingsManager.shared.favorites = favorites
+    }
+
+    func sidebarDidReorderFavorites(_ urls: [URL]) {
+        SettingsManager.shared.favorites = urls.map { $0.path }
     }
 }
