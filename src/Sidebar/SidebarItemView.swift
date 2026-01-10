@@ -5,6 +5,7 @@ final class SidebarItemView: NSTableCellView {
     private let nameLabel = NSTextField(labelWithString: "")
     private let capacityLabel = NSTextField(labelWithString: "")
     private let ejectButton = NSButton()
+    private var capacityTrailingConstraint: NSLayoutConstraint?
 
     var onEject: (() -> Void)?
 
@@ -51,7 +52,7 @@ final class SidebarItemView: NSTableCellView {
         addSubview(ejectButton)
 
         NSLayoutConstraint.activate([
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
@@ -60,11 +61,10 @@ final class SidebarItemView: NSTableCellView {
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: capacityLabel.leadingAnchor, constant: -4),
 
-            capacityLabel.trailingAnchor.constraint(equalTo: ejectButton.leadingAnchor, constant: -4),
             capacityLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             capacityLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 50),
 
-            ejectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            ejectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
             ejectButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             ejectButton.widthAnchor.constraint(equalToConstant: 10),
             ejectButton.heightAnchor.constraint(equalToConstant: 10),
@@ -93,7 +93,7 @@ final class SidebarItemView: NSTableCellView {
         if let constraint = constraints.first(where: { $0.firstAnchor == nameLabel.leadingAnchor }) {
             constraint.isActive = false
         }
-        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10).isActive = true
     }
 
     private func configureAsDevice(_ volume: VolumeInfo, theme: Theme) {
@@ -107,6 +107,15 @@ final class SidebarItemView: NSTableCellView {
         ejectButton.isHidden = !volume.isEjectable
         ejectButton.contentTintColor = theme.textSecondary
         ejectButton.alphaValue = 0.7
+
+        // Update capacity trailing constraint based on eject button visibility
+        capacityTrailingConstraint?.isActive = false
+        if volume.isEjectable {
+            capacityTrailingConstraint = capacityLabel.trailingAnchor.constraint(equalTo: ejectButton.leadingAnchor, constant: -4)
+        } else {
+            capacityTrailingConstraint = capacityLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10)
+        }
+        capacityTrailingConstraint?.isActive = true
 
         if let capacity = volume.capacityString {
             capacityLabel.isHidden = false
@@ -156,6 +165,8 @@ final class SidebarItemView: NSTableCellView {
         nameLabel.stringValue = ""
         capacityLabel.stringValue = ""
         capacityLabel.isHidden = true
+        capacityTrailingConstraint?.isActive = false
+        capacityTrailingConstraint = nil
         ejectButton.isHidden = true
         ejectButton.alphaValue = 1.0
         onEject = nil

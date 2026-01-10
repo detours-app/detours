@@ -1,5 +1,9 @@
 # Changelog
 
+## 260110 Sidebar Margins
+- Fixed: Sidebar items now have balanced 10px left/right margins
+- Fixed: Capacity label properly aligns to right edge when no eject button
+
 ## 260110 Sidebar Fixes
 - Fixed: Eject now works for sparsebundles and other removable volumes
 - Fixed: Split position between panes persists across app restarts
