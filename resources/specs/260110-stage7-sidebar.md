@@ -20,22 +20,23 @@ Cmd-P solves "go to a folder I've been to recently" but doesn't solve:
 
 ### Solution
 
-Add a collapsible sidebar on the left edge of the window showing Devices (mounted volumes with eject) and Favorites (user-curated folders). Toggle with a configurable keyboard shortcut (default Cmd-0).
+Add a sidebar on the left edge of the window showing Devices (mounted volumes with eject) and Favorites (user-curated folders). Toggle visibility with a configurable keyboard shortcut (default Cmd-0). Sections are always visible (not collapsible) to maximize horizontal space.
 
 ### Behaviors
 
 **Sidebar Visibility:**
 - Cmd-0 (default, configurable) toggles sidebar visibility
 - Sidebar state persists across app restarts
-- Sidebar width is fixed (~180px), not user-resizable
+- Sidebar width is resizable (140-300px), persisted across sessions
 - When hidden, sidebar collapses completely (no sliver)
 
 **Devices Section:**
 - Shows all mounted volumes: internal drives, external drives, DMGs, sparse bundles, network shares
-- Each device shows: icon, name, capacity indicator (e.g., "997..." like ForkLift)
+- Each device shows: icon, name, capacity indicator (e.g., "988G"), and eject button for ejectable volumes
+- Eject button appears inline for ejectable/removable volumes (DMGs, sparse bundles, external drives)
 - Click device to navigate active pane to volume root
-- Right-click device shows context menu with "Eject" option
-- Eject unmounts the volume (disabled for non-ejectable volumes like Macintosh HD)
+- Right-click device shows context menu with "Eject" option (for ejectable volumes)
+- Eject unmounts the volume
 - Devices list updates automatically when volumes mount/unmount
 
 **Favorites Section:**
@@ -48,12 +49,13 @@ Add a collapsible sidebar on the left edge of the window showing Devices (mounte
 - Favorites persist across app restarts
 
 **Visual Design:**
-- Section headers: "Devices", "Favorites" in Text Secondary, 11px SF Pro Medium
+- Section headers: "DEVICES", "FAVORITES" in uppercase, Text Secondary, 11px SF Pro Medium
+- Sections are not collapsible (no disclosure triangles) to save horizontal space
 - Items: icon (16px) + name, 24px row height
 - Selected item: Accent background (same as file list selection)
 - Hover: Surface background
-- Capacity indicator: Text Tertiary, right-aligned, truncated with "..."
-- Separator line between sections
+- Capacity indicator: Text Tertiary, right-aligned
+- Eject button: 8pt SF Symbol, 70% opacity, Text Secondary color
 - Background: Surface color
 - No scroll bars unless content exceeds height (rare)
 
@@ -65,7 +67,7 @@ Add a collapsible sidebar on the left edge of the window showing Devices (mounte
 
 The sidebar is implemented as an `NSSplitViewItem` with `isCollapsed` support, inserted as the first item in `MainSplitViewController`. This keeps the existing dual-pane architecture intact while adding a collapsible left panel.
 
-The sidebar itself is an `NSViewController` containing an `NSOutlineView` with two root items (Devices, Favorites) that expand to show their children. Using `NSOutlineView` gives us disclosure triangles, drag-drop reordering, and proper keyboard navigation for free.
+The sidebar itself is an `NSViewController` containing an `NSOutlineView` with a flat list structure: section headers (DEVICES, FAVORITES) followed by their items. Sections are not expandable/collapsible to maximize horizontal space. The `NSOutlineView` provides drag-drop reordering and proper keyboard navigation.
 
 Device monitoring uses `NSWorkspace.shared.notificationCenter` to observe `didMount` and `didUnmount` notifications. Volume information comes from `FileManager.mountedVolumeURLs(includingResourceValuesForKeys:)` with keys for capacity, icon, and ejectable status.
 
@@ -77,13 +79,12 @@ Favorites are stored in `UserDefaults` as an array of path strings, managed by `
 
 **src/Sidebar/SidebarViewController.swift** (new)
 - `NSViewController` subclass containing the sidebar UI
-- `NSOutlineView` with two sections: Devices, Favorites
+- `NSOutlineView` with flat list: section headers + items (not hierarchical)
 - `outlineView(_:viewFor:item:)` returns custom `SidebarItemView` for each row
-- `outlineView(_:isItemExpandable:)` returns true for section headers
-- `outlineView(_:numberOfChildrenOfItem:)` returns device/favorite counts
+- `outlineView(_:isItemExpandable:)` returns false for all items (no expand/collapse)
+- `flatItems()` helper builds the complete flat list
 - Click handler calls delegate method `sidebarDidSelectItem(_:)`
 - Starts observing `NSWorkspace` mount/unmount notifications in `viewDidLoad`
-- Calls `reloadDevices()` when volumes change
 - Implements `NSOutlineViewDataSource` for drag-drop favorites reordering
 - Registers for drag types to accept folder drops from file list
 
@@ -97,8 +98,9 @@ Favorites are stored in `UserDefaults` as an array of path strings, managed by `
 
 **src/Sidebar/SidebarItemView.swift** (new)
 - Custom `NSTableCellView` subclass for sidebar rows
-- Icon (16px), name label, optional capacity label (right-aligned)
-- Capacity formatted as abbreviated string (e.g., "997G", "1.2T")
+- Icon (16px), name label, optional capacity label (right-aligned), optional eject button
+- Eject button shown for ejectable volumes (8pt SF Symbol, 70% opacity)
+- Capacity formatted as abbreviated string (e.g., "988G", "1.2T")
 - Uses `ThemeManager` colors for text and selection
 
 **src/Sidebar/SidebarDelegate.swift** (new)
@@ -168,7 +170,7 @@ Favorites are stored in `UserDefaults` as an array of path strings, managed by `
 | Volume mount/unmount notifications unreliable | Also refresh on window activation as fallback |
 | Network volumes slow to query | Query volume info asynchronously, show placeholder while loading |
 | Drag-drop from file list to sidebar complex | Use standard `NSPasteboardItem` with file URLs, sidebar registers as drop target |
-| Sidebar width inconsistent across themes | Use fixed 180px width, test with all themes |
+| Sidebar width inconsistent across themes | Resizable 140-300px, width persisted per session |
 | Eject fails for in-use volumes | Show system alert on failure (NSWorkspace handles this) |
 | Favorites contain deleted folders | Filter out non-existent paths on load, show grayed out with warning icon if missing |
 

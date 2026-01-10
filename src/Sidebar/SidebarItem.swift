@@ -8,8 +8,8 @@ enum SidebarSection: CaseIterable {
 
     var title: String {
         switch self {
-        case .devices: return "Devices"
-        case .favorites: return "Favorites"
+        case .devices: return "DEVICES"
+        case .favorites: return "FAVORITES"
         }
     }
 }

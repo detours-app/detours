@@ -59,7 +59,7 @@ final class SidebarViewController: NSViewController {
         outlineView.headerView = nil
         outlineView.rowHeight = 24
         outlineView.intercellSpacing = NSSize(width: 0, height: 0)
-        outlineView.indentationPerLevel = 4
+        outlineView.indentationPerLevel = 0
         outlineView.allowsMultipleSelection = false
         outlineView.allowsEmptySelection = true
         outlineView.selectionHighlightStyle = .regular
@@ -77,11 +77,6 @@ final class SidebarViewController: NSViewController {
         outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
 
         scrollView.documentView = outlineView
-
-        // Expand sections by default
-        for section in sections {
-            outlineView.expandItem(section)
-        }
     }
 
     private func observeNotifications() {
@@ -108,7 +103,7 @@ final class SidebarViewController: NSViewController {
     }
 
     @objc private func handleVolumesChange() {
-        outlineView.reloadItem(SidebarSection.devices, reloadChildren: true)
+        outlineView.reloadData()
     }
 
     @objc private func handleThemeChange() {
@@ -117,8 +112,7 @@ final class SidebarViewController: NSViewController {
     }
 
     @objc private func handleSettingsChange() {
-        // Favorites may have changed
-        outlineView.reloadItem(SidebarSection.favorites, reloadChildren: true)
+        outlineView.reloadData()
     }
 
     private func applyTheme() {
@@ -130,9 +124,6 @@ final class SidebarViewController: NSViewController {
 
     func reloadData() {
         outlineView.reloadData()
-        for section in sections {
-            outlineView.expandItem(section)
-        }
     }
 
     // MARK: - Data
@@ -161,42 +152,29 @@ final class SidebarViewController: NSViewController {
 // MARK: - NSOutlineViewDataSource
 
 extension SidebarViewController: NSOutlineViewDataSource {
+    /// Build flat list: section header, items, section header, items...
+    private func flatItems() -> [Any] {
+        var items: [Any] = []
+        items.append(SidebarSection.devices)
+        items.append(contentsOf: devicesItems())
+        items.append(SidebarSection.favorites)
+        items.append(contentsOf: favoritesItems())
+        return items
+    }
+
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if item == nil {
-            return sections.count
+            return flatItems().count
         }
-
-        if let section = item as? SidebarSection {
-            switch section {
-            case .devices:
-                return devicesItems().count
-            case .favorites:
-                return favoritesItems().count
-            }
-        }
-
-        return 0
+        return 0  // No children - flat list
     }
 
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-        if item == nil {
-            return sections[index]
-        }
-
-        if let section = item as? SidebarSection {
-            switch section {
-            case .devices:
-                return devicesItems()[index]
-            case .favorites:
-                return favoritesItems()[index]
-            }
-        }
-
-        fatalError("Unexpected item type")
+        return flatItems()[index]
     }
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
-        return item is SidebarSection
+        return false  // Nothing is expandable
     }
 
     // MARK: - Drag Source (for favorites reordering)
@@ -213,19 +191,17 @@ extension SidebarViewController: NSOutlineViewDataSource {
 
     // MARK: - Drop Target
 
+    /// Get the index where favorites start in the flat list
+    private func favoritesStartIndex() -> Int {
+        return 1 + devicesItems().count + 1  // devices header + devices + favorites header
+    }
+
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
-        // Only accept drops on the Favorites section
-        guard let section = item as? SidebarSection, section == .favorites else {
-            // Check if dropping on root to add to favorites
-            if item == nil {
-                return []
-            }
-            return []
-        }
+        // Only accept drops at root level (flat list)
+        guard item == nil else { return [] }
 
         // Check for file URLs (folders being added to favorites)
         if let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] {
-            // Only accept directories
             for url in urls {
                 var isDirectory: ObjCBool = false
                 if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
@@ -234,19 +210,17 @@ extension SidebarViewController: NSOutlineViewDataSource {
             }
         }
 
-        // Check for favorites reordering
+        // Check for favorites reordering - only in favorites area
         if info.draggingPasteboard.string(forType: Self.favoriteDropType) != nil {
-            return .move
+            if index >= favoritesStartIndex() {
+                return .move
+            }
         }
 
         return []
     }
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
-        guard let section = item as? SidebarSection, section == .favorites else {
-            return false
-        }
-
         let pasteboard = info.draggingPasteboard
 
         // Handle favorites reordering
@@ -256,9 +230,13 @@ extension SidebarViewController: NSOutlineViewDataSource {
 
             guard let sourceIndex = favorites.firstIndex(of: sourceURL) else { return false }
 
+            // Convert flat list index to favorites-relative index
+            let favStart = favoritesStartIndex()
+            let targetFavIndex = max(0, index - favStart)
+
             favorites.remove(at: sourceIndex)
-            let targetIndex = index >= 0 ? min(index, favorites.count) : favorites.count
-            favorites.insert(sourceURL, at: targetIndex)
+            let finalIndex = min(targetFavIndex, favorites.count)
+            favorites.insert(sourceURL, at: finalIndex)
 
             delegate?.sidebarDidReorderFavorites(favorites)
             return true
