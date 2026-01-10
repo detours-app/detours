@@ -159,7 +159,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         } else {
-            NSWorkspace.shared.open(item.url)
+            FileOpenHelper.open(item.url)
         }
     }
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 260110 DMG and Eject Fixes
+- Fixed: Double-click/Enter on DMG files now mounts them (macOS Sequoia workaround)
+- Fixed: Ejecting volumes no longer blocks UI (async operation)
+- Fixed: Sidebar updates when volumes mount/unmount
+- Fixed: Keyboard input after clicking sidebar favorites (focus restoration)
+- Added: FileOpenHelper with hdiutil-based disk image mounting
+- Added: 14 unit tests for disk image detection
+
 ## 260110 Sidebar Margins
 - Fixed: Sidebar items now have balanced 10px left/right margins
 - Fixed: Capacity label properly aligns to right edge when no eject button

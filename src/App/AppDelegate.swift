@@ -1,7 +1,4 @@
 import AppKit
-import os.log
-
-private let logger = Logger(subsystem: "com.detours", category: "events")
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -19,25 +16,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         systemEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .systemDefined) { [weak self] event in
-            logger.warning("systemDefined event: type=\(event.type.rawValue) subtype=\(event.subtype.rawValue) data1=\(event.data1)")
-            guard let splitVC = self?.mainWindowController?.splitViewController else {
-                logger.error("systemDefined: splitVC is nil")
-                return event
-            }
-            let handled = splitVC.handleSystemDefinedEvent(event)
-            logger.warning("systemDefined handled=\(handled)")
-            return handled ? nil : event
+            guard let splitVC = self?.mainWindowController?.splitViewController else { return event }
+            return splitVC.handleSystemDefinedEvent(event) ? nil : event
         }
 
         keyDownEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            logger.warning("keyDown event: keyCode=\(event.keyCode) chars=\(event.characters ?? "nil")")
-            guard let splitVC = self?.mainWindowController?.splitViewController else {
-                logger.error("keyDown: splitVC is nil")
-                return event
-            }
-            let handled = splitVC.handleGlobalKeyDown(event)
-            logger.warning("keyDown handled=\(handled)")
-            return handled ? nil : event
+            guard let splitVC = self?.mainWindowController?.splitViewController else { return event }
+            return splitVC.handleGlobalKeyDown(event) ? nil : event
         }
     }
 

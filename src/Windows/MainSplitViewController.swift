@@ -560,20 +560,27 @@ extension MainSplitViewController: SidebarDelegate {
     func sidebarDidSelectItem(_ item: SidebarItem) {
         guard let url = item.url else { return }
         navigateActivePane(to: url)
+        // Restore focus to the active pane's file list
+        view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
     }
 
     func sidebarDidRequestEject(_ volume: VolumeInfo) {
-        do {
-            try NSWorkspace.shared.unmountAndEjectDevice(at: volume.url)
-        } catch {
-            logger.error("Failed to eject volume: \(error.localizedDescription)")
-            // Show alert for eject failure
-            let alert = NSAlert()
-            alert.messageText = "Could not eject \"\(volume.name)\""
-            alert.informativeText = error.localizedDescription
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
+        let volumeURL = volume.url
+        let volumeName = volume.name
+        Task.detached {
+            do {
+                try NSWorkspace.shared.unmountAndEjectDevice(at: volumeURL)
+            } catch {
+                await MainActor.run {
+                    logger.error("Failed to eject volume: \(error.localizedDescription)")
+                    let alert = NSAlert()
+                    alert.messageText = "Could not eject \"\(volumeName)\""
+                    alert.informativeText = error.localizedDescription
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
         }
     }
 

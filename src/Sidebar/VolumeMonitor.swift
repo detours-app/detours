@@ -45,17 +45,23 @@ final class VolumeMonitor {
     }
 
     @objc private func handleVolumeMount(_ notification: Notification) {
-        logger.info("Volume mounted")
-        refreshVolumes()
+        DispatchQueue.main.async { [weak self] in
+            logger.info("Volume mounted")
+            self?.refreshVolumes()
+        }
     }
 
     @objc private func handleVolumeUnmount(_ notification: Notification) {
-        logger.info("Volume unmounted")
-        refreshVolumes()
+        DispatchQueue.main.async { [weak self] in
+            logger.info("Volume unmounted")
+            self?.refreshVolumes()
+        }
     }
 
     @objc private func handleWindowActivation(_ notification: Notification) {
-        refreshVolumes()
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshVolumes()
+        }
     }
 
     func refreshVolumes() {
