@@ -66,6 +66,10 @@ final class SidebarViewController: NSViewController {
         outlineView.dataSource = self
         outlineView.delegate = self
 
+        // Set up context menu
+        outlineView.menu = NSMenu()
+        outlineView.menu?.delegate = self
+
         // Register for drag operations
         outlineView.registerForDraggedTypes([.fileURL, Self.favoriteDropType])
         outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
@@ -317,24 +321,21 @@ extension SidebarViewController: NSOutlineViewDelegate {
         outlineView.deselectAll(nil)
     }
 
-    // MARK: - Context Menu
-
     func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
         return nil  // Use default
     }
+}
 
-    // Handle right-click menu
-    override func rightMouseDown(with event: NSEvent) {
-        let point = outlineView.convert(event.locationInWindow, from: nil)
-        let row = outlineView.row(at: point)
+// MARK: - NSMenuDelegate
 
-        guard row >= 0 else {
-            super.rightMouseDown(with: event)
-            return
-        }
+extension SidebarViewController: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        let row = outlineView.clickedRow
+        guard row >= 0 else { return }
 
         let item = outlineView.item(atRow: row)
-        let menu = NSMenu()
 
         if let volume = item as? VolumeInfo, volume.isEjectable {
             let ejectItem = NSMenuItem(title: "Eject", action: #selector(handleEject(_:)), keyEquivalent: "")
@@ -347,12 +348,5 @@ extension SidebarViewController: NSOutlineViewDelegate {
             removeItem.representedObject = url
             menu.addItem(removeItem)
         }
-
-        if menu.items.isEmpty {
-            super.rightMouseDown(with: event)
-            return
-        }
-
-        NSMenu.popUpContextMenu(menu, with: event, for: outlineView)
     }
 }

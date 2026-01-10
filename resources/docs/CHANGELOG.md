@@ -1,5 +1,10 @@
 # Changelog
 
+## 260110 Sidebar Fixes
+- Fixed: Eject now works for sparsebundles and other removable volumes
+- Fixed: Split position between panes persists across app restarts
+- Fixed: Build script creates single app (no Spotlight duplicate)
+
 ## 260110 Sidebar
 - Added: Collapsible sidebar with Devices and Favorites sections
 - Added: Devices section shows mounted volumes with capacity indicators

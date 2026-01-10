@@ -25,6 +25,7 @@ final class MainSplitViewController: NSSplitViewController {
         static let rightShowHiddenFiles = "Detours.RightPaneShowHiddenFiles"
         static let activePane = "Detours.ActivePane"
         static let sidebarVisible = "Detours.SidebarVisible"
+        static let splitDividerPosition = "Detours.SplitDividerPosition"
     }
 
     override func viewDidLoad() {
@@ -33,7 +34,7 @@ final class MainSplitViewController: NSSplitViewController {
         // Configure split view
         splitView.dividerStyle = .thin
         splitView.isVertical = true
-        splitView.autosaveName = "MainSplitViewV2"  // V2: includes sidebar
+        // Note: Manual position saving instead of autosaveName (unreliable with sidebar)
 
         // Create sidebar item
         sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
@@ -124,22 +125,43 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func restoreSplitPosition() -> Bool {
-        // Check for V2 (with sidebar) autosave data
-        guard let frames = UserDefaults.standard.array(forKey: "NSSplitView Subview Frames MainSplitViewV2") as? [String],
-              frames.count >= 2 else {
+        // Check for saved divider position (ratio between left/right panes)
+        guard defaults.object(forKey: SessionKeys.splitDividerPosition) != nil else {
             return false
         }
-        // Autosave handles restoration automatically, just verify it exists
+        let ratio = defaults.double(forKey: SessionKeys.splitDividerPosition)
+        guard ratio > 0, ratio < 1 else {
+            return false
+        }
+
+        // Calculate divider position from ratio
+        let sidebarWidth = sidebarItem.isCollapsed ? 0 : SidebarViewController.width
+        let availableWidth = splitView.bounds.width - sidebarWidth - splitView.dividerThickness
+        let leftPaneWidth = availableWidth * ratio
+        let dividerPosition = sidebarWidth + leftPaneWidth
+        splitView.setPosition(dividerPosition, ofDividerAt: 1)
         return true
     }
 
     private func resetSplitTo5050() {
         // Set the two content panes (after sidebar) to equal widths
         let sidebarWidth = sidebarItem.isCollapsed ? 0 : SidebarViewController.width
-        let availableWidth = splitView.bounds.width - sidebarWidth - (splitView.dividerThickness * 2)
+        let availableWidth = splitView.bounds.width - sidebarWidth - splitView.dividerThickness
         let paneWidth = availableWidth / 2
         // Divider 1 is between left and right panes (divider 0 is after sidebar)
-        splitView.setPosition(sidebarWidth + paneWidth + splitView.dividerThickness, ofDividerAt: 1)
+        splitView.setPosition(sidebarWidth + paneWidth, ofDividerAt: 1)
+    }
+
+    private func saveSplitPosition() {
+        // Save as ratio of left pane to total available width
+        let sidebarWidth = sidebarItem.isCollapsed ? 0 : SidebarViewController.width
+        let availableWidth = splitView.bounds.width - sidebarWidth - splitView.dividerThickness
+        guard availableWidth > 0 else { return }
+
+        // Get left pane width (second subview, index 1)
+        let leftPaneWidth = splitViewItems[1].viewController.view.bounds.width
+        let ratio = leftPaneWidth / availableWidth
+        defaults.set(ratio, forKey: SessionKeys.splitDividerPosition)
     }
 
     // MARK: - Session Persistence
@@ -155,6 +177,7 @@ final class MainSplitViewController: NSSplitViewController {
         defaults.set(rightPane.tabShowHiddenFiles, forKey: SessionKeys.rightShowHiddenFiles)
         defaults.set(activePaneIndex, forKey: SessionKeys.activePane)
         defaults.set(!sidebarItem.isCollapsed, forKey: SessionKeys.sidebarVisible)
+        saveSplitPosition()
     }
 
     // MARK: - Sidebar
@@ -477,7 +500,7 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     override func splitViewDidResizeSubviews(_ notification: Notification) {
-        // Handled by autosave
+        saveSplitPosition()
     }
 }
 
