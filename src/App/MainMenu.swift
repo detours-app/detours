@@ -132,6 +132,16 @@ func setupMainMenu(target: AppDelegate) {
     showStatusBarItem.target = target
     viewMenu.addItem(showStatusBarItem)
 
+    viewMenu.addItem(NSMenuItem.separator())
+
+    let toggleSidebarItem = createDynamicMenuItem(
+        title: "Toggle Sidebar",
+        action: #selector(AppDelegate.toggleSidebar(_:)),
+        shortcutAction: .toggleSidebar,
+        target: target
+    )
+    viewMenu.addItem(toggleSidebarItem)
+
     // Go menu
     let goMenu = NSMenu(title: "Go")
     let goMenuItem = NSMenuItem(title: "Go", action: nil, keyEquivalent: "")

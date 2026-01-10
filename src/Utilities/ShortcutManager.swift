@@ -21,6 +21,7 @@ final class ShortcutManager {
         .toggleHiddenFiles: KeyCombo(keyCode: 47, modifiers: [.command, .shift]), // Cmd-Shift-.
         .quickOpen: KeyCombo(keyCode: 35, modifiers: .command),               // Cmd-P
         .refresh: KeyCombo(keyCode: 15, modifiers: .command),                 // Cmd-R
+        .toggleSidebar: KeyCombo(keyCode: 29, modifiers: .command),           // Cmd-0
     ]
 
     /// Alternative defaults (some actions have multiple defaults)

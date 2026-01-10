@@ -127,6 +127,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsManager.shared.showStatusBar.toggle()
     }
 
+    @objc func toggleSidebar(_ sender: Any?) {
+        mainWindowController?.splitViewController.toggleSidebar()
+    }
+
     @objc func showAbout(_ sender: Any?) {
         let credits = NSAttributedString(
             string: "A fast, keyboard-driven file manager for macOS with dual-pane layout, tabs, and Quick Open navigation.",

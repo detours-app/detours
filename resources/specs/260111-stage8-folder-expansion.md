@@ -1,8 +1,8 @@
-# Stage 7: Folder Expansion
+# Stage 8: Folder Expansion
 
 ## Meta
 - Status: Draft
-- Branch: feature/stage7-folder-expansion
+- Branch: feature/stage8-folder-expansion
 
 ---
 
@@ -163,16 +163,32 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 |------|--------|-------|
 | — | — | No tests run yet |
 
-### User Verification
+### UI Verification (MCP Automated)
 
-After implementation, manually verify:
+Use the `macos-ui-automation` MCP server to verify UI behavior. Launch app in background (`open -g`) to avoid disturbing work.
 
-- [ ] Click disclosure triangle expands/collapses
-- [ ] Option-click expands all nested children
-- [ ] Right/Left arrow keyboard navigation works
+**Disclosure Triangles:**
+- [ ] Find outline view rows with disclosure triangles (folders)
+- [ ] Click disclosure triangle, verify row expands (children visible)
+- [ ] Click again, verify row collapses
+
+**Keyboard Navigation:**
+- [ ] Select collapsed folder, press Right arrow, verify expands
+- [ ] Press Left arrow, verify collapses
+- [ ] Select item inside expanded folder, press Left, verify parent selected
+
+**Recursive Expansion (manual - Option-click):**
+- [ ] Option-click disclosure triangle, verify all nested children expand
+
+**Visual Customizations (visual spot-check):**
 - [ ] Teal selection highlight displays correctly
 - [ ] Teal folder icons display correctly
 - [ ] Banded row backgrounds work
-- [ ] Expansion persists across tab switches
-- [ ] Expansion persists across app restart
-- [ ] External changes in expanded folders trigger refresh
+
+**Persistence:**
+- [ ] Expand folders, switch tabs, switch back - verify expansion preserved
+- [ ] Quit app, relaunch - verify expansion state restored
+
+**Directory Watching:**
+- [ ] Expand a folder, create file in that folder externally
+- [ ] Verify file list updates to show new file

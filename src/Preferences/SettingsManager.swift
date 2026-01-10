@@ -84,6 +84,18 @@ final class SettingsManager {
         set { settings.gitStatusEnabled = newValue }
     }
 
+    // MARK: - Sidebar Settings
+
+    var sidebarVisible: Bool {
+        get { settings.sidebarVisible }
+        set { settings.sidebarVisible = newValue }
+    }
+
+    var favorites: [String] {
+        get { settings.favorites }
+        set { settings.favorites = newValue }
+    }
+
     // MARK: - Shortcut Settings
 
     func shortcut(for action: ShortcutAction) -> KeyCombo? {
