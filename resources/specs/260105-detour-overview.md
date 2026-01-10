@@ -552,8 +552,15 @@ Future specs will detail each stage. This is the sequencing:
 - [x] Custom theming
 - [x] Git status indicators
 
-### Stage 7: Folder Expansion
-- Spec: `260106-stage7-folder-expansion.md`
+### Stage 7: Sidebar
+- Spec: `260110-stage7-sidebar.md`
+- [ ] Collapsible sidebar with Devices and Favorites sections
+- [ ] Volume monitoring (mount/unmount)
+- [ ] Eject mounted volumes
+- [ ] Drag folders to Favorites
+
+### Stage 8: Folder Expansion
+- Spec: `260108-stage8-folder-expansion.md`
 - [ ] NSOutlineView conversion
 - [ ] Disclosure triangles for inline folder expansion
 - [ ] Multi-directory watching
