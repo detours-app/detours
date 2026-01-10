@@ -51,17 +51,19 @@ final class SidebarViewController: NSViewController {
     private func setupOutlineView() {
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("SidebarColumn"))
         column.title = ""
-        column.width = Self.width - 20
+        column.resizingMask = .autoresizingMask
         outlineView.addTableColumn(column)
+        outlineView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
 
         outlineView.outlineTableColumn = column
         outlineView.headerView = nil
         outlineView.rowHeight = 24
-        outlineView.indentationPerLevel = 0
-        outlineView.indentationMarkerFollowsCell = false
+        outlineView.intercellSpacing = NSSize(width: 0, height: 0)
+        outlineView.indentationPerLevel = 4
         outlineView.allowsMultipleSelection = false
         outlineView.allowsEmptySelection = true
         outlineView.selectionHighlightStyle = .regular
+        outlineView.style = .plain
 
         outlineView.dataSource = self
         outlineView.delegate = self
@@ -283,12 +285,18 @@ extension SidebarViewController: NSOutlineViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
         let theme = ThemeManager.shared.currentTheme
 
-        let cellView = SidebarItemView(frame: NSRect(x: 0, y: 0, width: Self.width, height: 24))
+        let cellView = SidebarItemView(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        cellView.autoresizingMask = [.width]
 
         if let section = item as? SidebarSection {
             cellView.configure(with: .section(section), theme: theme)
         } else if let volume = item as? VolumeInfo {
             cellView.configure(with: .device(volume), theme: theme)
+            if volume.isEjectable {
+                cellView.onEject = { [weak self] in
+                    self?.delegate?.sidebarDidRequestEject(volume)
+                }
+            }
         } else if let url = item as? URL {
             cellView.configure(with: .favorite(url), theme: theme)
         }
@@ -302,7 +310,7 @@ extension SidebarViewController: NSOutlineViewDelegate {
     }
 
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
-        return item is SidebarSection
+        return false  // Don't use group styling (adds separator lines)
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {

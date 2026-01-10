@@ -4,6 +4,9 @@ final class SidebarItemView: NSTableCellView {
     private let iconView = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
     private let capacityLabel = NSTextField(labelWithString: "")
+    private let ejectButton = NSButton()
+
+    var onEject: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -29,12 +32,26 @@ final class SidebarItemView: NSTableCellView {
         capacityLabel.alignment = .right
         capacityLabel.setContentHuggingPriority(.defaultHigh, for: .horizontal)
 
+        // Eject button setup
+        ejectButton.translatesAutoresizingMaskIntoConstraints = false
+        ejectButton.bezelStyle = .inline
+        ejectButton.isBordered = false
+        let ejectImage = NSImage(systemSymbolName: "eject.fill", accessibilityDescription: "Eject")
+        let smallConfig = NSImage.SymbolConfiguration(pointSize: 8, weight: .light)
+        ejectButton.image = ejectImage?.withSymbolConfiguration(smallConfig)
+        ejectButton.imageScaling = .scaleProportionallyDown
+        ejectButton.imagePosition = .imageOnly
+        ejectButton.target = self
+        ejectButton.action = #selector(ejectClicked)
+        ejectButton.isHidden = true
+
         addSubview(iconView)
         addSubview(nameLabel)
         addSubview(capacityLabel)
+        addSubview(ejectButton)
 
         NSLayoutConstraint.activate([
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
@@ -43,9 +60,14 @@ final class SidebarItemView: NSTableCellView {
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: capacityLabel.leadingAnchor, constant: -4),
 
-            capacityLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            capacityLabel.trailingAnchor.constraint(equalTo: ejectButton.leadingAnchor, constant: -4),
             capacityLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             capacityLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 50),
+
+            ejectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            ejectButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            ejectButton.widthAnchor.constraint(equalToConstant: 10),
+            ejectButton.heightAnchor.constraint(equalToConstant: 10),
         ])
     }
 
@@ -71,7 +93,7 @@ final class SidebarItemView: NSTableCellView {
         if let constraint = constraints.first(where: { $0.firstAnchor == nameLabel.leadingAnchor }) {
             constraint.isActive = false
         }
-        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4).isActive = true
     }
 
     private func configureAsDevice(_ volume: VolumeInfo, theme: Theme) {
@@ -80,6 +102,11 @@ final class SidebarItemView: NSTableCellView {
         nameLabel.stringValue = volume.name
         nameLabel.font = .systemFont(ofSize: 12)
         nameLabel.textColor = theme.textPrimary
+
+        // Show eject button for ejectable volumes
+        ejectButton.isHidden = !volume.isEjectable
+        ejectButton.contentTintColor = theme.textSecondary
+        ejectButton.alphaValue = 0.7
 
         if let capacity = volume.capacityString {
             capacityLabel.isHidden = false
@@ -90,6 +117,10 @@ final class SidebarItemView: NSTableCellView {
         }
 
         resetNameLeading()
+    }
+
+    @objc private func ejectClicked() {
+        onEject?()
     }
 
     private func configureAsFavorite(_ url: URL, theme: Theme) {
@@ -125,5 +156,8 @@ final class SidebarItemView: NSTableCellView {
         nameLabel.stringValue = ""
         capacityLabel.stringValue = ""
         capacityLabel.isHidden = true
+        ejectButton.isHidden = true
+        ejectButton.alphaValue = 1.0
+        onEject = nil
     }
 }
