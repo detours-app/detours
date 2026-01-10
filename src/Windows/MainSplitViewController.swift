@@ -33,7 +33,7 @@ final class MainSplitViewController: NSSplitViewController {
         // Configure split view
         splitView.dividerStyle = .thin
         splitView.isVertical = true
-        splitView.autosaveName = "MainSplitView"
+        splitView.autosaveName = "MainSplitViewV2"  // V2: includes sidebar
 
         // Create sidebar item
         sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
@@ -124,26 +124,22 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func restoreSplitPosition() -> Bool {
-        guard let frames = UserDefaults.standard.array(forKey: "NSSplitView Subview Frames MainSplitView") as? [String],
-              let firstFrame = frames.first else {
+        // Check for V2 (with sidebar) autosave data
+        guard let frames = UserDefaults.standard.array(forKey: "NSSplitView Subview Frames MainSplitViewV2") as? [String],
+              frames.count >= 2 else {
             return false
         }
-
-        // Parse "x, y, width, height, ..." format
-        let components = firstFrame.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        guard components.count >= 3, let width = Double(components[2]) else {
-            return false
-        }
-
-        splitView.setPosition(CGFloat(width), ofDividerAt: 0)
+        // Autosave handles restoration automatically, just verify it exists
         return true
     }
 
     private func resetSplitTo5050() {
-        let totalWidth = splitView.bounds.width
-        let dividerThickness = splitView.dividerThickness
-        let paneWidth = (totalWidth - dividerThickness) / 2
-        splitView.setPosition(paneWidth, ofDividerAt: 0)
+        // Set the two content panes (after sidebar) to equal widths
+        let sidebarWidth = sidebarItem.isCollapsed ? 0 : SidebarViewController.width
+        let availableWidth = splitView.bounds.width - sidebarWidth - (splitView.dividerThickness * 2)
+        let paneWidth = availableWidth / 2
+        // Divider 1 is between left and right panes (divider 0 is after sidebar)
+        splitView.setPosition(sidebarWidth + paneWidth + splitView.dividerThickness, ofDividerAt: 1)
     }
 
     // MARK: - Session Persistence
