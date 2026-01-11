@@ -100,7 +100,7 @@ final class SidebarItemView: NSTableCellView {
         iconView.isHidden = false
         iconView.image = volume.icon
         nameLabel.stringValue = volume.name
-        nameLabel.font = .systemFont(ofSize: 12)
+        nameLabel.font = theme.font(size: 12)
         nameLabel.textColor = theme.textPrimary
 
         // Show eject button for ejectable volumes
@@ -120,6 +120,7 @@ final class SidebarItemView: NSTableCellView {
         if let capacity = volume.capacityString {
             capacityLabel.isHidden = false
             capacityLabel.stringValue = capacity
+            capacityLabel.font = theme.font(size: 10)
             capacityLabel.textColor = theme.textTertiary
         } else {
             capacityLabel.isHidden = true
@@ -135,7 +136,7 @@ final class SidebarItemView: NSTableCellView {
     private func configureAsFavorite(_ url: URL, theme: Theme) {
         iconView.isHidden = false
         iconView.image = NSWorkspace.shared.icon(forFile: url.path)
-        nameLabel.font = .systemFont(ofSize: 12)
+        nameLabel.font = theme.font(size: 12)
         capacityLabel.isHidden = true
 
         // Check if favorite exists
