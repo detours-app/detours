@@ -25,10 +25,12 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         let rowRect = tableView.rect(ofRow: row)
         let columnRect = tableView.rect(ofColumn: 0)
 
+        // Match FileListCell layout: 12 (icon leading) + 16 (icon width) + 8 (gap) = 36
+        // Subtract ~3px to compensate for text field's internal cell padding
         let targetRect = NSRect(
-            x: columnRect.minX + 24,
+            x: columnRect.minX + 33,
             y: rowRect.minY + 2,
-            width: columnRect.width - 28,
+            width: columnRect.width - 37,
             height: rowRect.height - 4
         )
 

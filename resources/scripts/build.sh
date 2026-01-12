@@ -18,7 +18,9 @@ for arg in "$@"; do
     esac
 done
 
+WAS_RUNNING=false
 if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+    WAS_RUNNING=true
     echo "Detours is running; quitting before rebuild..."
     osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
     for _ in {1..50}; do
@@ -110,4 +112,9 @@ else
     rm -rf ~/Applications/Detours.app
     mv build/Detours.app ~/Applications/Detours.app
     echo "Done! App installed to ~/Applications/Detours.app"
+
+    if [ "$WAS_RUNNING" = true ]; then
+        echo "Relaunching Detours..."
+        open ~/Applications/Detours.app
+    fi
 fi
