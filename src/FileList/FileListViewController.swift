@@ -187,13 +187,13 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         sizeColumn.isEditable = false
         tableView.addTableColumn(sizeColumn)
 
-        // Date column - fixed 120px
+        // Date column - fixed 132px (includes 12px padding on each side)
         let dateColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Date"))
         dateColumn.title = "Date Modified"
         dateColumn.headerCell = ThemedHeaderCell(textCell: "Date Modified")
-        dateColumn.width = 120
-        dateColumn.minWidth = 120
-        dateColumn.maxWidth = 120
+        dateColumn.width = 132
+        dateColumn.minWidth = 132
+        dateColumn.maxWidth = 132
         dateColumn.resizingMask = []
         dateColumn.isEditable = false
         tableView.addTableColumn(dateColumn)
@@ -595,6 +595,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 return true
             case "i":
                 getInfo(nil)
+                return true
+            case "o":
+                openSelectedItem()
                 return true
             default:
                 break

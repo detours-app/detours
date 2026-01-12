@@ -359,7 +359,7 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         case "Size":
             return makeSizeCell(for: item, tableView: tableView, row: row)
         case "Date":
-            return makeTextCell(text: item.formattedDate, tableView: tableView, identifier: "DateCell", alignment: .right, leadingPadding: 12, trailingPadding: 8)
+            return makeTextCell(text: item.formattedDate, tableView: tableView, identifier: "DateCell", alignment: .right, leadingPadding: 12, trailingPadding: 12)
         default:
             return nil
         }
