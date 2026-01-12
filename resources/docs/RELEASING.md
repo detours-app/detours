@@ -48,9 +48,9 @@ git push public main
 
 The script reads the version from `src/App/AppDelegate.swift` and:
 1. Builds the release binary
-2. Notarizes with Apple (automated, ~5-15 min)
-3. Staples the notarization ticket to the app
-4. Creates `Detours-<version>.zip`
+2. Creates a DMG with the app and Applications symlink
+3. Notarizes the DMG with Apple (automated, ~5-15 min)
+4. Staples the notarization ticket to the DMG
 5. Tags the release as `v<version>`
 
 After the script completes, follow the printed instructions to push the tag and create the GitHub release.
@@ -62,28 +62,31 @@ Build:
 resources/scripts/build.sh
 ```
 
-Notarize and staple:
+Create DMG:
 ```bash
-xcrun notarytool submit .build/Build/Products/Release/Detours.app \
-  --keychain-profile "detours-notarize" --wait
-xcrun stapler staple .build/Build/Products/Release/Detours.app
+mkdir -p .build/dmg-staging
+cp -R .build/Build/Products/Release/Detours.app .build/dmg-staging/
+ln -s /Applications .build/dmg-staging/Applications
+hdiutil create -volname "Detours" -srcfolder .build/dmg-staging -ov -format UDZO Detours-0.7.0.dmg
+rm -rf .build/dmg-staging
 ```
 
-Zip:
+Notarize and staple:
 ```bash
-cd .build/Build/Products/Release
-zip -r Detours-0.6.1.zip Detours.app
+xcrun notarytool submit Detours-0.7.0.dmg \
+  --keychain-profile "detours-notarize" --wait
+xcrun stapler staple Detours-0.7.0.dmg
 ```
 
 Tag and release:
 ```bash
-git tag -a v0.6.1 -m "Version 0.6.1"
-git push public v0.6.1
-gh release create v0.6.1 \
+git tag -a v0.7.0 -m "Version 0.7.0"
+git push public v0.7.0
+gh release create v0.7.0 \
   --repo detours-app/detours \
-  --title "Detours v0.6.1" \
+  --title "Detours v0.7.0" \
   --notes "Release notes" \
-  Detours-0.6.1.zip
+  Detours-0.7.0.dmg
 ```
 
 ## Version Numbering

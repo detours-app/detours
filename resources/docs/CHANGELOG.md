@@ -1,5 +1,11 @@
 # Changelog
 
+## 260112 Public Release Infrastructure
+- Added: MIT license file
+- Added: DMG distribution with drag-to-Applications layout
+- Changed: Release script now creates notarized DMG instead of ZIP
+- Changed: Build script uses Developer ID certificate with secure timestamp
+
 ## 260112 Date Format Validation
 - Added: Inline validation errors for date format fields (red text below field)
 - Changed: Default date formats to Swiss style ("d. MMM H:mm" / "d.M.yy")

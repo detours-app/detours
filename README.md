@@ -4,54 +4,41 @@ A native macOS file manager built as a Finder replacement.
 
 ![Detours screenshot](resources/docs/screenshot.png)
 
-> **Note:** This is a personal project I built for my own use. I'm sharing it because good macOS file managers are rare. I'm not actively seeking contributions and may be slow to respond to issues. Feel free to fork if you want to take it in a different direction.
+> **Note:** This is a personal project I built because none of the available options quite fit my needs. I'm not actively seeking contributions and may be slow to respond to issues. Feel free to fork if you want to take it in a different direction.
 
 ## Features
 
 - **Dual-pane layout** - Two independent file browsers, side by side
 - **Tabs per pane** - Finder-style tabs within each pane
+- **Sidebar** - Quick access to mounted volumes and favorite folders
 - **Cmd-P quick navigation** - Fuzzy search recent directories with frecency ranking
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
 - **Theming** - Four built-in themes plus custom theme editor
 - **Git status indicators** - See modified, staged, and untracked files at a glance
-- **Native macOS** - AppKit core, respects system appearance
+- **Quick Look** - Preview files with spacebar
+- **Drag and drop** - Between panes, to/from Finder, to favorites
+- **Native macOS** - AppKit, system appearance, standard context menus
 
-## Requirements
+## Installation
 
-- macOS 14.0+ (Sonoma)
-- Swift 5.9+ (Xcode Command Line Tools)
+Download the latest DMG from [Releases](https://github.com/detours-app/detours/releases), open it, and drag Detours to Applications.
 
-## Building
+Requires macOS 14.0+ (Sonoma).
 
-```bash
-# Clone the repository
-git clone https://github.com/detours-mac/detours-app.git
-cd detours-app
-
-# Build the app bundle
-./resources/scripts/build.sh
-
-# Or build and install to ~/Applications
-./resources/scripts/build.sh --install
-
-# Run
-open build/Detours.app
-```
-
-The build script will:
-1. Compile with Swift Package Manager
-2. Update the app bundle
-3. Code sign if a signing identity is available (optional)
-
-### Code Signing (Optional)
-
-The app works fine without code signing for personal use. If you want to sign it:
+## Building from Source
 
 ```bash
-export CODESIGN_IDENTITY="Your Identity"
-export CODESIGN_KEYCHAIN="/path/to/keychain"
+git clone https://github.com/detours-app/detours.git
+cd detours
+
+# Build and install to ~/Applications
 ./resources/scripts/build.sh
+
+# Or keep app bundle in build/ without installing
+./resources/scripts/build.sh --no-install
 ```
+
+Requires Xcode Command Line Tools (Swift 5.9+).
 
 ## Keyboard Shortcuts
 
@@ -59,6 +46,8 @@ All shortcuts are customizable in Preferences (Cmd-,).
 
 | Action | Default |
 |--------|---------|
+| Open | Cmd-O / Enter |
+| Quick Look | Space |
 | Quick Navigate | Cmd-P |
 | New Tab | Cmd-T |
 | Close Tab | Cmd-W |
@@ -92,10 +81,6 @@ detours/
 └── build/                # Output (Detours.app)
 ```
 
-## Status
-
-Version 0.6.0 - Core features complete. See `resources/specs/` for design documents.
-
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT

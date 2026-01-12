@@ -16,42 +16,48 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 echo "Version: $VERSION"
-APP_PATH="$PROJECT_DIR/.build/Build/Products/Release/Detours.app"
-ZIP_NAME="Detours-$VERSION.zip"
-ZIP_PATH="$PROJECT_DIR/$ZIP_NAME"
+APP_PATH="$PROJECT_DIR/build/Detours.app"
+DMG_NAME="Detours-$VERSION.dmg"
+DMG_PATH="$PROJECT_DIR/$DMG_NAME"
+STAGING_DIR="$PROJECT_DIR/.build/dmg-staging"
 
 cd "$PROJECT_DIR"
 
 echo "==> Building release..."
-"$SCRIPT_DIR/build.sh"
+"$SCRIPT_DIR/build.sh" --no-install
 
 if [[ ! -d "$APP_PATH" ]]; then
     echo "Error: Build failed, no app at $APP_PATH"
     exit 1
 fi
 
-echo "==> Notarizing..."
+echo "==> Creating DMG..."
+rm -rf "$STAGING_DIR"
+mkdir -p "$STAGING_DIR"
+cp -R "$APP_PATH" "$STAGING_DIR/"
+ln -s /Applications "$STAGING_DIR/Applications"
+
+rm -f "$DMG_PATH"
+hdiutil create -volname "Detours" -srcfolder "$STAGING_DIR" -ov -format UDZO "$DMG_PATH"
+rm -rf "$STAGING_DIR"
+
+echo "==> Notarizing DMG..."
 # Submit for notarization (requires keychain profile "detours-notarize")
 # Set up with: xcrun notarytool store-credentials "detours-notarize" ...
-xcrun notarytool submit "$APP_PATH" --keychain-profile "detours-notarize" --wait
+xcrun notarytool submit "$DMG_PATH" --keychain-profile "detours-notarize" --wait
 
 echo "==> Stapling notarization ticket..."
-xcrun stapler staple "$APP_PATH"
-
-echo "==> Creating ZIP..."
-cd "$(dirname "$APP_PATH")"
-zip -r "$ZIP_PATH" Detours.app
-cd "$PROJECT_DIR"
+xcrun stapler staple "$DMG_PATH"
 
 echo "==> Tagging v$VERSION..."
 git tag -a "v$VERSION" -m "Version $VERSION"
 
 echo ""
-echo "Release prepared: $ZIP_PATH"
+echo "Release prepared: $DMG_PATH"
 echo ""
 echo "Next steps:"
 echo "  1. Push tag to public repo:"
 echo "     git push public v$VERSION"
 echo ""
 echo "  2. Create GitHub release:"
-echo "     gh release create v$VERSION --repo detours-app/detours --title \"Detours v$VERSION\" --notes \"Release notes\" $ZIP_NAME"
+echo "     gh release create v$VERSION --repo detours-app/detours --title \"Detours v$VERSION\" --notes \"Release notes\" $DMG_NAME"

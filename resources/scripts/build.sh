@@ -92,17 +92,11 @@ cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
 </plist>
 EOF
 
-CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Detour Dev}"
-CODESIGN_KEYCHAIN="${CODESIGN_KEYCHAIN:-$HOME/Library/Keychains/detour-codesign.keychain-db}"
+CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Marco Fruh (AHUQTWVD7X)}"
 ENTITLEMENTS="Detours.entitlements"
 
-if [ -f "$CODESIGN_KEYCHAIN" ]; then
-    security unlock-keychain -p "" "$CODESIGN_KEYCHAIN" >/dev/null 2>&1 || true
-    /usr/bin/codesign --force --options runtime --entitlements "$ENTITLEMENTS" --keychain "$CODESIGN_KEYCHAIN" -s "$CODESIGN_IDENTITY" "$APP_DIR"
-    echo "Codesigned app bundle."
-else
-    echo "Codesign skipped (keychain not found)."
-fi
+/usr/bin/codesign --force --timestamp --options runtime --entitlements "$ENTITLEMENTS" -s "$CODESIGN_IDENTITY" "$APP_DIR"
+echo "Codesigned app bundle."
 
 if [ "$1" = "--no-install" ]; then
     echo "Done! App bundle at build/Detours.app"
