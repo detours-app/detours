@@ -3,6 +3,7 @@
 ## Meta
 - Status: Draft
 - Branch: feature/stage8-folder-expansion
+- Difficulty: 6/10 (Medium-Hard)
 
 ---
 
@@ -14,7 +15,7 @@ The file list is flat - clicking a folder navigates into it. Finder's list view 
 
 ### Solution
 
-Add Finder-style disclosure triangles to expand folders inline. Expansion state persists across tab switches and app restarts.
+Add Finder-style disclosure triangles to expand folders inline. Expansion state persists across tab switches and app restarts. Feature is configurable via Settings toggle (enabled by default).
 
 ### Behaviors
 
@@ -38,6 +39,11 @@ Add Finder-style disclosure triangles to expand folders inline. Expansion state 
 - If a folder is selected, Cmd-Shift-N creates new folder inside the selected folder and expands it
 - If no folder selected (or file selected), creates in current directory as before
 
+**Settings Toggle:**
+- "Enable folder expansion" toggle in Settings → General
+- When disabled: no disclosure triangles, arrow keys navigate only (no expand/collapse)
+- Changing setting takes effect immediately (no restart required)
+
 ---
 
 ## Technical
@@ -46,7 +52,29 @@ Add Finder-style disclosure triangles to expand folders inline. Expansion state 
 
 Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchical data). NSOutlineView provides built-in disclosure triangles, automatic keyboard navigation through expanded trees, and Option-click recursive expand/collapse.
 
+### Difficulty Ratings
+
+| Component | Difficulty | Notes |
+|-----------|------------|-------|
+| NSOutlineView conversion | 5/10 | Well-documented, but custom drawing must survive |
+| FileItem tree model | 2/10 | Just add properties |
+| DataSource protocol swap | 6/10 | Different mental model, tree vs flat |
+| MultiDirectoryWatcher | 5/10 | FSEvents supports multiple paths; clean design |
+| Keyboard navigation | 5/10 | Must coexist with existing handleKeyDown |
+| Session persistence | 3/10 | Pattern already exists for tabs |
+| Settings toggle | 2/10 | ~30 lines across 4 files |
+| Edge cases | 7/10 | Collapse-with-selection, external deletes, refresh timing |
+
 ### File Changes
+
+**Preferences/Settings.swift**
+- Add `folderExpansionEnabled: Bool = true`
+
+**Preferences/SettingsManager.swift**
+- Add accessor for `folderExpansionEnabled`
+
+**Preferences/SettingsView.swift**
+- Add toggle row in General section
 
 **FileList/BandedTableView.swift → BandedOutlineView.swift**
 - Rename class to `BandedOutlineView`, change superclass to `NSOutlineView`
@@ -64,7 +92,7 @@ Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchic
 - Implement outline view data source methods:
   - `outlineView(_:numberOfChildrenOfItem:)`
   - `outlineView(_:child:ofItem:)`
-  - `outlineView(_:isItemExpandable:)` - return `item.isDirectory`
+  - `outlineView(_:isItemExpandable:)` - return `item.isDirectory && SettingsManager.shared.folderExpansionEnabled`
 - Implement delegate methods (reuse existing cell/row view logic):
   - `outlineView(_:viewFor:item:)`
   - `outlineView(_:rowViewForItem:)` - return `InactiveHidingRowView` (preserves teal selection)
@@ -81,9 +109,10 @@ Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchic
 **FileList/FileListViewController.swift**
 - Change `tableView` type to `BandedOutlineView`
 - Replace single `DirectoryWatcher` with `MultiDirectoryWatcher`
-- Add keyboard handling for expand/collapse (Right/Left/Option variants)
+- Add keyboard handling for expand/collapse (Right/Left/Option variants) - guard with `folderExpansionEnabled`
 - Add `expandedFolderURLs: Set<URL>` property
 - Add `restoreExpansion(_ urls: Set<URL>)` method
+- Observe `SettingsManager.settingsDidChange` to reload outline view when toggle changes
 
 **Panes/PaneViewController.swift**
 - Add `tabExpansions: [Set<URL>]` array parallel to existing `tabSelections`
@@ -112,10 +141,16 @@ Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchic
 
 ### Implementation Plan
 
+**Phase 0: Settings Toggle**
+- [ ] Add `folderExpansionEnabled: Bool = true` to `Settings`
+- [ ] Add accessor to `SettingsManager`
+- [ ] Add toggle row to `SettingsView` General section
+
 **Phase 1: Core Outline View Conversion**
 - [ ] Rename `BandedTableView` → `BandedOutlineView`, change superclass
 - [ ] Add `children`, `parent`, `loadChildren()` to `FileItem`
 - [ ] Update `FileListDataSource` to `NSOutlineViewDataSource`/`NSOutlineViewDelegate`
+- [ ] Guard `isItemExpandable` with `folderExpansionEnabled` setting
 - [ ] Update `FileListViewController` to use `BandedOutlineView`
 - [ ] Build and verify disclosure triangles appear and work
 
@@ -126,8 +161,8 @@ Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchic
 - [ ] Update `FileListViewController` to use `MultiDirectoryWatcher`
 
 **Phase 3: Keyboard Navigation**
-- [ ] Right arrow: expand collapsed folder
-- [ ] Left arrow: collapse expanded folder
+- [ ] Right arrow: expand collapsed folder (guard with `folderExpansionEnabled`)
+- [ ] Left arrow: collapse expanded folder (guard with `folderExpansionEnabled`)
 - [ ] Left arrow: select parent when inside expanded folder
 - [ ] Option-Right/Option-Left: recursive expand/collapse
 - [ ] Cmd-Right/Cmd-Left: aliases
@@ -156,6 +191,7 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 - [ ] `testMultiDirectoryWatcherWatchUnwatch` - Can watch/unwatch multiple directories without crash
 - [ ] `testMultiDirectoryWatcherCallback` - Callback fires with correct URL when watched directory changes
 - [ ] `testExpansionStateSerialization` - `Set<URL>` encodes to `[String]` and decodes back correctly
+- [ ] `testFolderExpansionSettingDefault` - `folderExpansionEnabled` defaults to true
 
 ### Test Log
 
@@ -192,3 +228,9 @@ Use the `macos-ui-automation` MCP server to verify UI behavior. Launch app in ba
 **Directory Watching:**
 - [ ] Expand a folder, create file in that folder externally
 - [ ] Verify file list updates to show new file
+
+**Settings Toggle:**
+- [ ] Disable "Enable folder expansion" in Settings
+- [ ] Verify disclosure triangles disappear immediately
+- [ ] Verify Right/Left arrow keys only navigate (don't expand)
+- [ ] Re-enable toggle, verify disclosure triangles reappear

@@ -21,14 +21,44 @@ final class SettingsManager {
     private let settingsKey = "Detours.Settings"
 
     private init() {
-        if let data = defaults.data(forKey: settingsKey),
-           let decoded = try? JSONDecoder().decode(Settings.self, from: data) {
-            self.settings = decoded
-            logger.info("Loaded settings from UserDefaults")
-        } else {
-            self.settings = Settings()
-            logger.info("Using default settings")
+        self.settings = Self.loadSettings(from: defaults, key: settingsKey)
+    }
+
+    /// Loads settings with detailed error logging. Never silently fails.
+    private static func loadSettings(from defaults: UserDefaults, key: String) -> Settings {
+        guard let data = defaults.data(forKey: key) else {
+            logger.info("No saved settings found, using defaults")
+            return Settings()
         }
+
+        do {
+            let decoded = try JSONDecoder().decode(Settings.self, from: data)
+            logger.info("Loaded settings from UserDefaults (schema v\(Settings.schemaVersion))")
+            return decoded
+        } catch let DecodingError.keyNotFound(key, context) {
+            logger.error("Settings decode failed: missing key '\(key.stringValue)' at \(context.codingPath.map(\.stringValue).joined(separator: ".")). Using defaults for missing fields.")
+            // The robust decoder should handle this, but log it
+            return tryPartialDecode(data) ?? Settings()
+        } catch let DecodingError.typeMismatch(type, context) {
+            logger.error("Settings decode failed: type mismatch for \(type) at \(context.codingPath.map(\.stringValue).joined(separator: ".")). Using defaults for invalid fields.")
+            return tryPartialDecode(data) ?? Settings()
+        } catch let DecodingError.valueNotFound(type, context) {
+            logger.error("Settings decode failed: null value for \(type) at \(context.codingPath.map(\.stringValue).joined(separator: ".")). Using defaults.")
+            return tryPartialDecode(data) ?? Settings()
+        } catch let DecodingError.dataCorrupted(context) {
+            logger.error("Settings decode failed: corrupted data at \(context.codingPath.map(\.stringValue).joined(separator: ".")): \(context.debugDescription). RESETTING TO DEFAULTS.")
+            return Settings()
+        } catch {
+            logger.error("Settings decode failed with unexpected error: \(error.localizedDescription). RESETTING TO DEFAULTS.")
+            return Settings()
+        }
+    }
+
+    /// Attempts partial decode - the robust init(from:) should salvage what it can
+    private static func tryPartialDecode(_ data: Data) -> Settings? {
+        // The Settings.init(from:) uses decodeIfPresent with fallbacks,
+        // so it should succeed even with partial data
+        return try? JSONDecoder().decode(Settings.self, from: data)
     }
 
     private func save() {

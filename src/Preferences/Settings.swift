@@ -2,7 +2,10 @@ import AppKit
 
 // MARK: - Settings
 
-struct Settings: Codable, Equatable {
+struct Settings: Equatable {
+    /// Schema version for future migrations. Increment when making breaking changes.
+    static let schemaVersion = 1
+
     // General
     var restoreSession: Bool = true
     var showHiddenByDefault: Bool = false
@@ -38,6 +41,82 @@ struct Settings: Codable, Equatable {
             home.appendingPathComponent("Downloads").path
         ]
     }()
+}
+
+// MARK: - Settings Codable (Robust Decoding)
+
+extension Settings: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case restoreSession
+        case showHiddenByDefault
+        case searchIncludesHidden
+        case theme
+        case customTheme
+        case fontSize
+        case dateFormatCurrentYear
+        case dateFormatOtherYears
+        case showStatusBar
+        case sidebarVisible
+        case favorites
+        case gitStatusEnabled
+        case shortcuts
+    }
+
+    /// Decodes settings with fallbacks for missing or invalid keys.
+    /// This ensures adding new settings never breaks existing user data.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = Settings()
+
+        // General
+        restoreSession = (try? container.decodeIfPresent(Bool.self, forKey: .restoreSession)) ?? defaults.restoreSession
+        showHiddenByDefault = (try? container.decodeIfPresent(Bool.self, forKey: .showHiddenByDefault)) ?? defaults.showHiddenByDefault
+        searchIncludesHidden = (try? container.decodeIfPresent(Bool.self, forKey: .searchIncludesHidden)) ?? defaults.searchIncludesHidden
+
+        // Appearance
+        theme = (try? container.decodeIfPresent(ThemeChoice.self, forKey: .theme)) ?? defaults.theme
+        customTheme = try? container.decodeIfPresent(CustomThemeColors.self, forKey: .customTheme)
+        fontSize = (try? container.decodeIfPresent(Int.self, forKey: .fontSize)) ?? defaults.fontSize
+        dateFormatCurrentYear = (try? container.decodeIfPresent(String.self, forKey: .dateFormatCurrentYear)) ?? defaults.dateFormatCurrentYear
+        dateFormatOtherYears = (try? container.decodeIfPresent(String.self, forKey: .dateFormatOtherYears)) ?? defaults.dateFormatOtherYears
+
+        // View
+        showStatusBar = (try? container.decodeIfPresent(Bool.self, forKey: .showStatusBar)) ?? defaults.showStatusBar
+        sidebarVisible = (try? container.decodeIfPresent(Bool.self, forKey: .sidebarVisible)) ?? defaults.sidebarVisible
+
+        // Sidebar - favorites are critical, preserve them
+        favorites = (try? container.decodeIfPresent([String].self, forKey: .favorites)) ?? defaults.favorites
+
+        // Git
+        gitStatusEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .gitStatusEnabled)) ?? defaults.gitStatusEnabled
+
+        // Shortcuts - decode valid ones, skip invalid
+        if let shortcutsDict = try? container.decodeIfPresent([ShortcutAction: KeyCombo].self, forKey: .shortcuts) {
+            shortcuts = shortcutsDict
+        } else {
+            shortcuts = defaults.shortcuts
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(Settings.schemaVersion, forKey: .schemaVersion)
+        try container.encode(restoreSession, forKey: .restoreSession)
+        try container.encode(showHiddenByDefault, forKey: .showHiddenByDefault)
+        try container.encode(searchIncludesHidden, forKey: .searchIncludesHidden)
+        try container.encode(theme, forKey: .theme)
+        try container.encodeIfPresent(customTheme, forKey: .customTheme)
+        try container.encode(fontSize, forKey: .fontSize)
+        try container.encode(dateFormatCurrentYear, forKey: .dateFormatCurrentYear)
+        try container.encode(dateFormatOtherYears, forKey: .dateFormatOtherYears)
+        try container.encode(showStatusBar, forKey: .showStatusBar)
+        try container.encode(sidebarVisible, forKey: .sidebarVisible)
+        try container.encode(favorites, forKey: .favorites)
+        try container.encode(gitStatusEnabled, forKey: .gitStatusEnabled)
+        try container.encode(shortcuts, forKey: .shortcuts)
+    }
 }
 
 // MARK: - Theme Choice
