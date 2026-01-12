@@ -244,10 +244,12 @@ extension SidebarViewController: NSOutlineViewDataSource {
 
         // Handle new folder being added
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] {
+            let favStart = favoritesStartIndex()
+            let targetIndex = index >= 0 ? max(0, index - favStart) : nil
             for url in urls {
                 var isDirectory: ObjCBool = false
                 if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
-                    delegate?.sidebarDidAddFavorite(url)
+                    delegate?.sidebarDidAddFavorite(url, at: targetIndex)
                 }
             }
             return true

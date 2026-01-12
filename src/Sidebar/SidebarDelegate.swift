@@ -9,7 +9,7 @@ protocol SidebarDelegate: AnyObject {
     func sidebarDidRequestEject(_ volume: VolumeInfo)
 
     /// Called when user adds a folder to favorites via drag-drop
-    func sidebarDidAddFavorite(_ url: URL)
+    func sidebarDidAddFavorite(_ url: URL, at index: Int?)
 
     /// Called when user removes a folder from favorites
     func sidebarDidRemoveFavorite(_ url: URL)

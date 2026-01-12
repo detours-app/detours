@@ -1,5 +1,12 @@
 # Changelog
 
+## 260112 Context Menu and Sidebar Fixes
+- Changed: Context menu now says "Reveal in Finder" (matches developer tool conventions)
+- Added: "Open With > Other..." option to open files with any application
+- Fixed: Dragging folder to favorites now inserts at drop position (was always appending)
+- Fixed: Sidebar width no longer shrinks on each app relaunch
+- Changed: Build script now defaults to release mode (use --debug for debug builds)
+
 ## 260112 Pane Focus and Rename Fixes
 - Fixed: Rename field now dismisses when clicking elsewhere (was blocking clicks)
 - Fixed: Tab key during rename cancels rename and switches panes

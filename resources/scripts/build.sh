@@ -7,6 +7,17 @@ APP_NAME="Detours"
 APP_BUNDLE_ID="com.detours.app"
 APP_DIR="build/Detours.app"
 
+# Parse arguments
+BUILD_CONFIG="release"
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            BUILD_CONFIG="debug"
+            shift
+            ;;
+    esac
+done
+
 if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
     echo "Detours is running; quitting before rebuild..."
     osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
@@ -22,8 +33,8 @@ if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
     fi
 fi
 
-echo "Building Detours..."
-swift build
+echo "Building Detours ($BUILD_CONFIG)..."
+swift build -c "$BUILD_CONFIG"
 
 echo "Creating app bundle..."
 rm -rf "$APP_DIR"
@@ -31,7 +42,7 @@ mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 
 # Copy executable
-cp .build/arm64-apple-macosx/debug/Detours "$APP_DIR/Contents/MacOS/Detours"
+cp ".build/arm64-apple-macosx/$BUILD_CONFIG/Detours" "$APP_DIR/Contents/MacOS/Detours"
 
 # Copy icon
 cp resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"

@@ -178,8 +178,8 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func resetSplitTo5050() {
-        // Use actual sidebar width from view bounds (this is called after layout is stable)
-        let sidebarWidth = sidebarItem.isCollapsed ? 0 : splitViewItems[0].viewController.view.bounds.width
+        // Read from split view subviews to match setPosition behavior
+        let sidebarWidth = sidebarItem.isCollapsed ? 0 : splitView.arrangedSubviews[0].frame.width
         let divider = splitView.dividerThickness
         let totalWidth = splitView.bounds.width
         let availableWidth = totalWidth - sidebarWidth - (divider * 2)
@@ -191,9 +191,10 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func saveSplitPosition() {
-        // Read actual values from view bounds (this is called after layout is complete)
-        let sidebarWidth = sidebarItem.isCollapsed ? 0 : splitViewItems[0].viewController.view.bounds.width
-        let leftPaneWidth = splitViewItems[1].viewController.view.bounds.width
+        // Read from split view subviews to match setPosition behavior
+        // Note: Sidebar-style NSSplitViewItem has internal chrome, so view bounds != subview frame
+        let sidebarWidth = sidebarItem.isCollapsed ? 0 : splitView.arrangedSubviews[0].frame.width
+        let leftPaneWidth = splitView.arrangedSubviews[1].frame.width
         let divider = splitView.dividerThickness
         let totalWidth = splitView.bounds.width
 
@@ -584,11 +585,16 @@ extension MainSplitViewController: SidebarDelegate {
         }
     }
 
-    func sidebarDidAddFavorite(_ url: URL) {
+    func sidebarDidAddFavorite(_ url: URL, at index: Int?) {
         var favorites = SettingsManager.shared.favorites
         let path = url.path
         guard !favorites.contains(path) else { return }
-        favorites.append(path)
+        if let index = index {
+            let insertIndex = min(index, favorites.count)
+            favorites.insert(path, at: insertIndex)
+        } else {
+            favorites.append(path)
+        }
         SettingsManager.shared.favorites = favorites
     }
 

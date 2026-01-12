@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 extension FileListViewController: FileListContextMenuDelegate {
     func buildContextMenu(for selection: IndexSet, clickedRow: Int) -> NSMenu? {
@@ -28,8 +29,8 @@ extension FileListViewController: FileListContextMenuDelegate {
                 menu.addItem(openWithItem)
             }
 
-            // Show in Finder
-            let showInFinderItem = NSMenuItem(title: "Show in Finder", action: #selector(showInFinder(_:)), keyEquivalent: "")
+            // Reveal in Finder
+            let showInFinderItem = NSMenuItem(title: "Reveal in Finder", action: #selector(showInFinder(_:)), keyEquivalent: "")
             showInFinderItem.target = self
             menu.addItem(showInFinderItem)
         }
@@ -156,6 +157,13 @@ extension FileListViewController: FileListContextMenuDelegate {
             }
         }
 
+        // Add "Other..." option to choose any app
+        menu.addItem(NSMenuItem.separator())
+        let otherItem = NSMenuItem(title: "Other...", action: #selector(openWithOtherApp(_:)), keyEquivalent: "")
+        otherItem.target = self
+        otherItem.representedObject = url
+        menu.addItem(otherItem)
+
         return menu
     }
 
@@ -187,6 +195,28 @@ extension FileListViewController: FileListContextMenuDelegate {
             withApplicationAt: appURL,
             configuration: NSWorkspace.OpenConfiguration()
         ) { _, _ in }
+    }
+
+    @objc private func openWithOtherApp(_ sender: NSMenuItem) {
+        guard let fileURL = sender.representedObject as? URL else { return }
+
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.allowedContentTypes = [.application]
+        panel.message = "Choose an application to open \"\(fileURL.lastPathComponent)\""
+        panel.prompt = "Open"
+
+        panel.begin { response in
+            guard response == .OK, let appURL = panel.url else { return }
+            NSWorkspace.shared.open(
+                [fileURL],
+                withApplicationAt: appURL,
+                configuration: NSWorkspace.OpenConfiguration()
+            ) { _, _ in }
+        }
     }
 
     @objc private func renameFromContextMenu(_ sender: Any?) {
