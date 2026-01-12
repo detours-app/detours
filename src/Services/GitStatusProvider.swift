@@ -49,7 +49,8 @@ actor GitStatusProvider {
         await withCheckedContinuation { continuation in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-            process.arguments = ["rev-parse", "--is-inside-work-tree"]
+            process.arguments = ["-c", "core.fsmonitor=false", "rev-parse", "--is-inside-work-tree"]
+            process.environment = ["GIT_CONFIG_NOSYSTEM": "1"]
             process.currentDirectoryURL = directory
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
@@ -68,7 +69,8 @@ actor GitStatusProvider {
         await withCheckedContinuation { continuation in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-            process.arguments = ["status", "--porcelain", "-uall"]
+            process.arguments = ["-c", "core.fsmonitor=false", "status", "--porcelain", "-uall"]
+            process.environment = ["GIT_CONFIG_NOSYSTEM": "1"]
             process.currentDirectoryURL = directory
 
             let pipe = Pipe()
@@ -136,7 +138,8 @@ actor GitStatusProvider {
     private func getGitRoot(for directory: URL) -> URL? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["rev-parse", "--show-toplevel"]
+        process.arguments = ["-c", "core.fsmonitor=false", "rev-parse", "--show-toplevel"]
+        process.environment = ["GIT_CONFIG_NOSYSTEM": "1"]
         process.currentDirectoryURL = directory
 
         let pipe = Pipe()

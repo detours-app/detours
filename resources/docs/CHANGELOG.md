@@ -1,5 +1,9 @@
 # Changelog
 
+## 260112 Security Hardening
+- Fixed: AppleScript injection vulnerability in Get Info feature (escape file paths and window names)
+- Fixed: Git helper execution risk when opening untrusted repos (disable fsmonitor, ignore system config)
+
 ## 260112 Public Release Infrastructure
 - Added: MIT license file
 - Added: DMG distribution with drag-to-Applications layout

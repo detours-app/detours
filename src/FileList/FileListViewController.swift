@@ -895,6 +895,13 @@ extension FileListViewController {
         createNewFolder()
     }
 
+    /// Escape a string for safe interpolation into AppleScript
+    private func escapeForAppleScript(_ string: String) -> String {
+        string
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
     @objc func getInfo(_ sender: Any?) {
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
@@ -916,7 +923,7 @@ extension FileListViewController {
         }
 
         // Open the windows
-        let openLines = urls.map { "open information window of (POSIX file \"\($0.path)\" as alias)" }
+        let openLines = urls.map { "open information window of (POSIX file \"\(escapeForAppleScript($0.path))\" as alias)" }
         let openScript = "tell application \"Finder\"\n    activate\n" + openLines.map { "    " + $0 }.joined(separator: "\n") + "\nend tell"
         NSAppleScript(source: openScript)?.executeAndReturnError(nil)
 
@@ -934,7 +941,7 @@ extension FileListViewController {
                 let x2 = x1 + infoWidth
                 let y2 = y1 + infoHeight
                 let windowName = url.lastPathComponent + " Info"
-                positionLines.append("set bounds of information window \"\(windowName)\" to {\(x1), \(y1), \(x2), \(y2)}")
+                positionLines.append("set bounds of information window \"\(self.escapeForAppleScript(windowName))\" to {\(x1), \(y1), \(x2), \(y2)}")
             }
             let positionScript = "tell application \"Finder\"\n" + positionLines.map { "    " + $0 }.joined(separator: "\n") + "\nend tell"
             NSAppleScript(source: positionScript)?.executeAndReturnError(nil)
