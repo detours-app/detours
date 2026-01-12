@@ -5,8 +5,7 @@ import XCTest
 final class PreferencesTests: XCTestCase {
 
     override func setUp() async throws {
-        // Clear any saved settings before each test
-        UserDefaults.standard.removeObject(forKey: "Detours.Settings")
+        resetSettingsForTests()
     }
 
     // MARK: - Settings Manager Tests

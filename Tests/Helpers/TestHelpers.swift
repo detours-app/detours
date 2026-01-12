@@ -1,4 +1,5 @@
 import Foundation
+@testable import Detours
 
 func createTempDirectory() throws -> URL {
     let base = FileManager.default.temporaryDirectory
@@ -34,4 +35,27 @@ func waitForFile(at url: URL, exists: Bool, timeout: TimeInterval = 2.0) async -
         try? await Task.sleep(nanoseconds: 50_000_000)
     }
     return FileManager.default.fileExists(atPath: url.path) == exists
+}
+
+@MainActor
+func resetSettingsForTests() {
+    let defaults = UserDefaults.standard
+    defaults.removeObject(forKey: "Detours.Settings")
+
+    let manager = SettingsManager.shared
+    let defaultsSettings = Settings()
+
+    manager.restoreSession = defaultsSettings.restoreSession
+    manager.showHiddenByDefault = defaultsSettings.showHiddenByDefault
+    manager.searchIncludesHidden = defaultsSettings.searchIncludesHidden
+    manager.theme = defaultsSettings.theme
+    manager.customTheme = defaultsSettings.customTheme
+    manager.fontSize = defaultsSettings.fontSize
+    manager.dateFormatCurrentYear = defaultsSettings.dateFormatCurrentYear
+    manager.dateFormatOtherYears = defaultsSettings.dateFormatOtherYears
+    manager.showStatusBar = defaultsSettings.showStatusBar
+    manager.sidebarVisible = defaultsSettings.sidebarVisible
+    manager.favorites = defaultsSettings.favorites
+    manager.gitStatusEnabled = defaultsSettings.gitStatusEnabled
+    manager.clearAllCustomShortcuts()
 }

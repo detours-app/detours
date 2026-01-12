@@ -173,9 +173,9 @@ final class FileListResponderTests: XCTestCase {
         XCTAssertTrue(folderExists, "New folder should be created with name 'Folder'")
     }
 
-    func testHandleKeyDownHandlesF7NewFolderInsideSelectedFolder() async throws {
+    func testHandleKeyDownHandlesF7NewFolderInCurrentDirectoryWithSelectedFolder() async throws {
         let temp = try createTempDirectory()
-        let existingFolder = try createTestFolder(in: temp, name: "existing")
+        _ = try createTestFolder(in: temp, name: "existing")
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
         viewController.loadDirectory(temp)
@@ -190,9 +190,9 @@ final class FileListResponderTests: XCTestCase {
         let event = makeFunctionKeyEvent(keyCode: 98, functionKey: NSF7FunctionKey)
         XCTAssertTrue(viewController.handleKeyDown(event))
 
-        let newFolder = existingFolder.appendingPathComponent("Folder")
+        let newFolder = temp.appendingPathComponent("Folder")
         let folderExists = await waitForFile(at: newFolder, exists: true)
-        XCTAssertTrue(folderExists, "New folder should be created inside selected folder")
+        XCTAssertTrue(folderExists, "New folder should be created in current directory")
     }
 
     func testHandleKeyDownHandlesCmdUpParentNavigation() throws {
