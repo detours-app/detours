@@ -39,33 +39,55 @@ struct AppearanceSettingsView: View {
             }
 
             Section("Date Format") {
-                TextField("This year", text: $dateFormatCurrentYear)
-                    .onChange(of: dateFormatCurrentYear) { _, newValue in
-                        if isValidDateFormat(newValue) {
-                            SettingsManager.shared.dateFormatCurrentYear = newValue
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("This year", text: $dateFormatCurrentYear)
+                        .onChange(of: dateFormatCurrentYear) { _, newValue in
+                            if validateDateFormat(newValue) == nil {
+                                SettingsManager.shared.dateFormatCurrentYear = newValue
+                            }
                         }
+                    if let error = validateDateFormat(dateFormatCurrentYear) {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .font(.caption)
                     }
-                TextField("Other years", text: $dateFormatOtherYears)
-                    .onChange(of: dateFormatOtherYears) { _, newValue in
-                        if isValidDateFormat(newValue) {
-                            SettingsManager.shared.dateFormatOtherYears = newValue
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("Other years", text: $dateFormatOtherYears)
+                        .onChange(of: dateFormatOtherYears) { _, newValue in
+                            if validateDateFormat(newValue) == nil {
+                                SettingsManager.shared.dateFormatOtherYears = newValue
+                            }
                         }
+                    if let error = validateDateFormat(dateFormatOtherYears) {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .font(.caption)
                     }
+                }
             }
 
             Section("Preview") {
                 ThemePreview(
                     theme: previewTheme,
                     fontSize: fontSize,
-                    dateFormatCurrentYear: dateFormatCurrentYear,
-                    dateFormatOtherYears: dateFormatOtherYears
+                    dateFormatCurrentYear: validatedCurrentYearFormat,
+                    dateFormatOtherYears: validatedOtherYearsFormat
                 )
-                .id("\(selectedTheme)-\(dateFormatCurrentYear)-\(dateFormatOtherYears)")
+                .id("\(selectedTheme)-\(validatedCurrentYearFormat)-\(validatedOtherYearsFormat)")
             }
         }
         .formStyle(.grouped)
         .clipped()
         .navigationTitle("Appearance")
+    }
+
+    private var validatedCurrentYearFormat: String {
+        validateDateFormat(dateFormatCurrentYear) == nil ? dateFormatCurrentYear : SettingsManager.shared.dateFormatCurrentYear
+    }
+
+    private var validatedOtherYearsFormat: String {
+        validateDateFormat(dateFormatOtherYears) == nil ? dateFormatOtherYears : SettingsManager.shared.dateFormatOtherYears
     }
 
     private var previewTheme: Theme {
@@ -86,45 +108,73 @@ struct AppearanceSettingsView: View {
         }
     }
 
-    private func isValidDateFormat(_ format: String) -> Bool {
-        guard !format.isEmpty else { return false }
+    /// Returns nil if valid, or an error message if invalid
+    private func validateDateFormat(_ format: String) -> String? {
+        guard !format.isEmpty else { return "Format cannot be empty" }
 
-        // Valid date format specifiers (Unicode TR35)
-        let validSpecifiers = CharacterSet(charactersIn: "yYuUQqMLlwWdDFgEecahHKkjJmsSAzZvVXx")
+        // Valid DateFormatter field symbols and their max lengths
+        let validPatterns: [Character: Int] = [
+            "y": 4, "Y": 4,  // year
+            "M": 5, "L": 5,  // month
+            "d": 2, "D": 3,  // day
+            "E": 5, "e": 5, "c": 5,  // weekday
+            "a": 1,  // AM/PM
+            "h": 2, "H": 2, "k": 2, "K": 2,  // hour
+            "m": 2,  // minute
+            "s": 2, "S": 4,  // second
+            "z": 4, "Z": 5, "v": 4, "V": 4,  // timezone
+        ]
 
-        // Check that format contains at least one date/time specifier
-        var hasSpecifier = false
+        // Allowed literal characters (not in quotes)
+        let allowedLiterals = CharacterSet(charactersIn: " ,-./:'")
+
+        var hasDateComponent = false
         var i = format.startIndex
+        var lastWasSpecifier = false
+
         while i < format.endIndex {
             let char = format[i]
+
             if char == "'" {
-                // Skip quoted literals
+                // Quoted literal - skip to closing quote
                 i = format.index(after: i)
                 while i < format.endIndex && format[i] != "'" {
                     i = format.index(after: i)
                 }
-            } else if let scalar = char.unicodeScalars.first, validSpecifiers.contains(scalar) {
-                hasSpecifier = true
-                break
-            }
-            if i < format.endIndex {
+                if i < format.endIndex {
+                    i = format.index(after: i)
+                }
+                lastWasSpecifier = false
+            } else if let maxLen = validPatterns[char] {
+                // Specifier must be preceded by separator (or start of string)
+                if lastWasSpecifier {
+                    return "Missing separator between format specifiers"
+                }
+                // Valid field symbol - consume run of same character
+                hasDateComponent = true
+                var count = 0
+                while i < format.endIndex && format[i] == char {
+                    count += 1
+                    i = format.index(after: i)
+                }
+                if count > maxLen {
+                    return "Too many '\(char)' characters (max \(maxLen))"
+                }
+                lastWasSpecifier = true
+            } else if let scalar = char.unicodeScalars.first, allowedLiterals.contains(scalar) {
+                // Allowed separator
                 i = format.index(after: i)
+                lastWasSpecifier = false
+            } else {
+                // Invalid character
+                return "Invalid character '\(char)'"
             }
         }
 
-        guard hasSpecifier else { return false }
-
-        // Reject formats with bare digits (likely typos like "MMM d4")
-        var inQuote = false
-        for char in format {
-            if char == "'" {
-                inQuote.toggle()
-            } else if !inQuote && char.isNumber {
-                return false
-            }
+        if !hasDateComponent {
+            return "Must contain at least one date component"
         }
-
-        return true
+        return nil
     }
 }
 
@@ -210,12 +260,14 @@ struct ThemePreview: View {
     let dateFormatCurrentYear: String
     let dateFormatOtherYears: String
 
-    // Sample dates for preview
+    // Sample dates for preview (single-digit days to show d vs dd difference)
     private var currentYearDate: Date {
         Calendar.current.date(from: DateComponents(
             year: Calendar.current.component(.year, from: Date()),
             month: 3,
-            day: 15
+            day: 5,
+            hour: 8,
+            minute: 14
         )) ?? Date()
     }
 
@@ -223,7 +275,9 @@ struct ThemePreview: View {
         Calendar.current.date(from: DateComponents(
             year: Calendar.current.component(.year, from: Date()) - 1,
             month: 11,
-            day: 28
+            day: 8,
+            hour: 14,
+            minute: 30
         )) ?? Date()
     }
 

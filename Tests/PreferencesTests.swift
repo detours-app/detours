@@ -317,8 +317,8 @@ final class PreferencesTests: XCTestCase {
 
         let settings = SettingsManager.shared.settings
 
-        XCTAssertEqual(settings.dateFormatCurrentYear, "MMM d", "dateFormatCurrentYear should default to 'MMM d'")
-        XCTAssertEqual(settings.dateFormatOtherYears, "MMM d, yyyy", "dateFormatOtherYears should default to 'MMM d, yyyy'")
+        XCTAssertEqual(settings.dateFormatCurrentYear, "d. MMM H:mm", "dateFormatCurrentYear should default to 'd. MMM H:mm'")
+        XCTAssertEqual(settings.dateFormatOtherYears, "d.M.yy", "dateFormatOtherYears should default to 'd.M.yy'")
     }
 
     func testDateFormatSettingsPersistence() async throws {

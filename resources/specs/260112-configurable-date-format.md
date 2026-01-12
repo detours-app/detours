@@ -18,13 +18,13 @@ Add two free-text date format fields in Appearance settings - one for current ye
 
 ### Behaviors
 
-- Two compact text fields in Appearance settings ("This year" and "Past years")
-- "This year" field (default: "MMM d") - used for dates within the current year
-- "Past years" field (default: "MMM d, yyyy") - used for dates in previous/future years
+- Two compact text fields in Appearance settings ("This year" and "Other years")
+- "This year" field (default: "d. MMM H:mm") - used for dates within the current year
+- "Other years" field (default: "d.M.yy") - used for dates in previous/future years
 - Live preview integrated into Theme Preview section - file list shows sample dates using configured formats
-- Invalid format strings show red border on input field
+- Invalid format strings show red error message below the field
+- Preview shows last valid format when current input is invalid
 - Changes apply immediately to file list and preview
-- Help text showing common DateFormatter specifiers
 
 ---
 
@@ -39,8 +39,8 @@ Add two new String properties to `Settings` struct for the date formats. Update 
 ### File Changes
 
 **src/Preferences/Settings.swift**
-- Add `dateFormatCurrentYear: String = "MMM d"` property to `Settings` struct
-- Add `dateFormatOtherYears: String = "MMM d, yyyy"` property to `Settings` struct
+- Add `dateFormatCurrentYear: String = "d. MMM H:mm"` property to `Settings` struct
+- Add `dateFormatOtherYears: String = "d.M.yy"` property to `Settings` struct
 
 **src/Preferences/SettingsManager.swift**
 - Add computed properties `dateFormatCurrentYear` and `dateFormatOtherYears` with getters/setters (follow existing pattern like `restoreSession`)
@@ -50,7 +50,7 @@ Add two new String properties to `Settings` struct for the date formats. Update 
 - Add `DateFormatRow` component with two compact `DateFormatInput` fields side-by-side
 - Fields show "This year" and "Past years" labels with monospace text inputs
 - Invalid formats show red border; valid formats save immediately
-- Add help text: "DateFormatter syntax: MMM d, yyyy-MM-dd, HH:mm, etc."
+- Inline validation shows specific error messages below field when format is invalid
 - Integrate date preview into `ThemePreview` - file list rows now show formatted dates
 - `ThemePreview` accepts date format parameters and displays sample dates (current year and past year)
 
@@ -93,7 +93,7 @@ Add two new String properties to `Settings` struct for the date formats. Update 
 
 Tests in `Tests/PreferencesTests.swift` and `Tests/FileItemTests.swift`.
 
-- [x] `testDateFormatSettingsDefaults` - Default values are "MMM d" and "MMM d, yyyy"
+- [x] `testDateFormatSettingsDefaults` - Default values are "d. MMM H:mm" and "d.M.yy"
 - [x] `testDateFormatSettingsPersistence` - Custom formats save to and load from UserDefaults
 - [x] `testFormattedDateUsesCurrentYearSetting` - Dates in current year use currentYear format
 - [x] `testFormattedDateUsesOtherYearsSetting` - Dates in other years use otherYears format
@@ -109,13 +109,13 @@ Tests in `Tests/PreferencesTests.swift` and `Tests/FileItemTests.swift`.
 Use macOS UI automation MCP server to verify:
 
 - [x] Open Preferences > Appearance, verify date format fields exist
-- [x] Verify two text fields with labels "This year" and "Past years"
-- [x] Verify default values are "MMM d" and "MMM d, yyyy"
+- [x] Verify two text fields with labels "This year" and "Other years"
+- [x] Verify default values are "d. MMM H:mm" and "d.M.yy"
 - [x] Verify Theme Preview shows file list with date column
 
 ### Manual Verification
 
-- [ ] Type custom format in field, verify Theme Preview updates
-- [ ] Type invalid format "%%%", verify red border appears on input
-- [ ] Change format to valid value, verify file list date column updates
-- [ ] Settings persist after quit and relaunch
+- [x] Type custom format in field, verify Theme Preview updates
+- [x] Type invalid format "MMM d4", verify red error text appears below field
+- [x] Preview shows last valid format when current input is invalid
+- [x] Settings persist after quit and relaunch
