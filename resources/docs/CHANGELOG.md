@@ -1,5 +1,12 @@
 # Changelog
 
+## 260112 Pane Focus and Rename Fixes
+- Fixed: Rename field now dismisses when clicking elsewhere (was blocking clicks)
+- Fixed: Tab key during rename cancels rename and switches panes
+- Fixed: Clicking a file in inactive pane now activates that pane
+- Fixed: Click-on-file no longer flashes old selection before new one
+- Changed: Active pane now indicated by accent-colored tab underline (gray when inactive)
+
 ## 260112 Quick Open and Preferences Improvements
 - Fixed: Quick Open now finds iCloud Drive items (was missing due to metadata API issue)
 - Added: "Include hidden files in Quick Open" setting in Preferences > General

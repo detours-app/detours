@@ -12,6 +12,7 @@ final class PaneTabBar: NSView {
     private let tabContainer = NSView()
 
     private(set) var selectedIndex: Int = 0
+    private(set) var isActive: Bool = true
     weak var delegate: PaneTabBarDelegate?
 
     // For accessing tabs to get tab IDs during drag
@@ -230,6 +231,14 @@ final class PaneTabBar: NSView {
 
         forwardButton.isEnabled = canGoForward
         forwardButton.alphaValue = canGoForward ? 1.0 : 0.4
+    }
+
+    func setActive(_ active: Bool) {
+        guard active != isActive else { return }
+        isActive = active
+        for button in tabButtons {
+            button.setPaneActive(active)
+        }
     }
 
     private func scrollToTab(at index: Int) {
@@ -523,6 +532,7 @@ private final class TabButton: NSView {
     private var isSelected: Bool = false
     private var isHovered: Bool = false
     private var isDropTarget: Bool = false
+    private var isPaneActive: Bool = true
     private var trackingArea: NSTrackingArea?
     private let colors: Colors
 
@@ -608,6 +618,11 @@ private final class TabButton: NSView {
         updateAppearance()
     }
 
+    func setPaneActive(_ active: Bool) {
+        isPaneActive = active
+        updateAppearance()
+    }
+
     private func updateAppearance() {
         if isDropTarget {
             layer?.backgroundColor = colors.accent.withAlphaComponent(0.3).cgColor
@@ -633,10 +648,12 @@ private final class TabButton: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        // Draw accent border on bottom for selected tab or drop target
+        // Draw border on bottom for selected tab or drop target
         if isSelected || isDropTarget {
             let borderRect = NSRect(x: 0, y: 0, width: bounds.width, height: 2)
-            colors.accent.setFill()
+            // Use accent color for active pane, gray for inactive
+            let borderColor = isPaneActive ? colors.accent : colors.textSecondary
+            borderColor.setFill()
             borderRect.fill()
         }
     }

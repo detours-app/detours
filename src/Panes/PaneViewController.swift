@@ -710,6 +710,7 @@ final class PaneViewController: NSViewController {
     func setActive(_ active: Bool) {
         isActive = active
         updateBackgroundTint()
+        tabBar.setActive(active)
 
         // Update all tabs' data sources with active state
         for tab in tabs {

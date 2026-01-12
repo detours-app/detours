@@ -8,6 +8,7 @@ protocol RenameControllerDelegate: AnyObject {
 @MainActor
 final class RenameController: NSObject, NSTextFieldDelegate {
     weak var delegate: RenameControllerDelegate?
+    var onSwitchPane: (() -> Void)?
 
     private var textField: NSTextField?
     private weak var tableView: NSTableView?
@@ -132,6 +133,18 @@ final class RenameController: NSObject, NSTextFieldDelegate {
             return true
         }
 
+        if commandSelector == #selector(NSResponder.insertTab(_:)) ||
+           commandSelector == #selector(NSResponder.insertBacktab(_:)) {
+            cancelRename()
+            onSwitchPane?()
+            return true
+        }
+
         return false
+    }
+
+    func controlTextDidEndEditing(_ notification: Notification) {
+        // Cancel rename when text field loses focus (e.g., clicking elsewhere)
+        cancelRename()
     }
 }

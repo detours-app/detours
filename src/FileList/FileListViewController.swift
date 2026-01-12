@@ -55,6 +55,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             self?.navigationDelegate?.fileListDidBecomeActive()
         }
         renameController.delegate = self
+        renameController.onSwitchPane = { [weak self] in
+            self?.navigationDelegate?.fileListDidRequestSwitchPane()
+        }
         setupDragDrop()
 
         if let pendingDirectory {

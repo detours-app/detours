@@ -104,7 +104,9 @@ final class BandedTableView: NSTableView {
             return
         }
 
+        // Handle selection first, then activate pane (avoids flashing old selection)
         super.mouseDown(with: event)
+        onActivate?()
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
