@@ -359,7 +359,7 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         case "Size":
             return makeSizeCell(for: item, tableView: tableView, row: row)
         case "Date":
-            return makeTextCell(text: item.formattedDate, tableView: tableView, identifier: "DateCell", alignment: .right)
+            return makeTextCell(text: item.formattedDate, tableView: tableView, identifier: "DateCell", alignment: .right, leadingPadding: 12, trailingPadding: 8)
         default:
             return nil
         }
@@ -436,7 +436,7 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         return cell
     }
 
-    private func makeTextCell(text: String, tableView: NSTableView, identifier: String, alignment: NSTextAlignment) -> NSView {
+    private func makeTextCell(text: String, tableView: NSTableView, identifier: String, alignment: NSTextAlignment, leadingPadding: CGFloat = 4, trailingPadding: CGFloat = 4) -> NSView {
         let id = NSUserInterfaceItemIdentifier(identifier)
         let theme = ThemeManager.shared.currentTheme
 
@@ -462,8 +462,8 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
 
         textField.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
-            textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+            textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: leadingPadding),
+            textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -trailingPadding),
             textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
         ])
 
