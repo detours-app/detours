@@ -65,6 +65,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func closeTab(_ sender: Any?) {
+        // If a non-main window (e.g., Preferences) is key, close it instead
+        if let keyWindow = NSApp.keyWindow,
+           keyWindow !== mainWindowController?.window {
+            keyWindow.close()
+            return
+        }
         mainWindowController?.splitViewController.closeTab(sender)
     }
 

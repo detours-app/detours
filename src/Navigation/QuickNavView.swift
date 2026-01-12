@@ -14,7 +14,7 @@ struct QuickNavView: View {
     let onReveal: (URL) -> Void
     let onDismiss: () -> Void
 
-    private let maxResults = 10
+    private let maxResults = 20
 
     var body: some View {
         VStack(spacing: 0) {

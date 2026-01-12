@@ -6,6 +6,7 @@ struct Settings: Codable, Equatable {
     // General
     var restoreSession: Bool = true
     var showHiddenByDefault: Bool = false
+    var searchIncludesHidden: Bool = false
 
     // Appearance
     var theme: ThemeChoice = .system

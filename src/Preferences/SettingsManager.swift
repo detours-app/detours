@@ -53,6 +53,11 @@ final class SettingsManager {
         set { settings.showHiddenByDefault = newValue }
     }
 
+    var searchIncludesHidden: Bool {
+        get { settings.searchIncludesHidden }
+        set { settings.searchIncludesHidden = newValue }
+    }
+
     // MARK: - Appearance Settings
 
     var theme: ThemeChoice {

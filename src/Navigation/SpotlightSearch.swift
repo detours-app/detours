@@ -95,17 +95,25 @@ final class SpotlightSearch {
         logger.info("Spotlight query returned \(query.resultCount) raw results")
 
         var urls: [URL] = []
-        let maxResults = 50 // Limit to prevent UI overload
+        let maxResults = 100 // Limit to prevent UI overload
 
         for i in 0..<min(query.resultCount, maxResults) {
-            guard let item = query.result(at: i) as? NSMetadataItem,
-                  let path = item.value(forAttribute: kMDItemPath as String) as? String else {
+            guard let item = query.result(at: i) as? NSMetadataItem else {
                 continue
             }
 
-            // Skip system/hidden paths
-            if path.contains("/.") ||
-               path.hasPrefix("/System") ||
+            // Get path - try NSMetadataItemURLKey first (works for iCloud), fall back to kMDItemPath
+            let path: String
+            if let url = item.value(forAttribute: NSMetadataItemURLKey) as? URL {
+                path = url.path
+            } else if let p = item.value(forAttribute: kMDItemPath as String) as? String {
+                path = p
+            } else {
+                continue
+            }
+
+            // Skip system paths
+            if path.hasPrefix("/System") ||
                path.hasPrefix("/Library") ||
                path.hasPrefix("/private") ||
                path.contains(".app/") ||
@@ -114,6 +122,14 @@ final class SpotlightSearch {
                path.contains("node_modules/") ||
                path.contains(".git/") {
                 continue
+            }
+
+            // Skip hidden files/folders unless setting is enabled
+            if !SettingsManager.shared.searchIncludesHidden {
+                let hasHiddenComponent = path.split(separator: "/").contains { $0.hasPrefix(".") }
+                if hasHiddenComponent {
+                    continue
+                }
             }
 
             urls.append(URL(fileURLWithPath: path))

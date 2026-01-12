@@ -1,5 +1,11 @@
 # Changelog
 
+## 260112 Quick Open and Preferences Improvements
+- Fixed: Quick Open now finds iCloud Drive items (was missing due to metadata API issue)
+- Added: "Include hidden files in Quick Open" setting in Preferences > General
+- Changed: Quick Open shows 20 results (was 10), fetches up to 100 from Spotlight
+- Changed: Cmd-W now closes Preferences window when frontmost, otherwise closes tab
+
 ## 260110 DMG and Eject Fixes
 - Fixed: Double-click/Enter on DMG files now mounts them (macOS Sequoia workaround)
 - Fixed: Ejecting volumes no longer blocks UI (async operation)
