@@ -75,6 +75,16 @@ final class SettingsManager {
         set { settings.fontSize = max(10, min(16, newValue)) }
     }
 
+    var dateFormatCurrentYear: String {
+        get { settings.dateFormatCurrentYear }
+        set { settings.dateFormatCurrentYear = newValue }
+    }
+
+    var dateFormatOtherYears: String {
+        get { settings.dateFormatOtherYears }
+        set { settings.dateFormatOtherYears = newValue }
+    }
+
     // MARK: - View Settings
 
     var showStatusBar: Bool {

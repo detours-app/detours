@@ -123,18 +123,14 @@ struct FileItem {
     var formattedDate: String {
         let calendar = Calendar.current
         let now = Date()
+        let formatter = DateFormatter()
 
         if calendar.isDate(dateModified, equalTo: now, toGranularity: .year) {
-            // Same year: "Jan 5"
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMM d"
-            return formatter.string(from: dateModified)
+            formatter.dateFormat = MainActor.assumeIsolated { SettingsManager.shared.dateFormatCurrentYear }
         } else {
-            // Different year: "Dec 31, 2025"
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMM d, yyyy"
-            return formatter.string(from: dateModified)
+            formatter.dateFormat = MainActor.assumeIsolated { SettingsManager.shared.dateFormatOtherYears }
         }
+        return formatter.string(from: dateModified)
     }
 }
 

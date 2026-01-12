@@ -52,6 +52,9 @@ final class FileItemTests: XCTestCase {
     }
 
     func testFormattedDateSameYear() {
+        // Reset to default format
+        SettingsManager.shared.dateFormatCurrentYear = "MMM d"
+
         let calendar = Calendar.current
         let date = calendar.date(from: DateComponents(year: calendar.component(.year, from: Date()), month: 1, day: 5))!
         let url = URL(fileURLWithPath: "/tmp/date")
@@ -63,6 +66,9 @@ final class FileItemTests: XCTestCase {
     }
 
     func testFormattedDateDifferentYear() {
+        // Reset to default format
+        SettingsManager.shared.dateFormatOtherYears = "MMM d, yyyy"
+
         let calendar = Calendar.current
         let date = calendar.date(from: DateComponents(year: 2001, month: 12, day: 31))!
         let url = URL(fileURLWithPath: "/tmp/date")
@@ -71,6 +77,40 @@ final class FileItemTests: XCTestCase {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy"
         XCTAssertEqual(item.formattedDate, formatter.string(from: date))
+    }
+
+    func testFormattedDateUsesCurrentYearSetting() {
+        // Set custom format
+        SettingsManager.shared.dateFormatCurrentYear = "yyyy-MM-dd"
+
+        let calendar = Calendar.current
+        let date = calendar.date(from: DateComponents(year: calendar.component(.year, from: Date()), month: 3, day: 15))!
+        let url = URL(fileURLWithPath: "/tmp/date")
+        let item = FileItem(name: "date", url: url, isDirectory: false, size: 1, dateModified: date, icon: NSImage())
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        XCTAssertEqual(item.formattedDate, formatter.string(from: date))
+
+        // Reset to default
+        SettingsManager.shared.dateFormatCurrentYear = "MMM d"
+    }
+
+    func testFormattedDateUsesOtherYearsSetting() {
+        // Set custom format
+        SettingsManager.shared.dateFormatOtherYears = "dd/MM/yyyy"
+
+        let calendar = Calendar.current
+        let date = calendar.date(from: DateComponents(year: 2020, month: 6, day: 25))!
+        let url = URL(fileURLWithPath: "/tmp/date")
+        let item = FileItem(name: "date", url: url, isDirectory: false, size: 1, dateModified: date, icon: NSImage())
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd/MM/yyyy"
+        XCTAssertEqual(item.formattedDate, formatter.string(from: date))
+
+        // Reset to default
+        SettingsManager.shared.dateFormatOtherYears = "MMM d, yyyy"
     }
 
     func testSortFoldersFirst() {

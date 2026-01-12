@@ -4,6 +4,8 @@ struct AppearanceSettingsView: View {
     @State private var selectedTheme: ThemeChoice = SettingsManager.shared.theme
     @State private var fontSize: Int = SettingsManager.shared.fontSize
     @State private var customColors: CustomThemeColors = SettingsManager.shared.customTheme ?? .defaultLight
+    @State private var dateFormatCurrentYear: String = SettingsManager.shared.dateFormatCurrentYear
+    @State private var dateFormatOtherYears: String = SettingsManager.shared.dateFormatOtherYears
 
     var body: some View {
         Form {
@@ -36,9 +38,29 @@ struct AppearanceSettingsView: View {
                 }
             }
 
+            Section("Date Format") {
+                TextField("This year", text: $dateFormatCurrentYear)
+                    .onChange(of: dateFormatCurrentYear) { _, newValue in
+                        if isValidDateFormat(newValue) {
+                            SettingsManager.shared.dateFormatCurrentYear = newValue
+                        }
+                    }
+                TextField("Other years", text: $dateFormatOtherYears)
+                    .onChange(of: dateFormatOtherYears) { _, newValue in
+                        if isValidDateFormat(newValue) {
+                            SettingsManager.shared.dateFormatOtherYears = newValue
+                        }
+                    }
+            }
+
             Section("Preview") {
-                ThemePreview(theme: previewTheme, fontSize: fontSize)
-                    .id(selectedTheme)
+                ThemePreview(
+                    theme: previewTheme,
+                    fontSize: fontSize,
+                    dateFormatCurrentYear: dateFormatCurrentYear,
+                    dateFormatOtherYears: dateFormatOtherYears
+                )
+                .id("\(selectedTheme)-\(dateFormatCurrentYear)-\(dateFormatOtherYears)")
             }
         }
         .formStyle(.grouped)
@@ -62,6 +84,47 @@ struct AppearanceSettingsView: View {
         case .custom:
             return .custom(from: customColors)
         }
+    }
+
+    private func isValidDateFormat(_ format: String) -> Bool {
+        guard !format.isEmpty else { return false }
+
+        // Valid date format specifiers (Unicode TR35)
+        let validSpecifiers = CharacterSet(charactersIn: "yYuUQqMLlwWdDFgEecahHKkjJmsSAzZvVXx")
+
+        // Check that format contains at least one date/time specifier
+        var hasSpecifier = false
+        var i = format.startIndex
+        while i < format.endIndex {
+            let char = format[i]
+            if char == "'" {
+                // Skip quoted literals
+                i = format.index(after: i)
+                while i < format.endIndex && format[i] != "'" {
+                    i = format.index(after: i)
+                }
+            } else if let scalar = char.unicodeScalars.first, validSpecifiers.contains(scalar) {
+                hasSpecifier = true
+                break
+            }
+            if i < format.endIndex {
+                i = format.index(after: i)
+            }
+        }
+
+        guard hasSpecifier else { return false }
+
+        // Reject formats with bare digits (likely typos like "MMM d4")
+        var inQuote = false
+        for char in format {
+            if char == "'" {
+                inQuote.toggle()
+            } else if !inQuote && char.isNumber {
+                return false
+            }
+        }
+
+        return true
     }
 }
 
@@ -144,6 +207,32 @@ struct ColorPickerRow: View {
 struct ThemePreview: View {
     let theme: Theme
     let fontSize: Int
+    let dateFormatCurrentYear: String
+    let dateFormatOtherYears: String
+
+    // Sample dates for preview
+    private var currentYearDate: Date {
+        Calendar.current.date(from: DateComponents(
+            year: Calendar.current.component(.year, from: Date()),
+            month: 3,
+            day: 15
+        )) ?? Date()
+    }
+
+    private var pastYearDate: Date {
+        Calendar.current.date(from: DateComponents(
+            year: Calendar.current.component(.year, from: Date()) - 1,
+            month: 11,
+            day: 28
+        )) ?? Date()
+    }
+
+    private func formatDate(_ date: Date, isCurrentYear: Bool) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = isCurrentYear ? dateFormatCurrentYear : dateFormatOtherYears
+        let result = formatter.string(from: date)
+        return result.isEmpty ? "—" : result
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -161,11 +250,32 @@ struct ThemePreview: View {
             Divider()
                 .background(Color(theme.border))
 
-            // File list preview
+            // File list preview with dates
             VStack(alignment: .leading, spacing: 0) {
-                FileRowPreview(name: "Projects", isDirectory: true, isSelected: true, theme: theme, fontSize: fontSize)
-                FileRowPreview(name: "Archive", isDirectory: true, isSelected: false, theme: theme, fontSize: fontSize)
-                FileRowPreview(name: "notes.txt", isDirectory: false, isSelected: false, theme: theme, fontSize: fontSize)
+                FileRowPreview(
+                    name: "Projects",
+                    isDirectory: true,
+                    isSelected: true,
+                    dateString: formatDate(currentYearDate, isCurrentYear: true),
+                    theme: theme,
+                    fontSize: fontSize
+                )
+                FileRowPreview(
+                    name: "Archive",
+                    isDirectory: true,
+                    isSelected: false,
+                    dateString: formatDate(pastYearDate, isCurrentYear: false),
+                    theme: theme,
+                    fontSize: fontSize
+                )
+                FileRowPreview(
+                    name: "notes.txt",
+                    isDirectory: false,
+                    isSelected: false,
+                    dateString: formatDate(currentYearDate, isCurrentYear: true),
+                    theme: theme,
+                    fontSize: fontSize
+                )
             }
         }
         .background(Color(theme.background))
@@ -181,6 +291,7 @@ struct FileRowPreview: View {
     let name: String
     let isDirectory: Bool
     let isSelected: Bool
+    let dateString: String
     let theme: Theme
     let fontSize: Int
 
@@ -194,13 +305,11 @@ struct FileRowPreview: View {
 
     private var iconColor: Color {
         if isSelected {
-            // Light version of accent color for selected icon
             return Color(Self.lightenedColor(theme.accent, amount: 0.7))
         }
         return isDirectory ? folderColor : fileColor
     }
 
-    /// Creates a lightened version of a color by blending with white
     private static func lightenedColor(_ color: NSColor, amount: CGFloat) -> NSColor {
         guard let rgb = color.usingColorSpace(.sRGB) else { return color }
         let r = rgb.redComponent + (1 - rgb.redComponent) * amount
@@ -217,6 +326,11 @@ struct FileRowPreview: View {
             Text(name)
                 .font(.custom(theme.monoFont, size: CGFloat(fontSize)))
                 .foregroundColor(isSelected ? Color(theme.accentText) : Color(theme.textPrimary))
+                .lineLimit(1)
+            Spacer()
+            Text(dateString)
+                .font(.custom(theme.monoFont, size: CGFloat(fontSize - 1)))
+                .foregroundColor(isSelected ? Color(theme.accentText).opacity(0.8) : Color(theme.textTertiary))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)

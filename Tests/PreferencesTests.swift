@@ -309,6 +309,34 @@ final class PreferencesTests: XCTestCase {
         }
     }
 
+    // MARK: - Date Format Settings Tests
+
+    func testDateFormatSettingsDefaults() async throws {
+        // Clear settings to get fresh defaults
+        UserDefaults.standard.removeObject(forKey: "Detours.Settings")
+
+        let settings = SettingsManager.shared.settings
+
+        XCTAssertEqual(settings.dateFormatCurrentYear, "MMM d", "dateFormatCurrentYear should default to 'MMM d'")
+        XCTAssertEqual(settings.dateFormatOtherYears, "MMM d, yyyy", "dateFormatOtherYears should default to 'MMM d, yyyy'")
+    }
+
+    func testDateFormatSettingsPersistence() async throws {
+        // Modify settings
+        SettingsManager.shared.dateFormatCurrentYear = "yyyy-MM-dd"
+        SettingsManager.shared.dateFormatOtherYears = "dd/MM/yyyy"
+
+        // Verify settings were saved to UserDefaults
+        guard let data = UserDefaults.standard.data(forKey: "Detours.Settings"),
+              let savedSettings = try? JSONDecoder().decode(Settings.self, from: data) else {
+            XCTFail("Settings should be saved to UserDefaults")
+            return
+        }
+
+        XCTAssertEqual(savedSettings.dateFormatCurrentYear, "yyyy-MM-dd")
+        XCTAssertEqual(savedSettings.dateFormatOtherYears, "dd/MM/yyyy")
+    }
+
     // MARK: - GitStatus Tests
 
     func testGitStatusColors() throws {

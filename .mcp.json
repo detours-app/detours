@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "macos-ui-automation": {
+      "type": "stdio",
+      "command": "poetry",
+      "args": [
+        "-C",
+        "/Users/marco/dev/macos-ui-automation-mcp",
+        "run",
+        "python",
+        "-m",
+        "macos_ui_automation.interfaces.mcp_server"
+      ],
+      "env": {}
+    }
+  }
+}
