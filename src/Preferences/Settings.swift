@@ -12,6 +12,8 @@ struct Settings: Codable, Equatable {
     var theme: ThemeChoice = .system
     var customTheme: CustomThemeColors?
     var fontSize: Int = 13
+    var dateFormatCurrentYear: String = "d. MMM H:mm"
+    var dateFormatOtherYears: String = "d.M.yy"
 
     // View
     var showStatusBar: Bool = true

@@ -1,5 +1,10 @@
 # Changelog
 
+## 260112 Date Format Validation
+- Added: Inline validation errors for date format fields (red text below field)
+- Changed: Default date formats to Swiss style ("d. MMM H:mm" / "d.M.yy")
+- Fixed: Preview now shows last valid format when input is invalid
+
 ## 260112 Context Menu and Sidebar Fixes
 - Changed: Context menu now says "Reveal in Finder" (matches developer tool conventions)
 - Added: "Open With > Other..." option to open files with any application
