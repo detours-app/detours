@@ -59,10 +59,22 @@ fi
 echo ""
 echo "Release prepared: $DMG_PATH"
 echo ""
-echo "Next steps:"
+read -p "Push tag and upload DMG to GitHub? [y/N] " -n 1 -r
 echo ""
-echo "  1. Push tag (creates release via GitHub Actions):"
-echo "     git push public v$VERSION"
-echo ""
-echo "  2. Upload DMG to release:"
-echo "     gh release upload v$VERSION $DMG_NAME --repo detours-app/detours"
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "==> Pushing tag v$VERSION..."
+    git push public "v$VERSION"
+
+    echo "==> Waiting for GitHub Actions to create release..."
+    sleep 10
+
+    echo "==> Uploading DMG..."
+    gh release upload "v$VERSION" "$DMG_NAME" --repo detours-app/detours
+
+    echo ""
+    echo "Done! https://github.com/detours-app/detours/releases/tag/v$VERSION"
+else
+    echo "Skipped. To publish manually:"
+    echo "  git push public v$VERSION"
+    echo "  gh release upload v$VERSION $DMG_NAME --repo detours-app/detours"
+fi

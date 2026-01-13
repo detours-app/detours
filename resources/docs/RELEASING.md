@@ -53,10 +53,7 @@ The script reads the version from `src/App/AppDelegate.swift` and:
 4. Staples the notarization ticket to the DMG
 5. Tags the release as `v<version>`
 
-After the script completes:
-1. Push the tag: `git push public v<version>`
-2. GitHub Actions automatically creates the release from RELEASE_NOTES.md
-3. Upload the DMG: `gh release upload v<version> Detours-<version>.dmg --repo detours-app/detours`
+The script will prompt to push the tag and upload the DMG. Press `y` to publish automatically, or `n` to do it manually later.
 
 ### Manual steps (if needed)
 
