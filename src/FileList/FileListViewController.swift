@@ -502,6 +502,52 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
+    private func createNewFile(name: String) {
+        guard let currentDirectory else { return }
+
+        Task { @MainActor in
+            do {
+                let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: name)
+                loadDirectory(currentDirectory)
+                selectItem(at: newFile)
+                renameSelection()
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    private func promptForNewFile() {
+        guard let currentDirectory else { return }
+        guard let window = view.window else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "New Empty File"
+        alert.informativeText = "Enter a name for the new file:"
+        alert.addButton(withTitle: "Create")
+        alert.addButton(withTitle: "Cancel")
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 250, height: 24))
+        textField.stringValue = "Untitled"
+        alert.accessoryView = textField
+
+        alert.beginSheetModal(for: window) { response in
+            guard response == .alertFirstButtonReturn else { return }
+            let fileName = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !fileName.isEmpty else { return }
+
+            Task { @MainActor in
+                do {
+                    let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: fileName)
+                    self.loadDirectory(currentDirectory)
+                    self.selectItem(at: newFile)
+                } catch {
+                    FileOperationQueue.shared.presentError(error)
+                }
+            }
+        }
+    }
+
     private func renameSelection() {
         guard tableView.selectedRowIndexes.count == 1 else { return }
         let row = tableView.selectedRow
@@ -893,6 +939,18 @@ extension FileListViewController {
 
     @objc func newFolder(_ sender: Any?) {
         createNewFolder()
+    }
+
+    @objc func newTextFile(_ sender: Any?) {
+        createNewFile(name: "Text File.txt")
+    }
+
+    @objc func newMarkdownFile(_ sender: Any?) {
+        createNewFile(name: "Document.md")
+    }
+
+    @objc func newEmptyFile(_ sender: Any?) {
+        promptForNewFile()
     }
 
     /// Escape a string for safe interpolation into AppleScript

@@ -44,6 +44,26 @@ func setupMainMenu(target: AppDelegate) {
         shortcutAction: .newFolder
     )
     fileMenu.addItem(newFolderItem)
+
+    // New File submenu
+    let newFileMenu = NSMenu()
+
+    let textFileItem = NSMenuItem(title: "Text File", action: #selector(FileListViewController.newTextFile(_:)), keyEquivalent: "n")
+    textFileItem.keyEquivalentModifierMask = [.command, .option]
+    newFileMenu.addItem(textFileItem)
+
+    let markdownFileItem = NSMenuItem(title: "Markdown File", action: #selector(FileListViewController.newMarkdownFile(_:)), keyEquivalent: "")
+    newFileMenu.addItem(markdownFileItem)
+
+    newFileMenu.addItem(NSMenuItem.separator())
+
+    let emptyFileItem = NSMenuItem(title: "Empty File...", action: #selector(FileListViewController.newEmptyFile(_:)), keyEquivalent: "")
+    newFileMenu.addItem(emptyFileItem)
+
+    let newFileMenuItem = NSMenuItem(title: "New File", action: nil, keyEquivalent: "")
+    newFileMenuItem.submenu = newFileMenu
+    fileMenu.addItem(newFileMenuItem)
+
     fileMenu.addItem(NSMenuItem.separator())
 
     let getInfoItem = NSMenuItem(title: "Get Info", action: #selector(FileListViewController.getInfo(_:)), keyEquivalent: "i")

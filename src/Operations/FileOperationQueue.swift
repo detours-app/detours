@@ -53,6 +53,12 @@ final class FileOperationQueue {
         }
     }
 
+    func createFile(in directory: URL, name: String, content: Data = Data()) async throws -> URL {
+        try await enqueue {
+            try await self.performCreateFile(in: directory, name: name, content: content)
+        }
+    }
+
     func cancelCurrentOperation() {
         isCancelled = true
     }
@@ -384,6 +390,22 @@ final class FileOperationQueue {
         }
     }
 
+    private func performCreateFile(in directory: URL, name: String, content: Data) async throws -> URL {
+        let operation = FileOperation.createFile(directory: directory, name: name)
+        startOperation(operation, totalCount: 1)
+        defer { finishOperation() }
+
+        let destination = uniqueFileDestination(in: directory, baseName: name)
+
+        do {
+            try content.write(to: destination)
+            updateProgress(operation: operation, currentItem: destination, completed: 1, total: 1)
+            return destination
+        } catch {
+            throw mapError(error, url: destination)
+        }
+    }
+
     // MARK: - Progress
 
     private func startOperation(_ operation: FileOperation, totalCount: Int) {
@@ -511,6 +533,29 @@ final class FileOperationQueue {
 
         while true {
             let name = attempt == 1 ? baseName : "\(baseName) \(attempt)"
+            let candidate = directory.appendingPathComponent(name)
+            if !fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            attempt += 1
+        }
+    }
+
+    private func uniqueFileDestination(in directory: URL, baseName: String) -> URL {
+        let fileManager = FileManager.default
+        let nameWithoutExt = (baseName as NSString).deletingPathExtension
+        let ext = (baseName as NSString).pathExtension
+        var attempt = 1
+
+        while true {
+            let name: String
+            if attempt == 1 {
+                name = baseName
+            } else if ext.isEmpty {
+                name = "\(nameWithoutExt) \(attempt)"
+            } else {
+                name = "\(nameWithoutExt) \(attempt).\(ext)"
+            }
             let candidate = directory.appendingPathComponent(name)
             if !fileManager.fileExists(atPath: candidate.path) {
                 return candidate

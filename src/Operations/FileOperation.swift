@@ -7,6 +7,7 @@ enum FileOperation {
     case rename(item: URL, newName: String)
     case duplicate(items: [URL])
     case createFolder(directory: URL, name: String)
+    case createFile(directory: URL, name: String)
 
     var description: String {
         switch self {
@@ -22,6 +23,8 @@ enum FileOperation {
             return "Duplicating \(items.count) item\(items.count == 1 ? "" : "s")..."
         case .createFolder:
             return "Creating folder..."
+        case .createFile:
+            return "Creating file..."
         }
     }
 }

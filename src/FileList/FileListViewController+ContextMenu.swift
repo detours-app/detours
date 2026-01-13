@@ -102,6 +102,28 @@ extension FileListViewController: FileListContextMenuDelegate {
         newFolderItem.target = self
         menu.addItem(newFolderItem)
 
+        // New File submenu
+        let newFileMenu = NSMenu()
+
+        let textFileItem = NSMenuItem(title: "Text File", action: #selector(newTextFile(_:)), keyEquivalent: "n")
+        textFileItem.keyEquivalentModifierMask = [.command, .option]
+        textFileItem.target = self
+        newFileMenu.addItem(textFileItem)
+
+        let markdownFileItem = NSMenuItem(title: "Markdown File", action: #selector(newMarkdownFile(_:)), keyEquivalent: "")
+        markdownFileItem.target = self
+        newFileMenu.addItem(markdownFileItem)
+
+        newFileMenu.addItem(NSMenuItem.separator())
+
+        let emptyFileItem = NSMenuItem(title: "Empty File...", action: #selector(newEmptyFile(_:)), keyEquivalent: "")
+        emptyFileItem.target = self
+        newFileMenu.addItem(emptyFileItem)
+
+        let newFileMenuItem = NSMenuItem(title: "New File", action: nil, keyEquivalent: "")
+        newFileMenuItem.submenu = newFileMenu
+        menu.addItem(newFileMenuItem)
+
         menu.addItem(NSMenuItem.separator())
 
         // Services submenu

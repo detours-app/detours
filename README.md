@@ -1,6 +1,6 @@
 # Detours
 
-A native macOS file manager built as a Finder replacement.
+A fast, keyboard-driven file manager for macOS with dual-pane layout, tabs, and Quick Open navigation.
 
 ![Detours screenshot](resources/docs/screenshot.png)
 
@@ -11,7 +11,7 @@ A native macOS file manager built as a Finder replacement.
 - **Dual-pane layout** - Two independent file browsers, side by side
 - **Tabs per pane** - Finder-style tabs within each pane
 - **Sidebar** - Quick access to mounted volumes and favorite folders
-- **Cmd-P quick navigation** - Fuzzy search recent directories with frecency ranking
+- **Quick Open** - Spotlight search with frecency ranking (Cmd-P)
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
 - **Theming** - Four built-in themes plus custom theme editor
 - **Git status indicators** - See modified, staged, and untracked files at a glance
@@ -48,7 +48,7 @@ All shortcuts are customizable in Preferences (Cmd-,).
 |--------|---------|
 | Open | Cmd-O / Enter |
 | Quick Look | Space |
-| Quick Navigate | Cmd-P |
+| Quick Open | Cmd-P |
 | New Tab | Cmd-T |
 | Close Tab | Cmd-W |
 | Go to Home | Cmd-Shift-H |

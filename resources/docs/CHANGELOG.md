@@ -1,5 +1,11 @@
 # Changelog
 
+## 260113 New File Context Menu
+- Added: "New File" submenu in context menu and File menu
+- Added: Create Text File (⌥⌘N), Markdown File, or Empty File with custom name
+- Added: New files auto-trigger rename mode after creation
+- Changed: README tagline and terminology now consistent with About dialog
+
 ## 260112 Security Hardening
 - Fixed: AppleScript injection vulnerability in Get Info feature (escape file paths and window names)
 - Fixed: Git helper execution risk when opening untrusted repos (disable fsmonitor, ignore system config)
