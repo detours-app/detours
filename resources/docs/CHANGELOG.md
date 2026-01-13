@@ -1,5 +1,11 @@
 # Changelog
 
+## 260113 Release Readiness Cleanup
+- Changed: Removed scratch.md, .mcp.json, and profraw files from git tracking
+- Changed: Consolidated docs/ into resources/docs/ (single docs location)
+- Fixed: Security review date corrected to 2026
+- Fixed: Overview spec Stage 6 and 7 marked as complete
+
 ## 260113 New File Context Menu
 - Added: "New File" submenu in context menu and File menu
 - Added: Create Text File (⌥⌘N), Markdown File, or Empty File with custom name

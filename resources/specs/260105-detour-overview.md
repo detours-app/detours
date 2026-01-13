@@ -545,19 +545,19 @@ Future specs will detail each stage. This is the sequencing:
 - [x] Tab selection by number (Cmd-1-9)
 - [x] Quick Open reveal (Cmd-Enter)
 
-### Stage 6: Preferences & Customization (in progress)
+### Stage 6: Preferences & Customization ✓
 - Spec: `260107-stage6-preferences.md`
 - [x] Preferences window
 - [x] Keyboard shortcut customization
 - [x] Custom theming
 - [x] Git status indicators
 
-### Stage 7: Sidebar
+### Stage 7: Sidebar ✓
 - Spec: `260110-stage7-sidebar.md`
-- [ ] Collapsible sidebar with Devices and Favorites sections
-- [ ] Volume monitoring (mount/unmount)
-- [ ] Eject mounted volumes
-- [ ] Drag folders to Favorites
+- [x] Collapsible sidebar with Devices and Favorites sections
+- [x] Volume monitoring (mount/unmount)
+- [x] Eject mounted volumes
+- [x] Drag folders to Favorites
 
 ### Stage 8: Folder Expansion
 - Spec: `260108-stage8-folder-expansion.md`

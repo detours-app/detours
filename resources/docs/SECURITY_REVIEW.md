@@ -1,7 +1,7 @@
 # Security Review Report (Detours)
 
 Scope: Local macOS app source review (Swift). No dynamic testing performed.
-Date: 2025-02-13
+Date: 2026-01-12
 
 ## Findings (by severity)
 
