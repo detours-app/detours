@@ -47,7 +47,7 @@ mkdir -p "$APP_DIR/Contents/Resources"
 cp ".build/arm64-apple-macosx/$BUILD_CONFIG/Detours" "$APP_DIR/Contents/MacOS/Detours"
 
 # Copy icon
-cp resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
+cp resources/icons/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
 # Create PkgInfo
 echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
@@ -101,14 +101,13 @@ echo "Codesigned app bundle."
 if [ "$1" = "--no-install" ]; then
     echo "Done! App bundle at build/Detours.app"
 else
-    echo "Installing to ~/Applications..."
-    mkdir -p ~/Applications
-    rm -rf ~/Applications/Detours.app
-    mv build/Detours.app ~/Applications/Detours.app
-    echo "Done! App installed to ~/Applications/Detours.app"
+    echo "Installing to /Applications..."
+    rm -rf /Applications/Detours.app
+    mv build/Detours.app /Applications/Detours.app
+    echo "Done! App installed to /Applications/Detours.app"
 
     if [ "$WAS_RUNNING" = true ]; then
         echo "Relaunching Detours..."
-        open ~/Applications/Detours.app
+        open /Applications/Detours.app
     fi
 fi

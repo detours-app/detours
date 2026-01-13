@@ -1,5 +1,9 @@
 # Changelog
 
+## 260113 New App Icon
+- Added: New app icon with teal dual-pane design matching app theme
+- Changed: Icon assets moved from resources/ to resources/icons/
+
 ## 260113 Release Automation
 - Added: GitHub Actions workflow creates releases automatically on tag push
 - Fixed: Skip tag creation if tag already exists (avoids error on re-run)
