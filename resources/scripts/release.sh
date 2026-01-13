@@ -50,14 +50,19 @@ echo "==> Stapling notarization ticket..."
 xcrun stapler staple "$DMG_PATH"
 
 echo "==> Tagging v$VERSION..."
-git tag -a "v$VERSION" -m "Version $VERSION"
+if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+    echo "Tag v$VERSION already exists, skipping"
+else
+    git tag -a "v$VERSION" -m "Version $VERSION"
+fi
 
 echo ""
 echo "Release prepared: $DMG_PATH"
 echo ""
 echo "Next steps:"
-echo "  1. Push tag to public repo:"
+echo ""
+echo "  1. Push tag:"
 echo "     git push public v$VERSION"
 echo ""
-echo "  2. Create GitHub release:"
+echo "  2. Create release:"
 echo "     gh release create v$VERSION --repo detours-app/detours --title \"Detours v$VERSION\" --notes \"Release notes\" $DMG_NAME"

@@ -1,5 +1,9 @@
 # Changelog
 
+## 260113 Release Script Improvements
+- Fixed: Skip tag creation if tag already exists (avoids error on re-run)
+- Changed: Cleaner output format for next steps
+
 ## 260113 Release Readiness Cleanup
 - Changed: Removed scratch.md, .mcp.json, and profraw files from git tracking
 - Changed: Consolidated docs/ into resources/docs/ (single docs location)
