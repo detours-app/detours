@@ -4,7 +4,7 @@ A fast, keyboard-driven file manager for macOS with dual-pane layout, tabs, and 
 
 ![Detours screenshot](resources/docs/screenshot.png)
 
-> **Note:** This is a personal project I built because none of the available options quite fit my needs. I'm not actively seeking contributions and may be slow to respond to issues. Feel free to fork if you want to take it in a different direction.
+> This is a personal project I built for my own workflow. I'm sharing it in case others find it useful. Issues and PRs are welcome, though I may not respond quickly. If you want to take it in a different direction, feel free to fork.
 
 ## Features
 
