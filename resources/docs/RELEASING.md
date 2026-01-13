@@ -4,8 +4,8 @@ This document covers syncing to the public repo and creating releases.
 
 ## Repository Setup
 
-- **Private repo (development)**: `MAF27/detours` (origin)
-- **Public repo (releases)**: `detours-app/detours`
+- **Private repo (development)**: origin
+- **Public repo (releases)**: `detours-app/detours` (public remote)
 
 ## One-time Setup
 
@@ -53,7 +53,10 @@ The script reads the version from `src/App/AppDelegate.swift` and:
 4. Staples the notarization ticket to the DMG
 5. Tags the release as `v<version>`
 
-After the script completes, follow the printed instructions to push the tag and create the GitHub release.
+After the script completes:
+1. Push the tag: `git push public v<version>`
+2. GitHub Actions automatically creates the release from RELEASE_NOTES.md
+3. Upload the DMG: `gh release upload v<version> Detours-<version>.dmg --repo detours-app/detours`
 
 ### Manual steps (if needed)
 
@@ -82,11 +85,8 @@ Tag and release:
 ```bash
 git tag -a v0.7.0 -m "Version 0.7.0"
 git push public v0.7.0
-gh release create v0.7.0 \
-  --repo detours-app/detours \
-  --title "Detours v0.7.0" \
-  --notes "Release notes" \
-  Detours-0.7.0.dmg
+# GitHub Actions creates release automatically
+gh release upload v0.7.0 Detours-0.7.0.dmg --repo detours-app/detours
 ```
 
 ## Version Numbering

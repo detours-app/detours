@@ -1,8 +1,9 @@
 # Changelog
 
-## 260113 Release Script Improvements
+## 260113 Release Automation
+- Added: GitHub Actions workflow creates releases automatically on tag push
 - Fixed: Skip tag creation if tag already exists (avoids error on re-run)
-- Changed: Cleaner output format for next steps
+- Changed: Release script updated for new workflow (push tag, upload DMG)
 
 ## 260113 Release Readiness Cleanup
 - Changed: Removed scratch.md, .mcp.json, and profraw files from git tracking
@@ -143,7 +144,7 @@
 ## 260108 Rename Detour to Detours
 - Changed: App renamed from Detour to Detours (naming conflict)
 - Changed: Bundle ID from com.detour.app to com.detours.app
-- Changed: GitHub repo renamed to MAF27/detours
+- Changed: GitHub repo renamed
 - Changed: All source files, tests, docs, and build scripts updated
 
 ## 260108 Stage 6 Complete - Phase 6 Git Status & Phase 7 Polish
