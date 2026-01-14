@@ -1,5 +1,10 @@
 # Changelog
 
+## 260114 Build Script Improvements
+- Fixed: Build now removes stale app copies from other locations (prevents Spotlight confusion)
+- Changed: Build output now shows clear step-by-step progress with INFO/OK status
+- Changed: App relaunches in background after build (no longer steals focus)
+
 ## 260113 New App Icon
 - Added: New app icon with teal dual-pane design matching app theme
 - Changed: Icon assets moved from resources/ to resources/icons/

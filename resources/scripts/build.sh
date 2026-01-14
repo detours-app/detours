@@ -7,6 +7,16 @@ APP_NAME="Detours"
 APP_BUNDLE_ID="com.detours.app"
 APP_DIR="build/Detours.app"
 
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+DIMMED='\033[38;5;245m'
+NC='\033[0m'
+
+log_info() { echo -e "${DIMMED}INFO  $1${NC}" >&2; }
+log_ok()   { echo -e "${GREEN}OK    $1${NC}" >&2; }
+log_error() { echo -e "${RED}ERROR $1${NC}" >&2; }
+
 # Parse arguments
 BUILD_CONFIG="release"
 for arg in "$@"; do
@@ -18,10 +28,15 @@ for arg in "$@"; do
     esac
 done
 
+echo "DETOURS BUILD" >&2
+echo "-------------" >&2
+
+# Check if running
 WAS_RUNNING=false
+log_info "Check if Detours is running"
 if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
     WAS_RUNNING=true
-    echo "Detours is running; quitting before rebuild..."
+    log_info "Quit running instance"
     osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
     for _ in {1..50}; do
         if ! pgrep -x "$APP_NAME" >/dev/null 2>&1; then
@@ -30,29 +45,28 @@ if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
         sleep 0.1
     done
     if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
-        echo "Detours is still running; refusing to overwrite the app bundle."
+        log_error "Detours is still running; refusing to overwrite"
         exit 1
     fi
+    log_ok "Quit complete"
+else
+    log_ok "Not running"
 fi
 
-echo "Building Detours ($BUILD_CONFIG)..."
+# Build
+log_info "Swift build ($BUILD_CONFIG)"
 swift build -c "$BUILD_CONFIG"
+log_ok "Build complete"
 
-echo "Creating app bundle..."
+# Create app bundle
+log_info "Create app bundle"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
-
-# Copy executable
 cp ".build/arm64-apple-macosx/$BUILD_CONFIG/Detours" "$APP_DIR/Contents/MacOS/Detours"
-
-# Copy icon
 cp resources/icons/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
-
-# Create PkgInfo
 echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
-# Create Info.plist
 cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -91,23 +105,47 @@ cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
 </dict>
 </plist>
 EOF
+log_ok "App bundle created"
 
+# Codesign
+log_info "Codesign app bundle"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Marco Fruh (AHUQTWVD7X)}"
 ENTITLEMENTS="Detours.entitlements"
-
-/usr/bin/codesign --force --timestamp --options runtime --entitlements "$ENTITLEMENTS" -s "$CODESIGN_IDENTITY" "$APP_DIR"
-echo "Codesigned app bundle."
+/usr/bin/codesign --force --timestamp --options runtime --entitlements "$ENTITLEMENTS" -s "$CODESIGN_IDENTITY" "$APP_DIR" 2>&1
+log_ok "Codesigned"
 
 if [ "$1" = "--no-install" ]; then
-    echo "Done! App bundle at build/Detours.app"
-else
-    echo "Installing to /Applications..."
-    rm -rf /Applications/Detours.app
-    mv build/Detours.app /Applications/Detours.app
-    echo "Done! App installed to /Applications/Detours.app"
-
-    if [ "$WAS_RUNNING" = true ]; then
-        echo "Relaunching Detours..."
-        open /Applications/Detours.app
-    fi
+    log_ok "Done (app bundle at build/Detours.app)"
+    exit 0
 fi
+
+# Remove stale copies
+log_info "Check for stale installations"
+STALE_FOUND=false
+while IFS= read -r app_path; do
+    if [ "$app_path" != "/Applications/Detours.app" ] && [ -d "$app_path" ]; then
+        log_info "Remove stale copy: $app_path"
+        rm -rf "$app_path"
+        STALE_FOUND=true
+    fi
+done < <(mdfind "kMDItemCFBundleIdentifier == 'com.detours.app'" 2>/dev/null)
+if [ "$STALE_FOUND" = true ]; then
+    log_ok "Stale copies removed"
+else
+    log_ok "No stale copies found"
+fi
+
+# Install
+log_info "Install to /Applications"
+rm -rf /Applications/Detours.app
+mv build/Detours.app /Applications/Detours.app
+log_ok "Installed"
+
+# Relaunch if was running
+if [ "$WAS_RUNNING" = true ]; then
+    log_info "Relaunch Detours"
+    open -g /Applications/Detours.app
+    log_ok "Relaunched"
+fi
+
+log_ok "Done"
