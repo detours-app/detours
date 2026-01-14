@@ -69,12 +69,12 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     sleep 10
 
     echo "==> Uploading DMG..."
-    gh release upload "v$VERSION" "$DMG_NAME" --repo detours-app/detours
+    gh release upload "v$VERSION" "$DMG_NAME" --repo detours-app/detours --clobber
 
     echo ""
     echo "Done! https://github.com/detours-app/detours/releases/tag/v$VERSION"
 else
     echo "Skipped. To publish manually:"
     echo "  git push public v$VERSION"
-    echo "  gh release upload v$VERSION $DMG_NAME --repo detours-app/detours"
+    echo "  gh release upload v$VERSION $DMG_NAME --repo detours-app/detours --clobber"
 fi
