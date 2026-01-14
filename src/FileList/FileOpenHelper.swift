@@ -32,7 +32,7 @@ enum FileOpenHelper {
         Task.detached {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-            process.arguments = ["attach", url.path, "-autoopen"]
+            process.arguments = ["attach", url.path]
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
             do {

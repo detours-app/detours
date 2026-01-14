@@ -570,7 +570,24 @@ extension MainSplitViewController: SidebarDelegate {
         let volumeName = volume.name
         Task.detached {
             do {
-                try NSWorkspace.shared.unmountAndEjectDevice(at: volumeURL)
+                // Check if this volume is a disk image (DMG, sparsebundle, etc.)
+                // NSWorkspace.unmountAndEjectDevice doesn't fully detach disk images
+                if let deviceToDetach = Self.diskImageDevice(for: volumeURL) {
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+                    process.arguments = ["detach", deviceToDetach]
+                    try process.run()
+                    process.waitUntilExit()
+                    if process.terminationStatus != 0 {
+                        throw NSError(
+                            domain: "Detours",
+                            code: Int(process.terminationStatus),
+                            userInfo: [NSLocalizedDescriptionKey: "hdiutil detach failed"]
+                        )
+                    }
+                } else {
+                    try NSWorkspace.shared.unmountAndEjectDevice(at: volumeURL)
+                }
             } catch {
                 await MainActor.run {
                     logger.error("Failed to eject volume: \(error.localizedDescription)")
@@ -583,6 +600,44 @@ extension MainSplitViewController: SidebarDelegate {
                 }
             }
         }
+    }
+
+    /// Returns the device identifier to detach if the volume is a disk image, nil otherwise
+    private nonisolated static func diskImageDevice(for volumeURL: URL) -> String? {
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        process.arguments = ["info", "-plist"]
+        process.standardOutput = pipe
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+                  let images = plist["images"] as? [[String: Any]] else {
+                return nil
+            }
+
+            let volumePath = volumeURL.path
+            for image in images {
+                guard let entities = image["system-entities"] as? [[String: Any]] else { continue }
+                for entity in entities {
+                    if let mountPoint = entity["mount-point"] as? String, mountPoint == volumePath {
+                        // Found the disk image - return the parent device to detach
+                        // Use the dev-entry from the first entity (the whole disk)
+                        if let firstEntity = entities.first, let devEntry = firstEntity["dev-entry"] as? String {
+                            return devEntry
+                        }
+                    }
+                }
+            }
+        } catch {
+            logger.error("Failed to get disk image info: \(error.localizedDescription)")
+        }
+
+        return nil
     }
 
     func sidebarDidAddFavorite(_ url: URL, at index: Int?) {
