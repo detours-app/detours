@@ -97,8 +97,9 @@ final class BandedTableView: NSTableView {
         let point = convert(event.locationInWindow, from: nil)
         let clickedRow = row(at: point)
 
-        // If clicking empty space, just become first responder without deselecting
+        // Clicking empty space deselects all items (standard Finder behavior)
         if clickedRow < 0 {
+            deselectAll(nil)
             window?.makeFirstResponder(self)
             onActivate?()
             return

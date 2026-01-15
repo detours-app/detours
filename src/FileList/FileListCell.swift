@@ -184,6 +184,8 @@ final class FileListCell: NSTableCellView {
             layer?.cornerRadius = 4
         } else {
             layer?.borderWidth = 0
+            layer?.borderColor = nil
+            layer?.cornerRadius = 0
         }
     }
 

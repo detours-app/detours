@@ -1,5 +1,9 @@
 # Changelog
 
+## 260115 Selection Behavior Fixes
+- Fixed: Visual artifacts from drop target borders not fully clearing on cell reuse
+- Fixed: Clicking empty space in a pane now deselects all items (standard Finder behavior)
+
 ## 260114 Build Script Improvements
 - Fixed: Build now removes stale app copies from other locations (prevents Spotlight confusion)
 - Changed: Build output now shows clear step-by-step progress with INFO/OK status
