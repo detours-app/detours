@@ -1,5 +1,8 @@
 # Changelog
 
+## 260116 Selection Refinement
+- Changed: Clicking empty space now preserves single selection (only clears multi-selection)
+
 ## 260115 Selection Behavior Fixes
 - Fixed: Visual artifacts from drop target borders not fully clearing on cell reuse
 - Fixed: Clicking empty space in a pane now deselects all items (standard Finder behavior)
