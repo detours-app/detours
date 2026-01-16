@@ -97,9 +97,12 @@ final class BandedTableView: NSTableView {
         let point = convert(event.locationInWindow, from: nil)
         let clickedRow = row(at: point)
 
-        // Clicking empty space deselects all items (standard Finder behavior)
+        // Clicking empty space deselects when multiple items are selected
+        // Single selection is preserved (common dual-pane behavior)
         if clickedRow < 0 {
-            deselectAll(nil)
+            if selectedRowIndexes.count > 1 {
+                deselectAll(nil)
+            }
             window?.makeFirstResponder(self)
             onActivate?()
             return
