@@ -49,6 +49,26 @@ xcrun notarytool submit "$DMG_PATH" --keychain-profile "detours-notarize" --wait
 echo "==> Stapling notarization ticket..."
 xcrun stapler staple "$DMG_PATH"
 
+echo "==> Generating release notes..."
+CHANGELOG="$PROJECT_DIR/resources/docs/CHANGELOG.md"
+RELEASE_NOTES="$PROJECT_DIR/RELEASE_NOTES.md"
+
+# Extract latest changelog entry (first ## section after header)
+LATEST_ENTRY=$(awk '/^## [0-9]/{if(found) exit; found=1} found{print}' "$CHANGELOG")
+ENTRY_BODY=$(echo "$LATEST_ENTRY" | tail -n +2)
+
+cat > "$RELEASE_NOTES" << EOF
+## What's New in $VERSION
+
+$ENTRY_BODY
+
+---
+
+Detours is a fast, keyboard-driven file manager for macOS with dual-pane layout, Quick Open, and full keyboard control.
+
+**Requirements:** macOS 14.0 (Sonoma) or later
+EOF
+
 echo "==> Tagging v$VERSION..."
 if git rev-parse "v$VERSION" >/dev/null 2>&1; then
     echo "Tag v$VERSION already exists, skipping"
