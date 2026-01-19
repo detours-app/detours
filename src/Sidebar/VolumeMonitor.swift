@@ -71,6 +71,7 @@ final class VolumeMonitor {
             .volumeAvailableCapacityKey,
             .volumeIsEjectableKey,
             .volumeIsRemovableKey,
+            .volumeIsInternalKey,
             .effectiveIconKey,
             .volumeIsLocalKey,
             .volumeIsReadOnlyKey,
@@ -102,8 +103,8 @@ final class VolumeMonitor {
                 let icon = values.effectiveIcon as? NSImage ?? NSWorkspace.shared.icon(forFile: url.path)
                 let capacity = values.volumeTotalCapacity.map { Int64($0) }
                 let available = values.volumeAvailableCapacity.map { Int64($0) }
-                // A volume can be ejected if it's ejectable OR removable (covers DMGs, sparsebundles, etc.)
-                let isEjectable = (values.volumeIsEjectable ?? false) || (values.volumeIsRemovable ?? false)
+                // A volume can be ejected if it's ejectable, removable, or external (not internal)
+                let isEjectable = (values.volumeIsEjectable ?? false) || (values.volumeIsRemovable ?? false) || !(values.volumeIsInternal ?? true)
 
                 let volume = VolumeInfo(
                     url: url,

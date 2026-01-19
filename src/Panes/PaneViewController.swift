@@ -39,12 +39,18 @@ final class ThemedPaneView: NSView {
 protocol DroppablePathControlDelegate: AnyObject {
     func pathControlDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool)
     func pathControlDestinationURL(forItemAt index: Int) -> URL?
+    func pathControlDragSourceURL(forItemAt index: Int) -> URL?
 }
 
-final class DroppablePathControl: NSPathControl {
+final class DroppablePathControl: NSPathControl, NSDraggingSource {
     weak var dropDelegate: DroppablePathControlDelegate?
     private var highlightedItemIndex: Int?
     private var highlightLayer: CALayer?
+
+    // Drag source tracking
+    private var mouseDownLocation: NSPoint?
+    private var dragSourceItemIndex: Int?
+    private var pendingMouseDownEvent: NSEvent?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -59,6 +65,108 @@ final class DroppablePathControl: NSPathControl {
     private func setup() {
         registerForDraggedTypes([.fileURL])
         wantsLayer = true
+    }
+
+    // MARK: - Drag Source
+
+    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        return context == .outsideApplication ? .copy : [.copy, .move]
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        let itemIndex = pathItemIndex(at: location)
+
+        // Only track for drag if we're on a valid draggable item
+        if let index = itemIndex, dropDelegate?.pathControlDragSourceURL(forItemAt: index) != nil {
+            mouseDownLocation = location
+            dragSourceItemIndex = index
+            pendingMouseDownEvent = event
+            // Don't call super yet - wait to see if this is a drag or click
+        } else {
+            mouseDownLocation = nil
+            dragSourceItemIndex = nil
+            pendingMouseDownEvent = nil
+            super.mouseDown(with: event)
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        // If we have a pending event and didn't drag, forward the original click
+        if let pendingEvent = pendingMouseDownEvent {
+            pendingMouseDownEvent = nil
+            mouseDownLocation = nil
+            dragSourceItemIndex = nil
+            super.mouseDown(with: pendingEvent)
+        }
+        super.mouseUp(with: event)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let startLocation = mouseDownLocation,
+              let itemIndex = dragSourceItemIndex,
+              let url = dropDelegate?.pathControlDragSourceURL(forItemAt: itemIndex) else {
+            super.mouseDragged(with: event)
+            return
+        }
+
+        let currentLocation = convert(event.locationInWindow, from: nil)
+        let dx = currentLocation.x - startLocation.x
+        let dy = currentLocation.y - startLocation.y
+        let distance = sqrt(dx * dx + dy * dy)
+
+        // Start drag after moving a few pixels
+        guard distance > 3 else {
+            super.mouseDragged(with: event)
+            return
+        }
+
+        // Clear tracking state - we're dragging, not clicking
+        mouseDownLocation = nil
+        dragSourceItemIndex = nil
+        pendingMouseDownEvent = nil
+
+        // Create dragging item
+        let pasteboardItem = NSPasteboardItem()
+        pasteboardItem.setString(url.absoluteString, forType: .fileURL)
+
+        let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
+
+        // Set drag image from path item
+        let rects = calculateItemRects()
+        if itemIndex < rects.count {
+            let itemRect = rects[itemIndex]
+            let title = pathItems[itemIndex].title
+            let image = createDragImage(for: title)
+            draggingItem.setDraggingFrame(itemRect, contents: image)
+        }
+
+        beginDraggingSession(with: [draggingItem], event: event, source: self)
+    }
+
+    private func createDragImage(for title: String) -> NSImage {
+        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.labelColor
+        ]
+        let size = (title as NSString).size(withAttributes: attributes)
+        let imageSize = NSSize(width: size.width + 8, height: size.height + 4)
+
+        let image = NSImage(size: imageSize)
+        image.lockFocus()
+
+        // Draw background
+        let bgRect = NSRect(origin: .zero, size: imageSize)
+        NSColor.controlBackgroundColor.withAlphaComponent(0.9).setFill()
+        NSBezierPath(roundedRect: bgRect, xRadius: 4, yRadius: 4).fill()
+
+        // Draw text
+        let textRect = NSRect(x: 4, y: 2, width: size.width, height: size.height)
+        (title as NSString).draw(in: textRect, withAttributes: attributes)
+
+        image.unlockFocus()
+        return image
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -1114,6 +1222,11 @@ extension PaneViewController: DroppablePathControlDelegate {
     }
 
     func pathControlDestinationURL(forItemAt index: Int) -> URL? {
+        guard index < pathItemURLs.count else { return nil }
+        return pathItemURLs[index]
+    }
+
+    func pathControlDragSourceURL(forItemAt index: Int) -> URL? {
         guard index < pathItemURLs.count else { return nil }
         return pathItemURLs[index]
     }

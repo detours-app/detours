@@ -1,5 +1,9 @@
 # Changelog
 
+## 260119 Breadcrumb Drag and External Drive Eject
+- Added: Drag breadcrumb segments to terminal or other apps to insert path
+- Fixed: External drives now show eject button and context menu (was checking wrong volume flags)
+
 ## 260116 Selection Refinement
 - Changed: Clicking empty space now preserves single selection (only clears multi-selection)
 
