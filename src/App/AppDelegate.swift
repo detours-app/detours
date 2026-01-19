@@ -134,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationIcon: NSApp.applicationIconImage as Any,
             .applicationName: "Detours",
-            .applicationVersion: "0.7.0",
+            .applicationVersion: "0.7.1",
             .version: "",  // Hide build number
             .credits: credits
         ])
