@@ -1,20 +1,10 @@
-Detours is a fast, keyboard-driven file manager for macOS.
+## What's New in 0.7.1
 
-Built for developers and power users who want dual-pane navigation, Quick Open search, and full keyboard control without sacrificing native macOS feel.
+- **Breadcrumb drag**: Drag any breadcrumb segment to Terminal or other apps to insert the path
+- **External drive eject fix**: Eject button and context menu now appear correctly for external drives
 
-## Highlights
+---
 
-- **Dual-pane layout** with independent tabs in each pane
-- **Quick Open** (Cmd-P) with Spotlight search and frecency ranking
-- **Git status indicators** for modified, staged, and untracked files
-- **Keyboard-first design** with fully customizable shortcuts
-- **Four built-in themes** plus a custom theme editor
-- **Native macOS** experience - AppKit, Quick Look, drag and drop
+Detours is a fast, keyboard-driven file manager for macOS with dual-pane layout, Quick Open, and full keyboard control.
 
-## Requirements
-
-macOS 14.0 (Sonoma) or later.
-
-## Installation
-
-Open the DMG and drag Detours to Applications.
+**Requirements:** macOS 14.0 (Sonoma) or later
