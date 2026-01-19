@@ -91,6 +91,92 @@ final class DroppablePathControlTests: XCTestCase {
         let point = NSPoint(x: 50, y: 12)
         XCTAssertNil(pathControl.testablePathItemIndex(at: point))
     }
+
+    func testContextMenuCopyPathEscapesSpaces() {
+        let pathControl = DroppablePathControl(frame: NSRect(x: 0, y: 0, width: 400, height: 24))
+
+        let item1 = NSPathControlItem()
+        item1.title = "Users"
+        let item2 = NSPathControlItem()
+        item2.title = "My Documents"
+
+        pathControl.pathItems = [item1, item2]
+
+        // Set up delegate with URL containing spaces
+        let mockDelegate = MockPathControlDelegate()
+        mockDelegate.urlsForIndex = [
+            0: URL(fileURLWithPath: "/Users"),
+            1: URL(fileURLWithPath: "/Users/My Documents")
+        ]
+        pathControl.dropDelegate = mockDelegate
+
+        // Get rects and find point in second item (the one with spaces)
+        let rects = pathControl.testableCalculateItemRects()
+        let pointInSecondItem = NSPoint(x: rects[1].midX, y: 12)
+
+        // Create a mock event at that location
+        let mockEvent = NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: pathControl.convert(pointInSecondItem, to: nil),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 0
+        )!
+
+        // Get the context menu
+        let menu = pathControl.menu(for: mockEvent)
+        XCTAssertNotNil(menu)
+        XCTAssertEqual(menu?.items.count, 1)
+        XCTAssertEqual(menu?.items.first?.title, "Copy Path")
+
+        // Invoke the copy action
+        if let copyItem = menu?.items.first {
+            NSPasteboard.general.clearContents()
+            _ = copyItem.target?.perform(copyItem.action, with: copyItem)
+
+            let pasteboardContents = NSPasteboard.general.string(forType: .string)
+            XCTAssertNotNil(pasteboardContents)
+            // Spaces should be escaped
+            XCTAssertTrue(pasteboardContents!.contains("My\\ Documents"), "Spaces should be escaped")
+            XCTAssertFalse(pasteboardContents!.contains("My Documents"), "Unescaped spaces should not appear")
+        }
+    }
+
+    func testContextMenuReturnsNilForEllipsisItem() {
+        let pathControl = DroppablePathControl(frame: NSRect(x: 0, y: 0, width: 400, height: 24))
+
+        let item1 = NSPathControlItem()
+        item1.title = "Users"
+
+        pathControl.pathItems = [item1]
+
+        // Delegate returns nil for the ellipsis (simulating how PaneViewController works)
+        let mockDelegate = MockPathControlDelegate()
+        mockDelegate.urlsForIndex = [:] // No URLs - simulates ellipsis item
+        pathControl.dropDelegate = mockDelegate
+
+        let rects = pathControl.testableCalculateItemRects()
+        let pointInItem = NSPoint(x: rects[0].midX, y: 12)
+
+        let mockEvent = NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: pathControl.convert(pointInItem, to: nil),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 0
+        )!
+
+        let menu = pathControl.menu(for: mockEvent)
+        XCTAssertNil(menu, "Context menu should not appear for items without URLs (ellipsis)")
+    }
 }
 
 // MARK: - Test Helpers
@@ -126,5 +212,25 @@ extension DroppablePathControl {
             }
         }
         return nil
+    }
+}
+
+// MARK: - Mock Delegate
+
+@MainActor
+final class MockPathControlDelegate: DroppablePathControlDelegate {
+    var urlsForIndex: [Int: URL] = [:]
+    var receivedDrop: (urls: [URL], destination: URL, isCopy: Bool)?
+
+    func pathControlDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool) {
+        receivedDrop = (urls, destination, isCopy)
+    }
+
+    func pathControlDestinationURL(forItemAt index: Int) -> URL? {
+        return urlsForIndex[index]
+    }
+
+    func pathControlDragSourceURL(forItemAt index: Int) -> URL? {
+        return urlsForIndex[index]
     }
 }

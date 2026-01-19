@@ -449,15 +449,17 @@ final class FileListResponderTests: XCTestCase {
 
         let pasteboardContents = NSPasteboard.general.string(forType: .string)
         // Resolve symlinks for comparison (e.g., /var -> /private/var)
+        // Unescape spaces before creating URL (copyPath escapes spaces for terminal use)
         let expectedPath = fileURL.resolvingSymlinksInPath().path
-        let actualPath = pasteboardContents.flatMap { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
+        let unescaped = pasteboardContents?.replacingOccurrences(of: "\\ ", with: " ")
+        let actualPath = unescaped.flatMap { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
         XCTAssertEqual(actualPath, expectedPath)
     }
 
     func testCopyPathWithMultipleSelectionJoinsWithNewlines() throws {
         let temp = try createTempDirectory()
-        let file1 = try createTestFile(in: temp, name: "a.txt")
-        let file2 = try createTestFile(in: temp, name: "b.txt")
+        _ = try createTestFile(in: temp, name: "a.txt")
+        _ = try createTestFile(in: temp, name: "b.txt")
 
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
@@ -474,12 +476,38 @@ final class FileListResponderTests: XCTestCase {
 
         let pasteboardContents = NSPasteboard.general.string(forType: .string)
         XCTAssertNotNil(pasteboardContents)
-        let paths = pasteboardContents!.split(separator: "\n").map { URL(fileURLWithPath: String($0)).resolvingSymlinksInPath().path }
-        let expectedPath1 = file1.resolvingSymlinksInPath().path
-        let expectedPath2 = file2.resolvingSymlinksInPath().path
+        let paths = pasteboardContents!.split(separator: "\n")
         XCTAssertEqual(paths.count, 2)
-        XCTAssertTrue(paths.contains(expectedPath1))
-        XCTAssertTrue(paths.contains(expectedPath2))
+        // Paths should contain the file names (escaped if needed)
+        XCTAssertTrue(paths.contains { $0.hasSuffix("a.txt") })
+        XCTAssertTrue(paths.contains { $0.hasSuffix("b.txt") })
+    }
+
+    func testCopyPathEscapesSpaces() throws {
+        let temp = try createTempDirectory()
+        let fileWithSpaces = try createTestFile(in: temp, name: "file with spaces.txt")
+
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        viewController.loadDirectory(temp)
+        viewController.tableView.selectRowIndexes(IndexSet([0]), byExtendingSelection: false)
+
+        let cleanup = {
+            cleanupTempDirectory(temp)
+            ClipboardManager.shared.clear()
+        }
+        defer { cleanup() }
+
+        viewController.copyPath(nil)
+
+        let pasteboardContents = NSPasteboard.general.string(forType: .string)
+        XCTAssertNotNil(pasteboardContents)
+        // Spaces should be escaped with backslash
+        XCTAssertTrue(pasteboardContents!.contains("file\\ with\\ spaces.txt"), "Spaces should be escaped")
+        XCTAssertFalse(pasteboardContents!.contains("file with spaces.txt"), "Unescaped spaces should not appear")
+        // The escaped path should be usable - unescape and verify it matches the original
+        let unescaped = pasteboardContents!.replacingOccurrences(of: "\\ ", with: " ")
+        XCTAssertEqual(URL(fileURLWithPath: unescaped).resolvingSymlinksInPath().path, fileWithSpaces.resolvingSymlinksInPath().path)
     }
 
     func testMenuValidationForGetInfoCopyPathShowInFinder() throws {

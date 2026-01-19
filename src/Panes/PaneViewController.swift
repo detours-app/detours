@@ -279,6 +279,30 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
         self.layer?.addSublayer(layer)
         highlightLayer = layer
     }
+
+    // MARK: - Context Menu
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let location = convert(event.locationInWindow, from: nil)
+        guard let index = pathItemIndex(at: location),
+              let url = dropDelegate?.pathControlDragSourceURL(forItemAt: index) else {
+            return nil
+        }
+
+        let menu = NSMenu()
+        let copyPathItem = NSMenuItem(title: "Copy Path", action: #selector(copyPathFromContextMenu(_:)), keyEquivalent: "")
+        copyPathItem.target = self
+        copyPathItem.representedObject = url
+        menu.addItem(copyPathItem)
+        return menu
+    }
+
+    @objc private func copyPathFromContextMenu(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        let escapedPath = url.path.replacingOccurrences(of: " ", with: "\\ ")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(escapedPath, forType: .string)
+    }
 }
 
 // MARK: - Pane View Controller

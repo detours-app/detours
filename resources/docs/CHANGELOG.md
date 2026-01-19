@@ -1,5 +1,9 @@
 # Changelog
 
+## 260119 Breadcrumb Context Menu and Copy Path Improvements
+- Added: Right-click breadcrumb segments to copy path to clipboard
+- Changed: Copy Path now escapes spaces with backslashes (terminal-compatible)
+
 ## 260119 Breadcrumb Drag and External Drive Eject
 - Added: Drag breadcrumb segments to terminal or other apps to insert path
 - Fixed: External drives now show eject button and context menu (was checking wrong volume flags)
