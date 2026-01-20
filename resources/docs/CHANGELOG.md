@@ -1,5 +1,9 @@
 # Changelog
 
+## 260120 Screenshot Setup Script
+- Added: Screenshot setup script creates sample folders for README screenshots
+- Changed: Screenshot updated to show dual-pane with git status indicators
+
 ## 260120 Delete Immediately and Menu Icons
 - Added: Delete Immediately option (Cmd-Option-Delete) for permanent deletion without Trash
 - Added: Confirmation dialog for permanent deletion with warning text
