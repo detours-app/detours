@@ -7,11 +7,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Extract version from AppDelegate.swift
-VERSION=$(grep -o 'applicationVersion: "[^"]*"' "$PROJECT_DIR/src/App/AppDelegate.swift" | sed 's/applicationVersion: "//;s/"//')
+# Extract version from build.sh (single source of truth)
+VERSION=$(grep -A1 'CFBundleShortVersionString' "$SCRIPT_DIR/build.sh" | grep '<string>' | sed 's/.*<string>//;s/<\/string>.*//')
 
 if [[ -z "$VERSION" ]]; then
-    echo "Error: Could not extract version from AppDelegate.swift"
+    echo "Error: Could not extract version from build.sh"
     exit 1
 fi
 

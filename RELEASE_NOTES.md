@@ -1,7 +1,9 @@
-## What's New in 0.7.1
+## What's New in 0.8.0
 
-- **Breadcrumb drag**: Drag any breadcrumb segment to Terminal or other apps to insert the path
-- **External drive eject fix**: Eject button and context menu now appear correctly for external drives
+- Added: Delete Immediately option (Cmd-Option-Delete) for permanent deletion without Trash
+- Added: Confirmation dialog for permanent deletion with warning text
+- Added: SF Symbol icons to all menu items (File, Edit, View, Go, Window, context menus)
+- Changed: Move to Trash and Duplicate moved from Edit to File menu (matches Finder)
 
 ---
 
