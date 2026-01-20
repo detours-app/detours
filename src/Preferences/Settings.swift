@@ -228,6 +228,7 @@ enum ShortcutAction: String, Codable, CaseIterable {
     case moveToOtherPane
     case newFolder
     case deleteToTrash
+    case deleteImmediately
     case rename
     case openInNewTab
     case toggleHiddenFiles
@@ -243,6 +244,7 @@ enum ShortcutAction: String, Codable, CaseIterable {
         case .moveToOtherPane: return "Move to Other Pane"
         case .newFolder: return "New Folder"
         case .deleteToTrash: return "Delete to Trash"
+        case .deleteImmediately: return "Delete Immediately"
         case .rename: return "Rename"
         case .openInNewTab: return "Open in New Tab"
         case .toggleHiddenFiles: return "Toggle Hidden Files"

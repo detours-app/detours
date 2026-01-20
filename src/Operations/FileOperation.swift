@@ -4,6 +4,7 @@ enum FileOperation {
     case copy(sources: [URL], destination: URL)
     case move(sources: [URL], destination: URL)
     case delete(items: [URL])
+    case deleteImmediately(items: [URL])
     case rename(item: URL, newName: String)
     case duplicate(items: [URL])
     case createFolder(directory: URL, name: String)
@@ -17,6 +18,8 @@ enum FileOperation {
             return "Moving \(sources.count) item\(sources.count == 1 ? "" : "s")..."
         case let .delete(items):
             return "Moving \(items.count) item\(items.count == 1 ? "" : "s") to Trash..."
+        case let .deleteImmediately(items):
+            return "Deleting \(items.count) item\(items.count == 1 ? "" : "s") permanently..."
         case .rename:
             return "Renaming item..."
         case let .duplicate(items):

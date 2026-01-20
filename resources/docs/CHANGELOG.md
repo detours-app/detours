@@ -1,5 +1,11 @@
 # Changelog
 
+## 260120 Delete Immediately and Menu Icons
+- Added: Delete Immediately option (Cmd-Option-Delete) for permanent deletion without Trash
+- Added: Confirmation dialog for permanent deletion with warning text
+- Added: SF Symbol icons to all menu items (File, Edit, View, Go, Window, context menus)
+- Changed: Move to Trash and Duplicate moved from Edit to File menu (matches Finder)
+
 ## 260120 Breadcrumb Single-Click Navigation Fix
 - Fixed: Breadcrumb path items now navigate on single click (was requiring double-click)
 

@@ -16,6 +16,7 @@ final class ShortcutManager {
         .moveToOtherPane: KeyCombo(keyCode: 97),                              // F6
         .newFolder: KeyCombo(keyCode: 98),                                    // F7
         .deleteToTrash: KeyCombo(keyCode: 100),                               // F8
+        .deleteImmediately: KeyCombo(keyCode: 51, modifiers: [.command, .option]), // Cmd-Option-Delete
         .rename: KeyCombo(keyCode: 120),                                      // F2
         .openInNewTab: KeyCombo(keyCode: 125, modifiers: [.command, .shift]), // Cmd-Shift-Down
         .toggleHiddenFiles: KeyCombo(keyCode: 47, modifiers: [.command, .shift]), // Cmd-Shift-.

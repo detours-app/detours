@@ -12,12 +12,14 @@ extension FileListViewController: FileListContextMenuDelegate {
         if hasSelection {
             let openItem = NSMenuItem(title: "Open", action: #selector(openFromContextMenu(_:)), keyEquivalent: "")
             openItem.target = self
+            openItem.image = NSImage(systemSymbolName: "arrow.up.doc", accessibilityDescription: nil)
             menu.addItem(openItem)
 
             // Show Package Contents (only for single package selection)
             if let singleFile = singleItem, singleFile.isPackage {
                 let showContentsItem = NSMenuItem(title: "Show Package Contents", action: #selector(showPackageContentsFromContextMenu(_:)), keyEquivalent: "")
                 showContentsItem.target = self
+                showContentsItem.image = NSImage(systemSymbolName: "shippingbox", accessibilityDescription: nil)
                 menu.addItem(showContentsItem)
             }
 
@@ -26,12 +28,14 @@ extension FileListViewController: FileListContextMenuDelegate {
                 let openWithMenu = buildOpenWithMenu(for: singleFile.url)
                 let openWithItem = NSMenuItem(title: "Open With", action: nil, keyEquivalent: "")
                 openWithItem.submenu = openWithMenu
+                openWithItem.image = NSImage(systemSymbolName: "arrow.up.forward.app", accessibilityDescription: nil)
                 menu.addItem(openWithItem)
             }
 
             // Reveal in Finder
             let showInFinderItem = NSMenuItem(title: "Reveal in Finder", action: #selector(showInFinder(_:)), keyEquivalent: "")
             showInFinderItem.target = self
+            showInFinderItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
             menu.addItem(showInFinderItem)
         }
 
@@ -42,39 +46,51 @@ extension FileListViewController: FileListContextMenuDelegate {
             let copyItem = NSMenuItem(title: "Copy", action: #selector(copy(_:)), keyEquivalent: "c")
             copyItem.keyEquivalentModifierMask = .command
             copyItem.target = self
+            copyItem.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
             menu.addItem(copyItem)
 
             let cutItem = NSMenuItem(title: "Cut", action: #selector(cut(_:)), keyEquivalent: "x")
             cutItem.keyEquivalentModifierMask = .command
             cutItem.target = self
+            cutItem.image = NSImage(systemSymbolName: "scissors", accessibilityDescription: nil)
             menu.addItem(cutItem)
         }
 
         let pasteItem = NSMenuItem(title: "Paste", action: #selector(paste(_:)), keyEquivalent: "v")
         pasteItem.keyEquivalentModifierMask = .command
         pasteItem.target = self
+        pasteItem.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)
         menu.addItem(pasteItem)
 
         if hasSelection {
             let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(duplicate(_:)), keyEquivalent: "d")
             duplicateItem.keyEquivalentModifierMask = .command
             duplicateItem.target = self
+            duplicateItem.image = NSImage(systemSymbolName: "plus.square.on.square", accessibilityDescription: nil)
             menu.addItem(duplicateItem)
         }
 
         menu.addItem(NSMenuItem.separator())
 
-        // Move to Trash, Rename
+        // Move to Trash, Delete Immediately, Rename
         if hasSelection {
             let trashItem = NSMenuItem(title: "Move to Trash", action: #selector(delete(_:)), keyEquivalent: "\u{08}")
             trashItem.keyEquivalentModifierMask = .command
             trashItem.target = self
+            trashItem.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
             menu.addItem(trashItem)
+
+            let deleteImmediatelyItem = NSMenuItem(title: "Delete Immediately", action: #selector(deleteImmediately(_:)), keyEquivalent: "\u{08}")
+            deleteImmediatelyItem.keyEquivalentModifierMask = [.command, .option]
+            deleteImmediatelyItem.target = self
+            deleteImmediatelyItem.image = NSImage(systemSymbolName: "xmark.bin.fill", accessibilityDescription: nil)
+            menu.addItem(deleteImmediatelyItem)
 
             if singleItem != nil {
                 let renameItem = NSMenuItem(title: "Rename", action: #selector(renameFromContextMenu(_:)), keyEquivalent: "\r")
                 renameItem.keyEquivalentModifierMask = .shift
                 renameItem.target = self
+                renameItem.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: nil)
                 menu.addItem(renameItem)
             }
         }
@@ -86,11 +102,13 @@ extension FileListViewController: FileListContextMenuDelegate {
             let infoItem = NSMenuItem(title: "Get Info", action: #selector(getInfo(_:)), keyEquivalent: "i")
             infoItem.keyEquivalentModifierMask = .command
             infoItem.target = self
+            infoItem.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
             menu.addItem(infoItem)
 
             let copyPathItem = NSMenuItem(title: "Copy Path", action: #selector(copyPath(_:)), keyEquivalent: "c")
             copyPathItem.keyEquivalentModifierMask = [.command, .option]
             copyPathItem.target = self
+            copyPathItem.image = NSImage(systemSymbolName: "link", accessibilityDescription: nil)
             menu.addItem(copyPathItem)
         }
 
@@ -100,6 +118,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         let newFolderItem = NSMenuItem(title: "New Folder", action: #selector(newFolder(_:)), keyEquivalent: "n")
         newFolderItem.keyEquivalentModifierMask = [.command, .shift]
         newFolderItem.target = self
+        newFolderItem.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: nil)
         menu.addItem(newFolderItem)
 
         // New File submenu
@@ -108,20 +127,24 @@ extension FileListViewController: FileListContextMenuDelegate {
         let textFileItem = NSMenuItem(title: "Text File", action: #selector(newTextFile(_:)), keyEquivalent: "n")
         textFileItem.keyEquivalentModifierMask = [.command, .option]
         textFileItem.target = self
+        textFileItem.image = NSImage(systemSymbolName: "doc.text", accessibilityDescription: nil)
         newFileMenu.addItem(textFileItem)
 
         let markdownFileItem = NSMenuItem(title: "Markdown File", action: #selector(newMarkdownFile(_:)), keyEquivalent: "")
         markdownFileItem.target = self
+        markdownFileItem.image = NSImage(systemSymbolName: "doc.richtext", accessibilityDescription: nil)
         newFileMenu.addItem(markdownFileItem)
 
         newFileMenu.addItem(NSMenuItem.separator())
 
         let emptyFileItem = NSMenuItem(title: "Empty File...", action: #selector(newEmptyFile(_:)), keyEquivalent: "")
         emptyFileItem.target = self
+        emptyFileItem.image = NSImage(systemSymbolName: "doc", accessibilityDescription: nil)
         newFileMenu.addItem(emptyFileItem)
 
         let newFileMenuItem = NSMenuItem(title: "New File", action: nil, keyEquivalent: "")
         newFileMenuItem.submenu = newFileMenu
+        newFileMenuItem.image = NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: nil)
         menu.addItem(newFileMenuItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -131,6 +154,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         NSApp.servicesMenu = servicesMenu
         let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
         servicesItem.submenu = servicesMenu
+        servicesItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
         menu.addItem(servicesItem)
 
         return menu
@@ -184,6 +208,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         let otherItem = NSMenuItem(title: "Other...", action: #selector(openWithOtherApp(_:)), keyEquivalent: "")
         otherItem.target = self
         otherItem.representedObject = url
+        otherItem.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: nil)
         menu.addItem(otherItem)
 
         return menu

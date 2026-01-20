@@ -466,6 +466,49 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
+    private func deleteSelectionImmediately() {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+
+        // Show confirmation dialog
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        if urls.count == 1 {
+            alert.messageText = "Delete \"\(urls[0].lastPathComponent)\" immediately?"
+        } else {
+            alert.messageText = "Delete \(urls.count) items immediately?"
+        }
+        alert.informativeText = "This item will be deleted immediately. You can't undo this action."
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        // Make Delete button destructive (red)
+        alert.buttons[0].hasDestructiveAction = true
+
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else { return }
+
+        // Remember selection index to restore after delete
+        let selectedIndex = tableView.selectedRow
+
+        Task { @MainActor in
+            do {
+                try await FileOperationQueue.shared.deleteImmediately(items: urls)
+                dataSource.invalidateGitStatus()
+                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent())
+                // Select next file at same index
+                let itemCount = dataSource.items.count
+                if itemCount > 0 && selectedIndex >= 0 {
+                    let newIndex = min(selectedIndex, itemCount - 1)
+                    tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                    tableView.scrollRowToVisible(newIndex)
+                }
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
     private func duplicateSelection() {
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
@@ -601,6 +644,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
         if sm.matches(event: event, action: .deleteToTrash) {
             deleteSelection()
+            return true
+        }
+        if sm.matches(event: event, action: .deleteImmediately) {
+            deleteSelectionImmediately()
             return true
         }
         if sm.matches(event: event, action: .rename) {
@@ -931,6 +978,10 @@ extension FileListViewController {
 
     @objc func delete(_ sender: Any?) {
         deleteSelection()
+    }
+
+    @objc func deleteImmediately(_ sender: Any?) {
+        deleteSelectionImmediately()
     }
 
     @objc func duplicate(_ sender: Any?) {

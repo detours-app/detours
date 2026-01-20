@@ -43,6 +43,7 @@ func setupMainMenu(target: AppDelegate) {
         action: #selector(FileListViewController.newFolder(_:)),
         shortcutAction: .newFolder
     )
+    newFolderItem.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: nil)
     fileMenu.addItem(newFolderItem)
 
     // New File submenu
@@ -50,39 +51,63 @@ func setupMainMenu(target: AppDelegate) {
 
     let textFileItem = NSMenuItem(title: "Text File", action: #selector(FileListViewController.newTextFile(_:)), keyEquivalent: "n")
     textFileItem.keyEquivalentModifierMask = [.command, .option]
+    textFileItem.image = NSImage(systemSymbolName: "doc.text", accessibilityDescription: nil)
     newFileMenu.addItem(textFileItem)
 
     let markdownFileItem = NSMenuItem(title: "Markdown File", action: #selector(FileListViewController.newMarkdownFile(_:)), keyEquivalent: "")
+    markdownFileItem.image = NSImage(systemSymbolName: "doc.richtext", accessibilityDescription: nil)
     newFileMenu.addItem(markdownFileItem)
 
     newFileMenu.addItem(NSMenuItem.separator())
 
     let emptyFileItem = NSMenuItem(title: "Empty File...", action: #selector(FileListViewController.newEmptyFile(_:)), keyEquivalent: "")
+    emptyFileItem.image = NSImage(systemSymbolName: "doc", accessibilityDescription: nil)
     newFileMenu.addItem(emptyFileItem)
 
     let newFileMenuItem = NSMenuItem(title: "New File", action: nil, keyEquivalent: "")
     newFileMenuItem.submenu = newFileMenu
+    newFileMenuItem.image = NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: nil)
     fileMenu.addItem(newFileMenuItem)
+
+    let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(FileListViewController.duplicate(_:)), keyEquivalent: "d")
+    duplicateItem.image = NSImage(systemSymbolName: "plus.square.on.square", accessibilityDescription: nil)
+    fileMenu.addItem(duplicateItem)
 
     fileMenu.addItem(NSMenuItem.separator())
 
     let getInfoItem = NSMenuItem(title: "Get Info", action: #selector(FileListViewController.getInfo(_:)), keyEquivalent: "i")
+    getInfoItem.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
     fileMenu.addItem(getInfoItem)
 
     let revealInFinderItem = NSMenuItem(title: "Reveal in Finder", action: #selector(FileListViewController.showInFinder(_:)), keyEquivalent: "")
+    revealInFinderItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
     fileMenu.addItem(revealInFinderItem)
 
     let showPackageContentsItem = NSMenuItem(title: "Show Package Contents", action: #selector(FileListViewController.showPackageContents), keyEquivalent: "")
+    showPackageContentsItem.image = NSImage(systemSymbolName: "shippingbox", accessibilityDescription: nil)
     fileMenu.addItem(showPackageContentsItem)
+    fileMenu.addItem(NSMenuItem.separator())
+
+    let deleteItem = NSMenuItem(title: "Move to Trash", action: #selector(FileListViewController.delete(_:)), keyEquivalent: String(Character(UnicodeScalar(NSDeleteCharacter)!)))
+    deleteItem.keyEquivalentModifierMask = .command
+    deleteItem.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+    fileMenu.addItem(deleteItem)
+
+    let deleteImmediatelyItem = NSMenuItem(title: "Delete Immediately", action: #selector(FileListViewController.deleteImmediately(_:)), keyEquivalent: String(Character(UnicodeScalar(NSDeleteCharacter)!)))
+    deleteImmediatelyItem.keyEquivalentModifierMask = [.command, .option]
+    deleteImmediatelyItem.image = NSImage(systemSymbolName: "xmark.bin.fill", accessibilityDescription: nil)
+    fileMenu.addItem(deleteImmediatelyItem)
     fileMenu.addItem(NSMenuItem.separator())
 
     // Close Tab is now Cmd-W, Close Window is Cmd-Shift-W
     let closeTabItem = NSMenuItem(title: "Close Tab", action: #selector(AppDelegate.closeTab(_:)), keyEquivalent: "w")
     closeTabItem.target = target
+    closeTabItem.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: nil)
     fileMenu.addItem(closeTabItem)
 
     let closeWindowItem = NSMenuItem(title: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "W")
     closeWindowItem.keyEquivalentModifierMask = [.command, .shift]
+    closeWindowItem.image = NSImage(systemSymbolName: "xmark.rectangle", accessibilityDescription: nil)
     fileMenu.addItem(closeWindowItem)
 
     // Edit menu
@@ -91,31 +116,38 @@ func setupMainMenu(target: AppDelegate) {
     editMenuItem.submenu = editMenu
     mainMenu.addItem(editMenuItem)
 
-    editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-    editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+    let undoItem = NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+    undoItem.image = NSImage(systemSymbolName: "arrow.uturn.backward", accessibilityDescription: nil)
+    editMenu.addItem(undoItem)
+
+    let redoItem = NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+    redoItem.image = NSImage(systemSymbolName: "arrow.uturn.forward", accessibilityDescription: nil)
+    editMenu.addItem(redoItem)
     editMenu.addItem(NSMenuItem.separator())
 
     let cutItem = NSMenuItem(title: "Cut", action: #selector(FileListViewController.cut(_:)), keyEquivalent: "x")
+    cutItem.image = NSImage(systemSymbolName: "scissors", accessibilityDescription: nil)
+
     let copyItem = NSMenuItem(title: "Copy", action: #selector(FileListViewController.copy(_:)), keyEquivalent: "c")
+    copyItem.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+
     let pasteItem = NSMenuItem(title: "Paste", action: #selector(FileListViewController.paste(_:)), keyEquivalent: "v")
-    let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(FileListViewController.duplicate(_:)), keyEquivalent: "d")
+    pasteItem.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)
 
     editMenu.addItem(cutItem)
     editMenu.addItem(copyItem)
     editMenu.addItem(pasteItem)
-    editMenu.addItem(duplicateItem)
     editMenu.addItem(NSMenuItem.separator())
 
     let copyPathItem = NSMenuItem(title: "Copy Path", action: #selector(FileListViewController.copyPath(_:)), keyEquivalent: "c")
     copyPathItem.keyEquivalentModifierMask = [.command, .option]
+    copyPathItem.image = NSImage(systemSymbolName: "link", accessibilityDescription: nil)
     editMenu.addItem(copyPathItem)
     editMenu.addItem(NSMenuItem.separator())
 
-    let deleteItem = NSMenuItem(title: "Move to Trash", action: #selector(FileListViewController.delete(_:)), keyEquivalent: String(Character(UnicodeScalar(NSDeleteCharacter)!)))
-    deleteItem.keyEquivalentModifierMask = NSEvent.ModifierFlags.command
-    editMenu.addItem(deleteItem)
-    editMenu.addItem(NSMenuItem.separator())
-    editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+    let selectAllItem = NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+    selectAllItem.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: nil)
+    editMenu.addItem(selectAllItem)
 
     // View menu - Tab controls
     let viewMenu = NSMenu(title: "View")
@@ -125,6 +157,7 @@ func setupMainMenu(target: AppDelegate) {
 
     let newTabItem = NSMenuItem(title: "New Tab", action: #selector(AppDelegate.newTab(_:)), keyEquivalent: "t")
     newTabItem.target = target
+    newTabItem.image = NSImage(systemSymbolName: "plus.square", accessibilityDescription: nil)
     viewMenu.addItem(newTabItem)
 
     viewMenu.addItem(NSMenuItem.separator())
@@ -146,10 +179,12 @@ func setupMainMenu(target: AppDelegate) {
         shortcutAction: .toggleHiddenFiles,
         target: target
     )
+    toggleHiddenItem.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: nil)
     viewMenu.addItem(toggleHiddenItem)
 
     let showStatusBarItem = NSMenuItem(title: "Show Status Bar", action: #selector(AppDelegate.toggleStatusBar(_:)), keyEquivalent: "")
     showStatusBarItem.target = target
+    showStatusBarItem.image = NSImage(systemSymbolName: "menubar.rectangle", accessibilityDescription: nil)
     viewMenu.addItem(showStatusBarItem)
 
     viewMenu.addItem(NSMenuItem.separator())
@@ -160,6 +195,7 @@ func setupMainMenu(target: AppDelegate) {
         shortcutAction: .toggleSidebar,
         target: target
     )
+    toggleSidebarItem.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: nil)
     viewMenu.addItem(toggleSidebarItem)
 
     // Go menu
@@ -174,6 +210,7 @@ func setupMainMenu(target: AppDelegate) {
         shortcutAction: .quickOpen,
         target: target
     )
+    quickOpenItem.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
     goMenu.addItem(quickOpenItem)
 
     goMenu.addItem(NSMenuItem.separator())
@@ -181,14 +218,17 @@ func setupMainMenu(target: AppDelegate) {
     // Navigation items - Cmd+arrows for back/forward
     let backItem = NSMenuItem(title: "Back", action: #selector(FileListViewController.goBack(_:)), keyEquivalent: String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!)))
     backItem.keyEquivalentModifierMask = .command
+    backItem.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: nil)
     goMenu.addItem(backItem)
 
     let forwardItem = NSMenuItem(title: "Forward", action: #selector(FileListViewController.goForward(_:)), keyEquivalent: String(Character(UnicodeScalar(NSRightArrowFunctionKey)!)))
     forwardItem.keyEquivalentModifierMask = .command
+    forwardItem.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
     goMenu.addItem(forwardItem)
 
     let enclosingItem = NSMenuItem(title: "Enclosing Folder", action: #selector(FileListViewController.goUp(_:)), keyEquivalent: String(Character(UnicodeScalar(NSUpArrowFunctionKey)!)))
     enclosingItem.keyEquivalentModifierMask = .command
+    enclosingItem.image = NSImage(systemSymbolName: "chevron.up", accessibilityDescription: nil)
     goMenu.addItem(enclosingItem)
 
     goMenu.addItem(NSMenuItem.separator())
@@ -199,6 +239,7 @@ func setupMainMenu(target: AppDelegate) {
         shortcutAction: .refresh,
         target: target
     )
+    refreshItem.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
     goMenu.addItem(refreshItem)
 
     goMenu.addItem(NSMenuItem.separator())
@@ -207,11 +248,13 @@ func setupMainMenu(target: AppDelegate) {
     let nextTabItem = NSMenuItem(title: "Next Tab", action: #selector(AppDelegate.selectNextTab(_:)), keyEquivalent: "\t")
     nextTabItem.keyEquivalentModifierMask = .control
     nextTabItem.target = target
+    nextTabItem.image = NSImage(systemSymbolName: "arrow.right.square", accessibilityDescription: nil)
     goMenu.addItem(nextTabItem)
 
     let prevTabItem = NSMenuItem(title: "Previous Tab", action: #selector(AppDelegate.selectPreviousTab(_:)), keyEquivalent: "\t")
     prevTabItem.keyEquivalentModifierMask = [.control, .shift]
     prevTabItem.target = target
+    prevTabItem.image = NSImage(systemSymbolName: "arrow.left.square", accessibilityDescription: nil)
     goMenu.addItem(prevTabItem)
 
     // Window menu
@@ -220,8 +263,13 @@ func setupMainMenu(target: AppDelegate) {
     windowMenuItem.submenu = windowMenu
     mainMenu.addItem(windowMenuItem)
 
-    windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
-    windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+    let minimizeItem = NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+    minimizeItem.image = NSImage(systemSymbolName: "minus.rectangle", accessibilityDescription: nil)
+    windowMenu.addItem(minimizeItem)
+
+    let zoomItem = NSMenuItem(title: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+    zoomItem.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: nil)
+    windowMenu.addItem(zoomItem)
 
     NSApp.windowsMenu = windowMenu
 

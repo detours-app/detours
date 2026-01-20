@@ -35,6 +35,12 @@ final class FileOperationQueue {
         }
     }
 
+    func deleteImmediately(items: [URL]) async throws {
+        try await enqueue {
+            try await self.performDeleteImmediately(items: items)
+        }
+    }
+
     func rename(item: URL, to newName: String) async throws -> URL {
         try await enqueue {
             try await self.performRename(item: item, to: newName)
@@ -291,6 +297,43 @@ final class FileOperationQueue {
 
             do {
                 try await recycle(item: item)
+                successes.append(item)
+            } catch {
+                failures.append((item, mapError(error, url: item)))
+            }
+
+            updateProgress(
+                operation: operation,
+                currentItem: item,
+                completed: index + 1,
+                total: items.count
+            )
+        }
+
+        try handleFailures(successes: successes, failures: failures)
+    }
+
+    private func performDeleteImmediately(items: [URL]) async throws {
+        let operation = FileOperation.deleteImmediately(items: items)
+        startOperation(operation, totalCount: items.count)
+        defer { finishOperation() }
+
+        let fileManager = FileManager.default
+        var failures: [(URL, Error)] = []
+        var successes: [URL] = []
+
+        for (index, item) in items.enumerated() {
+            try checkCancelled()
+
+            updateProgress(
+                operation: operation,
+                currentItem: item,
+                completed: index,
+                total: items.count
+            )
+
+            do {
+                try fileManager.removeItem(at: item)
                 successes.append(item)
             } catch {
                 failures.append((item, mapError(error, url: item)))
