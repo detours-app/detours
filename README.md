@@ -12,12 +12,14 @@ A fast, keyboard-driven file manager for macOS with dual-pane layout, tabs, and 
 - **Tabs per pane** - Finder-style tabs within each pane
 - **Sidebar** - Quick access to mounted volumes and favorite folders
 - **Quick Open** - Spotlight search with frecency ranking (Cmd-P)
+- **Breadcrumb navigation** - Click to navigate, drag to terminal, right-click to copy path
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
 - **Theming** - Four built-in themes plus custom theme editor
 - **Git status indicators** - See modified, staged, and untracked files at a glance
 - **Quick Look** - Preview files with spacebar
 - **Drag and drop** - Between panes, to/from Finder, to favorites
-- **Native macOS** - AppKit, system appearance, standard context menus
+- **Delete Immediately** - Permanent deletion option bypassing Trash (Cmd-Option-Delete)
+- **Native macOS** - AppKit, SF Symbol icons, system appearance
 
 ## Installation
 
@@ -51,14 +53,22 @@ All shortcuts are customizable in Preferences (Cmd-,).
 | Quick Open | Cmd-P |
 | New Tab | Cmd-T |
 | Close Tab | Cmd-W |
-| Go to Home | Cmd-Shift-H |
 | Go Up | Cmd-Up |
+| Go Back / Forward | Cmd-Left / Cmd-Right |
 | Switch Pane | Tab |
-| Copy | F5 |
-| Move | F6 |
-| Delete | F8 |
-| Rename | F2 |
+| Copy to Other Pane | F5 |
+| Move to Other Pane | F6 |
+| New Folder | F7 / Cmd-Shift-N |
+| Move to Trash | F8 / Cmd-Delete |
+| Delete Immediately | Cmd-Option-Delete |
+| Rename | F2 / Shift-Enter |
+| Duplicate | Cmd-D |
+| Get Info | Cmd-I |
+| Copy Path | Cmd-Option-C |
 | Open in Editor | F4 |
+| Toggle Hidden Files | Cmd-Shift-. |
+| Toggle Sidebar | Cmd-0 |
+| Refresh | Cmd-R |
 
 ## Project Structure
 
