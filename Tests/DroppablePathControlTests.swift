@@ -221,6 +221,7 @@ extension DroppablePathControl {
 final class MockPathControlDelegate: DroppablePathControlDelegate {
     var urlsForIndex: [Int: URL] = [:]
     var receivedDrop: (urls: [URL], destination: URL, isCopy: Bool)?
+    var clickedIndex: Int?
 
     func pathControlDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool) {
         receivedDrop = (urls, destination, isCopy)
@@ -232,5 +233,9 @@ final class MockPathControlDelegate: DroppablePathControlDelegate {
 
     func pathControlDragSourceURL(forItemAt index: Int) -> URL? {
         return urlsForIndex[index]
+    }
+
+    func pathControlDidClick(at index: Int) {
+        clickedIndex = index
     }
 }

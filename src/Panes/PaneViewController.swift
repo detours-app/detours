@@ -40,6 +40,7 @@ protocol DroppablePathControlDelegate: AnyObject {
     func pathControlDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool)
     func pathControlDestinationURL(forItemAt index: Int) -> URL?
     func pathControlDragSourceURL(forItemAt index: Int) -> URL?
+    func pathControlDidClick(at index: Int)
 }
 
 final class DroppablePathControl: NSPathControl, NSDraggingSource {
@@ -92,12 +93,15 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
     }
 
     override func mouseUp(with event: NSEvent) {
-        // If we have a pending event and didn't drag, forward the original click
-        if let pendingEvent = pendingMouseDownEvent {
+        // If we have a pending event and didn't drag, this was a click
+        if pendingMouseDownEvent != nil, let index = dragSourceItemIndex {
             pendingMouseDownEvent = nil
             mouseDownLocation = nil
             dragSourceItemIndex = nil
-            super.mouseDown(with: pendingEvent)
+            // Notify delegate directly - NSPathControl's clickedPathItem won't be set
+            // correctly when we delayed mouseDown, so bypass its action mechanism
+            dropDelegate?.pathControlDidClick(at: index)
+            return
         }
         super.mouseUp(with: event)
     }
@@ -1253,5 +1257,10 @@ extension PaneViewController: DroppablePathControlDelegate {
     func pathControlDragSourceURL(forItemAt index: Int) -> URL? {
         guard index < pathItemURLs.count else { return nil }
         return pathItemURLs[index]
+    }
+
+    func pathControlDidClick(at index: Int) {
+        guard index < pathItemURLs.count, let url = pathItemURLs[index] else { return }
+        navigate(to: url)
     }
 }
