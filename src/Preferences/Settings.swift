@@ -21,6 +21,7 @@ struct Settings: Equatable {
     // View
     var showStatusBar: Bool = true
     var sidebarVisible: Bool = true
+    var folderExpansionEnabled: Bool = true
 
     // Sidebar
     var favorites: [String] = Settings.defaultFavorites
@@ -58,6 +59,7 @@ extension Settings: Codable {
         case dateFormatOtherYears
         case showStatusBar
         case sidebarVisible
+        case folderExpansionEnabled
         case favorites
         case gitStatusEnabled
         case shortcuts
@@ -84,6 +86,7 @@ extension Settings: Codable {
         // View
         showStatusBar = (try? container.decodeIfPresent(Bool.self, forKey: .showStatusBar)) ?? defaults.showStatusBar
         sidebarVisible = (try? container.decodeIfPresent(Bool.self, forKey: .sidebarVisible)) ?? defaults.sidebarVisible
+        folderExpansionEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .folderExpansionEnabled)) ?? defaults.folderExpansionEnabled
 
         // Sidebar - favorites are critical, preserve them
         favorites = (try? container.decodeIfPresent([String].self, forKey: .favorites)) ?? defaults.favorites
@@ -113,6 +116,7 @@ extension Settings: Codable {
         try container.encode(dateFormatOtherYears, forKey: .dateFormatOtherYears)
         try container.encode(showStatusBar, forKey: .showStatusBar)
         try container.encode(sidebarVisible, forKey: .sidebarVisible)
+        try container.encode(folderExpansionEnabled, forKey: .folderExpansionEnabled)
         try container.encode(favorites, forKey: .favorites)
         try container.encode(gitStatusEnabled, forKey: .gitStatusEnabled)
         try container.encode(shortcuts, forKey: .shortcuts)

@@ -1,5 +1,24 @@
 # Changelog
 
+## 260121 Folder Expansion Bug Fixes
+- Fixed: Selection no longer disappears after async git status loads
+- Fixed: Arrow key navigation works correctly with expanded folders
+- Fixed: Selection preserved when toggling git status in preferences
+- Fixed: Folder expansion state preserved when toggling preferences
+- Fixed: Selection and focus restored after Cmd-P navigation
+- Fixed: Git status bars now show for items inside expanded folders
+- Changed: Tighter spacing between disclosure triangle and file icons (matches Finder)
+
+## 260121 Stage 8: Folder Expansion
+- Added: Finder-style disclosure triangles to expand folders inline (NSOutlineView)
+- Added: Keyboard navigation - Right arrow expands, Left arrow collapses
+- Added: Option-Right/Option-Left for recursive expand/collapse of nested folders
+- Added: MultiDirectoryWatcher for live updates in expanded folders
+- Added: Settings toggle "Enable folder expansion" in General preferences
+- Added: Expansion state persists per tab and across app restarts
+- Changed: FileItem converted from struct to class (supports parent references)
+- Changed: BandedTableView renamed to BandedOutlineView
+
 ## 260120 Screenshot Setup Script
 - Added: Screenshot setup script creates sample folders for README screenshots
 - Changed: Screenshot updated to show dual-pane with git status indicators

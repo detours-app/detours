@@ -23,6 +23,8 @@ final class MainSplitViewController: NSSplitViewController {
         static let rightSelectedIndex = "Detours.RightPaneSelectedIndex"
         static let rightSelections = "Detours.RightPaneSelections"
         static let rightShowHiddenFiles = "Detours.RightPaneShowHiddenFiles"
+        static let leftExpansions = "Detours.LeftPaneExpansions"
+        static let rightExpansions = "Detours.RightPaneExpansions"
         static let activePane = "Detours.ActivePane"
         static let sidebarVisible = "Detours.SidebarVisible"
         static let sidebarWidth = "Detours.SidebarWidth"
@@ -220,10 +222,12 @@ final class MainSplitViewController: NSSplitViewController {
         defaults.set(leftPane.selectedTabIndex, forKey: SessionKeys.leftSelectedIndex)
         defaults.set(encodeSelections(leftPane.tabSelections), forKey: SessionKeys.leftSelections)
         defaults.set(leftPane.tabShowHiddenFiles, forKey: SessionKeys.leftShowHiddenFiles)
+        defaults.set(encodeExpansions(leftPane.tabExpansions), forKey: SessionKeys.leftExpansions)
         defaults.set(rightPane.tabDirectories.map { $0.path }, forKey: SessionKeys.rightTabs)
         defaults.set(rightPane.selectedTabIndex, forKey: SessionKeys.rightSelectedIndex)
         defaults.set(encodeSelections(rightPane.tabSelections), forKey: SessionKeys.rightSelections)
         defaults.set(rightPane.tabShowHiddenFiles, forKey: SessionKeys.rightShowHiddenFiles)
+        defaults.set(encodeExpansions(rightPane.tabExpansions), forKey: SessionKeys.rightExpansions)
         defaults.set(activePaneIndex, forKey: SessionKeys.activePane)
         defaults.set(!sidebarItem.isCollapsed, forKey: SessionKeys.sidebarVisible)
         saveSplitPosition()
@@ -249,6 +253,15 @@ final class MainSplitViewController: NSSplitViewController {
         return paths.map { pathList in pathList.compactMap { URL(fileURLWithPath: $0) } }
     }
 
+    private func encodeExpansions(_ expansions: [Set<URL>]) -> [[String]] {
+        expansions.map { urls in urls.map { $0.path } }
+    }
+
+    private func decodeExpansions(_ data: Any?) -> [Set<URL>]? {
+        guard let paths = data as? [[String]] else { return nil }
+        return paths.map { pathList in Set(pathList.compactMap { URL(fileURLWithPath: $0) }) }
+    }
+
     private func restoreSession() {
         // Check if session restore is enabled in preferences
         guard SettingsManager.shared.restoreSession else {
@@ -264,7 +277,8 @@ final class MainSplitViewController: NSSplitViewController {
             let selectedIndex = defaults.integer(forKey: SessionKeys.leftSelectedIndex)
             let selections = decodeSelections(defaults.object(forKey: SessionKeys.leftSelections))
             let showHiddenFiles = defaults.array(forKey: SessionKeys.leftShowHiddenFiles) as? [Bool]
-            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles)
+            let expansions = decodeExpansions(defaults.object(forKey: SessionKeys.leftExpansions))
+            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles, expansions: expansions)
         }
 
         let rightTabs = restoreTabs(forKey: SessionKeys.rightTabs)
@@ -272,7 +286,8 @@ final class MainSplitViewController: NSSplitViewController {
             let selectedIndex = defaults.integer(forKey: SessionKeys.rightSelectedIndex)
             let selections = decodeSelections(defaults.object(forKey: SessionKeys.rightSelections))
             let showHiddenFiles = defaults.array(forKey: SessionKeys.rightShowHiddenFiles) as? [Bool]
-            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles)
+            let expansions = decodeExpansions(defaults.object(forKey: SessionKeys.rightExpansions))
+            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles, expansions: expansions)
         }
     }
 
@@ -358,6 +373,10 @@ final class MainSplitViewController: NSSplitViewController {
     private func navigateActivePane(to url: URL) {
         activePane.navigate(to: url)
         FrecencyStore.shared.recordVisit(url)
+        // Ensure focus returns to the file list after navigation (e.g., from QuickNav)
+        if let tableView = activePane.selectedTab?.fileListViewController.tableView {
+            view.window?.makeFirstResponder(tableView)
+        }
     }
 
     /// Navigate to a folder opened from an external source (e.g., DefaultFolder X, Finder)

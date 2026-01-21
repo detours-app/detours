@@ -122,6 +122,11 @@ final class SettingsManager {
         set { settings.showStatusBar = newValue }
     }
 
+    var folderExpansionEnabled: Bool {
+        get { settings.folderExpansionEnabled }
+        set { settings.folderExpansionEnabled = newValue }
+    }
+
     // MARK: - Git Settings
 
     var gitStatusEnabled: Bool {

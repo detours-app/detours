@@ -7,7 +7,7 @@ enum ICloudStatus {
     case downloading
 }
 
-struct FileItem {
+final class FileItem {
     let name: String
     let url: URL
     let isDirectory: Bool
@@ -19,6 +19,10 @@ struct FileItem {
     let sharedByName: String?
     let iCloudStatus: ICloudStatus
     var gitStatus: GitStatus?
+
+    // Tree support for folder expansion
+    var children: [FileItem]?  // nil = not loaded, empty = loaded but empty
+    weak var parent: FileItem?
 
     init(name: String, url: URL, isDirectory: Bool, isPackage: Bool = false, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
         self.name = name
@@ -131,6 +135,43 @@ struct FileItem {
             formatter.dateFormat = MainActor.assumeIsolated { SettingsManager.shared.dateFormatOtherYears }
         }
         return formatter.string(from: dateModified)
+    }
+
+    // MARK: - Tree Operations
+
+    /// Loads children for this directory. Returns nil for files.
+    /// Empty array means directory is empty (not same as nil which means not loaded).
+    func loadChildren(showHidden: Bool) -> [FileItem]? {
+        guard isNavigableFolder else { return nil }
+
+        do {
+            var options: FileManager.DirectoryEnumerationOptions = []
+            if !showHidden {
+                options.insert(.skipsHiddenFiles)
+            }
+            let contents = try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+                options: options
+            )
+
+            let items = FileItem.sortFoldersFirst(contents.map { FileItem(url: $0) })
+            // Set parent reference on all children
+            for item in items {
+                item.parent = self
+            }
+            children = items
+            return items
+        } catch {
+            // Permission denied or other error - return empty array (not nil)
+            children = []
+            return []
+        }
+    }
+
+    /// Clears loaded children (for refresh)
+    func clearChildren() {
+        children = nil
     }
 }
 

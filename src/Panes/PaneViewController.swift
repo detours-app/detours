@@ -812,7 +812,11 @@ final class PaneViewController: NSViewController {
         tabs.map { $0.fileListViewController.dataSource.showHiddenFiles }
     }
 
-    func restoreTabs(from urls: [URL], selectedIndex: Int, selections: [[URL]]? = nil, showHiddenFiles: [Bool]? = nil) {
+    var tabExpansions: [Set<URL>] {
+        tabs.map { $0.fileListViewController.dataSource.expandedFolders }
+    }
+
+    func restoreTabs(from urls: [URL], selectedIndex: Int, selections: [[URL]]? = nil, showHiddenFiles: [Bool]? = nil, expansions: [Set<URL>]? = nil) {
         guard !urls.isEmpty else { return }
 
         tabs.forEach { tab in
@@ -834,6 +838,9 @@ final class PaneViewController: NSViewController {
             }
             if let selections, index < selections.count {
                 tabs[index].fileListViewController.restoreSelection(selections[index])
+            }
+            if let expansions, index < expansions.count {
+                tabs[index].fileListViewController.restoreExpansion(expansions[index])
             }
         }
 

@@ -60,7 +60,7 @@ final class ThemedHeaderCell: NSTableHeaderCell {
     }
 }
 
-final class BandedTableView: NSTableView {
+final class BandedOutlineView: NSOutlineView {
     weak var keyHandler: FileListKeyHandling?
     weak var contextMenuDelegate: FileListContextMenuDelegate?
     var onActivate: (() -> Void)?
