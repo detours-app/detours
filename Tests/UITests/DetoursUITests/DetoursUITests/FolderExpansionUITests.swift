@@ -443,6 +443,58 @@ final class FolderExpansionUITests: BaseUITest {
         XCTAssertTrue(subfolderA1Left.exists, "SubfolderA1 should still exist in left pane")
     }
 
+    // MARK: - Visual Customization Tests
+
+    /// Verify teal selection highlight works on expanded rows by selecting nested items
+    /// Note: XCUITest cannot verify color, only that selection works correctly
+    func testSelectionWorksOnNestedItems() throws {
+        // Expand FolderA
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        // Select nested item
+        selectRow(named: "SubfolderA1")
+        XCTAssertEqual(selectedRowName(), "SubfolderA1", "Should be able to select nested item")
+
+        // Further expand and select deeper item
+        let subfolderA1Row = outlineRow(named: "SubfolderA1")
+        subfolderA1Row.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "file.txt", timeout: 2), "file.txt should appear")
+
+        selectRow(named: "file.txt")
+        XCTAssertEqual(selectedRowName(), "file.txt", "Should be able to select deeply nested item")
+    }
+
+    /// Verify cut item dimming works on nested items by cutting a nested file
+    /// Note: XCUITest cannot verify visual dimming, only that cut operation works
+    func testCutWorksOnNestedItems() throws {
+        // Expand FolderA and SubfolderA1
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        let subfolderA1Row = outlineRow(named: "SubfolderA1")
+        subfolderA1Row.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "file.txt", timeout: 2), "file.txt should appear")
+
+        // Select the nested file
+        selectRow(named: "file.txt")
+        XCTAssertEqual(selectedRowName(), "file.txt", "file.txt should be selected")
+
+        // Cut (Cmd+X)
+        pressCharKey("x", modifiers: .command)
+        sleep(1)
+
+        // The file should still be visible (but dimmed - can't verify visually)
+        XCTAssertTrue(rowExists(named: "file.txt"), "file.txt should still be visible after cut")
+
+        // Clear the cut operation by pressing Escape
+        pressKey(.escape)
+    }
+
     // MARK: - Selection Edge Case Tests
 
     /// Expand FolderA, select SubfolderA1, click FolderA disclosure triangle to collapse,

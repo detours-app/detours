@@ -1,10 +1,10 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-21 20:14:00
-- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testExternalRenameLosesExpansionState`
-- Status: SKIPPED
-- Tests: 1 skipped (XCUITest sandbox limitations)
+- Started: 2026-01-21 21:33:38
+- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testCutWorksOnNestedItems`
+- Status: PASS
+- Duration: 20.57s
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -35,6 +35,8 @@
 | testTabSwitchPreservesExpansion | PASS | 19.54s | 2026-01-21 20:01:00 |
 | testTabsHaveIndependentExpansion | PASS | 27.06s | 2026-01-21 20:04:00 |
 | testBothPanesIndependentExpansion | PASS | 24.96s | 2026-01-21 20:05:00 |
+| testSelectionWorksOnNestedItems | PASS | 22.06s | 2026-01-21 21:33:27 |
+| testCutWorksOnNestedItems | PASS | 20.57s | 2026-01-21 21:34:01 |
 | testDirectoryWatchingDetectsNewFile | SKIP | - | 2026-01-21 20:14:00 |
 | testDirectoryWatchingDetectsDeletedFolder | SKIP | - | 2026-01-21 20:14:00 |
 | testExternalRenameLosesExpansionState | SKIP | - | 2026-01-21 20:14:00 |
