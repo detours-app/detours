@@ -140,12 +140,19 @@ final class FileListCell: NSTableCellView {
         iconView.image = item.icon
         nameLabel.stringValue = item.name
 
-        // Adjust leading padding when folder expansion is enabled (disclosure triangle takes space)
-        // When enabled: tighter spacing (4px) since triangle provides visual separation
-        // When disabled: standard spacing (12px) with room for git status bar
+        // Adjust leading padding based on folder expansion and item type
+        // Folders never have git status, so they can use tighter spacing
         let folderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
-        iconLeadingConstraint?.constant = folderExpansionEnabled ? 4 : 12
-        gitBarLeadingConstraint?.constant = folderExpansionEnabled ? 1 : 5
+        if folderExpansionEnabled {
+            // Folders: minimal spacing (no git bar needed)
+            // Files: slightly more space to accommodate git bar
+            iconLeadingConstraint?.constant = item.isNavigableFolder ? 2 : 4
+            gitBarLeadingConstraint?.constant = 1
+        } else {
+            // Standard spacing with room for git status bar
+            iconLeadingConstraint?.constant = 12
+            gitBarLeadingConstraint?.constant = 5
+        }
 
         // Update theme colors in case they changed
         updateThemeColors()
