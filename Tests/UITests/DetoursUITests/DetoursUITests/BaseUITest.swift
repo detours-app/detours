@@ -20,6 +20,9 @@ class BaseUITest: XCTestCase {
         let window = app.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5), "App window should exist")
 
+        // Give the app time to fully initialize
+        sleep(2)
+
         // Navigate to temp directory
         navigateToTempDirectory()
     }
@@ -57,7 +60,9 @@ class BaseUITest: XCTestCase {
             return
         }
 
-        testFolderRow.doubleClick()
+        // Click on the static text inside the row (row itself has no free space)
+        let folderName = testFolderRow.staticTexts[testFolderName]
+        folderName.doubleClick()
         sleep(1)
     }
 }

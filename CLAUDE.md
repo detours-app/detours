@@ -107,6 +107,18 @@ resources/scripts/uitest.sh FolderExpansionUITests/testDisclosureTriangleExpand
 - Tests target the installed `/Applications/Detours.app`
 - The script builds the app first, then runs tests
 
+**UI Test Procedure (MANDATORY):**
+
+UI tests interrupt Marco's workflow. Follow this procedure exactly:
+
+1. **Check** - Review what tests need to be run
+2. **Check test log** - If test passed in the last 2-4 hours, do NOT rerun it. If you need to rerun a recent test, ask first.
+3. **Ask** - Ask Marco for permission for EVERY SINGLE test run, including reruns after failure
+4. **Run** - Only run the test after explicit approval
+5. **Update** - Update `Tests/TEST_LOG.md` immediately after the test completes
+
+**NEVER use MCP `macos-ui-automation` tools for this project.** They trigger permission prompts. Use XCUITest exclusively.
+
 ### Documentation
 
 - Docs live in `resources/docs/`

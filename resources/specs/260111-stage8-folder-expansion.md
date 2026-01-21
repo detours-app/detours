@@ -263,7 +263,7 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 
 ### UI Verification
 
-**XCUITest Coverage (2026-01-21):** 11 UI tests implemented in `Tests/UITests/DetoursUITests/DetoursUITests/FolderExpansionUITests.swift`. Core mouse and keyboard interactions verified. Visual customizations, persistence, directory watching, and settings toggle tests not yet implemented (would require more complex test setup).
+**XCUITest Coverage (2026-01-21):** 12 UI tests implemented in `Tests/UITests/DetoursUITests/DetoursUITests/FolderExpansionUITests.swift`. Core mouse and keyboard interactions verified. Visual customizations, persistence, directory watching, and settings toggle tests not yet implemented (would require more complex test setup).
 
 **Disclosure Triangles (Mouse):**
 - [x] Find outline view rows with disclosure triangles (folders only)
@@ -277,7 +277,7 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 - [x] Select expanded folder, press Right → selection moves to first child
 - [x] Select expanded folder, press Left → collapses
 - [x] Select collapsed folder inside expanded tree, press Left → selection moves to parent
-- [ ] Select collapsed folder at root level, press Left → no change (no-op)
+- [x] Select collapsed folder at root level, press Left → no change (no-op)
 
 **Keyboard Navigation - Modifiers:**
 - [x] Select collapsed folder, press Option-Right → recursive expand

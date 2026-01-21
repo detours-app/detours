@@ -67,7 +67,8 @@ extension BaseUITest {
     func selectRow(named name: String) {
         let row = outlineRow(named: name)
         XCTAssertTrue(row.waitForExistence(timeout: 2), "Row '\(name)' should exist")
-        row.click()
+        // Click the static text inside the row (row itself has no free space)
+        row.staticTexts[name].click()
     }
 
     /// Check if a row exists in the outline view

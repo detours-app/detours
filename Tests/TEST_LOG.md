@@ -1,8 +1,8 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-21 17:43:08
-- Command: `resources/scripts/uitest.sh SmokeTests/testHomeButtonShowsOutlineRows`
+- Started: 2026-01-21 18:34:28
+- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testSettingsToggleDisablesTriangles`
 - Status: PASS
 - Tests: 1 passed
 
@@ -27,7 +27,9 @@
 | testLeftArrowOnCollapsedMovesToParent | PASS | 15.97s | 2026-01-21 16:09:41 |
 | testOptionRightRecursiveExpand | PASS | 14.39s | 2026-01-21 16:10:03 |
 | testOptionLeftRecursiveCollapse | PASS | 16.82s | 2026-01-21 16:10:30 |
+| testLeftArrowOnCollapsedRootFolderNoOp | PASS | 12.72s | 2026-01-21 17:47:56 |
 | testCollapseWithSelectionInsideMoveToParent | PASS | 15.11s | 2026-01-21 16:10:53 |
+| testSettingsToggleDisablesTriangles | PASS | 22.88s | 2026-01-21 18:13:40 |
 
 ### DirectoryWatcherTests (Swift Testing)
 | Test | Status | Duration | Last Run |

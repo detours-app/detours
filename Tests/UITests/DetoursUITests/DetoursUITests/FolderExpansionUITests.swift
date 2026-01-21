@@ -185,6 +185,260 @@ final class FolderExpansionUITests: BaseUITest {
         XCTAssertFalse(rowExists(named: "file.txt"), "file.txt should disappear")
     }
 
+    /// Select FolderA (collapsed, at root level), press Left arrow, verify nothing happens (no-op)
+    func testLeftArrowOnCollapsedRootFolderNoOp() throws {
+        // Select FolderA (collapsed, at root level)
+        selectRow(named: "FolderA")
+
+        // Verify FolderA is selected
+        let initialSelectedName = selectedRowName()
+        XCTAssertEqual(initialSelectedName, "FolderA", "FolderA should be selected")
+
+        // Press Left arrow
+        pressKey(.leftArrow)
+
+        // Verify selection hasn't changed (no-op)
+        sleep(1)
+        let afterSelectedName = selectedRowName()
+        XCTAssertEqual(afterSelectedName, "FolderA", "Selection should remain on FolderA (no-op at root)")
+
+        // Verify folder is still collapsed (no children visible)
+        XCTAssertFalse(rowExists(named: "SubfolderA1"), "SubfolderA1 should not exist (folder still collapsed)")
+    }
+
+    // MARK: - Settings Toggle Tests
+
+    /// Disable "Enable folder expansion", verify disclosure triangles disappear immediately
+    func testSettingsToggleDisablesTriangles() throws {
+        // Verify disclosure triangle exists initially
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        XCTAssertTrue(folderARow.disclosureTriangles.firstMatch.exists, "Disclosure triangle should exist initially")
+
+        // Open Settings (Cmd+,)
+        pressCharKey(",", modifiers: .command)
+        sleep(1)
+
+        // Find and click the "Enable folder expansion" toggle
+        let toggle = app.switches["folderExpansionToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 2), "Toggle should exist in settings")
+        toggle.click()
+        sleep(1)
+
+        // Close settings window
+        pressCharKey("w", modifiers: .command)
+        sleep(1)
+
+        // Verify disclosure triangle no longer exists
+        let folderARowAfter = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARowAfter.waitForExistence(timeout: 2), "FolderA should still exist")
+        XCTAssertFalse(folderARowAfter.disclosureTriangles.firstMatch.exists, "Disclosure triangle should be gone")
+
+        // Re-enable for other tests: open settings, toggle back on
+        pressCharKey(",", modifiers: .command)
+        sleep(1)
+        let toggleAgain = app.switches["folderExpansionToggle"]
+        XCTAssertTrue(toggleAgain.waitForExistence(timeout: 2), "Toggle should exist")
+        toggleAgain.click()
+        sleep(1)
+        pressCharKey("w", modifiers: .command)
+    }
+
+    /// With folder expansion disabled, verify Right/Left arrow keys are no-ops
+    func testSettingsToggleArrowKeysNoOp() throws {
+        // First disable folder expansion
+        pressCharKey(",", modifiers: .command)
+        sleep(1)
+        let toggle = app.switches["folderExpansionToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 2), "Toggle should exist")
+        toggle.click()
+        sleep(1)
+        pressCharKey("w", modifiers: .command)
+        sleep(2)
+
+        // Click on main window to ensure it's focused
+        app.windows.firstMatch.click()
+        sleep(1)
+
+        // Select FolderA
+        selectRow(named: "FolderA")
+
+        // Press Right arrow - should NOT expand
+        pressKey(.rightArrow)
+        sleep(1)
+        XCTAssertFalse(rowExists(named: "SubfolderA1"), "SubfolderA1 should NOT appear (expansion disabled)")
+
+        // Press Left arrow - should also be no-op
+        pressKey(.leftArrow)
+        sleep(1)
+        let selectedName = selectedRowName()
+        XCTAssertEqual(selectedName, "FolderA", "Selection should remain on FolderA")
+
+        // Re-enable folder expansion
+        pressCharKey(",", modifiers: .command)
+        sleep(1)
+        let toggleAgain = app.switches["folderExpansionToggle"]
+        XCTAssertTrue(toggleAgain.waitForExistence(timeout: 2), "Toggle should exist")
+        toggleAgain.click()
+        sleep(1)
+        pressCharKey("w", modifiers: .command)
+    }
+
+    /// Enable folder expansion after disabling, verify triangles reappear and expansion state preserved
+    func testSettingsToggleReenableRestoresState() throws {
+        // First expand FolderA
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        // Disable folder expansion
+        pressCharKey(",", modifiers: .command)
+        sleep(1)
+        let toggle = app.switches["folderExpansionToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 2), "Toggle should exist")
+        toggle.click()
+        sleep(1)
+        pressCharKey("w", modifiers: .command)
+        sleep(1)
+
+        // Verify SubfolderA1 still visible (expansion state preserved, just triangles hidden)
+        XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should still be visible (state preserved)")
+
+        // Re-enable folder expansion
+        pressCharKey(",", modifiers: .command)
+        sleep(1)
+        let toggleAgain = app.switches["folderExpansionToggle"]
+        XCTAssertTrue(toggleAgain.waitForExistence(timeout: 2), "Toggle should exist")
+        toggleAgain.click()
+        sleep(1)
+        pressCharKey("w", modifiers: .command)
+        sleep(1)
+
+        // Verify disclosure triangle is back and folder still expanded
+        let folderARowAfter = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARowAfter.disclosureTriangles.firstMatch.exists, "Disclosure triangle should reappear")
+        XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should still be visible")
+    }
+
+    // MARK: - Tab Switching Persistence Tests
+
+    /// Expand folders in tab 1, switch to tab 2, switch back → expansion preserved
+    func testTabSwitchPreservesExpansion() throws {
+        // Expand FolderA in first tab
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        // Create new tab (Cmd+T)
+        pressCharKey("t", modifiers: .command)
+        sleep(1)
+
+        // New tab shows home directory - SubfolderA1 should not be visible
+        XCTAssertFalse(rowExists(named: "SubfolderA1"), "SubfolderA1 should not exist in new tab")
+
+        // Switch back to first tab (Ctrl+Shift+Tab)
+        app.typeKey(.tab, modifierFlags: [.control, .shift])
+        sleep(1)
+
+        // Verify expansion state is preserved
+        XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should still be visible after tab switch")
+
+        // Close the extra tab - switch to it first
+        app.typeKey(.tab, modifierFlags: .control)
+        sleep(1)
+        pressCharKey("w", modifiers: .command)
+    }
+
+    /// Expand different folders in tab 1 and tab 2 → independent state
+    func testTabsHaveIndependentExpansion() throws {
+        // Expand FolderA in first tab
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        // Create new tab and navigate to same test directory
+        pressCharKey("t", modifiers: .command)
+        sleep(1)
+
+        // Navigate to test directory in new tab
+        let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
+        homeButton.click()
+        sleep(1)
+        let testFolderRow = app.outlineRow(containing: testFolderName)
+        XCTAssertTrue(testFolderRow.waitForExistence(timeout: 2), "Test folder should exist")
+        testFolderRow.doubleClick()
+        sleep(1)
+
+        // In tab 2, FolderA should be collapsed (independent state)
+        let folderAInTab2 = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderAInTab2.waitForExistence(timeout: 2), "FolderA should exist in tab 2")
+        XCTAssertFalse(rowExists(named: "SubfolderA1"), "SubfolderA1 should NOT exist in tab 2 (independent state)")
+
+        // Expand FolderB in tab 2 instead
+        let folderBRow = outlineRow(named: "FolderB")
+        XCTAssertTrue(folderBRow.waitForExistence(timeout: 2), "FolderB should exist")
+        folderBRow.disclosureTriangles.firstMatch.click()
+        sleep(1)
+
+        // Switch back to tab 1
+        app.typeKey(.tab, modifierFlags: [.control, .shift])
+        sleep(1)
+
+        // Tab 1 should have FolderA expanded, not FolderB
+        XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should exist in tab 1")
+
+        // Close the extra tab
+        app.typeKey(.tab, modifierFlags: .control)
+        sleep(1)
+        pressCharKey("w", modifiers: .command)
+    }
+
+    // MARK: - Both Panes Persistence Tests
+
+    /// Navigate to same folder in both panes, expand different subfolders → independent state
+    func testBothPanesIndependentExpansion() throws {
+        // Left pane already has test directory, expand FolderA
+        let folderALeft = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderALeft.waitForExistence(timeout: 2), "FolderA should exist in left pane")
+        folderALeft.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear in left pane")
+
+        // Click on right pane to activate it
+        let rightOutline = app.rightPaneOutlineView
+        XCTAssertTrue(rightOutline.waitForExistence(timeout: 2), "Right pane outline should exist")
+        rightOutline.click()
+        sleep(1)
+
+        // Navigate right pane to test directory
+        let homeButtonRight = app.buttons.matching(identifier: "homeButton").element(boundBy: 1)
+        XCTAssertTrue(homeButtonRight.waitForExistence(timeout: 2), "Right home button should exist")
+        homeButtonRight.click()
+        sleep(1)
+
+        let testFolderRight = app.outlineRow(containing: testFolderName)
+        XCTAssertTrue(testFolderRight.waitForExistence(timeout: 2), "Test folder should exist in right pane")
+        testFolderRight.doubleClick()
+        sleep(1)
+
+        // In right pane, FolderA should be collapsed (independent from left)
+        // Need to find FolderA in the right pane specifically
+        let rightRows = rightOutline.outlineRows
+        let folderARight = rightRows.containing(.staticText, identifier: "FolderA").firstMatch
+        XCTAssertTrue(folderARight.waitForExistence(timeout: 2), "FolderA should exist in right pane")
+
+        // Verify FolderA in right pane has disclosure triangle (it's collapsed)
+        XCTAssertTrue(folderARight.disclosureTriangles.firstMatch.exists, "Right pane FolderA should have disclosure triangle")
+
+        // The left pane should still have SubfolderA1 visible
+        let leftOutline = app.leftPaneOutlineView
+        let leftRows = leftOutline.outlineRows
+        let subfolderA1Left = leftRows.containing(.staticText, identifier: "SubfolderA1").firstMatch
+        XCTAssertTrue(subfolderA1Left.exists, "SubfolderA1 should still exist in left pane")
+    }
+
     // MARK: - Selection Edge Case Tests
 
     /// Expand FolderA, select SubfolderA1, click FolderA disclosure triangle to collapse,
@@ -208,5 +462,111 @@ final class FolderExpansionUITests: BaseUITest {
         sleep(1)
         let selectedName = selectedRowName()
         XCTAssertEqual(selectedName, "FolderA", "Selection should move to FolderA when collapsing with child selected")
+    }
+
+    // MARK: - Directory Watching Tests
+
+    /// Expand folder, create file externally, verify file list updates automatically
+    func testDirectoryWatchingDetectsNewFile() throws {
+        // Expand FolderA
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        // Verify WatchTestFile.txt doesn't exist yet
+        XCTAssertFalse(rowExists(named: "WatchTestFile.txt"), "WatchTestFile.txt should not exist initially")
+
+        // Create a file externally in FolderA using shell
+        // The test directory is at ~/DetoursUITests-Temp
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+        let filePath = "\(homeDir)/\(testFolderName)/FolderA/WatchTestFile.txt"
+        let result = shell("touch '\(filePath)'")
+        XCTAssertTrue(result, "Should be able to create test file")
+
+        // Wait for FSEvents to detect the change and UI to update
+        sleep(3)
+
+        // Verify file appears in the list
+        XCTAssertTrue(waitForRow(named: "WatchTestFile.txt", timeout: 5), "WatchTestFile.txt should appear after creation")
+
+        // Cleanup: delete the test file
+        _ = shell("rm '\(filePath)'")
+    }
+
+    /// Delete an expanded folder externally, verify list refreshes
+    func testDirectoryWatchingDetectsDeletedFolder() throws {
+        // Create a test folder to delete
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+        let folderPath = "\(homeDir)/\(testFolderName)/FolderA/TempDeleteFolder"
+        _ = shell("mkdir '\(folderPath)'")
+        sleep(2)
+
+        // Expand FolderA
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        sleep(2)
+
+        // Verify TempDeleteFolder exists
+        XCTAssertTrue(waitForRow(named: "TempDeleteFolder", timeout: 3), "TempDeleteFolder should exist")
+
+        // Delete the folder externally
+        _ = shell("rm -rf '\(folderPath)'")
+
+        // Wait for FSEvents to detect and UI to update
+        sleep(3)
+
+        // Verify folder is gone from the list
+        XCTAssertFalse(rowExists(named: "TempDeleteFolder"), "TempDeleteFolder should disappear after deletion")
+    }
+
+    // MARK: - Edge Case Tests
+
+    /// Expand folder, rename it externally, verify expansion state is lost
+    func testExternalRenameLosesExpansionState() throws {
+        // Create a temporary folder we can rename
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+        let originalPath = "\(homeDir)/\(testFolderName)/RenameTestFolder"
+        let renamedPath = "\(homeDir)/\(testFolderName)/RenamedFolder"
+        let subfolderPath = "\(originalPath)/SubInRename"
+
+        // Create the folder with a subfolder
+        _ = shell("mkdir -p '\(subfolderPath)'")
+        sleep(2)
+
+        // Refresh to see the new folder (Cmd+R)
+        pressCharKey("r", modifiers: .command)
+        sleep(1)
+
+        // Expand RenameTestFolder
+        let testFolderRow = outlineRow(named: "RenameTestFolder")
+        XCTAssertTrue(testFolderRow.waitForExistence(timeout: 2), "RenameTestFolder should exist")
+        testFolderRow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubInRename", timeout: 2), "SubInRename should appear")
+
+        // Rename the folder externally
+        _ = shell("mv '\(originalPath)' '\(renamedPath)'")
+        sleep(3)
+
+        // The old folder is gone, new one appeared
+        XCTAssertFalse(rowExists(named: "RenameTestFolder"), "RenameTestFolder should no longer exist")
+        XCTAssertTrue(waitForRow(named: "RenamedFolder", timeout: 3), "RenamedFolder should appear")
+
+        // The renamed folder should be collapsed (expansion state lost, keyed by URL)
+        XCTAssertFalse(rowExists(named: "SubInRename"), "SubInRename should not be visible (expansion state lost)")
+
+        // Cleanup
+        _ = shell("rm -rf '\(renamedPath)'")
+    }
+
+    /// Helper to run shell commands
+    private func shell(_ command: String) -> Bool {
+        let task = Process()
+        task.launchPath = "/bin/bash"
+        task.arguments = ["-c", command]
+        task.launch()
+        task.waitUntilExit()
+        return task.terminationStatus == 0
     }
 }

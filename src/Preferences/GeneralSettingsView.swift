@@ -41,6 +41,7 @@ struct GeneralSettingsView: View {
 
             Section {
                 Toggle("Enable folder expansion", isOn: $folderExpansionEnabled)
+                    .accessibilityIdentifier("folderExpansionToggle")
                     .onChange(of: folderExpansionEnabled) { _, newValue in
                         SettingsManager.shared.folderExpansionEnabled = newValue
                     }

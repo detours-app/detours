@@ -135,6 +135,25 @@ final class BandedOutlineView: NSOutlineView {
         return contextMenuDelegate?.buildContextMenu(for: selectedRowIndexes, clickedRow: clickedRow)
     }
 
+    override func frameOfOutlineCell(atRow row: Int) -> NSRect {
+        // When folder expansion is disabled, hide the disclosure triangle entirely
+        guard SettingsManager.shared.folderExpansionEnabled else {
+            return .zero
+        }
+        return super.frameOfOutlineCell(atRow: row)
+    }
+
+    override func frameOfCell(atColumn column: Int, row: Int) -> NSRect {
+        var frame = super.frameOfCell(atColumn: column, row: row)
+        // When folder expansion is disabled, shift content left to fill the disclosure triangle space
+        if !SettingsManager.shared.folderExpansionEnabled && column == 0 {
+            let outlineWidth: CGFloat = 20 // disclosure triangle space
+            frame.origin.x -= outlineWidth
+            frame.size.width += outlineWidth
+        }
+        return frame
+    }
+
     override func drawBackground(inClipRect clipRect: NSRect) {
         let rowStride = rowHeight + intercellSpacing.height
         guard rowStride > 0 else {
