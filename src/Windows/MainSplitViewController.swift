@@ -572,6 +572,30 @@ final class MainSplitViewController: NSSplitViewController {
         guard hasRestoredSplitPosition, !isRestoringSplitPosition else { return }
         saveSplitPosition()
     }
+
+    override func splitView(
+        _ splitView: NSSplitView,
+        constrainSplitPosition proposedPosition: CGFloat,
+        ofSubviewAt dividerIndex: Int
+    ) -> CGFloat {
+        // Only snap the pane divider (index 1), not sidebar (index 0)
+        guard dividerIndex == 1 else { return proposedPosition }
+
+        // Calculate center position for equal pane widths
+        let sidebarWidth = sidebarItem.isCollapsed ? 0 : splitView.arrangedSubviews[0].frame.width
+        let dividerThickness = splitView.dividerThickness
+        let totalWidth = splitView.bounds.width
+        let availableWidth = totalWidth - sidebarWidth - (dividerThickness * 2)
+        guard availableWidth > 0 else { return proposedPosition }
+
+        let centerPosition = sidebarWidth + dividerThickness + (availableWidth / 2)
+        let snapThreshold: CGFloat = 12
+
+        if abs(proposedPosition - centerPosition) < snapThreshold {
+            return centerPosition
+        }
+        return proposedPosition
+    }
 }
 
 // MARK: - SidebarDelegate

@@ -1,5 +1,8 @@
 # Changelog
 
+## 260121 Split Pane Snap to Equal Width
+- Added: Divider snaps to center when dragged within 12px of equal-width position
+
 ## 260121 Folder Expansion Bug Fixes
 - Fixed: Selection no longer disappears after async git status loads
 - Fixed: Arrow key navigation works correctly with expanded folders
