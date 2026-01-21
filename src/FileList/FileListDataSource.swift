@@ -443,6 +443,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
         let rowView = InactiveHidingRowView()
         rowView.isTableActive = isActive
+        if let fileItem = item as? FileItem {
+            rowView.setAccessibilityIdentifier("outlineRow_\(fileItem.name)")
+        }
         return rowView
     }
 
@@ -565,12 +568,14 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
         if let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? FileListCell {
             cell.configure(with: item, isDropTarget: isDropTarget)
+            cell.setAccessibilityIdentifier("outlineCell_\(item.name)")
             return cell
         }
 
         let cell = FileListCell()
         cell.identifier = identifier
         cell.configure(with: item, isDropTarget: isDropTarget)
+        cell.setAccessibilityIdentifier("outlineCell_\(item.name)")
         return cell
     }
 

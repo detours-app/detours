@@ -33,13 +33,13 @@ Test setup creates a temp directory with a known folder structure, navigates the
 
 ### File Changes
 
-**UITests/DetoursUITests.xcodeproj/project.pbxproj**
+**Tests/UITests/DetoursUITests.xcodeproj/project.pbxproj**
 - Xcode project with UI test target
 - Target name: `DetoursUITests`
 - Bundle identifier: `com.detours.uitests`
 - Deployment target: macOS 14.0
 
-**UITests/DetoursUITests/BaseUITest.swift**
+**Tests/UITests/DetoursUITests/BaseUITest.swift**
 - Base class for all UI tests
 - `app`: `XCUIApplication(bundleIdentifier: "com.detours.app")`
 - `tempDir`: URL to temp test directory
@@ -47,10 +47,10 @@ Test setup creates a temp directory with a known folder structure, navigates the
 - `tearDownWithError()`: Delete temp directory, terminate app
 - Temp structure: `tempDir/FolderA/SubfolderA1/file.txt`, `tempDir/FolderA/SubfolderA2/`, `tempDir/FolderB/`, `tempDir/file1.txt`
 
-**UITests/DetoursUITests/FolderExpansionUITests.swift**
+**Tests/UITests/DetoursUITests/FolderExpansionUITests.swift**
 - All folder expansion tests (see Testing section below)
 
-**UITests/DetoursUITests/Helpers/UITestHelpers.swift**
+**Tests/UITests/DetoursUITests/Helpers/UITestHelpers.swift**
 - `waitForElement(_ element: XCUIElement, timeout: TimeInterval) -> Bool` - Returns true if element exists within timeout
 - `pressKey(_ key: XCUIKeyboardKey, modifiers: XCUIElement.ModifierFlags)` - Send keyboard shortcut to app
 - `outlineRow(containing text: String) -> XCUIElement` - Find outline row by text content
@@ -87,44 +87,44 @@ Test setup creates a temp directory with a known folder structure, navigates the
 ### Implementation Plan
 
 **Phase 1: Accessibility Identifiers**
-- [ ] Add `setAccessibilityIdentifier("fileListOutlineView")` to `BandedOutlineView.init`
-- [ ] Add row/cell identifiers in `FileListDataSource`
-- [ ] Build app to verify no compile errors
+- [x] Add `setAccessibilityIdentifier("fileListOutlineView")` to `BandedOutlineView.init`
+- [x] Add row/cell identifiers in `FileListDataSource`
+- [x] Build app to verify no compile errors
 
 **Phase 2: Xcode Project**
-- [ ] Create `UITests/` directory
-- [ ] Open Xcode → File → New → Project → macOS → Other → Empty
-- [ ] Save as `DetoursUITests` in `UITests/` directory
-- [ ] Add target: File → New → Target → macOS → UI Testing Bundle
-- [ ] Target name: `DetoursUITests`, bundle identifier: `com.detours.uitests`
-- [ ] In target Build Settings: Set `TEST_HOST` to empty (not $(BUILT_PRODUCTS_DIR)/...)
-- [ ] In target Build Settings: Set `BUNDLE_LOADER` to empty
-- [ ] Delete default test file, keep Info.plist
-- [ ] Verify: `xcodebuild build-for-testing -project UITests/DetoursUITests.xcodeproj -scheme DetoursUITests -destination 'platform=macOS'`
+- [x] Create `Tests/UITests/` directory
+- [x] Open Xcode → File → New → Project → macOS → Other → Empty
+- [x] Save as `DetoursUITests` in `Tests/UITests/` directory
+- [x] Add target: File → New → Target → macOS → UI Testing Bundle
+- [x] Target name: `DetoursUITests`, bundle identifier: `com.detours.uitests`
+- [x] In target Build Settings: Set `TEST_HOST` to empty (not $(BUILT_PRODUCTS_DIR)/...)
+- [x] In target Build Settings: Set `BUNDLE_LOADER` to empty
+- [x] Delete default test file, keep Info.plist
+- [x] Verify: `xcodebuild build-for-testing -project Tests/UITests/DetoursUITests.xcodeproj -scheme DetoursUITests -destination 'platform=macOS'`
 
 **Phase 3: Test Infrastructure**
-- [ ] Create `BaseUITest.swift` with setup/teardown
-- [ ] Create `UITestHelpers.swift` with helper functions
+- [x] Create `BaseUITest.swift` with setup/teardown
+- [x] Create `UITestHelpers.swift` with helper functions
 - [ ] Write one smoke test that launches app and verifies window exists
 - [ ] Verify smoke test passes
 
 **Phase 4: Folder Expansion Tests**
-- [ ] Create `FolderExpansionUITests.swift`
-- [ ] Implement `testDisclosureTriangleExpand`
-- [ ] Implement `testDisclosureTriangleCollapse`
-- [ ] Implement `testOptionClickRecursiveExpand`
-- [ ] Implement `testRightArrowExpandsFolder`
-- [ ] Implement `testRightArrowOnExpandedMovesToChild`
-- [ ] Implement `testLeftArrowCollapsesFolder`
-- [ ] Implement `testLeftArrowOnCollapsedMovesToParent`
-- [ ] Implement `testOptionRightRecursiveExpand`
-- [ ] Implement `testOptionLeftRecursiveCollapse`
-- [ ] Implement `testCollapseWithSelectionInsideMoveToParent`
+- [x] Create `FolderExpansionUITests.swift`
+- [x] Implement `testDisclosureTriangleExpand`
+- [x] Implement `testDisclosureTriangleCollapse`
+- [x] Implement `testOptionClickRecursiveExpand`
+- [x] Implement `testRightArrowExpandsFolder`
+- [x] Implement `testRightArrowOnExpandedMovesToChild`
+- [x] Implement `testLeftArrowCollapsesFolder`
+- [x] Implement `testLeftArrowOnCollapsedMovesToParent`
+- [x] Implement `testOptionRightRecursiveExpand`
+- [x] Implement `testOptionLeftRecursiveCollapse`
+- [x] Implement `testCollapseWithSelectionInsideMoveToParent`
 - [ ] Run all tests, fix any failures
 
 **Phase 5: Script & Documentation**
-- [ ] Create `resources/scripts/uitest.sh`
-- [ ] Update CLAUDE.md UI testing section
+- [x] Create `resources/scripts/uitest.sh`
+- [x] Update CLAUDE.md UI testing section
 - [ ] Run full suite via script, verify exit codes
 
 ---
@@ -133,7 +133,7 @@ Test setup creates a temp directory with a known folder structure, navigates the
 
 ### Automated Tests
 
-Tests in `UITests/DetoursUITests/FolderExpansionUITests.swift`. Run with `resources/scripts/uitest.sh`.
+Tests in `Tests/UITests/DetoursUITests/FolderExpansionUITests.swift`. Run with `resources/scripts/uitest.sh`.
 
 **Disclosure Triangle (Mouse):**
 - [ ] `testDisclosureTriangleExpand` - Click disclosure triangle on FolderA, verify SubfolderA1 and SubfolderA2 appear as children
@@ -156,7 +156,53 @@ Tests in `UITests/DetoursUITests/FolderExpansionUITests.swift`. Run with `resour
 
 | Date | Result | Notes |
 |------|--------|-------|
-| — | — | No tests run yet |
+| 260121 | Blocked | Navigation to test directory not working - see Implementation Notes |
+
+### Implementation Notes (260121)
+
+**What's Working:**
+- XCUITest project builds successfully: `xcodebuild build-for-testing` passes
+- App launches via bundle identifier: `XCUIApplication(bundleIdentifier: "com.detours.app")`
+- Window detection works
+- Button clicks work (home button clicks successfully)
+- Accessibility identifiers added to: `BandedOutlineView`, `FileListDataSource` (rows/cells), `homeButton`, `quickNavSearchField`
+- Test directory creation via shell script works
+
+**What's Blocking:**
+Test setup can't navigate to the test directory. The `outlineRow` elements aren't being found by their accessibility identifiers.
+
+**Approaches Tried:**
+1. **Cmd-Shift-G (Go To Folder)** - Detours doesn't have this feature
+2. **QuickNav (Cmd-P)** - Works for opening panel, but can't navigate to arbitrary paths (only frecency/Spotlight results)
+3. **Home button + double-click on folder** - Home button clicks work, but `outlineRow_DetoursUITests-Temp` row not found
+
+**Possible Causes:**
+1. Row accessibility identifiers may not be applied correctly at runtime (need to verify with Accessibility Inspector)
+2. Folder may be scrolled out of view in home directory (need to scroll or use different location)
+3. NSPredicate matching may have issues with the identifier format
+4. Two-pane layout creates duplicate elements that may confuse matching
+
+**Next Steps:**
+1. Use Accessibility Inspector to verify row identifiers are actually being set
+2. Try simpler test: just verify ANY outlineRow exists after clicking home
+3. Consider adding a launch argument to start Detours in a specific directory
+4. Alternative: Use AppleScript to navigate before test runs
+
+**Files Created:**
+```
+Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj/  (Xcode project)
+Tests/UITests/DetoursUITests/DetoursUITests/BaseUITest.swift
+Tests/UITests/DetoursUITests/DetoursUITests/FolderExpansionUITests.swift
+Tests/UITests/DetoursUITests/DetoursUITests/Helpers/UITestHelpers.swift
+resources/scripts/uitest.sh
+```
+
+**Source Files Modified:**
+- `src/FileList/BandedOutlineView.swift` - Added init with accessibility identifier
+- `src/FileList/FileListDataSource.swift` - Added row/cell identifiers
+- `src/Panes/PaneViewController.swift` - Added homeButton identifier
+- `src/Navigation/QuickNavView.swift` - Added quickNavSearchField identifier
+- `CLAUDE.md` - Added UI testing documentation
 
 ### User Verification
 
