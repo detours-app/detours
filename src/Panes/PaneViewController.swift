@@ -396,6 +396,7 @@ final class PaneViewController: NSViewController {
         homeButton.target = self
         homeButton.action = #selector(homeClicked)
         homeButton.toolTip = "Home"
+        homeButton.setAccessibilityIdentifier("homeButton")
         view.addSubview(homeButton)
     }
 

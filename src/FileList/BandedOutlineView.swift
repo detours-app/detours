@@ -65,6 +65,16 @@ final class BandedOutlineView: NSOutlineView {
     weak var contextMenuDelegate: FileListContextMenuDelegate?
     var onActivate: (() -> Void)?
 
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setAccessibilityIdentifier("fileListOutlineView")
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setAccessibilityIdentifier("fileListOutlineView")
+    }
+
     /// Even row color from current theme (background)
     private var evenRowColor: NSColor {
         ThemeManager.shared.currentTheme.background

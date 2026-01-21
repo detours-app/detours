@@ -91,6 +91,22 @@ $..[?(@.role=='outlinerow')]
 - Use `list_running_applications` to verify app is running
 - Keep tests focused - one verification per MCP interaction sequence
 
+### UI Testing with XCUITest
+
+For repeatable UI tests that don't steal focus, use XCUITest:
+
+```bash
+# Run all UI tests
+resources/scripts/uitest.sh
+
+# Run specific test
+resources/scripts/uitest.sh FolderExpansionUITests/testDisclosureTriangleExpand
+```
+
+- Tests live in `Tests/UITests/DetoursUITests/`
+- Tests target the installed `/Applications/Detours.app`
+- The script builds the app first, then runs tests
+
 ### Documentation
 
 - Docs live in `resources/docs/`
@@ -173,6 +189,7 @@ src/
 ├── Preferences/   # Settings UI
 └── Utilities/     # Helpers, extensions
 Tests/             # XCTest files
+├── UITests/       # XCUITest project
 resources/
 ├── specs/         # Feature specifications
 ├── docs/          # CHANGELOG.md, scratch.md

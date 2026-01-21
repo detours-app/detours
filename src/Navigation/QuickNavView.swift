@@ -25,6 +25,7 @@ struct QuickNavView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
                 .focused($isTextFieldFocused)
+                .accessibilityIdentifier("quickNavSearchField")
                 .onSubmit {
                     selectCurrent()
                 }

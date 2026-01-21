@@ -1,11 +1,26 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-21 10:30:00
-- Command: `swift test --filter FolderExpansionTests`
+- Started: 2026-01-21 16:10:36
+- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testCollapseWithSelectionInsideMoveToParent`
 - Status: PASS
-- Tests: 11 passed
-- Full suite: 20 test classes, 201 tests, ALL PASS
+- Tests: 1 passed
+- XCUITest suite: 11/11 tests ALL PASS
+
+### FolderExpansionUITests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testDisclosureTriangleExpand | PASS | 12.97s | 2026-01-21 15:56:21 |
+| testDisclosureTriangleCollapse | PASS | 14.49s | 2026-01-21 15:58:50 |
+| testOptionClickRecursiveExpand | PASS | 14.27s | 2026-01-21 16:06:08 |
+| testOptionClickRecursiveCollapse | PASS | 14.87s | 2026-01-21 16:07:26 |
+| testRightArrowExpandsFolder | PASS | 12.34s | 2026-01-21 16:08:13 |
+| testRightArrowOnExpandedMovesToChild | PASS | 14.56s | 2026-01-21 16:08:35 |
+| testLeftArrowCollapsesFolder | PASS | 14.92s | 2026-01-21 16:08:58 |
+| testLeftArrowOnCollapsedMovesToParent | PASS | 15.97s | 2026-01-21 16:09:41 |
+| testOptionRightRecursiveExpand | PASS | 14.39s | 2026-01-21 16:10:03 |
+| testOptionLeftRecursiveCollapse | PASS | 16.82s | 2026-01-21 16:10:30 |
+| testCollapseWithSelectionInsideMoveToParent | PASS | 15.11s | 2026-01-21 16:10:53 |
 
 ### DirectoryWatcherTests (Swift Testing)
 | Test | Status | Duration | Last Run |
