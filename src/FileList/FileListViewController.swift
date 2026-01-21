@@ -36,6 +36,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var directoryWatcher: MultiDirectoryWatcher?
     private var selectionAnchor: Int?
     private var selectionCursor: Int?
+    /// Tracks whether folder expansion was enabled before the last settings change
+    private var wasFolderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+    /// Preserved expansion state when folder expansion is disabled (for restore on re-enable)
+    private var preservedExpansionWhenDisabled: Set<URL>?
 
     override func loadView() {
         view = NSView()
@@ -122,14 +126,33 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     @objc private func handleSettingsChange() {
-        // Preserve selection and expansion state before reload
+        let isNowEnabled = SettingsManager.shared.folderExpansionEnabled
+
+        // Preserve selection before reload
         let selectedRows = tableView.selectedRowIndexes
-        let expandedURLs = dataSource.expandedFolders
+
+        // Handle expansion state preservation based on transition
+        let expandedURLs: Set<URL>
+        if wasFolderExpansionEnabled && !isNowEnabled {
+            // Transitioning enabled -> disabled: save current expansion state
+            preservedExpansionWhenDisabled = dataSource.expandedFolders
+            expandedURLs = []  // Don't restore when disabling
+        } else if !wasFolderExpansionEnabled && isNowEnabled {
+            // Transitioning disabled -> enabled: use preserved state
+            expandedURLs = preservedExpansionWhenDisabled ?? []
+            preservedExpansionWhenDisabled = nil
+        } else {
+            // No transition, just preserve current state
+            expandedURLs = dataSource.expandedFolders
+        }
+
+        // Update the tracking variable
+        wasFolderExpansionEnabled = isNowEnabled
 
         // Reload outline view when settings change (folder expansion, git status, etc.)
         tableView.reloadData()
 
-        // Restore expansion state
+        // Restore expansion state (restoreExpansion checks folderExpansionEnabled internally)
         restoreExpansion(expandedURLs)
 
         // Restore selection
@@ -145,14 +168,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         tableView.needsDisplay = true
         // Reload directory to re-tint folder icons with new accent color
         if let currentDirectory {
-            // Preserve selection and expansion before reload
+            // Preserve selection before reload
             let selectedURLs = selectedItems.map { $0.url }
-            let expandedURLs = dataSource.expandedFolders
+            let previousExpanded = dataSource.expandedFolders
 
-            dataSource.loadDirectory(currentDirectory)
+            dataSource.loadDirectory(currentDirectory, preserveExpansion: true)
 
-            // Restore expansion and selection
-            restoreExpansion(expandedURLs)
+            // Restore visual expansion and selection
+            restoreExpansion(previousExpanded)
             restoreSelection(selectedURLs)
         }
     }
@@ -270,13 +293,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         tableView.headerView?.needsDisplay = true
     }
 
-    /// Refresh current directory, preserving selection
+    /// Refresh current directory, preserving selection and expansion
     func refresh() {
         guard let currentDirectory else { return }
 
-        // Preserve current selection BEFORE any changes
+        // Preserve current selection and expansion BEFORE any changes
         let selectedNames = Set(selectedItems.map { $0.name })
         let firstSelectedRow = tableView.selectedRow
+        let previousExpanded = dataSource.expandedFolders
 
         // Spinner
         let spinner = NSProgressIndicator()
@@ -290,8 +314,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         view.addSubview(spinner, positioned: .above, relativeTo: scrollView)
         spinner.startAnimation(nil)
 
-        // Reload data
-        dataSource.loadDirectory(currentDirectory)
+        // Reload data, preserving expansion state
+        dataSource.loadDirectory(currentDirectory, preserveExpansion: true)
+
+        // Restore visual expansion state
+        restoreExpansion(previousExpanded)
 
         // Restore selection by name
         var newSelection = IndexSet()
@@ -376,7 +403,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let selectedNames = Set(selectedItems.map { $0.name })
         let firstSelectedRow = tableView.selectedRow
 
-        dataSource.loadDirectory(currentDirectory)
+        // Preserve expansion state when reloading due to external changes
+        let previousExpanded = dataSource.expandedFolders
+        dataSource.loadDirectory(currentDirectory, preserveExpansion: true)
+
+        // Restore visual expansion state
+        restoreExpansion(previousExpanded)
 
         // Restore selection by name
         var newSelection = IndexSet()

@@ -202,7 +202,16 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     /// Currently expanded folder URLs (for persistence)
     private(set) var expandedFolders: Set<URL> = []
 
-    func loadDirectory(_ url: URL) {
+    /// Flag to suppress collapse notifications during reload
+    private var suppressCollapseNotifications = false
+
+    func loadDirectory(_ url: URL, preserveExpansion: Bool = false) {
+        // Preserve expansion state if reloading the same directory
+        let previousExpanded = preserveExpansion ? expandedFolders : []
+
+        // Suppress collapse notifications during reload to preserve expansion state
+        suppressCollapseNotifications = preserveExpansion
+
         do {
             var options: FileManager.DirectoryEnumerationOptions = []
             if !showHiddenFiles {
@@ -217,9 +226,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             items = FileItem.sortFoldersFirst(contents.map { FileItem(url: $0) })
             currentDirectoryForGit = url
             gitStatuses = [:]
-            expandedFolders.removeAll()
+            expandedFolders = previousExpanded
             outlineView?.reloadData()
             outlineView?.needsLayout = true
+            suppressCollapseNotifications = false
 
             // Fetch git status asynchronously if enabled
             if SettingsManager.shared.settings.gitStatusEnabled {
@@ -229,9 +239,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             items = []
             currentDirectoryForGit = nil
             gitStatuses = [:]
-            expandedFolders.removeAll()
+            expandedFolders = previousExpanded
             outlineView?.reloadData()
             outlineView?.needsLayout = true
+            suppressCollapseNotifications = false
         }
     }
 
@@ -249,14 +260,17 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 // Update items with git status (recursively)
                 updateGitStatus(for: items, statuses: statuses)
 
-                // Preserve selection and expansion before reload
+                // Preserve selection before reload
                 let selectedRows = outlineView?.selectedRowIndexes ?? IndexSet()
                 let expanded = expandedFolders
 
-                // Reload to show git indicators
+                // Suppress collapse notifications during reload to preserve expansion state
+                suppressCollapseNotifications = true
                 outlineView?.reloadData()
+                expandedFolders = expanded
+                suppressCollapseNotifications = false
 
-                // Restore expansion state
+                // Restore expansion state visually
                 for url in expanded {
                     if let item = findItem(withURL: url, in: items) {
                         outlineView?.expandItem(item)
@@ -510,6 +524,8 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     }
 
     func outlineViewItemDidCollapse(_ notification: Notification) {
+        // Skip if we're suppressing collapse notifications during reload
+        guard !suppressCollapseNotifications else { return }
         guard let fileItem = notification.userInfo?["NSObject"] as? FileItem else { return }
         expandedFolders.remove(fileItem.url)
         expansionDelegate?.dataSourceDidCollapseItem(fileItem)

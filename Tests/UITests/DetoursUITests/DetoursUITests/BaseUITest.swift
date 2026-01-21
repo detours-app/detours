@@ -33,6 +33,26 @@ class BaseUITest: XCTestCase {
         // Note: test directory cleanup is handled by uitest.sh
     }
 
+    /// Ensures folder expansion is enabled. Call this at the start of tests that need disclosure triangles.
+    func ensureFolderExpansionEnabled() {
+        // Check if a disclosure triangle exists on any folder
+        let folderARow = outlineRow(named: "FolderA")
+        guard folderARow.waitForExistence(timeout: 2) else { return }
+
+        // If no disclosure triangle, expansion is disabled - enable it
+        if !folderARow.disclosureTriangles.firstMatch.exists {
+            pressCharKey(",", modifiers: .command)
+            sleep(1)
+            let toggle = app.switches["folderExpansionToggle"]
+            if toggle.waitForExistence(timeout: 2) {
+                toggle.click()
+                sleep(1)
+            }
+            pressCharKey("w", modifiers: .command)
+            sleep(1)
+        }
+    }
+
     /// Navigate to temp directory via home button and double-click
     private func navigateToTempDirectory() {
         // Click the first home button (left pane) to go to home directory

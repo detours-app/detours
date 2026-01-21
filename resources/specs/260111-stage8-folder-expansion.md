@@ -263,7 +263,7 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 
 ### UI Verification
 
-**XCUITest Coverage (2026-01-21):** 12 UI tests implemented in `Tests/UITests/DetoursUITests/DetoursUITests/FolderExpansionUITests.swift`. Core mouse and keyboard interactions verified. Visual customizations, persistence, directory watching, and settings toggle tests not yet implemented (would require more complex test setup).
+**XCUITest Coverage (2026-01-21):** 21 UI tests in `Tests/UITests/DetoursUITests/DetoursUITests/FolderExpansionUITests.swift`. Core mouse/keyboard interactions, settings toggle, tab persistence, and pane independence all verified. 3 directory watching tests skipped (XCUITest sandbox prevents external filesystem modifications - covered by unit tests instead).
 
 **Disclosure Triangles (Mouse):**
 - [x] Find outline view rows with disclosure triangles (folders only)
@@ -292,28 +292,28 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 - [ ] iCloud badges display correctly on nested items
 
 **Persistence - Tab Switching:**
-- [ ] Expand folders in tab 1
-- [ ] Switch to tab 2, switch back to tab 1 → expansion preserved
-- [ ] Expand different folders in tab 2 → independent from tab 1
+- [x] Expand folders in tab 1
+- [x] Switch to tab 2, switch back to tab 1 → expansion preserved
+- [x] Expand different folders in tab 2 → independent from tab 1
 
 **Persistence - App Restart:**
 - [ ] Expand folders, quit app, relaunch → expansion state restored
 
 **Persistence - Both Panes:**
-- [ ] Navigate to same folder in left and right pane
-- [ ] Expand different subfolders in each → independent expansion state
+- [x] Navigate to same folder in left and right pane
+- [x] Expand different subfolders in each → independent expansion state
 
 **Directory Watching:**
-- [ ] Expand a folder, create file in that folder externally (Finder/terminal)
-- [ ] Verify file list updates to show new file without manual refresh
-- [ ] Delete expanded folder externally → expansion entry removed, list refreshes
+- [~] Expand a folder, create file in that folder externally (Finder/terminal) (skipped - XCUITest sandbox)
+- [~] Verify file list updates to show new file without manual refresh (skipped - XCUITest sandbox)
+- [~] Delete expanded folder externally → expansion entry removed, list refreshes (skipped - XCUITest sandbox)
 
 **Settings Toggle:**
-- [ ] Disable "Enable folder expansion" in Settings
-- [ ] Verify disclosure triangles disappear immediately
-- [ ] Verify Right/Left arrow keys are no-ops (do nothing)
-- [ ] Re-enable toggle → disclosure triangles reappear
-- [ ] Verify previous expansion state is restored (not cleared)
+- [x] Disable "Enable folder expansion" in Settings
+- [x] Verify disclosure triangles disappear immediately
+- [x] Verify Right/Left arrow keys are no-ops (do nothing)
+- [x] Re-enable toggle → disclosure triangles reappear
+- [x] Verify previous expansion state is restored (not cleared)
 
 **Edge Cases:**
 - [x] Select file inside expanded folder, collapse parent → selection moves to parent folder

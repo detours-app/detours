@@ -1,10 +1,10 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-21 18:34:28
-- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testSettingsToggleDisablesTriangles`
-- Status: PASS
-- Tests: 1 passed
+- Started: 2026-01-21 20:14:00
+- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testExternalRenameLosesExpansionState`
+- Status: SKIPPED
+- Tests: 1 skipped (XCUITest sandbox limitations)
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -30,6 +30,14 @@
 | testLeftArrowOnCollapsedRootFolderNoOp | PASS | 12.72s | 2026-01-21 17:47:56 |
 | testCollapseWithSelectionInsideMoveToParent | PASS | 15.11s | 2026-01-21 16:10:53 |
 | testSettingsToggleDisablesTriangles | PASS | 22.88s | 2026-01-21 18:13:40 |
+| testSettingsToggleArrowKeysNoOp | PASS | 33.69s | 2026-01-21 19:06:08 |
+| testSettingsToggleReenableRestoresState | PASS | 28.51s | 2026-01-21 19:55:52 |
+| testTabSwitchPreservesExpansion | PASS | 19.54s | 2026-01-21 20:01:00 |
+| testTabsHaveIndependentExpansion | PASS | 27.06s | 2026-01-21 20:04:00 |
+| testBothPanesIndependentExpansion | PASS | 24.96s | 2026-01-21 20:05:00 |
+| testDirectoryWatchingDetectsNewFile | SKIP | - | 2026-01-21 20:14:00 |
+| testDirectoryWatchingDetectsDeletedFolder | SKIP | - | 2026-01-21 20:14:00 |
+| testExternalRenameLosesExpansionState | SKIP | - | 2026-01-21 20:14:00 |
 
 ### DirectoryWatcherTests (Swift Testing)
 | Test | Status | Duration | Last Run |
