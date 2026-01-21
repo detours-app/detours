@@ -41,12 +41,18 @@ class BaseUITest: XCTestCase {
         homeButton.click()
         sleep(1)
 
-        // Double-click on the test folder to enter it
-        let testFolderRow = app.outlineRows.matching(
-            NSPredicate(format: "identifier CONTAINS %@", "outlineRow_\(testFolderName)")
-        ).firstMatch
+        // Wait for home directory to load
+        // Look for the test folder by its name (static text content within the row)
+        let testFolderRow = app.outlineRow(containing: testFolderName)
 
         guard testFolderRow.waitForExistence(timeout: 3) else {
+            // Debug: print what rows we can see
+            let allRows = app.outlineRows.allElementsBoundByIndex
+            print("DEBUG: Found \(allRows.count) outline rows")
+            for (idx, row) in allRows.prefix(10).enumerated() {
+                let texts = row.staticTexts.allElementsBoundByIndex.map { $0.value as? String ?? $0.label }
+                print("DEBUG: Row \(idx): \(texts)")
+            }
             XCTFail("Test folder row not found: \(testFolderName)")
             return
         }

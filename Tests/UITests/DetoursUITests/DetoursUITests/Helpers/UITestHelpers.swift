@@ -1,21 +1,30 @@
 import XCTest
 
 extension XCUIApplication {
-    /// Find an outline row containing the specified text
+    /// Find an outline row containing a static text element with the specified text
+    /// Uses .containing() which is lazily evaluated during waitForExistence
     func outlineRow(containing text: String) -> XCUIElement {
-        let predicate = NSPredicate(format: "identifier CONTAINS %@", "outlineRow_\(text)")
-        return outlineRows.matching(predicate).firstMatch
+        return outlineRows.containing(.staticText, identifier: text).firstMatch
     }
 
     /// Find an outline cell containing the specified text
     func outlineCell(containing text: String) -> XCUIElement {
-        let predicate = NSPredicate(format: "identifier CONTAINS %@", "outlineCell_\(text)")
-        return cells.matching(predicate).firstMatch
+        return cells.containing(.staticText, identifier: text).firstMatch
     }
 
-    /// Get the file list outline view
+    /// Get the file list outline view (by accessibility identifier)
     var fileListOutlineView: XCUIElement {
         outlines.matching(identifier: "fileListOutlineView").firstMatch
+    }
+
+    /// Get the first (left pane) file list outline view
+    var leftPaneOutlineView: XCUIElement {
+        outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
+    }
+
+    /// Get the second (right pane) file list outline view
+    var rightPaneOutlineView: XCUIElement {
+        outlines.matching(identifier: "fileListOutlineView").element(boundBy: 1)
     }
 }
 
@@ -73,15 +82,15 @@ extension BaseUITest {
         return row.waitForExistence(timeout: timeout)
     }
 
-    /// Get the currently selected row's identifier
+    /// Get the name of the currently selected row by reading its first static text
     func selectedRowName() -> String? {
         let selectedRows = app.outlineRows.matching(NSPredicate(format: "isSelected == true"))
         guard let firstSelected = selectedRows.allElementsBoundByIndex.first else { return nil }
-        let identifier = firstSelected.identifier
-        // Extract name from "outlineRow_NAME"
-        if identifier.hasPrefix("outlineRow_") {
-            return String(identifier.dropFirst("outlineRow_".count))
+        // Get the first static text within the row (which is the file name)
+        let nameText = firstSelected.staticTexts.firstMatch
+        if nameText.exists {
+            return nameText.value as? String ?? nameText.label
         }
-        return identifier
+        return nil
     }
 }
