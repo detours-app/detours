@@ -1,16 +1,15 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-21 16:10:36
-- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testCollapseWithSelectionInsideMoveToParent`
+- Started: 2026-01-21 17:29:12
+- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testDisclosureTriangleExpand`
 - Status: PASS
 - Tests: 1 passed
-- XCUITest suite: 11/11 tests ALL PASS
 
 ### FolderExpansionUITests (XCUITest)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testDisclosureTriangleExpand | PASS | 12.97s | 2026-01-21 15:56:21 |
+| testDisclosureTriangleExpand | PASS | 13.49s | 2026-01-21 17:29:12 |
 | testDisclosureTriangleCollapse | PASS | 14.49s | 2026-01-21 15:58:50 |
 | testOptionClickRecursiveExpand | PASS | 14.27s | 2026-01-21 16:06:08 |
 | testOptionClickRecursiveCollapse | PASS | 14.87s | 2026-01-21 16:07:26 |
