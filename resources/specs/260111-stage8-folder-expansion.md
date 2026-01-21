@@ -261,11 +261,9 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 |------|--------|-------|
 | 2026-01-21 | PASS | FolderExpansionTests: 11 tests, all pass. FileItem.loadChildren, MultiDirectoryWatcher, persistence, settings. |
 
-### UI Verification (MCP Automated)
+### UI Verification
 
-Use the `macos-ui-automation` MCP server to verify UI behavior. Launch app in background (`open -g`) to avoid disturbing work.
-
-**Note (2026-01-21):** MCP automation blocked due to tool bug - `macos-ui-automation` cannot parse NSDate attributes in Detours' accessibility hierarchy (pydantic validation error). Manual verification required. All automated unit tests pass (11/11).
+**Note (2026-01-21):** UI tests deferred until XCUITest infrastructure is implemented. See `resources/specs/260121-xcuitest-infrastructure.md` for the new testing approach. MCP UI automation proved unreliable (cannot parse NSDate attributes, requires foreground app). All automated unit tests pass (11/11).
 
 **Disclosure Triangles (Mouse):**
 - [ ] Find outline view rows with disclosure triangles (folders only)
