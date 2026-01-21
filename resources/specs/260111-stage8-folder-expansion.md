@@ -46,6 +46,43 @@ Add Finder-style disclosure triangles to expand folders inline. Expansion state 
 
 ---
 
+## Clarifications
+
+**Keyboard Navigation:**
+1. Right arrow on already-expanded folder: Move selection to first child
+2. Left arrow on already-collapsed folder: Move to parent if inside expanded tree, no-op if at root level
+3. Repeated Left arrow inside nested tree: Each press moves to immediate parent (walk up one level at a time)
+
+**Settings Toggle:**
+4. When disabled: Preserve expansion state but hide triangles. Re-enabling restores previous expansion.
+5. Left/Right arrows when disabled: No-op (do nothing)
+
+**New Folder:**
+6. "Expands it" means expand the *parent* folder (so new folder is visible), not the new empty folder
+7. Multiple selection: Use first selected item. If folder, create inside; if file, create in current directory.
+
+**Selection on Collapse:**
+8. If selection is inside collapsed folder, move selection to the collapsed folder
+
+**Directory Watching:**
+9. Use single FSEventStream watching multiple paths. Add/remove paths as folders expand/collapse.
+10. On watch failure (FD limit): Log warning, folder still expands but won't auto-refresh. Manual refresh works.
+
+**Persistence:**
+11. Folder renamed externally: Expansion state lost (keyed by URL). Acceptable tradeoff.
+12. Same folder in both panes: Independent expansion state per pane
+
+**Edge Cases:**
+13. Permission-denied folder: Show as expandable; when expanded, show empty (or "Access Denied" placeholder)
+14. Recursive expand (Option-click): Eager load all children immediately
+
+**Visual:**
+15. Indentation: NSOutlineView default (~16-20pt)
+16. Disclosure triangles: System default style
+17. Animation: Yes, use NSOutlineView default expand/collapse animation
+
+---
+
 ## Technical
 
 ### Approach
@@ -161,21 +198,35 @@ Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchic
 - [ ] Update `FileListViewController` to use `MultiDirectoryWatcher`
 
 **Phase 3: Keyboard Navigation**
-- [ ] Right arrow: expand collapsed folder (guard with `folderExpansionEnabled`)
-- [ ] Left arrow: collapse expanded folder (guard with `folderExpansionEnabled`)
-- [ ] Left arrow: select parent when inside expanded folder
-- [ ] Option-Right/Option-Left: recursive expand/collapse
-- [ ] Cmd-Right/Cmd-Left: aliases
+- [ ] Right arrow on collapsed folder: expand it
+- [ ] Right arrow on expanded folder: move selection to first child
+- [ ] Left arrow on expanded folder: collapse it
+- [ ] Left arrow on collapsed folder inside expanded tree: move selection to parent
+- [ ] Left arrow on collapsed folder at root level: no-op
+- [ ] Option-Right: recursive expand (all nested children)
+- [ ] Option-Left: recursive collapse
+- [ ] Cmd-Right/Cmd-Left: aliases for Right/Left
+- [ ] Guard all expand/collapse with `folderExpansionEnabled` (no-op when disabled)
 
 **Phase 4: Session Persistence**
 - [ ] Add `tabExpansions` to `PaneViewController`
 - [ ] Save/restore expansion on tab switch
 - [ ] Add expansion keys to `MainSplitViewController.saveSession()`/`restoreSession()`
 
-**Phase 5: Polish**
-- [ ] Verify all customizations (teal, banding, cut dimming, iCloud badges)
-- [ ] Test edge cases (collapse with selection, external delete)
-- [ ] Fix any warnings
+**Phase 5: Polish & Edge Cases**
+- [ ] Verify teal selection highlight works in outline view
+- [ ] Verify teal folder icons display correctly
+- [ ] Verify banded row backgrounds work
+- [ ] Verify cut item dimming works
+- [ ] Verify iCloud badges display correctly
+- [ ] Collapse folder containing selection → selection moves to collapsed folder
+- [ ] External delete of expanded folder → expansion entry removed, list refreshes
+- [ ] External rename of expanded folder → expansion state lost (expected, keyed by URL)
+- [ ] Permission-denied folder → expands to empty (or placeholder)
+- [ ] Settings toggle off → triangles hidden, expansion state preserved
+- [ ] Settings toggle on → triangles reappear, previous expansion restored
+- [ ] Same folder in both panes → independent expansion state
+- [ ] Fix any compiler warnings
 
 ---
 
@@ -185,13 +236,24 @@ Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchic
 
 Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these tests, updating the test log after each run.
 
-- [ ] `testFileItemLoadChildren` - `FileItem.loadChildren()` populates children array for directory
-- [ ] `testFileItemLoadChildrenEmpty` - Empty directory returns empty children array (not nil)
-- [ ] `testFileItemLoadChildrenFile` - Calling on file returns nil children
+**FileItem Tests:**
+- [ ] `testFileItemLoadChildren` - `loadChildren()` populates children array for directory
+- [ ] `testFileItemLoadChildrenEmpty` - Empty directory returns empty array (not nil)
+- [ ] `testFileItemLoadChildrenFile` - Calling on file returns nil
+- [ ] `testFileItemLoadChildrenUnreadable` - Permission-denied folder returns empty array (not crash)
+
+**MultiDirectoryWatcher Tests:**
 - [ ] `testMultiDirectoryWatcherWatchUnwatch` - Can watch/unwatch multiple directories without crash
 - [ ] `testMultiDirectoryWatcherCallback` - Callback fires with correct URL when watched directory changes
+- [ ] `testMultiDirectoryWatcherUnwatchAll` - `unwatchAll()` clears all watches
+
+**Persistence Tests:**
 - [ ] `testExpansionStateSerialization` - `Set<URL>` encodes to `[String]` and decodes back correctly
+- [ ] `testExpansionStateEmpty` - Empty set serializes and deserializes correctly
+
+**Settings Tests:**
 - [ ] `testFolderExpansionSettingDefault` - `folderExpansionEnabled` defaults to true
+- [ ] `testFolderExpansionSettingToggle` - Can toggle setting and read back new value
 
 ### Test Log
 
@@ -203,34 +265,57 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 
 Use the `macos-ui-automation` MCP server to verify UI behavior. Launch app in background (`open -g`) to avoid disturbing work.
 
-**Disclosure Triangles:**
-- [ ] Find outline view rows with disclosure triangles (folders)
-- [ ] Click disclosure triangle, verify row expands (children visible)
-- [ ] Click again, verify row collapses
+**Disclosure Triangles (Mouse):**
+- [ ] Find outline view rows with disclosure triangles (folders only)
+- [ ] Click disclosure triangle → row expands, children visible
+- [ ] Click again → row collapses
+- [ ] Option-click disclosure triangle → all nested children expand recursively
+- [ ] Option-click again → all nested children collapse recursively
 
-**Keyboard Navigation:**
-- [ ] Select collapsed folder, press Right arrow, verify expands
-- [ ] Press Left arrow, verify collapses
-- [ ] Select item inside expanded folder, press Left, verify parent selected
+**Keyboard Navigation - Basic:**
+- [ ] Select collapsed folder, press Right → expands
+- [ ] Select expanded folder, press Right → selection moves to first child
+- [ ] Select expanded folder, press Left → collapses
+- [ ] Select collapsed folder inside expanded tree, press Left → selection moves to parent
+- [ ] Select collapsed folder at root level, press Left → no change (no-op)
 
-**Recursive Expansion (manual - Option-click):**
-- [ ] Option-click disclosure triangle, verify all nested children expand
+**Keyboard Navigation - Modifiers:**
+- [ ] Select collapsed folder, press Option-Right → recursive expand
+- [ ] Select expanded folder, press Option-Left → recursive collapse
+- [ ] Cmd-Right/Cmd-Left behave same as Right/Left
 
-**Visual Customizations (visual spot-check):**
-- [ ] Teal selection highlight displays correctly
-- [ ] Teal folder icons display correctly
-- [ ] Banded row backgrounds work
+**Visual Customizations:**
+- [ ] Teal selection highlight displays correctly on expanded/collapsed rows
+- [ ] Teal folder icons display correctly at all nesting levels
+- [ ] Banded row backgrounds work across expanded tree
+- [ ] Cut item dimming works on nested items
+- [ ] iCloud badges display correctly on nested items
 
-**Persistence:**
-- [ ] Expand folders, switch tabs, switch back - verify expansion preserved
-- [ ] Quit app, relaunch - verify expansion state restored
+**Persistence - Tab Switching:**
+- [ ] Expand folders in tab 1
+- [ ] Switch to tab 2, switch back to tab 1 → expansion preserved
+- [ ] Expand different folders in tab 2 → independent from tab 1
+
+**Persistence - App Restart:**
+- [ ] Expand folders, quit app, relaunch → expansion state restored
+
+**Persistence - Both Panes:**
+- [ ] Navigate to same folder in left and right pane
+- [ ] Expand different subfolders in each → independent expansion state
 
 **Directory Watching:**
-- [ ] Expand a folder, create file in that folder externally
-- [ ] Verify file list updates to show new file
+- [ ] Expand a folder, create file in that folder externally (Finder/terminal)
+- [ ] Verify file list updates to show new file without manual refresh
+- [ ] Delete expanded folder externally → expansion entry removed, list refreshes
 
 **Settings Toggle:**
 - [ ] Disable "Enable folder expansion" in Settings
 - [ ] Verify disclosure triangles disappear immediately
-- [ ] Verify Right/Left arrow keys only navigate (don't expand)
-- [ ] Re-enable toggle, verify disclosure triangles reappear
+- [ ] Verify Right/Left arrow keys are no-ops (do nothing)
+- [ ] Re-enable toggle → disclosure triangles reappear
+- [ ] Verify previous expansion state is restored (not cleared)
+
+**Edge Cases:**
+- [ ] Select file inside expanded folder, collapse parent → selection moves to parent folder
+- [ ] Rename expanded folder externally → expansion state lost for that folder
+- [ ] Try to expand permission-denied folder → expands to empty (no crash)
