@@ -373,6 +373,10 @@ final class MainSplitViewController: NSSplitViewController {
     private func navigateActivePane(to url: URL) {
         activePane.navigate(to: url)
         FrecencyStore.shared.recordVisit(url)
+        // Ensure focus returns to the file list after navigation (e.g., from QuickNav)
+        if let tableView = activePane.selectedTab?.fileListViewController.tableView {
+            view.window?.makeFirstResponder(tableView)
+        }
     }
 
     /// Navigate to a folder opened from an external source (e.g., DefaultFolder X, Finder)

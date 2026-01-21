@@ -12,6 +12,8 @@ final class FileListCell: NSTableCellView {
     private var isNavigableFolder: Bool = false
     private var originalIcon: NSImage?
     private var gitStatus: GitStatus?
+    private var iconLeadingConstraint: NSLayoutConstraint?
+    private var gitBarLeadingConstraint: NSLayoutConstraint?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -66,15 +68,19 @@ final class FileListCell: NSTableCellView {
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         sharedLabel.translatesAutoresizingMaskIntoConstraints = false
 
+        // Create dynamic constraints for git bar and icon leading (adjusted when folder expansion is enabled)
+        gitBarLeadingConstraint = gitStatusBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5)
+        iconLeadingConstraint = iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12)
+
         NSLayoutConstraint.activate([
-            // Git status bar: 2px × 14px, 5px from leading edge, centered vertically
-            gitStatusBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
+            // Git status bar: 2px × 14px, centered vertically (leading is dynamic)
+            gitBarLeadingConstraint!,
             gitStatusBar.centerYAnchor.constraint(equalTo: centerYAnchor),
             gitStatusBar.widthAnchor.constraint(equalToConstant: 2),
             gitStatusBar.heightAnchor.constraint(equalToConstant: 14),
 
-            // Icon: 16x16, centered vertically, after 8px gutter
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            // Icon: 16x16, centered vertically (leading is dynamic)
+            iconLeadingConstraint!,
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
@@ -85,8 +91,8 @@ final class FileListCell: NSTableCellView {
             cloudIcon.widthAnchor.constraint(equalToConstant: 12),
             cloudIcon.heightAnchor.constraint(equalToConstant: 12),
 
-            // Name: 8px after icon
-            nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+            // Name: 6px after icon (tighter spacing)
+            nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
 
             // Shared label: after name, before trailing edge
@@ -133,6 +139,13 @@ final class FileListCell: NSTableCellView {
         originalIcon = item.icon
         iconView.image = item.icon
         nameLabel.stringValue = item.name
+
+        // Adjust leading padding when folder expansion is enabled (disclosure triangle takes space)
+        // When enabled: tighter spacing (4px) since triangle provides visual separation
+        // When disabled: standard spacing (12px) with room for git status bar
+        let folderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+        iconLeadingConstraint?.constant = folderExpansionEnabled ? 4 : 12
+        gitBarLeadingConstraint?.constant = folderExpansionEnabled ? 1 : 5
 
         // Update theme colors in case they changed
         updateThemeColors()

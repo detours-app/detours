@@ -249,10 +249,40 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 // Update items with git status (recursively)
                 updateGitStatus(for: items, statuses: statuses)
 
-                // Reload visible rows to show git indicators
+                // Preserve selection and expansion before reload
+                let selectedRows = outlineView?.selectedRowIndexes ?? IndexSet()
+                let expanded = expandedFolders
+
+                // Reload to show git indicators
                 outlineView?.reloadData()
+
+                // Restore expansion state
+                for url in expanded {
+                    if let item = findItem(withURL: url, in: items) {
+                        outlineView?.expandItem(item)
+                    }
+                }
+
+                // Restore selection
+                if !selectedRows.isEmpty {
+                    outlineView?.selectRowIndexes(selectedRows, byExtendingSelection: false)
+                }
             }
         }
+    }
+
+    /// Find an item by URL in the item tree
+    private func findItem(withURL url: URL, in items: [FileItem]) -> FileItem? {
+        for item in items {
+            if item.url.standardizedFileURL == url.standardizedFileURL {
+                return item
+            }
+            if let children = item.children,
+               let found = findItem(withURL: url, in: children) {
+                return found
+            }
+        }
+        return nil
     }
 
     private func updateGitStatus(for items: [FileItem], statuses: [URL: GitStatus]) {
@@ -422,6 +452,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         guard let fileItem = item as? FileItem else { return false }
         // Load children before expanding
         _ = fileItem.loadChildren(showHidden: showHiddenFiles)
+        // Apply git status to newly loaded children
+        if let children = fileItem.children {
+            updateGitStatus(for: children, statuses: gitStatuses)
+        }
         return true
     }
 

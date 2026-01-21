@@ -122,8 +122,20 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     @objc private func handleSettingsChange() {
-        // Reload outline view when folder expansion setting changes
+        // Preserve selection and expansion state before reload
+        let selectedRows = tableView.selectedRowIndexes
+        let expandedURLs = dataSource.expandedFolders
+
+        // Reload outline view when settings change (folder expansion, git status, etc.)
         tableView.reloadData()
+
+        // Restore expansion state
+        restoreExpansion(expandedURLs)
+
+        // Restore selection
+        if !selectedRows.isEmpty {
+            tableView.selectRowIndexes(selectedRows, byExtendingSelection: false)
+        }
     }
 
     @objc private func handleThemeChange() {
@@ -133,7 +145,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         tableView.needsDisplay = true
         // Reload directory to re-tint folder icons with new accent color
         if let currentDirectory {
+            // Preserve selection and expansion before reload
+            let selectedURLs = selectedItems.map { $0.url }
+            let expandedURLs = dataSource.expandedFolders
+
             dataSource.loadDirectory(currentDirectory)
+
+            // Restore expansion and selection
+            restoreExpansion(expandedURLs)
+            restoreSelection(selectedURLs)
         }
     }
 
@@ -869,7 +889,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func moveSelectionUp(extendSelection: Bool) {
         let selection = tableView.selectedRowIndexes
-        guard !selection.isEmpty else { return }
+        let rowCount = tableView.numberOfRows
+
+        // If nothing selected, select last item
+        guard !selection.isEmpty else {
+            if rowCount > 0 {
+                let lastRow = rowCount - 1
+                tableView.selectRowIndexes(IndexSet(integer: lastRow), byExtendingSelection: false)
+                tableView.scrollRowToVisible(lastRow)
+            }
+            return
+        }
 
         if extendSelection {
             // Set anchor and cursor on first shift-select
@@ -894,8 +924,19 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func moveSelectionDown(extendSelection: Bool) {
         let selection = tableView.selectedRowIndexes
-        guard !selection.isEmpty else { return }
-        let maxRow = dataSource.items.count - 1
+        let rowCount = tableView.numberOfRows
+        let maxRow = rowCount - 1
+
+        // If nothing selected, select first item
+        guard !selection.isEmpty else {
+            if rowCount > 0 {
+                tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                tableView.scrollRowToVisible(0)
+            }
+            return
+        }
+
+        guard maxRow >= 0 else { return }
 
         if extendSelection {
             // Set anchor and cursor on first shift-select
@@ -919,14 +960,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func selectFirstItem() {
-        guard !dataSource.items.isEmpty else { return }
+        guard tableView.numberOfRows > 0 else { return }
         tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         tableView.scrollRowToVisible(0)
     }
 
     private func selectLastItem() {
-        guard !dataSource.items.isEmpty else { return }
-        let lastIndex = dataSource.items.count - 1
+        let rowCount = tableView.numberOfRows
+        guard rowCount > 0 else { return }
+        let lastIndex = rowCount - 1
         tableView.selectRowIndexes(IndexSet(integer: lastIndex), byExtendingSelection: false)
         tableView.scrollRowToVisible(lastIndex)
     }
