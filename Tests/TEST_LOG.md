@@ -1,10 +1,18 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-21 17:29:12
-- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testDisclosureTriangleExpand`
+- Started: 2026-01-21 17:43:08
+- Command: `resources/scripts/uitest.sh SmokeTests/testHomeButtonShowsOutlineRows`
 - Status: PASS
 - Tests: 1 passed
+
+### SmokeTests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testAppLaunchesWithWindow | PASS | 4.27s | 2026-01-21 17:39:25 |
+| testHomeButtonExists | PASS | 4.04s | 2026-01-21 17:41:00 |
+| testFileListOutlineViewExists | PASS | 3.91s | 2026-01-21 17:41:41 |
+| testHomeButtonShowsOutlineRows | PASS | 6.98s | 2026-01-21 17:43:08 |
 
 ### FolderExpansionUITests (XCUITest)
 | Test | Status | Duration | Last Run |
