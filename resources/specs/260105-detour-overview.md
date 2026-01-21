@@ -560,11 +560,11 @@ Future specs will detail each stage. This is the sequencing:
 - [x] Drag folders to Favorites
 
 ### Stage 8: Folder Expansion
-- Spec: `260108-stage8-folder-expansion.md`
-- [ ] NSOutlineView conversion
-- [ ] Disclosure triangles for inline folder expansion
-- [ ] Multi-directory watching
-- [ ] Expansion state persistence
+- Spec: `260111-stage8-folder-expansion.md`
+- [x] NSOutlineView conversion
+- [x] Disclosure triangles for inline folder expansion
+- [x] Multi-directory watching
+- [x] Expansion state persistence
 
 ## Decisions Made
 

@@ -10,6 +10,7 @@ A fast, keyboard-driven file manager for macOS with dual-pane layout, tabs, and 
 
 - **Dual-pane layout** - Two independent file browsers, side by side
 - **Tabs per pane** - Finder-style tabs within each pane
+- **Folder expansion** - Disclosure triangles to expand folders inline (like Finder list view)
 - **Sidebar** - Quick access to mounted volumes and favorite folders
 - **Quick Open** - Spotlight search with frecency ranking (Cmd-P)
 - **Breadcrumb navigation** - Click to navigate, drag to terminal, right-click to copy path
@@ -68,6 +69,10 @@ All shortcuts are customizable in Preferences (Cmd-,).
 | Open in Editor | F4 |
 | Toggle Hidden Files | Cmd-Shift-. |
 | Toggle Sidebar | Cmd-0 |
+| Expand Folder | Right Arrow |
+| Collapse Folder | Left Arrow |
+| Expand All (recursive) | Option-Right |
+| Collapse All (recursive) | Option-Left |
 | Refresh | Cmd-R |
 
 ## Project Structure

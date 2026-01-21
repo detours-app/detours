@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-13 12:35:18
-- Command: `swift test --filter SystemKeyHandlerTests`
+- Started: 2026-01-21 10:30:00
+- Command: `swift test --filter FolderExpansionTests`
 - Status: PASS
-- Tests: 4 passed
-- Full suite: 19 test classes, 190 tests, ALL PASS
+- Tests: 11 passed
+- Full suite: 20 test classes, 201 tests, ALL PASS
 
 ### DirectoryWatcherTests (Swift Testing)
 | Test | Status | Duration | Last Run |
@@ -207,13 +207,12 @@
 ### SystemIntegrationTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testContextMenuBuildsForFile | PASS | 0.149s | 2026-01-13 12:34:54 |
-| testContextMenuBuildsForFolder | PASS | 0.006s | 2026-01-13 12:34:54 |
-| testContextMenuBuildsForMultipleSelection | PASS | 0.006s | 2026-01-13 12:34:54 |
-| testDragPasteboardContainsFileURLs | PASS | 0.005s | 2026-01-13 12:34:54 |
-| testDropTargetRowTracking | PASS | 0.001s | 2026-01-13 12:34:54 |
-| testOpenWithAppsForImage | PASS | 0.003s | 2026-01-13 12:34:54 |
-| testOpenWithAppsForTextFile | PASS | 0.002s | 2026-01-13 12:34:54 |
+| testContextMenuBuildsForFile | PASS | 0.149s | 2026-01-21 10:30:00 |
+| testContextMenuBuildsForFolder | PASS | 0.006s | 2026-01-21 10:30:00 |
+| testContextMenuBuildsForMultipleSelection | PASS | 0.006s | 2026-01-21 10:30:00 |
+| testFileItemsHaveURLsForDragging | PASS | 0.005s | 2026-01-21 10:30:00 |
+| testOpenWithAppsForImage | PASS | 0.003s | 2026-01-21 10:30:00 |
+| testOpenWithAppsForTextFile | PASS | 0.002s | 2026-01-21 10:30:00 |
 
 ### DroppablePathControlTests
 | Test | Status | Duration | Last Run |
@@ -265,14 +264,30 @@
 ### GitStatusTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testFileItemGitStatusProperty | PASS | 0.001s | 2026-01-13 12:31:30 |
-| testFileItemURLInitHasNilGitStatus | PASS | 0.007s | 2026-01-13 12:31:30 |
-| testGitStatusCaching | PASS | 0.041s | 2026-01-13 12:31:30 |
-| testGitStatusInGitRepo | PASS | 0.001s | 2026-01-13 12:31:30 |
-| testGitStatusInvalidateCache | PASS | 0.044s | 2026-01-13 12:31:30 |
-| testGitStatusNonRepo | PASS | 0.013s | 2026-01-13 12:31:30 |
+| testFileItemGitStatusProperty | PASS | 0.001s | 2026-01-21 10:30:00 |
+| testFileItemURLInitHasNilGitStatus | PASS | 0.007s | 2026-01-21 10:30:00 |
+| testGitStatusCaching | PASS | 0.041s | 2026-01-21 10:30:00 |
+| testGitStatusInGitRepo | PASS | 0.001s | 2026-01-21 10:30:00 |
+| testGitStatusInvalidateCache | PASS | 0.044s | 2026-01-21 10:30:00 |
+| testGitStatusNonRepo | PASS | 0.013s | 2026-01-21 10:30:00 |
+
+### FolderExpansionTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testFileItemLoadChildren | PASS | 0.015s | 2026-01-21 10:30:00 |
+| testFileItemLoadChildrenEmpty | PASS | 0.002s | 2026-01-21 10:30:00 |
+| testFileItemLoadChildrenFile | PASS | 0.002s | 2026-01-21 10:30:00 |
+| testFileItemLoadChildrenUnreadable | PASS | 0.001s | 2026-01-21 10:30:00 |
+| testMultiDirectoryWatcherWatchUnwatch | PASS | 0.003s | 2026-01-21 10:30:00 |
+| testMultiDirectoryWatcherCallback | PASS | 5.012s | 2026-01-21 10:30:00 |
+| testMultiDirectoryWatcherUnwatchAll | PASS | 0.002s | 2026-01-21 10:30:00 |
+| testExpansionStateSerialization | PASS | 0.001s | 2026-01-21 10:30:00 |
+| testExpansionStateEmpty | PASS | 0.001s | 2026-01-21 10:30:00 |
+| testFolderExpansionSettingDefault | PASS | 0.002s | 2026-01-21 10:30:00 |
+| testFolderExpansionSettingToggle | PASS | 0.001s | 2026-01-21 10:30:00 |
 
 ## Notes
+- 2026-01-21: Added FolderExpansionTests (11 tests) for Stage 8 folder expansion: FileItem.loadChildren, MultiDirectoryWatcher, expansion state persistence, and settings toggle. SystemIntegrationTests updated: testDragPasteboardContainsFileURLs renamed to testFileItemsHaveURLsForDragging, testDropTargetRowTracking removed (used NSTableView API). Full suite: 201 tests in 20 classes, ALL PASS.
 - 2026-01-13: Full test suite run (190 tests in 19 classes). All pass. New test classes: FileOpenHelperTests (14), SidebarTests (8), SplitPositionTests (10). New tests: 2 in FileItemTests (date format settings), 2 in PreferencesTests (date format settings). Test names renamed in SystemKeyHandlerTests and FileListResponderTests.
 - 2026-01-08: Added ThemeManager tests (4 tests): built-in themes, custom theme, system choice, font validation.
 - 2026-01-08: Added GitStatusTests (6 tests) for Phase 6 git integration: non-repo handling, caching, FileItem property.

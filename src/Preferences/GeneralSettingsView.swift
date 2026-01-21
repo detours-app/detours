@@ -4,12 +4,14 @@ struct GeneralSettingsView: View {
     @State private var restoreSession: Bool
     @State private var showHiddenByDefault: Bool
     @State private var searchIncludesHidden: Bool
+    @State private var folderExpansionEnabled: Bool
 
     init() {
         let settings = SettingsManager.shared
         _restoreSession = State(initialValue: settings.restoreSession)
         _showHiddenByDefault = State(initialValue: settings.showHiddenByDefault)
         _searchIncludesHidden = State(initialValue: settings.searchIncludesHidden)
+        _folderExpansionEnabled = State(initialValue: settings.folderExpansionEnabled)
     }
 
     var body: some View {
@@ -35,6 +37,15 @@ struct GeneralSettingsView: View {
                     }
             } header: {
                 Text("Search")
+            }
+
+            Section {
+                Toggle("Enable folder expansion", isOn: $folderExpansionEnabled)
+                    .onChange(of: folderExpansionEnabled) { _, newValue in
+                        SettingsManager.shared.folderExpansionEnabled = newValue
+                    }
+            } header: {
+                Text("View")
             }
         }
         .formStyle(.grouped)

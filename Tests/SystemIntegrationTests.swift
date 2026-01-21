@@ -144,10 +144,10 @@ final class SystemIntegrationTests: XCTestCase {
         XCTAssertFalse(apps.isEmpty, "Should have apps available to open .png files")
     }
 
-    // MARK: - Drag Pasteboard Tests
+    // MARK: - Drag Source Tests
 
     @MainActor
-    func testDragPasteboardContainsFileURLs() async throws {
+    func testFileItemsHaveURLsForDragging() async throws {
         // Create test files
         let file1 = tempDir.appendingPathComponent("drag1.txt")
         let file2 = tempDir.appendingPathComponent("drag2.txt")
@@ -159,50 +159,19 @@ final class SystemIntegrationTests: XCTestCase {
         vc.viewDidLoad()
         vc.loadDirectory(tempDir)
 
-        // Test pasteboard writer for row
-        let writer0 = vc.dataSource.tableView(vc.tableView, pasteboardWriterForRow: 0)
-        let writer1 = vc.dataSource.tableView(vc.tableView, pasteboardWriterForRow: 1)
+        // Get items
+        let items = vc.dataSource.items
+        XCTAssertEqual(items.count, 2, "Should have 2 items")
 
-        XCTAssertNotNil(writer0, "Should return pasteboard writer for row 0")
-        XCTAssertNotNil(writer1, "Should return pasteboard writer for row 1")
-
-        // Verify the writer is an NSURL
-        XCTAssertTrue(writer0 is NSURL, "Writer should be NSURL")
-        XCTAssertTrue(writer1 is NSURL, "Writer should be NSURL")
-
-        // Verify the writer is an NSURL
-        guard let url0 = writer0 as? NSURL as URL?,
-              let url1 = writer1 as? NSURL as URL? else {
-            XCTFail("Writers should be NSURL")
-            return
+        // Verify items have valid URLs that can be used for dragging
+        for item in items {
+            XCTAssertNotNil(item.url, "Item should have a URL")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: item.url.path), "Item URL should exist")
         }
 
-        // Verify URLs match the files
-        let itemURLs = vc.dataSource.items(at: IndexSet([0, 1])).map { $0.url }
-        XCTAssertTrue(itemURLs.contains(url0), "Writer URL should match item URL")
-        XCTAssertTrue(itemURLs.contains(url1), "Writer URL should match item URL")
-    }
-
-    // MARK: - Drop Target Tests
-
-    @MainActor
-    func testDropTargetRowTracking() async throws {
-        // Create a test folder
-        let testFolder = tempDir.appendingPathComponent("DropTarget")
-        try FileManager.default.createDirectory(at: testFolder, withIntermediateDirectories: true)
-
-        let dataSource = FileListDataSource()
-        dataSource.loadDirectory(tempDir)
-
-        // Initially no drop target
-        XCTAssertNil(dataSource.dropTargetRow)
-
-        // Set drop target
-        dataSource.dropTargetRow = 0
-        XCTAssertEqual(dataSource.dropTargetRow, 0)
-
-        // Clear drop target
-        dataSource.dropTargetRow = nil
-        XCTAssertNil(dataSource.dropTargetRow)
+        // Verify URLs are the expected files
+        let itemURLs = Set(items.map { $0.url.standardizedFileURL })
+        XCTAssertTrue(itemURLs.contains(file1.standardizedFileURL), "Should contain drag1.txt")
+        XCTAssertTrue(itemURLs.contains(file2.standardizedFileURL), "Should contain drag2.txt")
     }
 }

@@ -69,7 +69,7 @@ final class GitStatusTests: XCTestCase {
         let tempURL = URL(fileURLWithPath: "/tmp/test.txt")
 
         // Test that FileItem can hold git status
-        var item = FileItem(
+        let item = FileItem(
             name: "test.txt",
             url: tempURL,
             isDirectory: false,
@@ -81,7 +81,7 @@ final class GitStatusTests: XCTestCase {
 
         XCTAssertEqual(item.gitStatus, .modified)
 
-        // Test that it can be changed
+        // Test that it can be changed (FileItem is a class, so properties are mutable)
         item.gitStatus = .staged
         XCTAssertEqual(item.gitStatus, .staged)
 

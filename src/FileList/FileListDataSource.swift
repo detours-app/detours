@@ -100,7 +100,7 @@ final class ThemedTextCell: NSTableCellView {
     }
 }
 
-/// Row view with theme-aware selection color (background is drawn by BandedTableView)
+/// Row view with theme-aware selection color (background is drawn by BandedOutlineView)
 final class InactiveHidingRowView: NSTableRowView {
     var isTableActive: Bool = true {
         didSet {
@@ -152,27 +152,42 @@ protocol FileListDropDelegate: AnyObject {
 }
 
 @MainActor
-final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+protocol FileListExpansionDelegate: AnyObject {
+    func dataSourceDidExpandItem(_ item: FileItem)
+    func dataSourceDidCollapseItem(_ item: FileItem)
+}
+
+@MainActor
+final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
     private(set) var items: [FileItem] = []
-    weak var tableView: NSTableView?
+    weak var outlineView: NSOutlineView?
     weak var dropDelegate: FileListDropDelegate?
-    var dropTargetRow: Int? {
+    weak var expansionDelegate: FileListExpansionDelegate?
+
+    private var dropTargetItem: FileItem? {
         didSet {
-            guard dropTargetRow != oldValue else { return }
+            guard dropTargetItem !== oldValue else { return }
             // Redraw affected rows
             if let old = oldValue {
-                tableView?.reloadData(forRowIndexes: IndexSet(integer: old), columnIndexes: IndexSet(integer: 0))
+                let row = outlineView?.row(forItem: old) ?? -1
+                if row >= 0 {
+                    outlineView?.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 0))
+                }
             }
-            if let new = dropTargetRow {
-                tableView?.reloadData(forRowIndexes: IndexSet(integer: new), columnIndexes: IndexSet(integer: 0))
+            if let new = dropTargetItem {
+                let row = outlineView?.row(forItem: new) ?? -1
+                if row >= 0 {
+                    outlineView?.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 0))
+                }
             }
         }
     }
+
     var isActive: Bool = true {
         didSet {
             guard isActive != oldValue else { return }
             // Redraw all visible rows to update selection appearance
-            tableView?.enumerateAvailableRowViews { rowView, _ in
+            outlineView?.enumerateAvailableRowViews { rowView, _ in
                 if let customRow = rowView as? InactiveHidingRowView {
                     customRow.isTableActive = self.isActive
                 }
@@ -183,6 +198,9 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
     var showHiddenFiles: Bool = false
     private var currentDirectoryForGit: URL?
     private var gitStatuses: [URL: GitStatus] = [:]
+
+    /// Currently expanded folder URLs (for persistence)
+    private(set) var expandedFolders: Set<URL> = []
 
     func loadDirectory(_ url: URL) {
         do {
@@ -199,8 +217,9 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
             items = FileItem.sortFoldersFirst(contents.map { FileItem(url: $0) })
             currentDirectoryForGit = url
             gitStatuses = [:]
-            tableView?.reloadData()
-            tableView?.needsLayout = true
+            expandedFolders.removeAll()
+            outlineView?.reloadData()
+            outlineView?.needsLayout = true
 
             // Fetch git status asynchronously if enabled
             if SettingsManager.shared.settings.gitStatusEnabled {
@@ -210,8 +229,9 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
             items = []
             currentDirectoryForGit = nil
             gitStatuses = [:]
-            tableView?.reloadData()
-            tableView?.needsLayout = true
+            expandedFolders.removeAll()
+            outlineView?.reloadData()
+            outlineView?.needsLayout = true
         }
     }
 
@@ -226,15 +246,20 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
 
                 gitStatuses = statuses
 
-                // Update items with git status
-                for i in items.indices {
-                    items[i].gitStatus = statuses[items[i].url]
-                }
+                // Update items with git status (recursively)
+                updateGitStatus(for: items, statuses: statuses)
 
-                // Reload only the name column to show git indicators
-                if let tableView = tableView {
-                    tableView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<items.count), columnIndexes: IndexSet(integer: 0))
-                }
+                // Reload visible rows to show git indicators
+                outlineView?.reloadData()
+            }
+        }
+    }
+
+    private func updateGitStatus(for items: [FileItem], statuses: [URL: GitStatus]) {
+        for item in items {
+            item.gitStatus = statuses[item.url]
+            if let children = item.children {
+                updateGitStatus(for: children, statuses: statuses)
             }
         }
     }
@@ -247,37 +272,64 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         }
     }
 
-    // MARK: - NSTableViewDataSource
+    // MARK: - Item Lookup
 
-    func numberOfRows(in tableView: NSTableView) -> Int {
-        return items.count
+    func item(at row: Int) -> FileItem? {
+        outlineView?.item(atRow: row) as? FileItem
     }
 
     func items(at indexes: IndexSet) -> [FileItem] {
-        indexes.compactMap { index in
-            guard index >= 0 && index < items.count else { return nil }
+        indexes.compactMap { item(at: $0) }
+    }
+
+    // MARK: - NSOutlineViewDataSource
+
+    func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+        if item == nil {
+            // Root level - return top-level items
+            return items.count
+        }
+        guard let fileItem = item as? FileItem else { return 0 }
+        return fileItem.children?.count ?? 0
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+        if item == nil {
+            // Root level
             return items[index]
         }
+        guard let fileItem = item as? FileItem,
+              let children = fileItem.children,
+              index < children.count else {
+            fatalError("Invalid child index")
+        }
+        return children[index]
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+        guard SettingsManager.shared.folderExpansionEnabled else { return false }
+        guard let fileItem = item as? FileItem else { return false }
+        return fileItem.isNavigableFolder
     }
 
     // MARK: - Drag Source
 
-    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
-        guard row >= 0 && row < items.count else { return nil }
-        return items[row].url as NSURL
+    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
+        guard let fileItem = item as? FileItem else { return nil }
+        return fileItem.url as NSURL
     }
 
-    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forRowIndexes rowIndexes: IndexSet) {
-        // Use standard drag image behavior from NSTableView
+    func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
+        // Use standard drag image behavior
     }
 
-    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        dropTargetRow = nil
+    func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        dropTargetItem = nil
     }
 
     // MARK: - Drop Target
 
-    func tableView(_ tableView: NSTableView, validateDrop info: any NSDraggingInfo, proposedRow row: Int, proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
+    func outlineView(_ outlineView: NSOutlineView, validateDrop info: any NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
         guard let currentDir = dropDelegate?.currentDirectoryURL else { return [] }
 
         // Get dragged URLs
@@ -286,31 +338,22 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
             return []
         }
 
-        // If hovering over a folder row, retarget to drop ON the folder
-        var targetRow = row
-        var targetOperation = dropOperation
-        if row >= 0 && row < items.count && items[row].isDirectory {
-            targetRow = row
-            targetOperation = .on
-            tableView.setDropRow(targetRow, dropOperation: .on)
-        }
-
         // Determine destination
         let destination: URL
-        if targetOperation == .on && targetRow >= 0 && targetRow < items.count && items[targetRow].isDirectory {
-            // Dropping on a folder row
-            destination = items[targetRow].url
-            dropTargetRow = targetRow
+        if let fileItem = item as? FileItem, fileItem.isDirectory {
+            // Dropping on a folder
+            destination = fileItem.url
+            dropTargetItem = fileItem
         } else {
-            // Dropping on background or between rows - use current directory
+            // Dropping on background - use current directory
             destination = currentDir
-            dropTargetRow = nil
+            dropTargetItem = nil
         }
 
         // Don't allow dropping into itself or its own subdirectory
         for url in urls {
             if destination.path.hasPrefix(url.path) || url.deletingLastPathComponent() == destination {
-                dropTargetRow = nil
+                dropTargetItem = nil
                 return []
             }
         }
@@ -321,7 +364,7 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         return isCopy ? .copy : .move
     }
 
-    func tableView(_ tableView: NSTableView, acceptDrop info: any NSDraggingInfo, row: Int, dropOperation: NSTableView.DropOperation) -> Bool {
+    func outlineView(_ outlineView: NSOutlineView, acceptDrop info: any NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
         guard let currentDir = dropDelegate?.currentDirectoryURL else { return false }
 
         guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
@@ -331,8 +374,8 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
 
         // Determine destination
         let destination: URL
-        if dropOperation == .on && row >= 0 && row < items.count && items[row].isDirectory {
-            destination = items[row].url
+        if let fileItem = item as? FileItem, fileItem.isDirectory {
+            destination = fileItem.url
         } else {
             destination = currentDir
         }
@@ -340,65 +383,126 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         let isCopy = NSEvent.modifierFlags.contains(.option)
 
         dropDelegate?.handleDrop(urls: urls, to: destination, isCopy: isCopy)
-        dropTargetRow = nil
+        dropTargetItem = nil
 
         return true
     }
 
-    // MARK: - NSTableViewDelegate
+    // MARK: - NSOutlineViewDelegate
 
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard row < items.count else { return nil }
-        let item = items[row]
-
+    func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+        guard let fileItem = item as? FileItem else { return nil }
         guard let columnIdentifier = tableColumn?.identifier else { return nil }
 
         switch columnIdentifier.rawValue {
         case "Name":
-            return makeNameCell(for: item, tableView: tableView, row: row)
+            return makeNameCell(for: fileItem, outlineView: outlineView)
         case "Size":
-            return makeSizeCell(for: item, tableView: tableView, row: row)
+            return makeSizeCell(for: fileItem, outlineView: outlineView)
         case "Date":
-            return makeTextCell(text: item.formattedDate, tableView: tableView, identifier: "DateCell", alignment: .right, leadingPadding: 12, trailingPadding: 12)
+            return makeTextCell(text: fileItem.formattedDate, outlineView: outlineView, identifier: "DateCell", alignment: .right, leadingPadding: 12, trailingPadding: 12)
         default:
             return nil
         }
     }
 
-    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+    func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
         return 24
     }
 
-    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+    func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
         let rowView = InactiveHidingRowView()
         rowView.isTableActive = isActive
         return rowView
     }
 
+    // MARK: - Expansion Events
+
+    func outlineView(_ outlineView: NSOutlineView, shouldExpandItem item: Any) -> Bool {
+        guard let fileItem = item as? FileItem else { return false }
+        // Load children before expanding
+        _ = fileItem.loadChildren(showHidden: showHiddenFiles)
+        return true
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, shouldCollapseItem item: Any) -> Bool {
+        guard let fileItem = item as? FileItem else { return true }
+
+        // Check if any selected item is a descendant of this folder
+        let selectedRows = outlineView.selectedRowIndexes
+        var hasDescendantSelected = false
+
+        for row in selectedRows {
+            guard let selectedItem = outlineView.item(atRow: row) as? FileItem else { continue }
+            if isItem(selectedItem, descendantOf: fileItem) {
+                hasDescendantSelected = true
+                break
+            }
+        }
+
+        // If a descendant is selected, we'll move selection to the collapsed folder after collapse
+        if hasDescendantSelected {
+            let folderRow = outlineView.row(forItem: fileItem)
+            if folderRow >= 0 {
+                // Defer selection change until after collapse completes
+                DispatchQueue.main.async {
+                    outlineView.selectRowIndexes(IndexSet(integer: folderRow), byExtendingSelection: false)
+                }
+            }
+        }
+
+        return true
+    }
+
+    /// Checks if an item is a descendant of another item
+    private func isItem(_ item: FileItem, descendantOf ancestor: FileItem) -> Bool {
+        var current: FileItem? = item.parent
+        while let parent = current {
+            if parent === ancestor {
+                return true
+            }
+            current = parent.parent
+        }
+        return false
+    }
+
+    func outlineViewItemDidExpand(_ notification: Notification) {
+        guard let fileItem = notification.userInfo?["NSObject"] as? FileItem else { return }
+        expandedFolders.insert(fileItem.url)
+        expansionDelegate?.dataSourceDidExpandItem(fileItem)
+    }
+
+    func outlineViewItemDidCollapse(_ notification: Notification) {
+        guard let fileItem = notification.userInfo?["NSObject"] as? FileItem else { return }
+        expandedFolders.remove(fileItem.url)
+        expansionDelegate?.dataSourceDidCollapseItem(fileItem)
+    }
+
     // MARK: - Cell Creation
 
-    private func makeSizeCell(for item: FileItem, tableView: NSTableView, row: Int) -> NSView {
+    private func makeSizeCell(for item: FileItem, outlineView: NSOutlineView) -> NSView {
         // For files, just show the size
         if !item.isDirectory {
-            return makeTextCell(text: item.formattedSize, tableView: tableView, identifier: "SizeCell", alignment: .right)
+            return makeTextCell(text: item.formattedSize, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
         }
 
         // For folders, check cache or calculate async
         let url = item.url
         if let cachedSize = FolderSizeCache.shared.size(for: url) {
             let formatted = formatSize(cachedSize)
-            return makeTextCell(text: formatted, tableView: tableView, identifier: "SizeCell", alignment: .right)
+            return makeTextCell(text: formatted, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
         }
 
         // Show placeholder and calculate async
-        let cell = makeTextCell(text: "—", tableView: tableView, identifier: "SizeCell", alignment: .right)
+        let cell = makeTextCell(text: "—", outlineView: outlineView, identifier: "SizeCell", alignment: .right)
 
-        FolderSizeCache.shared.calculateAsync(for: url) { [weak self, weak tableView] _ in
+        FolderSizeCache.shared.calculateAsync(for: url) { [weak outlineView] _ in
             Task { @MainActor in
-                guard let self, let tableView else { return }
-                // Find current row for this item (it may have moved)
-                if let currentRow = self.items.firstIndex(where: { $0.url == url }) {
-                    tableView.reloadData(forRowIndexes: IndexSet(integer: currentRow), columnIndexes: IndexSet(integer: 1))
+                guard let outlineView else { return }
+                // Reload the entire Size column since we can't track the item across threads
+                let rowCount = outlineView.numberOfRows
+                if rowCount > 0 {
+                    outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))
                 }
             }
         }
@@ -421,11 +525,11 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         }
     }
 
-    private func makeNameCell(for item: FileItem, tableView: NSTableView, row: Int) -> NSView {
+    private func makeNameCell(for item: FileItem, outlineView: NSOutlineView) -> NSView {
         let identifier = NSUserInterfaceItemIdentifier("NameCell")
-        let isDropTarget = dropTargetRow == row
+        let isDropTarget = dropTargetItem === item
 
-        if let cell = tableView.makeView(withIdentifier: identifier, owner: nil) as? FileListCell {
+        if let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? FileListCell {
             cell.configure(with: item, isDropTarget: isDropTarget)
             return cell
         }
@@ -436,11 +540,11 @@ final class FileListDataSource: NSObject, NSTableViewDataSource, NSTableViewDele
         return cell
     }
 
-    private func makeTextCell(text: String, tableView: NSTableView, identifier: String, alignment: NSTextAlignment, leadingPadding: CGFloat = 4, trailingPadding: CGFloat = 4) -> NSView {
+    private func makeTextCell(text: String, outlineView: NSOutlineView, identifier: String, alignment: NSTextAlignment, leadingPadding: CGFloat = 4, trailingPadding: CGFloat = 4) -> NSView {
         let id = NSUserInterfaceItemIdentifier(identifier)
         let theme = ThemeManager.shared.currentTheme
 
-        if let cell = tableView.makeView(withIdentifier: id, owner: nil) as? ThemedTextCell {
+        if let cell = outlineView.makeView(withIdentifier: id, owner: nil) as? ThemedTextCell {
             cell.textField?.stringValue = text
             // Always update theme colors on reused cells
             cell.textField?.font = theme.font(size: ThemeManager.shared.fontSize - 1)

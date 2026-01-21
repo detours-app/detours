@@ -21,7 +21,7 @@ protocol FileListNavigationDelegate: AnyObject {
 }
 
 final class FileListViewController: NSViewController, FileListKeyHandling, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
-    let tableView = BandedTableView()
+    let tableView = BandedOutlineView()
     private let scrollView = NSScrollView()
     let dataSource = FileListDataSource()
 
@@ -33,7 +33,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private(set) var currentDirectory: URL?
     private var hasLoadedDirectory = false
     let renameController = RenameController()
-    private var directoryWatcher: DirectoryWatcher?
+    private var directoryWatcher: MultiDirectoryWatcher?
     private var selectionAnchor: Int?
     private var selectionCursor: Int?
 
@@ -48,7 +48,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         setupTableView()
         setupColumns()
 
-        dataSource.tableView = tableView
+        dataSource.outlineView = tableView
         tableView.keyHandler = self
         tableView.contextMenuDelegate = self
         tableView.onActivate = { [weak self] in
@@ -69,7 +69,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(tableViewSelectionDidChange(_:)),
-            name: NSTableView.selectionDidChangeNotification,
+            name: NSOutlineView.selectionDidChangeNotification,
             object: tableView
         )
 
@@ -80,6 +80,50 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             name: ThemeManager.themeDidChange,
             object: nil
         )
+
+        // Observe expansion changes for directory watching
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(outlineViewItemDidExpand(_:)),
+            name: NSOutlineView.itemDidExpandNotification,
+            object: tableView
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(outlineViewItemDidCollapse(_:)),
+            name: NSOutlineView.itemDidCollapseNotification,
+            object: tableView
+        )
+
+        // Observe settings changes to refresh when folder expansion is toggled
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSettingsChange),
+            name: SettingsManager.settingsDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func outlineViewItemDidExpand(_ notification: Notification) {
+        dataSource.outlineViewItemDidExpand(notification)
+        // Start watching the expanded folder
+        if let item = notification.userInfo?["NSObject"] as? FileItem {
+            watchExpandedDirectory(item.url)
+        }
+    }
+
+    @objc private func outlineViewItemDidCollapse(_ notification: Notification) {
+        dataSource.outlineViewItemDidCollapse(notification)
+        // Stop watching the collapsed folder
+        if let item = notification.userInfo?["NSObject"] as? FileItem {
+            unwatchCollapsedDirectory(item.url)
+        }
+    }
+
+    @objc private func handleSettingsChange() {
+        // Reload outline view when folder expansion setting changes
+        tableView.reloadData()
     }
 
     @objc private func handleThemeChange() {
@@ -288,14 +332,24 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func startWatching(_ url: URL) {
-        directoryWatcher?.stop()
-        directoryWatcher = DirectoryWatcher(url: url) { [weak self] in
-            self?.handleDirectoryChange()
+        directoryWatcher?.unwatchAll()
+        directoryWatcher = MultiDirectoryWatcher { [weak self] changedURL in
+            self?.handleDirectoryChange(at: changedURL)
         }
-        directoryWatcher?.start()
+        directoryWatcher?.watch(url)
     }
 
-    private func handleDirectoryChange() {
+    /// Called when a folder is expanded - start watching it
+    func watchExpandedDirectory(_ url: URL) {
+        directoryWatcher?.watch(url)
+    }
+
+    /// Called when a folder is collapsed - stop watching it and its children
+    func unwatchCollapsedDirectory(_ url: URL) {
+        directoryWatcher?.unwatch(url)
+    }
+
+    private func handleDirectoryChange(at changedURL: URL) {
         guard let currentDirectory else { return }
 
         // Preserve current selection
@@ -353,6 +407,36 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
             if let first = newSelection.first {
                 tableView.scrollRowToVisible(first)
+            }
+        }
+    }
+
+    /// Restores expansion state for the given folder URLs
+    func restoreExpansion(_ expandedURLs: Set<URL>) {
+        guard !expandedURLs.isEmpty, SettingsManager.shared.folderExpansionEnabled else { return }
+
+        // Build a map from URL to item for quick lookup
+        var urlToItem: [URL: FileItem] = [:]
+        for item in dataSource.items {
+            urlToItem[item.url.standardizedFileURL] = item
+        }
+
+        // Sort URLs by path depth (shortest first) to expand parents before children
+        let sortedURLs = expandedURLs.sorted { $0.pathComponents.count < $1.pathComponents.count }
+
+        for url in sortedURLs {
+            let normalized = url.standardizedFileURL
+            if let item = urlToItem[normalized], item.isNavigableFolder {
+                // Load children before expanding
+                _ = item.loadChildren(showHidden: dataSource.showHiddenFiles)
+                tableView.expandItem(item)
+
+                // Add newly loaded children to the map for nested expansion
+                if let children = item.children {
+                    for child in children {
+                        urlToItem[child.url.standardizedFileURL] = child
+                    }
+                }
             }
         }
     }
@@ -727,6 +811,23 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             return true
         }
 
+        // Arrow key expand/collapse (when folder expansion is enabled)
+        if SettingsManager.shared.folderExpansionEnabled {
+            // Right arrow: expand folder or move to first child
+            if event.keyCode == 124 && (modifiers.isEmpty || modifiers == .option) {
+                if handleRightArrow(recursive: modifiers.contains(.option)) {
+                    return true
+                }
+            }
+
+            // Left arrow: collapse folder or move to parent
+            if event.keyCode == 123 && (modifiers.isEmpty || modifiers == .option) {
+                if handleLeftArrow(recursive: modifiers.contains(.option)) {
+                    return true
+                }
+            }
+        }
+
         switch event.keyCode {
         case 36: // Enter
             openSelectedItem()
@@ -833,6 +934,99 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func toggleHiddenFiles() {
         dataSource.showHiddenFiles.toggle()
         refreshCurrentDirectory()
+    }
+
+    // MARK: - Folder Expansion Keyboard Navigation
+
+    /// Handles Right arrow key for folder expansion.
+    /// Returns true if the event was handled.
+    private func handleRightArrow(recursive: Bool) -> Bool {
+        let selectedRow = tableView.selectedRow
+        guard selectedRow >= 0,
+              let item = dataSource.item(at: selectedRow),
+              item.isNavigableFolder else {
+            return false
+        }
+
+        if tableView.isItemExpanded(item) {
+            // Already expanded - move selection to first child
+            if let children = item.children, !children.isEmpty {
+                let childRow = tableView.row(forItem: children[0])
+                if childRow >= 0 {
+                    tableView.selectRowIndexes(IndexSet(integer: childRow), byExtendingSelection: false)
+                    tableView.scrollRowToVisible(childRow)
+                    return true
+                }
+            }
+            return false
+        } else {
+            // Expand the folder
+            if recursive {
+                expandItemRecursively(item)
+            } else {
+                tableView.expandItem(item)
+            }
+            return true
+        }
+    }
+
+    /// Handles Left arrow key for folder collapse.
+    /// Returns true if the event was handled.
+    private func handleLeftArrow(recursive: Bool) -> Bool {
+        let selectedRow = tableView.selectedRow
+        guard selectedRow >= 0,
+              let item = dataSource.item(at: selectedRow) else {
+            return false
+        }
+
+        if item.isNavigableFolder && tableView.isItemExpanded(item) {
+            // Expanded folder - collapse it
+            if recursive {
+                collapseItemRecursively(item)
+            } else {
+                tableView.collapseItem(item)
+            }
+            return true
+        } else if let parent = item.parent {
+            // Not expanded (or is a file) - move to parent folder if we're inside an expanded tree
+            let parentRow = tableView.row(forItem: parent)
+            if parentRow >= 0 {
+                tableView.selectRowIndexes(IndexSet(integer: parentRow), byExtendingSelection: false)
+                tableView.scrollRowToVisible(parentRow)
+                return true
+            }
+        }
+        // At root level or no parent - no-op
+        return false
+    }
+
+    /// Recursively expand a folder and all its subfolders
+    private func expandItemRecursively(_ item: FileItem) {
+        // Load children if not already loaded
+        if item.children == nil {
+            _ = item.loadChildren(showHidden: dataSource.showHiddenFiles)
+        }
+
+        tableView.expandItem(item)
+
+        // Expand all child folders
+        if let children = item.children {
+            for child in children where child.isNavigableFolder {
+                expandItemRecursively(child)
+            }
+        }
+    }
+
+    /// Recursively collapse a folder and all its subfolders
+    private func collapseItemRecursively(_ item: FileItem) {
+        // First collapse children recursively
+        if let children = item.children {
+            for child in children where child.isNavigableFolder && tableView.isItemExpanded(child) {
+                collapseItemRecursively(child)
+            }
+        }
+
+        tableView.collapseItem(item)
     }
 
     // MARK: - Type-to-Select
