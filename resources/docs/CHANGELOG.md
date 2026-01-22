@@ -1,5 +1,12 @@
 # Changelog
 
+## 260122 Folder Expansion State Persistence
+- Fixed: Folder expansion now preserved across refresh (Cmd-R), file operations, and git status updates
+- Fixed: Nested folders stay expanded after rename, paste, delete, and duplicate operations
+- Fixed: Selection restored correctly after async git status fetch (by URL, not row index)
+- Fixed: Tab restore expands folders before restoring selection (items must exist first)
+- Technical: FileItem now implements Hashable for NSOutlineView item matching across reloads
+
 ## 260122 Quick Open Improvements
 - Fixed: Quick Open list is now scrollable (was not scrolling before)
 - Changed: Max results increased from 20 to 50
