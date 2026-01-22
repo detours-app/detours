@@ -1,10 +1,10 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-21 21:33:38
-- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testCutWorksOnNestedItems`
+- Started: 2026-01-22 12:23:32
+- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testNestedExpansionSurvivesRefresh`
 - Status: PASS
-- Duration: 20.57s
+- Duration: 19.356s
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -79,11 +79,14 @@
 ### FileListDataSourceTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testLoadDirectory | PASS | 0.013s | 2026-01-13 12:28:51 |
-| testLoadDirectoryExcludesHidden | PASS | 0.002s | 2026-01-13 12:28:51 |
-| testLoadDirectoryHandlesEmptyDirectory | PASS | 0.001s | 2026-01-13 12:28:51 |
-| testLoadDirectorySortsAlphabetically | PASS | 0.003s | 2026-01-13 12:28:51 |
-| testLoadDirectorySortsFoldersFirst | PASS | 0.001s | 2026-01-13 12:28:51 |
+| testLoadDirectory | PASS | 0.002s | 2026-01-22 11:38:36 |
+| testLoadDirectoryExcludesHidden | PASS | 0.002s | 2026-01-22 11:38:36 |
+| testLoadDirectoryHandlesEmptyDirectory | PASS | 0.001s | 2026-01-22 11:38:36 |
+| testLoadDirectorySortsAlphabetically | PASS | 0.003s | 2026-01-22 11:38:36 |
+| testLoadDirectorySortsFoldersFirst | PASS | 0.002s | 2026-01-22 11:38:36 |
+| testNestedFolderChildrenLoadable | PASS | 0.003s | 2026-01-22 11:38:36 |
+| testItemLocatableByURLAfterExpansion | PASS | 0.002s | 2026-01-22 11:38:36 |
+| testItemAtReturnsCorrectItem | PASS | 0.016s | 2026-01-22 11:38:36 |
 
 ### FileListResponderTests
 | Test | Status | Duration | Last Run |
@@ -170,14 +173,17 @@
 ### PaneViewControllerTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testCloseLastTabCreatesNewHome | PASS | 0.147s | 2026-01-13 12:32:42 |
-| testCloseTabRemovesFromArray | PASS | 0.033s | 2026-01-13 12:32:42 |
-| testCloseTabSelectsLeftWhenNoRight | PASS | 0.046s | 2026-01-13 12:32:42 |
-| testCloseTabSelectsRightNeighbor | PASS | 0.045s | 2026-01-13 12:32:42 |
-| testCreateTabAddsToArray | PASS | 0.030s | 2026-01-13 12:32:42 |
-| testCreateTabSelectsNewTab | PASS | 0.029s | 2026-01-13 12:32:42 |
-| testSelectNextTabWraps | PASS | 0.041s | 2026-01-13 12:32:42 |
-| testSelectPreviousTabWraps | PASS | 0.043s | 2026-01-13 12:32:42 |
+| testCloseLastTabCreatesNewHome | PASS | 0.131s | 2026-01-22 11:38:36 |
+| testCloseTabRemovesFromArray | PASS | 0.040s | 2026-01-22 11:38:36 |
+| testCloseTabSelectsLeftWhenNoRight | PASS | 0.072s | 2026-01-22 11:38:36 |
+| testCloseTabSelectsRightNeighbor | PASS | 0.068s | 2026-01-22 11:38:36 |
+| testCreateTabAddsToArray | PASS | 0.033s | 2026-01-22 11:38:36 |
+| testCreateTabSelectsNewTab | PASS | 0.031s | 2026-01-22 11:38:36 |
+| testSelectNextTabWraps | PASS | 0.050s | 2026-01-22 11:38:36 |
+| testSelectPreviousTabWraps | PASS | 0.050s | 2026-01-22 11:38:36 |
+| testRestoreTabsWithExpansionAndSelection | PASS | 0.067s | 2026-01-22 11:38:36 |
+| testRestoreTabsWithEmptyState | PASS | 0.045s | 2026-01-22 11:38:36 |
+| testExpansionPreservedOnTabSwitch | PASS | 0.055s | 2026-01-22 11:38:36 |
 
 ### SystemKeyHandlerTests
 | Test | Status | Duration | Last Run |
@@ -308,19 +314,32 @@
 ### FolderExpansionTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testFileItemLoadChildren | PASS | 0.015s | 2026-01-21 10:30:00 |
-| testFileItemLoadChildrenEmpty | PASS | 0.002s | 2026-01-21 10:30:00 |
-| testFileItemLoadChildrenFile | PASS | 0.002s | 2026-01-21 10:30:00 |
-| testFileItemLoadChildrenUnreadable | PASS | 0.001s | 2026-01-21 10:30:00 |
-| testMultiDirectoryWatcherWatchUnwatch | PASS | 0.003s | 2026-01-21 10:30:00 |
-| testMultiDirectoryWatcherCallback | PASS | 5.012s | 2026-01-21 10:30:00 |
-| testMultiDirectoryWatcherUnwatchAll | PASS | 0.002s | 2026-01-21 10:30:00 |
-| testExpansionStateSerialization | PASS | 0.001s | 2026-01-21 10:30:00 |
-| testExpansionStateEmpty | PASS | 0.001s | 2026-01-21 10:30:00 |
-| testFolderExpansionSettingDefault | PASS | 0.002s | 2026-01-21 10:30:00 |
-| testFolderExpansionSettingToggle | PASS | 0.001s | 2026-01-21 10:30:00 |
+| testFileItemLoadChildren | PASS | 0.010s | 2026-01-22 11:31:12 |
+| testFileItemLoadChildrenEmpty | PASS | 0.001s | 2026-01-22 11:31:12 |
+| testFileItemLoadChildrenFile | PASS | 0.002s | 2026-01-22 11:31:12 |
+| testFileItemLoadChildrenUnreadable | PASS | 0.000s | 2026-01-22 11:31:12 |
+| testMultiDirectoryWatcherWatchUnwatch | PASS | 0.001s | 2026-01-22 11:31:12 |
+| testMultiDirectoryWatcherCallback | PASS | 0.002s | 2026-01-22 11:31:12 |
+| testMultiDirectoryWatcherUnwatchAll | PASS | 0.001s | 2026-01-22 11:31:12 |
+| testExpansionStateSerialization | PASS | 0.000s | 2026-01-22 11:31:12 |
+| testExpansionStateEmpty | PASS | 0.000s | 2026-01-22 11:31:12 |
+| testFolderExpansionSettingDefault | PASS | 0.000s | 2026-01-22 11:31:12 |
+| testFolderExpansionSettingToggle | PASS | 0.001s | 2026-01-22 11:31:12 |
+| testDepthSortingForExpansionRestoration | PASS | 0.001s | 2026-01-22 11:31:12 |
+| testDepthSortingHandlesUnsortedSet | PASS | 0.003s | 2026-01-22 11:31:12 |
+| testSelectionByURLNotRowIndex | PASS | 0.002s | 2026-01-22 11:31:12 |
+| testExpansionMustPrecedeSelection | PASS | 0.002s | 2026-01-22 11:31:12 |
+
+### FolderExpansionUITests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testRenamePreservesExpansion | FAIL | 22.850s | 2026-01-22 11:45:00 |
+| testNestedExpansionSurvivesRefresh | PASS | 19.356s | 2026-01-22 12:23:32 |
 
 ## Notes
+- 2026-01-22 11:50: FolderExpansionUITests/testNestedExpansionSurvivesRefresh FAILED - After Cmd+R refresh, SubfolderA1 visible but file.txt not visible. Nested expansion not fully preserved. Depth sorting fix may be incomplete.
+- 2026-01-22 11:45: FolderExpansionUITests/testRenamePreservesExpansion FAILED - Shift+Enter rename didn't produce expected result, renamed.txt not found after rename operation.
+- 2026-01-22: Added comprehensive bug fix verification tests. FileListDataSourceTests: 3 new tests (testNestedFolderChildrenLoadable, testItemLocatableByURLAfterExpansion, testItemAtReturnsCorrectItem). PaneViewControllerTests: 3 new tests (testRestoreTabsWithExpansionAndSelection, testRestoreTabsWithEmptyState, testExpansionPreservedOnTabSwitch). FolderExpansionTests: 4 new tests for depth sorting and selection. FolderExpansionUITests: 5 new tests (testRenamePreservesExpansion, testPastePreservesExpansion, testNestedExpansionSurvivesRefresh, testSelectionPreservedAfterRefresh, testDeletePreservesExpansion). All unit tests pass (34 tests). UI tests pending approval.
 - 2026-01-21: Added FolderExpansionTests (11 tests) for Stage 8 folder expansion: FileItem.loadChildren, MultiDirectoryWatcher, expansion state persistence, and settings toggle. SystemIntegrationTests updated: testDragPasteboardContainsFileURLs renamed to testFileItemsHaveURLsForDragging, testDropTargetRowTracking removed (used NSTableView API). Full suite: 201 tests in 20 classes, ALL PASS.
 - 2026-01-13: Full test suite run (190 tests in 19 classes). All pass. New test classes: FileOpenHelperTests (14), SidebarTests (8), SplitPositionTests (10). New tests: 2 in FileItemTests (date format settings), 2 in PreferencesTests (date format settings). Test names renamed in SystemKeyHandlerTests and FileListResponderTests.
 - 2026-01-08: Added ThemeManager tests (4 tests): built-in themes, custom theme, system choice, font validation.

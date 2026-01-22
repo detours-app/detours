@@ -218,9 +218,8 @@ extension FileListViewController: FileListContextMenuDelegate {
 
     @objc private func openFromContextMenu(_ sender: Any?) {
         let row = tableView.selectedRow
-        guard row >= 0 && row < dataSource.items.count else { return }
+        guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        let item = dataSource.items[row]
         if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         } else {
@@ -269,8 +268,7 @@ extension FileListViewController: FileListContextMenuDelegate {
     @objc private func renameFromContextMenu(_ sender: Any?) {
         guard tableView.selectedRowIndexes.count == 1 else { return }
         let row = tableView.selectedRow
-        guard row >= 0 && row < dataSource.items.count else { return }
-        let item = dataSource.items[row]
+        guard row >= 0, let item = dataSource.item(at: row) else { return }
         renameController.beginRename(for: item, in: tableView, at: row)
     }
 }

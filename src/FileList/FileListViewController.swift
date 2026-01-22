@@ -34,6 +34,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var hasLoadedDirectory = false
     let renameController = RenameController()
     private var directoryWatcher: MultiDirectoryWatcher?
+    private var directoryChangeDebounce: DispatchWorkItem?
     private var selectionAnchor: Int?
     private var selectionCursor: Int?
     /// Tracks whether folder expansion was enabled before the last settings change
@@ -243,9 +244,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func handleDoubleClick(row: Int) {
-        guard row >= 0 && row < dataSource.items.count else { return }
+        guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        let item = dataSource.items[row]
         if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         } else {
@@ -345,7 +345,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
-    func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil) {
+    func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false) {
         currentDirectory = url
 
         guard isViewLoaded else {
@@ -354,8 +354,13 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             return
         }
 
-        dataSource.loadDirectory(url)
+        let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
+        dataSource.loadDirectory(url, preserveExpansion: preserveExpansion)
         hasLoadedDirectory = true
+
+        if preserveExpansion {
+            restoreExpansion(previousExpanded)
+        }
 
         // Select the specified item if provided, otherwise select first item
         if let itemToSelect = itemToSelect {
@@ -397,6 +402,16 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func handleDirectoryChange(at changedURL: URL) {
+        // Debounce rapid changes (e.g., deleting multiple files)
+        directoryChangeDebounce?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.performDirectoryReload()
+        }
+        directoryChangeDebounce = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
+    }
+
+    private func performDirectoryReload() {
         guard let currentDirectory else { return }
 
         // Preserve current selection
@@ -479,11 +494,13 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         for url in sortedURLs {
             let normalized = url.standardizedFileURL
             if let item = urlToItem[normalized], item.isNavigableFolder {
-                // Load children before expanding
-                _ = item.loadChildren(showHidden: dataSource.showHiddenFiles)
+                // Only load children if not already loaded
+                if item.children == nil {
+                    _ = item.loadChildren(showHidden: dataSource.showHiddenFiles)
+                }
                 tableView.expandItem(item)
 
-                // Add newly loaded children to the map for nested expansion
+                // Add children to the map for nested expansion
                 if let children = item.children {
                     for child in children {
                         urlToItem[child.url.standardizedFileURL] = child
@@ -495,9 +512,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func openSelectedItem() {
         let row = tableView.selectedRow
-        guard row >= 0 && row < dataSource.items.count else { return }
+        guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        let item = dataSource.items[row]
         if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         } else {
@@ -507,9 +523,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func openSelectedItemInNewTab() {
         let row = tableView.selectedRow
-        guard row >= 0 && row < dataSource.items.count else { return }
+        guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        let item = dataSource.items[row]
         if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestOpenInNewTab(url: item.url)
         }
@@ -517,9 +532,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     @objc func showPackageContents() {
         let row = tableView.selectedRow
-        guard row >= 0 && row < dataSource.items.count else { return }
+        guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        let item = dataSource.items[row]
         if item.isPackage {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         }
@@ -560,7 +574,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         Task { @MainActor in
             do {
                 try await ClipboardManager.shared.paste(to: currentDirectory)
-                loadDirectory(currentDirectory)
+                loadDirectory(currentDirectory, preserveExpansion: true)
                 // Select the first pasted file
                 if let firstName = pastedNames.first,
                    let index = dataSource.items.firstIndex(where: { $0.name == firstName }) {
@@ -588,7 +602,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             do {
                 try await FileOperationQueue.shared.delete(items: urls)
                 dataSource.invalidateGitStatus()
-                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent())
+                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
                 // Select next file at same index
                 let itemCount = dataSource.items.count
                 if itemCount > 0 && selectedIndex >= 0 {
@@ -631,7 +645,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             do {
                 try await FileOperationQueue.shared.deleteImmediately(items: urls)
                 dataSource.invalidateGitStatus()
-                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent())
+                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
                 // Select next file at same index
                 let itemCount = dataSource.items.count
                 if itemCount > 0 && selectedIndex >= 0 {
@@ -653,7 +667,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             do {
                 let duplicatedURLs = try await FileOperationQueue.shared.duplicate(items: urls)
                 dataSource.invalidateGitStatus()
-                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent())
+                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
                 // Select the first duplicated file
                 if let firstName = duplicatedURLs.first?.lastPathComponent,
                    let index = dataSource.items.firstIndex(where: { $0.name == firstName }) {
@@ -672,7 +686,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         Task { @MainActor in
             do {
                 let newFolder = try await FileOperationQueue.shared.createFolder(in: currentDirectory, name: "Folder")
-                loadDirectory(currentDirectory)
+                loadDirectory(currentDirectory, preserveExpansion: true)
                 selectItem(at: newFolder)
                 renameSelection()
             } catch {
@@ -687,7 +701,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         Task { @MainActor in
             do {
                 let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: name)
-                loadDirectory(currentDirectory)
+                loadDirectory(currentDirectory, preserveExpansion: true)
                 selectItem(at: newFile)
                 renameSelection()
             } catch {
@@ -718,7 +732,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             Task { @MainActor in
                 do {
                     let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: fileName)
-                    self.loadDirectory(currentDirectory)
+                    self.loadDirectory(currentDirectory, preserveExpansion: true)
                     self.selectItem(at: newFile)
                 } catch {
                     FileOperationQueue.shared.presentError(error)
@@ -730,8 +744,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func renameSelection() {
         guard tableView.selectedRowIndexes.count == 1 else { return }
         let row = tableView.selectedRow
-        guard row >= 0 && row < dataSource.items.count else { return }
-        let item = dataSource.items[row]
+        guard row >= 0, let item = dataSource.item(at: row) else { return }
         renameController.beginRename(for: item, in: tableView, at: row)
     }
 
@@ -1368,8 +1381,8 @@ extension FileListViewController: NSMenuItemValidation {
             return currentDirectory != nil
         case #selector(showPackageContents):
             let row = tableView.selectedRow
-            guard row >= 0 && row < dataSource.items.count else { return false }
-            return dataSource.items[row].isPackage
+            guard row >= 0, let item = dataSource.item(at: row) else { return false }
+            return item.isPackage
         default:
             return true
         }
@@ -1382,7 +1395,7 @@ extension FileListViewController: RenameControllerDelegate {
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL) {
         guard let currentDirectory else { return }
         dataSource.invalidateGitStatus()
-        loadDirectory(currentDirectory)
+        loadDirectory(currentDirectory, preserveExpansion: true)
         selectItem(at: newURL)
     }
 }

@@ -16,7 +16,7 @@ extension FileListViewController: FileListDropDelegate {
                 // Refresh the view
                 dataSource.invalidateGitStatus()
                 if let current = currentDirectory {
-                    loadDirectory(current)
+                    loadDirectory(current, preserveExpansion: true)
                 }
                 // Notify to refresh source directories
                 var directoriesToRefresh = Set<URL>()

@@ -623,6 +623,171 @@ final class FolderExpansionUITests: BaseUITest {
         _ = shell("rm -rf '\(renamedPath)'")
     }
 
+    // MARK: - Bug Fix Verification Tests
+
+    /// Verifies fix for: nested folders collapsing after rename operation.
+    /// Bug: loadDirectory was called without preserveExpansion: true
+    func testRenamePreservesExpansion() throws {
+        // Expand FolderA and SubfolderA1
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        let subfolderA1Row = outlineRow(named: "SubfolderA1")
+        subfolderA1Row.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "file.txt", timeout: 2), "file.txt should appear")
+
+        // Select file.txt and rename it (Shift+Enter)
+        selectRow(named: "file.txt")
+        pressKey(.return, modifiers: .shift)
+        sleep(1)
+
+        // Type new name and press Enter
+        app.typeText("renamed.txt")
+        pressKey(.return)
+        sleep(2)
+
+        // CRITICAL: Verify expansion is still preserved after rename
+        XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should still be visible after rename")
+        XCTAssertTrue(rowExists(named: "renamed.txt"), "renamed.txt should exist")
+
+        // Cleanup: rename back
+        selectRow(named: "renamed.txt")
+        pressKey(.return, modifiers: .shift)
+        sleep(1)
+        app.typeText("file.txt")
+        pressKey(.return)
+        sleep(1)
+    }
+
+    /// Verifies fix for: nested folders collapsing after paste operation.
+    /// Bug: loadDirectory was called without preserveExpansion: true
+    func testPastePreservesExpansion() throws {
+        // Expand FolderA
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        // Expand SubfolderA1
+        let subfolderA1Row = outlineRow(named: "SubfolderA1")
+        subfolderA1Row.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "file.txt", timeout: 2), "file.txt should appear")
+
+        // Copy file.txt
+        selectRow(named: "file.txt")
+        pressCharKey("c", modifiers: .command)
+        sleep(1)
+
+        // Select FolderA (to paste there)
+        selectRow(named: "FolderA")
+
+        // Paste
+        pressCharKey("v", modifiers: .command)
+        sleep(2)
+
+        // CRITICAL: Verify expansion is still preserved after paste
+        XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should still be visible after paste")
+
+        // Cleanup: delete the pasted file
+        if rowExists(named: "file copy.txt") {
+            selectRow(named: "file copy.txt")
+            pressKey(.delete, modifiers: .command) // Cmd+Delete to trash
+            sleep(1)
+            // Confirm deletion if dialog appears
+            if app.buttons["Move to Trash"].exists {
+                app.buttons["Move to Trash"].click()
+                sleep(1)
+            }
+        }
+    }
+
+    /// Verifies fix for: nested folders collapsing randomly.
+    /// Bug: git status fetch did depth sorting wrong - parents weren't expanded before children.
+    func testNestedExpansionSurvivesRefresh() throws {
+        // Expand FolderA
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        // Expand SubfolderA1
+        let subfolderA1Row = outlineRow(named: "SubfolderA1")
+        subfolderA1Row.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "file.txt", timeout: 2), "file.txt should appear")
+
+        // Trigger a refresh (Cmd+R)
+        pressCharKey("r", modifiers: .command)
+        sleep(2)
+
+        // CRITICAL: Verify nested expansion is preserved after refresh
+        // This tests the git status reload path which uses depth sorting
+        XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should still be visible after refresh")
+        XCTAssertTrue(rowExists(named: "file.txt"), "file.txt should still be visible after refresh")
+    }
+
+    /// Verifies fix for: selection lost after expansion/reload.
+    /// Bug: selection was saved by row index, not URL - indexes change when folders expand.
+    func testSelectionPreservedAfterRefresh() throws {
+        // Expand FolderA
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        // Select SubfolderA1
+        selectRow(named: "SubfolderA1")
+        XCTAssertEqual(selectedRowName(), "SubfolderA1", "SubfolderA1 should be selected")
+
+        // Trigger refresh
+        pressCharKey("r", modifiers: .command)
+        sleep(2)
+
+        // CRITICAL: Verify selection is preserved
+        // This tests the selection-by-URL restoration
+        let afterRefresh = selectedRowName()
+        XCTAssertEqual(afterRefresh, "SubfolderA1", "Selection should be preserved after refresh")
+    }
+
+    /// Verifies fix for: delete file causes all folders to collapse.
+    /// Bug: loadDirectory was called without preserveExpansion: true
+    func testDeletePreservesExpansion() throws {
+        // First, create a file we can safely delete
+        // Expand FolderA
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        // Expand SubfolderA1
+        let subfolderA1Row = outlineRow(named: "SubfolderA1")
+        subfolderA1Row.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "file.txt", timeout: 2), "file.txt should appear")
+
+        // Copy file.txt to create a duplicate we can delete
+        selectRow(named: "file.txt")
+        pressCharKey("c", modifiers: .command)
+        sleep(1)
+        pressCharKey("v", modifiers: .command)
+        sleep(2)
+
+        // Now delete the copy
+        if rowExists(named: "file copy.txt") {
+            selectRow(named: "file copy.txt")
+            pressKey(.delete, modifiers: .command) // Cmd+Delete to trash
+            sleep(1)
+            if app.buttons["Move to Trash"].exists {
+                app.buttons["Move to Trash"].click()
+                sleep(1)
+            }
+        }
+
+        // CRITICAL: Verify expansion is still preserved after delete
+        XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should still be visible after delete")
+        XCTAssertTrue(rowExists(named: "file.txt"), "file.txt should still be visible after delete")
+    }
+
     /// Get the real user home directory (not the sandboxed one)
     private func realHomeDirectory() -> String {
         // XCUITests run in a sandbox, so FileManager.homeDirectoryForCurrentUser returns sandboxed path

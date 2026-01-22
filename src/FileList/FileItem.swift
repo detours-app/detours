@@ -190,6 +190,18 @@ extension FileItem {
     }
 }
 
+// MARK: - Hashable
+
+extension FileItem: Hashable {
+    static func == (lhs: FileItem, rhs: FileItem) -> Bool {
+        lhs.url == rhs.url
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(url)
+    }
+}
+
 // MARK: - Icon Tinting
 
 extension FileItem {

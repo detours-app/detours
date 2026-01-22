@@ -837,11 +837,12 @@ final class PaneViewController: NSViewController {
                 // Reload to apply hidden files setting
                 tabs[index].fileListViewController.loadDirectory(url)
             }
-            if let selections, index < selections.count {
-                tabs[index].fileListViewController.restoreSelection(selections[index])
-            }
+            // Restore expansion BEFORE selection - items inside folders don't exist until expanded
             if let expansions, index < expansions.count {
                 tabs[index].fileListViewController.restoreExpansion(expansions[index])
+            }
+            if let selections, index < selections.count {
+                tabs[index].fileListViewController.restoreSelection(selections[index])
             }
         }
 

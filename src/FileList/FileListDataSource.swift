@@ -260,8 +260,15 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 // Update items with git status (recursively)
                 updateGitStatus(for: items, statuses: statuses)
 
-                // Preserve selection before reload
-                let selectedRows = outlineView?.selectedRowIndexes ?? IndexSet()
+                // Preserve selection by URL before reload (row indexes change after reload)
+                var selectedURLs: [URL] = []
+                if let outlineView = outlineView {
+                    for row in outlineView.selectedRowIndexes {
+                        if let item = outlineView.item(atRow: row) as? FileItem {
+                            selectedURLs.append(item.url)
+                        }
+                    }
+                }
                 let expanded = expandedFolders
 
                 // Suppress collapse notifications during reload to preserve expansion state
@@ -270,16 +277,34 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 expandedFolders = expanded
                 suppressCollapseNotifications = false
 
-                // Restore expansion state visually
-                for url in expanded {
-                    if let item = findItem(withURL: url, in: items) {
+                // Restore expansion state visually - sort by depth so parents expand before children
+                let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
+                for url in sortedExpanded {
+                    // Use recursive findItem since children get loaded as parents expand
+                    if let item = findItem(withURL: url, in: items), item.isNavigableFolder {
+                        // Only load children if not already loaded - avoid replacing existing children
+                        // which would create new FileItem objects and break outline view references
+                        if item.children == nil {
+                            _ = item.loadChildren(showHidden: showHiddenFiles)
+                        }
                         outlineView?.expandItem(item)
                     }
                 }
 
-                // Restore selection
-                if !selectedRows.isEmpty {
-                    outlineView?.selectRowIndexes(selectedRows, byExtendingSelection: false)
+                // Restore selection by URL
+                if !selectedURLs.isEmpty, let outlineView = outlineView {
+                    var rowIndexes = IndexSet()
+                    for url in selectedURLs {
+                        if let item = findItem(withURL: url, in: items) {
+                            let row = outlineView.row(forItem: item)
+                            if row >= 0 {
+                                rowIndexes.insert(row)
+                            }
+                        }
+                    }
+                    if !rowIndexes.isEmpty {
+                        outlineView.selectRowIndexes(rowIndexes, byExtendingSelection: false)
+                    }
                 }
             }
         }
@@ -519,7 +544,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     func outlineViewItemDidExpand(_ notification: Notification) {
         guard let fileItem = notification.userInfo?["NSObject"] as? FileItem else { return }
-        expandedFolders.insert(fileItem.url)
+        expandedFolders.insert(fileItem.url.standardizedFileURL)
         expansionDelegate?.dataSourceDidExpandItem(fileItem)
     }
 
@@ -527,7 +552,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         // Skip if we're suppressing collapse notifications during reload
         guard !suppressCollapseNotifications else { return }
         guard let fileItem = notification.userInfo?["NSObject"] as? FileItem else { return }
-        expandedFolders.remove(fileItem.url)
+        expandedFolders.remove(fileItem.url.standardizedFileURL)
         expansionDelegate?.dataSourceDidCollapseItem(fileItem)
     }
 
