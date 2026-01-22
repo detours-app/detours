@@ -37,7 +37,7 @@ final class QuickNavController {
 
         // Fixed size - don't rely on fittingSize since results are empty at creation
         let panelWidth: CGFloat = 900
-        let panelHeight: CGFloat = 580  // Room for search + 10 results (48px each) + footer
+        let panelHeight: CGFloat = 700
 
         // Create borderless floating panel
         let panel = FloatingPanel(
@@ -60,10 +60,10 @@ final class QuickNavController {
             contentView.layer?.masksToBounds = true
         }
 
-        // Position: centered horizontally, near top of parent window
+        // Position: centered horizontally, upper third vertically
         let windowFrame = window.frame
         let panelX = windowFrame.midX - panelWidth / 2
-        let panelY = windowFrame.maxY - 120 - panelHeight
+        let panelY = windowFrame.minY + windowFrame.height * 0.6 - panelHeight / 2
         panel.setFrameOrigin(NSPoint(x: panelX, y: panelY))
 
         self.panel = panel

@@ -14,7 +14,7 @@ struct QuickNavView: View {
     let onReveal: (URL) -> Void
     let onDismiss: () -> Void
 
-    private let maxResults = 20
+    private let maxResults = 50
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,7 +59,7 @@ struct QuickNavView: View {
                         }
                         .padding(.vertical, 4)
                     }
-                    .frame(height: CGFloat(maxResults) * ResultRow.height + 8)
+                    .frame(height: 600)
                     .onChange(of: selectedIndex) { _, newIndex in
                         withAnimation {
                             proxy.scrollTo(newIndex, anchor: .center)

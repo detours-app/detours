@@ -1,5 +1,11 @@
 # Changelog
 
+## 260122 Quick Open Improvements
+- Fixed: Quick Open list is now scrollable (was not scrolling before)
+- Changed: Max results increased from 20 to 50
+- Changed: Panel repositioned to upper-third of window (was near top)
+- Changed: Results area increased to 600px height for more visible items
+
 ## 260122 User Guide and Preferences UX
 - Added: Comprehensive USER_GUIDE.md with full feature documentation
 - Added: Escape key closes Preferences window
