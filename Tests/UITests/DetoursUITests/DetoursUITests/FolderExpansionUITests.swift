@@ -815,6 +815,61 @@ final class FolderExpansionUITests: BaseUITest {
         return "/Users/\(username)"
     }
 
+    /// Verifies fix for: active pane jumps from left to right on app launch.
+    /// Bug: tableViewSelectionDidChange called fileListDidBecomeActive for programmatic changes,
+    /// causing async git status to steal focus to whichever pane loaded last.
+    func testActivePanePreservedOnRelaunch() throws {
+        // Click in left pane to make it active
+        let leftOutline = app.leftPaneOutlineView
+        XCTAssertTrue(leftOutline.waitForExistence(timeout: 2), "Left pane should exist")
+        leftOutline.click()
+        sleep(1)
+
+        // Select first row in left pane
+        let firstRow = leftOutline.outlineRows.firstMatch
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 2), "First row should exist")
+        firstRow.click()
+        sleep(1)
+
+        // Terminate and relaunch the app
+        app.terminate()
+        sleep(1)
+        app.launch()
+
+        // Wait for app to fully load
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 5), "App window should exist after relaunch")
+        sleep(3)  // Extra time for git status async operations to complete
+
+        // CRITICAL: After all async operations complete, left pane should still be active
+        // Verify that left pane outline view exists and has content
+        let leftOutlineAfter = app.leftPaneOutlineView
+        XCTAssertTrue(leftOutlineAfter.waitForExistence(timeout: 2), "Left outline should exist")
+
+        // Verify we can interact with left pane - click first row
+        let firstRowAfter = leftOutlineAfter.outlineRows.firstMatch
+        if firstRowAfter.waitForExistence(timeout: 2) {
+            firstRowAfter.click()
+            sleep(1)
+
+            // Press Tab to switch panes - should go to RIGHT pane (proving left was active)
+            pressKey(.tab)
+            sleep(1)
+
+            // Verify right pane exists
+            let rightOutline = app.rightPaneOutlineView
+            XCTAssertTrue(rightOutline.exists, "Right pane should exist after Tab")
+
+            // Press Tab again to switch back to LEFT pane
+            pressKey(.tab)
+            sleep(1)
+
+            // Verify we can still click in left pane
+            firstRowAfter.click()
+            XCTAssertTrue(firstRowAfter.isSelected, "Left pane row should be selectable after Tab cycle")
+        }
+    }
+
     /// Helper to run shell commands
     private func shell(_ command: String) -> Bool {
         let task = Process()

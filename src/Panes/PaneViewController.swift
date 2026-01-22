@@ -624,6 +624,7 @@ final class PaneViewController: NSViewController {
                 updateNavigationControls()
                 updatePathControl()
                 tab.fileListViewController.ensureLoaded()
+                applyPendingRestore(for: tab)
             }
 
             if isActive {
@@ -643,6 +644,7 @@ final class PaneViewController: NSViewController {
         let tab = tabs[selectedTabIndex]
         tab.fileListViewController.view.isHidden = false
         tab.fileListViewController.ensureLoaded()
+        applyPendingRestore(for: tab)
 
         tabBar.updateSelectedIndex(index)
         updateNavigationControls()
@@ -652,6 +654,17 @@ final class PaneViewController: NSViewController {
         if isActive {
             view.window?.makeFirstResponder(tab.fileListViewController.tableView)
         }
+    }
+
+    /// Apply any pending restore state (expansions/selections) after tab is loaded
+    private func applyPendingRestore(for tab: PaneTab) {
+        if let expansions = tab.pendingExpansions {
+            tab.fileListViewController.restoreExpansion(expansions)
+        }
+        if let selections = tab.pendingSelections {
+            tab.fileListViewController.restoreSelection(selections)
+        }
+        tab.clearPendingRestore()
     }
 
     func selectNextTab() {
@@ -828,25 +841,33 @@ final class PaneViewController: NSViewController {
         tabs.removeAll()
         selectedTabIndex = 0
 
+        let clampedIndex = min(max(0, selectedIndex), urls.count - 1)
+
         for (index, url) in urls.enumerated() {
             // Don't apply default hidden setting - we'll set it explicitly from saved state
             createTab(at: url, select: false, useDefaultHiddenSetting: false)
-            // Set showHiddenFiles before loading directory
+
+            // Set showHiddenFiles before loading
             if let showHiddenFiles, index < showHiddenFiles.count {
                 tabs[index].fileListViewController.dataSource.showHiddenFiles = showHiddenFiles[index]
-                // Reload to apply hidden files setting
+            }
+
+            // Only load selected tab immediately - others load on-demand via ensureLoaded
+            if index == clampedIndex {
                 tabs[index].fileListViewController.loadDirectory(url)
-            }
-            // Restore expansion BEFORE selection - items inside folders don't exist until expanded
-            if let expansions, index < expansions.count {
-                tabs[index].fileListViewController.restoreExpansion(expansions[index])
-            }
-            if let selections, index < selections.count {
-                tabs[index].fileListViewController.restoreSelection(selections[index])
+                // Restore expansion BEFORE selection - items inside folders don't exist until expanded
+                if let expansions, index < expansions.count {
+                    tabs[index].fileListViewController.restoreExpansion(expansions[index])
+                }
+                if let selections, index < selections.count {
+                    tabs[index].fileListViewController.restoreSelection(selections[index])
+                }
+            } else {
+                // Store pending state for deferred loading
+                tabs[index].storePendingRestore(expansions: expansions?[safe: index], selections: selections?[safe: index])
             }
         }
 
-        let clampedIndex = min(max(0, selectedIndex), tabs.count - 1)
         selectTab(at: clampedIndex)
     }
 

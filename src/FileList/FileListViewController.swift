@@ -30,7 +30,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var typeSelectBuffer = ""
     private var typeSelectTimer: Timer?
     private var pendingDirectory: URL?
-    private(set) var currentDirectory: URL?
+    var currentDirectory: URL?
     private var hasLoadedDirectory = false
     let renameController = RenameController()
     private var directoryWatcher: MultiDirectoryWatcher?
@@ -196,7 +196,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     @objc private func tableViewSelectionDidChange(_ notification: Notification) {
-        navigationDelegate?.fileListDidBecomeActive()
+        // Note: fileListDidBecomeActive() is NOT called here because selection can change
+        // programmatically (git status, refresh, session restore) and we only want to
+        // change active pane on USER interaction. User clicks trigger onActivate instead.
         navigationDelegate?.fileListDidChangeSelection()
         refreshQuickLookPanel()
     }
@@ -297,8 +299,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     func refresh() {
         guard let currentDirectory else { return }
 
-        // Preserve current selection and expansion BEFORE any changes
-        let selectedNames = Set(selectedItems.map { $0.name })
+        // Preserve current selection by URL (works for items in expanded folders)
+        let selectedURLs = selectedItems.map { $0.url }
         let firstSelectedRow = tableView.selectedRow
         let previousExpanded = dataSource.expandedFolders
 
@@ -320,19 +322,22 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Restore visual expansion state
         restoreExpansion(previousExpanded)
 
-        // Restore selection by name
+        // Restore selection by URL (finds items anywhere in tree, including expanded folders)
         var newSelection = IndexSet()
-        for (index, item) in dataSource.items.enumerated() {
-            if selectedNames.contains(item.name) {
-                newSelection.insert(index)
+        for url in selectedURLs {
+            if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
+                let row = tableView.row(forItem: item)
+                if row >= 0 {
+                    newSelection.insert(row)
+                }
             }
         }
 
         if !newSelection.isEmpty {
             tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
-        } else if !dataSource.items.isEmpty {
+        } else if tableView.numberOfRows > 0 {
             // Selection was deleted - select nearby item
-            let newIndex = min(firstSelectedRow, dataSource.items.count - 1)
+            let newIndex = min(firstSelectedRow, tableView.numberOfRows - 1)
             if newIndex >= 0 {
                 tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
             }
@@ -414,8 +419,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func performDirectoryReload() {
         guard let currentDirectory else { return }
 
-        // Preserve current selection
-        let selectedNames = Set(selectedItems.map { $0.name })
+        // Preserve current selection by URL (works for items in expanded folders)
+        let selectedURLs = selectedItems.map { $0.url }
         let firstSelectedRow = tableView.selectedRow
 
         // Preserve expansion state when reloading due to external changes
@@ -425,19 +430,22 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Restore visual expansion state
         restoreExpansion(previousExpanded)
 
-        // Restore selection by name
+        // Restore selection by URL (finds items anywhere in tree, including expanded folders)
         var newSelection = IndexSet()
-        for (index, item) in dataSource.items.enumerated() {
-            if selectedNames.contains(item.name) {
-                newSelection.insert(index)
+        for url in selectedURLs {
+            if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
+                let row = tableView.row(forItem: item)
+                if row >= 0 {
+                    newSelection.insert(row)
+                }
             }
         }
 
         if !newSelection.isEmpty {
             tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
-        } else if !dataSource.items.isEmpty {
+        } else if tableView.numberOfRows > 0 {
             // Selection was deleted - select nearby item
-            let newIndex = min(firstSelectedRow, dataSource.items.count - 1)
+            let newIndex = min(firstSelectedRow, tableView.numberOfRows - 1)
             if newIndex >= 0 {
                 tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
             }
@@ -463,11 +471,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     func restoreSelection(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
-        let urlSet = Set(urls.map { $0.standardizedFileURL })
         var newSelection = IndexSet()
-        for (index, item) in dataSource.items.enumerated() {
-            if urlSet.contains(item.url.standardizedFileURL) {
-                newSelection.insert(index)
+        // Find items anywhere in tree (including inside expanded folders)
+        for url in urls {
+            if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
+                let row = tableView.row(forItem: item)
+                if row >= 0 {
+                    newSelection.insert(row)
+                }
             }
         }
         if !newSelection.isEmpty {

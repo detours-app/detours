@@ -310,8 +310,8 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         }
     }
 
-    /// Find an item by URL in the item tree
-    private func findItem(withURL url: URL, in items: [FileItem]) -> FileItem? {
+    /// Find an item by URL in the item tree (searches recursively through children)
+    func findItem(withURL url: URL, in items: [FileItem]) -> FileItem? {
         for item in items {
             if item.url.standardizedFileURL == url.standardizedFileURL {
                 return item

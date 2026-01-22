@@ -9,6 +9,7 @@ final class MainSplitViewController: NSSplitViewController {
     private let leftPane = PaneViewController()
     private let rightPane = PaneViewController()
     private var activePaneIndex: Int = 0
+    private var isRestoringSession = false
     private let defaults = UserDefaults.standard
     private var lastMediaKeyCode: Int?
     private var lastMediaKeyTimestamp: TimeInterval = 0
@@ -59,7 +60,9 @@ final class MainSplitViewController: NSSplitViewController {
         addSplitViewItem(leftItem)
         addSplitViewItem(rightItem)
 
+        isRestoringSession = true
         restoreSession()
+        isRestoringSession = false
 
         // Restore sidebar visibility
         let sidebarVisible = defaults.object(forKey: SessionKeys.sidebarVisible) as? Bool ?? SettingsManager.shared.sidebarVisible
@@ -325,6 +328,9 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     func setActivePaneFromChild(_ pane: PaneViewController) {
+        // Don't change active pane during session restore - it would override the saved value
+        guard !isRestoringSession else { return }
+
         if pane === leftPane && activePaneIndex != 0 {
             setActivePane(0)
         } else if pane === rightPane && activePaneIndex != 1 {

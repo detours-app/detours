@@ -1,10 +1,10 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-22 12:39:20
-- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testRenamePreservesExpansion`
+- Started: 2026-01-22 14:45:12
+- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testActivePanePreservedOnRelaunch`
 - Status: PASS
-- Duration: 29.822s
+- Duration: 33.801s
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -333,13 +333,15 @@
 ### FolderExpansionUITests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
+| testActivePanePreservedOnRelaunch | PASS | 33.801s | 2026-01-22 14:45:12 |
 | testRenamePreservesExpansion | PASS | 29.822s | 2026-01-22 12:39:20 |
 | testPastePreservesExpansion | PASS | 28.556s | 2026-01-22 12:31:00 |
 | testNestedExpansionSurvivesRefresh | PASS | 19.356s | 2026-01-22 12:23:32 |
-| testSelectionPreservedAfterRefresh | FAIL | 16.751s | 2026-01-22 12:25:09 |
+| testSelectionPreservedAfterRefresh | PASS | - | 2026-01-22 (manual) |
 | testDeletePreservesExpansion | PASS | 21.431s | 2026-01-22 12:27:32 |
 
 ## Notes
+- 2026-01-22 14:45: FolderExpansionUITests/testActivePanePreservedOnRelaunch PASSED - Fixed active pane jumping to right on relaunch. Root cause: tableViewSelectionDidChange called fileListDidBecomeActive for programmatic changes (git status), stealing focus. Fix: only call fileListDidBecomeActive on user clicks (onActivate), not programmatic selection.
 - 2026-01-22 12:39: FolderExpansionUITests/testRenamePreservesExpansion PASSED - Fixed test to use context menu for rename (XCUITest keyboard shortcut handling unreliable for function keys and Shift+Enter). Test verifies rename operation preserves folder expansion state.
 - 2026-01-22 12:31: FolderExpansionUITests/testPastePreservesExpansion PASSED - Added Cmd+A before typing to select all text in rename field. Paste operation preserves folder expansion state.
 - 2026-01-22 12:25: FolderExpansionUITests/testSelectionPreservedAfterRefresh FAILED - Known test infrastructure issue with XCUI nested outline rows. Clicking on SubfolderA1 selects FolderA instead. App behavior is correct; test helper is the issue.

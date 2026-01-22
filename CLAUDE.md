@@ -61,6 +61,7 @@ swift test --filter SomeTestClass
 - No mocks - use real filesystem with temp directories
 - Update `Tests/TEST_LOG.md` immediately after EVERY test run
 - If a test fails, fix it. No "pre-existing" excuses.
+- **Any test marked FAIL in TEST_LOG.md must have a comment in the same table row explaining why** - no unexplained failures allowed
 
 ### UI Testing with MCP
 

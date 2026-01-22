@@ -10,10 +10,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMainMenu(target: self)
 
         mainWindowController = MainWindowController()
-        mainWindowController?.showWindow(nil)
-        mainWindowController?.window?.makeKeyAndOrderFront(nil)
 
-        NSApp.activate(ignoringOtherApps: true)
+        // Keep window hidden until layout is complete to avoid visual disturbance
+        mainWindowController?.window?.alphaValue = 0
+        mainWindowController?.showWindow(nil)
+
+        // Show window after layout stabilizes (viewDidAppear async restoration)
+        DispatchQueue.main.async { [weak self] in
+            self?.mainWindowController?.window?.alphaValue = 1
+            self?.mainWindowController?.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
 
         systemEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .systemDefined) { [weak self] event in
             guard let splitVC = self?.mainWindowController?.splitViewController else { return event }

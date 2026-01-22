@@ -15,10 +15,15 @@ final class PaneTab {
     private var backStack: [HistoryEntry] = []
     private var forwardStack: [HistoryEntry] = []
 
+    /// Pending restore state for deferred loading
+    private(set) var pendingExpansions: Set<URL>?
+    private(set) var pendingSelections: [URL]?
+
     /// Lazily created file list view controller for this tab
+    /// Note: Does NOT load directory on creation - caller must call loadDirectory or ensureLoaded
     lazy var fileListViewController: FileListViewController = {
         let vc = FileListViewController()
-        vc.loadDirectory(currentDirectory)
+        vc.currentDirectory = currentDirectory
         return vc
     }()
 
@@ -204,5 +209,26 @@ final class PaneTab {
         let mobileDocsPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Mobile Documents").path
         return url.path == mobileDocsPath
+    }
+
+    /// Store state to restore when tab is loaded on-demand
+    func storePendingRestore(expansions: Set<URL>?, selections: [URL]?) {
+        pendingExpansions = expansions
+        pendingSelections = selections
+    }
+
+    /// Clear pending restore state (called after applying)
+    func clearPendingRestore() {
+        pendingExpansions = nil
+        pendingSelections = nil
+    }
+}
+
+// MARK: - Safe Array Subscript
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard index >= 0, index < count else { return nil }
+        return self[index]
     }
 }
