@@ -1,6 +1,17 @@
 import AppKit
 import SwiftUI
 
+/// Window that closes on Escape key
+private final class EscapableWindow: NSWindow {
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 { // Escape
+            close()
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+}
+
 @MainActor
 final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
@@ -8,7 +19,7 @@ final class PreferencesWindowController: NSWindowController {
     private static let frameAutosaveName = "PreferencesWindow"
 
     private init() {
-        let window = NSWindow(
+        let window = EscapableWindow(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 450),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,

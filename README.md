@@ -13,13 +13,16 @@ A fast, keyboard-driven file manager for macOS with dual-pane layout, tabs, and 
 - **Folder expansion** - Disclosure triangles to expand folders inline (like Finder list view)
 - **Sidebar** - Quick access to mounted volumes and favorite folders
 - **Quick Open** - Spotlight search with frecency ranking (Cmd-P)
-- **Breadcrumb navigation** - Click to navigate, drag to terminal, right-click to copy path
+- **Path bar** - Click to navigate, drag to terminal, right-click to copy path
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
 - **Theming** - Four built-in themes plus custom theme editor
 - **Git status indicators** - See modified, staged, and untracked files at a glance
 - **Quick Look** - Preview files with spacebar
 - **Drag and drop** - Between panes, to/from Finder, to favorites
 - **Delete Immediately** - Permanent deletion option bypassing Trash (Cmd-Option-Delete)
+- **Session restore** - Tabs, selections, and expansion states persist across restarts
+- **Status bar** - Item counts, selection size, available disk space
+- **iCloud Drive** - Friendly folder names, automatic container navigation
 - **Native macOS** - AppKit, SF Symbol icons, system appearance
 
 ## Installation
@@ -54,6 +57,8 @@ All shortcuts are customizable in Preferences (Cmd-,).
 | Quick Open | Cmd-P |
 | New Tab | Cmd-T |
 | Close Tab | Cmd-W |
+| Next / Previous Tab | Ctrl-Tab / Ctrl-Shift-Tab |
+| Select Tab 1-9 | Cmd-1 through Cmd-9 |
 | Go Up | Cmd-Up |
 | Go Back / Forward | Cmd-Left / Cmd-Right |
 | Switch Pane | Tab |
@@ -75,6 +80,8 @@ All shortcuts are customizable in Preferences (Cmd-,).
 | Collapse All (recursive) | Option-Left |
 | Refresh | Cmd-R |
 
+See the [User Guide](resources/docs/USER_GUIDE.md) for complete documentation.
+
 ## Project Structure
 
 ```
@@ -91,6 +98,7 @@ detours/
 │   └── Utilities/        # Helpers
 ├── Tests/                # XCTest suite
 ├── resources/
+│   ├── docs/             # User guide, changelog
 │   ├── specs/            # Feature specifications
 │   └── scripts/          # Build scripts
 └── build/                # Output (Detours.app)

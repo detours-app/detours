@@ -1,5 +1,11 @@
 # Changelog
 
+## 260122 User Guide and Preferences UX
+- Added: Comprehensive USER_GUIDE.md with full feature documentation
+- Added: Escape key closes Preferences window
+- Changed: README updated with session restore, status bar, iCloud features, and link to user guide
+- Changed: Consistent "Path bar" terminology (was "breadcrumbs" in some places)
+
 ## 260121 Split Pane Snap to Equal Width
 - Added: Divider snaps to center when dragged within 12px of equal-width position
 
