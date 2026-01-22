@@ -709,7 +709,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 let newFolder = try await FileOperationQueue.shared.createFolder(in: currentDirectory, name: "Folder")
                 loadDirectory(currentDirectory, preserveExpansion: true)
                 selectItem(at: newFolder)
-                renameSelection()
+                renameSelection(isNewItem: true)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -724,7 +724,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: name)
                 loadDirectory(currentDirectory, preserveExpansion: true)
                 selectItem(at: newFile)
-                renameSelection()
+                renameSelection(isNewItem: true)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -762,11 +762,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
-    private func renameSelection() {
+    private func renameSelection(isNewItem: Bool = false) {
         guard tableView.selectedRowIndexes.count == 1 else { return }
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
-        renameController.beginRename(for: item, in: tableView, at: row)
+        renameController.beginRename(for: item, in: tableView, at: row, isNewItem: isNewItem)
     }
 
     private func moveSelectionToOtherPane() {
@@ -1421,5 +1421,17 @@ extension FileListViewController: RenameControllerDelegate {
         dataSource.invalidateGitStatus()
         loadDirectory(currentDirectory, preserveExpansion: true)
         selectItem(at: newURL)
+    }
+
+    func renameControllerDidCancelNewItem(_ controller: RenameController, item: FileItem) {
+        guard let currentDirectory else { return }
+        Task {
+            do {
+                try await FileOperationQueue.shared.deleteImmediately(items: [item.url])
+                loadDirectory(currentDirectory, preserveExpansion: true)
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
     }
 }

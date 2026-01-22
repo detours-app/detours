@@ -1,5 +1,9 @@
 # Changelog
 
+## 260122 New Folder/File Cancel on Escape
+- Added: Pressing Escape immediately after creating new folder/file deletes it (undo accidental creation)
+- Fixed: Pressing Enter without changing name keeps the new item (was incorrectly deleting it)
+
 ## 260122 Selection Behavior Fixes
 - Fixed: Paste now goes to selected item's folder (not root of view) when working in expanded folders
 - Fixed: Delete selection stays at same visual row position (was jumping to top)

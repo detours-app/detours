@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 protocol RenameControllerDelegate: AnyObject {
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL)
+    func renameControllerDidCancelNewItem(_ controller: RenameController, item: FileItem)
 }
 
 @MainActor
@@ -14,13 +15,15 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     private weak var tableView: NSTableView?
     private var currentItem: FileItem?
     private var currentRow: Int?
+    private var isNewItem: Bool = false
 
-    func beginRename(for item: FileItem, in tableView: NSTableView, at row: Int) {
+    func beginRename(for item: FileItem, in tableView: NSTableView, at row: Int, isNewItem: Bool = false) {
         cancelRename()
 
         self.tableView = tableView
         currentItem = item
         currentRow = row
+        self.isNewItem = isNewItem
 
         let rowRect = tableView.rect(ofRow: row)
         let columnRect = tableView.rect(ofColumn: 0)
@@ -66,6 +69,9 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         guard let item = currentItem, let field = textField else { return }
         let newName = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let invalidChars = CharacterSet(charactersIn: ":/")
+
+        // User is committing, so don't delete new items on cancel
+        isNewItem = false
 
         if newName.isEmpty || newName.rangeOfCharacter(from: invalidChars) != nil {
             NSSound.beep()
@@ -115,13 +121,28 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
     func cancelRename() {
         let tv = tableView
-        textField?.removeFromSuperview()
+        let item = currentItem
+        let wasNewItem = isNewItem
+        let field = textField
+
+        // Clear state BEFORE removing field to prevent re-entrant calls
         textField = nil
         tableView = nil
         currentItem = nil
         currentRow = nil
+        isNewItem = false
+
+        // Remove delegate before removing field to prevent controlTextDidEndEditing callback
+        field?.delegate = nil
+        field?.removeFromSuperview()
+
         // Restore focus to tableView so selection shows blue
         tv?.window?.makeFirstResponder(tv)
+
+        // Delete newly created item if user cancelled before committing
+        if wasNewItem, let item = item {
+            delegate?.renameControllerDidCancelNewItem(self, item: item)
+        }
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
