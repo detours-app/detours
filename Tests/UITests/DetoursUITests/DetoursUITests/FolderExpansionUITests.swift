@@ -638,12 +638,20 @@ final class FolderExpansionUITests: BaseUITest {
         subfolderA1Row.disclosureTriangles.firstMatch.click()
         XCTAssertTrue(waitForRow(named: "file.txt", timeout: 2), "file.txt should appear")
 
-        // Select file.txt and rename it (Shift+Enter)
-        selectRow(named: "file.txt")
-        pressKey(.return, modifiers: .shift)
+        // Rename file.txt using context menu (more reliable than keyboard in XCUITest)
+        let fileRow = outlineRow(named: "file.txt")
+        fileRow.rightClick()
         sleep(1)
 
-        // Type new name and press Enter
+        // Click Rename in context menu
+        let renameMenuItem = app.menuItems["Rename"]
+        XCTAssertTrue(renameMenuItem.waitForExistence(timeout: 2), "Rename menu item should appear")
+        renameMenuItem.click()
+        sleep(1)
+
+        // Select all (Cmd+A) and type new name - the field has "file" selected by default
+        // so we need to select all to replace the entire filename including extension
+        pressCharKey("a", modifiers: .command)
         app.typeText("renamed.txt")
         pressKey(.return)
         sleep(2)
@@ -652,10 +660,13 @@ final class FolderExpansionUITests: BaseUITest {
         XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should still be visible after rename")
         XCTAssertTrue(rowExists(named: "renamed.txt"), "renamed.txt should exist")
 
-        // Cleanup: rename back
-        selectRow(named: "renamed.txt")
-        pressKey(.return, modifiers: .shift)
+        // Cleanup: rename back using context menu
+        let renamedRow = outlineRow(named: "renamed.txt")
+        renamedRow.rightClick()
         sleep(1)
+        app.menuItems["Rename"].click()
+        sleep(1)
+        pressCharKey("a", modifiers: .command)
         app.typeText("file.txt")
         pressKey(.return)
         sleep(1)
