@@ -570,7 +570,21 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func pasteHere() {
         guard let currentDirectory else { return }
         let wasCut = ClipboardManager.shared.isCut
-        let pastedNames = ClipboardManager.shared.items.map { $0.lastPathComponent }
+
+        // Determine paste destination based on selection:
+        // - If a folder is selected: paste INTO that folder
+        // - If a file is selected: paste to its parent directory (same folder)
+        // - If nothing selected: paste to currentDirectory (root of view)
+        let pasteDestination: URL
+        if let selectedItem = selectedItems.first {
+            if selectedItem.isDirectory {
+                pasteDestination = selectedItem.url
+            } else {
+                pasteDestination = selectedItem.url.deletingLastPathComponent()
+            }
+        } else {
+            pasteDestination = currentDirectory
+        }
 
         // Collect directories to refresh: source dirs for cut, destination for both
         var directoriesToRefresh = Set<URL>()
@@ -580,17 +594,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             }
         }
         // Also refresh destination in other pane (if viewing same directory)
-        directoriesToRefresh.insert(currentDirectory.standardizedFileURL)
+        directoriesToRefresh.insert(pasteDestination.standardizedFileURL)
 
         Task { @MainActor in
             do {
-                try await ClipboardManager.shared.paste(to: currentDirectory)
+                let pastedURLs = try await ClipboardManager.shared.paste(to: pasteDestination)
                 loadDirectory(currentDirectory, preserveExpansion: true)
                 // Select the first pasted file
-                if let firstName = pastedNames.first,
-                   let index = dataSource.items.firstIndex(where: { $0.name == firstName }) {
-                    tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-                    tableView.scrollRowToVisible(index)
+                if let firstURL = pastedURLs.first {
+                    selectItem(at: firstURL)
                 }
                 // Refresh other pane if showing affected directories
                 navigationDelegate?.fileListDidRequestRefreshSourceDirectories(directoriesToRefresh)
@@ -614,10 +626,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 try await FileOperationQueue.shared.delete(items: urls)
                 dataSource.invalidateGitStatus()
                 loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
-                // Select next file at same index
-                let itemCount = dataSource.items.count
-                if itemCount > 0 && selectedIndex >= 0 {
-                    let newIndex = min(selectedIndex, itemCount - 1)
+                // Select next file at same row position (accounting for expanded folders)
+                let rowCount = tableView.numberOfRows
+                if rowCount > 0 && selectedIndex >= 0 {
+                    let newIndex = min(selectedIndex, rowCount - 1)
                     tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
                     tableView.scrollRowToVisible(newIndex)
                 }
@@ -657,10 +669,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 try await FileOperationQueue.shared.deleteImmediately(items: urls)
                 dataSource.invalidateGitStatus()
                 loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
-                // Select next file at same index
-                let itemCount = dataSource.items.count
-                if itemCount > 0 && selectedIndex >= 0 {
-                    let newIndex = min(selectedIndex, itemCount - 1)
+                // Select next file at same row position (accounting for expanded folders)
+                let rowCount = tableView.numberOfRows
+                if rowCount > 0 && selectedIndex >= 0 {
+                    let newIndex = min(selectedIndex, rowCount - 1)
                     tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
                     tableView.scrollRowToVisible(newIndex)
                 }
@@ -680,10 +692,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 dataSource.invalidateGitStatus()
                 loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
                 // Select the first duplicated file
-                if let firstName = duplicatedURLs.first?.lastPathComponent,
-                   let index = dataSource.items.firstIndex(where: { $0.name == firstName }) {
-                    tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-                    tableView.scrollRowToVisible(index)
+                if let firstURL = duplicatedURLs.first {
+                    selectItem(at: firstURL)
                 }
             } catch {
                 FileOperationQueue.shared.presentError(error)
@@ -772,10 +782,13 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func selectItem(at url: URL) {
-        let targetPath = url.standardizedFileURL.path
-        if let index = dataSource.items.firstIndex(where: { $0.url.standardizedFileURL.path == targetPath }) {
-            tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-            tableView.scrollRowToVisible(index)
+        // Search entire tree including expanded folders
+        if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
+            let row = tableView.row(forItem: item)
+            if row >= 0 {
+                tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                tableView.scrollRowToVisible(row)
+            }
         }
     }
 

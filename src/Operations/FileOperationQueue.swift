@@ -17,13 +17,15 @@ final class FileOperationQueue {
 
     // MARK: - Public API
 
-    func copy(items: [URL], to destination: URL) async throws {
+    @discardableResult
+    func copy(items: [URL], to destination: URL) async throws -> [URL] {
         try await enqueue {
             try await self.performCopy(items: items, to: destination)
         }
     }
 
-    func move(items: [URL], to destination: URL) async throws {
+    @discardableResult
+    func move(items: [URL], to destination: URL) async throws -> [URL] {
         try await enqueue {
             try await self.performMove(items: items, to: destination)
         }
@@ -147,7 +149,7 @@ final class FileOperationQueue {
 
     // MARK: - Operations
 
-    private func performCopy(items: [URL], to destination: URL) async throws {
+    private func performCopy(items: [URL], to destination: URL) async throws -> [URL] {
         let operation = FileOperation.copy(sources: items, destination: destination)
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
@@ -210,9 +212,10 @@ final class FileOperationQueue {
         }
 
         try handleFailures(successes: successes, failures: failures)
+        return successes
     }
 
-    private func performMove(items: [URL], to destination: URL) async throws {
+    private func performMove(items: [URL], to destination: URL) async throws -> [URL] {
         let operation = FileOperation.move(sources: items, destination: destination)
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
@@ -275,6 +278,7 @@ final class FileOperationQueue {
         }
 
         try handleFailures(successes: successes, failures: failures)
+        return successes
     }
 
     private func performDelete(items: [URL]) async throws {

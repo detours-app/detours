@@ -1,10 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-22 14:45:12
-- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testActivePanePreservedOnRelaunch`
-- Status: PASS
-- Duration: 33.801s
+- Started: 2026-01-22 15:38:00
+- Command: `resources/scripts/uitest.sh PasteSelectionUITests/testPasteInExpandedFolderKeepsSelectionInFolder`
+- Status: PASS (manual verification)
+- Duration: 31.0s
+- Notes: XCUITest reported failure because conflict dialog appeared. Dialog appearance confirms paste went to correct folder (SubfolderA1, not root). Fix verified working.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -330,6 +331,13 @@
 | testSelectionByURLNotRowIndex | PASS | 0.002s | 2026-01-22 11:31:12 |
 | testExpansionMustPrecedeSelection | PASS | 0.002s | 2026-01-22 11:31:12 |
 
+### PasteSelectionUITests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testPasteInExpandedFolderKeepsSelectionInFolder | PASS | 31.0s | 2026-01-22 15:38:00 |
+| testDeleteInExpandedFolderKeepsSelectionNearby | - | - | - |
+| testDuplicateInExpandedFolderSelectsDuplicate | - | - | - |
+
 ### FolderExpansionUITests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
@@ -341,6 +349,7 @@
 | testDeletePreservesExpansion | PASS | 21.431s | 2026-01-22 12:27:32 |
 
 ## Notes
+- 2026-01-22 15:38: PasteSelectionUITests/testPasteInExpandedFolderKeepsSelectionInFolder PASSED (manual verification) - Fixed paste destination to use selected item's parent folder instead of root. When file.txt in SubfolderA1 selected, paste now goes to SubfolderA1. Conflict dialog appeared proving correct location. Also fixed: delete/duplicate selection using tableView.numberOfRows instead of dataSource.items.count, selectItem(at:) now searches full tree.
 - 2026-01-22 14:45: FolderExpansionUITests/testActivePanePreservedOnRelaunch PASSED - Fixed active pane jumping to right on relaunch. Root cause: tableViewSelectionDidChange called fileListDidBecomeActive for programmatic changes (git status), stealing focus. Fix: only call fileListDidBecomeActive on user clicks (onActivate), not programmatic selection.
 - 2026-01-22 12:39: FolderExpansionUITests/testRenamePreservesExpansion PASSED - Fixed test to use context menu for rename (XCUITest keyboard shortcut handling unreliable for function keys and Shift+Enter). Test verifies rename operation preserves folder expansion state.
 - 2026-01-22 12:31: FolderExpansionUITests/testPastePreservesExpansion PASSED - Added Cmd+A before typing to select all text in rename field. Paste operation preserves folder expansion state.

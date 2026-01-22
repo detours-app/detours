@@ -1,5 +1,12 @@
 # Changelog
 
+## 260122 Selection Behavior Fixes
+- Fixed: Paste now goes to selected item's folder (not root of view) when working in expanded folders
+- Fixed: Delete selection stays at same visual row position (was jumping to top)
+- Fixed: Duplicate selection correctly finds new file in expanded folder tree
+- Fixed: Selection after operations now searches full tree, not just top-level items
+- Technical: copy()/move() now return destination URLs for accurate post-operation selection
+
 ## 260122 Folder Expansion State Persistence
 - Fixed: Folder expansion now preserved across refresh (Cmd-R), file operations, and git status updates
 - Fixed: Nested folders stay expanded after rename, paste, delete, and duplicate operations

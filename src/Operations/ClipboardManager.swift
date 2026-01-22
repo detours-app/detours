@@ -39,16 +39,19 @@ final class ClipboardManager {
         NotificationCenter.default.post(name: Self.cutItemsDidChange, object: nil)
     }
 
-    func paste(to destination: URL) async throws {
+    @discardableResult
+    func paste(to destination: URL) async throws -> [URL] {
         let items = readItems()
-        guard !items.isEmpty else { return }
+        guard !items.isEmpty else { return [] }
 
+        let pastedURLs: [URL]
         if isCut {
-            try await FileOperationQueue.shared.move(items: items, to: destination)
+            pastedURLs = try await FileOperationQueue.shared.move(items: items, to: destination)
             clear()
         } else {
-            try await FileOperationQueue.shared.copy(items: items, to: destination)
+            pastedURLs = try await FileOperationQueue.shared.copy(items: items, to: destination)
         }
+        return pastedURLs
     }
 
     func clear() {
