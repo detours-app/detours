@@ -79,6 +79,14 @@ final class MainSplitViewController: NSSplitViewController {
             name: NSWindow.didBecomeKeyNotification,
             object: nil
         )
+
+        // Listen for volume unmount to navigate affected tabs away
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(handleVolumeUnmount(_:)),
+            name: NSWorkspace.didUnmountNotification,
+            object: nil
+        )
     }
 
     private var hasSetInitialFirstResponder = false
@@ -120,6 +128,25 @@ final class MainSplitViewController: NSSplitViewController {
             current = r.nextResponder
         }
         return false
+    }
+
+    @objc private func handleVolumeUnmount(_ notification: Notification) {
+        guard let volumeURL = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else {
+            return
+        }
+
+        let volumePath = volumeURL.path
+        let home = FileManager.default.homeDirectoryForCurrentUser
+
+        // Check all tabs in both panes and navigate away from unmounted volume
+        for pane in [leftPane, rightPane] {
+            for tab in pane.tabs {
+                if tab.currentDirectory.path.hasPrefix(volumePath) {
+                    logger.info("Tab on unmounted volume \(volumePath), navigating to home")
+                    tab.navigate(to: home, addToHistory: false)
+                }
+            }
+        }
     }
 
     private var hasRestoredSplitPosition = false
@@ -371,8 +398,25 @@ final class MainSplitViewController: NSSplitViewController {
             quickNavController = QuickNavController()
         }
 
-        quickNavController?.show(in: window) { [weak self] url in
-            self?.navigateActivePane(to: url)
+        quickNavController?.show(
+            in: window,
+            onNavigate: { [weak self] url in
+                self?.navigateActivePane(to: url)
+            },
+            onReveal: { [weak self] folder, itemToSelect in
+                self?.revealItemInActivePane(folder: folder, itemToSelect: itemToSelect)
+            }
+        )
+    }
+
+    private func revealItemInActivePane(folder: URL, itemToSelect: URL) {
+        activePane.navigate(to: folder)
+        FrecencyStore.shared.recordVisit(folder)
+        // Select the item after navigation
+        activePane.selectedTab?.fileListViewController.selectItem(at: itemToSelect)
+        // Ensure focus returns to the file list
+        if let tableView = activePane.selectedTab?.fileListViewController.tableView {
+            view.window?.makeFirstResponder(tableView)
         }
     }
 

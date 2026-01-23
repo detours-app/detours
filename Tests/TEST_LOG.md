@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-22 15:38:00
-- Command: `resources/scripts/uitest.sh PasteSelectionUITests/testPasteInExpandedFolderKeepsSelectionInFolder`
-- Status: PASS (manual verification)
-- Duration: 31.0s
-- Notes: XCUITest reported failure because conflict dialog appeared. Dialog appearance confirms paste went to correct folder (SubfolderA1, not root). Fix verified working.
+- Started: 2026-01-23 14:17:30
+- Command: `resources/scripts/uitest.sh QuickNavCmdEnterUITests/testCmdEnterSelectsSearchedItem`
+- Status: PASS
+- Duration: 20.121s
+- Notes: Verified Cmd-Enter in QuickNav navigates to containing folder AND selects the searched item. Test searches for unique-in-B.txt (4th item in FolderB, NOT first) and verifies it gets selected after Cmd-Enter.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -337,6 +337,12 @@
 | testPasteInExpandedFolderKeepsSelectionInFolder | PASS | 31.0s | 2026-01-22 15:38:00 |
 | testDeleteInExpandedFolderKeepsSelectionNearby | - | - | - |
 | testDuplicateInExpandedFolderSelectsDuplicate | - | - | - |
+
+### QuickNavCmdEnterUITests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testCmdEnterSelectsSearchedItem | PASS | 20.121s | 2026-01-23 14:17:30 |
+| testEnterVsCmdEnter | - | - | - |
 
 ### FolderExpansionUITests
 | Test | Status | Duration | Last Run |

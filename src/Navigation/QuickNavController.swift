@@ -12,21 +12,27 @@ private class FloatingPanel: NSPanel {
 final class QuickNavController {
     private var panel: FloatingPanel?
     private var onNavigate: ((URL) -> Void)?
+    private var onReveal: ((_ folder: URL, _ itemToSelect: URL) -> Void)?
     private var eventMonitor: Any?
 
     /// Show the quick navigation panel centered in the window.
-    func show(in window: NSWindow, onNavigate: @escaping (URL) -> Void) {
+    func show(
+        in window: NSWindow,
+        onNavigate: @escaping (URL) -> Void,
+        onReveal: @escaping (_ folder: URL, _ itemToSelect: URL) -> Void
+    ) {
         // Dismiss any existing panel
         dismiss()
 
         self.onNavigate = onNavigate
+        self.onReveal = onReveal
 
         let quickNavView = QuickNavView(
             onSelect: { [weak self] url in
                 self?.handleSelection(url)
             },
-            onReveal: { [weak self] url in
-                self?.handleSelection(url)
+            onReveal: { [weak self] folder, itemToSelect in
+                self?.handleReveal(folder: folder, itemToSelect: itemToSelect)
             },
             onDismiss: { [weak self] in
                 self?.dismiss()
@@ -99,11 +105,18 @@ final class QuickNavController {
         panel?.close()
         panel = nil
         onNavigate = nil
+        onReveal = nil
     }
 
     private func handleSelection(_ url: URL) {
         let navigate = onNavigate
         dismiss()
         navigate?(url)
+    }
+
+    private func handleReveal(folder: URL, itemToSelect: URL) {
+        let reveal = onReveal
+        dismiss()
+        reveal?(folder, itemToSelect)
     }
 }

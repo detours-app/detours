@@ -11,7 +11,7 @@ struct QuickNavView: View {
     @FocusState private var isTextFieldFocused: Bool
 
     let onSelect: (URL) -> Void
-    let onReveal: (URL) -> Void
+    let onReveal: (_ folder: URL, _ itemToSelect: URL) -> Void
     let onDismiss: () -> Void
 
     private let maxResults = 50
@@ -172,13 +172,8 @@ struct QuickNavView: View {
     private func revealCurrent() {
         guard !results.isEmpty && selectedIndex < results.count else { return }
         let selected = results[selectedIndex]
-        // For files, reveal = go to enclosing folder. For folders, same as select.
-        var isDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: selected.path, isDirectory: &isDir), !isDir.boolValue {
-            onReveal(selected.deletingLastPathComponent())
-        } else {
-            onReveal(selected)
-        }
+        // Navigate to containing folder and select the item
+        onReveal(selected.deletingLastPathComponent(), selected)
     }
 
     private func autocomplete() {
@@ -287,7 +282,7 @@ private struct ResultRow: View {
 #Preview {
     QuickNavView(
         onSelect: { url in print("Selected: \(url)") },
-        onReveal: { url in print("Reveal: \(url)") },
+        onReveal: { folder, item in print("Reveal: \(item) in \(folder)") },
         onDismiss: { print("Dismissed") }
     )
 }

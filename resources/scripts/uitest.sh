@@ -23,11 +23,30 @@ echo "Setting up test directory..."
 
 # Clean up and create test directory structure
 rm -rf "$TEST_DIR"
+
+# Root level - multiple folders and files
 mkdir -p "$TEST_DIR/FolderA/SubfolderA1"
 mkdir -p "$TEST_DIR/FolderA/SubfolderA2"
-mkdir -p "$TEST_DIR/FolderB"
-echo "test content" > "$TEST_DIR/FolderA/SubfolderA1/file.txt"
-echo "test content" > "$TEST_DIR/file1.txt"
+mkdir -p "$TEST_DIR/FolderB/SubfolderB1"
+mkdir -p "$TEST_DIR/FolderB/SubfolderB2"
+mkdir -p "$TEST_DIR/FolderC"
+mkdir -p "$TEST_DIR/FolderD"
+
+# Files in various locations
+echo "test" > "$TEST_DIR/FolderA/SubfolderA1/file.txt"
+echo "test" > "$TEST_DIR/FolderA/alpha-file.txt"
+echo "test" > "$TEST_DIR/FolderB/beta-file.txt"
+echo "test" > "$TEST_DIR/FolderB/SubfolderB1/nested.txt"
+echo "test" > "$TEST_DIR/file1.txt"
+echo "test" > "$TEST_DIR/file2.txt"
+
+# Unique target for selection tests - NOT first alphabetically in root
+# Root order: FolderA, FolderB, FolderC, FolderD, file1.txt, file2.txt, zz-target.txt
+echo "target" > "$TEST_DIR/zz-target.txt"
+
+# Another unique target inside FolderB (not first in FolderB)
+# FolderB order: SubfolderB1, SubfolderB2, beta-file.txt, unique-in-B.txt
+echo "target" > "$TEST_DIR/FolderB/unique-in-B.txt"
 
 echo "Running UI tests..."
 

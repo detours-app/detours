@@ -781,7 +781,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         navigationDelegate?.fileListDidRequestCopyToOtherPane(items: urls)
     }
 
-    private func selectItem(at url: URL) {
+    func selectItem(at url: URL) {
         // Search entire tree including expanded folders
         if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
             let row = tableView.row(forItem: item)
@@ -841,6 +841,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
         if sm.matches(event: event, action: .toggleHiddenFiles) {
             toggleHiddenFiles()
+            return true
+        }
+
+        // Cmd-Enter: open containing folder (check before other Cmd shortcuts)
+        if modifiers == .command && event.keyCode == 36 {
+            if let url = selectedURLs.first {
+                let containingFolder = url.deletingLastPathComponent()
+                navigationDelegate?.fileListDidRequestNavigation(to: containingFolder)
+            }
             return true
         }
 

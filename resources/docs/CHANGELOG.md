@@ -1,5 +1,10 @@
 # Changelog
 
+## 260123 Quick Open and Frecency Improvements
+- Fixed: Cmd-Enter in Quick Open now navigates to containing folder and selects the searched item
+- Fixed: Frecency now favors recently visited locations over historically frequent ones
+- Added: Tabs automatically navigate to home when their volume is ejected
+
 ## 260122 New Folder/File Cancel on Escape
 - Added: Pressing Escape immediately after creating new folder/file deletes it (undo accidental creation)
 - Fixed: Pressing Enter without changing name keeps the new item (was incorrectly deleting it)

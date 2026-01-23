@@ -214,27 +214,29 @@ final class FrecencyStore {
 
     // MARK: - Frecency Scoring
 
-    /// Calculate frecency score: visitCount * recencyWeight
+    /// Calculate frecency score: sqrt(visitCount) * recencyWeight
+    /// Using sqrt dampens high visit counts so recent locations can compete.
+    /// Recency weights are aggressive: recent visits dominate over old frequent ones.
     func frecencyScore(for entry: FrecencyEntry) -> Double {
         let weight = recencyWeight(for: entry.lastVisit)
-        return Double(entry.visitCount) * weight
+        return sqrt(Double(entry.visitCount)) * weight
     }
 
-    /// Recency weight based on time buckets
+    /// Recency weight based on time buckets - heavily favors recent visits
     private func recencyWeight(for date: Date) -> Double {
         let age = Date().timeIntervalSince(date)
         let hours = age / 3600
 
         if hours < 4 {
-            return 1.0
+            return 10.0
         } else if hours < 24 {
-            return 0.7
+            return 6.0
         } else if hours < 24 * 7 {
-            return 0.5
+            return 3.0
         } else if hours < 24 * 30 {
-            return 0.3
+            return 1.0
         } else {
-            return 0.1
+            return 0.2
         }
     }
 
