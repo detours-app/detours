@@ -2,6 +2,7 @@
 
 ## 260123 Quick Open and Frecency Improvements
 - Fixed: Cmd-Enter in Quick Open now navigates to containing folder and selects the searched item
+- Fixed: Quick Open now opens disk images (DMG, sparsebundle) instead of navigating into them
 - Fixed: Frecency now favors recently visited locations over historically frequent ones
 - Added: Tabs automatically navigate to home when their volume is ejected
 

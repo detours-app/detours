@@ -421,6 +421,12 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func navigateActivePane(to url: URL) {
+        // Disk images should be opened, not navigated into
+        if FileOpenHelper.isDiskImage(url) {
+            FileOpenHelper.open(url)
+            return
+        }
+
         activePane.navigate(to: url)
         FrecencyStore.shared.recordVisit(url)
         // Ensure focus returns to the file list after navigation (e.g., from QuickNav)

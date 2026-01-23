@@ -178,9 +178,9 @@ final class FileItem {
 // MARK: - Sorting
 
 extension FileItem {
-    /// True if this is a navigable folder (directory but not a package like .app)
+    /// True if this is a navigable folder (directory but not a package or disk image)
     var isNavigableFolder: Bool {
-        isDirectory && !isPackage
+        isDirectory && !isPackage && !FileOpenHelper.isDiskImage(url)
     }
 
     static func sortFoldersFirst(_ items: [FileItem]) -> [FileItem] {
