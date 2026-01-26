@@ -32,8 +32,10 @@ extension FileListViewController: FileListDropDelegate {
     }
 
     func setupDragDrop() {
-        // Register for file URL drop types
-        tableView.registerForDraggedTypes([.fileURL])
+        // Register for file URL and file promise drop types (promises for Mail, etc.)
+        var dragTypes: [NSPasteboard.PasteboardType] = [.fileURL]
+        dragTypes.append(contentsOf: NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
+        tableView.registerForDraggedTypes(dragTypes)
         tableView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
         tableView.setDraggingSourceOperationMask([.copy, .move], forLocal: false)
 

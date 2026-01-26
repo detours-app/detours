@@ -266,7 +266,7 @@ final class MainSplitViewController: NSSplitViewController {
     // MARK: - Sidebar
 
     func toggleSidebar() {
-        sidebarItem.animator().isCollapsed.toggle()
+        sidebarItem.isCollapsed.toggle()
         SettingsManager.shared.sidebarVisible = !sidebarItem.isCollapsed
     }
 

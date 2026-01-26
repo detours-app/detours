@@ -1,5 +1,10 @@
 # Changelog
 
+## 260126 Drag and Drop from Mail, Sidebar Improvements
+- Added: Drop files from Mail attachments (and other apps using file promises)
+- Changed: Sidebar toggle shortcut is now Cmd-1 (was Cmd-0)
+- Changed: Sidebar toggle is now instant (removed animation)
+
 ## 260123 Quick Open and Frecency Improvements
 - Fixed: Cmd-Enter in Quick Open now navigates to containing folder and selects the searched item
 - Fixed: Quick Open now opens disk images (DMG, sparsebundle) instead of navigating into them

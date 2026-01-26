@@ -401,9 +401,14 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: any NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
         guard let currentDir = dropDelegate?.currentDirectoryURL else { return [] }
 
-        // Get dragged URLs
-        guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
-              !urls.isEmpty else {
+        // Check for file promises first (e.g., from Mail attachments)
+        let hasFilePromises = info.draggingPasteboard.canReadObject(forClasses: [NSFilePromiseReceiver.self], options: nil)
+
+        // Get dragged URLs (if any)
+        let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] ?? []
+
+        // Must have either file URLs or file promises
+        guard !urls.isEmpty || hasFilePromises else {
             return []
         }
 
@@ -419,12 +424,17 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             dropTargetItem = nil
         }
 
-        // Don't allow dropping into itself or its own subdirectory
+        // Don't allow dropping into itself or its own subdirectory (only applies to file URLs)
         for url in urls {
             if destination.path.hasPrefix(url.path) || url.deletingLastPathComponent() == destination {
                 dropTargetItem = nil
                 return []
             }
+        }
+
+        // File promises are always copy operations
+        if hasFilePromises && urls.isEmpty {
+            return .copy
         }
 
         // Check for Option key (force copy)
@@ -436,17 +446,40 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: any NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
         guard let currentDir = dropDelegate?.currentDirectoryURL else { return false }
 
-        guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
-              !urls.isEmpty else {
-            return false
-        }
-
         // Determine destination
         let destination: URL
         if let fileItem = item as? FileItem, fileItem.isDirectory {
             destination = fileItem.url
         } else {
             destination = currentDir
+        }
+
+        // Handle file promises first (e.g., from Mail attachments)
+        if let promises = info.draggingPasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil) as? [NSFilePromiseReceiver], !promises.isEmpty {
+            let queue = OperationQueue()
+            queue.qualityOfService = .userInitiated
+
+            for promise in promises {
+                promise.receivePromisedFiles(atDestination: destination, options: [:], operationQueue: queue) { [weak self] _, error in
+                    Task { @MainActor in
+                        if let error = error {
+                            FileOperationQueue.shared.presentError(error)
+                        } else {
+                            // Refresh view after file is received
+                            self?.dropDelegate?.handleDrop(urls: [], to: destination, isCopy: true)
+                        }
+                    }
+                }
+            }
+            dropTargetItem = nil
+            return true
+        }
+
+        // Handle regular file URLs
+        guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
+              !urls.isEmpty else {
+            dropTargetItem = nil
+            return false
         }
 
         let isCopy = NSEvent.modifierFlags.contains(.option)
