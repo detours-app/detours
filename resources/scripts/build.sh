@@ -3,6 +3,9 @@ set -e
 
 cd "$(dirname "$0")/../.."
 
+# Read version from single source of truth
+VERSION=$(cat VERSION)
+
 APP_NAME="Detours"
 APP_BUNDLE_ID="com.detours.app"
 APP_DIR="build/Detours.app"
@@ -67,7 +70,7 @@ cp ".build/arm64-apple-macosx/$BUILD_CONFIG/Detours" "$APP_DIR/Contents/MacOS/De
 cp resources/icons/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
-cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
+cat > "$APP_DIR/Contents/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -87,7 +90,7 @@ cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.9.3</string>
+    <string>$VERSION</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>

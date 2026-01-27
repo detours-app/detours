@@ -7,11 +7,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Extract version from build.sh (single source of truth)
-VERSION=$(grep -A1 'CFBundleShortVersionString' "$SCRIPT_DIR/build.sh" | grep '<string>' | sed 's/.*<string>//;s/<\/string>.*//')
+# Read version from VERSION file (single source of truth)
+VERSION=$(cat "$PROJECT_DIR/VERSION")
 
 if [[ -z "$VERSION" ]]; then
-    echo "Error: Could not extract version from build.sh"
+    echo "Error: VERSION file is empty"
     exit 1
 fi
 
