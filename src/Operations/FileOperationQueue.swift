@@ -67,6 +67,12 @@ final class FileOperationQueue {
         }
     }
 
+    func duplicateStructure(source: URL, destination: URL, yearSubstitution: (String, String)?) async throws -> URL {
+        try await enqueue {
+            try await self.performDuplicateStructure(source: source, destination: destination, yearSubstitution: yearSubstitution)
+        }
+    }
+
     func cancelCurrentOperation() {
         isCancelled = true
     }
@@ -450,6 +456,68 @@ final class FileOperationQueue {
             return destination
         } catch {
             throw mapError(error, url: destination)
+        }
+    }
+
+    private func performDuplicateStructure(source: URL, destination: URL, yearSubstitution: (String, String)?) async throws -> URL {
+        let fileManager = FileManager.default
+
+        // Check if destination already exists
+        if fileManager.fileExists(atPath: destination.path) {
+            throw FileOperationError.destinationExists(destination)
+        }
+
+        // Collect all directories from source (sync operation)
+        let directoriesToCreate = collectDirectories(from: source, to: destination, yearSubstitution: yearSubstitution)
+
+        // Create all directories
+        for dirURL in directoriesToCreate {
+            do {
+                try fileManager.createDirectory(at: dirURL, withIntermediateDirectories: true, attributes: nil)
+            } catch {
+                throw mapError(error, url: dirURL)
+            }
+        }
+
+        return destination
+    }
+
+    private func collectDirectories(from source: URL, to destination: URL, yearSubstitution: (String, String)?) -> [URL] {
+        var directoriesToCreate: [URL] = [destination]
+        collectDirectoriesRecursive(source: source, destination: destination, relativePath: "", yearSubstitution: yearSubstitution, into: &directoriesToCreate)
+        return directoriesToCreate
+    }
+
+    private func collectDirectoriesRecursive(source: URL, destination: URL, relativePath: String, yearSubstitution: (String, String)?, into directories: inout [URL]) {
+        let fileManager = FileManager.default
+
+        guard let contents = try? fileManager.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
+            return
+        }
+
+        for item in contents {
+            var isDir: ObjCBool = false
+            guard fileManager.fileExists(atPath: item.path, isDirectory: &isDir), isDir.boolValue else {
+                continue
+            }
+
+            // Skip packages (bundles like .app, .framework)
+            if let isPackage = try? item.resourceValues(forKeys: [.isPackageKey]).isPackage, isPackage {
+                continue
+            }
+
+            // Build relative path for this directory
+            var folderName = item.lastPathComponent
+            if let (fromYear, toYear) = yearSubstitution {
+                folderName = folderName.replacingOccurrences(of: fromYear, with: toYear)
+            }
+
+            let newRelativePath = relativePath.isEmpty ? folderName : "\(relativePath)/\(folderName)"
+            let destURL = destination.appendingPathComponent(newRelativePath)
+            directories.append(destURL)
+
+            // Recurse into subdirectory
+            collectDirectoriesRecursive(source: item, destination: destination, relativePath: newRelativePath, yearSubstitution: yearSubstitution, into: &directories)
         }
     }
 

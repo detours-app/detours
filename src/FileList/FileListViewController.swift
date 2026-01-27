@@ -792,6 +792,30 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
+    func showDuplicateStructureDialog(for url: URL) {
+        guard let window = view.window else { return }
+
+        let controller = DuplicateStructureWindowController(sourceURL: url) { [weak self] destURL, substitution in
+            guard let self else { return }
+
+            Task { @MainActor in
+                do {
+                    let createdURL = try await FileOperationQueue.shared.duplicateStructure(
+                        source: url,
+                        destination: destURL,
+                        yearSubstitution: substitution
+                    )
+                    if let currentDirectory = self.currentDirectory {
+                        self.loadDirectory(currentDirectory, selectingItem: createdURL, preserveExpansion: true)
+                    }
+                } catch {
+                    FileOperationQueue.shared.presentError(error)
+                }
+            }
+        }
+        controller.present(from: window)
+    }
+
     // MARK: - Keyboard Handling
 
     func handleKeyDown(_ event: NSEvent) -> Bool {

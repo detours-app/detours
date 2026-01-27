@@ -1,5 +1,12 @@
 # Changelog
 
+## 260127 Duplicate Folder Structure
+- Added: "Duplicate Structure..." context menu item for folders
+- Added: Duplicates folder hierarchy without copying files (ideal for year-based templates)
+- Added: Auto-detects years in folder names and offers to substitute (e.g., 2025 → 2026)
+- Added: Dialog with source path, editable destination, and year substitution controls
+- Added: Real-time validation of destination path
+
 ## 260126 Drag and Drop from Mail, Sidebar Improvements
 - Added: Drop files from Mail attachments (and other apps using file promises)
 - Changed: Sidebar toggle shortcut is now Cmd-1 (was Cmd-0)
