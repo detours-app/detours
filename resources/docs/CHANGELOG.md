@@ -28,7 +28,7 @@
 - Tooltips on truncated filenames (200ms delay, only when truncated)
 - Split pane divider snaps to center when dragged close
 - Escape cancels new folder/file creation (deletes the item)
-- Sidebar toggle is now instant (Cmd-1)
+- Sidebar toggle is now instant
 - Tabs navigate to home when their volume is ejected
 
 ### Bug Fixes

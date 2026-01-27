@@ -1,25 +1,25 @@
 # Detours
 
-A fast, keyboard-driven file manager for macOS with dual-pane layout, tabs, and Quick Open navigation.
+Dual-pane file manager with tabs, folder expansion, Quick Open, and git status. Keyboard-first, fully themeable.
 
 ![Detours screenshot](resources/docs/screenshot.png)
-
-> This is a personal project I built for my own workflow. I'm sharing it in case others find it useful. Issues and PRs are welcome, though I may not respond quickly. If you want to take it in a different direction, feel free to fork.
 
 ## Features
 
 - **Dual-pane layout** - Two independent file browsers, side by side
 - **Tabs per pane** - Finder-style tabs within each pane
 - **Folder expansion** - Disclosure triangles to expand folders inline (like Finder list view)
-- **Sidebar** - Quick access to mounted volumes and favorite folders; graceful handling when volumes eject
 - **Quick Open** - Spotlight search with frecency ranking (Cmd-P)
-- **Path bar** - Click to navigate, drag to terminal, right-click to copy path
+- **Git status indicators** - See modified, staged, and untracked files at a glance
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
 - **Theming** - Four built-in themes plus custom theme editor
-- **Git status indicators** - See modified, staged, and untracked files at a glance
+- **Sidebar** - Quick access to mounted volumes and favorite folders
+- **Path bar** - Click to navigate, drag to terminal, right-click to copy path
 - **Quick Look** - Preview files with spacebar
-- **Drag and drop** - Between panes, to/from Finder, to favorites
+- **Drag and drop** - Between panes, to/from Finder, from Mail attachments, to favorites
+- **Duplicate folder structure** - Copy folder hierarchy without files (great for year-based templates)
 - **Delete Immediately** - Permanent deletion option bypassing Trash (Cmd-Option-Delete)
+- **Truncation tooltips** - Hover to see full filename when truncated
 - **Session restore** - Tabs, selections, and expansion states persist across restarts
 - **Status bar** - Item counts, selection size, available disk space
 - **iCloud Drive** - Friendly folder names, automatic container navigation
