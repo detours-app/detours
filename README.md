@@ -11,7 +11,7 @@ A fast, keyboard-driven file manager for macOS with dual-pane layout, tabs, and 
 - **Dual-pane layout** - Two independent file browsers, side by side
 - **Tabs per pane** - Finder-style tabs within each pane
 - **Folder expansion** - Disclosure triangles to expand folders inline (like Finder list view)
-- **Sidebar** - Quick access to mounted volumes and favorite folders
+- **Sidebar** - Quick access to mounted volumes and favorite folders; graceful handling when volumes eject
 - **Quick Open** - Spotlight search with frecency ranking (Cmd-P)
 - **Path bar** - Click to navigate, drag to terminal, right-click to copy path
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts

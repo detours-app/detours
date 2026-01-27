@@ -137,14 +137,21 @@ final class MainSplitViewController: NSSplitViewController {
 
         let volumePath = volumeURL.path
         let home = FileManager.default.homeDirectoryForCurrentUser
+        let documents = home.appendingPathComponent("Documents")
+        let fallbackDir = FileManager.default.fileExists(atPath: documents.path) ? documents : home
 
         // Check all tabs in both panes and navigate away from unmounted volume
         for pane in [leftPane, rightPane] {
+            var paneNeedsRefresh = false
             for tab in pane.tabs {
                 if tab.currentDirectory.path.hasPrefix(volumePath) {
-                    logger.info("Tab on unmounted volume \(volumePath), navigating to home")
-                    tab.navigate(to: home, addToHistory: false)
+                    logger.info("Tab on unmounted volume \(volumePath), navigating to Documents")
+                    tab.navigate(to: fallbackDir, addToHistory: false)
+                    paneNeedsRefresh = true
                 }
+            }
+            if paneNeedsRefresh {
+                pane.refreshTabBar()
             }
         }
     }
