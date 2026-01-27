@@ -13,6 +13,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Extract release notes from changelog
+        id: release_notes
+        run: |
+          # Extract version from tag (v0.9.3 -> 0.9.3)
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          # Extract latest changelog entry and format as release notes
+          BODY=$(awk '/^## [Vv0-9]/{if(found) exit; found=1; next} found{print}' resources/docs/CHANGELOG.md)
+
+          # Write to file for the release action
+          cat > RELEASE_NOTES.md << EOF
+          ## What's New in $VERSION
+
+          $BODY
+
+          ---
+
+          Dual-pane file manager with tabs, folder expansion, Quick Open, and git status. Keyboard-first, fully themeable.
+
+          **Requirements:** macOS 14.0 (Sonoma) or later
+          EOF
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
