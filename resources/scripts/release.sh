@@ -54,7 +54,8 @@ CHANGELOG="$PROJECT_DIR/resources/docs/CHANGELOG.md"
 RELEASE_NOTES="$PROJECT_DIR/RELEASE_NOTES.md"
 
 # Extract latest changelog entry (first ## section after header)
-LATEST_ENTRY=$(awk '/^## [0-9]/{if(found) exit; found=1} found{print}' "$CHANGELOG")
+# Matches both "## Version 0.9.3" and "## 260124" formats
+LATEST_ENTRY=$(awk '/^## [Vv0-9]/{if(found) exit; found=1} found{print}' "$CHANGELOG")
 ENTRY_BODY=$(echo "$LATEST_ENTRY" | tail -n +2)
 
 cat > "$RELEASE_NOTES" << EOF
@@ -82,6 +83,9 @@ echo ""
 read -p "Push tag and upload DMG to GitHub? [y/N] " -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "==> Pushing main to public..."
+    git push public main
+
     echo "==> Pushing tag v$VERSION..."
     git push public "v$VERSION"
 
@@ -95,6 +99,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Done! https://github.com/detours-app/detours/releases/tag/v$VERSION"
 else
     echo "Skipped. To publish manually:"
+    echo "  git push public main"
     echo "  git push public v$VERSION"
     echo "  gh release upload v$VERSION $DMG_NAME --repo detours-app/detours --clobber"
 fi
