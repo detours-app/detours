@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-23 14:17:30
-- Command: `resources/scripts/uitest.sh QuickNavCmdEnterUITests/testCmdEnterSelectsSearchedItem`
+- Started: 2026-01-27 11:38:39
+- Command: `resources/scripts/uitest.sh DuplicateStructureUITests/testDuplicateStructureEscapeDismisses`
 - Status: PASS
-- Duration: 20.121s
-- Notes: Verified Cmd-Enter in QuickNav navigates to containing folder AND selects the searched item. Test searches for unique-in-B.txt (4th item in FolderB, NOT first) and verifies it gets selected after Cmd-Enter.
+- Duration: 22.979s
+- Notes: All 3 DuplicateStructureUITests pass. Verified: folder creation works, Cancel dismisses dialog, Escape dismisses dialog.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -156,6 +156,20 @@
 | testRenameFile | PASS | 0.001s | 2026-01-13 12:30:31 |
 | testRenameInvalidCharacters | PASS | 0.001s | 2026-01-13 12:30:31 |
 | testRenameToExistingName | PASS | 0.001s | 2026-01-13 12:30:31 |
+
+### DuplicateStructureTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testDuplicateStructureCreatesDirectories | PASS | 0.005s | 2026-01-27 09:58:35 |
+| testDuplicateStructureDestinationExists | PASS | 0.001s | 2026-01-27 09:58:35 |
+| testDuplicateStructureMultipleYears | PASS | 0.005s | 2026-01-27 09:58:35 |
+| testDuplicateStructureOmitsFiles | PASS | 0.002s | 2026-01-27 09:58:35 |
+| testDuplicateStructurePreservesDepth | PASS | 0.002s | 2026-01-27 09:58:35 |
+| testDuplicateStructureYearSubstitution | PASS | 0.001s | 2026-01-27 09:58:35 |
+| testYearDetectionFindsYear | PASS | 0.002s | 2026-01-27 09:58:35 |
+| testYearDetectionNoYear | PASS | 0.000s | 2026-01-27 09:58:35 |
+| testModelDestinationURL | PASS | 0.002s | 2026-01-27 11:33:49 |
+| testModelValidation | PASS | 0.001s | 2026-01-27 11:33:49 |
 
 ### PaneTabTests
 | Test | Status | Duration | Last Run |
@@ -344,6 +358,13 @@
 | testCmdEnterSelectsSearchedItem | PASS | 20.121s | 2026-01-23 14:17:30 |
 | testEnterVsCmdEnter | - | - | - |
 
+### DuplicateStructureUITests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testDuplicateStructureCreatesFolder | PASS | 26.283s | 2026-01-27 11:37:24 |
+| testDuplicateStructureCancelDismisses | PASS | 24.213s | 2026-01-27 11:38:06 |
+| testDuplicateStructureEscapeDismisses | PASS | 22.979s | 2026-01-27 11:38:39 |
+
 ### FolderExpansionUITests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
@@ -382,4 +403,6 @@
 - 2026-01-06 10:55:22: SystemMediaKey parsing now uses unsigned data1 to avoid sign issues.
 - 2026-01-06 10:55:22: Added F5 system-defined and global key-down coverage in SystemKeyHandlerTests.
 - 2026-01-06 10:25:43: Per-test timestamps are derived from the run start time plus reported durations in xcresult order.
+- 2026-01-27: Added DuplicateStructureUITests (3 UI tests) verifying end-to-end duplicate structure workflow: folder creation, Cancel dismissal, Escape dismissal. Fixed callback bug where onComplete was cleared before being called.
+- 2026-01-27: Added DuplicateStructureTests (10 unit tests) for duplicate folder structure feature: directory creation, depth preservation, file omission, year substitution, destination exists error, year detection regex, model destination URL, and validation.
 - 2026-01-06 10:25:43: Added system-defined media key handling for the dictation key (F5 on many keyboards) and tests for the path.

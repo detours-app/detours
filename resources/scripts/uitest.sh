@@ -48,6 +48,12 @@ echo "target" > "$TEST_DIR/zz-target.txt"
 # FolderB order: SubfolderB1, SubfolderB2, beta-file.txt, unique-in-B.txt
 echo "target" > "$TEST_DIR/FolderB/unique-in-B.txt"
 
+# Folder with year for duplicate structure tests
+mkdir -p "$TEST_DIR/Projects2025/Quarterly/Q1"
+mkdir -p "$TEST_DIR/Projects2025/Quarterly/Q2"
+mkdir -p "$TEST_DIR/Projects2025/Annual"
+echo "data" > "$TEST_DIR/Projects2025/notes.txt"
+
 echo "Running UI tests..."
 
 cleanup() {

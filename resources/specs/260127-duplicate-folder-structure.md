@@ -1,7 +1,7 @@
 # Duplicate Folder Structure
 
 ## Meta
-- Status: Draft
+- Status: Complete
 - Branch: feature/duplicate-structure
 
 ---
@@ -92,27 +92,27 @@ Year detection uses regex `/\b(19|20)\d{2}\b/` to find 4-digit years. If found i
 ### Implementation Plan
 
 **Phase 1: Dialog UI**
-- [ ] Create `src/Operations/DuplicateStructureDialog.swift` with SwiftUI layout
-- [ ] Implement year detection regex in `init`
-- [ ] Create `src/Operations/DuplicateStructureWindowController.swift` for sheet presentation
-- [ ] Test dialog opens and closes correctly
+- [x] Create `src/Operations/DuplicateStructureDialog.swift` with SwiftUI layout
+- [x] Implement year detection regex in `init`
+- [x] Create `src/Operations/DuplicateStructureWindowController.swift` for sheet presentation
+- [x] Test dialog opens and closes correctly
 
 **Phase 2: Context Menu Integration**
-- [ ] Add "Duplicate Structure..." menu item in `FileListViewController+ContextMenu.swift`
-- [ ] Add `duplicateStructureFromContextMenu(_:)` action method
-- [ ] Add `showDuplicateStructureDialog(for:)` in `FileListViewController.swift`
-- [ ] Wire action to present dialog
+- [x] Add "Duplicate Structure..." menu item in `FileListViewController+ContextMenu.swift`
+- [x] Add `duplicateStructureFromContextMenu(_:)` action method
+- [x] Add `showDuplicateStructureDialog(for:)` in `FileListViewController.swift`
+- [x] Wire action to present dialog
 
 **Phase 3: Operation Implementation**
-- [ ] Add `duplicateStructure(source:destination:yearSubstitution:)` to `FileOperationQueue`
-- [ ] Implement directory tree walking and creation
-- [ ] Implement year substitution in folder names
-- [ ] Handle errors (destination exists, permission denied)
+- [x] Add `duplicateStructure(source:destination:yearSubstitution:)` to `FileOperationQueue`
+- [x] Implement directory tree walking and creation
+- [x] Implement year substitution in folder names
+- [x] Handle errors (destination exists, permission denied)
 
 **Phase 4: Polish**
-- [ ] Select created folder after operation completes
-- [ ] Add SF Symbol icon to menu item (`folder.badge.plus` or similar)
-- [ ] Validate destination path in real-time (disable button if invalid)
+- [x] Select created folder after operation completes
+- [x] Add SF Symbol icon to menu item (`folder.badge.plus` or similar)
+- [x] Validate destination path in real-time (disable button if invalid)
 
 ---
 
@@ -122,14 +122,14 @@ Year detection uses regex `/\b(19|20)\d{2}\b/` to find 4-digit years. If found i
 
 Tests go in `Tests/DuplicateStructureTests.swift`. Log results in `Tests/TEST_LOG.md`.
 
-- [ ] `testDuplicateStructureCreatesDirectories` - creates nested folder structure without files
-- [ ] `testDuplicateStructurePreservesDepth` - 3-level deep source creates 3-level deep destination
-- [ ] `testDuplicateStructureOmitsFiles` - source files not present in destination
-- [ ] `testDuplicateStructureYearSubstitution` - "2025" in folder names becomes "2026"
-- [ ] `testDuplicateStructureMultipleYears` - substitutes all occurrences in path
-- [ ] `testDuplicateStructureDestinationExists` - throws `destinationExists` error
-- [ ] `testYearDetectionFindsYear` - regex finds "2025" in "FY2025-Reports"
-- [ ] `testYearDetectionNoYear` - returns nil for "Reports-Final"
+- [x] `testDuplicateStructureCreatesDirectories` - creates nested folder structure without files
+- [x] `testDuplicateStructurePreservesDepth` - 3-level deep source creates 3-level deep destination
+- [x] `testDuplicateStructureOmitsFiles` - source files not present in destination
+- [x] `testDuplicateStructureYearSubstitution` - "2025" in folder names becomes "2026"
+- [x] `testDuplicateStructureMultipleYears` - substitutes all occurrences in path
+- [x] `testDuplicateStructureDestinationExists` - throws `destinationExists` error
+- [x] `testYearDetectionFindsYear` - regex finds "2025" in "FY2025-Reports"
+- [x] `testYearDetectionNoYear` - returns nil for "Reports-Final"
 
 ### User Verification
 

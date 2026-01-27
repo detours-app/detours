@@ -798,6 +798,14 @@ final class PaneViewController: NSViewController {
         selectedTab?.currentDirectory
     }
 
+    /// Returns the effective destination for file operations based on current selection.
+    /// If a folder is selected in the file list, returns that folder.
+    /// If a file is selected, returns its parent directory.
+    /// If nothing is selected, returns the current directory (pane root).
+    var effectiveDestination: URL? {
+        selectedTab?.fileListViewController.effectivePasteDestination ?? currentDirectory
+    }
+
     func refresh() {
         selectedTab?.refresh()
         updateNavigationControls()

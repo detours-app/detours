@@ -115,11 +115,14 @@ Results are ranked by "frecency" - frequently and recently visited directories a
 | Cut | Cmd-X |
 | Paste | Cmd-V |
 | Duplicate | Cmd-D |
+| Duplicate Structure | Right-click folder → Duplicate Structure... |
 | Rename | F2 or Shift-Enter |
 | Move to Trash | Cmd-Delete or F8 |
 | Delete Immediately | Cmd-Option-Delete |
 | New Folder | Cmd-Shift-N or F7 |
 | New Text File | Cmd-Option-N |
+
+**Duplicate Structure** creates a copy of a folder's entire directory hierarchy without copying files. Ideal for year-based folder templates (e.g., `Clients/2025/` → `Clients/2026/`). Auto-detects years in folder names and offers to substitute them.
 
 ### Cross-Pane Operations
 

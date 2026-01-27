@@ -232,6 +232,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         tableView.gridStyleMask = []
         tableView.allowsMultipleSelection = true
         tableView.allowsEmptySelection = true
+        // Only the name column (first/outline column) should auto-resize; size and date are fixed
+        tableView.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
 
         tableView.dataSource = dataSource
         tableView.delegate = dataSource
@@ -467,6 +469,21 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     var selectedURLs: [URL] {
         selectedItems.map { $0.url }
+    }
+
+    /// Returns the effective destination for file operations based on current selection.
+    /// If a folder is selected, returns that folder. If a file is selected, returns its parent.
+    /// If nothing is selected, returns the current directory.
+    var effectivePasteDestination: URL? {
+        guard let currentDirectory else { return nil }
+        if let selectedItem = selectedItems.first {
+            if selectedItem.isDirectory {
+                return selectedItem.url
+            } else {
+                return selectedItem.url.deletingLastPathComponent()
+            }
+        }
+        return currentDirectory
     }
 
     func restoreSelection(_ urls: [URL]) {
@@ -790,6 +807,30 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 tableView.scrollRowToVisible(row)
             }
         }
+    }
+
+    func showDuplicateStructureDialog(for url: URL) {
+        guard let window = view.window else { return }
+
+        let controller = DuplicateStructureWindowController(sourceURL: url) { [weak self] destURL, substitution in
+            guard let self else { return }
+
+            Task { @MainActor in
+                do {
+                    let createdURL = try await FileOperationQueue.shared.duplicateStructure(
+                        source: url,
+                        destination: destURL,
+                        yearSubstitution: substitution
+                    )
+                    if let currentDirectory = self.currentDirectory {
+                        self.loadDirectory(currentDirectory, selectingItem: createdURL, preserveExpansion: true)
+                    }
+                } catch {
+                    FileOperationQueue.shared.presentError(error)
+                }
+            }
+        }
+        controller.present(from: window)
     }
 
     // MARK: - Keyboard Handling
