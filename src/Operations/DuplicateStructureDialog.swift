@@ -4,57 +4,53 @@ import SwiftUI
 @Observable
 final class DuplicateStructureModel {
     let sourceURL: URL
-    var destinationPath: String
+    let parentDirectory: URL
+    var folderName: String
     var substituteYears: Bool
     var fromYear: String
     var toYear: String
 
+    var destinationURL: URL {
+        parentDirectory.appendingPathComponent(folderName)
+    }
+
     var isValid: Bool {
-        let trimmed = destinationPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = folderName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
 
         // Check for invalid characters
-        if trimmed.contains(":") || trimmed.contains("\0") {
+        if trimmed.contains("/") || trimmed.contains(":") || trimmed.contains("\0") {
             return false
         }
 
-        // Check parent directory exists
-        let destURL = URL(fileURLWithPath: trimmed)
-        let parentPath = destURL.deletingLastPathComponent().path
-        var isDir: ObjCBool = false
-        return FileManager.default.fileExists(atPath: parentPath, isDirectory: &isDir) && isDir.boolValue
+        return true
     }
 
     var validationError: String? {
-        let trimmed = destinationPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = folderName.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            return "Destination path cannot be empty"
+            return "Folder name cannot be empty"
         }
-        if trimmed.contains(":") || trimmed.contains("\0") {
-            return "Path contains invalid characters"
-        }
-        let destURL = URL(fileURLWithPath: trimmed)
-        let parentPath = destURL.deletingLastPathComponent().path
-        var isDir: ObjCBool = false
-        if !FileManager.default.fileExists(atPath: parentPath, isDirectory: &isDir) || !isDir.boolValue {
-            return "Parent directory does not exist"
+        if trimmed.contains("/") || trimmed.contains(":") || trimmed.contains("\0") {
+            return "Name contains invalid characters"
         }
         return nil
     }
 
     init(sourceURL: URL) {
         self.sourceURL = sourceURL
+        self.parentDirectory = sourceURL.deletingLastPathComponent()
 
         // Detect year in folder name
         // Pattern matches 4-digit years (1900-2099) that aren't surrounded by other digits
-        let folderName = sourceURL.lastPathComponent
+        let sourceName = sourceURL.lastPathComponent
         let yearPattern = #"(?<!\d)(19|20)\d{2}(?!\d)"#
         let regex = try? NSRegularExpression(pattern: yearPattern)
-        let range = NSRange(folderName.startIndex..., in: folderName)
+        let range = NSRange(sourceName.startIndex..., in: sourceName)
 
-        if let match = regex?.firstMatch(in: folderName, range: range),
-           let matchRange = Range(match.range, in: folderName) {
-            let detectedYear = String(folderName[matchRange])
+        if let match = regex?.firstMatch(in: sourceName, range: range),
+           let matchRange = Range(match.range, in: sourceName) {
+            let detectedYear = String(sourceName[matchRange])
             let nextYear: String
             if let yearInt = Int(detectedYear) {
                 nextYear = String(yearInt + 1)
@@ -66,19 +62,15 @@ final class DuplicateStructureModel {
             self.toYear = nextYear
             self.substituteYears = true
 
-            // Default destination: sibling folder with year incremented
-            let newFolderName = folderName.replacingOccurrences(of: detectedYear, with: nextYear)
-            let siblingURL = sourceURL.deletingLastPathComponent().appendingPathComponent(newFolderName)
-            self.destinationPath = siblingURL.path
+            // Default: folder name with year incremented
+            self.folderName = sourceName.replacingOccurrences(of: detectedYear, with: nextYear)
         } else {
             self.fromYear = ""
             self.toYear = ""
             self.substituteYears = false
 
-            // Default destination: sibling with " copy" suffix
-            let newFolderName = folderName + " copy"
-            let siblingURL = sourceURL.deletingLastPathComponent().appendingPathComponent(newFolderName)
-            self.destinationPath = siblingURL.path
+            // Default: folder name with " copy" suffix
+            self.folderName = sourceName + " copy"
         }
     }
 }
@@ -93,26 +85,34 @@ struct DuplicateStructureDialog: View {
             Text("Duplicate Folder Structure")
                 .font(.headline)
 
-            // Source path (read-only)
+            // Source folder (read-only)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Source:")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Text(model.sourceURL.path)
+                Text(model.sourceURL.lastPathComponent)
                     .font(.system(.body, design: .monospaced))
+            }
+
+            // Parent directory (read-only, for context)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Location:")
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                Text(model.parentDirectory.path)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
                     .truncationMode(.middle)
             }
 
-            // Destination path (editable)
+            // New folder name (editable)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Destination:")
+                Text("New folder name:")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                TextField("Destination path", text: $model.destinationPath)
+                TextField("Folder name", text: $model.folderName)
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
 
                 if let error = model.validationError {
                     Text(error)
@@ -147,23 +147,20 @@ struct DuplicateStructureDialog: View {
             // Buttons
             HStack {
                 Spacer()
-                Button("Cancel") {
-                    onCancel()
-                }
-                .keyboardShortcut(.cancelAction)
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
 
                 Button("Duplicate") {
-                    let destURL = URL(fileURLWithPath: model.destinationPath)
                     let substitution: (String, String)? = model.substituteYears && !model.fromYear.isEmpty && !model.toYear.isEmpty
                         ? (model.fromYear, model.toYear)
                         : nil
-                    onConfirm(destURL, substitution)
+                    onConfirm(model.destinationURL, substitution)
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.isValid)
             }
         }
         .padding(20)
-        .frame(width: 450, height: 280)
+        .frame(width: 400, height: 300)
     }
 }

@@ -161,4 +161,37 @@ final class DuplicateStructureTests: XCTestCase {
         XCTAssertEqual(model.toYear, "")
         XCTAssertFalse(model.substituteYears)
     }
+
+    // MARK: - Model Properties Tests
+
+    func testModelDestinationURL() {
+        let model = DuplicateStructureModel(sourceURL: URL(fileURLWithPath: "/Users/test/Clients/2025"))
+
+        // Should auto-detect year and suggest 2026
+        XCTAssertEqual(model.folderName, "2026")
+        XCTAssertEqual(model.parentDirectory.path, "/Users/test/Clients")
+        XCTAssertEqual(model.destinationURL.path, "/Users/test/Clients/2026")
+    }
+
+    func testModelValidation() {
+        let model = DuplicateStructureModel(sourceURL: URL(fileURLWithPath: "/test/Folder"))
+
+        // Valid name
+        model.folderName = "NewFolder"
+        XCTAssertTrue(model.isValid)
+        XCTAssertNil(model.validationError)
+
+        // Empty name
+        model.folderName = ""
+        XCTAssertFalse(model.isValid)
+        XCTAssertNotNil(model.validationError)
+
+        // Invalid characters
+        model.folderName = "Folder/Name"
+        XCTAssertFalse(model.isValid)
+        XCTAssertNotNil(model.validationError)
+
+        model.folderName = "Folder:Name"
+        XCTAssertFalse(model.isValid)
+    }
 }

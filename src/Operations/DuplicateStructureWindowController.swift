@@ -3,14 +3,14 @@ import SwiftUI
 
 final class DuplicateStructureWindowController: NSWindowController {
     private let model: DuplicateStructureModel
-    var onComplete: ((URL, (String, String)?) -> Void)?
+    private var onComplete: ((URL, (String, String)?) -> Void)?
 
     init(sourceURL: URL, completion: @escaping (URL, (String, String)?) -> Void) {
         self.model = DuplicateStructureModel(sourceURL: sourceURL)
         self.onComplete = completion
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 450, height: 280),
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
             styleMask: [.titled],
             backing: .buffered,
             defer: false
@@ -23,11 +23,14 @@ final class DuplicateStructureWindowController: NSWindowController {
         let hostingView = NSHostingView(rootView: DuplicateStructureDialog(
             model: model,
             onConfirm: { [weak self] destURL, substitution in
-                self?.dismiss()
-                self?.onComplete?(destURL, substitution)
+                guard let self else { return }
+                // Capture callback before dismiss (endSheet clears onComplete)
+                let callback = self.onComplete
+                self.dismissSheet()
+                callback?(destURL, substitution)
             },
             onCancel: { [weak self] in
-                self?.dismiss()
+                self?.dismissSheet()
             }
         ))
         window.contentView = hostingView
@@ -40,15 +43,19 @@ final class DuplicateStructureWindowController: NSWindowController {
 
     func present(from parentWindow: NSWindow) {
         guard let window else { return }
-        parentWindow.beginSheet(window, completionHandler: nil)
+        // Retain self while sheet is presented
+        objc_setAssociatedObject(parentWindow, "duplicateStructureController", self, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        parentWindow.beginSheet(window) { [weak self, weak parentWindow] _ in
+            // Release when sheet ends
+            if let parentWindow {
+                objc_setAssociatedObject(parentWindow, "duplicateStructureController", nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            }
+            self?.onComplete = nil
+        }
     }
 
-    private func dismiss() {
-        guard let window else { return }
-        if let parent = window.sheetParent {
-            parent.endSheet(window)
-        } else {
-            window.close()
-        }
+    private func dismissSheet() {
+        guard let window, let parent = window.sheetParent else { return }
+        parent.endSheet(window)
     }
 }
