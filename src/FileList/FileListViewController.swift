@@ -1293,12 +1293,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             if keyCode == 126 || keyCode == 125 {
                 MainActor.assumeIsolated {
                     let current = tableView.selectedRow
-                    let itemCount = dataSource.items.count
+                    let rowCount = tableView.numberOfRows
                     if keyCode == 126 && current > 0 {
                         // Up arrow
                         tableView.selectRowIndexes(IndexSet(integer: current - 1), byExtendingSelection: false)
                         tableView.scrollRowToVisible(current - 1)
-                    } else if keyCode == 125 && current < itemCount - 1 {
+                    } else if keyCode == 125 && current < rowCount - 1 {
                         // Down arrow
                         tableView.selectRowIndexes(IndexSet(integer: current + 1), byExtendingSelection: false)
                         tableView.scrollRowToVisible(current + 1)

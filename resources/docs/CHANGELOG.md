@@ -37,6 +37,7 @@
 - Path bar updates after volume eject
 - Date Modified column width stable when resizing
 - Active pane no longer jumps on relaunch
+- Quick Look arrow-down navigation works with expanded folders
 
 ---
 
