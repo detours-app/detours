@@ -1,5 +1,10 @@
 # Changelog
 
+## 260127 Truncated Filename Tooltips
+- Added: Tooltips on truncated filenames show full name on hover
+- Changed: Tooltip delay reduced from 1s to 200ms for snappier feel
+- Technical: Tooltips only appear when text is actually truncated
+
 ## 260127 Move/Copy to Selected Folder
 - Added: Move/copy to other pane now respects selected folder in destination (moves INTO selected folder)
 - Fixed: Date Modified column width no longer jumps back when resizing (left pane issue)

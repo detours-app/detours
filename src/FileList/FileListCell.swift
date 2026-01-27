@@ -14,6 +14,7 @@ final class FileListCell: NSTableCellView {
     private var gitStatus: GitStatus?
     private var iconLeadingConstraint: NSLayoutConstraint?
     private var gitBarLeadingConstraint: NSLayoutConstraint?
+    private var itemName: String = ""
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -138,6 +139,7 @@ final class FileListCell: NSTableCellView {
         self.gitStatus = item.gitStatus
         originalIcon = item.icon
         iconView.image = item.icon
+        itemName = item.name
         nameLabel.stringValue = item.name
 
         // Adjust leading padding based on folder expansion and item type
@@ -238,6 +240,28 @@ final class FileListCell: NSTableCellView {
     override var backgroundStyle: NSView.BackgroundStyle {
         didSet {
             updateColorsForBackgroundStyle()
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        updateTooltipIfTruncated()
+    }
+
+    private func updateTooltipIfTruncated() {
+        guard !itemName.isEmpty else {
+            nameLabel.toolTip = nil
+            return
+        }
+
+        // Measure the text width
+        let textWidth = (itemName as NSString).size(withAttributes: [.font: nameLabel.font!]).width
+
+        // Compare to available width (nameLabel's frame width)
+        if textWidth > nameLabel.frame.width {
+            nameLabel.toolTip = itemName
+        } else {
+            nameLabel.toolTip = nil
         }
     }
 
