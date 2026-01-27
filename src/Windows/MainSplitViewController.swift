@@ -479,7 +479,8 @@ final class MainSplitViewController: NSSplitViewController {
     func moveItems(_ items: [URL], toOtherPaneFrom pane: PaneViewController) {
         guard !items.isEmpty else { return }
         let destinationPane = otherPane(from: pane)
-        guard let destination = destinationPane.currentDirectory else { return }
+        // Use effective destination: if a folder is selected, move into it
+        guard let destination = destinationPane.effectiveDestination else { return }
 
         // Remember the moved file names to select in destination
         let movedNames = items.map { $0.lastPathComponent }
@@ -511,7 +512,8 @@ final class MainSplitViewController: NSSplitViewController {
     func copyItems(_ items: [URL], toOtherPaneFrom pane: PaneViewController) {
         guard !items.isEmpty else { return }
         let destinationPane = otherPane(from: pane)
-        guard let destination = destinationPane.currentDirectory else { return }
+        // Use effective destination: if a folder is selected, copy into it
+        guard let destination = destinationPane.effectiveDestination else { return }
 
         // Remember the copied file names to select in destination
         let copiedNames = items.map { $0.lastPathComponent }

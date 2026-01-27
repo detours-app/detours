@@ -1,5 +1,9 @@
 # Changelog
 
+## 260127 Move/Copy to Selected Folder
+- Added: Move/copy to other pane now respects selected folder in destination (moves INTO selected folder)
+- Fixed: Date Modified column width no longer jumps back when resizing (left pane issue)
+
 ## 260127 Duplicate Folder Structure
 - Added: "Duplicate Structure..." context menu item for folders
 - Added: Duplicates folder hierarchy without copying files (ideal for year-based templates)
