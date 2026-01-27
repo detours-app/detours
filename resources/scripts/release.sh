@@ -7,6 +7,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Ensure we're on main branch
+CURRENT_BRANCH=$(git -C "$PROJECT_DIR" branch --show-current)
+if [[ "$CURRENT_BRANCH" != "main" ]]; then
+    echo "Error: Must be on main branch to release (currently on $CURRENT_BRANCH)"
+    exit 1
+fi
+
 # Read version from VERSION file (single source of truth)
 VERSION=$(cat "$PROJECT_DIR/VERSION")
 
