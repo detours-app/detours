@@ -39,6 +39,12 @@
 - Sidebar toggle is now instant
 - Tabs navigate to home when their volume is ejected
 
+### Session Auto-Save
+- Session state now saves automatically instead of only on quit
+- Protects against data loss from crashes - tabs, selections, and navigation survive unexpected termination
+- Triggers on: tab create/close/reorder, tab selection, navigation (navigate/back/forward/up), cross-pane tab moves
+- 2-second debounce coalesces rapid changes to avoid excessive disk writes
+
 ### Bug Fixes
 - Selection preserved after paste, delete, duplicate in expanded folders
 - Folder expansion state preserved across refresh and git status updates
