@@ -39,12 +39,6 @@
 - Sidebar toggle is now instant
 - Tabs navigate to home when their volume is ejected
 
-### Session Auto-Save
-- Session state now saves automatically instead of only on quit
-- Protects against data loss from crashes - tabs, selections, and navigation survive unexpected termination
-- Triggers on: tab create/close/reorder, tab selection, navigation (navigate/back/forward/up), cross-pane tab moves
-- 2-second debounce coalesces rapid changes to avoid excessive disk writes
-
 ### Bug Fixes
 - Selection preserved after paste, delete, duplicate in expanded folders
 - Folder expansion state preserved across refresh and git status updates
@@ -52,10 +46,16 @@
 - Date Modified column width stable when resizing
 - Active pane no longer jumps on relaunch
 - Quick Look arrow-down navigation works with expanded folders
-- Crash when dropping PDF pages (file promise MainActor isolation)
-- Tab clicks now activate the containing pane
 
 ---
+
+## 260128 Session Auto-Save
+- Added: Automatic session state persistence instead of only saving on quit
+- Added: Protects against data loss from crashes - tabs, selections, navigation, and expansion state survive unexpected termination
+- Added: Saves trigger on tab create/close/reorder, tab selection, navigation (navigate/back/forward/up), cross-pane tab moves
+- Added: 2-second debounce coalesces rapid changes to avoid excessive disk writes
+- Fixed: Crash when dropping PDF pages due to MainActor isolation issue in file promise callback
+- Fixed: Tab clicks now activate the containing pane for consistent focus behavior
 
 ## 260127 Truncated Filename Tooltips
 - Added: Tooltips on truncated filenames show full name on hover
