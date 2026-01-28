@@ -14,6 +14,9 @@
 - Fixed: Crash when dropping PDF pages due to MainActor isolation issue in file promise callback
 - Fixed: Tab clicks now activate the containing pane for consistent focus behavior
 
+#### Known Limitations
+- Copy/paste to Messages shows generic filename (drag and drop works correctly)
+
 ---
 
 ## 0.9.3 (260127)
