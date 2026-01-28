@@ -14,6 +14,7 @@ final class MainSplitViewController: NSSplitViewController {
     private var lastMediaKeyCode: Int?
     private var lastMediaKeyTimestamp: TimeInterval = 0
     private var quickNavController: QuickNavController?
+    private var saveSessionWorkItem: DispatchWorkItem?
 
     private enum SessionKeys {
         static let leftTabs = "Detours.LeftPaneTabs"
@@ -255,6 +256,10 @@ final class MainSplitViewController: NSSplitViewController {
     // MARK: - Session Persistence
 
     func saveSession() {
+        // Cancel any pending debounced save since we're saving now
+        saveSessionWorkItem?.cancel()
+        saveSessionWorkItem = nil
+
         defaults.set(leftPane.tabDirectories.map { $0.path }, forKey: SessionKeys.leftTabs)
         defaults.set(leftPane.selectedTabIndex, forKey: SessionKeys.leftSelectedIndex)
         defaults.set(encodeSelections(leftPane.tabSelections), forKey: SessionKeys.leftSelections)
@@ -268,6 +273,22 @@ final class MainSplitViewController: NSSplitViewController {
         defaults.set(activePaneIndex, forKey: SessionKeys.activePane)
         defaults.set(!sidebarItem.isCollapsed, forKey: SessionKeys.sidebarVisible)
         saveSplitPosition()
+    }
+
+    /// Schedule a debounced session save (2 second delay, coalesces rapid changes)
+    func scheduleSaveSession() {
+        // Don't save during session restore
+        guard !isRestoringSession else { return }
+
+        // Cancel any existing pending save
+        saveSessionWorkItem?.cancel()
+
+        // Schedule new save after delay
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.saveSession()
+        }
+        saveSessionWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: workItem)
     }
 
     // MARK: - Sidebar

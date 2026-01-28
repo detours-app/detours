@@ -23,6 +23,7 @@ final class ShortcutManager {
         .quickOpen: KeyCombo(keyCode: 35, modifiers: .command),               // Cmd-P
         .refresh: KeyCombo(keyCode: 15, modifiers: .command),                 // Cmd-R
         .toggleSidebar: KeyCombo(keyCode: 29, modifiers: .command),           // Cmd-0
+        .filter: KeyCombo(keyCode: 3, modifiers: .command),                   // Cmd-F
     ]
 
     /// Alternative defaults (some actions have multiple defaults)

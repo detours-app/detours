@@ -564,6 +564,7 @@ final class PaneViewController: NSViewController {
         }
 
         reloadTabBar()
+        scheduleSessionSave()
         return tab
     }
 
@@ -611,6 +612,7 @@ final class PaneViewController: NSViewController {
         }
 
         reloadTabBar()
+        scheduleSessionSave()
     }
 
     func selectTab(at index: Int) {
@@ -654,6 +656,8 @@ final class PaneViewController: NSViewController {
         if isActive {
             view.window?.makeFirstResponder(tab.fileListViewController.tableView)
         }
+
+        scheduleSessionSave()
     }
 
     /// Apply any pending restore state (expansions/selections) after tab is loaded
@@ -765,11 +769,13 @@ final class PaneViewController: NSViewController {
     func navigate(to url: URL) {
         selectedTab?.navigate(to: url)
         reloadTabBar() // Title may have changed
+        scheduleSessionSave()
     }
 
     func goBack() {
         selectedTab?.goBack()
         reloadTabBar()
+        scheduleSessionSave()
     }
 
     @objc func goBack(_ sender: Any?) {
@@ -779,6 +785,7 @@ final class PaneViewController: NSViewController {
     func goForward() {
         selectedTab?.goForward()
         reloadTabBar()
+        scheduleSessionSave()
     }
 
     @objc func goForward(_ sender: Any?) {
@@ -788,6 +795,7 @@ final class PaneViewController: NSViewController {
     func goUp() {
         selectedTab?.goUp()
         reloadTabBar()
+        scheduleSessionSave()
     }
 
     @objc func goUp(_ sender: Any?) {
@@ -895,6 +903,11 @@ final class PaneViewController: NSViewController {
             tab.fileListViewController.ensureLoaded()
             view.window?.makeFirstResponder(tab.fileListViewController.tableView)
         }
+    }
+
+    /// Notify that session state changed and should be saved
+    private func scheduleSessionSave() {
+        (parent as? MainSplitViewController)?.scheduleSaveSession()
     }
 
     private func updateNavigationControls() {
@@ -1081,6 +1094,7 @@ final class PaneViewController: NSViewController {
         }
 
         reloadTabBar()
+        scheduleSessionSave()
         return removedTab
     }
 
@@ -1111,6 +1125,10 @@ final class PaneViewController: NSViewController {
 
 extension PaneViewController: PaneTabBarDelegate {
     func tabBarDidSelectTab(at index: Int) {
+        // Activate this pane when clicking a tab
+        if let splitVC = parent as? MainSplitViewController {
+            splitVC.setActivePaneFromChild(self)
+        }
         selectTab(at: index)
     }
 
@@ -1149,6 +1167,7 @@ extension PaneViewController: PaneTabBarDelegate {
         }
 
         reloadTabBar()
+        scheduleSessionSave()
     }
 
     func tabBarDidReceiveDroppedTab(_ tab: PaneTab, at index: Int) {

@@ -141,8 +141,15 @@ final class FileItem {
 
     /// Loads children for this directory. Returns nil for files.
     /// Empty array means directory is empty (not same as nil which means not loaded).
+    /// If children are already loaded, returns existing children without reloading.
     func loadChildren(showHidden: Bool) -> [FileItem]? {
         guard isNavigableFolder else { return nil }
+
+        // Return existing children if already loaded to preserve object identity
+        // (important for NSOutlineView which tracks items by identity)
+        if let existingChildren = children {
+            return existingChildren
+        }
 
         do {
             var options: FileManager.DirectoryEnumerationOptions = []

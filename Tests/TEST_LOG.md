@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-27 11:38:39
-- Command: `resources/scripts/uitest.sh DuplicateStructureUITests/testDuplicateStructureEscapeDismisses`
+- Started: 2026-01-27 23:27:24
+- Command: `swift test --filter FilterTests`
 - Status: PASS
-- Duration: 22.979s
-- Notes: All 3 DuplicateStructureUITests pass. Verified: folder creation works, Cancel dismisses dialog, Escape dismisses dialog.
+- Duration: 0.038s
+- Notes: All 7 FilterTests pass (added testFilterMatchesNestedFileRecursively). Fixed recursive filter auto-expand by preventing FileItem.loadChildren from recreating children when already loaded.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -375,7 +375,30 @@
 | testSelectionPreservedAfterRefresh | PASS | - | 2026-01-22 (manual) |
 | testDeletePreservesExpansion | PASS | 21.431s | 2026-01-22 12:27:32 |
 
+### FilterTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testFilterMatchesSubstring | PASS | 0.005s | 2026-01-27 23:27:24 |
+| testFilterCaseInsensitive | PASS | 0.003s | 2026-01-27 23:27:24 |
+| testFilterNoMatch | PASS | 0.003s | 2026-01-27 23:27:24 |
+| testFilterPreservesExpansion | PASS | 0.004s | 2026-01-27 23:27:24 |
+| testClearFilterRestoresFullList | PASS | 0.014s | 2026-01-27 23:27:24 |
+| testTotalItemCountUnaffectedByFilter | PASS | 0.003s | 2026-01-27 23:27:24 |
+| testFilterMatchesNestedFileRecursively | PASS | 0.007s | 2026-01-27 23:27:24 |
+
+### FilterUITests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testCmdFShowsFilterBar | PASS | 13.7s | 2026-01-27 23:24:09 |
+| testSlashKeyShowsFilterBar | PASS | 15.5s | 2026-01-27 23:25:24 |
+| testFilterTextChangeFiltersItems | PASS | 15.2s | 2026-01-27 23:24:37 |
+| testEscapeClearsFilterThenCloses | PASS | 17.5s | 2026-01-27 23:24:56 |
+| testDownArrowMovesFocusToList | PASS | 14.2s | 2026-01-27 23:25:08 |
+| testFilterAutoExpandsToShowNestedMatches | PASS | 22.9s | 2026-01-27 23:25:24 |
+
 ## Notes
+- 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.
+- 2026-01-27 22:52: FilterUITests/testSlashKeyShowsFilterBar PASSED - Fixed "/" key handling. XCUI sends "/" with shift modifier (mods=131072) and wrong keyCode (26 instead of 44). Changed check to match character "/" with empty modifiers OR shift only.
 - 2026-01-22 15:38: PasteSelectionUITests/testPasteInExpandedFolderKeepsSelectionInFolder PASSED (manual verification) - Fixed paste destination to use selected item's parent folder instead of root. When file.txt in SubfolderA1 selected, paste now goes to SubfolderA1. Conflict dialog appeared proving correct location. Also fixed: delete/duplicate selection using tableView.numberOfRows instead of dataSource.items.count, selectItem(at:) now searches full tree.
 - 2026-01-22 14:45: FolderExpansionUITests/testActivePanePreservedOnRelaunch PASSED - Fixed active pane jumping to right on relaunch. Root cause: tableViewSelectionDidChange called fileListDidBecomeActive for programmatic changes (git status), stealing focus. Fix: only call fileListDidBecomeActive on user clicks (onActivate), not programmatic selection.
 - 2026-01-22 12:39: FolderExpansionUITests/testRenamePreservesExpansion PASSED - Fixed test to use context menu for rename (XCUITest keyboard shortcut handling unreliable for function keys and Shift+Enter). Test verifies rename operation preserves folder expansion state.

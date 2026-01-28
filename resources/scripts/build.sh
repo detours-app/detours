@@ -144,11 +144,9 @@ rm -rf /Applications/Detours.app
 mv build/Detours.app /Applications/Detours.app
 log_ok "Installed"
 
-# Relaunch if was running
-if [ "$WAS_RUNNING" = true ]; then
-    log_info "Relaunch Detours"
-    open -g /Applications/Detours.app
-    log_ok "Relaunched"
-fi
+# Always relaunch after successful build
+log_info "Relaunch Detours"
+open -g /Applications/Detours.app
+log_ok "Relaunched"
 
 log_ok "Done"

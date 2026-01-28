@@ -42,6 +42,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     /// Preserved expansion state when folder expansion is disabled (for restore on re-enable)
     private var preservedExpansionWhenDisabled: Set<URL>?
 
+    // Filter bar
+    private let filterBar = FilterBarView()
+    private var isFilterBarVisible = false
+    private var scrollViewTopConstraint: NSLayoutConstraint?
+    private var filterBarHeightConstraint: NSLayoutConstraint?
+    private static let filterBarHeight: CGFloat = 28
+    private let noMatchesLabel = NSTextField(labelWithString: "No matches")
+
     override func loadView() {
         view = NSView()
     }
@@ -212,11 +220,37 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         scrollView.drawsBackground = false
         scrollView.contentView.drawsBackground = false
 
+        // Set up filter bar (hidden by default)
+        filterBar.delegate = self
+        filterBar.isHidden = true
+        view.addSubview(filterBar)
         view.addSubview(scrollView)
 
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        // Set up "No matches" label (hidden by default)
+        noMatchesLabel.font = ThemeManager.shared.currentFont
+        noMatchesLabel.textColor = ThemeManager.shared.currentTheme.textTertiary
+        noMatchesLabel.alignment = .center
+        noMatchesLabel.isHidden = true
+        view.addSubview(noMatchesLabel)
+        noMatchesLabel.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            noMatchesLabel.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
+            noMatchesLabel.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor),
+        ])
+
+        filterBar.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        filterBarHeightConstraint = filterBar.heightAnchor.constraint(equalToConstant: 0)
+        scrollViewTopConstraint = scrollView.topAnchor.constraint(equalTo: filterBar.bottomAnchor)
+
+        NSLayoutConstraint.activate([
+            filterBar.topAnchor.constraint(equalTo: view.topAnchor),
+            filterBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            filterBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            filterBarHeightConstraint!,
+
+            scrollViewTopConstraint!,
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -354,6 +388,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false) {
         currentDirectory = url
+
+        // Hide filter bar when navigating to a new directory
+        if isFilterBarVisible {
+            hideFilterBar()
+        }
 
         guard isViewLoaded else {
             pendingDirectory = url
@@ -884,6 +923,19 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             toggleHiddenFiles()
             return true
         }
+        if sm.matches(event: event, action: .filter) {
+            showFilterBar()
+            return true
+        }
+
+        // "/" key (no modifiers) shows filter bar
+        // Note: XCUI sends "/" with shift modifier even though "/" doesn't require shift
+        // So we check for character "/" with empty modifiers OR just shift
+        let isSlashKey = event.characters == "/" && (modifiers.isEmpty || modifiers == .shift)
+        if isSlashKey {
+            showFilterBar()
+            return true
+        }
 
         // Cmd-Enter: open containing folder (check before other Cmd shortcuts)
         if modifiers == .command && event.keyCode == 36 {
@@ -1217,6 +1269,148 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         refresh()
     }
 
+    // MARK: - Filter Bar
+
+    func showFilterBar() {
+        logger.debug("showFilterBar called, isFilterBarVisible=\(self.isFilterBarVisible)")
+        guard !isFilterBarVisible else {
+            filterBar.focusSearchField()
+            return
+        }
+
+        isFilterBarVisible = true
+        filterBarHeightConstraint?.constant = Self.filterBarHeight
+        filterBar.isHidden = false
+        filterBar.clear()
+        view.layoutSubtreeIfNeeded()
+        filterBar.focusSearchField()
+    }
+
+    func hideFilterBar() {
+        guard isFilterBarVisible else { return }
+
+        isFilterBarVisible = false
+        noMatchesLabel.isHidden = true
+
+        // Preserve expansion state before clearing filter
+        let previousExpanded = dataSource.expandedFolders
+
+        dataSource.filterPredicate = nil
+        tableView.reloadData()
+
+        // Restore expansion state
+        restoreExpansion(previousExpanded)
+
+        // Select first item if selection was lost
+        if tableView.selectedRow < 0 && tableView.numberOfRows > 0 {
+            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        }
+
+        filterBarHeightConstraint?.constant = 0
+        filterBar.isHidden = true
+        filterBar.clear()
+        view.layoutSubtreeIfNeeded()
+        view.window?.makeFirstResponder(tableView)
+    }
+
+    private func updateFilter(_ text: String) {
+        let previousSelection = tableView.selectedRow >= 0 ? dataSource.item(at: tableView.selectedRow) : nil
+        let previousExpanded = dataSource.expandedFolders
+
+        dataSource.filterPredicate = text.isEmpty ? nil : text
+        tableView.reloadData()
+
+        if text.isEmpty {
+            // Restore previous expansion state when filter is cleared
+            restoreExpansion(previousExpanded)
+        } else {
+            // Auto-expand folders that contain matching descendants
+            expandFoldersWithMatches()
+        }
+
+        // Update count label - count actual matches, not just visible root items
+        let matchCount = countMatchingItems(text)
+        filterBar.updateCount(visible: matchCount, total: dataSource.totalVisibleItemCount)
+
+        // Show/hide "No matches" label
+        noMatchesLabel.isHidden = text.isEmpty || matchCount > 0
+
+        // Try to preserve selection, otherwise select first item
+        if let previous = previousSelection {
+            let row = tableView.row(forItem: previous)
+            if row >= 0 {
+                tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                return
+            }
+        }
+
+        if tableView.numberOfRows > 0 {
+            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        }
+    }
+
+    /// Recursively expand folders that contain matching descendants
+    private func expandFoldersWithMatches() {
+        guard let predicate = dataSource.filterPredicate, !predicate.isEmpty else { return }
+
+        func expandIfNeeded(_ item: FileItem) {
+            guard item.isDirectory, let children = item.children else { return }
+
+            // Check if any child directly matches
+            let hasDirectMatch = children.contains { $0.name.localizedCaseInsensitiveContains(predicate) }
+            // Check if any child folder has descendants that match
+            let hasDescendantMatch = children.contains { child in
+                child.isDirectory && childHasMatch(child, predicate: predicate)
+            }
+
+            if hasDirectMatch || hasDescendantMatch {
+                tableView.expandItem(item)
+                // Recursively expand child folders that have matches
+                for child in children where child.isDirectory {
+                    expandIfNeeded(child)
+                }
+            }
+        }
+
+        for item in dataSource.visibleItems {
+            expandIfNeeded(item)
+        }
+    }
+
+    /// Check if a folder has any matching descendants (recursive)
+    private func childHasMatch(_ item: FileItem, predicate: String) -> Bool {
+        guard let children = item.children else { return false }
+        for child in children {
+            if child.name.localizedCaseInsensitiveContains(predicate) {
+                return true
+            }
+            if child.isDirectory && childHasMatch(child, predicate: predicate) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Count total items that match the filter (for accurate count display)
+    private func countMatchingItems(_ text: String) -> Int {
+        guard !text.isEmpty else { return dataSource.totalVisibleItemCount }
+
+        func countMatches(in items: [FileItem]) -> Int {
+            var count = 0
+            for item in items {
+                if item.name.localizedCaseInsensitiveContains(text) {
+                    count += 1
+                }
+                if let children = item.children {
+                    count += countMatches(in: children)
+                }
+            }
+            return count
+        }
+
+        return countMatches(in: dataSource.items)
+    }
+
     // MARK: - Open in Editor
 
     private func openInEditor() {
@@ -1482,6 +1676,25 @@ extension FileListViewController: RenameControllerDelegate {
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
+        }
+    }
+}
+
+// MARK: - FilterBarDelegate
+
+extension FileListViewController: FilterBarDelegate {
+    func filterBar(_ filterBar: FilterBarView, didChangeText text: String) {
+        updateFilter(text)
+    }
+
+    func filterBarDidRequestClose(_ filterBar: FilterBarView) {
+        hideFilterBar()
+    }
+
+    func filterBarDidRequestFocusList(_ filterBar: FilterBarView) {
+        view.window?.makeFirstResponder(tableView)
+        if tableView.selectedRow < 0 && tableView.numberOfRows > 0 {
+            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
     }
 }
