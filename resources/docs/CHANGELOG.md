@@ -6,7 +6,7 @@
 - Press "/" or Cmd-F to show filter bar in active pane
 - Case-insensitive substring matching filters file list in real-time
 - Auto-expands folders to show matching nested files
-- Match count display (e.g., "12 of 347")
+- Match count display shows all visible items including expanded folders (e.g., "12 of 347")
 - Escape clears filter text, second press closes filter bar
 - Down arrow moves focus from filter field to file list
 

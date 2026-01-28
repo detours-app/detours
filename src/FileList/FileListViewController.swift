@@ -1279,19 +1279,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
 
         isFilterBarVisible = true
+        filterBarHeightConstraint?.constant = Self.filterBarHeight
         filterBar.isHidden = false
         filterBar.clear()
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.15
-            context.allowsImplicitAnimation = true
-            filterBarHeightConstraint?.constant = Self.filterBarHeight
-            view.layoutSubtreeIfNeeded()
-        } completionHandler: {
-            MainActor.assumeIsolated { [weak self] in
-                self?.filterBar.focusSearchField()
-            }
-        }
+        view.layoutSubtreeIfNeeded()
+        filterBar.focusSearchField()
     }
 
     func hideFilterBar() {
@@ -1314,18 +1306,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
 
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.15
-            context.allowsImplicitAnimation = true
-            filterBarHeightConstraint?.constant = 0
-            view.layoutSubtreeIfNeeded()
-        } completionHandler: {
-            MainActor.assumeIsolated { [weak self] in
-                self?.filterBar.isHidden = true
-                self?.filterBar.clear()
-                self?.view.window?.makeFirstResponder(self?.tableView)
-            }
-        }
+        filterBarHeightConstraint?.constant = 0
+        filterBar.isHidden = true
+        filterBar.clear()
+        view.layoutSubtreeIfNeeded()
+        view.window?.makeFirstResponder(tableView)
     }
 
     private func updateFilter(_ text: String) {
@@ -1345,7 +1330,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         // Update count label - count actual matches, not just visible root items
         let matchCount = countMatchingItems(text)
-        filterBar.updateCount(visible: matchCount, total: dataSource.totalItemCount)
+        filterBar.updateCount(visible: matchCount, total: dataSource.totalVisibleItemCount)
 
         // Show/hide "No matches" label
         noMatchesLabel.isHidden = text.isEmpty || matchCount > 0
@@ -1408,7 +1393,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     /// Count total items that match the filter (for accurate count display)
     private func countMatchingItems(_ text: String) -> Int {
-        guard !text.isEmpty else { return dataSource.totalItemCount }
+        guard !text.isEmpty else { return dataSource.totalVisibleItemCount }
 
         func countMatches(in items: [FileItem]) -> Int {
             var count = 0

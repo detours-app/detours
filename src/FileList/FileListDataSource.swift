@@ -179,6 +179,24 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         items.count
     }
 
+    /// Returns total count of all visible items including expanded folder contents
+    var totalVisibleItemCount: Int {
+        guard let outlineView else { return items.count }
+
+        func countItems(_ itemList: [FileItem]) -> Int {
+            var count = 0
+            for item in itemList {
+                count += 1
+                if item.isDirectory, outlineView.isItemExpanded(item), let children = item.children {
+                    count += countItems(children)
+                }
+            }
+            return count
+        }
+
+        return countItems(items)
+    }
+
     /// Returns filtered root items based on filterPredicate
     /// An item is visible if it matches OR any of its descendants match
     var visibleItems: [FileItem] {
