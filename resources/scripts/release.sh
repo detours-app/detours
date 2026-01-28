@@ -60,9 +60,16 @@ echo "==> Generating release notes..."
 CHANGELOG="$PROJECT_DIR/resources/docs/CHANGELOG.md"
 RELEASE_NOTES="$PROJECT_DIR/RELEASE_NOTES.md"
 
-# Extract latest changelog entry (first ## section after header)
-# Matches both "## Version 0.9.3" and "## 260124" formats
-LATEST_ENTRY=$(awk '/^## [Vv0-9]/{if(found) exit; found=1} found{print}' "$CHANGELOG")
+# Extract latest version section from changelog
+# Format: ## X.Y.Z (YYMMDD) - skips "## Unreleased" section
+# Captures from version header to next version header or end
+LATEST_ENTRY=$(awk '
+    /^## [0-9]+\.[0-9]+\.[0-9]+/ {
+        if (found) exit
+        found = 1
+    }
+    found { print }
+' "$CHANGELOG")
 ENTRY_BODY=$(echo "$LATEST_ENTRY" | tail -n +2)
 
 cat > "$RELEASE_NOTES" << EOF
