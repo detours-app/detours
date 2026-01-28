@@ -528,20 +528,22 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             let queue = OperationQueue()
             queue.qualityOfService = .userInitiated
 
-            // Capture delegate reference before background callback to avoid @MainActor isolation crash
-            let dropDelegate = self.dropDelegate
-
             for promise in promises {
-                promise.receivePromisedFiles(atDestination: destination, options: [:], operationQueue: queue) { _, error in
-                    Task { @MainActor in
+                // Capture only Sendable values (URL) - access delegate on main queue via self
+                let dest = destination
+                // Explicitly mark closure as @Sendable to prevent @MainActor inference
+                // Without this, Swift infers the closure inherits @MainActor from the enclosing class,
+                // causing dispatch_assert_queue_fail when AppKit calls it on background queue
+                let handler: @Sendable (URL, Error?) -> Void = { [weak self] _, error in
+                    DispatchQueue.main.async {
                         if let error = error {
                             FileOperationQueue.shared.presentError(error)
                         } else {
-                            // Refresh view after file is received
-                            dropDelegate?.handleDrop(urls: [], to: destination, isCopy: true)
+                            self?.dropDelegate?.handleDrop(urls: [], to: dest, isCopy: true)
                         }
                     }
                 }
+                promise.receivePromisedFiles(atDestination: destination, options: [:], operationQueue: queue, reader: handler)
             }
             dropTargetItem = nil
             return true
