@@ -239,6 +239,7 @@ enum ShortcutAction: String, Codable, CaseIterable {
     case quickOpen
     case refresh
     case toggleSidebar
+    case filter
 
     var displayName: String {
         switch self {
@@ -255,6 +256,7 @@ enum ShortcutAction: String, Codable, CaseIterable {
         case .quickOpen: return "Quick Open"
         case .refresh: return "Refresh"
         case .toggleSidebar: return "Toggle Sidebar"
+        case .filter: return "Filter"
         }
     }
 }

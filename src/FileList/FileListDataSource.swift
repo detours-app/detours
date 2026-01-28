@@ -164,6 +164,54 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     weak var dropDelegate: FileListDropDelegate?
     weak var expansionDelegate: FileListExpansionDelegate?
 
+    /// Filter predicate for filtering visible items (case-insensitive substring match)
+    var filterPredicate: String? {
+        didSet {
+            _cachedFilteredItems = nil
+        }
+    }
+
+    /// Cache for filtered root items
+    private var _cachedFilteredItems: [FileItem]?
+
+    /// Returns total count of root items (unfiltered) for "X of Y" display
+    var totalItemCount: Int {
+        items.count
+    }
+
+    /// Returns filtered root items based on filterPredicate
+    /// An item is visible if it matches OR any of its descendants match
+    var visibleItems: [FileItem] {
+        guard let predicate = filterPredicate, !predicate.isEmpty else {
+            return items
+        }
+        if let cached = _cachedFilteredItems {
+            return cached
+        }
+        let filtered = items.filter { itemOrDescendantMatches($0, predicate: predicate) }
+        _cachedFilteredItems = filtered
+        return filtered
+    }
+
+    /// Returns filtered children for an item based on filterPredicate
+    /// A child is visible if it matches OR any of its descendants match
+    func filteredChildren(of item: FileItem) -> [FileItem]? {
+        guard let children = item.children else { return nil }
+        guard let predicate = filterPredicate, !predicate.isEmpty else {
+            return children
+        }
+        return children.filter { itemOrDescendantMatches($0, predicate: predicate) }
+    }
+
+    /// Returns true if item or any of its loaded children (recursively) match the predicate
+    private func itemOrDescendantMatches(_ item: FileItem, predicate: String) -> Bool {
+        if item.name.localizedCaseInsensitiveContains(predicate) {
+            return true
+        }
+        guard let children = item.children else { return false }
+        return children.contains { itemOrDescendantMatches($0, predicate: predicate) }
+    }
+
     private var dropTargetItem: FileItem? {
         didSet {
             guard dropTargetItem !== oldValue else { return }
@@ -211,6 +259,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
         // Suppress collapse notifications during reload to preserve expansion state
         suppressCollapseNotifications = preserveExpansion
+
+        // Clear filter cache on reload
+        _cachedFilteredItems = nil
 
         do {
             var options: FileManager.DirectoryEnumerationOptions = []
@@ -355,20 +406,20 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if item == nil {
-            // Root level - return top-level items
-            return items.count
+            // Root level - return filtered items
+            return visibleItems.count
         }
         guard let fileItem = item as? FileItem else { return 0 }
-        return fileItem.children?.count ?? 0
+        return filteredChildren(of: fileItem)?.count ?? 0
     }
 
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
         if item == nil {
-            // Root level
-            return items[index]
+            // Root level - use filtered items
+            return visibleItems[index]
         }
         guard let fileItem = item as? FileItem,
-              let children = fileItem.children,
+              let children = filteredChildren(of: fileItem),
               index < children.count else {
             fatalError("Invalid child index")
         }

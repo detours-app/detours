@@ -87,30 +87,30 @@ For expanded folders: filtering only applies to root-level items. Expanded folde
 ### Implementation Plan
 
 **Phase 1: Filter Bar UI**
-- [ ] Create `src/FileList/FilterBarView.swift` with text field and count label
-- [ ] Add `FilterBarDelegate` protocol
-- [ ] Style to match theme (background, font, colors)
-- [ ] Handle Esc key in text field to clear/close
+- [x] Create `src/FileList/FilterBarView.swift` with text field and count label
+- [x] Add `FilterBarDelegate` protocol
+- [x] Style to match theme (background, font, colors)
+- [x] Handle Esc key in text field to clear/close
 
 **Phase 2: View Controller Integration**
-- [ ] Add filter bar as subview in `FileListViewController`
-- [ ] Add constraints for show/hide animation (adjust scroll view top)
-- [ ] Implement `showFilterBar()` and `hideFilterBar()` with animation
-- [ ] Wire up `Cmd-F` via ShortcutManager
-- [ ] Wire up `/` key in `handleKeyDown`
-- [ ] Implement `FilterBarDelegate` to update data source
+- [x] Add filter bar as subview in `FileListViewController`
+- [x] Add constraints for show/hide animation (adjust scroll view top)
+- [x] Implement `showFilterBar()` and `hideFilterBar()` with animation
+- [x] Wire up `Cmd-F` via ShortcutManager
+- [x] Wire up `/` key in `handleKeyDown`
+- [x] Implement `FilterBarDelegate` to update data source
 
 **Phase 3: Data Source Filtering**
-- [ ] Add `filterPredicate` property to `FileListDataSource`
-- [ ] Implement `visibleItems` computed property with filtering logic
-- [ ] Modify outline view data source methods to use `visibleItems`
-- [ ] Preserve selection when possible after filter changes
+- [x] Add `filterPredicate` property to `FileListDataSource`
+- [x] Implement `visibleItems` computed property with filtering logic
+- [x] Modify outline view data source methods to use `visibleItems`
+- [x] Preserve selection when possible after filter changes
 
 **Phase 4: Polish**
-- [ ] Clear filter on directory navigation
-- [ ] Show "No matches" when filter returns empty
-- [ ] Down arrow in filter field moves focus to file list
-- [ ] Ensure filter bar respects theme changes
+- [x] Clear filter on directory navigation
+- [x] Show "No matches" when filter returns empty
+- [x] Down arrow in filter field moves focus to file list
+- [x] Ensure filter bar respects theme changes
 
 ---
 
@@ -120,11 +120,11 @@ For expanded folders: filtering only applies to root-level items. Expanded folde
 
 Tests go in `Tests/FilterTests.swift`. Log results in `Tests/TEST_LOG.md`.
 
-- [ ] `testFilterMatchesSubstring` - "doc" matches "Document.txt"
-- [ ] `testFilterCaseInsensitive` - "DOC" matches "document.txt"
-- [ ] `testFilterNoMatch` - "xyz" returns empty for directory without matching files
-- [ ] `testFilterPreservesExpansion` - expanded folder stays expanded when it matches filter
-- [ ] `testClearFilterRestoresFullList` - setting predicate to nil shows all items
+- [x] `testFilterMatchesSubstring` - "doc" matches "Document.txt"
+- [x] `testFilterCaseInsensitive` - "DOC" matches "document.txt"
+- [x] `testFilterNoMatch` - "xyz" returns empty for directory without matching files
+- [x] `testFilterPreservesExpansion` - expanded folder stays expanded when it matches filter
+- [x] `testClearFilterRestoresFullList` - setting predicate to nil shows all items
 
 ### User Verification
 
