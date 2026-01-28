@@ -46,6 +46,8 @@
 - Date Modified column width stable when resizing
 - Active pane no longer jumps on relaunch
 - Quick Look arrow-down navigation works with expanded folders
+- Crash when dropping PDF pages (file promise MainActor isolation)
+- Tab clicks now activate the containing pane
 
 ---
 

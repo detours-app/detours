@@ -1111,6 +1111,10 @@ final class PaneViewController: NSViewController {
 
 extension PaneViewController: PaneTabBarDelegate {
     func tabBarDidSelectTab(at index: Int) {
+        // Activate this pane when clicking a tab
+        if let splitVC = parent as? MainSplitViewController {
+            splitVC.setActivePaneFromChild(self)
+        }
         selectTab(at: index)
     }
 

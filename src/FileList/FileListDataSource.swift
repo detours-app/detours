@@ -528,14 +528,17 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             let queue = OperationQueue()
             queue.qualityOfService = .userInitiated
 
+            // Capture delegate reference before background callback to avoid @MainActor isolation crash
+            let dropDelegate = self.dropDelegate
+
             for promise in promises {
-                promise.receivePromisedFiles(atDestination: destination, options: [:], operationQueue: queue) { [weak self] _, error in
+                promise.receivePromisedFiles(atDestination: destination, options: [:], operationQueue: queue) { _, error in
                     Task { @MainActor in
                         if let error = error {
                             FileOperationQueue.shared.presentError(error)
                         } else {
                             // Refresh view after file is received
-                            self?.dropDelegate?.handleDrop(urls: [], to: destination, isCopy: true)
+                            dropDelegate?.handleDrop(urls: [], to: destination, isCopy: true)
                         }
                     }
                 }
