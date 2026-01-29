@@ -143,13 +143,19 @@ Tests go in `Tests/FileOperationQueueTests.swift`. Log results in `Tests/TEST_LO
 - [ ] `testUndoFailsWhenTrashEmptied` - Delete file, remove from trash, undo throws error (caller shows alert)
 - [ ] `testTabScopedUndo` - Two UndoManagers, register undo on first, verify second has no undo actions
 
-### User Verification
+### XCUITests
 
-- [ ] Delete file, Cmd-Z, file reappears at original location
-- [ ] Copy file, Cmd-Z, copied file disappears (original stays)
-- [ ] Move file to other pane, Cmd-Z, file returns to source pane
-- [ ] Edit menu shows "Undo Delete" / "Undo Copy" / "Undo Move" as appropriate
-- [ ] Delete file A, delete file B, Cmd-Z restores B, Cmd-Z restores A
-- [ ] After undo, Cmd-Shift-Z redoes the operation
-- [ ] Delete in tab 1, switch to tab 2, Cmd-Z does nothing (tab 2 has no undo history)
-- [ ] Switch back to tab 1, Cmd-Z restores deleted file
+Tests go in `Tests/UITests/DetoursUITests/`. Run with `resources/scripts/uitest.sh`.
+
+- [ ] `testUndoDelete` - Delete file with Cmd-Delete, Cmd-Z, verify file reappears
+- [ ] `testUndoCopy` - Cmd-C file, Cmd-V to paste, Cmd-Z, verify copy gone (original stays)
+- [ ] `testUndoMove` - Cmd-X file in left pane, Cmd-V in right pane, Cmd-Z, verify file back in left
+- [ ] `testUndoMenuLabel` - Delete file, check Edit menu shows "Undo Delete"
+- [ ] `testMultipleUndoOrder` - Delete A, delete B, Cmd-Z restores B, Cmd-Z restores A
+- [ ] `testRedo` - Delete file, Cmd-Z to undo, Cmd-Shift-Z to redo, verify file gone again
+- [ ] `testTabScopedUndo` - Delete in tab 1, switch to tab 2, Cmd-Z does nothing, switch back, Cmd-Z restores
+
+### Manual Verification
+
+- [ ] Undo feels responsive (no lag on Cmd-Z)
+- [ ] Error alert appears with correct filename when undoing after trash emptied
