@@ -29,31 +29,31 @@ final class UndoUITests: BaseUITest {
     }
 
     func testUndoCopy() throws {
-        // Use FolderB for copy test (has its own structure)
-        let folderBRow = outlineRow(named: "FolderB")
-        XCTAssertTrue(folderBRow.waitForExistence(timeout: 2), "FolderB should exist")
+        // Use file1.txt for copy test
+        let fileRow = outlineRow(named: "file1.txt")
+        XCTAssertTrue(fileRow.waitForExistence(timeout: 2), "file1.txt should exist")
 
-        // Copy FolderB
-        selectRow(named: "FolderB")
-        usleep(300_000)
+        // Copy file1.txt
+        selectRow(named: "file1.txt")
+        usleep(500_000)
         pressCharKey("c", modifiers: .command)
-        usleep(300_000)
+        usleep(500_000)
 
-        // Paste (creates "FolderB copy")
+        // Paste immediately (with file selected, paste goes to its parent directory)
         pressCharKey("v", modifiers: .command)
-        usleep(1_000_000)
+        usleep(2_000_000)
 
         // Verify copy exists
-        XCTAssertTrue(waitForRow(named: "FolderB copy", timeout: 3), "FolderB copy should exist after paste")
-        XCTAssertTrue(rowExists(named: "FolderB"), "Original FolderB should still exist")
+        XCTAssertTrue(waitForRow(named: "file1 copy.txt", timeout: 5), "file1 copy.txt should exist after paste")
+        XCTAssertTrue(rowExists(named: "file1.txt"), "Original file1.txt should still exist")
 
         // Undo with Cmd-Z
         pressCharKey("z", modifiers: .command)
-        usleep(1_000_000)
+        usleep(2_000_000)
 
         // Verify copy is gone but original remains
-        XCTAssertFalse(rowExists(named: "FolderB copy"), "FolderB copy should be removed after undo")
-        XCTAssertTrue(rowExists(named: "FolderB"), "Original FolderB should still exist after undo")
+        XCTAssertFalse(rowExists(named: "file1 copy.txt"), "file1 copy.txt should be removed after undo")
+        XCTAssertTrue(rowExists(named: "file1.txt"), "Original file1.txt should still exist after undo")
     }
 
     func testUndoMove() throws {

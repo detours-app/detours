@@ -361,13 +361,19 @@ final class FileOperationQueue {
         // Only register undo if all items succeeded
         if failures.isEmpty, !successes.isEmpty, let undoManager {
             let itemsToRestore = successes
+            let originalURLs = successes.map { $0.original }
             undoManager.registerUndo(withTarget: self) { target in
-                Task { @MainActor in
-                    do {
-                        try await target.restoreFromTrash(items: itemsToRestore)
-                    } catch {
-                        target.presentError(error)
+                // Perform restore synchronously for proper redo registration
+                do {
+                    try target.restoreFromTrashSync(items: itemsToRestore)
+                    // Register redo (delete again) - this will register its own undo
+                    undoManager.registerUndo(withTarget: target) { target2 in
+                        Task { @MainActor in
+                            try? await target2.delete(items: originalURLs, undoManager: undoManager)
+                        }
                     }
+                } catch {
+                    target.presentError(error)
                 }
             }
             let actionName = successes.count == 1 ? "Delete \"\(successes[0].original.lastPathComponent)\"" : "Delete \(successes.count) Items"
@@ -696,6 +702,10 @@ final class FileOperationQueue {
     }
 
     private func restoreFromTrash(items: [(original: URL, trash: URL)]) async throws {
+        try restoreFromTrashSync(items: items)
+    }
+
+    private func restoreFromTrashSync(items: [(original: URL, trash: URL)]) throws {
         let fileManager = FileManager.default
         var failures: [(URL, Error)] = []
 

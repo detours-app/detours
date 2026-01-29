@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-29 14:52:24
-- Command: `swift test --filter 'testDeleteUndo|testCopyUndo|testMoveUndo|testDuplicateUndo|testCreateFolderUndo|testRestoreConflict|testMultipleUndos|testTabScopedUndo'`
+- Started: 2026-01-29 16:16:47
+- Command: `resources/scripts/uitest.sh UndoUITests/testMultipleUndoOrder`
 - Status: PASS
-- Duration: 4.68s
-- Notes: All 9 undo tests pass. Added operation undo support (delete, copy, move, duplicate, create folder). Tab-scoped UndoManager per FileListViewController.
+- Duration: 22.259s
+- Notes: Multiple undo LIFO order works. Fixed redo by making restoreFromTrash synchronous.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -404,6 +404,17 @@
 | testEscapeClearsFilterThenCloses | PASS | 17.5s | 2026-01-27 23:24:56 |
 | testDownArrowMovesFocusToList | PASS | 14.2s | 2026-01-27 23:25:08 |
 | testFilterAutoExpandsToShowNestedMatches | PASS | 22.9s | 2026-01-27 23:25:24 |
+
+### UndoUITests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testUndoDelete | PASS | 20.156s | 2026-01-29 16:06:56 |
+| testUndoCopy | - | - | - |
+| testUndoMove | - | - | - |
+| testUndoMenuLabel | - | - | - |
+| testMultipleUndoOrder | PASS | 22.259s | 2026-01-29 16:16:47 |
+| testRedo | PASS | 18.394s | 2026-01-29 16:15:56 |
+| testTabScopedUndo | - | - | - |
 
 ## Notes
 - 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.
