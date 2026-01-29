@@ -23,12 +23,21 @@ class BaseUITest: XCTestCase {
         // Give the app time to fully initialize
         sleep(2)
 
-        // Navigate to temp directory
+        // Create a new tab for this test (Cmd-T) so we don't affect user's existing tabs
+        pressCharKey("t", modifiers: .command)
+        usleep(500_000)
+
+        // Navigate to temp directory in the new tab
         navigateToTempDirectory()
     }
 
     override func tearDownWithError() throws {
-        // Terminate app
+        // Close the tab we created (Cmd-W) instead of terminating app
+        // This preserves user's other tabs
+        pressCharKey("w", modifiers: .command)
+        usleep(300_000)
+
+        // Terminate app (uitest.sh will relaunch it fresh for each test)
         app.terminate()
         // Note: test directory cleanup is handled by uitest.sh
     }

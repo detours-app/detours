@@ -40,8 +40,16 @@ final class UndoUITests: BaseUITest {
         usleep(500_000)
 
         // Paste immediately (with file selected, paste goes to its parent directory)
+        // This triggers a conflict dialog since file1.txt already exists
         pressCharKey("v", modifiers: .command)
-        usleep(2_000_000)
+        usleep(1_000_000)
+
+        // Handle conflict dialog - click "Keep Both" to create "file1 copy.txt"
+        let keepBothButton = app.dialogs.buttons["Keep Both"]
+        if keepBothButton.waitForExistence(timeout: 2) {
+            keepBothButton.click()
+            usleep(1_000_000)
+        }
 
         // Verify copy exists
         XCTAssertTrue(waitForRow(named: "file1 copy.txt", timeout: 5), "file1 copy.txt should exist after paste")
@@ -201,14 +209,19 @@ final class UndoUITests: BaseUITest {
         pressCharKey("z", modifiers: .command)
         usleep(500_000)
 
-        // Switch back to first tab (Cmd-1 or click tab)
-        // Use Cmd-Shift-[ to go to previous tab
-        pressCharKey("[", modifiers: [.command, .shift])
+        // Switch back to first tab using Ctrl-Shift-Tab
+        pressKey(.tab, modifiers: [.control, .shift])
         usleep(500_000)
 
         // Now Cmd-Z should restore FolderB
         pressCharKey("z", modifiers: .command)
         usleep(1_000_000)
         XCTAssertTrue(waitForRow(named: "FolderB", timeout: 3), "FolderB should be restored after undo in original tab")
+
+        // Cleanup: close the extra tab we created (switch to it, then close)
+        pressKey(.tab, modifiers: .control)  // Switch to next tab
+        usleep(300_000)
+        pressCharKey("w", modifiers: .command)  // Close it
+        usleep(300_000)
     }
 }
