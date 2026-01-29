@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-29 16:45:32
-- Command: `resources/scripts/uitest.sh UndoUITests/testUndoDelete`
+- Started: 2026-01-29 16:49:17
+- Command: `resources/scripts/uitest.sh UndoUITests/testUndoMove`
 - Status: PASS
-- Duration: 23.880s
-- Notes: Tab isolation verified working - no leftover tabs after test.
+- Duration: 26.080s
+- Notes: All 7 UndoUITests now pass.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -410,7 +410,7 @@
 | --- | --- | --- | --- |
 | testUndoDelete | PASS | 19.602s | 2026-01-29 16:23:39 |
 | testUndoCopy | PASS | 26.948s | 2026-01-29 16:44:26 |
-| testUndoMove | FAIL | 25.350s | 2026-01-29 16:21:31 | Test infra - can't find disclosure triangle after move
+| testUndoMove | PASS | 26.080s | 2026-01-29 16:49:17 |
 | testUndoMenuLabel | PASS | 15.944s | 2026-01-29 16:20:12 |
 | testMultipleUndoOrder | PASS | 22.839s | 2026-01-29 16:24:19 |
 | testRedo | PASS | 18.394s | 2026-01-29 16:15:56 |

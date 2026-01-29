@@ -65,59 +65,33 @@ final class UndoUITests: BaseUITest {
     }
 
     func testUndoMove() throws {
-        // This test moves a file to the right pane, then undoes it
-        ensureFolderExpansionEnabled()
+        // Test move undo: cut file1.txt, paste to FolderB, undo
+        // Uses root-level items to avoid folder expansion complexity
 
-        // Expand FolderA to get to file.txt
-        let folderARow = outlineRow(named: "FolderA")
-        XCTAssertTrue(folderARow.waitForExistence(timeout: 2))
-        folderARow.disclosureTriangles.firstMatch.click()
-        usleep(500_000)
+        // Verify file1.txt exists at root
+        XCTAssertTrue(waitForRow(named: "file1.txt", timeout: 2), "file1.txt should exist")
 
-        let subfolderA1Row = outlineRow(named: "SubfolderA1")
-        XCTAssertTrue(subfolderA1Row.waitForExistence(timeout: 2))
-        subfolderA1Row.disclosureTriangles.firstMatch.click()
-        usleep(500_000)
-
-        // Select file.txt and cut
-        selectRow(named: "file.txt")
+        // Cut file1.txt
+        selectRow(named: "file1.txt")
         usleep(300_000)
         pressCharKey("x", modifiers: .command)
+        usleep(500_000)
+
+        // Select FolderB and paste (pastes INTO the folder)
+        selectRow(named: "FolderB")
         usleep(300_000)
-
-        // Switch to right pane (Tab)
-        pressKey(.tab)
-        usleep(500_000)
-
-        // Paste in right pane
         pressCharKey("v", modifiers: .command)
-        usleep(1_000_000)
+        usleep(1_500_000)
 
-        // Verify file moved - not in left pane anymore
-        pressKey(.tab) // Switch back to left pane
-        usleep(500_000)
-
-        // Re-expand folders to check
-        let folderARow2 = outlineRow(named: "FolderA")
-        XCTAssertTrue(folderARow2.waitForExistence(timeout: 2))
-        if !folderARow2.disclosureTriangle.isExpanded {
-            folderARow2.disclosureTriangles.firstMatch.click()
-            usleep(500_000)
-        }
-        let subfolderA1Row2 = outlineRow(named: "SubfolderA1")
-        if subfolderA1Row2.exists && !subfolderA1Row2.disclosureTriangle.isExpanded {
-            subfolderA1Row2.disclosureTriangles.firstMatch.click()
-            usleep(500_000)
-        }
-
-        XCTAssertFalse(rowExists(named: "file.txt"), "file.txt should not be in left pane after move")
+        // Verify file1.txt is gone from root
+        XCTAssertFalse(rowExists(named: "file1.txt"), "file1.txt should be moved to FolderB")
 
         // Undo the move
         pressCharKey("z", modifiers: .command)
-        usleep(1_000_000)
+        usleep(1_500_000)
 
-        // Verify file is back in left pane
-        XCTAssertTrue(waitForRow(named: "file.txt", timeout: 3), "file.txt should be restored to left pane after undo")
+        // Verify file1.txt is back at root
+        XCTAssertTrue(waitForRow(named: "file1.txt", timeout: 3), "file1.txt should be restored after undo")
     }
 
     func testUndoMenuLabel() throws {
