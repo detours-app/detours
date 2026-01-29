@@ -273,6 +273,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         tableView.gridStyleMask = []
         tableView.allowsMultipleSelection = true
         tableView.allowsEmptySelection = true
+        tableView.focusRingType = .none  // Disable focus ring (selection highlight is sufficient)
         // Only the name column (first/outline column) should auto-resize; size and date are fixed
         tableView.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
 
