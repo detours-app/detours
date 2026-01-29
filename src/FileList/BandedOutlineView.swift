@@ -103,9 +103,16 @@ final class BandedOutlineView: NSOutlineView {
         super.keyDown(with: event)
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        // Allow click-through when app is inactive - clicking a pane should
+        // activate the app AND select the clicked item/pane
+        true
+    }
+
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         let clickedRow = row(at: point)
+        let windowWasKey = window?.isKeyWindow ?? false
 
         // Clicking empty space deselects when multiple items are selected
         // Single selection is preserved (common dual-pane behavior)
@@ -116,6 +123,12 @@ final class BandedOutlineView: NSOutlineView {
             window?.makeFirstResponder(self)
             onActivate?()
             return
+        }
+
+        // When window wasn't key, NSOutlineView won't select on the activate click,
+        // so we manually select the clicked row for proper click-through behavior
+        if !windowWasKey {
+            selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
         }
 
         // Handle selection first, then activate pane (avoids flashing old selection)
