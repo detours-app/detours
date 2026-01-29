@@ -147,13 +147,14 @@ Tests go in `Tests/FileOperationQueueTests.swift`. Log results in `Tests/TEST_LO
 
 Tests go in `Tests/UITests/DetoursUITests/`. Run with `resources/scripts/uitest.sh`.
 
-- [ ] `testUndoDelete` - Delete file with Cmd-Delete, Cmd-Z, verify file reappears
-- [ ] `testUndoCopy` - Cmd-C file, Cmd-V to paste, Cmd-Z, verify copy gone (original stays)
-- [ ] `testUndoMove` - Cmd-X file in left pane, Cmd-V in right pane, Cmd-Z, verify file back in left
-- [ ] `testUndoMenuLabel` - Delete file, check Edit menu shows "Undo Delete"
-- [ ] `testMultipleUndoOrder` - Delete A, delete B, Cmd-Z restores B, Cmd-Z restores A
-- [ ] `testRedo` - Delete file, Cmd-Z to undo, Cmd-Shift-Z to redo, verify file gone again
-- [ ] `testTabScopedUndo` - Delete in tab 1, switch to tab 2, Cmd-Z does nothing, switch back, Cmd-Z restores
+- [x] `testUndoDelete` - Delete file with Cmd-Delete, Cmd-Z, verify file reappears
+- [x] `testUndoCopy` - Cmd-C file, Cmd-V to paste, Cmd-Z, verify copy gone (original stays)
+- [x] `testUndoMove` - Cut file, paste to folder, Cmd-Z, verify file back at original location
+- [x] `testUndoMenuLabel` - Delete file, check Edit menu shows "Undo Delete"
+- [x] `testMultipleUndoOrder` - Delete A, delete B, Cmd-Z restores B, Cmd-Z restores A
+- [x] `testRedo` - Delete file, Cmd-Z to undo, Cmd-Shift-Z to redo, verify file gone again
+- [x] `testTabScopedUndo` - Delete in tab 1, switch to tab 2, Cmd-Z does nothing, switch back, Cmd-Z restores
+- [x] `testMultipleUndosAcrossTabs` - Multiple undos in tab 1 and tab 2 verify independent LIFO stacks
 
 ### Manual Verification
 

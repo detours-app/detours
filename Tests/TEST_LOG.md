@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-29 16:49:17
-- Command: `resources/scripts/uitest.sh UndoUITests/testUndoMove`
+- Started: 2026-01-29 16:53:17
+- Command: `resources/scripts/uitest.sh UndoUITests/testMultipleUndosAcrossTabs`
 - Status: PASS
-- Duration: 26.080s
-- Notes: All 7 UndoUITests now pass.
+- Duration: 41.609s
+- Notes: All 8 UndoUITests pass. Tab-independent undo stacks verified.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -415,6 +415,7 @@
 | testMultipleUndoOrder | PASS | 22.839s | 2026-01-29 16:24:19 |
 | testRedo | PASS | 18.394s | 2026-01-29 16:15:56 |
 | testTabScopedUndo | PASS | 25.127s | 2026-01-29 16:40:29 |
+| testMultipleUndosAcrossTabs | PASS | 41.609s | 2026-01-29 16:53:17 |
 
 ## Notes
 - 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.

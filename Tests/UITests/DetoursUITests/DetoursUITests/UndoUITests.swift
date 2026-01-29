@@ -204,4 +204,79 @@ final class UndoUITests: BaseUITest {
         pressCharKey("w", modifiers: .command)  // Close it
         sleep(1)  // Wait for tab close to be persisted
     }
+
+    func testMultipleUndosAcrossTabs() throws {
+        // Verify each tab maintains independent LIFO undo stack
+        // Tab 1: delete FolderA, delete FolderB
+        // Tab 2: delete FolderC
+        // Undo in each tab should only affect that tab's stack
+
+        // Tab 1: Delete FolderA
+        selectRow(named: "FolderA")
+        usleep(300_000)
+        pressKey(.delete, modifiers: .command)
+        usleep(1_000_000)
+        XCTAssertFalse(rowExists(named: "FolderA"), "FolderA should be deleted")
+
+        // Tab 1: Delete FolderB
+        selectRow(named: "FolderB")
+        usleep(300_000)
+        pressKey(.delete, modifiers: .command)
+        usleep(1_000_000)
+        XCTAssertFalse(rowExists(named: "FolderB"), "FolderB should be deleted")
+
+        // Create Tab 2
+        pressCharKey("t", modifiers: .command)
+        usleep(1_000_000)
+
+        // Navigate Tab 2 to same test directory
+        let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
+        homeButton.click()
+        usleep(500_000)
+        let testFolder = app.outlineRows.containing(.staticText, identifier: testFolderName).firstMatch
+        if testFolder.waitForExistence(timeout: 2) {
+            testFolder.staticTexts[testFolderName].doubleClick()
+            usleep(1_000_000)
+        }
+
+        // Tab 2: Delete FolderC
+        selectRow(named: "FolderC")
+        usleep(300_000)
+        pressKey(.delete, modifiers: .command)
+        usleep(1_000_000)
+        XCTAssertFalse(rowExists(named: "FolderC"), "FolderC should be deleted")
+
+        // Tab 2: Undo - should restore FolderC only
+        pressCharKey("z", modifiers: .command)
+        usleep(1_000_000)
+        XCTAssertTrue(waitForRow(named: "FolderC", timeout: 3), "FolderC should be restored in Tab 2")
+        XCTAssertFalse(rowExists(named: "FolderA"), "FolderA should still be deleted (Tab 1's stack)")
+        XCTAssertFalse(rowExists(named: "FolderB"), "FolderB should still be deleted (Tab 1's stack)")
+
+        // Switch to Tab 1
+        pressKey(.tab, modifiers: [.control, .shift])
+        usleep(500_000)
+
+        // Tab 1: Undo - should restore FolderB (LIFO)
+        pressCharKey("z", modifiers: .command)
+        usleep(1_000_000)
+        XCTAssertTrue(waitForRow(named: "FolderB", timeout: 3), "FolderB should be restored in Tab 1")
+        XCTAssertFalse(rowExists(named: "FolderA"), "FolderA should still be deleted")
+
+        // Tab 1: Undo again - should restore FolderA
+        pressCharKey("z", modifiers: .command)
+        usleep(1_000_000)
+        XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "FolderA should be restored in Tab 1")
+
+        // Cleanup: close Tab 2
+        let leftOutline = app.outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
+        if leftOutline.exists {
+            leftOutline.click()
+            usleep(300_000)
+        }
+        pressKey(.tab, modifiers: .control)
+        usleep(300_000)
+        pressCharKey("w", modifiers: .command)
+        sleep(1)
+    }
 }
