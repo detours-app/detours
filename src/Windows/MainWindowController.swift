@@ -62,4 +62,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
             window?.makeFirstResponder(tableView)
         }
     }
+
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? {
+        // Return the active tab's undo manager for tab-scoped undo
+        splitViewController.activePane.selectedTab?.fileListViewController.undoManager
+    }
 }

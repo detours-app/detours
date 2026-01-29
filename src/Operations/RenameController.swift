@@ -17,13 +17,16 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     private var currentRow: Int?
     private var isNewItem: Bool = false
 
-    func beginRename(for item: FileItem, in tableView: NSTableView, at row: Int, isNewItem: Bool = false) {
+    private var currentUndoManager: UndoManager?
+
+    func beginRename(for item: FileItem, in tableView: NSTableView, at row: Int, isNewItem: Bool = false, undoManager: UndoManager? = nil) {
         cancelRename()
 
         self.tableView = tableView
         currentItem = item
         currentRow = row
         self.isNewItem = isNewItem
+        self.currentUndoManager = undoManager
 
         let rowRect = tableView.rect(ofRow: row)
         let columnRect = tableView.rect(ofColumn: 0)
@@ -92,7 +95,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         let oldURL = item.url
         let oldName = item.name
-        let undoManager = tableView?.window?.undoManager
+        let undoManager = currentUndoManager
         cancelRename()
 
         Task { @MainActor in
@@ -131,6 +134,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         currentItem = nil
         currentRow = nil
         isNewItem = false
+        currentUndoManager = nil
 
         // Remove delegate before removing field to prevent controlTextDidEndEditing callback
         field?.delegate = nil

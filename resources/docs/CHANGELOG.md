@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### 260129
+
+#### Operation Undo (Cmd-Z)
+- Added: Undo support for file operations - delete, copy, move, duplicate, create folder/file
+- Added: Tab-scoped undo stacks - each tab has its own undo history
+- Added: Edit menu shows operation name ("Undo Delete", "Undo Copy", etc.)
+- Added: Redo support (Cmd-Shift-Z) for all undone operations
+- Added: Conflict handling on restore - uses unique naming if file exists at original location
+- Added: Graceful error handling if undo fails (e.g., trash emptied)
+- Changed: Delete Immediately remains non-undoable (intentionally destructive)
+
 ### 260128
 
 #### Session Auto-Save

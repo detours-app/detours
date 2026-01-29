@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-27 23:27:24
-- Command: `swift test --filter FilterTests`
+- Started: 2026-01-29 16:53:17
+- Command: `resources/scripts/uitest.sh UndoUITests/testMultipleUndosAcrossTabs`
 - Status: PASS
-- Duration: 0.038s
-- Notes: All 7 FilterTests pass (added testFilterMatchesNestedFileRecursively). Fixed recursive filter auto-expand by preventing FileItem.loadChildren from recreating children when already loaded.
+- Duration: 41.609s
+- Notes: All 8 UndoUITests pass. Tab-independent undo stacks verified.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -147,15 +147,24 @@
 | testCopyFile | PASS | 0.002s | 2026-01-13 12:30:31 |
 | testCopyMultipleConflicts | PASS | 0.002s | 2026-01-13 12:30:31 |
 | testCopyToSameDirectory | PASS | 0.001s | 2026-01-13 12:30:31 |
+| testCopyUndo | PASS | 0.505s | 2026-01-29 14:52:31 |
 | testCreateFolder | PASS | 0.001s | 2026-01-13 12:30:31 |
 | testCreateFolderNameCollision | PASS | 0.001s | 2026-01-13 12:30:31 |
+| testCreateFolderUndo | PASS | 0.516s | 2026-01-29 14:52:32 |
 | testDeleteFile | PASS | 0.014s | 2026-01-13 12:30:31 |
+| testDeleteUndo | PASS | 0.565s | 2026-01-29 14:52:24 |
+| testDeleteUndoMultiple | PASS | 0.514s | 2026-01-29 14:52:25 |
 | testDuplicateFile | PASS | 0.001s | 2026-01-13 12:30:31 |
 | testDuplicateMultiple | PASS | 0.002s | 2026-01-13 12:30:31 |
+| testDuplicateUndo | PASS | 0.511s | 2026-01-29 14:52:32 |
 | testMoveFile | PASS | 0.002s | 2026-01-13 12:30:31 |
+| testMoveUndo | PASS | 0.515s | 2026-01-29 14:52:33 |
+| testMultipleUndos | PASS | 1.030s | 2026-01-29 14:52:40 |
 | testRenameFile | PASS | 0.001s | 2026-01-13 12:30:31 |
 | testRenameInvalidCharacters | PASS | 0.001s | 2026-01-13 12:30:31 |
 | testRenameToExistingName | PASS | 0.001s | 2026-01-13 12:30:31 |
+| testRestoreConflict | PASS | 0.518s | 2026-01-29 14:52:40 |
+| testTabScopedUndo | PASS | 0.004s | 2026-01-29 14:52:41 |
 
 ### DuplicateStructureTests
 | Test | Status | Duration | Last Run |
@@ -395,6 +404,18 @@
 | testEscapeClearsFilterThenCloses | PASS | 17.5s | 2026-01-27 23:24:56 |
 | testDownArrowMovesFocusToList | PASS | 14.2s | 2026-01-27 23:25:08 |
 | testFilterAutoExpandsToShowNestedMatches | PASS | 22.9s | 2026-01-27 23:25:24 |
+
+### UndoUITests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testUndoDelete | PASS | 19.602s | 2026-01-29 16:23:39 |
+| testUndoCopy | PASS | 26.948s | 2026-01-29 16:44:26 |
+| testUndoMove | PASS | 26.080s | 2026-01-29 16:49:17 |
+| testUndoMenuLabel | PASS | 15.944s | 2026-01-29 16:20:12 |
+| testMultipleUndoOrder | PASS | 22.839s | 2026-01-29 16:24:19 |
+| testRedo | PASS | 18.394s | 2026-01-29 16:15:56 |
+| testTabScopedUndo | PASS | 25.127s | 2026-01-29 16:40:29 |
+| testMultipleUndosAcrossTabs | PASS | 41.609s | 2026-01-29 16:53:17 |
 
 ## Notes
 - 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.

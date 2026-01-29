@@ -40,16 +40,16 @@ final class ClipboardManager {
     }
 
     @discardableResult
-    func paste(to destination: URL) async throws -> [URL] {
+    func paste(to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
         let items = readItems()
         guard !items.isEmpty else { return [] }
 
         let pastedURLs: [URL]
         if isCut {
-            pastedURLs = try await FileOperationQueue.shared.move(items: items, to: destination)
+            pastedURLs = try await FileOperationQueue.shared.move(items: items, to: destination, undoManager: undoManager)
             clear()
         } else {
-            pastedURLs = try await FileOperationQueue.shared.copy(items: items, to: destination)
+            pastedURLs = try await FileOperationQueue.shared.copy(items: items, to: destination, undoManager: undoManager)
         }
         return pastedURLs
     }
