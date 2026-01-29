@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-29 16:16:47
+- Started: 2026-01-29 16:24:19
 - Command: `resources/scripts/uitest.sh UndoUITests/testMultipleUndoOrder`
 - Status: PASS
-- Duration: 22.259s
-- Notes: Multiple undo LIFO order works. Fixed redo by making restoreFromTrash synchronous.
+- Duration: 22.839s
+- Notes: Multiple undo LIFO order confirmed working.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -408,13 +408,13 @@
 ### UndoUITests (XCUITest)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testUndoDelete | PASS | 20.156s | 2026-01-29 16:06:56 |
-| testUndoCopy | - | - | - |
-| testUndoMove | - | - | - |
-| testUndoMenuLabel | - | - | - |
-| testMultipleUndoOrder | PASS | 22.259s | 2026-01-29 16:16:47 |
+| testUndoDelete | PASS | 19.602s | 2026-01-29 16:23:39 |
+| testUndoCopy | FAIL | 23.327s | 2026-01-29 16:22:37 | Paste not creating copy - app behavior issue
+| testUndoMove | FAIL | 25.350s | 2026-01-29 16:21:31 | Test infra - can't find disclosure triangle after move
+| testUndoMenuLabel | PASS | 15.944s | 2026-01-29 16:20:12 |
+| testMultipleUndoOrder | PASS | 22.839s | 2026-01-29 16:24:19 |
 | testRedo | PASS | 18.394s | 2026-01-29 16:15:56 |
-| testTabScopedUndo | - | - | - |
+| testTabScopedUndo | FAIL | 21.796s | 2026-01-29 16:20:06 | Cmd-Shift-[ tab switch or undoManager retrieval issue
 
 ## Notes
 - 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.
