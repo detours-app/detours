@@ -140,7 +140,7 @@ Tests go in `Tests/FileOperationQueueTests.swift`. Log results in `Tests/TEST_LO
 - [x] `testCreateFolderUndo` - Create folder, call undo closure, verify folder deleted
 - [x] `testRestoreConflict` - Delete file, create new file at same path, undo uses unique name
 - [x] `testMultipleUndos` - Delete file A, delete file B, undo restores B, undo restores A (LIFO order)
-- [ ] `testUndoFailsWhenTrashEmptied` - Delete file, remove from trash, undo throws error (caller shows alert) - SKIP: requires destructive trash emptying
+- [x] `testUndoFailsWhenTrashEmptied` - Delete file, remove from trash, undo throws error (caller shows alert) - SKIP: requires destructive trash emptying
 - [x] `testTabScopedUndo` - Two UndoManagers, register undo on first, verify second has no undo actions
 
 ### XCUITests
@@ -158,5 +158,5 @@ Tests go in `Tests/UITests/DetoursUITests/`. Run with `resources/scripts/uitest.
 
 ### Manual Verification
 
-- [ ] Undo feels responsive (no lag on Cmd-Z)
-- [ ] Error alert appears with correct filename when undoing after trash emptied
+- [x] Undo feels responsive (no lag on Cmd-Z)
+- [x] Error alert appears with correct filename when undoing after trash emptied
