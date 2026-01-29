@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-29 16:24:19
-- Command: `resources/scripts/uitest.sh UndoUITests/testMultipleUndoOrder`
+- Started: 2026-01-29 16:45:32
+- Command: `resources/scripts/uitest.sh UndoUITests/testUndoDelete`
 - Status: PASS
-- Duration: 22.839s
-- Notes: Multiple undo LIFO order confirmed working.
+- Duration: 23.880s
+- Notes: Tab isolation verified working - no leftover tabs after test.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -409,12 +409,12 @@
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testUndoDelete | PASS | 19.602s | 2026-01-29 16:23:39 |
-| testUndoCopy | FAIL | 23.327s | 2026-01-29 16:22:37 | Paste not creating copy - app behavior issue
+| testUndoCopy | PASS | 26.948s | 2026-01-29 16:44:26 |
 | testUndoMove | FAIL | 25.350s | 2026-01-29 16:21:31 | Test infra - can't find disclosure triangle after move
 | testUndoMenuLabel | PASS | 15.944s | 2026-01-29 16:20:12 |
 | testMultipleUndoOrder | PASS | 22.839s | 2026-01-29 16:24:19 |
 | testRedo | PASS | 18.394s | 2026-01-29 16:15:56 |
-| testTabScopedUndo | FAIL | 21.796s | 2026-01-29 16:20:06 | Cmd-Shift-[ tab switch or undoManager retrieval issue
+| testTabScopedUndo | PASS | 25.127s | 2026-01-29 16:40:29 |
 
 ## Notes
 - 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.

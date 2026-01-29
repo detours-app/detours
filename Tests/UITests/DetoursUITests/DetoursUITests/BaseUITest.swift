@@ -23,6 +23,11 @@ class BaseUITest: XCTestCase {
         // Give the app time to fully initialize
         sleep(2)
 
+        // IMPORTANT: Activate the LEFT pane before creating tab
+        // This ensures we create the tab in a predictable location
+        activateLeftPane()
+        usleep(300_000)
+
         // Create a new tab for this test (Cmd-T) so we don't affect user's existing tabs
         pressCharKey("t", modifiers: .command)
         usleep(500_000)
@@ -32,14 +37,28 @@ class BaseUITest: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        // Close the tab we created (Cmd-W) instead of terminating app
-        // This preserves user's other tabs
-        pressCharKey("w", modifiers: .command)
+        // IMPORTANT: Activate LEFT pane before closing tab
+        // This ensures we close the tab we created, not a tab in another pane
+        activateLeftPane()
         usleep(300_000)
 
-        // Terminate app (uitest.sh will relaunch it fresh for each test)
-        app.terminate()
-        // Note: test directory cleanup is handled by uitest.sh
+        // Close the tab we created (Cmd-W)
+        pressCharKey("w", modifiers: .command)
+
+        // Wait for tab close to be persisted before app termination
+        // Without this delay, the tab state may not be saved
+        sleep(2)
+
+        // Don't terminate - uitest.sh handles quitting and relaunching
+        // Terminating too quickly after Cmd-W causes tab state to not be saved
+    }
+
+    /// Activate the left pane by clicking its outline view
+    private func activateLeftPane() {
+        let leftOutline = app.outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
+        if leftOutline.exists {
+            leftOutline.click()
+        }
     }
 
     /// Ensures folder expansion is enabled. Call this at the start of tests that need disclosure triangles.

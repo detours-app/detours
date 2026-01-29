@@ -218,10 +218,16 @@ final class UndoUITests: BaseUITest {
         usleep(1_000_000)
         XCTAssertTrue(waitForRow(named: "FolderB", timeout: 3), "FolderB should be restored after undo in original tab")
 
-        // Cleanup: close the extra tab we created (switch to it, then close)
-        pressKey(.tab, modifiers: .control)  // Switch to next tab
+        // Cleanup: close the extra tab we created in the LEFT pane
+        // First activate left pane to ensure we're closing the right tab
+        let leftOutline = app.outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
+        if leftOutline.exists {
+            leftOutline.click()
+            usleep(300_000)
+        }
+        pressKey(.tab, modifiers: .control)  // Switch to next tab (the one we created)
         usleep(300_000)
         pressCharKey("w", modifiers: .command)  // Close it
-        usleep(300_000)
+        sleep(1)  // Wait for tab close to be persisted
     }
 }
