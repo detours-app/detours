@@ -24,7 +24,7 @@ Capture operation results and register undo actions with the window's UndoManage
 - Cmd-Shift-Z redoes undone operations
 - Edit menu shows "Undo Delete", "Undo Copy", etc. (action name visible)
 - Delete Immediately remains non-undoable (intentionally destructive)
-- Undo is window-scoped (each window has independent undo stack)
+- Undo is tab-scoped (each tab has its own undo stack; switching tabs switches undo context)
 - If undo fails (e.g., trash was emptied), show alert with specific file name: "Cannot restore \"filename.txt\". The item is no longer in the Trash."
 
 ---
@@ -33,7 +33,9 @@ Capture operation results and register undo actions with the window's UndoManage
 
 ### Approach
 
-Add an optional `undoManager: UndoManager?` parameter to FileOperationQueue's public methods. After successful operations, register an undo action that reverses the operation. Callers (FileListViewController, ClipboardManager) pass `view.window?.undoManager`.
+Add an optional `undoManager: UndoManager?` parameter to FileOperationQueue's public methods. After successful operations, register an undo action that reverses the operation.
+
+**Tab-scoped undo**: Each `FileListViewController` owns its own `UndoManager` instance (not the window's shared one). Override the `undoManager` property to return it. The responder chain automatically finds the active tab's UndoManager when Cmd-Z is pressed. Switching tabs switches the undo context.
 
 For delete operations, modify `recycle()` to return the trash URL from `NSWorkspace.shared.recycle()`'s completion handler (currently ignored). The undo action moves files from trash back to original locations.
 
@@ -61,15 +63,22 @@ NSUndoManager automatically handles:
 - Pass undoManager to `FileOperationQueue.shared.copy()` or `.move()` calls
 
 **src/FileList/FileListViewController.swift**
-- Pass `view.window?.undoManager` to all FileOperationQueue calls in:
+- Add private `let tabUndoManager = UndoManager()` property
+- Override `var undoManager: UndoManager?` to return `tabUndoManager`
+- Pass `undoManager` (self's property) to all FileOperationQueue calls in:
   - `deleteSelection()` (line ~682)
   - `duplicateSelection()` (line ~747)
   - `createNewFolder()`
   - `createNewFile()`
 - Pass undoManager to `ClipboardManager.shared.paste()` in `pasteHere()`
+- Update RenameController to use the tab's undoManager instead of window's
 
 **src/FileList/FileListViewController+DragDrop.swift**
-- Pass `view.window?.undoManager` to `FileOperationQueue.shared.copy()` and `.move()` calls (line ~12-14)
+- Pass `undoManager` to `FileOperationQueue.shared.copy()` and `.move()` calls (line ~12-14)
+
+**src/Operations/RenameController.swift**
+- Change `tableView?.window?.undoManager` to accept undoManager as parameter
+- Caller passes tab's undoManager
 
 ### Risks
 
@@ -132,6 +141,7 @@ Tests go in `Tests/FileOperationQueueTests.swift`. Log results in `Tests/TEST_LO
 - [ ] `testRestoreConflict` - Delete file, create new file at same path, undo uses unique name
 - [ ] `testMultipleUndos` - Delete file A, delete file B, undo restores B, undo restores A (LIFO order)
 - [ ] `testUndoFailsWhenTrashEmptied` - Delete file, remove from trash, undo throws error (caller shows alert)
+- [ ] `testTabScopedUndo` - Two UndoManagers, register undo on first, verify second has no undo actions
 
 ### User Verification
 
@@ -141,3 +151,5 @@ Tests go in `Tests/FileOperationQueueTests.swift`. Log results in `Tests/TEST_LO
 - [ ] Edit menu shows "Undo Delete" / "Undo Copy" / "Undo Move" as appropriate
 - [ ] Delete file A, delete file B, Cmd-Z restores B, Cmd-Z restores A
 - [ ] After undo, Cmd-Shift-Z redoes the operation
+- [ ] Delete in tab 1, switch to tab 2, Cmd-Z does nothing (tab 2 has no undo history)
+- [ ] Switch back to tab 1, Cmd-Z restores deleted file
