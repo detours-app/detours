@@ -18,22 +18,22 @@ final class FileOperationQueue {
     // MARK: - Public API
 
     @discardableResult
-    func copy(items: [URL], to destination: URL) async throws -> [URL] {
+    func copy(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
         try await enqueue {
-            try await self.performCopy(items: items, to: destination)
+            try await self.performCopy(items: items, to: destination, undoManager: undoManager)
         }
     }
 
     @discardableResult
-    func move(items: [URL], to destination: URL) async throws -> [URL] {
+    func move(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
         try await enqueue {
-            try await self.performMove(items: items, to: destination)
+            try await self.performMove(items: items, to: destination, undoManager: undoManager)
         }
     }
 
-    func delete(items: [URL]) async throws {
+    func delete(items: [URL], undoManager: UndoManager? = nil) async throws {
         try await enqueue {
-            try await self.performDelete(items: items)
+            try await self.performDelete(items: items, undoManager: undoManager)
         }
     }
 
@@ -49,21 +49,21 @@ final class FileOperationQueue {
         }
     }
 
-    func duplicate(items: [URL]) async throws -> [URL] {
+    func duplicate(items: [URL], undoManager: UndoManager? = nil) async throws -> [URL] {
         try await enqueue {
-            try await self.performDuplicate(items: items)
+            try await self.performDuplicate(items: items, undoManager: undoManager)
         }
     }
 
-    func createFolder(in directory: URL, name: String) async throws -> URL {
+    func createFolder(in directory: URL, name: String, undoManager: UndoManager? = nil) async throws -> URL {
         try await enqueue {
-            try await self.performCreateFolder(in: directory, name: name)
+            try await self.performCreateFolder(in: directory, name: name, undoManager: undoManager)
         }
     }
 
-    func createFile(in directory: URL, name: String, content: Data = Data()) async throws -> URL {
+    func createFile(in directory: URL, name: String, content: Data = Data(), undoManager: UndoManager? = nil) async throws -> URL {
         try await enqueue {
-            try await self.performCreateFile(in: directory, name: name, content: content)
+            try await self.performCreateFile(in: directory, name: name, content: content, undoManager: undoManager)
         }
     }
 
@@ -155,7 +155,7 @@ final class FileOperationQueue {
 
     // MARK: - Operations
 
-    private func performCopy(items: [URL], to destination: URL) async throws -> [URL] {
+    private func performCopy(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
         let operation = FileOperation.copy(sources: items, destination: destination)
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
@@ -217,18 +217,35 @@ final class FileOperationQueue {
             )
         }
 
+        // Only register undo if all items succeeded (no failures, no skips affecting count)
+        if failures.isEmpty, !successes.isEmpty, let undoManager {
+            let copiedFiles = successes
+            undoManager.registerUndo(withTarget: self) { target in
+                Task { @MainActor in
+                    do {
+                        // Undo copy by moving copied files to trash
+                        try await target.performDelete(items: copiedFiles)
+                    } catch {
+                        target.presentError(error)
+                    }
+                }
+            }
+            let actionName = successes.count == 1 ? "Copy \"\(successes[0].lastPathComponent)\"" : "Copy \(successes.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
         try handleFailures(successes: successes, failures: failures)
         return successes
     }
 
-    private func performMove(items: [URL], to destination: URL) async throws -> [URL] {
+    private func performMove(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
         let operation = FileOperation.move(sources: items, destination: destination)
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
 
         let fileManager = FileManager.default
         var failures: [(URL, Error)] = []
-        var successes: [URL] = []
+        var successes: [(source: URL, destination: URL)] = []
         var conflictChoice: ConflictChoice?
 
         for (index, source) in items.enumerated() {
@@ -269,7 +286,7 @@ final class FileOperationQueue {
 
                 if !skipped {
                     try fileManager.moveItem(at: source, to: destinationURL)
-                    successes.append(destinationURL)
+                    successes.append((source: source, destination: destinationURL))
                 }
             } catch {
                 failures.append((source, mapError(error, url: source)))
@@ -283,17 +300,38 @@ final class FileOperationQueue {
             )
         }
 
-        try handleFailures(successes: successes, failures: failures)
-        return successes
+        // Only register undo if all items succeeded
+        if failures.isEmpty, !successes.isEmpty, let undoManager {
+            let movedItems = successes
+            undoManager.registerUndo(withTarget: self) { target in
+                Task { @MainActor in
+                    do {
+                        // Undo move by moving files back to their original directories
+                        for item in movedItems {
+                            let originalDir = item.source.deletingLastPathComponent()
+                            try fileManager.moveItem(at: item.destination, to: item.source)
+                            _ = originalDir // silence unused warning
+                        }
+                    } catch {
+                        target.presentError(error)
+                    }
+                }
+            }
+            let actionName = successes.count == 1 ? "Move \"\(successes[0].destination.lastPathComponent)\"" : "Move \(successes.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
+        try handleFailures(successes: successes.map { $0.destination }, failures: failures)
+        return successes.map { $0.destination }
     }
 
-    private func performDelete(items: [URL]) async throws {
+    private func performDelete(items: [URL], undoManager: UndoManager? = nil) async throws {
         let operation = FileOperation.delete(items: items)
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
 
         var failures: [(URL, Error)] = []
-        var successes: [URL] = []
+        var successes: [(original: URL, trash: URL)] = []
 
         for (index, item) in items.enumerated() {
             try checkCancelled()
@@ -306,8 +344,8 @@ final class FileOperationQueue {
             )
 
             do {
-                try await recycle(item: item)
-                successes.append(item)
+                let trashURL = try await recycle(item: item)
+                successes.append((original: item, trash: trashURL))
             } catch {
                 failures.append((item, mapError(error, url: item)))
             }
@@ -320,7 +358,23 @@ final class FileOperationQueue {
             )
         }
 
-        try handleFailures(successes: successes, failures: failures)
+        // Only register undo if all items succeeded
+        if failures.isEmpty, !successes.isEmpty, let undoManager {
+            let itemsToRestore = successes
+            undoManager.registerUndo(withTarget: self) { target in
+                Task { @MainActor in
+                    do {
+                        try await target.restoreFromTrash(items: itemsToRestore)
+                    } catch {
+                        target.presentError(error)
+                    }
+                }
+            }
+            let actionName = successes.count == 1 ? "Delete \"\(successes[0].original.lastPathComponent)\"" : "Delete \(successes.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
+        try handleFailures(successes: successes.map { $0.original }, failures: failures)
     }
 
     private func performDeleteImmediately(items: [URL]) async throws {
@@ -388,7 +442,7 @@ final class FileOperationQueue {
         }
     }
 
-    private func performDuplicate(items: [URL]) async throws -> [URL] {
+    private func performDuplicate(items: [URL], undoManager: UndoManager? = nil) async throws -> [URL] {
         let operation = FileOperation.duplicate(items: items)
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
@@ -423,11 +477,28 @@ final class FileOperationQueue {
             )
         }
 
+        // Only register undo if all items succeeded
+        if failures.isEmpty, !successes.isEmpty, let undoManager {
+            let duplicatedFiles = successes
+            undoManager.registerUndo(withTarget: self) { target in
+                Task { @MainActor in
+                    do {
+                        // Undo duplicate by moving duplicates to trash
+                        try await target.performDelete(items: duplicatedFiles)
+                    } catch {
+                        target.presentError(error)
+                    }
+                }
+            }
+            let actionName = successes.count == 1 ? "Duplicate \"\(successes[0].lastPathComponent)\"" : "Duplicate \(successes.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
         try handleFailures(successes: successes, failures: failures)
         return successes
     }
 
-    private func performCreateFolder(in directory: URL, name: String) async throws -> URL {
+    private func performCreateFolder(in directory: URL, name: String, undoManager: UndoManager? = nil) async throws -> URL {
         let operation = FileOperation.createFolder(directory: directory, name: name)
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
@@ -437,13 +508,29 @@ final class FileOperationQueue {
         do {
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false, attributes: nil)
             updateProgress(operation: operation, currentItem: destination, completed: 1, total: 1)
+
+            // Register undo to trash the created folder
+            if let undoManager {
+                let createdFolder = destination
+                undoManager.registerUndo(withTarget: self) { target in
+                    Task { @MainActor in
+                        do {
+                            try await target.performDelete(items: [createdFolder])
+                        } catch {
+                            target.presentError(error)
+                        }
+                    }
+                }
+                undoManager.setActionName("New Folder")
+            }
+
             return destination
         } catch {
             throw mapError(error, url: destination)
         }
     }
 
-    private func performCreateFile(in directory: URL, name: String, content: Data) async throws -> URL {
+    private func performCreateFile(in directory: URL, name: String, content: Data, undoManager: UndoManager? = nil) async throws -> URL {
         let operation = FileOperation.createFile(directory: directory, name: name)
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
@@ -453,6 +540,22 @@ final class FileOperationQueue {
         do {
             try content.write(to: destination)
             updateProgress(operation: operation, currentItem: destination, completed: 1, total: 1)
+
+            // Register undo to trash the created file
+            if let undoManager {
+                let createdFile = destination
+                undoManager.registerUndo(withTarget: self) { target in
+                    Task { @MainActor in
+                        do {
+                            try await target.performDelete(items: [createdFile])
+                        } catch {
+                            target.presentError(error)
+                        }
+                    }
+                }
+                undoManager.setActionName("New File")
+            }
+
             return destination
         } catch {
             throw mapError(error, url: destination)
@@ -578,15 +681,72 @@ final class FileOperationQueue {
         }
     }
 
-    private func recycle(item: URL) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            NSWorkspace.shared.recycle([item]) { _, error in
+    private func recycle(item: URL) async throws -> URL {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+            NSWorkspace.shared.recycle([item]) { trashedURLs, error in
                 if let error {
                     continuation.resume(throwing: error)
+                } else if let trashURL = trashedURLs[item] {
+                    continuation.resume(returning: trashURL)
                 } else {
-                    continuation.resume(returning: ())
+                    continuation.resume(throwing: FileOperationError.unknown(NSError(domain: "Detours", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to get trash URL"])))
                 }
             }
+        }
+    }
+
+    private func restoreFromTrash(items: [(original: URL, trash: URL)]) async throws {
+        let fileManager = FileManager.default
+        var failures: [(URL, Error)] = []
+
+        for item in items {
+            do {
+                // Check if trash file still exists
+                guard fileManager.fileExists(atPath: item.trash.path) else {
+                    throw FileOperationError.unknown(NSError(
+                        domain: "Detours",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Cannot restore \"\(item.original.lastPathComponent)\". The item is no longer in the Trash."]
+                    ))
+                }
+
+                // Handle conflict if something now exists at original location
+                var destination = item.original
+                if fileManager.fileExists(atPath: destination.path) {
+                    destination = uniqueRestoreDestination(for: item.original)
+                }
+
+                try fileManager.moveItem(at: item.trash, to: destination)
+            } catch {
+                failures.append((item.original, mapError(error, url: item.original)))
+            }
+        }
+
+        if !failures.isEmpty {
+            if failures.count == items.count, let first = failures.first {
+                throw first.1
+            }
+            throw FileOperationError.partialFailure(succeeded: [], failed: failures)
+        }
+    }
+
+    private func uniqueRestoreDestination(for original: URL) -> URL {
+        let fileManager = FileManager.default
+        let directory = original.deletingLastPathComponent()
+        let baseName = original.deletingPathExtension().lastPathComponent
+        let ext = original.pathExtension
+
+        var attempt = 2
+        while true {
+            var name = "\(baseName) \(attempt)"
+            if !ext.isEmpty {
+                name += ".\(ext)"
+            }
+            let candidate = directory.appendingPathComponent(name)
+            if !fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            attempt += 1
         }
     }
 

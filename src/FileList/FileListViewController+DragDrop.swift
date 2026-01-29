@@ -9,9 +9,9 @@ extension FileListViewController: FileListDropDelegate {
         Task { @MainActor in
             do {
                 if isCopy {
-                    try await FileOperationQueue.shared.copy(items: urls, to: destination)
+                    try await FileOperationQueue.shared.copy(items: urls, to: destination, undoManager: undoManager)
                 } else {
-                    try await FileOperationQueue.shared.move(items: urls, to: destination)
+                    try await FileOperationQueue.shared.move(items: urls, to: destination, undoManager: undoManager)
                 }
                 // Refresh the view
                 dataSource.invalidateGitStatus()

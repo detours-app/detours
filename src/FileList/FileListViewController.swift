@@ -50,6 +50,13 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private static let filterBarHeight: CGFloat = 28
     private let noMatchesLabel = NSTextField(labelWithString: "No matches")
 
+    // Tab-scoped undo manager (each tab has its own undo stack)
+    private let tabUndoManager = UndoManager()
+
+    override var undoManager: UndoManager? {
+        tabUndoManager
+    }
+
     override func loadView() {
         view = NSView()
     }
@@ -654,7 +661,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         Task { @MainActor in
             do {
-                let pastedURLs = try await ClipboardManager.shared.paste(to: pasteDestination)
+                let pastedURLs = try await ClipboardManager.shared.paste(to: pasteDestination, undoManager: undoManager)
                 loadDirectory(currentDirectory, preserveExpansion: true)
                 // Select the first pasted file
                 if let firstURL = pastedURLs.first {
@@ -679,7 +686,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         Task { @MainActor in
             do {
-                try await FileOperationQueue.shared.delete(items: urls)
+                try await FileOperationQueue.shared.delete(items: urls, undoManager: undoManager)
                 dataSource.invalidateGitStatus()
                 loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
                 // Select next file at same row position (accounting for expanded folders)
@@ -744,7 +751,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         Task { @MainActor in
             do {
-                let duplicatedURLs = try await FileOperationQueue.shared.duplicate(items: urls)
+                let duplicatedURLs = try await FileOperationQueue.shared.duplicate(items: urls, undoManager: undoManager)
                 dataSource.invalidateGitStatus()
                 loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
                 // Select the first duplicated file
@@ -762,7 +769,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         Task { @MainActor in
             do {
-                let newFolder = try await FileOperationQueue.shared.createFolder(in: currentDirectory, name: "Folder")
+                let newFolder = try await FileOperationQueue.shared.createFolder(in: currentDirectory, name: "Folder", undoManager: undoManager)
                 loadDirectory(currentDirectory, preserveExpansion: true)
                 selectItem(at: newFolder)
                 renameSelection(isNewItem: true)
@@ -777,7 +784,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         Task { @MainActor in
             do {
-                let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: name)
+                let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: name, undoManager: undoManager)
                 loadDirectory(currentDirectory, preserveExpansion: true)
                 selectItem(at: newFile)
                 renameSelection(isNewItem: true)
@@ -801,14 +808,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         textField.stringValue = "Untitled"
         alert.accessoryView = textField
 
-        alert.beginSheetModal(for: window) { response in
-            guard response == .alertFirstButtonReturn else { return }
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn else { return }
             let fileName = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !fileName.isEmpty else { return }
 
             Task { @MainActor in
                 do {
-                    let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: fileName)
+                    let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: fileName, undoManager: self.undoManager)
                     self.loadDirectory(currentDirectory, preserveExpansion: true)
                     self.selectItem(at: newFile)
                 } catch {
@@ -822,7 +829,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         guard tableView.selectedRowIndexes.count == 1 else { return }
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
-        renameController.beginRename(for: item, in: tableView, at: row, isNewItem: isNewItem)
+        renameController.beginRename(for: item, in: tableView, at: row, isNewItem: isNewItem, undoManager: undoManager)
     }
 
     private func moveSelectionToOtherPane() {

@@ -1,11 +1,11 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-27 23:27:24
-- Command: `swift test --filter FilterTests`
+- Started: 2026-01-29 14:52:24
+- Command: `swift test --filter 'testDeleteUndo|testCopyUndo|testMoveUndo|testDuplicateUndo|testCreateFolderUndo|testRestoreConflict|testMultipleUndos|testTabScopedUndo'`
 - Status: PASS
-- Duration: 0.038s
-- Notes: All 7 FilterTests pass (added testFilterMatchesNestedFileRecursively). Fixed recursive filter auto-expand by preventing FileItem.loadChildren from recreating children when already loaded.
+- Duration: 4.68s
+- Notes: All 9 undo tests pass. Added operation undo support (delete, copy, move, duplicate, create folder). Tab-scoped UndoManager per FileListViewController.
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -147,15 +147,24 @@
 | testCopyFile | PASS | 0.002s | 2026-01-13 12:30:31 |
 | testCopyMultipleConflicts | PASS | 0.002s | 2026-01-13 12:30:31 |
 | testCopyToSameDirectory | PASS | 0.001s | 2026-01-13 12:30:31 |
+| testCopyUndo | PASS | 0.505s | 2026-01-29 14:52:31 |
 | testCreateFolder | PASS | 0.001s | 2026-01-13 12:30:31 |
 | testCreateFolderNameCollision | PASS | 0.001s | 2026-01-13 12:30:31 |
+| testCreateFolderUndo | PASS | 0.516s | 2026-01-29 14:52:32 |
 | testDeleteFile | PASS | 0.014s | 2026-01-13 12:30:31 |
+| testDeleteUndo | PASS | 0.565s | 2026-01-29 14:52:24 |
+| testDeleteUndoMultiple | PASS | 0.514s | 2026-01-29 14:52:25 |
 | testDuplicateFile | PASS | 0.001s | 2026-01-13 12:30:31 |
 | testDuplicateMultiple | PASS | 0.002s | 2026-01-13 12:30:31 |
+| testDuplicateUndo | PASS | 0.511s | 2026-01-29 14:52:32 |
 | testMoveFile | PASS | 0.002s | 2026-01-13 12:30:31 |
+| testMoveUndo | PASS | 0.515s | 2026-01-29 14:52:33 |
+| testMultipleUndos | PASS | 1.030s | 2026-01-29 14:52:40 |
 | testRenameFile | PASS | 0.001s | 2026-01-13 12:30:31 |
 | testRenameInvalidCharacters | PASS | 0.001s | 2026-01-13 12:30:31 |
 | testRenameToExistingName | PASS | 0.001s | 2026-01-13 12:30:31 |
+| testRestoreConflict | PASS | 0.518s | 2026-01-29 14:52:40 |
+| testTabScopedUndo | PASS | 0.004s | 2026-01-29 14:52:41 |
 
 ### DuplicateStructureTests
 | Test | Status | Duration | Last Run |
