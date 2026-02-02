@@ -16,4 +16,7 @@ protocol SidebarDelegate: AnyObject {
 
     /// Called when user reorders favorites via drag-drop
     func sidebarDidReorderFavorites(_ urls: [URL])
+
+    /// Called when user drops files onto a favorite to copy/move them there
+    func sidebarDidDropFiles(_ urls: [URL], to destination: URL, isCopy: Bool)
 }

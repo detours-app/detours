@@ -197,7 +197,31 @@ extension SidebarViewController: NSOutlineViewDataSource {
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
-        // Only accept drops at root level (flat list)
+        // Handle drops ON a favorite item (copy/move files to that location)
+        if let targetURL = item as? URL {
+            // Verify it's a directory
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: targetURL.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else { return [] }
+
+            // Check for file URLs being dropped
+            if let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
+                // Don't allow dropping a folder onto itself
+                for url in urls {
+                    if targetURL.path.hasPrefix(url.path) || url == targetURL {
+                        return []
+                    }
+                }
+
+                // Option key = copy, otherwise move
+                let isCopy = NSEvent.modifierFlags.contains(.option)
+                return isCopy ? .copy : .move
+            }
+
+            return []
+        }
+
+        // Only accept drops at root level (flat list) for add/reorder
         guard item == nil else { return [] }
 
         // Check for file URLs (folders being added to favorites)
@@ -222,6 +246,16 @@ extension SidebarViewController: NSOutlineViewDataSource {
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
         let pasteboard = info.draggingPasteboard
+
+        // Handle drops ON a favorite item (copy/move files to that location)
+        if let targetURL = item as? URL {
+            guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
+                  !urls.isEmpty else { return false }
+
+            let isCopy = NSEvent.modifierFlags.contains(.option)
+            delegate?.sidebarDidDropFiles(urls, to: targetURL, isCopy: isCopy)
+            return true
+        }
 
         // Handle favorites reordering
         if let sourcePath = pasteboard.string(forType: Self.favoriteDropType) {

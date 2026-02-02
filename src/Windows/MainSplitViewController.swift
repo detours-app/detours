@@ -791,4 +791,35 @@ extension MainSplitViewController: SidebarDelegate {
     func sidebarDidReorderFavorites(_ urls: [URL]) {
         SettingsManager.shared.favorites = urls.map { $0.path }
     }
+
+    func sidebarDidDropFiles(_ urls: [URL], to destination: URL, isCopy: Bool) {
+        Task { @MainActor in
+            do {
+                if isCopy {
+                    try await FileOperationQueue.shared.copy(items: urls, to: destination, undoManager: undoManager)
+                } else {
+                    try await FileOperationQueue.shared.move(items: urls, to: destination, undoManager: undoManager)
+                }
+                // Refresh affected panes
+                refreshAffectedPanes(sources: urls, destination: destination)
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    private func refreshAffectedPanes(sources: [URL], destination: URL) {
+        var affectedDirs = Set<URL>()
+        affectedDirs.insert(destination.standardizedFileURL)
+        for url in sources {
+            affectedDirs.insert(url.deletingLastPathComponent().standardizedFileURL)
+        }
+
+        for pane in [leftPane, rightPane] {
+            if let currentDir = pane.currentDirectory?.standardizedFileURL,
+               affectedDirs.contains(currentDir) {
+                pane.refresh()
+            }
+        }
+    }
 }

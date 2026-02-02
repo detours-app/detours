@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### 260202
+
+#### Sidebar Drop-to-Favorite Fix
+- Fixed: Dragging files onto a sidebar favorite now copies/moves them to that folder instead of adding as a new favorite
+- Added: Hold Option while dropping to copy instead of move (matches file list behavior)
+
+---
+
 ### 260129
 
 #### Operation Undo (Cmd-Z)
