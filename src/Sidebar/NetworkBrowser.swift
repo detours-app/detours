@@ -74,6 +74,10 @@ final class NetworkBrowser {
 
     private(set) var discoveredServers: [NetworkServer] = []
 
+    /// Servers that were discovered but have gone offline (Bonjour removed them)
+    /// while they still have mounted volumes. Keyed by host (lowercase).
+    private(set) var offlineServers: Set<String> = []
+
     private var smbBrowser: NWBrowser?
     private var nfsBrowser: NWBrowser?
 
@@ -108,8 +112,27 @@ final class NetworkBrowser {
         stop()
         pendingServers.removeAll()
         discoveredServers.removeAll()
+        offlineServers.removeAll()
         notifyChange()
         start()
+    }
+
+    /// Check if a server (by host) is offline (Bonjour lost it but has mounted volumes)
+    func isServerOffline(host: String) -> Bool {
+        offlineServers.contains(host.lowercased())
+    }
+
+    /// Called when volumes change - clean up offline servers that no longer have volumes
+    func refreshOfflineServers() {
+        let currentVolumes = VolumeMonitor.shared.volumes
+        var hostsWithVolumes: Set<String> = []
+        for volume in currentVolumes {
+            if let host = volume.serverHost?.lowercased() {
+                hostsWithVolumes.insert(host)
+            }
+        }
+        // Remove offline servers that no longer have volumes
+        offlineServers = offlineServers.intersection(hostsWithVolumes)
     }
 
     // MARK: - Browser Setup
@@ -166,13 +189,25 @@ final class NetworkBrowser {
             case .added(let result):
                 if let server = parseResult(result, protocol: networkProtocol) {
                     pendingServers.insert(server)
+                    // Server came back online - remove from offline set
+                    offlineServers.remove(server.host.lowercased())
                     logger.info("Discovered \(networkProtocol.displayName) server: \(server.name)")
                 }
 
             case .removed(let result):
                 if let server = parseResult(result, protocol: networkProtocol) {
                     pendingServers.remove(server)
-                    logger.info("Lost \(networkProtocol.displayName) server: \(server.name)")
+                    // Check if this server has mounted volumes - if so, mark as offline
+                    let serverHost = server.host.lowercased()
+                    let hasVolumes = VolumeMonitor.shared.volumes.contains { volume in
+                        volume.serverHost?.lowercased() == serverHost
+                    }
+                    if hasVolumes {
+                        offlineServers.insert(serverHost)
+                        logger.info("Server \(server.name) went offline but has mounted volumes")
+                    } else {
+                        logger.info("Lost \(networkProtocol.displayName) server: \(server.name)")
+                    }
                 }
 
             case .changed(old: _, new: let newResult, flags: _):

@@ -83,14 +83,18 @@ final class SidebarItemView: NSTableCellView {
         ])
     }
 
-    func configure(with item: SidebarItem, theme: Theme) {
+    func configure(with item: SidebarItem, theme: Theme, indented: Bool = false, isOffline: Bool = false) {
         switch item {
         case .section(let section):
             configureAsSection(section, theme: theme)
         case .device(let volume):
             configureAsDevice(volume, theme: theme)
         case .server(let server):
-            configureAsServer(server, theme: theme)
+            configureAsServer(server, theme: theme, isOffline: isOffline)
+        case .syntheticServer(let synthetic):
+            configureAsSyntheticServer(synthetic, theme: theme)
+        case .networkVolume(let volume):
+            configureAsNetworkVolume(volume, theme: theme, indented: indented)
         case .favorite(let url):
             configureAsFavorite(url, theme: theme)
         }
@@ -147,22 +151,87 @@ final class SidebarItemView: NSTableCellView {
         onEject?()
     }
 
-    private func configureAsServer(_ server: NetworkServer, theme: Theme) {
+    private func configureAsServer(_ server: NetworkServer, theme: Theme, isOffline: Bool = false) {
+        iconView.isHidden = false
+        let serverIcon = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "Server")
+        iconView.image = serverIcon
+
+        if isOffline {
+            // Dimmed appearance for offline servers
+            iconView.contentTintColor = theme.textTertiary
+            nameLabel.textColor = theme.textTertiary
+            protocolBadge.stringValue = "offline"
+            alphaValue = 0.7
+        } else {
+            iconView.contentTintColor = theme.textSecondary
+            nameLabel.textColor = theme.textPrimary
+            protocolBadge.stringValue = server.protocol.displayName
+            alphaValue = 1.0
+        }
+
+        nameLabel.stringValue = server.name
+        nameLabel.font = theme.font(size: 12)
+        capacityLabel.isHidden = true
+
+        // Show protocol/status badge
+        protocolBadge.isHidden = false
+        protocolBadge.font = .systemFont(ofSize: 9, weight: .medium)
+        protocolBadge.textColor = theme.textTertiary
+
+        resetNameLeading()
+    }
+
+    private func configureAsSyntheticServer(_ server: SyntheticServer, theme: Theme) {
         iconView.isHidden = false
         let serverIcon = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "Server")
         iconView.image = serverIcon
         iconView.contentTintColor = theme.textSecondary
-        nameLabel.stringValue = server.name
+        nameLabel.stringValue = server.displayName
         nameLabel.font = theme.font(size: 12)
         nameLabel.textColor = theme.textPrimary
         capacityLabel.isHidden = true
 
-        // Show protocol badge
+        // Show "manual" badge instead of protocol
         protocolBadge.isHidden = false
-        protocolBadge.stringValue = server.protocol.displayName
+        protocolBadge.stringValue = "manual"
         protocolBadge.font = .systemFont(ofSize: 9, weight: .medium)
         protocolBadge.textColor = theme.textTertiary
 
+        resetNameLeading()
+    }
+
+    private func configureAsNetworkVolume(_ volume: VolumeInfo, theme: Theme, indented: Bool) {
+        iconView.isHidden = false
+        iconView.image = volume.icon
+        nameLabel.stringValue = volume.name
+        nameLabel.font = theme.font(size: 12)
+        nameLabel.textColor = theme.textPrimary
+
+        // Show eject button for ejectable network volumes
+        ejectButton.isHidden = !volume.isEjectable
+        ejectButton.contentTintColor = theme.textSecondary
+        ejectButton.alphaValue = 0.7
+
+        // Update capacity trailing constraint based on eject button visibility
+        capacityTrailingConstraint?.isActive = false
+        if volume.isEjectable {
+            capacityTrailingConstraint = capacityLabel.trailingAnchor.constraint(equalTo: ejectButton.leadingAnchor, constant: -4)
+        } else {
+            capacityTrailingConstraint = capacityLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10)
+        }
+        capacityTrailingConstraint?.isActive = true
+
+        if let capacity = volume.capacityString {
+            capacityLabel.isHidden = false
+            capacityLabel.stringValue = capacity
+            capacityLabel.font = theme.font(size: 10)
+            capacityLabel.textColor = theme.textTertiary
+        } else {
+            capacityLabel.isHidden = true
+        }
+
+        // Outline view handles indentation via indentationPerLevel
+        // No additional indent needed in the cell
         resetNameLeading()
     }
 
@@ -199,11 +268,15 @@ final class SidebarItemView: NSTableCellView {
         resetNameLeading()
     }
 
-    private func resetNameLeading() {
-        // Reset leading constraint to be after icon
+    private func resetNameLeading(indent: CGFloat = 0) {
+        // Reset leading constraint to be after icon with optional indent
         for constraint in constraints where constraint.firstAnchor == nameLabel.leadingAnchor {
             constraint.isActive = false
         }
+        for constraint in constraints where constraint.firstAnchor == iconView.leadingAnchor {
+            constraint.isActive = false
+        }
+        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10 + indent).isActive = true
         nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6).isActive = true
     }
 
@@ -221,6 +294,13 @@ final class SidebarItemView: NSTableCellView {
         capacityTrailingConstraint = nil
         ejectButton.isHidden = true
         ejectButton.alphaValue = 1.0
+        alphaValue = 1.0
         onEject = nil
+
+        // Reset icon leading to default position
+        for constraint in constraints where constraint.firstAnchor == iconView.leadingAnchor {
+            constraint.isActive = false
+        }
+        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10).isActive = true
     }
 }

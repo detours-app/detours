@@ -53,6 +53,70 @@ final class NetworkTests: XCTestCase {
         XCTAssertEqual(nfsCustomPort.url?.absoluteString, "nfs://nfs.local:3049")
     }
 
+    // MARK: - VolumeInfo Tests
+
+    func testVolumeInfoMatchesServer() {
+        let server = NetworkServer(name: "NAS", host: "nas.local", port: 445, protocol: .smb)
+
+        // Create a placeholder image for testing
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+
+        // Volume with matching host (case-insensitive)
+        let matchingVolume = VolumeInfo(
+            url: URL(fileURLWithPath: "/Volumes/Share"),
+            name: "Share",
+            icon: icon,
+            capacity: nil,
+            availableCapacity: nil,
+            isEjectable: true,
+            isNetwork: true,
+            serverHost: "NAS.local"
+        )
+        XCTAssertTrue(matchingVolume.matchesServer(server))
+
+        // Volume with different host
+        let differentHostVolume = VolumeInfo(
+            url: URL(fileURLWithPath: "/Volumes/Other"),
+            name: "Other",
+            icon: icon,
+            capacity: nil,
+            availableCapacity: nil,
+            isEjectable: true,
+            isNetwork: true,
+            serverHost: "other.local"
+        )
+        XCTAssertFalse(differentHostVolume.matchesServer(server))
+
+        // Volume with no server host (local volume)
+        let localVolume = VolumeInfo(
+            url: URL(fileURLWithPath: "/Volumes/Local"),
+            name: "Local",
+            icon: icon,
+            capacity: nil,
+            availableCapacity: nil,
+            isEjectable: false,
+            isNetwork: false,
+            serverHost: nil
+        )
+        XCTAssertFalse(localVolume.matchesServer(server))
+    }
+
+    // MARK: - SyntheticServer Tests
+
+    func testSyntheticServerEquality() {
+        let server1 = SyntheticServer(host: "192.168.1.100")
+        let server2 = SyntheticServer(host: "192.168.1.100")
+        let server3 = SyntheticServer(host: "192.168.1.101")
+
+        XCTAssertEqual(server1, server2)
+        XCTAssertNotEqual(server1, server3)
+    }
+
+    func testSyntheticServerDisplayName() {
+        let server = SyntheticServer(host: "nas.local")
+        XCTAssertEqual(server.displayName, "nas.local")
+    }
+
     // MARK: - NetworkMountError Tests
 
     func testNetworkMountErrorDescriptions() {

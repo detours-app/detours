@@ -21,13 +21,16 @@
 ### NetworkTests (Swift Testing)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testNetworkProtocolURLSchemes | PASS | 0.000s | 2026-02-02 17:17:19 |
-| testNetworkServerEquality | PASS | 0.000s | 2026-02-02 17:17:19 |
-| testNetworkServerURL | PASS | 0.000s | 2026-02-02 17:17:19 |
-| testNetworkMountErrorDescriptions | PASS | 0.000s | 2026-02-02 17:17:19 |
-| testConnectToServerURLValidation | PASS | 0.001s | 2026-02-02 17:17:19 |
-| testRecentServersMaxCount | PASS | 0.006s | 2026-02-02 17:17:19 |
-| testRecentServersPersistence | PASS | 0.001s | 2026-02-02 17:17:19 |
+| testNetworkProtocolURLSchemes | PASS | 0.000s | 2026-02-02 20:39:55 |
+| testNetworkServerEquality | PASS | 0.000s | 2026-02-02 20:39:55 |
+| testNetworkServerURL | PASS | 0.000s | 2026-02-02 20:39:55 |
+| testNetworkMountErrorDescriptions | PASS | 0.000s | 2026-02-02 20:39:55 |
+| testConnectToServerURLValidation | PASS | 0.002s | 2026-02-02 20:39:55 |
+| testRecentServersMaxCount | PASS | 0.009s | 2026-02-02 20:39:55 |
+| testRecentServersPersistence | PASS | 0.001s | 2026-02-02 20:39:55 |
+| testVolumeInfoMatchesServer | PASS | 0.000s | 2026-02-02 20:39:55 |
+| testSyntheticServerEquality | PASS | 0.000s | 2026-02-02 20:39:55 |
+| testSyntheticServerDisplayName | PASS | 0.000s | 2026-02-02 20:39:55 |
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -440,6 +443,7 @@
 | testMultipleUndosAcrossTabs | PASS | 41.609s | 2026-01-29 16:53:17 |
 
 ## Notes
+- 2026-02-02 20:39: NetworkTests - Added 3 new tests for hierarchical network volume display: testVolumeInfoMatchesServer (volume-to-server host matching), testSyntheticServerEquality, testSyntheticServerDisplayName. Total: 10 NetworkTests all PASS.
 - 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.
 - 2026-01-27 22:52: FilterUITests/testSlashKeyShowsFilterBar PASSED - Fixed "/" key handling. XCUI sends "/" with shift modifier (mods=131072) and wrong keyCode (26 instead of 44). Changed check to match character "/" with empty modifiers OR shift only.
 - 2026-01-22 15:38: PasteSelectionUITests/testPasteInExpandedFolderKeepsSelectionInFolder PASSED (manual verification) - Fixed paste destination to use selected item's parent folder instead of root. When file.txt in SubfolderA1 selected, paste now goes to SubfolderA1. Conflict dialog appeared proving correct location. Also fixed: delete/duplicate selection using tableView.numberOfRows instead of dataSource.items.count, selectItem(at:) now searches full tree.

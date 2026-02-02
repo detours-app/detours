@@ -59,7 +59,8 @@ final class SidebarViewController: NSViewController {
         outlineView.headerView = nil
         outlineView.rowHeight = 24
         outlineView.intercellSpacing = NSSize(width: 0, height: 0)
-        outlineView.indentationPerLevel = 0
+        outlineView.indentationPerLevel = 16
+        outlineView.indentationMarkerFollowsCell = true
         outlineView.allowsMultipleSelection = false
         outlineView.allowsEmptySelection = true
         outlineView.selectionHighlightStyle = .regular
@@ -113,7 +114,10 @@ final class SidebarViewController: NSViewController {
     }
 
     @objc private func handleVolumesChange() {
+        // Update offline server tracking when volumes change
+        NetworkBrowser.shared.refreshOfflineServers()
         outlineView.reloadData()
+        expandServersWithVolumes()
     }
 
     @objc private func handleThemeChange() {
@@ -127,6 +131,23 @@ final class SidebarViewController: NSViewController {
 
     @objc private func handleNetworkServersChange() {
         outlineView.reloadData()
+        expandServersWithVolumes()
+    }
+
+    /// Auto-expand servers that have mounted volumes
+    private func expandServersWithVolumes() {
+        let items = topLevelItems()
+        for item in items {
+            if let server = item as? NetworkServer {
+                if !mountedVolumes(forHost: server.host).isEmpty {
+                    outlineView.animator().expandItem(server)
+                }
+            } else if let synthetic = item as? SyntheticServer {
+                if !mountedVolumes(forHost: synthetic.host).isEmpty {
+                    outlineView.animator().expandItem(synthetic)
+                }
+            }
+        }
     }
 
     private func applyTheme() {
@@ -142,8 +163,14 @@ final class SidebarViewController: NSViewController {
 
     // MARK: - Data
 
+    /// Returns local (non-network) volumes for DEVICES section
     private func devicesItems() -> [VolumeInfo] {
-        VolumeMonitor.shared.volumes
+        VolumeMonitor.shared.volumes.filter { !$0.isNetwork }
+    }
+
+    /// Returns network volumes for display under servers
+    private func networkVolumes() -> [VolumeInfo] {
+        VolumeMonitor.shared.volumes.filter { $0.isNetwork }
     }
 
     private func networkItems() -> [NetworkServer] {
@@ -152,6 +179,66 @@ final class SidebarViewController: NSViewController {
 
     private func favoritesItems() -> [URL] {
         SettingsManager.shared.favorites.compactMap { URL(fileURLWithPath: $0) }
+    }
+
+    /// Build list of servers (discovered + synthetic) with their mounted volumes
+    private func buildNetworkHierarchy() -> [Any] {
+        let discoveredServers = networkItems()
+        let netVolumes = networkVolumes()
+
+        var items: [Any] = []
+        var matchedVolumeHosts: Set<String> = []
+
+        // Add discovered servers - they may or may not have mounted volumes
+        for server in discoveredServers {
+            items.append(server)
+            matchedVolumeHosts.insert(server.host.lowercased())
+        }
+
+        // Find network volumes that don't match any discovered server
+        // Create synthetic servers for them
+        for volume in netVolumes {
+            if let host = volume.serverHost {
+                // Check if this volume matches any discovered server
+                let matchesDiscovered = discoveredServers.contains { server in
+                    volumeHostMatchesServer(volumeHost: host, serverHost: server.host)
+                }
+                if !matchesDiscovered && !matchedVolumeHosts.contains(host.lowercased()) {
+                    let synthetic = SyntheticServer(host: host)
+                    items.append(synthetic)
+                    matchedVolumeHosts.insert(host.lowercased())
+                }
+            }
+        }
+
+        return items
+    }
+
+    /// Check if a volume's host matches a server's host
+    /// Handles cases like "vancouver._smb._tcp.local" matching "Vancouver"
+    private func volumeHostMatchesServer(volumeHost: String, serverHost: String) -> Bool {
+        let vHost = volumeHost.lowercased()
+        let sHost = serverHost.lowercased()
+
+        // Exact match
+        if vHost == sHost { return true }
+
+        // Volume host starts with server name (e.g., "vancouver._smb._tcp.local" starts with "vancouver")
+        if vHost.hasPrefix(sHost + ".") || vHost.hasPrefix(sHost + "_") { return true }
+
+        // Server host starts with volume host
+        if sHost.hasPrefix(vHost + ".") || sHost.hasPrefix(vHost + "_") { return true }
+
+        return false
+    }
+
+    /// Get mounted volumes for a specific server (discovered or synthetic)
+    private func mountedVolumes(forHost host: String) -> [VolumeInfo] {
+        let netVolumes = networkVolumes()
+        return netVolumes.filter { volume in
+            guard let volumeHost = volume.serverHost else { return false }
+            return volumeHostMatchesServer(volumeHost: volumeHost, serverHost: host)
+        }
     }
 
     // MARK: - Context Menu
@@ -179,24 +266,24 @@ final class SidebarViewController: NSViewController {
 // MARK: - NSOutlineViewDataSource
 
 extension SidebarViewController: NSOutlineViewDataSource {
-    /// Build flat list: section header, items, section header, items...
-    private func flatItems() -> [Any] {
+    /// Build top-level items: section headers and their direct children (flat for devices/favorites, servers for network)
+    private func topLevelItems() -> [Any] {
         var items: [Any] = []
 
-        // DEVICES section
+        // DEVICES section header + local volumes
         items.append(SidebarSection.devices)
         items.append(contentsOf: devicesItems())
 
-        // NETWORK section
+        // NETWORK section header + servers (discovered + synthetic)
         items.append(SidebarSection.network)
-        let servers = networkItems()
-        if servers.isEmpty {
+        let networkHierarchy = buildNetworkHierarchy()
+        if networkHierarchy.isEmpty && networkVolumes().isEmpty {
             items.append(NetworkPlaceholder.noServersFound)
         } else {
-            items.append(contentsOf: servers)
+            items.append(contentsOf: networkHierarchy)
         }
 
-        // FAVORITES section
+        // FAVORITES section header + favorite URLs
         items.append(SidebarSection.favorites)
         items.append(contentsOf: favoritesItems())
 
@@ -205,17 +292,45 @@ extension SidebarViewController: NSOutlineViewDataSource {
 
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if item == nil {
-            return flatItems().count
+            return topLevelItems().count
         }
-        return 0  // No children - flat list
+
+        // Servers can have children (mounted volumes)
+        if let server = item as? NetworkServer {
+            return mountedVolumes(forHost: server.host).count
+        }
+        if let synthetic = item as? SyntheticServer {
+            return mountedVolumes(forHost: synthetic.host).count
+        }
+
+        return 0
     }
 
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-        return flatItems()[index]
+        if item == nil {
+            return topLevelItems()[index]
+        }
+
+        // Return mounted volume for server
+        if let server = item as? NetworkServer {
+            return mountedVolumes(forHost: server.host)[index]
+        }
+        if let synthetic = item as? SyntheticServer {
+            return mountedVolumes(forHost: synthetic.host)[index]
+        }
+
+        return topLevelItems()[index]
     }
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
-        return false  // Nothing is expandable
+        // Servers are expandable if they have mounted volumes
+        if let server = item as? NetworkServer {
+            return !mountedVolumes(forHost: server.host).isEmpty
+        }
+        if let synthetic = item as? SyntheticServer {
+            return !mountedVolumes(forHost: synthetic.host).isEmpty
+        }
+        return false
     }
 
     // MARK: - Drag Source (for favorites reordering)
@@ -232,16 +347,18 @@ extension SidebarViewController: NSOutlineViewDataSource {
 
     // MARK: - Drop Target
 
-    /// Get the index where favorites start in the flat list
+    /// Get the index where favorites start in the top-level list
     private func favoritesStartIndex() -> Int {
-        // devices header + devices + network header + network items (or placeholder) + favorites header
-        let networkItemCount = networkItems().isEmpty ? 1 : networkItems().count
+        // devices header + local devices + network header + network servers/placeholder + favorites header
+        let networkHierarchy = buildNetworkHierarchy()
+        let networkItemCount = (networkHierarchy.isEmpty && networkVolumes().isEmpty) ? 1 : networkHierarchy.count
         return 1 + devicesItems().count + 1 + networkItemCount + 1
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
-        // Reject drops on network servers (not mounted yet)
+        // Reject drops on network servers (not mounted yet) and synthetic servers
         if item is NetworkServer { return [] }
+        if item is SyntheticServer { return [] }
 
         // Handle drops ON a favorite item (copy/move files to that location)
         if let targetURL = item as? URL {
@@ -351,14 +468,25 @@ extension SidebarViewController: NSOutlineViewDelegate {
         if let section = item as? SidebarSection {
             cellView.configure(with: .section(section), theme: theme)
         } else if let volume = item as? VolumeInfo {
-            cellView.configure(with: .device(volume), theme: theme)
+            // Check if this volume is a child of a server (network volume)
+            let parent = outlineView.parent(forItem: item)
+            if parent is NetworkServer || parent is SyntheticServer {
+                // Network volume under a server - show indented with eject button
+                cellView.configure(with: .networkVolume(volume), theme: theme, indented: true)
+            } else {
+                // Local device in DEVICES section
+                cellView.configure(with: .device(volume), theme: theme)
+            }
             if volume.isEjectable {
                 cellView.onEject = { [weak self] in
                     self?.delegate?.sidebarDidRequestEject(volume)
                 }
             }
         } else if let server = item as? NetworkServer {
-            cellView.configure(with: .server(server), theme: theme)
+            let isOffline = NetworkBrowser.shared.isServerOffline(host: server.host)
+            cellView.configure(with: .server(server), theme: theme, isOffline: isOffline)
+        } else if let synthetic = item as? SyntheticServer {
+            cellView.configure(with: .syntheticServer(synthetic), theme: theme)
         } else if let placeholder = item as? NetworkPlaceholder {
             cellView.configureAsPlaceholder(placeholder, theme: theme)
         } else if let url = item as? URL {
@@ -369,9 +497,10 @@ extension SidebarViewController: NSOutlineViewDelegate {
     }
 
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
-        // Don't allow selecting section headers or placeholders
+        // Don't allow selecting section headers, placeholders, or synthetic servers (no action available)
         if item is SidebarSection { return false }
         if item is NetworkPlaceholder { return false }
+        if item is SyntheticServer { return false }
         return true
     }
 
@@ -386,7 +515,13 @@ extension SidebarViewController: NSOutlineViewDelegate {
         let item = outlineView.item(atRow: row)
 
         if let volume = item as? VolumeInfo {
-            delegate?.sidebarDidSelectItem(.device(volume))
+            // Both local devices and network volumes navigate to their mount point
+            let parent = outlineView.parent(forItem: item)
+            if parent is NetworkServer || parent is SyntheticServer {
+                delegate?.sidebarDidSelectItem(.networkVolume(volume))
+            } else {
+                delegate?.sidebarDidSelectItem(.device(volume))
+            }
         } else if let server = item as? NetworkServer {
             delegate?.sidebarDidSelectServer(server)
         } else if let url = item as? URL {

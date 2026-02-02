@@ -4,6 +4,14 @@
 
 ### 260202
 
+#### Hierarchical Network Volumes
+- Changed: Network volumes now appear under their parent server in NETWORK section instead of flat DEVICES list
+- Added: DEVICES section shows only local volumes (internal drives, USB, etc.)
+- Added: Servers with mounted volumes auto-expand to show nested volumes
+- Added: Synthetic servers for volumes mounted via manual URL (Cmd+K) without Bonjour discovery
+- Added: Offline server tracking - dimmed appearance with "offline" badge when server goes offline but volumes remain mounted
+- Fixed: Duplicate server entries when volume host differs from Bonjour name
+
 #### Sidebar Drop-to-Favorite Fix
 - Fixed: Dragging files onto a sidebar favorite now copies/moves them to that folder instead of adding as a new favorite
 - Added: Hold Option while dropping to copy instead of move (matches file list behavior)

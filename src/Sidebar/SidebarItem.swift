@@ -22,6 +22,8 @@ enum SidebarItem: Equatable {
     case section(SidebarSection)
     case device(VolumeInfo)
     case server(NetworkServer)
+    case syntheticServer(SyntheticServer)
+    case networkVolume(VolumeInfo)  // Volume displayed under a server in NETWORK section
     case favorite(URL)
 
     var url: URL? {
@@ -32,6 +34,10 @@ enum SidebarItem: Equatable {
             return volume.url
         case .server(let server):
             return server.url
+        case .syntheticServer:
+            return nil
+        case .networkVolume(let volume):
+            return volume.url
         case .favorite(let url):
             return url
         }
@@ -45,6 +51,10 @@ enum SidebarItem: Equatable {
             return a.url == b.url
         case (.server(let a), .server(let b)):
             return a == b
+        case (.syntheticServer(let a), .syntheticServer(let b)):
+            return a == b
+        case (.networkVolume(let a), .networkVolume(let b)):
+            return a.url == b.url
         case (.favorite(let a), .favorite(let b)):
             return a == b
         default:
@@ -74,6 +84,28 @@ struct VolumeInfo {
     let capacity: Int64?
     let availableCapacity: Int64?
     let isEjectable: Bool
+    let isNetwork: Bool
+    let serverHost: String?
+
+    init(
+        url: URL,
+        name: String,
+        icon: NSImage,
+        capacity: Int64?,
+        availableCapacity: Int64?,
+        isEjectable: Bool,
+        isNetwork: Bool = false,
+        serverHost: String? = nil
+    ) {
+        self.url = url
+        self.name = name
+        self.icon = icon
+        self.capacity = capacity
+        self.availableCapacity = availableCapacity
+        self.isEjectable = isEjectable
+        self.isNetwork = isNetwork
+        self.serverHost = serverHost
+    }
 
     /// Format capacity as abbreviated string (e.g., "997G", "1.2T")
     var capacityString: String? {
@@ -98,5 +130,22 @@ struct VolumeInfo {
         } else {
             return String(format: "%.1f%@", value, units[unitIndex])
         }
+    }
+
+    /// Check if this volume belongs to a server (case-insensitive host match)
+    func matchesServer(_ server: NetworkServer) -> Bool {
+        guard let host = serverHost else { return false }
+        return host.caseInsensitiveCompare(server.host) == .orderedSame
+    }
+}
+
+// MARK: - Synthetic Server
+
+/// Represents a server derived from a mounted network volume that has no Bonjour discovery
+struct SyntheticServer: Equatable, Hashable {
+    let host: String
+
+    var displayName: String {
+        host
     }
 }

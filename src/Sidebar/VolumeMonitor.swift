@@ -75,7 +75,8 @@ final class VolumeMonitor {
             .effectiveIconKey,
             .volumeIsLocalKey,
             .volumeIsReadOnlyKey,
-            .isVolumeKey
+            .isVolumeKey,
+            .volumeURLForRemountingKey
         ]
 
         guard let volumeURLs = FileManager.default.mountedVolumeURLs(
@@ -106,13 +107,25 @@ final class VolumeMonitor {
                 // A volume can be ejected if it's ejectable, removable, or external (not internal)
                 let isEjectable = (values.volumeIsEjectable ?? false) || (values.volumeIsRemovable ?? false) || !(values.volumeIsInternal ?? true)
 
+                // Network detection: volumeIsLocal = false means network volume
+                let isLocal = values.volumeIsLocal ?? true
+                let isNetwork = !isLocal
+
+                // Extract server host from remounting URL for network volumes
+                var serverHost: String?
+                if isNetwork, let remountURL = values.volumeURLForRemounting {
+                    serverHost = remountURL.host?.lowercased()
+                }
+
                 let volume = VolumeInfo(
                     url: url,
                     name: name,
                     icon: icon,
                     capacity: capacity,
                     availableCapacity: available,
-                    isEjectable: isEjectable
+                    isEjectable: isEjectable,
+                    isNetwork: isNetwork,
+                    serverHost: serverHost
                 )
                 newVolumes.append(volume)
             } catch {

@@ -33,8 +33,18 @@ Add Bonjour-based network discovery to the sidebar, NetFS-based mounting with au
 - Click server in NETWORK section → attempt mount
 - If server requires authentication → show credential dialog
 - Credential dialog: server name, username field, password field, "Remember in Keychain" checkbox
-- On successful mount, volume appears in DEVICES section (existing behavior)
+- On successful mount, volume appears under the server in NETWORK section (hierarchical display)
 - On failure, show error alert with reason
+
+**Hierarchical Network Volume Display:**
+- DEVICES section shows only local volumes (internal drives, USB, etc.)
+- NETWORK section shows servers with mounted volumes nested underneath
+- Servers with mounted volumes auto-expand to show volumes
+- Network volumes show with 16px indentation under their parent server
+- Network volumes have eject button and capacity display
+- Synthetic servers created for volumes mounted via manual URL (Cmd+K) with no Bonjour discovery
+- Synthetic servers show "manual" badge instead of protocol badge
+- Offline servers (lost Bonjour but volumes still mounted) shown dimmed with "offline" badge
 
 **Keychain Credential Storage:**
 - "Remember in Keychain" saves credentials with access control requiring user presence
@@ -101,17 +111,43 @@ The "Connect to Server" dialog is implemented in SwiftUI, presented as a sheet f
 
 **src/Sidebar/SidebarItem.swift**
 - Add `.server(NetworkServer)` case to `SidebarItem` enum
+- Add `.syntheticServer(SyntheticServer)` case for manually-connected servers
+- Add `.networkVolume(VolumeInfo)` case for volumes under servers
+- Add `SyntheticServer` struct for servers derived from mounted volumes
+- Add `VolumeInfo.matchesServer(_:)` method for host matching
+
+**src/Sidebar/VolumeMonitor.swift**
+- Add `isNetwork: Bool` property to `VolumeInfo` (from `volumeIsLocalKey` inverted)
+- Add `serverHost: String?` property parsed from `volumeURLForRemounting`
+- Update `refreshVolumes()` to populate network detection properties
 
 **src/Sidebar/SidebarViewController.swift**
 - Add `NetworkBrowser.serversDidChange` observer in `observeNotifications()`
-- Update `flatItems()` to include NETWORK section and discovered servers
+- Replace `flatItems()` with `topLevelItems()` for hierarchical structure
+- Add `buildNetworkHierarchy()` to create server + synthetic server list
+- Add `mountedVolumes(forHost:)` to get volumes for a server
+- Implement hierarchical `NSOutlineViewDataSource` methods for server expansion
+- Add `expandServersWithVolumes()` to auto-expand servers with mounted volumes
 - Handle click on server item: call `delegate?.sidebarDidSelectServer(_:)`
-- Update drag-drop validation to reject drops on network servers (not mounted yet)
+- Update drag-drop validation to reject drops on servers (discovered and synthetic)
+- Filter `devicesItems()` to return only local volumes
 
 **src/Sidebar/SidebarItemView.swift**
 - Handle `.server` item type in `configure(with:theme:)`
+- Handle `.syntheticServer` type with "manual" badge
+- Handle `.networkVolume` type with indentation support
+- Add `configureAsSyntheticServer(_:theme:)` method
+- Add `configureAsNetworkVolume(_:theme:indented:)` method
+- Update `configureAsServer(_:theme:isOffline:)` for offline styling
+- Update `resetNameLeading(indent:)` to support indentation
 - Show network server icon (`NSImage(systemSymbolName: "server.rack")`)
-- Show protocol badge (SMB/NFS) as small label, Text Tertiary color
+- Show protocol badge (SMB/NFS), "manual" for synthetic, "offline" for disconnected
+
+**src/Sidebar/NetworkBrowser.swift**
+- Add `offlineServers: Set<String>` to track servers that went offline with volumes
+- Add `isServerOffline(host:)` method to check offline status
+- Add `refreshOfflineServers()` method to clean up when volumes unmount
+- Update `handleResultsChanged` to track offline servers when volumes still mounted
 
 **src/Sidebar/SidebarDelegate.swift**
 - Add `sidebarDidSelectServer(_ server: NetworkServer)` method
@@ -226,6 +262,20 @@ The "Connect to Server" dialog is implemented in SwiftUI, presented as a sheet f
 - [ ] Test with SMB, NFS servers
 - [x] Test Keychain credential deletion (right-click server → "Forget Password")
 - [x] Verify no credentials accessible without user interaction
+
+**Phase 6: Hierarchical Volume Display**
+- [x] Add `isNetwork` and `serverHost` to `VolumeInfo`
+- [x] Add `SyntheticServer` struct for manually-connected volumes
+- [x] Add `.syntheticServer` and `.networkVolume` cases to `SidebarItem`
+- [x] Add `VolumeInfo.matchesServer(_:)` method
+- [x] Refactor `SidebarViewController` to hierarchical data source
+- [x] Filter DEVICES to local-only volumes
+- [x] Show network volumes under their parent server
+- [x] Create synthetic servers for volumes without Bonjour discovery
+- [x] Add offline server tracking in `NetworkBrowser`
+- [x] Add offline styling (dimmed with "offline" badge)
+- [x] Add indentation (16px) for network volumes under servers
+- [x] Auto-expand servers with mounted volumes
 
 ---
 
