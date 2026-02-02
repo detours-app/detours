@@ -4,8 +4,10 @@ final class SidebarItemView: NSTableCellView {
     private let iconView = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
     private let capacityLabel = NSTextField(labelWithString: "")
+    private let protocolBadge = NSTextField(labelWithString: "")
     private let ejectButton = NSButton()
     private var capacityTrailingConstraint: NSLayoutConstraint?
+    private var protocolBadgeTrailingConstraint: NSLayoutConstraint?
 
     var onEject: (() -> Void)?
 
@@ -33,6 +35,12 @@ final class SidebarItemView: NSTableCellView {
         capacityLabel.alignment = .right
         capacityLabel.setContentHuggingPriority(.defaultHigh, for: .horizontal)
 
+        protocolBadge.translatesAutoresizingMaskIntoConstraints = false
+        protocolBadge.font = .systemFont(ofSize: 9, weight: .medium)
+        protocolBadge.alignment = .right
+        protocolBadge.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        protocolBadge.isHidden = true
+
         // Eject button setup
         ejectButton.translatesAutoresizingMaskIntoConstraints = false
         ejectButton.bezelStyle = .inline
@@ -49,6 +57,7 @@ final class SidebarItemView: NSTableCellView {
         addSubview(iconView)
         addSubview(nameLabel)
         addSubview(capacityLabel)
+        addSubview(protocolBadge)
         addSubview(ejectButton)
 
         NSLayoutConstraint.activate([
@@ -64,6 +73,9 @@ final class SidebarItemView: NSTableCellView {
             capacityLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             capacityLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 50),
 
+            protocolBadge.centerYAnchor.constraint(equalTo: centerYAnchor),
+            protocolBadge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+
             ejectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
             ejectButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             ejectButton.widthAnchor.constraint(equalToConstant: 10),
@@ -77,6 +89,8 @@ final class SidebarItemView: NSTableCellView {
             configureAsSection(section, theme: theme)
         case .device(let volume):
             configureAsDevice(volume, theme: theme)
+        case .server(let server):
+            configureAsServer(server, theme: theme)
         case .favorite(let url):
             configureAsFavorite(url, theme: theme)
         }
@@ -133,6 +147,40 @@ final class SidebarItemView: NSTableCellView {
         onEject?()
     }
 
+    private func configureAsServer(_ server: NetworkServer, theme: Theme) {
+        iconView.isHidden = false
+        let serverIcon = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "Server")
+        iconView.image = serverIcon
+        iconView.contentTintColor = theme.textSecondary
+        nameLabel.stringValue = server.name
+        nameLabel.font = theme.font(size: 12)
+        nameLabel.textColor = theme.textPrimary
+        capacityLabel.isHidden = true
+
+        // Show protocol badge
+        protocolBadge.isHidden = false
+        protocolBadge.stringValue = server.protocol.displayName
+        protocolBadge.font = .systemFont(ofSize: 9, weight: .medium)
+        protocolBadge.textColor = theme.textTertiary
+
+        resetNameLeading()
+    }
+
+    func configureAsPlaceholder(_ placeholder: NetworkPlaceholder, theme: Theme) {
+        iconView.isHidden = true
+        nameLabel.stringValue = placeholder.text
+        nameLabel.font = .systemFont(ofSize: 11)
+        nameLabel.textColor = theme.textTertiary
+        capacityLabel.isHidden = true
+        protocolBadge.isHidden = true
+
+        // Adjust leading constraint for placeholder (no icon, indented)
+        for constraint in constraints where constraint.firstAnchor == nameLabel.leadingAnchor {
+            constraint.isActive = false
+        }
+        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10).isActive = true
+    }
+
     private func configureAsFavorite(_ url: URL, theme: Theme) {
         iconView.isHidden = false
         iconView.image = NSWorkspace.shared.icon(forFile: url.path)
@@ -163,9 +211,12 @@ final class SidebarItemView: NSTableCellView {
         super.prepareForReuse()
         iconView.image = nil
         iconView.isHidden = false
+        iconView.contentTintColor = nil
         nameLabel.stringValue = ""
         capacityLabel.stringValue = ""
         capacityLabel.isHidden = true
+        protocolBadge.stringValue = ""
+        protocolBadge.isHidden = true
         capacityTrailingConstraint?.isActive = false
         capacityTrailingConstraint = nil
         ejectButton.isHidden = true

@@ -24,6 +24,7 @@ final class ShortcutManager {
         .refresh: KeyCombo(keyCode: 15, modifiers: .command),                 // Cmd-R
         .toggleSidebar: KeyCombo(keyCode: 29, modifiers: .command),           // Cmd-0
         .filter: KeyCombo(keyCode: 3, modifiers: .command),                   // Cmd-F
+        .connectToServer: KeyCombo(keyCode: 40, modifiers: .command),         // Cmd-K
     ]
 
     /// Alternative defaults (some actions have multiple defaults)

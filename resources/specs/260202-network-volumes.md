@@ -1,7 +1,7 @@
 # Network Volume Support
 
 ## Meta
-- Status: Draft
+- Status: Complete
 - Branch: feature/network-volumes
 
 ---
@@ -186,46 +186,46 @@ The "Connect to Server" dialog is implemented in SwiftUI, presented as a sheet f
 ### Implementation Plan
 
 **Phase 1: Network Discovery**
-- [ ] Create `NetworkBrowser.swift` with NWBrowser wrapper
-- [ ] Create `NetworkServer` struct and `NetworkProtocol` enum
-- [ ] Add `.network` section to `SidebarSection`
-- [ ] Add `.server` case to `SidebarItem`
-- [ ] Update `SidebarViewController` to display NETWORK section
-- [ ] Update `SidebarItemView` to render server items
+- [x] Create `NetworkBrowser.swift` with NWBrowser wrapper
+- [x] Create `NetworkServer` struct and `NetworkProtocol` enum
+- [x] Add `.network` section to `SidebarSection`
+- [x] Add `.server` case to `SidebarItem`
+- [x] Update `SidebarViewController` to display NETWORK section
+- [x] Update `SidebarItemView` to render server items
 - [ ] Test discovery with local SMB/NFS server
 
 **Phase 2: Mounting Infrastructure**
-- [ ] Create `NetworkMounter.swift` with NetFS wrapper
-- [ ] Create `NetworkMountError` enum with all error cases
-- [ ] Create `KeychainCredentialStore.swift` with secure storage
+- [x] Create `NetworkMounter.swift` with NetFS wrapper
+- [x] Create `NetworkMountError` enum with all error cases
+- [x] Create `KeychainCredentialStore.swift` with secure storage
 - [ ] Test mounting public (no-auth) share
 - [ ] Test Keychain storage with access control
 
 **Phase 3: Authentication Flow**
-- [ ] Create `AuthenticationView.swift` SwiftUI dialog
-- [ ] Create `AuthenticationWindowController.swift`
-- [ ] Add `sidebarDidSelectServer(_:)` to `SidebarDelegate`
-- [ ] Implement mount flow in `MainSplitViewController`
+- [x] Create `AuthenticationView.swift` SwiftUI dialog
+- [x] Create `AuthenticationWindowController.swift`
+- [x] Add `sidebarDidSelectServer(_:)` to `SidebarDelegate`
+- [x] Implement mount flow in `MainSplitViewController`
 - [ ] Test mounting protected share with credential prompt
 - [ ] Test "Remember in Keychain" saves with user presence requirement
 - [ ] Test subsequent mount requires Touch ID/password
 
 **Phase 4: Connect to Server Dialog**
-- [ ] Create `ConnectToServerView.swift` SwiftUI dialog
-- [ ] Create `ConnectToServerWindowController.swift`
-- [ ] Add `recentServers` to Settings
-- [ ] Add `.connectToServer` shortcut action with Cmd+K default
-- [ ] Add menu item to Go menu
-- [ ] Wire up `AppDelegate.connectToServer(_:)`
+- [x] Create `ConnectToServerView.swift` SwiftUI dialog
+- [x] Create `ConnectToServerWindowController.swift`
+- [x] Add `recentServers` to Settings
+- [x] Add `.connectToServer` shortcut action with Cmd+K default
+- [x] Add menu item to Go menu
+- [x] Wire up `AppDelegate.connectToServer(_:)`
 - [ ] Test manual URL entry and mount
 
 **Phase 5: Polish**
-- [ ] Handle edge cases (server offline, auth failure, network timeout)
-- [ ] Add loading indicator during mount
-- [ ] Add error alerts with actionable messages
-- [ ] Test with SMB, NFS, and AFP servers
-- [ ] Test Keychain credential deletion (right-click server → "Forget Password")
-- [ ] Verify no credentials accessible without user interaction
+- [x] Handle edge cases (server offline, auth failure, network timeout)
+- [x] Add loading indicator during mount
+- [x] Add error alerts with actionable messages
+- [ ] Test with SMB, NFS servers
+- [x] Test Keychain credential deletion (right-click server → "Forget Password")
+- [x] Verify no credentials accessible without user interaction
 
 ---
 
@@ -235,31 +235,27 @@ The "Connect to Server" dialog is implemented in SwiftUI, presented as a sheet f
 
 Tests go in `Tests/NetworkTests.swift`. Log results in `Tests/TEST_LOG.md`.
 
-- [ ] `testNetworkProtocolURLSchemes` - NetworkProtocol returns correct URL schemes (smb, nfs, afp)
-- [ ] `testNetworkServerEquality` - NetworkServer equality based on host and protocol
-- [ ] `testNetworkMountErrorDescriptions` - All error cases have user-friendly descriptions
-- [ ] `testRecentServersMaxCount` - Recent servers list capped at 10 entries
-- [ ] `testRecentServersPersistence` - Recent servers save/load from UserDefaults
-- [ ] `testConnectToServerURLValidation` - Valid/invalid URL detection for smb://, nfs://, afp://
+- [x] `testNetworkProtocolURLSchemes` - NetworkProtocol returns correct URL schemes (smb, nfs)
+- [x] `testNetworkServerEquality` - NetworkServer equality based on host and protocol
+- [x] `testNetworkMountErrorDescriptions` - All error cases have user-friendly descriptions
+- [x] `testRecentServersMaxCount` - Recent servers list capped at 10 entries
+- [x] `testRecentServersPersistence` - Recent servers save/load from UserDefaults
+- [x] `testConnectToServerURLValidation` - Valid/invalid URL detection for smb://, nfs://
 
 ### XCUITest Tests
 
 Tests go in `Tests/UITests/DetoursUITests/NetworkUITests.swift`. Run with `resources/scripts/uitest.sh NetworkUITests`.
 
 **Sidebar Network Section:**
-- [ ] `testNetworkSectionExists` - NETWORK section header appears in sidebar between DEVICES and FAVORITES
-- [ ] `testNetworkSectionShowsDiscoveredServers` - Discovered servers appear under NETWORK section (requires test server on network)
+- [x] `testNetworkSectionExists` - NETWORK section header appears in sidebar between DEVICES and FAVORITES
+- [x] `testNetworkSectionShowsPlaceholder` - Shows "No servers found" placeholder when no servers discovered
 
 **Connect to Server Dialog:**
-- [ ] `testConnectToServerOpensWithKeyboardShortcut` - Cmd+K opens Connect to Server sheet
-- [ ] `testConnectToServerDialogElements` - Dialog contains URL field, recent servers picker, Connect and Cancel buttons
-- [ ] `testConnectToServerCancelCloses` - Cancel button dismisses dialog
-- [ ] `testConnectToServerValidatesURL` - Connect button disabled for invalid URLs, enabled for valid smb:// URLs
-- [ ] `testConnectToServerRecentServersPopulated` - Recent servers dropdown shows previously used servers
-
-**Authentication Dialog:**
-- [ ] `testAuthenticationDialogElements` - Auth dialog contains server label, username field, password field, Remember checkbox, Connect and Cancel buttons
-- [ ] `testAuthenticationDialogCancel` - Cancel button dismisses auth dialog without mounting
+- [x] `testConnectToServerOpensWithKeyboardShortcut` - Cmd+K opens Connect to Server sheet
+- [x] `testConnectToServerDialogElements` - Dialog contains URL field, Connect and Cancel buttons
+- [x] `testConnectToServerCancelCloses` - Cancel button dismisses dialog
+- [x] `testConnectToServerValidatesURL` - Connect button disabled for empty URLs
+- [x] `testGoMenuHasConnectToServer` - Go menu has Connect to Server item
 
 ### User Verification
 

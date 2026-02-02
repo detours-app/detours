@@ -5,6 +5,9 @@ protocol SidebarDelegate: AnyObject {
     /// Called when user clicks a sidebar item to navigate
     func sidebarDidSelectItem(_ item: SidebarItem)
 
+    /// Called when user clicks a network server to mount
+    func sidebarDidSelectServer(_ server: NetworkServer)
+
     /// Called when user requests to eject a volume
     func sidebarDidRequestEject(_ volume: VolumeInfo)
 

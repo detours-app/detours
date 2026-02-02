@@ -257,6 +257,17 @@ func setupMainMenu(target: AppDelegate) {
     prevTabItem.image = NSImage(systemSymbolName: "arrow.left.square", accessibilityDescription: nil)
     goMenu.addItem(prevTabItem)
 
+    goMenu.addItem(NSMenuItem.separator())
+
+    let connectToServerItem = createDynamicMenuItem(
+        title: "Connect to Server...",
+        action: #selector(AppDelegate.connectToServer(_:)),
+        shortcutAction: .connectToServer,
+        target: target
+    )
+    connectToServerItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
+    goMenu.addItem(connectToServerItem)
+
     // Window menu
     let windowMenu = NSMenu(title: "Window")
     let windowMenuItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")

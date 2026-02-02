@@ -68,6 +68,9 @@ final class SidebarViewController: NSViewController {
         outlineView.dataSource = self
         outlineView.delegate = self
 
+        // Set accessibility identifier for UI testing
+        outlineView.setAccessibilityIdentifier("sidebarOutlineView")
+
         // Set up context menu
         outlineView.menu = NSMenu()
         outlineView.menu?.delegate = self
@@ -100,6 +103,13 @@ final class SidebarViewController: NSViewController {
             name: SettingsManager.settingsDidChange,
             object: nil
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleNetworkServersChange),
+            name: NetworkBrowser.serversDidChange,
+            object: nil
+        )
     }
 
     @objc private func handleVolumesChange() {
@@ -112,6 +122,10 @@ final class SidebarViewController: NSViewController {
     }
 
     @objc private func handleSettingsChange() {
+        outlineView.reloadData()
+    }
+
+    @objc private func handleNetworkServersChange() {
         outlineView.reloadData()
     }
 
@@ -132,6 +146,10 @@ final class SidebarViewController: NSViewController {
         VolumeMonitor.shared.volumes
     }
 
+    private func networkItems() -> [NetworkServer] {
+        NetworkBrowser.shared.discoveredServers
+    }
+
     private func favoritesItems() -> [URL] {
         SettingsManager.shared.favorites.compactMap { URL(fileURLWithPath: $0) }
     }
@@ -147,6 +165,15 @@ final class SidebarViewController: NSViewController {
         guard let url = sender.representedObject as? URL else { return }
         delegate?.sidebarDidRemoveFavorite(url)
     }
+
+    @objc private func handleForgetPassword(_ sender: NSMenuItem) {
+        guard let server = sender.representedObject as? NetworkServer else { return }
+        do {
+            try KeychainCredentialStore.shared.delete(server: server.host)
+        } catch {
+            logger.warning("Failed to delete credentials: \(error.localizedDescription)")
+        }
+    }
 }
 
 // MARK: - NSOutlineViewDataSource
@@ -155,10 +182,24 @@ extension SidebarViewController: NSOutlineViewDataSource {
     /// Build flat list: section header, items, section header, items...
     private func flatItems() -> [Any] {
         var items: [Any] = []
+
+        // DEVICES section
         items.append(SidebarSection.devices)
         items.append(contentsOf: devicesItems())
+
+        // NETWORK section
+        items.append(SidebarSection.network)
+        let servers = networkItems()
+        if servers.isEmpty {
+            items.append(NetworkPlaceholder.noServersFound)
+        } else {
+            items.append(contentsOf: servers)
+        }
+
+        // FAVORITES section
         items.append(SidebarSection.favorites)
         items.append(contentsOf: favoritesItems())
+
         return items
     }
 
@@ -193,10 +234,15 @@ extension SidebarViewController: NSOutlineViewDataSource {
 
     /// Get the index where favorites start in the flat list
     private func favoritesStartIndex() -> Int {
-        return 1 + devicesItems().count + 1  // devices header + devices + favorites header
+        // devices header + devices + network header + network items (or placeholder) + favorites header
+        let networkItemCount = networkItems().isEmpty ? 1 : networkItems().count
+        return 1 + devicesItems().count + 1 + networkItemCount + 1
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
+        // Reject drops on network servers (not mounted yet)
+        if item is NetworkServer { return [] }
+
         // Handle drops ON a favorite item (copy/move files to that location)
         if let targetURL = item as? URL {
             // Verify it's a directory
@@ -311,6 +357,10 @@ extension SidebarViewController: NSOutlineViewDelegate {
                     self?.delegate?.sidebarDidRequestEject(volume)
                 }
             }
+        } else if let server = item as? NetworkServer {
+            cellView.configure(with: .server(server), theme: theme)
+        } else if let placeholder = item as? NetworkPlaceholder {
+            cellView.configureAsPlaceholder(placeholder, theme: theme)
         } else if let url = item as? URL {
             cellView.configure(with: .favorite(url), theme: theme)
         }
@@ -319,8 +369,10 @@ extension SidebarViewController: NSOutlineViewDelegate {
     }
 
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
-        // Don't allow selecting section headers
-        return !(item is SidebarSection)
+        // Don't allow selecting section headers or placeholders
+        if item is SidebarSection { return false }
+        if item is NetworkPlaceholder { return false }
+        return true
     }
 
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
@@ -335,6 +387,8 @@ extension SidebarViewController: NSOutlineViewDelegate {
 
         if let volume = item as? VolumeInfo {
             delegate?.sidebarDidSelectItem(.device(volume))
+        } else if let server = item as? NetworkServer {
+            delegate?.sidebarDidSelectServer(server)
         } else if let url = item as? URL {
             delegate?.sidebarDidSelectItem(.favorite(url))
         }
@@ -364,6 +418,14 @@ extension SidebarViewController: NSMenuDelegate {
             ejectItem.target = self
             ejectItem.representedObject = volume
             menu.addItem(ejectItem)
+        } else if let server = item as? NetworkServer {
+            // Only show "Forget Password" if credentials are stored
+            if KeychainCredentialStore.shared.hasCredential(server: server.host) {
+                let forgetItem = NSMenuItem(title: "Forget Password", action: #selector(handleForgetPassword(_:)), keyEquivalent: "")
+                forgetItem.target = self
+                forgetItem.representedObject = server
+                menu.addItem(forgetItem)
+            }
         } else if let url = item as? URL {
             let removeItem = NSMenuItem(title: "Remove from Favorites", action: #selector(handleRemoveFavorite(_:)), keyEquivalent: "")
             removeItem.target = self

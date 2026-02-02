@@ -1,11 +1,33 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-29 16:53:17
-- Command: `resources/scripts/uitest.sh UndoUITests/testMultipleUndosAcrossTabs`
+- Started: 2026-02-02 17:26:10
+- Command: `resources/scripts/uitest.sh NetworkUITests`
 - Status: PASS
-- Duration: 41.609s
-- Notes: All 8 UndoUITests pass. Tab-independent undo stacks verified.
+- Duration: 146.789s
+- Notes: All 7 NetworkUITests pass. Sidebar NETWORK section, Connect to Server dialog, menu integration.
+
+### NetworkUITests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testNetworkSectionExists | PASS | 24.27s | 2026-02-02 17:28:41 |
+| testNetworkSectionShowsPlaceholder | PASS | 21.56s | 2026-02-02 17:28:41 |
+| testConnectToServerOpensWithKeyboardShortcut | PASS | 19.71s | 2026-02-02 17:28:41 |
+| testConnectToServerDialogElements | PASS | 20.15s | 2026-02-02 17:28:41 |
+| testConnectToServerCancelCloses | PASS | 21.70s | 2026-02-02 17:28:41 |
+| testConnectToServerValidatesURL | PASS | 19.88s | 2026-02-02 17:28:41 |
+| testGoMenuHasConnectToServer | PASS | 18.02s | 2026-02-02 17:28:41 |
+
+### NetworkTests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testNetworkProtocolURLSchemes | PASS | 0.000s | 2026-02-02 17:17:19 |
+| testNetworkServerEquality | PASS | 0.000s | 2026-02-02 17:17:19 |
+| testNetworkServerURL | PASS | 0.000s | 2026-02-02 17:17:19 |
+| testNetworkMountErrorDescriptions | PASS | 0.000s | 2026-02-02 17:17:19 |
+| testConnectToServerURLValidation | PASS | 0.001s | 2026-02-02 17:17:19 |
+| testRecentServersMaxCount | PASS | 0.006s | 2026-02-02 17:17:19 |
+| testRecentServersPersistence | PASS | 0.001s | 2026-02-02 17:17:19 |
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |

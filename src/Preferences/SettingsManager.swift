@@ -146,6 +146,31 @@ final class SettingsManager {
         set { settings.favorites = newValue }
     }
 
+    // MARK: - Network Settings
+
+    var recentServers: [String] {
+        get { settings.recentServers }
+        set { settings.recentServers = newValue }
+    }
+
+    func addRecentServer(_ url: URL) {
+        var recent = settings.recentServers
+        let urlString = url.absoluteString
+
+        // Remove if already exists (will re-add at top)
+        recent.removeAll { $0 == urlString }
+
+        // Add at top
+        recent.insert(urlString, at: 0)
+
+        // Cap at 10
+        if recent.count > 10 {
+            recent.removeLast()
+        }
+
+        settings.recentServers = recent
+    }
+
     // MARK: - Shortcut Settings
 
     func shortcut(for action: ShortcutAction) -> KeyCombo? {
