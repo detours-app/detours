@@ -1,36 +1,36 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-02-02 17:26:10
-- Command: `resources/scripts/uitest.sh NetworkUITests`
+- Started: 2026-02-03 14:14:49
+- Command: `swift test --filter NetworkTests` + `resources/scripts/uitest.sh NetworkUITests`
 - Status: PASS
-- Duration: 146.789s
-- Notes: All 7 NetworkUITests pass. Sidebar NETWORK section, Connect to Server dialog, menu integration.
+- Duration: 152.859s (UI) + 0.012s (unit)
+- Notes: All tests pass after server eject, Connect to Share, and icon improvements.
 
 ### NetworkUITests (XCUITest)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testNetworkSectionExists | PASS | 24.27s | 2026-02-02 17:28:41 |
-| testNetworkSectionShowsPlaceholder | PASS | 21.56s | 2026-02-02 17:28:41 |
-| testConnectToServerOpensWithKeyboardShortcut | PASS | 19.71s | 2026-02-02 17:28:41 |
-| testConnectToServerDialogElements | PASS | 20.15s | 2026-02-02 17:28:41 |
-| testConnectToServerCancelCloses | PASS | 21.70s | 2026-02-02 17:28:41 |
-| testConnectToServerValidatesURL | PASS | 19.88s | 2026-02-02 17:28:41 |
-| testGoMenuHasConnectToServer | PASS | 18.02s | 2026-02-02 17:28:41 |
+| testNetworkSectionExists | PASS | 25.35s | 2026-02-03 14:18:00 |
+| testNetworkSectionShowsPlaceholder | PASS | 21.12s | 2026-02-03 14:18:00 |
+| testConnectToServerOpensWithKeyboardShortcut | PASS | 21.10s | 2026-02-03 14:18:00 |
+| testConnectToServerDialogElements | PASS | 21.27s | 2026-02-03 14:18:00 |
+| testConnectToServerCancelCloses | PASS | 23.50s | 2026-02-03 14:18:00 |
+| testConnectToServerValidatesURL | PASS | 21.28s | 2026-02-03 14:18:00 |
+| testGoMenuHasConnectToServer | PASS | 19.24s | 2026-02-03 14:18:00 |
 
 ### NetworkTests (Swift Testing)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testNetworkProtocolURLSchemes | PASS | 0.000s | 2026-02-02 20:39:55 |
-| testNetworkServerEquality | PASS | 0.000s | 2026-02-02 20:39:55 |
-| testNetworkServerURL | PASS | 0.000s | 2026-02-02 20:39:55 |
-| testNetworkMountErrorDescriptions | PASS | 0.000s | 2026-02-02 20:39:55 |
-| testConnectToServerURLValidation | PASS | 0.002s | 2026-02-02 20:39:55 |
-| testRecentServersMaxCount | PASS | 0.009s | 2026-02-02 20:39:55 |
-| testRecentServersPersistence | PASS | 0.001s | 2026-02-02 20:39:55 |
-| testVolumeInfoMatchesServer | PASS | 0.000s | 2026-02-02 20:39:55 |
-| testSyntheticServerEquality | PASS | 0.000s | 2026-02-02 20:39:55 |
-| testSyntheticServerDisplayName | PASS | 0.000s | 2026-02-02 20:39:55 |
+| testNetworkProtocolURLSchemes | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testNetworkServerEquality | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testNetworkServerURL | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testNetworkMountErrorDescriptions | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testConnectToServerURLValidation | PASS | 0.002s | 2026-02-03 14:14:49 |
+| testRecentServersMaxCount | PASS | 0.005s | 2026-02-03 14:14:49 |
+| testRecentServersPersistence | PASS | 0.001s | 2026-02-03 14:14:49 |
+| testVolumeInfoMatchesServer | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testSyntheticServerEquality | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testSyntheticServerDisplayName | PASS | 0.000s | 2026-02-03 14:14:49 |
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |

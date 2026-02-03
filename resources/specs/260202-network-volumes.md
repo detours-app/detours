@@ -40,11 +40,18 @@ Add Bonjour-based network discovery to the sidebar, NetFS-based mounting with au
 - DEVICES section shows only local volumes (internal drives, USB, etc.)
 - NETWORK section shows servers with mounted volumes nested underneath
 - Servers with mounted volumes auto-expand to show volumes
-- Network volumes show with 16px indentation under their parent server
-- Network volumes have eject button and capacity display
+- Network volumes show with 8px indentation under their parent server (per Apple HIG sidebar guidance)
+- Network volumes have distinct teal icon and eject button with capacity display
 - Synthetic servers created for volumes mounted via manual URL (Cmd+K) with no Bonjour discovery
 - Synthetic servers show "manual" badge instead of protocol badge
 - Offline servers (lost Bonjour but volumes still mounted) shown dimmed with "offline" badge
+
+**Server Eject and Additional Shares:**
+- Servers with mounted volumes show eject button (ejects all volumes from that server)
+- Right-click server with volumes shows "Eject" context menu option
+- Right-click server with volumes shows "Connect to Share..." to mount additional shares
+- Click on server row toggles expand/collapse (no disclosure triangle)
+- Network volume eject uses diskutil with auto force fallback for busy volumes
 
 **Keychain Credential Storage:**
 - "Remember in Keychain" saves credentials with access control requiring user presence
@@ -228,23 +235,23 @@ The "Connect to Server" dialog is implemented in SwiftUI, presented as a sheet f
 - [x] Add `.server` case to `SidebarItem`
 - [x] Update `SidebarViewController` to display NETWORK section
 - [x] Update `SidebarItemView` to render server items
-- [ ] Test discovery with local SMB/NFS server
+- [x] Test discovery with local SMB/NFS server
 
 **Phase 2: Mounting Infrastructure**
 - [x] Create `NetworkMounter.swift` with NetFS wrapper
 - [x] Create `NetworkMountError` enum with all error cases
 - [x] Create `KeychainCredentialStore.swift` with secure storage
-- [ ] Test mounting public (no-auth) share
-- [ ] Test Keychain storage with access control
+- [x] Test mounting public (no-auth) share
+- [x] Test Keychain storage with access control
 
 **Phase 3: Authentication Flow**
 - [x] Create `AuthenticationView.swift` SwiftUI dialog
 - [x] Create `AuthenticationWindowController.swift`
 - [x] Add `sidebarDidSelectServer(_:)` to `SidebarDelegate`
 - [x] Implement mount flow in `MainSplitViewController`
-- [ ] Test mounting protected share with credential prompt
-- [ ] Test "Remember in Keychain" saves with user presence requirement
-- [ ] Test subsequent mount requires Touch ID/password
+- [x] Test mounting protected share with credential prompt
+- [x] Test "Remember in Keychain" saves with user presence requirement
+- [x] Test subsequent mount requires Touch ID/password
 
 **Phase 4: Connect to Server Dialog**
 - [x] Create `ConnectToServerView.swift` SwiftUI dialog
@@ -253,13 +260,13 @@ The "Connect to Server" dialog is implemented in SwiftUI, presented as a sheet f
 - [x] Add `.connectToServer` shortcut action with Cmd+K default
 - [x] Add menu item to Go menu
 - [x] Wire up `AppDelegate.connectToServer(_:)`
-- [ ] Test manual URL entry and mount
+- [x] Test manual URL entry and mount
 
 **Phase 5: Polish**
 - [x] Handle edge cases (server offline, auth failure, network timeout)
 - [x] Add loading indicator during mount
 - [x] Add error alerts with actionable messages
-- [ ] Test with SMB, NFS servers
+- [x] Test with SMB, NFS servers
 - [x] Test Keychain credential deletion (right-click server → "Forget Password")
 - [x] Verify no credentials accessible without user interaction
 
@@ -274,8 +281,18 @@ The "Connect to Server" dialog is implemented in SwiftUI, presented as a sheet f
 - [x] Create synthetic servers for volumes without Bonjour discovery
 - [x] Add offline server tracking in `NetworkBrowser`
 - [x] Add offline styling (dimmed with "offline" badge)
-- [x] Add indentation (16px) for network volumes under servers
+- [x] Add indentation (8px) for network volumes under servers
 - [x] Auto-expand servers with mounted volumes
+
+**Phase 7: Server Eject and Polish**
+- [x] Add eject button on servers with mounted volumes
+- [x] Add right-click "Eject" context menu for servers
+- [x] Add right-click "Connect to Share..." for mounting additional shares
+- [x] Remove disclosure triangle, use click-to-expand instead
+- [x] Use diskutil with force fallback for network volume unmount
+- [x] Add distinct teal icon for network shares
+- [x] Update indentation to 8px per Apple HIG guidance
+- [x] Fix permission denied error messages for network vs local volumes
 
 ---
 
@@ -310,9 +327,12 @@ Tests go in `Tests/UITests/DetoursUITests/NetworkUITests.swift`. Run with `resou
 ### User Verification
 
 **Marco (requires local network with SMB/NFS server):**
-- [ ] NETWORK section shows discovered servers on local network
-- [ ] Click server → mounts and navigates to share
-- [ ] Protected share prompts for credentials
-- [ ] "Remember in Keychain" + remount → Touch ID/password prompt appears
-- [ ] Cmd+K opens Connect to Server dialog
-- [ ] Manual URL entry works for known server
+- [x] NETWORK section shows discovered servers on local network
+- [x] Click server → mounts and navigates to share
+- [x] Protected share prompts for credentials
+- [x] "Remember in Keychain" + remount → Touch ID/password prompt appears
+- [x] Cmd+K opens Connect to Server dialog
+- [x] Manual URL entry works for known server
+- [x] Server eject button works
+- [x] Right-click "Connect to Share..." mounts additional shares
+- [x] Network shares show distinct teal icon
