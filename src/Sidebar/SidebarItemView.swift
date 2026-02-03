@@ -230,7 +230,10 @@ final class SidebarItemView: NSTableCellView {
 
     private func configureAsNetworkVolume(_ volume: VolumeInfo, theme: Theme, indented: Bool) {
         iconView.isHidden = false
-        iconView.image = volume.icon
+        // Use consistent icon for network shares with accent color
+        let shareIcon = NSImage(systemSymbolName: "externaldrive.connected.to.line.below", accessibilityDescription: "Network Share")
+        iconView.image = shareIcon
+        iconView.contentTintColor = theme.accent
         nameLabel.stringValue = volume.name
         nameLabel.font = theme.font(size: 12)
         nameLabel.textColor = theme.textPrimary
@@ -258,8 +261,8 @@ final class SidebarItemView: NSTableCellView {
             capacityLabel.isHidden = true
         }
 
-        // Apply manual indentation for child items (since outline view indentation is disabled)
-        resetNameLeading(indent: indented ? 16 : 0)
+        // Subtle indent for child items - enough to show hierarchy without feeling nested
+        resetNameLeading(indent: indented ? 8 : 0)
     }
 
     func configureAsPlaceholder(_ placeholder: NetworkPlaceholder, theme: Theme) {

@@ -267,6 +267,11 @@ final class SidebarViewController: NSViewController {
             logger.warning("Failed to delete credentials: \(error.localizedDescription)")
         }
     }
+
+    @objc private func handleConnectToShare(_ sender: NSMenuItem) {
+        guard let server = sender.representedObject as? NetworkServer else { return }
+        delegate?.sidebarDidSelectServer(server)
+    }
 }
 
 // MARK: - NSOutlineViewDataSource
@@ -591,6 +596,14 @@ extension SidebarViewController: NSMenuDelegate {
             // Show Eject if server has mounted volumes
             let volumes = mountedVolumes(forHost: server.host)
             if !volumes.isEmpty {
+                // Allow mounting additional shares
+                let connectItem = NSMenuItem(title: "Connect to Share...", action: #selector(handleConnectToShare(_:)), keyEquivalent: "")
+                connectItem.target = self
+                connectItem.representedObject = server
+                menu.addItem(connectItem)
+
+                menu.addItem(NSMenuItem.separator())
+
                 let ejectItem = NSMenuItem(title: "Eject", action: #selector(handleEjectServer(_:)), keyEquivalent: "")
                 ejectItem.target = self
                 ejectItem.representedObject = server.host
@@ -598,6 +611,9 @@ extension SidebarViewController: NSMenuDelegate {
             }
             // Show "Forget Password" if credentials are stored
             if KeychainCredentialStore.shared.hasCredential(server: server.host) {
+                if !menu.items.isEmpty && menu.items.last != NSMenuItem.separator() {
+                    menu.addItem(NSMenuItem.separator())
+                }
                 let forgetItem = NSMenuItem(title: "Forget Password", action: #selector(handleForgetPassword(_:)), keyEquivalent: "")
                 forgetItem.target = self
                 forgetItem.representedObject = server
@@ -605,6 +621,7 @@ extension SidebarViewController: NSMenuDelegate {
             }
         } else if let synthetic = item as? SyntheticServer {
             // Synthetic servers always have volumes (that's why they exist)
+            // No "Connect to Share" for synthetic servers - we don't have discovery info
             let ejectItem = NSMenuItem(title: "Eject", action: #selector(handleEjectServer(_:)), keyEquivalent: "")
             ejectItem.target = self
             ejectItem.representedObject = synthetic.host
