@@ -694,9 +694,16 @@ extension MainSplitViewController: SidebarDelegate {
         view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
     }
 
+    func sidebarDidSelectServer(_ server: NetworkServer) {
+        Task {
+            await mountNetworkServer(server)
+        }
+    }
+
     func sidebarDidRequestEject(_ volume: VolumeInfo) {
         let volumeURL = volume.url
         let volumeName = volume.name
+        let isNetwork = volume.isNetwork
         Task.detached {
             do {
                 // Check if this volume is a disk image (DMG, sparsebundle, etc.)
@@ -714,6 +721,9 @@ extension MainSplitViewController: SidebarDelegate {
                             userInfo: [NSLocalizedDescriptionKey: "hdiutil detach failed"]
                         )
                     }
+                } else if isNetwork {
+                    // Use diskutil for network volumes - handles busy volumes better
+                    try Self.unmountWithDiskutil(volumeURL)
                 } else {
                     try NSWorkspace.shared.unmountAndEjectDevice(at: volumeURL)
                 }
@@ -723,6 +733,70 @@ extension MainSplitViewController: SidebarDelegate {
                     let alert = NSAlert()
                     alert.messageText = "Could not eject \"\(volumeName)\""
                     alert.informativeText = error.localizedDescription
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
+        }
+    }
+
+    private nonisolated static func unmountWithDiskutil(_ url: URL, force: Bool = false) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        process.arguments = ["unmount"] + (force ? ["force"] : []) + [url.path]
+        let pipe = Pipe()
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+            // If regular unmount failed and we haven't tried force yet, try with force
+            if !force {
+                try unmountWithDiskutil(url, force: true)
+                return
+            }
+            let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
+            let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            throw NSError(
+                domain: "Detours",
+                code: Int(process.terminationStatus),
+                userInfo: [NSLocalizedDescriptionKey: errorMessage.trimmingCharacters(in: .whitespacesAndNewlines)]
+            )
+        }
+    }
+
+    func sidebarDidRequestEjectServer(host: String) {
+        // Find all volumes from this server and eject them
+        let volumes = VolumeMonitor.shared.volumes.filter { volume in
+            guard let volumeHost = volume.serverHost else { return false }
+            return volumeHost.lowercased() == host.lowercased() ||
+                   volumeHost.lowercased().hasPrefix(host.lowercased() + ".") ||
+                   host.lowercased().hasPrefix(volumeHost.lowercased() + ".")
+        }
+
+        guard !volumes.isEmpty else { return }
+
+        Task.detached {
+            var errors: [(String, Error)] = []
+            for volume in volumes {
+                do {
+                    // Use diskutil for network volumes - handles busy volumes better
+                    try Self.unmountWithDiskutil(volume.url)
+                } catch {
+                    errors.append((volume.name, error))
+                }
+            }
+
+            if !errors.isEmpty {
+                await MainActor.run {
+                    let alert = NSAlert()
+                    if errors.count == 1 {
+                        alert.messageText = "Could not eject \"\(errors[0].0)\""
+                        alert.informativeText = errors[0].1.localizedDescription
+                    } else {
+                        alert.messageText = "Could not eject \(errors.count) volumes"
+                        alert.informativeText = errors.map { $0.0 }.joined(separator: ", ")
+                    }
                     alert.alertStyle = .warning
                     alert.addButton(withTitle: "OK")
                     alert.runModal()
@@ -821,5 +895,171 @@ extension MainSplitViewController: SidebarDelegate {
                 pane.refresh()
             }
         }
+    }
+
+    // MARK: - Network Server Mounting
+
+    func showConnectToServer() {
+        guard let window = view.window else { return }
+
+        let controller = ConnectToServerWindowController()
+        controller.present(over: window) { [weak self] url in
+            guard let self = self else { return }
+            Task {
+                await self.mountNetworkURL(url)
+            }
+        }
+    }
+
+    func mountNetworkURL(_ url: URL) async {
+        logger.info("Mount requested for URL: \(url.absoluteString)")
+
+        do {
+            let mountPoint = try await NetworkMounter.shared.mount(url: url)
+            navigateActivePane(to: mountPoint)
+            view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
+        } catch NetworkMountError.authenticationFailed {
+            // Need credentials - show auth dialog
+            guard let window = view.window else { return }
+            await promptForCredentialsAndMountURL(url: url, window: window)
+        } catch {
+            showMountURLError(error, url: url)
+        }
+    }
+
+    private func promptForCredentialsAndMountURL(url: URL, window: NSWindow) async {
+        let serverName = url.host ?? url.absoluteString
+        let controller = AuthenticationWindowController(serverName: serverName)
+        guard let credentials = await controller.present(over: window) else {
+            logger.info("User cancelled authentication")
+            return
+        }
+
+        do {
+            let mountPoint = try await NetworkMounter.shared.mount(
+                url: url,
+                username: credentials.username,
+                password: credentials.password
+            )
+
+            // Save credentials if requested
+            if credentials.remember, let host = url.host {
+                do {
+                    try KeychainCredentialStore.shared.save(
+                        server: host,
+                        username: credentials.username,
+                        password: credentials.password
+                    )
+                } catch {
+                    logger.warning("Failed to save credentials: \(error.localizedDescription)")
+                }
+            }
+
+            navigateActivePane(to: mountPoint)
+            view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
+        } catch {
+            showMountURLError(error, url: url)
+        }
+    }
+
+    private func showMountURLError(_ error: Error, url: URL) {
+        let serverName = url.host ?? url.absoluteString
+        logger.error("Mount failed for \(serverName): \(error.localizedDescription)")
+
+        let alert = NSAlert()
+        alert.messageText = "Could not connect to \"\(serverName)\""
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    func mountNetworkServer(_ server: NetworkServer) async {
+        guard let window = view.window else { return }
+
+        logger.info("Mount requested for server: \(server.name) (\(server.protocol.displayName))")
+
+        // Check if we have stored credentials
+        let serverHost = server.host
+        var username: String?
+        var password: String?
+
+        if KeychainCredentialStore.shared.hasCredential(server: serverHost) {
+            do {
+                if let credentials = try await KeychainCredentialStore.shared.retrieve(server: serverHost) {
+                    username = credentials.username
+                    password = credentials.password
+                    logger.info("Using stored credentials for \(serverHost)")
+                }
+            } catch KeychainError.userCancelled {
+                logger.info("User cancelled keychain access")
+                return
+            } catch {
+                logger.warning("Failed to retrieve credentials: \(error.localizedDescription)")
+                // Continue without credentials - will prompt for new ones if needed
+            }
+        }
+
+        // Try to mount
+        do {
+            let mountPoint = try await NetworkMounter.shared.mount(
+                server: server,
+                username: username,
+                password: password
+            )
+            navigateActivePane(to: mountPoint)
+            view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
+        } catch NetworkMountError.authenticationFailed {
+            // Need credentials - show auth dialog
+            await promptForCredentialsAndMount(server: server, window: window)
+        } catch {
+            showMountError(error, server: server)
+        }
+    }
+
+    private func promptForCredentialsAndMount(server: NetworkServer, window: NSWindow) async {
+        let controller = AuthenticationWindowController(serverName: server.name)
+        guard let credentials = await controller.present(over: window) else {
+            logger.info("User cancelled authentication")
+            return
+        }
+
+        // Try to mount with provided credentials
+        do {
+            let mountPoint = try await NetworkMounter.shared.mount(
+                server: server,
+                username: credentials.username,
+                password: credentials.password
+            )
+
+            // Save credentials if requested
+            if credentials.remember {
+                do {
+                    try KeychainCredentialStore.shared.save(
+                        server: server.host,
+                        username: credentials.username,
+                        password: credentials.password
+                    )
+                } catch {
+                    logger.warning("Failed to save credentials: \(error.localizedDescription)")
+                }
+            }
+
+            navigateActivePane(to: mountPoint)
+            view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
+        } catch {
+            showMountError(error, server: server)
+        }
+    }
+
+    private func showMountError(_ error: Error, server: NetworkServer) {
+        logger.error("Mount failed for \(server.name): \(error.localizedDescription)")
+
+        let alert = NSAlert()
+        alert.messageText = "Could not connect to \"\(server.name)\""
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }

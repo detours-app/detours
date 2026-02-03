@@ -2,7 +2,29 @@
 
 ## Unreleased
 
+### 260203
+
+#### Network Volume Improvements
+- Added: Eject button on servers with mounted volumes (ejects all volumes from that server)
+- Added: Right-click context menu "Eject" option for servers
+- Added: Right-click "Connect to Share..." to mount additional shares on already-connected servers
+- Added: Click on server row to expand/collapse (no disclosure triangle)
+- Changed: Removed disclosure triangle from sidebar for cleaner appearance
+- Changed: Network shares now use distinct teal icon to differentiate from local volumes
+- Changed: Network volume eject now uses diskutil with auto force fallback for busy volumes
+- Changed: Subtle 8px indent for shares under servers (per Apple HIG sidebar guidance)
+- Fixed: Permission denied errors now show appropriate message for network vs local volumes
+- Fixed: Eject button layout and constraint issues in sidebar
+
 ### 260202
+
+#### Hierarchical Network Volumes
+- Changed: Network volumes now appear under their parent server in NETWORK section instead of flat DEVICES list
+- Added: DEVICES section shows only local volumes (internal drives, USB, etc.)
+- Added: Servers with mounted volumes auto-expand to show nested volumes
+- Added: Synthetic servers for volumes mounted via manual URL (Cmd+K) without Bonjour discovery
+- Added: Offline server tracking - dimmed appearance with "offline" badge when server goes offline but volumes remain mounted
+- Fixed: Duplicate server entries when volume host differs from Bonjour name
 
 #### Sidebar Drop-to-Favorite Fix
 - Fixed: Dragging files onto a sidebar favorite now copies/moves them to that folder instead of adding as a new favorite

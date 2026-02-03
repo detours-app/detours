@@ -5,8 +5,14 @@ protocol SidebarDelegate: AnyObject {
     /// Called when user clicks a sidebar item to navigate
     func sidebarDidSelectItem(_ item: SidebarItem)
 
+    /// Called when user clicks a network server to mount
+    func sidebarDidSelectServer(_ server: NetworkServer)
+
     /// Called when user requests to eject a volume
     func sidebarDidRequestEject(_ volume: VolumeInfo)
+
+    /// Called when user requests to eject all volumes from a server
+    func sidebarDidRequestEjectServer(host: String)
 
     /// Called when user adds a folder to favorites via drag-drop
     func sidebarDidAddFavorite(_ url: URL, at index: Int?)

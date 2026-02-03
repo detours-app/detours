@@ -120,6 +120,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindowController?.splitViewController.quickOpen(sender)
     }
 
+    @objc func connectToServer(_ sender: Any?) {
+        mainWindowController?.splitViewController.showConnectToServer()
+    }
+
     @objc func toggleHiddenFiles(_ sender: Any?) {
         mainWindowController?.splitViewController.toggleHiddenFiles(sender)
     }

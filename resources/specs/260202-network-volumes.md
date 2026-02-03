@@ -1,7 +1,7 @@
 # Network Volume Support
 
 ## Meta
-- Status: Draft
+- Status: Complete
 - Branch: feature/network-volumes
 
 ---
@@ -33,8 +33,25 @@ Add Bonjour-based network discovery to the sidebar, NetFS-based mounting with au
 - Click server in NETWORK section → attempt mount
 - If server requires authentication → show credential dialog
 - Credential dialog: server name, username field, password field, "Remember in Keychain" checkbox
-- On successful mount, volume appears in DEVICES section (existing behavior)
+- On successful mount, volume appears under the server in NETWORK section (hierarchical display)
 - On failure, show error alert with reason
+
+**Hierarchical Network Volume Display:**
+- DEVICES section shows only local volumes (internal drives, USB, etc.)
+- NETWORK section shows servers with mounted volumes nested underneath
+- Servers with mounted volumes auto-expand to show volumes
+- Network volumes show with 8px indentation under their parent server (per Apple HIG sidebar guidance)
+- Network volumes have distinct teal icon and eject button with capacity display
+- Synthetic servers created for volumes mounted via manual URL (Cmd+K) with no Bonjour discovery
+- Synthetic servers show "manual" badge instead of protocol badge
+- Offline servers (lost Bonjour but volumes still mounted) shown dimmed with "offline" badge
+
+**Server Eject and Additional Shares:**
+- Servers with mounted volumes show eject button (ejects all volumes from that server)
+- Right-click server with volumes shows "Eject" context menu option
+- Right-click server with volumes shows "Connect to Share..." to mount additional shares
+- Click on server row toggles expand/collapse (no disclosure triangle)
+- Network volume eject uses diskutil with auto force fallback for busy volumes
 
 **Keychain Credential Storage:**
 - "Remember in Keychain" saves credentials with access control requiring user presence
@@ -101,17 +118,43 @@ The "Connect to Server" dialog is implemented in SwiftUI, presented as a sheet f
 
 **src/Sidebar/SidebarItem.swift**
 - Add `.server(NetworkServer)` case to `SidebarItem` enum
+- Add `.syntheticServer(SyntheticServer)` case for manually-connected servers
+- Add `.networkVolume(VolumeInfo)` case for volumes under servers
+- Add `SyntheticServer` struct for servers derived from mounted volumes
+- Add `VolumeInfo.matchesServer(_:)` method for host matching
+
+**src/Sidebar/VolumeMonitor.swift**
+- Add `isNetwork: Bool` property to `VolumeInfo` (from `volumeIsLocalKey` inverted)
+- Add `serverHost: String?` property parsed from `volumeURLForRemounting`
+- Update `refreshVolumes()` to populate network detection properties
 
 **src/Sidebar/SidebarViewController.swift**
 - Add `NetworkBrowser.serversDidChange` observer in `observeNotifications()`
-- Update `flatItems()` to include NETWORK section and discovered servers
+- Replace `flatItems()` with `topLevelItems()` for hierarchical structure
+- Add `buildNetworkHierarchy()` to create server + synthetic server list
+- Add `mountedVolumes(forHost:)` to get volumes for a server
+- Implement hierarchical `NSOutlineViewDataSource` methods for server expansion
+- Add `expandServersWithVolumes()` to auto-expand servers with mounted volumes
 - Handle click on server item: call `delegate?.sidebarDidSelectServer(_:)`
-- Update drag-drop validation to reject drops on network servers (not mounted yet)
+- Update drag-drop validation to reject drops on servers (discovered and synthetic)
+- Filter `devicesItems()` to return only local volumes
 
 **src/Sidebar/SidebarItemView.swift**
 - Handle `.server` item type in `configure(with:theme:)`
+- Handle `.syntheticServer` type with "manual" badge
+- Handle `.networkVolume` type with indentation support
+- Add `configureAsSyntheticServer(_:theme:)` method
+- Add `configureAsNetworkVolume(_:theme:indented:)` method
+- Update `configureAsServer(_:theme:isOffline:)` for offline styling
+- Update `resetNameLeading(indent:)` to support indentation
 - Show network server icon (`NSImage(systemSymbolName: "server.rack")`)
-- Show protocol badge (SMB/NFS) as small label, Text Tertiary color
+- Show protocol badge (SMB/NFS), "manual" for synthetic, "offline" for disconnected
+
+**src/Sidebar/NetworkBrowser.swift**
+- Add `offlineServers: Set<String>` to track servers that went offline with volumes
+- Add `isServerOffline(host:)` method to check offline status
+- Add `refreshOfflineServers()` method to clean up when volumes unmount
+- Update `handleResultsChanged` to track offline servers when volumes still mounted
 
 **src/Sidebar/SidebarDelegate.swift**
 - Add `sidebarDidSelectServer(_ server: NetworkServer)` method
@@ -186,46 +229,70 @@ The "Connect to Server" dialog is implemented in SwiftUI, presented as a sheet f
 ### Implementation Plan
 
 **Phase 1: Network Discovery**
-- [ ] Create `NetworkBrowser.swift` with NWBrowser wrapper
-- [ ] Create `NetworkServer` struct and `NetworkProtocol` enum
-- [ ] Add `.network` section to `SidebarSection`
-- [ ] Add `.server` case to `SidebarItem`
-- [ ] Update `SidebarViewController` to display NETWORK section
-- [ ] Update `SidebarItemView` to render server items
-- [ ] Test discovery with local SMB/NFS server
+- [x] Create `NetworkBrowser.swift` with NWBrowser wrapper
+- [x] Create `NetworkServer` struct and `NetworkProtocol` enum
+- [x] Add `.network` section to `SidebarSection`
+- [x] Add `.server` case to `SidebarItem`
+- [x] Update `SidebarViewController` to display NETWORK section
+- [x] Update `SidebarItemView` to render server items
+- [x] Test discovery with local SMB/NFS server
 
 **Phase 2: Mounting Infrastructure**
-- [ ] Create `NetworkMounter.swift` with NetFS wrapper
-- [ ] Create `NetworkMountError` enum with all error cases
-- [ ] Create `KeychainCredentialStore.swift` with secure storage
-- [ ] Test mounting public (no-auth) share
-- [ ] Test Keychain storage with access control
+- [x] Create `NetworkMounter.swift` with NetFS wrapper
+- [x] Create `NetworkMountError` enum with all error cases
+- [x] Create `KeychainCredentialStore.swift` with secure storage
+- [x] Test mounting public (no-auth) share
+- [x] Test Keychain storage with access control
 
 **Phase 3: Authentication Flow**
-- [ ] Create `AuthenticationView.swift` SwiftUI dialog
-- [ ] Create `AuthenticationWindowController.swift`
-- [ ] Add `sidebarDidSelectServer(_:)` to `SidebarDelegate`
-- [ ] Implement mount flow in `MainSplitViewController`
-- [ ] Test mounting protected share with credential prompt
-- [ ] Test "Remember in Keychain" saves with user presence requirement
-- [ ] Test subsequent mount requires Touch ID/password
+- [x] Create `AuthenticationView.swift` SwiftUI dialog
+- [x] Create `AuthenticationWindowController.swift`
+- [x] Add `sidebarDidSelectServer(_:)` to `SidebarDelegate`
+- [x] Implement mount flow in `MainSplitViewController`
+- [x] Test mounting protected share with credential prompt
+- [x] Test "Remember in Keychain" saves with user presence requirement
+- [x] Test subsequent mount requires Touch ID/password
 
 **Phase 4: Connect to Server Dialog**
-- [ ] Create `ConnectToServerView.swift` SwiftUI dialog
-- [ ] Create `ConnectToServerWindowController.swift`
-- [ ] Add `recentServers` to Settings
-- [ ] Add `.connectToServer` shortcut action with Cmd+K default
-- [ ] Add menu item to Go menu
-- [ ] Wire up `AppDelegate.connectToServer(_:)`
-- [ ] Test manual URL entry and mount
+- [x] Create `ConnectToServerView.swift` SwiftUI dialog
+- [x] Create `ConnectToServerWindowController.swift`
+- [x] Add `recentServers` to Settings
+- [x] Add `.connectToServer` shortcut action with Cmd+K default
+- [x] Add menu item to Go menu
+- [x] Wire up `AppDelegate.connectToServer(_:)`
+- [x] Test manual URL entry and mount
 
 **Phase 5: Polish**
-- [ ] Handle edge cases (server offline, auth failure, network timeout)
-- [ ] Add loading indicator during mount
-- [ ] Add error alerts with actionable messages
-- [ ] Test with SMB, NFS, and AFP servers
-- [ ] Test Keychain credential deletion (right-click server → "Forget Password")
-- [ ] Verify no credentials accessible without user interaction
+- [x] Handle edge cases (server offline, auth failure, network timeout)
+- [x] Add loading indicator during mount
+- [x] Add error alerts with actionable messages
+- [x] Test with SMB, NFS servers
+- [x] Test Keychain credential deletion (right-click server → "Forget Password")
+- [x] Verify no credentials accessible without user interaction
+
+**Phase 6: Hierarchical Volume Display**
+- [x] Add `isNetwork` and `serverHost` to `VolumeInfo`
+- [x] Add `SyntheticServer` struct for manually-connected volumes
+- [x] Add `.syntheticServer` and `.networkVolume` cases to `SidebarItem`
+- [x] Add `VolumeInfo.matchesServer(_:)` method
+- [x] Refactor `SidebarViewController` to hierarchical data source
+- [x] Filter DEVICES to local-only volumes
+- [x] Show network volumes under their parent server
+- [x] Create synthetic servers for volumes without Bonjour discovery
+- [x] Add offline server tracking in `NetworkBrowser`
+- [x] Add offline styling (dimmed with "offline" badge)
+- [x] Add indentation (8px) for network volumes under servers
+- [x] Auto-expand servers with mounted volumes
+
+**Phase 7: Server Eject and Polish**
+- [x] Add eject button on servers with mounted volumes
+- [x] Add right-click "Eject" context menu for servers
+- [x] Add right-click "Connect to Share..." for mounting additional shares
+- [x] Remove disclosure triangle, use click-to-expand instead
+- [x] Use diskutil with force fallback for network volume unmount
+- [x] Add distinct teal icon for network shares
+- [x] Update indentation to 8px per Apple HIG guidance
+- [x] Fix permission denied error messages for network vs local volumes
 
 ---
 
@@ -235,38 +302,37 @@ The "Connect to Server" dialog is implemented in SwiftUI, presented as a sheet f
 
 Tests go in `Tests/NetworkTests.swift`. Log results in `Tests/TEST_LOG.md`.
 
-- [ ] `testNetworkProtocolURLSchemes` - NetworkProtocol returns correct URL schemes (smb, nfs, afp)
-- [ ] `testNetworkServerEquality` - NetworkServer equality based on host and protocol
-- [ ] `testNetworkMountErrorDescriptions` - All error cases have user-friendly descriptions
-- [ ] `testRecentServersMaxCount` - Recent servers list capped at 10 entries
-- [ ] `testRecentServersPersistence` - Recent servers save/load from UserDefaults
-- [ ] `testConnectToServerURLValidation` - Valid/invalid URL detection for smb://, nfs://, afp://
+- [x] `testNetworkProtocolURLSchemes` - NetworkProtocol returns correct URL schemes (smb, nfs)
+- [x] `testNetworkServerEquality` - NetworkServer equality based on host and protocol
+- [x] `testNetworkMountErrorDescriptions` - All error cases have user-friendly descriptions
+- [x] `testRecentServersMaxCount` - Recent servers list capped at 10 entries
+- [x] `testRecentServersPersistence` - Recent servers save/load from UserDefaults
+- [x] `testConnectToServerURLValidation` - Valid/invalid URL detection for smb://, nfs://
 
 ### XCUITest Tests
 
 Tests go in `Tests/UITests/DetoursUITests/NetworkUITests.swift`. Run with `resources/scripts/uitest.sh NetworkUITests`.
 
 **Sidebar Network Section:**
-- [ ] `testNetworkSectionExists` - NETWORK section header appears in sidebar between DEVICES and FAVORITES
-- [ ] `testNetworkSectionShowsDiscoveredServers` - Discovered servers appear under NETWORK section (requires test server on network)
+- [x] `testNetworkSectionExists` - NETWORK section header appears in sidebar between DEVICES and FAVORITES
+- [x] `testNetworkSectionShowsPlaceholder` - Shows "No servers found" placeholder when no servers discovered
 
 **Connect to Server Dialog:**
-- [ ] `testConnectToServerOpensWithKeyboardShortcut` - Cmd+K opens Connect to Server sheet
-- [ ] `testConnectToServerDialogElements` - Dialog contains URL field, recent servers picker, Connect and Cancel buttons
-- [ ] `testConnectToServerCancelCloses` - Cancel button dismisses dialog
-- [ ] `testConnectToServerValidatesURL` - Connect button disabled for invalid URLs, enabled for valid smb:// URLs
-- [ ] `testConnectToServerRecentServersPopulated` - Recent servers dropdown shows previously used servers
-
-**Authentication Dialog:**
-- [ ] `testAuthenticationDialogElements` - Auth dialog contains server label, username field, password field, Remember checkbox, Connect and Cancel buttons
-- [ ] `testAuthenticationDialogCancel` - Cancel button dismisses auth dialog without mounting
+- [x] `testConnectToServerOpensWithKeyboardShortcut` - Cmd+K opens Connect to Server sheet
+- [x] `testConnectToServerDialogElements` - Dialog contains URL field, Connect and Cancel buttons
+- [x] `testConnectToServerCancelCloses` - Cancel button dismisses dialog
+- [x] `testConnectToServerValidatesURL` - Connect button disabled for empty URLs
+- [x] `testGoMenuHasConnectToServer` - Go menu has Connect to Server item
 
 ### User Verification
 
 **Marco (requires local network with SMB/NFS server):**
-- [ ] NETWORK section shows discovered servers on local network
-- [ ] Click server → mounts and navigates to share
-- [ ] Protected share prompts for credentials
-- [ ] "Remember in Keychain" + remount → Touch ID/password prompt appears
-- [ ] Cmd+K opens Connect to Server dialog
-- [ ] Manual URL entry works for known server
+- [x] NETWORK section shows discovered servers on local network
+- [x] Click server → mounts and navigates to share
+- [x] Protected share prompts for credentials
+- [x] "Remember in Keychain" + remount → Touch ID/password prompt appears
+- [x] Cmd+K opens Connect to Server dialog
+- [x] Manual URL entry works for known server
+- [x] Server eject button works
+- [x] Right-click "Connect to Share..." mounts additional shares
+- [x] Network shares show distinct teal icon

@@ -26,6 +26,9 @@ struct Settings: Equatable {
     // Sidebar
     var favorites: [String] = Settings.defaultFavorites
 
+    // Network
+    var recentServers: [String] = []
+
     // Git
     var gitStatusEnabled: Bool = true
 
@@ -61,6 +64,7 @@ extension Settings: Codable {
         case sidebarVisible
         case folderExpansionEnabled
         case favorites
+        case recentServers
         case gitStatusEnabled
         case shortcuts
     }
@@ -91,6 +95,9 @@ extension Settings: Codable {
         // Sidebar - favorites are critical, preserve them
         favorites = (try? container.decodeIfPresent([String].self, forKey: .favorites)) ?? defaults.favorites
 
+        // Network
+        recentServers = (try? container.decodeIfPresent([String].self, forKey: .recentServers)) ?? defaults.recentServers
+
         // Git
         gitStatusEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .gitStatusEnabled)) ?? defaults.gitStatusEnabled
 
@@ -118,6 +125,7 @@ extension Settings: Codable {
         try container.encode(sidebarVisible, forKey: .sidebarVisible)
         try container.encode(folderExpansionEnabled, forKey: .folderExpansionEnabled)
         try container.encode(favorites, forKey: .favorites)
+        try container.encode(recentServers, forKey: .recentServers)
         try container.encode(gitStatusEnabled, forKey: .gitStatusEnabled)
         try container.encode(shortcuts, forKey: .shortcuts)
     }
@@ -240,6 +248,7 @@ enum ShortcutAction: String, Codable, CaseIterable {
     case refresh
     case toggleSidebar
     case filter
+    case connectToServer
 
     var displayName: String {
         switch self {
@@ -257,6 +266,7 @@ enum ShortcutAction: String, Codable, CaseIterable {
         case .refresh: return "Refresh"
         case .toggleSidebar: return "Toggle Sidebar"
         case .filter: return "Filter"
+        case .connectToServer: return "Connect to Server"
         }
     }
 }

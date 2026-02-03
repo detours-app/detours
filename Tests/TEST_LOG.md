@@ -1,11 +1,36 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-01-29 16:53:17
-- Command: `resources/scripts/uitest.sh UndoUITests/testMultipleUndosAcrossTabs`
+- Started: 2026-02-03 14:14:49
+- Command: `swift test --filter NetworkTests` + `resources/scripts/uitest.sh NetworkUITests`
 - Status: PASS
-- Duration: 41.609s
-- Notes: All 8 UndoUITests pass. Tab-independent undo stacks verified.
+- Duration: 152.859s (UI) + 0.012s (unit)
+- Notes: All tests pass after server eject, Connect to Share, and icon improvements.
+
+### NetworkUITests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testNetworkSectionExists | PASS | 25.35s | 2026-02-03 14:18:00 |
+| testNetworkSectionShowsPlaceholder | PASS | 21.12s | 2026-02-03 14:18:00 |
+| testConnectToServerOpensWithKeyboardShortcut | PASS | 21.10s | 2026-02-03 14:18:00 |
+| testConnectToServerDialogElements | PASS | 21.27s | 2026-02-03 14:18:00 |
+| testConnectToServerCancelCloses | PASS | 23.50s | 2026-02-03 14:18:00 |
+| testConnectToServerValidatesURL | PASS | 21.28s | 2026-02-03 14:18:00 |
+| testGoMenuHasConnectToServer | PASS | 19.24s | 2026-02-03 14:18:00 |
+
+### NetworkTests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testNetworkProtocolURLSchemes | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testNetworkServerEquality | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testNetworkServerURL | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testNetworkMountErrorDescriptions | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testConnectToServerURLValidation | PASS | 0.002s | 2026-02-03 14:14:49 |
+| testRecentServersMaxCount | PASS | 0.005s | 2026-02-03 14:14:49 |
+| testRecentServersPersistence | PASS | 0.001s | 2026-02-03 14:14:49 |
+| testVolumeInfoMatchesServer | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testSyntheticServerEquality | PASS | 0.000s | 2026-02-03 14:14:49 |
+| testSyntheticServerDisplayName | PASS | 0.000s | 2026-02-03 14:14:49 |
 
 ### SmokeTests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -418,6 +443,7 @@
 | testMultipleUndosAcrossTabs | PASS | 41.609s | 2026-01-29 16:53:17 |
 
 ## Notes
+- 2026-02-02 20:39: NetworkTests - Added 3 new tests for hierarchical network volume display: testVolumeInfoMatchesServer (volume-to-server host matching), testSyntheticServerEquality, testSyntheticServerDisplayName. Total: 10 NetworkTests all PASS.
 - 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.
 - 2026-01-27 22:52: FilterUITests/testSlashKeyShowsFilterBar PASSED - Fixed "/" key handling. XCUI sends "/" with shift modifier (mods=131072) and wrong keyCode (26 instead of 44). Changed check to match character "/" with empty modifiers OR shift only.
 - 2026-01-22 15:38: PasteSelectionUITests/testPasteInExpandedFolderKeepsSelectionInFolder PASSED (manual verification) - Fixed paste destination to use selected item's parent folder instead of root. When file.txt in SubfolderA1 selected, paste now goes to SubfolderA1. Conflict dialog appeared proving correct location. Also fixed: delete/duplicate selection using tableView.numberOfRows instead of dataSource.items.count, selectItem(at:) now searches full tree.
