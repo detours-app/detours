@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 (260203)
 
-### 260203
+### Network Volume Support
 
 #### Network Volume Improvements
 - Added: Eject button on servers with mounted volumes (ejects all volumes from that server)
