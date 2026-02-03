@@ -703,6 +703,7 @@ extension MainSplitViewController: SidebarDelegate {
     func sidebarDidRequestEject(_ volume: VolumeInfo) {
         let volumeURL = volume.url
         let volumeName = volume.name
+        let isNetwork = volume.isNetwork
         Task.detached {
             do {
                 // Check if this volume is a disk image (DMG, sparsebundle, etc.)
@@ -720,6 +721,9 @@ extension MainSplitViewController: SidebarDelegate {
                             userInfo: [NSLocalizedDescriptionKey: "hdiutil detach failed"]
                         )
                     }
+                } else if isNetwork {
+                    // Use diskutil for network volumes - handles busy volumes better
+                    try Self.unmountWithDiskutil(volumeURL)
                 } else {
                     try NSWorkspace.shared.unmountAndEjectDevice(at: volumeURL)
                 }
@@ -729,6 +733,70 @@ extension MainSplitViewController: SidebarDelegate {
                     let alert = NSAlert()
                     alert.messageText = "Could not eject \"\(volumeName)\""
                     alert.informativeText = error.localizedDescription
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
+        }
+    }
+
+    private nonisolated static func unmountWithDiskutil(_ url: URL, force: Bool = false) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        process.arguments = ["unmount"] + (force ? ["force"] : []) + [url.path]
+        let pipe = Pipe()
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+            // If regular unmount failed and we haven't tried force yet, try with force
+            if !force {
+                try unmountWithDiskutil(url, force: true)
+                return
+            }
+            let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
+            let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            throw NSError(
+                domain: "Detours",
+                code: Int(process.terminationStatus),
+                userInfo: [NSLocalizedDescriptionKey: errorMessage.trimmingCharacters(in: .whitespacesAndNewlines)]
+            )
+        }
+    }
+
+    func sidebarDidRequestEjectServer(host: String) {
+        // Find all volumes from this server and eject them
+        let volumes = VolumeMonitor.shared.volumes.filter { volume in
+            guard let volumeHost = volume.serverHost else { return false }
+            return volumeHost.lowercased() == host.lowercased() ||
+                   volumeHost.lowercased().hasPrefix(host.lowercased() + ".") ||
+                   host.lowercased().hasPrefix(volumeHost.lowercased() + ".")
+        }
+
+        guard !volumes.isEmpty else { return }
+
+        Task.detached {
+            var errors: [(String, Error)] = []
+            for volume in volumes {
+                do {
+                    // Use diskutil for network volumes - handles busy volumes better
+                    try Self.unmountWithDiskutil(volume.url)
+                } catch {
+                    errors.append((volume.name, error))
+                }
+            }
+
+            if !errors.isEmpty {
+                await MainActor.run {
+                    let alert = NSAlert()
+                    if errors.count == 1 {
+                        alert.messageText = "Could not eject \"\(errors[0].0)\""
+                        alert.informativeText = errors[0].1.localizedDescription
+                    } else {
+                        alert.messageText = "Could not eject \(errors.count) volumes"
+                        alert.informativeText = errors.map { $0.0 }.joined(separator: ", ")
+                    }
                     alert.alertStyle = .warning
                     alert.addButton(withTitle: "OK")
                     alert.runModal()

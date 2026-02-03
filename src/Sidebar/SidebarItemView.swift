@@ -46,7 +46,7 @@ final class SidebarItemView: NSTableCellView {
         ejectButton.bezelStyle = .inline
         ejectButton.isBordered = false
         let ejectImage = NSImage(systemSymbolName: "eject.fill", accessibilityDescription: "Eject")
-        let smallConfig = NSImage.SymbolConfiguration(pointSize: 8, weight: .light)
+        let smallConfig = NSImage.SymbolConfiguration(pointSize: 10, weight: .regular)
         ejectButton.image = ejectImage?.withSymbolConfiguration(smallConfig)
         ejectButton.imageScaling = .scaleProportionallyDown
         ejectButton.imagePosition = .imageOnly
@@ -74,25 +74,25 @@ final class SidebarItemView: NSTableCellView {
             capacityLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 50),
 
             protocolBadge.centerYAnchor.constraint(equalTo: centerYAnchor),
-            protocolBadge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            // protocolBadge trailing is set dynamically based on eject button visibility
 
-            ejectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            ejectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             ejectButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-            ejectButton.widthAnchor.constraint(equalToConstant: 10),
-            ejectButton.heightAnchor.constraint(equalToConstant: 10),
+            ejectButton.widthAnchor.constraint(equalToConstant: 16),
+            ejectButton.heightAnchor.constraint(equalToConstant: 16),
         ])
     }
 
-    func configure(with item: SidebarItem, theme: Theme, indented: Bool = false, isOffline: Bool = false) {
+    func configure(with item: SidebarItem, theme: Theme, indented: Bool = false, isOffline: Bool = false, hasVolumes: Bool = false) {
         switch item {
         case .section(let section):
             configureAsSection(section, theme: theme)
         case .device(let volume):
             configureAsDevice(volume, theme: theme)
         case .server(let server):
-            configureAsServer(server, theme: theme, isOffline: isOffline)
+            configureAsServer(server, theme: theme, isOffline: isOffline, hasVolumes: hasVolumes)
         case .syntheticServer(let synthetic):
-            configureAsSyntheticServer(synthetic, theme: theme)
+            configureAsSyntheticServer(synthetic, theme: theme, hasVolumes: hasVolumes)
         case .networkVolume(let volume):
             configureAsNetworkVolume(volume, theme: theme, indented: indented)
         case .favorite(let url):
@@ -151,7 +151,7 @@ final class SidebarItemView: NSTableCellView {
         onEject?()
     }
 
-    private func configureAsServer(_ server: NetworkServer, theme: Theme, isOffline: Bool = false) {
+    private func configureAsServer(_ server: NetworkServer, theme: Theme, isOffline: Bool = false, hasVolumes: Bool = false) {
         iconView.isHidden = false
         let serverIcon = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "Server")
         iconView.image = serverIcon
@@ -178,10 +178,24 @@ final class SidebarItemView: NSTableCellView {
         protocolBadge.font = .systemFont(ofSize: 9, weight: .medium)
         protocolBadge.textColor = theme.textTertiary
 
+        // Show eject button when server has mounted volumes
+        ejectButton.isHidden = !hasVolumes
+        protocolBadgeTrailingConstraint?.isActive = false
+        if hasVolumes {
+            ejectButton.contentTintColor = theme.textSecondary
+            ejectButton.alphaValue = 0.7
+            // Move protocol badge to not overlap with eject button
+            protocolBadgeTrailingConstraint = protocolBadge.trailingAnchor.constraint(equalTo: ejectButton.leadingAnchor, constant: -6)
+        } else {
+            // Badge at trailing edge when no eject button
+            protocolBadgeTrailingConstraint = protocolBadge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10)
+        }
+        protocolBadgeTrailingConstraint?.isActive = true
+
         resetNameLeading()
     }
 
-    private func configureAsSyntheticServer(_ server: SyntheticServer, theme: Theme) {
+    private func configureAsSyntheticServer(_ server: SyntheticServer, theme: Theme, hasVolumes: Bool = false) {
         iconView.isHidden = false
         let serverIcon = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "Server")
         iconView.image = serverIcon
@@ -196,6 +210,20 @@ final class SidebarItemView: NSTableCellView {
         protocolBadge.stringValue = "manual"
         protocolBadge.font = .systemFont(ofSize: 9, weight: .medium)
         protocolBadge.textColor = theme.textTertiary
+
+        // Show eject button when server has mounted volumes
+        ejectButton.isHidden = !hasVolumes
+        protocolBadgeTrailingConstraint?.isActive = false
+        if hasVolumes {
+            ejectButton.contentTintColor = theme.textSecondary
+            ejectButton.alphaValue = 0.7
+            // Move protocol badge to not overlap with eject button
+            protocolBadgeTrailingConstraint = protocolBadge.trailingAnchor.constraint(equalTo: ejectButton.leadingAnchor, constant: -6)
+        } else {
+            // Badge at trailing edge when no eject button
+            protocolBadgeTrailingConstraint = protocolBadge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10)
+        }
+        protocolBadgeTrailingConstraint?.isActive = true
 
         resetNameLeading()
     }
@@ -230,9 +258,8 @@ final class SidebarItemView: NSTableCellView {
             capacityLabel.isHidden = true
         }
 
-        // Outline view handles indentation via indentationPerLevel
-        // No additional indent needed in the cell
-        resetNameLeading()
+        // Apply manual indentation for child items (since outline view indentation is disabled)
+        resetNameLeading(indent: indented ? 16 : 0)
     }
 
     func configureAsPlaceholder(_ placeholder: NetworkPlaceholder, theme: Theme) {
@@ -292,6 +319,8 @@ final class SidebarItemView: NSTableCellView {
         protocolBadge.isHidden = true
         capacityTrailingConstraint?.isActive = false
         capacityTrailingConstraint = nil
+        protocolBadgeTrailingConstraint?.isActive = false
+        protocolBadgeTrailingConstraint = nil
         ejectButton.isHidden = true
         ejectButton.alphaValue = 1.0
         alphaValue = 1.0

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### 260203
+
+#### Network Volume Improvements
+- Added: Eject button on servers with mounted volumes (ejects all volumes from that server)
+- Added: Right-click context menu "Eject" option for servers
+- Added: Click on server row to expand/collapse (no disclosure triangle)
+- Changed: Removed disclosure triangle from sidebar for cleaner appearance
+- Changed: Network volume eject now uses diskutil with auto force fallback for busy volumes
+- Fixed: Permission denied errors now show appropriate message for network vs local volumes
+- Fixed: Eject button layout and constraint issues in sidebar
+
 ### 260202
 
 #### Hierarchical Network Volumes

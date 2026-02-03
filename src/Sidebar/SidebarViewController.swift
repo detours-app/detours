@@ -4,7 +4,7 @@ import os.log
 private let logger = Logger(subsystem: "com.detours", category: "sidebar")
 
 final class SidebarViewController: NSViewController {
-    private let outlineView = NSOutlineView()
+    private let outlineView = SidebarOutlineView()
     private let scrollView = NSScrollView()
 
     weak var delegate: SidebarDelegate?
@@ -37,6 +37,7 @@ final class SidebarViewController: NSViewController {
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = false
+        scrollView.scrollerStyle = .overlay
 
         view.addSubview(scrollView)
 
@@ -59,8 +60,8 @@ final class SidebarViewController: NSViewController {
         outlineView.headerView = nil
         outlineView.rowHeight = 24
         outlineView.intercellSpacing = NSSize(width: 0, height: 0)
-        outlineView.indentationPerLevel = 16
-        outlineView.indentationMarkerFollowsCell = true
+        outlineView.indentationPerLevel = 0  // We handle indentation manually in cell views
+        outlineView.indentationMarkerFollowsCell = false
         outlineView.allowsMultipleSelection = false
         outlineView.allowsEmptySelection = true
         outlineView.selectionHighlightStyle = .regular
@@ -246,6 +247,11 @@ final class SidebarViewController: NSViewController {
     @objc private func handleEject(_ sender: NSMenuItem) {
         guard let volume = sender.representedObject as? VolumeInfo else { return }
         delegate?.sidebarDidRequestEject(volume)
+    }
+
+    @objc private func handleEjectServer(_ sender: NSMenuItem) {
+        guard let host = sender.representedObject as? String else { return }
+        delegate?.sidebarDidRequestEjectServer(host: host)
     }
 
     @objc private func handleRemoveFavorite(_ sender: NSMenuItem) {
@@ -484,9 +490,21 @@ extension SidebarViewController: NSOutlineViewDelegate {
             }
         } else if let server = item as? NetworkServer {
             let isOffline = NetworkBrowser.shared.isServerOffline(host: server.host)
-            cellView.configure(with: .server(server), theme: theme, isOffline: isOffline)
+            let volumes = mountedVolumes(forHost: server.host)
+            cellView.configure(with: .server(server), theme: theme, isOffline: isOffline, hasVolumes: !volumes.isEmpty)
+            if !volumes.isEmpty {
+                cellView.onEject = { [weak self] in
+                    self?.delegate?.sidebarDidRequestEjectServer(host: server.host)
+                }
+            }
         } else if let synthetic = item as? SyntheticServer {
-            cellView.configure(with: .syntheticServer(synthetic), theme: theme)
+            let volumes = mountedVolumes(forHost: synthetic.host)
+            cellView.configure(with: .syntheticServer(synthetic), theme: theme, hasVolumes: !volumes.isEmpty)
+            if !volumes.isEmpty {
+                cellView.onEject = { [weak self] in
+                    self?.delegate?.sidebarDidRequestEjectServer(host: synthetic.host)
+                }
+            }
         } else if let placeholder = item as? NetworkPlaceholder {
             cellView.configureAsPlaceholder(placeholder, theme: theme)
         } else if let url = item as? URL {
@@ -497,10 +515,10 @@ extension SidebarViewController: NSOutlineViewDelegate {
     }
 
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
-        // Don't allow selecting section headers, placeholders, or synthetic servers (no action available)
+        // Don't allow selecting section headers or placeholders
         if item is SidebarSection { return false }
         if item is NetworkPlaceholder { return false }
-        if item is SyntheticServer { return false }
+        // Allow selecting synthetic servers (for click-to-expand)
         return true
     }
 
@@ -523,7 +541,23 @@ extension SidebarViewController: NSOutlineViewDelegate {
                 delegate?.sidebarDidSelectItem(.device(volume))
             }
         } else if let server = item as? NetworkServer {
-            delegate?.sidebarDidSelectServer(server)
+            // Toggle expansion if has volumes, otherwise mount
+            if !mountedVolumes(forHost: server.host).isEmpty {
+                if outlineView.isItemExpanded(server) {
+                    outlineView.animator().collapseItem(server)
+                } else {
+                    outlineView.animator().expandItem(server)
+                }
+            } else {
+                delegate?.sidebarDidSelectServer(server)
+            }
+        } else if let synthetic = item as? SyntheticServer {
+            // Toggle expansion (synthetic servers always have volumes)
+            if outlineView.isItemExpanded(synthetic) {
+                outlineView.animator().collapseItem(synthetic)
+            } else {
+                outlineView.animator().expandItem(synthetic)
+            }
         } else if let url = item as? URL {
             delegate?.sidebarDidSelectItem(.favorite(url))
         }
@@ -554,13 +588,27 @@ extension SidebarViewController: NSMenuDelegate {
             ejectItem.representedObject = volume
             menu.addItem(ejectItem)
         } else if let server = item as? NetworkServer {
-            // Only show "Forget Password" if credentials are stored
+            // Show Eject if server has mounted volumes
+            let volumes = mountedVolumes(forHost: server.host)
+            if !volumes.isEmpty {
+                let ejectItem = NSMenuItem(title: "Eject", action: #selector(handleEjectServer(_:)), keyEquivalent: "")
+                ejectItem.target = self
+                ejectItem.representedObject = server.host
+                menu.addItem(ejectItem)
+            }
+            // Show "Forget Password" if credentials are stored
             if KeychainCredentialStore.shared.hasCredential(server: server.host) {
                 let forgetItem = NSMenuItem(title: "Forget Password", action: #selector(handleForgetPassword(_:)), keyEquivalent: "")
                 forgetItem.target = self
                 forgetItem.representedObject = server
                 menu.addItem(forgetItem)
             }
+        } else if let synthetic = item as? SyntheticServer {
+            // Synthetic servers always have volumes (that's why they exist)
+            let ejectItem = NSMenuItem(title: "Eject", action: #selector(handleEjectServer(_:)), keyEquivalent: "")
+            ejectItem.target = self
+            ejectItem.representedObject = synthetic.host
+            menu.addItem(ejectItem)
         } else if let url = item as? URL {
             let removeItem = NSMenuItem(title: "Remove from Favorites", action: #selector(handleRemoveFavorite(_:)), keyEquivalent: "")
             removeItem.target = self

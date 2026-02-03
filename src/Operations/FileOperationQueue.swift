@@ -102,7 +102,12 @@ final class FileOperationQueue {
                 return
             case let .permissionDenied(url):
                 alert.messageText = "Permission Denied"
-                alert.informativeText = "Permission denied for \"\(url.lastPathComponent)\". Check Full Disk Access in System Settings."
+                let isNetworkVolume = (try? url.resourceValues(forKeys: [.volumeIsLocalKey]))?.volumeIsLocal == false
+                if isNetworkVolume {
+                    alert.informativeText = "Permission denied for \"\(url.lastPathComponent)\". Check server share permissions."
+                } else {
+                    alert.informativeText = "Permission denied for \"\(url.lastPathComponent)\". Check Full Disk Access in System Settings."
+                }
             default:
                 alert.messageText = "Operation Failed"
                 alert.informativeText = operationError.localizedDescription
