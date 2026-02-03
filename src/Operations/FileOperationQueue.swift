@@ -5,6 +5,9 @@ import Foundation
 final class FileOperationQueue {
     static let shared = FileOperationQueue()
 
+    /// Posted when files are restored from trash via undo. userInfo contains "urls": [URL]
+    static let filesRestoredNotification = Notification.Name("FileOperationQueue.filesRestored")
+
     private init() {}
 
     private(set) var currentOperation: FileOperation?
@@ -37,7 +40,15 @@ final class FileOperationQueue {
         }
     }
 
+    /// DANGER: Permanently deletes files with NO recovery.
+    /// This method should ONLY be called after explicit user confirmation via a dialog.
+    /// NEVER call this from undo handlers, cleanup code, or any automated flow.
+    /// Use `delete(items:undoManager:)` instead for trash with undo support.
     func deleteImmediately(items: [URL]) async throws {
+        // Log every call for debugging - permanent deletion should be rare
+        for item in items {
+            print("⚠️ PERMANENT DELETE (no recovery): \(item.path)")
+        }
         try await enqueue {
             try await self.performDeleteImmediately(items: items)
         }
@@ -226,13 +237,11 @@ final class FileOperationQueue {
         if failures.isEmpty, !successes.isEmpty, let undoManager {
             let copiedFiles = successes
             undoManager.registerUndo(withTarget: self) { target in
-                Task { @MainActor in
-                    do {
-                        // Undo copy by moving copied files to trash
-                        try await target.performDelete(items: copiedFiles)
-                    } catch {
-                        target.presentError(error)
-                    }
+                // Undo copy by moving copied files to trash (synchronous to prevent race conditions)
+                do {
+                    try target.recycleSync(items: copiedFiles)
+                } catch {
+                    target.presentError(error)
                 }
             }
             let actionName = successes.count == 1 ? "Copy \"\(successes[0].lastPathComponent)\"" : "Copy \(successes.count) Items"
@@ -309,17 +318,13 @@ final class FileOperationQueue {
         if failures.isEmpty, !successes.isEmpty, let undoManager {
             let movedItems = successes
             undoManager.registerUndo(withTarget: self) { target in
-                Task { @MainActor in
-                    do {
-                        // Undo move by moving files back to their original directories
-                        for item in movedItems {
-                            let originalDir = item.source.deletingLastPathComponent()
-                            try fileManager.moveItem(at: item.destination, to: item.source)
-                            _ = originalDir // silence unused warning
-                        }
-                    } catch {
-                        target.presentError(error)
+                // Undo move by moving files back to their original directories (synchronous)
+                do {
+                    for item in movedItems {
+                        try target.moveSync(from: item.destination, to: item.source)
                     }
+                } catch {
+                    target.presentError(error)
                 }
             }
             let actionName = successes.count == 1 ? "Move \"\(successes[0].destination.lastPathComponent)\"" : "Move \(successes.count) Items"
@@ -371,10 +376,20 @@ final class FileOperationQueue {
                 // Perform restore synchronously for proper redo registration
                 do {
                     try target.restoreFromTrashSync(items: itemsToRestore)
-                    // Register redo (delete again) - this will register its own undo
+                    // Notify UI to select restored items
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(
+                            name: FileOperationQueue.filesRestoredNotification,
+                            object: nil,
+                            userInfo: ["urls": originalURLs]
+                        )
+                    }
+                    // Register redo (delete again) - synchronous, no undoManager to prevent infinite chain
                     undoManager.registerUndo(withTarget: target) { target2 in
-                        Task { @MainActor in
-                            try? await target2.delete(items: originalURLs, undoManager: undoManager)
+                        do {
+                            try target2.recycleSync(items: originalURLs)
+                        } catch {
+                            target2.presentError(error)
                         }
                     }
                 } catch {
@@ -492,13 +507,11 @@ final class FileOperationQueue {
         if failures.isEmpty, !successes.isEmpty, let undoManager {
             let duplicatedFiles = successes
             undoManager.registerUndo(withTarget: self) { target in
-                Task { @MainActor in
-                    do {
-                        // Undo duplicate by moving duplicates to trash
-                        try await target.performDelete(items: duplicatedFiles)
-                    } catch {
-                        target.presentError(error)
-                    }
+                // Undo duplicate by moving duplicates to trash (synchronous)
+                do {
+                    try target.recycleSync(items: duplicatedFiles)
+                } catch {
+                    target.presentError(error)
                 }
             }
             let actionName = successes.count == 1 ? "Duplicate \"\(successes[0].lastPathComponent)\"" : "Duplicate \(successes.count) Items"
@@ -520,16 +533,14 @@ final class FileOperationQueue {
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false, attributes: nil)
             updateProgress(operation: operation, currentItem: destination, completed: 1, total: 1)
 
-            // Register undo to trash the created folder
+            // Register undo to trash the created folder (synchronous)
             if let undoManager {
                 let createdFolder = destination
                 undoManager.registerUndo(withTarget: self) { target in
-                    Task { @MainActor in
-                        do {
-                            try await target.performDelete(items: [createdFolder])
-                        } catch {
-                            target.presentError(error)
-                        }
+                    do {
+                        try target.recycleSync(items: [createdFolder])
+                    } catch {
+                        target.presentError(error)
                     }
                 }
                 undoManager.setActionName("New Folder")
@@ -552,16 +563,14 @@ final class FileOperationQueue {
             try content.write(to: destination)
             updateProgress(operation: operation, currentItem: destination, completed: 1, total: 1)
 
-            // Register undo to trash the created file
+            // Register undo to trash the created file (synchronous)
             if let undoManager {
                 let createdFile = destination
                 undoManager.registerUndo(withTarget: self) { target in
-                    Task { @MainActor in
-                        do {
-                            try await target.performDelete(items: [createdFile])
-                        } catch {
-                            target.presentError(error)
-                        }
+                    do {
+                        try target.recycleSync(items: [createdFile])
+                    } catch {
+                        target.presentError(error)
                     }
                 }
                 undoManager.setActionName("New File")
@@ -651,7 +660,17 @@ final class FileOperationQueue {
         )
         onProgressUpdate?(progress)
 
-        if totalCount > 5 {
+        // Show progress window for copy/move operations (can be slow even with 1 large folder)
+        // or for any operation with multiple items
+        let shouldShowProgress: Bool
+        switch operation {
+        case .copy, .move:
+            shouldShowProgress = true  // Always show for copy/move - could be large folder
+        default:
+            shouldShowProgress = totalCount > 5
+        }
+
+        if shouldShowProgress {
             showProgress(progress)
         }
     }
@@ -676,6 +695,8 @@ final class FileOperationQueue {
     }
 
     private func showProgress(_ progress: FileOperationProgress) {
+        // Skip showing progress window during tests (no UI)
+        guard !isRunningTests else { return }
         guard let window = NSApp.keyWindow else { return }
         let controller = ProgressWindowController(progress: progress) { [weak self] in
             self?.cancelCurrentOperation()
@@ -704,6 +725,21 @@ final class FileOperationQueue {
                 }
             }
         }
+    }
+
+    /// Synchronous version of recycle for use in undo handlers
+    /// Uses FileManager.trashItem which is truly synchronous (unlike NSWorkspace.recycle)
+    nonisolated private func recycleSync(items: [URL]) throws {
+        let fileManager = FileManager.default
+        for item in items {
+            // trashItem is synchronous and doesn't require main thread callback
+            try fileManager.trashItem(at: item, resultingItemURL: nil)
+        }
+    }
+
+    /// Synchronous move for use in undo handlers
+    nonisolated private func moveSync(from source: URL, to destination: URL) throws {
+        try FileManager.default.moveItem(at: source, to: destination)
     }
 
     private func restoreFromTrash(items: [(original: URL, trash: URL)]) async throws {

@@ -381,8 +381,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     /// Find an item by URL in the item tree (searches recursively through children)
     func findItem(withURL url: URL, in items: [FileItem]) -> FileItem? {
+        // Use path comparison because directory URLs may have trailing slashes
+        // that cause URL equality to fail even for the same path
+        let targetPath = url.standardizedFileURL.path
         for item in items {
-            if item.url.standardizedFileURL == url.standardizedFileURL {
+            if item.url.standardizedFileURL.path == targetPath {
                 return item
             }
             if let children = item.children,

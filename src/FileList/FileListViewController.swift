@@ -123,6 +123,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             name: SettingsManager.settingsDidChange,
             object: nil
         )
+
+        // Observe file restore from undo to select restored items
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleFilesRestored(_:)),
+            name: FileOperationQueue.filesRestoredNotification,
+            object: nil
+        )
     }
 
     @objc private func outlineViewItemDidExpand(_ notification: Notification) {
@@ -175,6 +183,19 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         if !selectedRows.isEmpty {
             tableView.selectRowIndexes(selectedRows, byExtendingSelection: false)
         }
+    }
+
+    @objc private func handleFilesRestored(_ notification: Notification) {
+        guard let urls = notification.userInfo?["urls"] as? [URL] else { return }
+        guard let currentDirectory else { return }
+
+        // Check if any restored files are in our current directory
+        let relevantURLs = urls.filter { $0.deletingLastPathComponent() == currentDirectory }
+        guard !relevantURLs.isEmpty else { return }
+
+        // Reload and select the restored items
+        loadDirectory(currentDirectory, preserveExpansion: true)
+        restoreSelection(relevantURLs)
     }
 
     @objc private func handleThemeChange() {
@@ -418,12 +439,27 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         // Select the specified item if provided, otherwise select first item
         if let itemToSelect = itemToSelect {
-            let standardized = itemToSelect.standardizedFileURL
-            if let index = dataSource.items.firstIndex(where: { $0.url.standardizedFileURL == standardized }) {
-                tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-                tableView.scrollRowToVisible(index)
-            } else if !dataSource.items.isEmpty {
-                tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            // Search all visible rows to find the one with matching URL
+            // This is more reliable than row(forItem:) which can fail after reloadData
+            var foundRow = -1
+            for row in 0..<tableView.numberOfRows {
+                if let rowItem = tableView.item(atRow: row) as? FileItem,
+                   rowItem.url.standardizedFileURL == itemToSelect.standardizedFileURL {
+                    foundRow = row
+                    break
+                }
+            }
+
+            if foundRow >= 0 {
+                tableView.selectRowIndexes(IndexSet(integer: foundRow), byExtendingSelection: false)
+                tableView.scrollRowToVisible(foundRow)
+            } else {
+                // Item not found in visible rows - log for debugging
+                print("⚠️ loadDirectory: Could not find item to select: \(itemToSelect.lastPathComponent)")
+                print("⚠️ loadDirectory: Visible rows: \(tableView.numberOfRows)")
+                if !dataSource.items.isEmpty {
+                    tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                }
             }
         } else if !dataSource.items.isEmpty {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -768,10 +804,42 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func createNewFolder() {
         guard let currentDirectory else { return }
 
+        // Determine where to create the new folder based on selection
+        let destination: URL
+        if let selectedItem = selectedItems.first {
+            if selectedItem.isDirectory {
+                // Create INSIDE the selected folder
+                destination = selectedItem.url
+            } else {
+                // Create in the same folder as the selected file
+                destination = selectedItem.url.deletingLastPathComponent()
+            }
+        } else {
+            destination = currentDirectory
+        }
+
         Task { @MainActor in
             do {
-                let newFolder = try await FileOperationQueue.shared.createFolder(in: currentDirectory, name: "Folder", undoManager: undoManager)
+                // Don't pass undoManager here - undo will be registered AFTER rename is committed
+                // If user cancels rename (Escape), folder is trashed with no undo needed
+                let newFolder = try await FileOperationQueue.shared.createFolder(in: destination, name: "Folder", undoManager: nil)
+
+                // Cancel any pending directory watcher reload to prevent it from
+                // overwriting our selection after we select the new folder
+                directoryChangeDebounce?.cancel()
+                directoryChangeDebounce = nil
+
+                // Reload directory, then select the new folder using selectItem
+                // which correctly handles expanded folders via tableView.row(forItem:)
                 loadDirectory(currentDirectory, preserveExpansion: true)
+
+                // If we created inside a folder, expand it so the new folder is visible
+                if destination != currentDirectory {
+                    if let parentItem = dataSource.findItem(withURL: destination, in: dataSource.items) {
+                        tableView.expandItem(parentItem)
+                    }
+                }
+
                 selectItem(at: newFolder)
                 renameSelection(isNewItem: true)
             } catch {
@@ -783,10 +851,42 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func createNewFile(name: String) {
         guard let currentDirectory else { return }
 
+        // Determine where to create the new file based on selection
+        let destination: URL
+        if let selectedItem = selectedItems.first {
+            if selectedItem.isDirectory {
+                // Create INSIDE the selected folder
+                destination = selectedItem.url
+            } else {
+                // Create in the same folder as the selected file
+                destination = selectedItem.url.deletingLastPathComponent()
+            }
+        } else {
+            destination = currentDirectory
+        }
+
         Task { @MainActor in
             do {
-                let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: name, undoManager: undoManager)
+                // Don't pass undoManager here - undo will be registered AFTER rename is committed
+                // If user cancels rename (Escape), file is trashed with no undo needed
+                let newFile = try await FileOperationQueue.shared.createFile(in: destination, name: name, undoManager: nil)
+
+                // Cancel any pending directory watcher reload to prevent it from
+                // overwriting our selection after we select the new file
+                directoryChangeDebounce?.cancel()
+                directoryChangeDebounce = nil
+
+                // Reload directory, then select the new file using selectItem
+                // which correctly handles expanded folders via tableView.row(forItem:)
                 loadDirectory(currentDirectory, preserveExpansion: true)
+
+                // If we created inside a folder, expand it so the new file is visible
+                if destination != currentDirectory {
+                    if let parentItem = dataSource.findItem(withURL: destination, in: dataSource.items) {
+                        tableView.expandItem(parentItem)
+                    }
+                }
+
                 selectItem(at: newFile)
                 renameSelection(isNewItem: true)
             } catch {
@@ -845,15 +945,19 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         navigationDelegate?.fileListDidRequestCopyToOtherPane(items: urls)
     }
 
-    func selectItem(at url: URL) {
+    /// Selects the item at the given URL. Returns true if found and selected, false otherwise.
+    @discardableResult
+    func selectItem(at url: URL) -> Bool {
         // Search entire tree including expanded folders
         if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
             let row = tableView.row(forItem: item)
             if row >= 0 {
                 tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
                 tableView.scrollRowToVisible(row)
+                return true
             }
         }
+        return false
     }
 
     func showDuplicateStructureDialog(for url: URL) {
@@ -1677,9 +1781,33 @@ extension FileListViewController: RenameControllerDelegate {
 
     func renameControllerDidCancelNewItem(_ controller: RenameController, item: FileItem) {
         guard let currentDirectory else { return }
+
+        // SAFETY CHECK: Only trash if this looks like a newly created item
+        // This prevents catastrophic data loss if the wrong item was selected
+        let isLikelyNewItem: Bool
+        if item.isDirectory {
+            // New folders are empty and named "Folder" or "Folder N"
+            let contents = try? FileManager.default.contentsOfDirectory(atPath: item.url.path)
+            let isEmpty = contents?.isEmpty ?? false
+            let hasDefaultName = item.name.hasPrefix("Folder")
+            isLikelyNewItem = isEmpty && hasDefaultName
+        } else {
+            // New files are empty/tiny and have default names
+            let size = item.size ?? 0
+            let hasDefaultName = item.name.hasPrefix("Text File") || item.name.hasPrefix("Document") || item.name.hasPrefix("Untitled")
+            isLikelyNewItem = size < 100 && hasDefaultName
+        }
+
+        guard isLikelyNewItem else {
+            print("⚠️ SAFETY: Refusing to trash '\(item.name)' - doesn't look like a newly created item")
+            return
+        }
+
         Task {
             do {
-                try await FileOperationQueue.shared.deleteImmediately(items: [item.url])
+                // Move to trash (not permanent delete) so user can recover if needed
+                // Don't register undo since user cancelled the creation - nothing to undo
+                try await FileOperationQueue.shared.delete(items: [item.url], undoManager: nil)
                 loadDirectory(currentDirectory, preserveExpansion: true)
             } catch {
                 FileOperationQueue.shared.presentError(error)

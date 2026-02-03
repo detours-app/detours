@@ -1,11 +1,13 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-02-03 14:14:49
-- Command: `swift test --filter NetworkTests` + `resources/scripts/uitest.sh NetworkUITests`
+- Started: 2026-02-03 17:47:17
+- Command: `resources/scripts/uitest.sh NewFolderUITests/testNewFolderSelectsNewFolderNotExisting`
 - Status: PASS
-- Duration: 152.859s (UI) + 0.012s (unit)
-- Notes: All tests pass after server eject, Connect to Share, and icon improvements.
+- Duration: 30.580s
+- Notes: Fixed new folder creation to work correctly with selected folders. Two bugs fixed:
+  1. **Create inside selected folder**: New folders now created INSIDE the selected folder (not alongside it). Same fix applied to createNewFile.
+  2. **Trailing slash URL comparison**: findItem() failed because directory URLs from disk have trailing slashes (`Folder/`) but URLs from createFolder don't (`Folder`). Fixed by comparing paths instead of URLs.
 
 ### NetworkUITests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -168,28 +170,32 @@
 ### FileOperationQueueTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testCopyDirectory | PASS | 0.005s | 2026-01-13 12:30:31 |
-| testCopyFile | PASS | 0.002s | 2026-01-13 12:30:31 |
-| testCopyMultipleConflicts | PASS | 0.002s | 2026-01-13 12:30:31 |
-| testCopyToSameDirectory | PASS | 0.001s | 2026-01-13 12:30:31 |
-| testCopyUndo | PASS | 0.505s | 2026-01-29 14:52:31 |
-| testCreateFolder | PASS | 0.001s | 2026-01-13 12:30:31 |
-| testCreateFolderNameCollision | PASS | 0.001s | 2026-01-13 12:30:31 |
-| testCreateFolderUndo | PASS | 0.516s | 2026-01-29 14:52:32 |
-| testDeleteFile | PASS | 0.014s | 2026-01-13 12:30:31 |
-| testDeleteUndo | PASS | 0.565s | 2026-01-29 14:52:24 |
-| testDeleteUndoMultiple | PASS | 0.514s | 2026-01-29 14:52:25 |
-| testDuplicateFile | PASS | 0.001s | 2026-01-13 12:30:31 |
-| testDuplicateMultiple | PASS | 0.002s | 2026-01-13 12:30:31 |
-| testDuplicateUndo | PASS | 0.511s | 2026-01-29 14:52:32 |
-| testMoveFile | PASS | 0.002s | 2026-01-13 12:30:31 |
-| testMoveUndo | PASS | 0.515s | 2026-01-29 14:52:33 |
-| testMultipleUndos | PASS | 1.030s | 2026-01-29 14:52:40 |
-| testRenameFile | PASS | 0.001s | 2026-01-13 12:30:31 |
-| testRenameInvalidCharacters | PASS | 0.001s | 2026-01-13 12:30:31 |
-| testRenameToExistingName | PASS | 0.001s | 2026-01-13 12:30:31 |
-| testRestoreConflict | PASS | 0.518s | 2026-01-29 14:52:40 |
-| testTabScopedUndo | PASS | 0.004s | 2026-01-29 14:52:41 |
+| testCopyDirectory | PASS | 0.005s | 2026-02-03 15:44:24 |
+| testCopyFile | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testCopyMultipleConflicts | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testCopyToSameDirectory | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testCopyUndo | PASS | 0.525s | 2026-02-03 15:44:24 |
+| testCreateFolder | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testCreateFolderNameCollision | PASS | 0.003s | 2026-02-03 15:44:24 |
+| testCreateFolderUndo | PASS | 0.509s | 2026-02-03 15:44:24 |
+| testCreateFolderWithoutUndoManager | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testDeleteFile | PASS | 0.002s | 2026-02-03 15:44:24 |
+| testDeleteUndo | PASS | 0.512s | 2026-02-03 15:44:24 |
+| testDeleteUndoMultiple | PASS | 0.516s | 2026-02-03 15:44:24 |
+| testDuplicateFile | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testDuplicateMultiple | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testDuplicateUndo | PASS | 0.505s | 2026-02-03 15:44:24 |
+| testMoveFile | PASS | 0.002s | 2026-02-03 15:44:24 |
+| testMoveUndo | PASS | 0.506s | 2026-02-03 15:44:24 |
+| testMultipleUndos | PASS | 1.026s | 2026-02-03 15:44:24 |
+| testRapidUndosDoNotRace | PASS | 0.004s | 2026-02-03 15:44:24 |
+| testRenameFile | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testRenameInvalidCharacters | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testRenameToExistingName | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testRestoreConflict | PASS | 0.513s | 2026-02-03 15:44:24 |
+| testTabScopedUndo | PASS | 0.002s | 2026-02-03 15:44:24 |
+| testTrashItemDirectlyForUndo | PASS | 0.001s | 2026-02-03 15:44:24 |
+| testUndoIsSynchronous | PASS | 0.002s | 2026-02-03 15:44:24 |
 
 ### DuplicateStructureTests
 | Test | Status | Duration | Last Run |
@@ -430,6 +436,13 @@
 | testDownArrowMovesFocusToList | PASS | 14.2s | 2026-01-27 23:25:08 |
 | testFilterAutoExpandsToShowNestedMatches | PASS | 22.9s | 2026-01-27 23:25:24 |
 
+### NewFolderUITests (XCUITest)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testNewFolderSelectsNewFolderNotExisting | PASS | 30.580s | 2026-02-03 17:47:54 |
+| testNewFolderWithoutExpansion | PASS | 23.512s | 2026-02-03 16:03:24 |
+| testCancelNewFolderDoesNotDeleteExisting | PASS | 24.170s | 2026-02-03 16:03:59 |
+
 ### UndoUITests (XCUITest)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
@@ -443,6 +456,7 @@
 | testMultipleUndosAcrossTabs | PASS | 41.609s | 2026-01-29 16:53:17 |
 
 ## Notes
+- 2026-02-03 17:47: NewFolderUITests/testNewFolderSelectsNewFolderNotExisting PASSED - Fixed two bugs: (1) createNewFolder now creates INSIDE selected folder instead of alongside it, (2) findItem() fixed to compare paths instead of URLs because directory URLs have trailing slashes that break URL equality. Root cause of 3-hour debugging session: repeatedly running tests without understanding the actual requirement (create inside, not alongside).
 - 2026-02-02 20:39: NetworkTests - Added 3 new tests for hierarchical network volume display: testVolumeInfoMatchesServer (volume-to-server host matching), testSyntheticServerEquality, testSyntheticServerDisplayName. Total: 10 NetworkTests all PASS.
 - 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.
 - 2026-01-27 22:52: FilterUITests/testSlashKeyShowsFilterBar PASSED - Fixed "/" key handling. XCUI sends "/" with shift modifier (mods=131072) and wrong keyCode (26 instead of 44). Changed check to match character "/" with empty modifiers OR shift only.

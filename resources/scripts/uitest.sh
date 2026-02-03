@@ -25,6 +25,12 @@ echo "Setting up test directory..."
 rm -rf "$TEST_DIR"
 
 # Root level - multiple folders and files
+# IMPORTANT: Some folders must sort BEFORE "Folder" alphabetically
+# to test that new folder selection works when "Folder" is in the middle
+mkdir -p "$TEST_DIR/AAA_First"
+mkdir -p "$TEST_DIR/BBB_Second/SubfolderB1"
+mkdir -p "$TEST_DIR/BBB_Second/SubfolderB2"
+mkdir -p "$TEST_DIR/CCC_Third"
 mkdir -p "$TEST_DIR/FolderA/SubfolderA1"
 mkdir -p "$TEST_DIR/FolderA/SubfolderA2"
 mkdir -p "$TEST_DIR/FolderB/SubfolderB1"

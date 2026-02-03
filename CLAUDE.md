@@ -222,6 +222,23 @@ build/             # Temp build output (deleted after install)
 
 ---
 
+## CRITICAL: No Permanent Deletion
+
+**NEVER use `deleteImmediately` or `FileManager.removeItem` for user files.**
+
+All file deletion MUST:
+1. Go to Trash via `FileManager.trashItem` or `NSWorkspace.recycle`
+2. Support undo via `UndoManager`
+
+The ONLY exception is the explicit "Delete Immediately" menu action which:
+- Requires user confirmation dialog
+- Is triggered ONLY by user explicitly choosing that action
+- Must NEVER be called from undo handlers, cleanup code, or any automated flow
+
+If you find yourself wanting to permanently delete something, STOP and reconsider. Use trash instead.
+
+---
+
 ## When Stuck
 
 After 2-3 failed approaches, stop and research:
