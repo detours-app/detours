@@ -41,6 +41,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var wasFolderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
     /// Preserved expansion state when folder expansion is disabled (for restore on re-enable)
     private var preservedExpansionWhenDisabled: Set<URL>?
+    /// Selection to restore when user cancels new folder/file creation
+    private var selectionBeforeNewItem: URL?
 
     // Filter bar
     private let filterBar = FilterBarView()
@@ -804,6 +806,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func createNewFolder() {
         guard let currentDirectory else { return }
 
+        // Save current selection so we can restore it if user cancels
+        selectionBeforeNewItem = selectedItems.first?.url
+
         // Determine where to create the new folder based on selection
         let destination: URL
         if let selectedItem = selectedItems.first {
@@ -850,6 +855,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func createNewFile(name: String) {
         guard let currentDirectory else { return }
+
+        // Save current selection so we can restore it if user cancels
+        selectionBeforeNewItem = selectedItems.first?.url
 
         // Determine where to create the new file based on selection
         let destination: URL
@@ -1774,6 +1782,7 @@ extension FileListViewController: NSMenuItemValidation {
 extension FileListViewController: RenameControllerDelegate {
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL) {
         guard let currentDirectory else { return }
+        selectionBeforeNewItem = nil
         dataSource.invalidateGitStatus()
         loadDirectory(currentDirectory, preserveExpansion: true)
         selectItem(at: newURL)
@@ -1803,12 +1812,18 @@ extension FileListViewController: RenameControllerDelegate {
             return
         }
 
+        let restoreSelection = selectionBeforeNewItem
+        selectionBeforeNewItem = nil
+
         Task {
             do {
                 // Move to trash (not permanent delete) so user can recover if needed
                 // Don't register undo since user cancelled the creation - nothing to undo
                 try await FileOperationQueue.shared.delete(items: [item.url], undoManager: nil)
                 loadDirectory(currentDirectory, preserveExpansion: true)
+                if let restoreSelection {
+                    selectItem(at: restoreSelection)
+                }
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
