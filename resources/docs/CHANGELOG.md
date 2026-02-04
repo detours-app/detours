@@ -1,5 +1,13 @@
 # Changelog
 
+## 260204
+
+### Rename Field Indentation Fix
+- Fixed: Inline rename/new folder text field now aligns correctly at all nesting depths in expanded view
+- Fixed: Text field no longer overlaps disclosure triangle (caret) for nested items
+- Fixed: Text field vertical and horizontal positioning matches name label exactly (no shift on rename)
+- Fixed: Sendable concurrency warning in KeychainCredentialStore
+
 ## 0.11.0 (260203)
 
 ### Network Volume Support

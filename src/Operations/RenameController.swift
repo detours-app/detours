@@ -29,14 +29,23 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         self.currentUndoManager = undoManager
 
         let rowRect = tableView.rect(ofRow: row)
-        let columnRect = tableView.rect(ofColumn: 0)
+        let cellFrame = tableView.frameOfCell(atColumn: 0, row: row)
 
-        // Match FileListCell layout: 12 (icon leading) + 16 (icon width) + 8 (gap) = 36
-        // Subtract ~3px to compensate for text field's internal cell padding
+        // Match FileListCell icon leading constraint per mode/type
+        let folderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+        let iconLeading: CGFloat
+        if folderExpansionEnabled {
+            iconLeading = item.isNavigableFolder ? 2 : 4
+        } else {
+            iconLeading = 12
+        }
+        // iconLeading + 16 (icon) + 6 (gap to name) - 4 (text field internal padding)
+        let nameOffset = iconLeading + 18
+
         let targetRect = NSRect(
-            x: columnRect.minX + 33,
-            y: rowRect.minY + 2,
-            width: columnRect.width - 37,
+            x: cellFrame.origin.x + nameOffset,
+            y: rowRect.minY + 1,
+            width: cellFrame.width - nameOffset - 4,
             height: rowRect.height - 4
         )
 

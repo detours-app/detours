@@ -1,3 +1,4 @@
+@preconcurrency import CoreFoundation
 import Foundation
 import Security
 import LocalAuthentication
@@ -117,10 +118,12 @@ final class KeychainCredentialStore {
             kSecUseAuthenticationContext as String: context,
         ]
 
+        let cfQuery = query as CFDictionary
+
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 var result: AnyObject?
-                let status = SecItemCopyMatching(query as CFDictionary, &result)
+                let status = SecItemCopyMatching(cfQuery, &result)
 
                 Task { @MainActor in
                     if status == errSecSuccess {
