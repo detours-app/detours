@@ -470,6 +470,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     // MARK: - Drop Target
 
+    func clearDropTarget() {
+        dropTargetItem = nil
+    }
+
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: any NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
         guard let currentDir = dropDelegate?.currentDirectoryURL else { return [] }
 

@@ -167,6 +167,11 @@ final class BandedOutlineView: NSOutlineView {
         return frame
     }
 
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        super.draggingExited(sender)
+        (dataSource as? FileListDataSource)?.clearDropTarget()
+    }
+
     override func drawBackground(inClipRect clipRect: NSRect) {
         let rowStride = rowHeight + intercellSpacing.height
         guard rowStride > 0 else {
