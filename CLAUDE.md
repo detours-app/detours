@@ -8,6 +8,7 @@ Native macOS file manager. Swift 5.9+, AppKit, SwiftUI (dialogs), macOS 14.0+.
 
 ### Specs Are Authoritative
 
+- **Always use `/spec-create` skill** to create specs - don't write them manually
 - Specs live in `resources/specs/` with date prefix `yymmdd-description.md`
 - Don't add features outside the current spec
 - Update spec checkboxes after EVERY completed step
