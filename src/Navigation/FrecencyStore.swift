@@ -27,25 +27,33 @@ final class FrecencyStore {
     // MARK: - Public API
 
     /// Record a visit to a directory. Call this on every navigation.
+    /// The directory check runs on a background queue to avoid blocking
+    /// the main thread on network volumes.
     func recordVisit(_ url: URL) {
         let path = url.standardizedFileURL.path
 
-        // Only track directories
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
-            return
-        }
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            // Only track directories
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else {
+                return
+            }
 
-        if var entry = entries[path] {
-            entry.visitCount += 1
-            entry.lastVisit = Date()
-            entries[path] = entry
-        } else {
-            entries[path] = FrecencyEntry(path: path, visitCount: 1, lastVisit: Date())
-        }
+            DispatchQueue.main.async {
+                guard let self else { return }
 
-        scheduleSave()
+                if var entry = self.entries[path] {
+                    entry.visitCount += 1
+                    entry.lastVisit = Date()
+                    self.entries[path] = entry
+                } else {
+                    self.entries[path] = FrecencyEntry(path: path, visitCount: 1, lastVisit: Date())
+                }
+
+                self.scheduleSave()
+            }
+        }
     }
 
     /// Get top directories matching a query, sorted by frecency score.

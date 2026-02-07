@@ -451,7 +451,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         let spinner = NSProgressIndicator()
         spinner.style = .spinning
-        spinner.controlSize = .small
+        spinner.controlSize = .regular
         spinner.sizeToFit()
         spinner.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(spinner, positioned: .above, relativeTo: scrollView)

@@ -50,18 +50,31 @@ struct LoadedFileEntry: Sendable {
 actor DirectoryLoader {
     static let shared = DirectoryLoader()
 
-    private static let resourceKeys: [URLResourceKey] = [
+    private static let baseResourceKeys: [URLResourceKey] = [
         .isDirectoryKey,
         .isPackageKey,
         .fileSizeKey,
         .contentModificationDateKey,
         .localizedNameKey,
+    ]
+
+    private static let iCloudResourceKeys: [URLResourceKey] = [
         .ubiquitousItemIsSharedKey,
         .ubiquitousSharedItemCurrentUserRoleKey,
         .ubiquitousSharedItemOwnerNameComponentsKey,
         .ubiquitousItemDownloadingStatusKey,
         .ubiquitousItemIsDownloadingKey,
     ]
+
+    /// Returns appropriate resource keys based on whether the path is iCloud-backed.
+    private static func resourceKeys(for url: URL) -> [URLResourceKey] {
+        let mobileDocsPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents").path
+        if url.path.hasPrefix(mobileDocsPath) {
+            return baseResourceKeys + iCloudResourceKeys
+        }
+        return baseResourceKeys
+    }
 
     private let operationQueue: OperationQueue = {
         let queue = OperationQueue()
@@ -113,7 +126,7 @@ actor DirectoryLoader {
         showHidden: Bool
     ) async throws -> [LoadedFileEntry] {
         try await withCheckedThrowingContinuation { continuation in
-            let keys = Self.resourceKeys
+            let keys = Self.resourceKeys(for: url)
             operationQueue.addOperation {
                 do {
                     var options: FileManager.DirectoryEnumerationOptions = []
