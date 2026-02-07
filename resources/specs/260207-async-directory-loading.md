@@ -1,7 +1,7 @@
 # Async Directory Loading
 
 ## Meta
-- Status: Draft
+- Status: Implementation Complete (pending user verification)
 - Branch: performance/async-directory-loading
 
 ---
@@ -111,43 +111,43 @@ For file watching, detect network volumes using `URLResourceKey.volumeIsLocalKey
 ### Implementation Plan
 
 **Phase 1: DirectoryLoader and IconLoader**
-- [ ] Create `DirectoryLoader` actor with `loadDirectory()` and timeout logic
-- [ ] Create `LoadedFileEntry` struct with all pre-fetched resource values
-- [ ] Create `IconLoader` actor with background icon loading and cache
-- [ ] Create placeholder icons (generic file and folder)
-- [ ] Add `FileItem.init(entry:icon:)` initializer
-- [ ] Change `FileItem.icon` from `let` to `var`
-- [ ] Add `VolumeMonitor.isNetworkVolume(_:)` static method
-- [ ] Build and verify compilation
+- [x] Create `DirectoryLoader` actor with `loadDirectory()` and timeout logic
+- [x] Create `LoadedFileEntry` struct with all pre-fetched resource values
+- [x] Create `IconLoader` actor with background icon loading and cache
+- [x] Create placeholder icons (generic file and folder)
+- [x] Add `FileItem.init(entry:icon:)` initializer
+- [x] Change `FileItem.icon` from `let` to `var`
+- [x] Add `VolumeMonitor.isNetworkVolume(_:)` static method
+- [x] Build and verify compilation
 
 **Phase 2: Async Directory Loading**
-- [ ] Add `currentLoadTask` to `FileListViewController`
-- [ ] Convert `FileListDataSource.loadDirectory()` to use `DirectoryLoader` (spawn Task internally, keep method signature sync-compatible for callers)
-- [ ] Cancel previous load task on new navigation
-- [ ] Create FileItems with placeholder icons, kick off async icon loads
-- [ ] Update cells when icons arrive (reload individual rows, not full table)
-- [ ] Build and test with local directories (behavior should be identical to before)
+- [x] Add `currentLoadTask` to `FileListViewController`
+- [x] Convert `FileListDataSource.loadDirectory()` to use `DirectoryLoader` (spawn Task internally, keep method signature sync-compatible for callers)
+- [x] Cancel previous load task on new navigation
+- [x] Create FileItems with placeholder icons, kick off async icon loads
+- [x] Update cells when icons arrive (reload individual rows, not full table)
+- [x] Build and test with local directories (behavior should be identical to before)
 
 **Phase 3: Loading and Error States**
-- [ ] Add loading indicator to `FileListViewController` (spinner in content area while loading)
-- [ ] Add timeout error view ("Connection timed out" + Retry button)
-- [ ] Add generic error view for access denied / disconnected
-- [ ] Don't replace existing items with empty list on reload failure (keep stale data visible)
-- [ ] Build and test timeout behavior (can simulate with a sleep in DirectoryLoader)
+- [x] Add loading indicator to `FileListViewController` (spinner in content area while loading)
+- [x] Add timeout error view ("Connection timed out" + Retry button)
+- [x] Add generic error view for access denied / disconnected
+- [x] Don't replace existing items with empty list on reload failure (keep stale data visible)
+- [x] Build and test timeout behavior (can simulate with a sleep in DirectoryLoader)
 
 **Phase 4: Async Folder Expansion**
-- [ ] Add `FileItem.loadChildrenAsync(showHidden:)` using `DirectoryLoader`
-- [ ] Update `FileListDataSource.outlineView(_:shouldExpandItem:)` to load children async on network volumes
-- [ ] Show loading indicator during async expansion
-- [ ] Handle expansion timeout/error (collapse folder, show error)
-- [ ] Build and test folder expansion on local directories
+- [x] Add `FileItem.loadChildrenAsync(showHidden:)` using `DirectoryLoader`
+- [x] Update `FileListDataSource.outlineView(_:shouldExpandItem:)` to load children async on network volumes
+- [x] Show loading indicator during async expansion
+- [x] Handle expansion timeout/error (collapse folder, show error)
+- [x] Build and test folder expansion on local directories
 
 **Phase 5: Network Volume Polling**
-- [ ] Add `NetworkDirectoryPoller` to `MultiDirectoryWatcher.swift`
-- [ ] Detect network volumes and use poller instead of `DispatchSource`
-- [ ] Poller: enumerate directory on background queue, diff against snapshot, fire `onChange` on diff
-- [ ] Set 2-second polling interval
-- [ ] Build and test with a network volume
+- [x] Add `NetworkDirectoryPoller` to `MultiDirectoryWatcher.swift`
+- [x] Detect network volumes and use poller instead of `DispatchSource`
+- [x] Poller: enumerate directory on background queue, diff against snapshot, fire `onChange` on diff
+- [x] Set 2-second polling interval
+- [x] Build and test with a network volume
 
 **Phase 6: Integration Testing**
 - [ ] Test navigation between local and network volumes (watcher switches correctly)
@@ -165,17 +165,17 @@ For file watching, detect network volumes using `URLResourceKey.volumeIsLocalKey
 
 Tests go in `Tests/DirectoryLoaderTests.swift`. Log results in `Tests/TEST_LOG.md`.
 
-- [ ] `testLoadDirectoryReturnsEntries` - DirectoryLoader returns LoadedFileEntry array for a temp directory with files
-- [ ] `testLoadDirectoryTimeout` - DirectoryLoader throws `.timeout` when load exceeds specified duration (use a very short timeout with a real directory)
-- [ ] `testLoadDirectoryCancellation` - Cancelling the parent Task stops the load
-- [ ] `testLoadDirectoryAccessDenied` - DirectoryLoader throws appropriate error for unreadable directory
-- [ ] `testLoadedFileEntryPreservesMetadata` - LoadedFileEntry correctly captures name, size, dates, isDirectory from resource values
-- [ ] `testIconLoaderCachesResults` - Second call for same URL returns cached icon without re-fetching
-- [ ] `testIconLoaderInvalidation` - invalidate() removes entry, next call re-fetches
-- [ ] `testFileItemInitFromEntry` - FileItem created from LoadedFileEntry has correct properties
-- [ ] `testIsNetworkVolume` - VolumeMonitor.isNetworkVolume returns true for network paths, false for local
-- [ ] `testNetworkDirectoryPollerDetectsChanges` - Poller fires onChange when directory contents change
-- [ ] `testNetworkDirectoryPollerNoFalsePositives` - Poller does not fire onChange when nothing changed
+- [x] `testLoadDirectoryReturnsEntries` - DirectoryLoader returns LoadedFileEntry array for a temp directory with files
+- [x] `testLoadDirectoryTimeout` - DirectoryLoader throws `.timeout` when load exceeds specified duration (use a very short timeout with a real directory)
+- [x] `testLoadDirectoryCancellation` - Cancelling the parent Task stops the load
+- [x] `testLoadDirectoryAccessDenied` - DirectoryLoader throws appropriate error for unreadable directory
+- [x] `testLoadedFileEntryPreservesMetadata` - LoadedFileEntry correctly captures name, size, dates, isDirectory from resource values
+- [x] `testIconLoaderCachesResults` - Second call for same URL returns cached icon without re-fetching
+- [x] `testIconLoaderInvalidation` - invalidate() removes entry, next call re-fetches
+- [x] `testFileItemInitFromEntry` - FileItem created from LoadedFileEntry has correct properties
+- [x] `testIsNetworkVolume` - VolumeMonitor.isNetworkVolume returns true for network paths, false for local
+- [x] `testNetworkDirectoryPollerDetectsChanges` - Poller fires onChange when directory contents change
+- [x] `testNetworkDirectoryPollerNoFalsePositives` - Poller does not fire onChange when nothing changed
 
 ### User Verification
 

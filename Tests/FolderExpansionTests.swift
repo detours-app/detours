@@ -109,7 +109,7 @@ final class FolderExpansionTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
         let expectation = XCTestExpectation(description: "Directory change callback")
-        var callbackURL: URL?
+        nonisolated(unsafe) var callbackURL: URL?
 
         let watcher = MultiDirectoryWatcher { url in
             callbackURL = url

@@ -44,6 +44,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     /// Selection to restore when user cancels new folder/file creation
     private var selectionBeforeNewItem: URL?
 
+    // Loading state
+    private var loadingSpinner: NSProgressIndicator?
+    private var errorOverlay: NSView?
+
     // Filter bar
     private let filterBar = FilterBarView()
     private var isFilterBarVisible = false
@@ -81,6 +85,20 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             self?.navigationDelegate?.fileListDidRequestSwitchPane()
         }
         setupDragDrop()
+
+        // Wire up async loading callbacks
+        dataSource.onLoadStarted = { [weak self] in
+            self?.showLoadingIndicator()
+        }
+        dataSource.onLoadCompleted = { [weak self] result in
+            self?.hideLoadingIndicator()
+            switch result {
+            case .success:
+                self?.hideErrorOverlay()
+            case .failure(let error):
+                self?.showErrorOverlay(for: error)
+            }
+        }
 
         if let pendingDirectory {
             self.pendingDirectory = nil
@@ -418,6 +436,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false) {
+        // Cancel any in-progress load before starting a new one
+        dataSource.cancelCurrentLoad()
+        hideLoadingIndicator()
+        hideErrorOverlay()
+
         currentDirectory = url
 
         // Hide filter bar when navigating to a new directory
@@ -475,10 +498,101 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         navigationDelegate?.fileListDidLoadDirectory()
     }
 
+    // MARK: - Loading & Error States
+
+    private func showLoadingIndicator() {
+        hideErrorOverlay()
+        guard loadingSpinner == nil else { return }
+
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.sizeToFit()
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(spinner, positioned: .above, relativeTo: scrollView)
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
+        spinner.startAnimation(nil)
+        loadingSpinner = spinner
+    }
+
+    private func hideLoadingIndicator() {
+        loadingSpinner?.stopAnimation(nil)
+        loadingSpinner?.removeFromSuperview()
+        loadingSpinner = nil
+    }
+
+    private func showErrorOverlay(for error: DirectoryLoadError) {
+        hideErrorOverlay()
+
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let theme = ThemeManager.shared.currentTheme
+
+        let messageText: String
+        switch error {
+        case .timeout:
+            messageText = "Connection timed out"
+        case .accessDenied:
+            messageText = "Access denied"
+        case .disconnected:
+            messageText = "Volume disconnected"
+        case .cancelled:
+            return
+        case .other(let desc):
+            messageText = desc
+        }
+
+        let label = NSTextField(labelWithString: messageText)
+        label.font = .systemFont(ofSize: 14, weight: .medium)
+        label.textColor = theme.textSecondary
+        label.alignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+
+        let retryButton = NSButton(title: "Retry", target: self, action: #selector(retryLoad))
+        retryButton.bezelStyle = .rounded
+        retryButton.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(retryButton)
+
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            label.bottomAnchor.constraint(equalTo: container.centerYAnchor, constant: -4),
+            retryButton.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            retryButton.topAnchor.constraint(equalTo: container.centerYAnchor, constant: 4),
+        ])
+
+        view.addSubview(container, positioned: .above, relativeTo: scrollView)
+        NSLayoutConstraint.activate([
+            container.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            container.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
+        ])
+
+        errorOverlay = container
+    }
+
+    private func hideErrorOverlay() {
+        errorOverlay?.removeFromSuperview()
+        errorOverlay = nil
+    }
+
+    @objc private func retryLoad() {
+        guard let currentDirectory else { return }
+        hideErrorOverlay()
+        loadDirectory(currentDirectory, preserveExpansion: true)
+    }
+
     private func startWatching(_ url: URL) {
         directoryWatcher?.unwatchAll()
         directoryWatcher = MultiDirectoryWatcher { [weak self] changedURL in
-            self?.handleDirectoryChange(at: changedURL)
+            DispatchQueue.main.async {
+                self?.handleDirectoryChange(at: changedURL)
+            }
         }
         directoryWatcher?.watch(url)
     }
@@ -505,6 +619,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func performDirectoryReload() {
         guard let currentDirectory else { return }
+
+        // Cancel any in-progress load
+        dataSource.cancelCurrentLoad()
 
         // Preserve current selection by URL (works for items in expanded folders)
         let selectedURLs = selectedItems.map { $0.url }

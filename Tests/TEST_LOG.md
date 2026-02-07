@@ -1,13 +1,43 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-02-03 17:47:17
-- Command: `resources/scripts/uitest.sh NewFolderUITests/testNewFolderSelectsNewFolderNotExisting`
+- Started: 2026-02-07 20:31:12
+- Command: `swift test --filter DirectoryLoaderTests`
 - Status: PASS
-- Duration: 30.580s
-- Notes: Fixed new folder creation to work correctly with selected folders. Two bugs fixed:
-  1. **Create inside selected folder**: New folders now created INSIDE the selected folder (not alongside it). Same fix applied to createNewFile.
-  2. **Trailing slash URL comparison**: findItem() failed because directory URLs from disk have trailing slashes (`Folder/`) but URLs from createFolder don't (`Folder`). Fixed by comparing paths instead of URLs.
+- Duration: 5.057s
+- Notes: All 12 tests pass across 5 suites (DirectoryLoader, IconLoader, FileItem Entry Init, VolumeMonitor Network, NetworkDirectoryPoller). Tests cover async directory loading, timeout, cancellation, access denied, metadata preservation, icon caching/invalidation, FileItem init from LoadedFileEntry, network volume detection, and directory polling.
+
+### DirectoryLoaderTests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| loadDirectory returns entries for temp directory with files | PASS | 0.011s | 2026-02-07 20:31:12 |
+| loadDirectory throws timeout when load exceeds duration | PASS | 0.007s | 2026-02-07 20:31:12 |
+| Cancelling parent Task stops the load | PASS | 0.047s | 2026-02-07 20:31:12 |
+| loadDirectory throws appropriate error for unreadable directory | PASS | 0.003s | 2026-02-07 20:31:12 |
+| LoadedFileEntry correctly captures metadata from resource values | PASS | 0.008s | 2026-02-07 20:31:12 |
+
+### IconLoaderTests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| Second call for same URL returns cached icon without re-fetching | PASS | 0.005s | 2026-02-07 20:31:12 |
+| invalidate removes entry, next call re-fetches | PASS | 0.006s | 2026-02-07 20:31:12 |
+
+### FileItemEntryInitTests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileItem created from LoadedFileEntry has correct properties | PASS | 0.008s | 2026-02-07 20:31:12 |
+
+### VolumeMonitorNetworkTests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| isNetworkVolume returns false for local paths | PASS | 0.003s | 2026-02-07 20:31:12 |
+| isNetworkVolume returns false for home directory | PASS | 0.003s | 2026-02-07 20:31:12 |
+
+### NetworkDirectoryPollerTests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| Poller fires onChange when directory contents change | PASS | 2.090s | 2026-02-07 20:31:12 |
+| Poller does not fire onChange when nothing changed | PASS | 5.057s | 2026-02-07 20:31:12 |
 
 ### NetworkUITests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -456,6 +486,7 @@
 | testMultipleUndosAcrossTabs | PASS | 41.609s | 2026-01-29 16:53:17 |
 
 ## Notes
+- 2026-02-07 20:31: DirectoryLoaderTests - 12 new tests for async directory loading feature across 5 suites. Tests DirectoryLoader actor (entries, timeout, cancellation, access denied, metadata), IconLoader (caching, invalidation), FileItem init from LoadedFileEntry, VolumeMonitor.isNetworkVolume, and NetworkDirectoryPoller (change detection, no false positives). Also fixed pre-existing FolderExpansionTests compilation error caused by MultiDirectoryWatcher closure becoming @Sendable.
 - 2026-02-03 17:47: NewFolderUITests/testNewFolderSelectsNewFolderNotExisting PASSED - Fixed two bugs: (1) createNewFolder now creates INSIDE selected folder instead of alongside it, (2) findItem() fixed to compare paths instead of URLs because directory URLs have trailing slashes that break URL equality. Root cause of 3-hour debugging session: repeatedly running tests without understanding the actual requirement (create inside, not alongside).
 - 2026-02-02 20:39: NetworkTests - Added 3 new tests for hierarchical network volume display: testVolumeInfoMatchesServer (volume-to-server host matching), testSyntheticServerEquality, testSyntheticServerDisplayName. Total: 10 NetworkTests all PASS.
 - 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.
