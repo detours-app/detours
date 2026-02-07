@@ -71,7 +71,7 @@ final class MultiDirectoryWatcher: @unchecked Sendable {
 // MARK: - Single Directory Watcher (Internal)
 
 /// Internal class that watches a single directory using DispatchSource.
-private final class SingleDirectoryWatcher {
+private final class SingleDirectoryWatcher: @unchecked Sendable {
     let url: URL
     private let onChange: () -> Void
     private var fileDescriptor: Int32 = -1
@@ -90,30 +90,45 @@ private final class SingleDirectoryWatcher {
         stop()
 
         let path = url.path
-        fileDescriptor = open(path, O_EVTONLY)
-        guard fileDescriptor >= 0 else {
-            logger.warning("Failed to open directory for watching (FD limit?): \(path)")
-            return
+        // Open file descriptor on background queue to avoid blocking main thread
+        // (open() on network paths can block for seconds)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+
+            let fd = Darwin.open(path, O_EVTONLY)
+            guard fd >= 0 else {
+                logger.warning("Failed to open directory for watching (FD limit?): \(path)")
+                return
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else {
+                    Darwin.close(fd)
+                    return
+                }
+
+                self.fileDescriptor = fd
+
+                self.source = DispatchSource.makeFileSystemObjectSource(
+                    fileDescriptor: fd,
+                    eventMask: [.write, .link, .rename, .delete],
+                    queue: .main
+                )
+
+                self.source?.setEventHandler { [weak self] in
+                    self?.onChange()
+                }
+
+                self.source?.setCancelHandler { [weak self] in
+                    guard let self, self.fileDescriptor >= 0 else { return }
+                    Darwin.close(self.fileDescriptor)
+                    self.fileDescriptor = -1
+                }
+
+                self.source?.resume()
+                logger.debug("Started watching: \(path)")
+            }
         }
-
-        source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fileDescriptor,
-            eventMask: [.write, .link, .rename, .delete],
-            queue: .main
-        )
-
-        source?.setEventHandler { [weak self] in
-            self?.onChange()
-        }
-
-        source?.setCancelHandler { [weak self] in
-            guard let self, self.fileDescriptor >= 0 else { return }
-            close(self.fileDescriptor)
-            self.fileDescriptor = -1
-        }
-
-        source?.resume()
-        logger.debug("Started watching: \(path)")
     }
 
     func stop() {
@@ -163,19 +178,22 @@ final class NetworkDirectoryPoller: @unchecked Sendable {
     func start() {
         stop()
 
-        // Take initial snapshot
-        lastSnapshot = takeSnapshot()
-
+        // Take initial snapshot on background queue to avoid blocking main thread
         let timer = DispatchSource.makeTimerSource(queue: pollQueue)
-        timer.schedule(
-            deadline: .now() + Self.pollingInterval,
-            repeating: Self.pollingInterval
-        )
-        timer.setEventHandler { [weak self] in
-            self?.poll()
+        pollQueue.async { [weak self] in
+            guard let self else { return }
+            self.lastSnapshot = self.takeSnapshot()
+
+            timer.schedule(
+                deadline: .now() + Self.pollingInterval,
+                repeating: Self.pollingInterval
+            )
+            timer.setEventHandler { [weak self] in
+                self?.poll()
+            }
+            self.timer = timer
+            timer.resume()
         }
-        self.timer = timer
-        timer.resume()
         logger.debug("Started polling network directory: \(self.url.path)")
     }
 
