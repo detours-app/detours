@@ -1,6 +1,7 @@
 import AppKit
 import Testing
 import Foundation
+import UniformTypeIdentifiers
 @testable import Detours
 
 @Suite("DirectoryLoader Tests")
@@ -296,5 +297,130 @@ struct NetworkDirectoryPollerTests {
 
         #expect(changeCount == 0)
         poller.stop()
+    }
+}
+
+// MARK: - Resource Key Selection Tests
+
+@Suite("DirectoryLoader Resource Key Selection")
+struct ResourceKeySelectionTests {
+
+    @Test("Local paths include localizedNameKey")
+    func testLocalPathIncludesLocalizedName() {
+        let localURL = URL(fileURLWithPath: "/tmp")
+        let keys = DirectoryLoader.resourceKeys(for: localURL)
+        #expect(keys.contains(.localizedNameKey))
+    }
+
+    @Test("Local paths exclude iCloud keys")
+    func testLocalPathExcludesICloudKeys() {
+        let localURL = URL(fileURLWithPath: "/tmp")
+        let keys = DirectoryLoader.resourceKeys(for: localURL)
+        #expect(!keys.contains(.ubiquitousItemIsSharedKey))
+        #expect(!keys.contains(.ubiquitousSharedItemCurrentUserRoleKey))
+        #expect(!keys.contains(.ubiquitousItemDownloadingStatusKey))
+        #expect(!keys.contains(.ubiquitousItemIsDownloadingKey))
+    }
+
+    @Test("Local paths include base resource keys")
+    func testLocalPathIncludesBaseKeys() {
+        let localURL = URL(fileURLWithPath: "/tmp")
+        let keys = DirectoryLoader.resourceKeys(for: localURL)
+        #expect(keys.contains(.isDirectoryKey))
+        #expect(keys.contains(.isPackageKey))
+        #expect(keys.contains(.fileSizeKey))
+        #expect(keys.contains(.contentModificationDateKey))
+    }
+
+    @Test("iCloud Mobile Documents path includes iCloud keys")
+    func testICloudPathIncludesICloudKeys() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let iCloudURL = home
+            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/test")
+        let keys = DirectoryLoader.resourceKeys(for: iCloudURL)
+        #expect(keys.contains(.ubiquitousItemIsSharedKey))
+        #expect(keys.contains(.ubiquitousSharedItemCurrentUserRoleKey))
+        #expect(keys.contains(.ubiquitousSharedItemOwnerNameComponentsKey))
+        #expect(keys.contains(.ubiquitousItemDownloadingStatusKey))
+        #expect(keys.contains(.ubiquitousItemIsDownloadingKey))
+    }
+
+    @Test("iCloud path also includes localizedNameKey")
+    func testICloudPathIncludesLocalizedName() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let iCloudURL = home
+            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
+        let keys = DirectoryLoader.resourceKeys(for: iCloudURL)
+        #expect(keys.contains(.localizedNameKey))
+    }
+}
+
+// MARK: - Extension-Based Icon Loading Tests
+
+@Suite("IconLoader Network Volume Icons")
+struct IconLoaderNetworkVolumeTests {
+
+    @Test("Network volume directory returns folder placeholder icon")
+    func testNetworkDirectoryGetsFolderIcon() async {
+        let url = URL(fileURLWithPath: "/Volumes/share/SomeFolder")
+        let loader = IconLoader()
+        let icon = await loader.icon(for: url, isDirectory: true, isPackage: false, isNetworkVolume: true)
+        #expect(icon === IconLoader.placeholderFolderIcon)
+    }
+
+    @Test("Network volume file with known extension returns UTType icon")
+    func testNetworkFileGetsExtensionIcon() async {
+        let url = URL(fileURLWithPath: "/Volumes/share/document.pdf")
+        let loader = IconLoader()
+        let icon = await loader.icon(for: url, isDirectory: false, isPackage: false, isNetworkVolume: true)
+
+        // Should not be the generic file placeholder since PDF has a known UTType
+        let pdfType = UTType(filenameExtension: "pdf")!
+        let expectedIcon = NSWorkspace.shared.icon(for: pdfType)
+        #expect(icon.tiffRepresentation == expectedIcon.tiffRepresentation)
+    }
+
+    @Test("Network volume file without extension returns file placeholder")
+    func testNetworkFileNoExtensionGetsPlaceholder() async {
+        let url = URL(fileURLWithPath: "/Volumes/share/Makefile")
+        let loader = IconLoader()
+        let icon = await loader.icon(for: url, isDirectory: false, isPackage: false, isNetworkVolume: true)
+        #expect(icon === IconLoader.placeholderFileIcon)
+    }
+
+    @Test("Network volume package returns UTType icon, not folder")
+    func testNetworkPackageGetsExtensionIcon() async {
+        let url = URL(fileURLWithPath: "/Volumes/share/presentation.key")
+        let loader = IconLoader()
+        let icon = await loader.icon(for: url, isDirectory: true, isPackage: true, isNetworkVolume: true)
+
+        // Packages should get extension-based icon, not folder placeholder
+        #expect(icon !== IconLoader.placeholderFolderIcon)
+    }
+
+    @Test("Network volume icons are cached")
+    func testNetworkIconsCached() async {
+        let url = URL(fileURLWithPath: "/Volumes/share/photo.jpg")
+        let loader = IconLoader()
+        let icon1 = await loader.icon(for: url, isDirectory: false, isPackage: false, isNetworkVolume: true)
+        let icon2 = await loader.icon(for: url, isDirectory: false, isPackage: false, isNetworkVolume: true)
+        #expect(icon1 === icon2)
+    }
+
+    @Test("Local file uses workspace icon lookup, not extension-based")
+    func testLocalFileUsesWorkspaceLookup() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fileURL = tempDir.appendingPathComponent("test.txt")
+        try "content".write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let loader = IconLoader()
+        let icon = await loader.icon(for: fileURL, isDirectory: false, isPackage: false, isNetworkVolume: false)
+
+        // Should return a valid icon loaded via NSWorkspace.shared.icon(forFile:)
+        #expect(icon.size.width > 0)
     }
 }

@@ -55,6 +55,9 @@ actor DirectoryLoader {
         .isPackageKey,
         .fileSizeKey,
         .contentModificationDateKey,
+    ]
+
+    private static let localResourceKeys: [URLResourceKey] = [
         .localizedNameKey,
     ]
 
@@ -66,14 +69,21 @@ actor DirectoryLoader {
         .ubiquitousItemIsDownloadingKey,
     ]
 
-    /// Returns appropriate resource keys based on whether the path is iCloud-backed.
-    private static func resourceKeys(for url: URL) -> [URLResourceKey] {
+    /// Returns appropriate resource keys based on volume type.
+    /// Network volumes get minimal keys (no localizedName, no iCloud).
+    /// iCloud paths get iCloud-specific keys.
+    /// Local volumes get localizedName for display names.
+    static func resourceKeys(for url: URL) -> [URLResourceKey] {
+        if VolumeMonitor.isNetworkVolume(url) {
+            return baseResourceKeys
+        }
+
         let mobileDocsPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Mobile Documents").path
         if url.path.hasPrefix(mobileDocsPath) {
-            return baseResourceKeys + iCloudResourceKeys
+            return baseResourceKeys + localResourceKeys + iCloudResourceKeys
         }
-        return baseResourceKeys
+        return baseResourceKeys + localResourceKeys
     }
 
     private let operationQueue: OperationQueue = {

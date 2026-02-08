@@ -15,6 +15,14 @@
 - Changed: MultiDirectoryWatcher automatically uses polling for network volumes instead of DispatchSource
 - Changed: Navigation cancels any in-progress directory load before starting a new one
 
+### Network Volume Performance Optimizations
+- Fixed: iCloud URLResourceKeys no longer requested for network volumes (was causing 30s+ enumeration times)
+- Fixed: FrecencyStore.recordVisit() no longer blocks main thread with fileExists check on network paths
+- Added: Extension-based icon loading for network volumes (UTType lookup, zero network I/O)
+- Added: Visible-first icon loading prioritizes on-screen rows before loading off-screen icons
+- Changed: localizedNameKey excluded from resource keys for network volumes (falls back to lastPathComponent)
+- Added: 23 unit tests for DirectoryLoader, IconLoader, resource key selection, and network icon loading
+
 ## 260204
 
 ### Rename Field Indentation Fix
