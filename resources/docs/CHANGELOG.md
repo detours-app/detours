@@ -4,13 +4,13 @@
 
 ### Network Shares
 
-Network volumes are now first-class citizens. Browse NAS drives, connect to SMB/AFP servers, and work with remote files without the UI locking up.
+Network volumes are now supported. Browse NAS drives, connect to SMB/AFP servers, and work with remote files.
 
 - Sidebar shows network volumes grouped under their parent server in a dedicated NETWORK section
 - Bonjour auto-discovery finds servers on the local network; manual Connect to Share (Cmd-K) for everything else
 - Eject button on servers disconnects all mounted volumes; right-click individual shares to eject one at a time
 - Offline servers shown dimmed with badge when network drops but volumes remain mounted
-- Distinct teal icon for network shares so they're visually separate from local drives
+- Themed icon for network shares to distinguish from local drives
 
 ### Async Directory Loading
 
@@ -29,7 +29,7 @@ Full undo/redo for file operations, scoped per tab so each tab has its own indep
 - Undo delete, copy, move, duplicate, and new folder/file creation
 - Edit menu shows the operation name ("Undo Delete", "Undo Move", etc.)
 - Conflict-safe restore with unique naming if a file already exists at the original location
-- Delete Immediately remains intentionally non-undoable
+- Delete Immediately remains non-undoable
 
 ### Filter-in-Place
 
