@@ -265,6 +265,18 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     private var currentDirectoryForGit: URL?
     private var gitStatuses: [URL: GitStatus] = [:]
 
+    /// Active directory load task (cancelled when navigating away)
+    private(set) var currentLoadTask: Task<Void, Never>?
+
+    /// Active icon load tasks (cancelled when navigating away)
+    private var iconLoadTasks: [Task<Void, Never>] = []
+
+    /// Callback for when async load starts (used by FileListViewController for loading state)
+    var onLoadStarted: (() -> Void)?
+
+    /// Callback for when async load completes (success or failure)
+    var onLoadCompleted: ((Result<Void, DirectoryLoadError>) -> Void)?
+
     /// Currently expanded folder URLs (for persistence)
     private(set) var expandedFolders: Set<URL> = []
 
@@ -272,6 +284,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     private var suppressCollapseNotifications = false
 
     func loadDirectory(_ url: URL, preserveExpansion: Bool = false) {
+        // Cancel any in-flight load and icon tasks
+        cancelCurrentLoad()
+
         // Preserve expansion state if reloading the same directory
         let previousExpanded = preserveExpansion ? expandedFolders : []
 
@@ -281,37 +296,160 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         // Clear filter cache on reload
         _cachedFilteredItems = nil
 
-        do {
-            var options: FileManager.DirectoryEnumerationOptions = []
-            if !showHiddenFiles {
-                options.insert(.skipsHiddenFiles)
-            }
-            let contents = try FileManager.default.contentsOfDirectory(
-                at: url,
-                includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
-                options: options
-            )
+        onLoadStarted?()
 
-            items = FileItem.sortFoldersFirst(contents.map { FileItem(url: $0) })
-            currentDirectoryForGit = url
-            gitStatuses = [:]
-            expandedFolders = previousExpanded
-            outlineView?.reloadData()
-            outlineView?.needsLayout = true
-            suppressCollapseNotifications = false
+        let showHidden = showHiddenFiles
 
-            // Fetch git status asynchronously if enabled
-            if SettingsManager.shared.settings.gitStatusEnabled {
-                fetchGitStatus(for: url)
+        currentLoadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            do {
+                let entries = try await DirectoryLoader.shared.loadDirectory(
+                    url,
+                    showHidden: showHidden
+                )
+
+                guard !Task.isCancelled else { return }
+
+                let fileItems = entries.map { entry -> FileItem in
+                    let placeholder: NSImage
+                    if entry.isDirectory && !entry.isPackage {
+                        placeholder = FileItem.tintedFolderIcon(IconLoader.placeholderFolderIcon)
+                    } else {
+                        placeholder = IconLoader.placeholderFileIcon
+                    }
+                    return FileItem(entry: entry, icon: placeholder)
+                }
+
+                self.items = FileItem.sortFoldersFirst(fileItems)
+                self.currentDirectoryForGit = url
+                self.gitStatuses = [:]
+                self.expandedFolders = previousExpanded
+                self.outlineView?.reloadData()
+                self.outlineView?.needsLayout = true
+                self.suppressCollapseNotifications = false
+
+                self.onLoadCompleted?(.success(()))
+
+                // Kick off async icon loads for visible items
+                self.loadIconsAsync(for: self.items, isNetwork: VolumeMonitor.isNetworkVolume(url))
+
+                // Fetch git status asynchronously if enabled
+                if SettingsManager.shared.settings.gitStatusEnabled {
+                    self.fetchGitStatus(for: url)
+                }
+            } catch is CancellationError {
+                // Load was cancelled (navigated away) - do nothing
+                return
+            } catch let error as DirectoryLoadError {
+                guard !Task.isCancelled else { return }
+
+                // Don't replace existing items on reload failure when we have stale data
+                if self.items.isEmpty {
+                    self.items = []
+                }
+                self.currentDirectoryForGit = url
+                self.expandedFolders = previousExpanded
+                self.outlineView?.reloadData()
+                self.outlineView?.needsLayout = true
+                self.suppressCollapseNotifications = false
+
+                self.onLoadCompleted?(.failure(error))
+            } catch {
+                guard !Task.isCancelled else { return }
+
+                self.items = []
+                self.currentDirectoryForGit = nil
+                self.gitStatuses = [:]
+                self.expandedFolders = previousExpanded
+                self.outlineView?.reloadData()
+                self.outlineView?.needsLayout = true
+                self.suppressCollapseNotifications = false
+
+                self.onLoadCompleted?(.failure(.other(error.localizedDescription)))
             }
-        } catch {
-            items = []
-            currentDirectoryForGit = nil
-            gitStatuses = [:]
-            expandedFolders = previousExpanded
-            outlineView?.reloadData()
-            outlineView?.needsLayout = true
-            suppressCollapseNotifications = false
+        }
+    }
+
+    /// Cancel the current directory load and all icon load tasks
+    func cancelCurrentLoad() {
+        currentLoadTask?.cancel()
+        currentLoadTask = nil
+        for task in iconLoadTasks {
+            task.cancel()
+        }
+        iconLoadTasks.removeAll()
+    }
+
+    /// Kicks off background icon loading for visible items, updating cells as icons arrive.
+    /// For network volumes, uses extension-based icons (no network I/O).
+    /// Call `loadIconsForVisibleRows()` on scroll to progressively load more.
+    private func loadIconsAsync(for fileItems: [FileItem], isNetwork: Bool = false) {
+        for task in iconLoadTasks {
+            task.cancel()
+        }
+        iconLoadTasks.removeAll()
+
+        guard let outlineView else { return }
+
+        // Determine which rows are visible
+        let visibleRect = outlineView.visibleRect
+        let visibleRange = outlineView.rows(in: visibleRect)
+        let visibleItems: Set<ObjectIdentifier>
+        if visibleRange.length > 0 {
+            var ids = Set<ObjectIdentifier>()
+            for row in visibleRange.location..<(visibleRange.location + visibleRange.length) {
+                if let item = outlineView.item(atRow: row) as? FileItem {
+                    ids.insert(ObjectIdentifier(item))
+                }
+            }
+            visibleItems = ids
+        } else {
+            // If we can't determine visibility, load all (fallback)
+            visibleItems = Set(fileItems.map { ObjectIdentifier($0) })
+        }
+
+        // Load visible items first, then the rest
+        let sortedItems = fileItems.sorted { a, b in
+            let aVisible = visibleItems.contains(ObjectIdentifier(a))
+            let bVisible = visibleItems.contains(ObjectIdentifier(b))
+            if aVisible != bVisible { return aVisible }
+            return false
+        }
+
+        let isNetworkVolume = isNetwork
+
+        for item in sortedItems {
+            let task = Task { @MainActor [weak self] in
+                guard !Task.isCancelled else { return }
+
+                let icon = await IconLoader.shared.icon(
+                    for: item.url,
+                    isDirectory: item.isDirectory,
+                    isPackage: item.isPackage,
+                    isNetworkVolume: isNetworkVolume
+                )
+
+                guard !Task.isCancelled else { return }
+
+                // Tint folder icons with accent color
+                if item.isDirectory && !item.isPackage {
+                    item.icon = FileItem.tintedFolderIcon(icon)
+                } else {
+                    item.icon = icon
+                }
+
+                // Reload just this item's name cell
+                guard let self, let outlineView = self.outlineView else { return }
+                let row = outlineView.row(forItem: item)
+                if row >= 0 {
+                    outlineView.reloadData(
+                        forRowIndexes: IndexSet(integer: row),
+                        columnIndexes: IndexSet(integer: 0)
+                    )
+                }
+            }
+            iconLoadTasks.append(task)
         }
     }
 
@@ -606,13 +744,70 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     func outlineView(_ outlineView: NSOutlineView, shouldExpandItem item: Any) -> Bool {
         guard let fileItem = item as? FileItem else { return false }
-        // Load children before expanding
+
+        // If children are already loaded, expand immediately
+        if fileItem.children != nil {
+            // Apply git status to children
+            if let children = fileItem.children {
+                updateGitStatus(for: children, statuses: gitStatuses)
+            }
+            return true
+        }
+
+        // For network volumes, load children asynchronously
+        if VolumeMonitor.isNetworkVolume(fileItem.url) {
+            loadChildrenAsync(for: fileItem, in: outlineView)
+            return false // Don't expand yet; will expand after async load
+        }
+
+        // Local volume: load synchronously as before
         _ = fileItem.loadChildren(showHidden: showHiddenFiles)
-        // Apply git status to newly loaded children
         if let children = fileItem.children {
             updateGitStatus(for: children, statuses: gitStatuses)
         }
         return true
+    }
+
+    /// Load children asynchronously for a folder (used on network volumes)
+    private func loadChildrenAsync(for item: FileItem, in outlineView: NSOutlineView) {
+        // Show a spinner in the row while loading
+        let row = outlineView.row(forItem: item)
+        var spinner: NSProgressIndicator?
+        if row >= 0, let rowView = outlineView.rowView(atRow: row, makeIfNecessary: false) {
+            let indicator = NSProgressIndicator()
+            indicator.style = .spinning
+            indicator.controlSize = .small
+            indicator.sizeToFit()
+            indicator.frame = NSRect(x: 4, y: (rowView.bounds.height - 16) / 2, width: 16, height: 16)
+            rowView.addSubview(indicator)
+            indicator.startAnimation(nil)
+            spinner = indicator
+        }
+
+        let showHidden = showHiddenFiles
+        let statuses = gitStatuses
+
+        Task { @MainActor [weak self] in
+            defer {
+                spinner?.stopAnimation(nil)
+                spinner?.removeFromSuperview()
+            }
+
+            do {
+                _ = try await item.loadChildrenAsync(showHidden: showHidden)
+                guard let self else { return }
+
+                if let children = item.children {
+                    self.updateGitStatus(for: children, statuses: statuses)
+                }
+                outlineView.reloadItem(item, reloadChildren: true)
+                outlineView.expandItem(item)
+            } catch {
+                // Expansion failed - set empty children so folder shows as empty
+                item.children = []
+                outlineView.reloadItem(item, reloadChildren: true)
+            }
+        }
     }
 
     func outlineView(_ outlineView: NSOutlineView, shouldCollapseItem item: Any) -> Bool {

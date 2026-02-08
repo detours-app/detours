@@ -146,6 +146,19 @@ final class VolumeMonitor {
         NotificationCenter.default.post(name: Self.volumesDidChange, object: nil)
     }
 
+    /// Returns true if the given URL is on a network volume.
+    /// Walks up to the volume root and checks volumeIsLocalKey.
+    /// This method is nonisolated because it only reads URL resource values
+    /// and does not access any instance state.
+    nonisolated static func isNetworkVolume(_ url: URL) -> Bool {
+        do {
+            let values = try url.resourceValues(forKeys: [.volumeIsLocalKey])
+            return !(values.volumeIsLocal ?? true)
+        } catch {
+            return false
+        }
+    }
+
     private func shouldSkipVolume(_ url: URL) -> Bool {
         let path = url.path
 

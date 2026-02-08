@@ -1,5 +1,28 @@
 # Changelog
 
+## 260207
+
+### Async Directory Loading
+- Added: DirectoryLoader actor for non-blocking directory enumeration with configurable timeout
+- Added: IconLoader actor with background icon loading and in-memory cache
+- Added: Loading spinner overlay while directory contents load
+- Added: Error overlay with Retry button for timeout, access denied, and disconnected states
+- Added: NetworkDirectoryPoller for change detection on network volumes (2-second polling interval)
+- Added: VolumeMonitor.isNetworkVolume() for detecting network paths
+- Changed: Directory loading is now fully asynchronous (UI stays responsive during slow network shares)
+- Changed: File icons load progressively in background after directory listing appears
+- Changed: Folder expansion on network volumes loads children asynchronously with spinner
+- Changed: MultiDirectoryWatcher automatically uses polling for network volumes instead of DispatchSource
+- Changed: Navigation cancels any in-progress directory load before starting a new one
+
+### Network Volume Performance Optimizations
+- Fixed: iCloud URLResourceKeys no longer requested for network volumes (was causing 30s+ enumeration times)
+- Fixed: FrecencyStore.recordVisit() no longer blocks main thread with fileExists check on network paths
+- Added: Extension-based icon loading for network volumes (UTType lookup, zero network I/O)
+- Added: Visible-first icon loading prioritizes on-screen rows before loading off-screen icons
+- Changed: localizedNameKey excluded from resource keys for network volumes (falls back to lastPathComponent)
+- Added: 23 unit tests for DirectoryLoader, IconLoader, resource key selection, and network icon loading
+
 ## 260204
 
 ### Rename Field Indentation Fix

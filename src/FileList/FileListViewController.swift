@@ -44,6 +44,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     /// Selection to restore when user cancels new folder/file creation
     private var selectionBeforeNewItem: URL?
 
+    // Loading state
+    private var loadingSpinner: NSProgressIndicator?
+    private var errorOverlay: NSView?
+
     // Filter bar
     private let filterBar = FilterBarView()
     private var isFilterBarVisible = false
@@ -81,6 +85,13 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             self?.navigationDelegate?.fileListDidRequestSwitchPane()
         }
         setupDragDrop()
+
+        // Wire up async loading callback for spinner
+        dataSource.onLoadStarted = { [weak self] in
+            self?.showLoadingIndicator()
+        }
+        // onLoadCompleted is set per-call in loadDirectory() to handle
+        // expansion, selection, and watching after async load finishes
 
         if let pendingDirectory {
             self.pendingDirectory = nil
@@ -207,15 +218,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         tableView.needsDisplay = true
         // Reload directory to re-tint folder icons with new accent color
         if let currentDirectory {
-            // Preserve selection before reload
-            let selectedURLs = selectedItems.map { $0.url }
-            let previousExpanded = dataSource.expandedFolders
-
-            dataSource.loadDirectory(currentDirectory, preserveExpansion: true)
-
-            // Restore visual expansion and selection
-            restoreExpansion(previousExpanded)
-            restoreSelection(selectedURLs)
+            loadDirectory(currentDirectory, preserveExpansion: true)
         }
     }
 
@@ -365,59 +368,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     /// Refresh current directory, preserving selection and expansion
     func refresh() {
         guard let currentDirectory else { return }
-
-        // Preserve current selection by URL (works for items in expanded folders)
-        let selectedURLs = selectedItems.map { $0.url }
-        let firstSelectedRow = tableView.selectedRow
-        let previousExpanded = dataSource.expandedFolders
-
-        // Spinner
-        let spinner = NSProgressIndicator()
-        spinner.style = .spinning
-        spinner.controlSize = .regular
-        spinner.sizeToFit()
-        spinner.frame.origin = NSPoint(
-            x: (view.bounds.width - spinner.bounds.width) / 2,
-            y: (view.bounds.height - spinner.bounds.height) / 2
-        )
-        view.addSubview(spinner, positioned: .above, relativeTo: scrollView)
-        spinner.startAnimation(nil)
-
-        // Reload data, preserving expansion state
-        dataSource.loadDirectory(currentDirectory, preserveExpansion: true)
-
-        // Restore visual expansion state
-        restoreExpansion(previousExpanded)
-
-        // Restore selection by URL (finds items anywhere in tree, including expanded folders)
-        var newSelection = IndexSet()
-        for url in selectedURLs {
-            if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
-                let row = tableView.row(forItem: item)
-                if row >= 0 {
-                    newSelection.insert(row)
-                }
-            }
-        }
-
-        if !newSelection.isEmpty {
-            tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
-        } else if tableView.numberOfRows > 0 {
-            // Selection was deleted - select nearby item
-            let newIndex = min(firstSelectedRow, tableView.numberOfRows - 1)
-            if newIndex >= 0 {
-                tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
-            }
-        }
-
-        // Remove spinner after delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            spinner.stopAnimation(nil)
-            spinner.removeFromSuperview()
-        }
+        loadDirectory(currentDirectory, preserveExpansion: true)
     }
 
     func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false) {
+        // Cancel any in-progress load before starting a new one
+        dataSource.cancelCurrentLoad()
+        hideLoadingIndicator()
+        hideErrorOverlay()
+
         currentDirectory = url
 
         // Hide filter bar when navigating to a new directory
@@ -431,54 +390,154 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             return
         }
 
+        // Capture state needed for post-load work
         let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
+        let previousSelectedURLs = preserveExpansion ? selectedItems.map(\.url) : []
+        let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
+        let pendingItemToSelect = itemToSelect
+        let shouldPreserveExpansion = preserveExpansion
+
+        // Set the completion callback BEFORE calling loadDirectory
+        // so we do post-load work (expansion, selection, watching) after async load finishes
+        dataSource.onLoadCompleted = { [weak self] result in
+            guard let self else { return }
+            self.hideLoadingIndicator()
+
+            switch result {
+            case .success:
+                self.hideErrorOverlay()
+
+                if shouldPreserveExpansion {
+                    self.restoreExpansion(previousExpanded)
+                }
+
+                if let targetURL = pendingItemToSelect {
+                    // Select specific item
+                    self.selectItem(at: targetURL)
+                } else if shouldPreserveExpansion && !previousSelectedURLs.isEmpty {
+                    // Restore previous selection by URL
+                    self.restoreSelection(previousSelectedURLs)
+                    // If URL-based restore didn't find items, fall back to nearby row
+                    if self.tableView.selectedRow < 0 && previousSelectedRow >= 0 && self.tableView.numberOfRows > 0 {
+                        let newIndex = min(previousSelectedRow, self.tableView.numberOfRows - 1)
+                        self.tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                    }
+                } else if !self.dataSource.items.isEmpty {
+                    // Default: select first item
+                    self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                }
+
+                self.startWatching(url)
+                self.navigationDelegate?.fileListDidLoadDirectory()
+
+            case .failure(let error):
+                self.showErrorOverlay(for: error)
+                self.navigationDelegate?.fileListDidLoadDirectory()
+            }
+        }
+
         dataSource.loadDirectory(url, preserveExpansion: preserveExpansion)
         hasLoadedDirectory = true
 
-        if preserveExpansion {
-            restoreExpansion(previousExpanded)
-        }
-
-        // Select the specified item if provided, otherwise select first item
-        if let itemToSelect = itemToSelect {
-            // Search all visible rows to find the one with matching URL
-            // This is more reliable than row(forItem:) which can fail after reloadData
-            var foundRow = -1
-            for row in 0..<tableView.numberOfRows {
-                if let rowItem = tableView.item(atRow: row) as? FileItem,
-                   rowItem.url.standardizedFileURL == itemToSelect.standardizedFileURL {
-                    foundRow = row
-                    break
-                }
-            }
-
-            if foundRow >= 0 {
-                tableView.selectRowIndexes(IndexSet(integer: foundRow), byExtendingSelection: false)
-                tableView.scrollRowToVisible(foundRow)
-            } else {
-                // Item not found in visible rows - log for debugging
-                print("⚠️ loadDirectory: Could not find item to select: \(itemToSelect.lastPathComponent)")
-                print("⚠️ loadDirectory: Visible rows: \(tableView.numberOfRows)")
-                if !dataSource.items.isEmpty {
-                    tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-                }
-            }
-        } else if !dataSource.items.isEmpty {
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-        }
-
-        startWatching(url)
-
-        // Track directory visit for frecency
+        // Track directory visit for frecency (this is instant, no I/O)
         FrecencyStore.shared.recordVisit(url)
+    }
 
-        navigationDelegate?.fileListDidLoadDirectory()
+    // MARK: - Loading & Error States
+
+    private func showLoadingIndicator() {
+        hideErrorOverlay()
+        guard loadingSpinner == nil else { return }
+
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .regular
+        spinner.sizeToFit()
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(spinner, positioned: .above, relativeTo: scrollView)
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
+        spinner.startAnimation(nil)
+        loadingSpinner = spinner
+    }
+
+    private func hideLoadingIndicator() {
+        loadingSpinner?.stopAnimation(nil)
+        loadingSpinner?.removeFromSuperview()
+        loadingSpinner = nil
+    }
+
+    private func showErrorOverlay(for error: DirectoryLoadError) {
+        hideErrorOverlay()
+
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let theme = ThemeManager.shared.currentTheme
+
+        let messageText: String
+        switch error {
+        case .timeout:
+            messageText = "Connection timed out"
+        case .accessDenied:
+            messageText = "Access denied"
+        case .disconnected:
+            messageText = "Volume disconnected"
+        case .cancelled:
+            return
+        case .other(let desc):
+            messageText = desc
+        }
+
+        let label = NSTextField(labelWithString: messageText)
+        label.font = .systemFont(ofSize: 14, weight: .medium)
+        label.textColor = theme.textSecondary
+        label.alignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+
+        let retryButton = NSButton(title: "Retry", target: self, action: #selector(retryLoad))
+        retryButton.bezelStyle = .rounded
+        retryButton.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(retryButton)
+
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            label.bottomAnchor.constraint(equalTo: container.centerYAnchor, constant: -4),
+            retryButton.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            retryButton.topAnchor.constraint(equalTo: container.centerYAnchor, constant: 4),
+        ])
+
+        view.addSubview(container, positioned: .above, relativeTo: scrollView)
+        NSLayoutConstraint.activate([
+            container.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            container.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
+        ])
+
+        errorOverlay = container
+    }
+
+    private func hideErrorOverlay() {
+        errorOverlay?.removeFromSuperview()
+        errorOverlay = nil
+    }
+
+    @objc private func retryLoad() {
+        guard let currentDirectory else { return }
+        hideErrorOverlay()
+        loadDirectory(currentDirectory, preserveExpansion: true)
     }
 
     private func startWatching(_ url: URL) {
         directoryWatcher?.unwatchAll()
         directoryWatcher = MultiDirectoryWatcher { [weak self] changedURL in
-            self?.handleDirectoryChange(at: changedURL)
+            DispatchQueue.main.async {
+                self?.handleDirectoryChange(at: changedURL)
+            }
         }
         directoryWatcher?.watch(url)
     }
@@ -505,38 +564,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func performDirectoryReload() {
         guard let currentDirectory else { return }
-
-        // Preserve current selection by URL (works for items in expanded folders)
-        let selectedURLs = selectedItems.map { $0.url }
-        let firstSelectedRow = tableView.selectedRow
-
-        // Preserve expansion state when reloading due to external changes
-        let previousExpanded = dataSource.expandedFolders
-        dataSource.loadDirectory(currentDirectory, preserveExpansion: true)
-
-        // Restore visual expansion state
-        restoreExpansion(previousExpanded)
-
-        // Restore selection by URL (finds items anywhere in tree, including expanded folders)
-        var newSelection = IndexSet()
-        for url in selectedURLs {
-            if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
-                let row = tableView.row(forItem: item)
-                if row >= 0 {
-                    newSelection.insert(row)
-                }
-            }
-        }
-
-        if !newSelection.isEmpty {
-            tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
-        } else if tableView.numberOfRows > 0 {
-            // Selection was deleted - select nearby item
-            let newIndex = min(firstSelectedRow, tableView.numberOfRows - 1)
-            if newIndex >= 0 {
-                tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
-            }
-        }
+        loadDirectory(currentDirectory, preserveExpansion: true)
     }
 
     func ensureLoaded() {

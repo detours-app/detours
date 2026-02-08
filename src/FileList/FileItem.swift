@@ -15,7 +15,7 @@ final class FileItem {
     let isHiddenFile: Bool
     let size: Int64?
     let dateModified: Date
-    let icon: NSImage
+    var icon: NSImage
     let sharedByName: String?
     let iCloudStatus: ICloudStatus
     var gitStatus: GitStatus?
@@ -38,6 +38,52 @@ final class FileItem {
         self.gitStatus = gitStatus
     }
 
+    init(entry: LoadedFileEntry, icon: NSImage) {
+        self.url = entry.url
+
+        // Show "Shared" for iCloud Drive folder (com~apple~CloudDocs)
+        if entry.url.lastPathComponent == "com~apple~CloudDocs" {
+            self.name = "Shared"
+        } else {
+            self.name = entry.name
+        }
+        self.isDirectory = entry.isDirectory
+        self.isPackage = entry.isPackage
+        self.isHiddenFile = entry.isHidden
+        self.size = entry.fileSize
+        self.dateModified = entry.contentModificationDate
+        self.icon = icon
+
+        // Show "Shared by X" if shared and we're not the owner
+        if entry.ubiquitousItemIsShared,
+           entry.ubiquitousSharedItemCurrentUserRole == .participant,
+           let ownerComponents = entry.ubiquitousSharedItemOwnerNameComponents {
+            self.sharedByName = ownerComponents.formatted(.name(style: .short))
+        } else {
+            self.sharedByName = nil
+        }
+
+        // Determine iCloud download status
+        if entry.ubiquitousItemIsDownloading {
+            self.iCloudStatus = .downloading
+        } else if let status = entry.ubiquitousItemDownloadingStatus {
+            switch status {
+            case .current, .downloaded:
+                self.iCloudStatus = .downloaded
+            case .notDownloaded:
+                self.iCloudStatus = .notDownloaded
+            default:
+                self.iCloudStatus = .local
+            }
+        } else {
+            self.iCloudStatus = .local
+        }
+
+        self.gitStatus = nil
+    }
+
+    /// Synchronous init that reads resource values from the file system directly.
+    /// Blocks the calling thread — prefer init(entry:icon:) for async paths.
     init(url: URL) {
         self.url = url
 
@@ -174,6 +220,35 @@ final class FileItem {
             children = []
             return []
         }
+    }
+
+    /// Async version of loadChildren for network volumes.
+    /// Loads children on a background thread via DirectoryLoader.
+    func loadChildrenAsync(showHidden: Bool) async throws -> [FileItem]? {
+        guard isNavigableFolder else { return nil }
+
+        if let existingChildren = children {
+            return existingChildren
+        }
+
+        let entries = try await DirectoryLoader.shared.loadChildren(url, showHidden: showHidden)
+
+        let items = entries.map { entry -> FileItem in
+            let placeholder: NSImage
+            if entry.isDirectory && !entry.isPackage {
+                placeholder = Self.tintedFolderIcon(IconLoader.placeholderFolderIcon)
+            } else {
+                placeholder = IconLoader.placeholderFileIcon
+            }
+            return FileItem(entry: entry, icon: placeholder)
+        }
+
+        let sorted = FileItem.sortFoldersFirst(items)
+        for item in sorted {
+            item.parent = self
+        }
+        children = sorted
+        return sorted
     }
 
     /// Clears loaded children (for refresh)

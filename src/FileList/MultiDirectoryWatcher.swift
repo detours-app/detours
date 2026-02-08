@@ -3,13 +3,14 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "multiwatcher")
 
-/// Monitors multiple directories for filesystem changes using DispatchSource.
-/// Supports dynamically adding/removing directories to watch.
-final class MultiDirectoryWatcher {
-    private let onChange: (URL) -> Void
+/// Monitors multiple directories for filesystem changes.
+/// Uses DispatchSource for local volumes and polling for network volumes.
+final class MultiDirectoryWatcher: @unchecked Sendable {
+    private let onChange: @Sendable (URL) -> Void
     private var watchers: [URL: SingleDirectoryWatcher] = [:]
+    private var pollers: [URL: NetworkDirectoryPoller] = [:]
 
-    init(onChange: @escaping (URL) -> Void) {
+    init(onChange: @escaping @Sendable (URL) -> Void) {
         self.onChange = onChange
     }
 
@@ -18,15 +19,24 @@ final class MultiDirectoryWatcher {
     }
 
     /// Start watching a directory. If already watching, does nothing.
+    /// Automatically detects network volumes and uses polling instead of DispatchSource.
     func watch(_ url: URL) {
         let normalized = url.standardizedFileURL
-        guard watchers[normalized] == nil else { return }
+        guard watchers[normalized] == nil, pollers[normalized] == nil else { return }
 
-        let watcher = SingleDirectoryWatcher(url: normalized) { [weak self] in
-            self?.onChange(normalized)
+        if VolumeMonitor.isNetworkVolume(normalized) {
+            let poller = NetworkDirectoryPoller(url: normalized) { [weak self] in
+                self?.onChange(normalized)
+            }
+            pollers[normalized] = poller
+            poller.start()
+        } else {
+            let watcher = SingleDirectoryWatcher(url: normalized) { [weak self] in
+                self?.onChange(normalized)
+            }
+            watchers[normalized] = watcher
+            watcher.start()
         }
-        watchers[normalized] = watcher
-        watcher.start()
     }
 
     /// Stop watching a directory.
@@ -34,6 +44,9 @@ final class MultiDirectoryWatcher {
         let normalized = url.standardizedFileURL
         if let watcher = watchers.removeValue(forKey: normalized) {
             watcher.stop()
+        }
+        if let poller = pollers.removeValue(forKey: normalized) {
+            poller.stop()
         }
     }
 
@@ -43,18 +56,22 @@ final class MultiDirectoryWatcher {
             watcher.stop()
         }
         watchers.removeAll()
+        for poller in pollers.values {
+            poller.stop()
+        }
+        pollers.removeAll()
     }
 
     /// Returns the currently watched URLs.
     var watchedURLs: Set<URL> {
-        Set(watchers.keys)
+        Set(watchers.keys).union(pollers.keys)
     }
 }
 
 // MARK: - Single Directory Watcher (Internal)
 
 /// Internal class that watches a single directory using DispatchSource.
-private final class SingleDirectoryWatcher {
+private final class SingleDirectoryWatcher: @unchecked Sendable {
     let url: URL
     private let onChange: () -> Void
     private var fileDescriptor: Int32 = -1
@@ -73,30 +90,45 @@ private final class SingleDirectoryWatcher {
         stop()
 
         let path = url.path
-        fileDescriptor = open(path, O_EVTONLY)
-        guard fileDescriptor >= 0 else {
-            logger.warning("Failed to open directory for watching (FD limit?): \(path)")
-            return
+        // Open file descriptor on background queue to avoid blocking main thread
+        // (open() on network paths can block for seconds)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+
+            let fd = Darwin.open(path, O_EVTONLY)
+            guard fd >= 0 else {
+                logger.warning("Failed to open directory for watching (FD limit?): \(path)")
+                return
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else {
+                    Darwin.close(fd)
+                    return
+                }
+
+                self.fileDescriptor = fd
+
+                self.source = DispatchSource.makeFileSystemObjectSource(
+                    fileDescriptor: fd,
+                    eventMask: [.write, .link, .rename, .delete],
+                    queue: .main
+                )
+
+                self.source?.setEventHandler { [weak self] in
+                    self?.onChange()
+                }
+
+                self.source?.setCancelHandler { [weak self] in
+                    guard let self, self.fileDescriptor >= 0 else { return }
+                    Darwin.close(self.fileDescriptor)
+                    self.fileDescriptor = -1
+                }
+
+                self.source?.resume()
+                logger.debug("Started watching: \(path)")
+            }
         }
-
-        source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fileDescriptor,
-            eventMask: [.write, .link, .rename, .delete],
-            queue: .main
-        )
-
-        source?.setEventHandler { [weak self] in
-            self?.onChange()
-        }
-
-        source?.setCancelHandler { [weak self] in
-            guard let self, self.fileDescriptor >= 0 else { return }
-            close(self.fileDescriptor)
-            self.fileDescriptor = -1
-        }
-
-        source?.resume()
-        logger.debug("Started watching: \(path)")
     }
 
     func stop() {
@@ -104,6 +136,108 @@ private final class SingleDirectoryWatcher {
             source.cancel()
             self.source = nil
             logger.debug("Stopped watching: \(self.url.path)")
+        }
+    }
+}
+
+// MARK: - Network Directory Poller
+
+/// Entry in a directory snapshot for comparison
+struct DirectorySnapshotEntry: Equatable, Sendable {
+    let name: String
+    let modificationDate: Date?
+}
+
+/// Snapshot of directory contents for change detection
+struct DirectorySnapshot: Equatable, Sendable {
+    let entries: [DirectorySnapshotEntry]
+}
+
+/// Polls a network directory for changes on a background queue.
+/// Compares file names and modification dates to detect changes.
+/// Uses a serial queue for thread-safe snapshot comparison.
+final class NetworkDirectoryPoller: @unchecked Sendable {
+    let url: URL
+    private let onChange: @Sendable () -> Void
+    private var timer: DispatchSourceTimer?
+    private let pollQueue: DispatchQueue
+
+    private var lastSnapshot: DirectorySnapshot?
+    static let pollingInterval: TimeInterval = 2.0
+
+    init(url: URL, onChange: @escaping @Sendable () -> Void) {
+        self.url = url
+        self.onChange = onChange
+        self.pollQueue = DispatchQueue(label: "com.detours.networkpoller.\(url.lastPathComponent)", qos: .utility)
+    }
+
+    deinit {
+        stop()
+    }
+
+    func start() {
+        stop()
+
+        // Take initial snapshot on background queue to avoid blocking main thread
+        let timer = DispatchSource.makeTimerSource(queue: pollQueue)
+        pollQueue.async { [weak self] in
+            guard let self else { return }
+            self.lastSnapshot = self.takeSnapshot()
+
+            timer.schedule(
+                deadline: .now() + Self.pollingInterval,
+                repeating: Self.pollingInterval
+            )
+            timer.setEventHandler { [weak self] in
+                self?.poll()
+            }
+            self.timer = timer
+            timer.resume()
+        }
+        logger.debug("Started polling network directory: \(self.url.path)")
+    }
+
+    func stop() {
+        if let timer {
+            timer.cancel()
+            self.timer = nil
+            logger.debug("Stopped polling network directory: \(self.url.path)")
+        }
+        lastSnapshot = nil
+    }
+
+    private func poll() {
+        let newSnapshot = takeSnapshot()
+
+        guard newSnapshot != lastSnapshot else { return }
+
+        lastSnapshot = newSnapshot
+
+        let callback = onChange
+        DispatchQueue.main.async {
+            callback()
+        }
+    }
+
+    private func takeSnapshot() -> DirectorySnapshot {
+        do {
+            let contents = try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: []
+            )
+
+            let entries = contents.map { fileURL -> DirectorySnapshotEntry in
+                let modDate = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                return DirectorySnapshotEntry(
+                    name: fileURL.lastPathComponent,
+                    modificationDate: modDate
+                )
+            }.sorted { $0.name < $1.name }
+
+            return DirectorySnapshot(entries: entries)
+        } catch {
+            return DirectorySnapshot(entries: [])
         }
     }
 }
