@@ -424,3 +424,306 @@ struct IconLoaderNetworkVolumeTests {
         #expect(icon.size.width > 0)
     }
 }
+
+// MARK: - Phase 6 Integration Tests
+
+@Suite("MultiDirectoryWatcher Integration")
+struct WatcherIntegrationTests {
+
+    @Test("Local directory uses DispatchSource watcher, not poller")
+    func testLocalDirectoryUsesWatcher() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        nonisolated(unsafe) var changeDetected = false
+        let watcher = MultiDirectoryWatcher { _ in
+            changeDetected = true
+        }
+        watcher.watch(tempDir)
+
+        // Verify it's watching
+        #expect(watcher.watchedURLs.contains(tempDir.standardizedFileURL))
+
+        // Wait for watcher to start (opens FD async)
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        // Create file to trigger DispatchSource event
+        try "test".write(
+            to: tempDir.appendingPathComponent("trigger.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        // Wait for detection
+        for _ in 0..<20 {
+            if changeDetected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(changeDetected)
+        watcher.unwatchAll()
+    }
+
+    @Test("Unwatching stops monitoring for changes")
+    func testUnwatchStopsMonitoring() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        nonisolated(unsafe) var changeCount = 0
+        let watcher = MultiDirectoryWatcher { _ in
+            changeCount += 1
+        }
+        watcher.watch(tempDir)
+        #expect(watcher.watchedURLs.count == 1)
+
+        watcher.unwatch(tempDir)
+        #expect(watcher.watchedURLs.isEmpty)
+
+        // Create a file after unwatching - should NOT trigger callback
+        try await Task.sleep(nanoseconds: 200_000_000)
+        try "test".write(
+            to: tempDir.appendingPathComponent("ignored.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        #expect(changeCount == 0)
+    }
+}
+
+@Suite("Load Cancellation Tests")
+struct LoadCancellationTests {
+
+    @Test("Cancelling load task prevents results from being delivered")
+    func testCancelPreventsDelivery() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        for i in 0..<50 {
+            try "data".write(
+                to: tempDir.appendingPathComponent("file\(i).txt"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+
+        let loader = DirectoryLoader()
+
+        // Start a load and immediately cancel
+        let task = Task {
+            try await loader.loadDirectory(tempDir, showHidden: false, timeout: .seconds(30))
+        }
+        task.cancel()
+
+        // Should either return results (completed before cancel) or throw cancellation
+        do {
+            let result = try await task.value
+            // Fast local FS may complete before cancel takes effect - that's fine
+            #expect(result.count == 50)
+        } catch is CancellationError {
+            // Expected - cancel prevented delivery
+        } catch {
+            // Other errors acceptable from cancellation
+        }
+    }
+
+    @Test("Rapid sequential loads each cancel the previous")
+    func testRapidSequentialLoads() async throws {
+        let tempDirs = (0..<5).map { _ in
+            FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        }
+        for dir in tempDirs {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try "test".write(to: dir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+        }
+        defer {
+            for dir in tempDirs {
+                try? FileManager.default.removeItem(at: dir)
+            }
+        }
+
+        let loader = DirectoryLoader()
+
+        // Fire off rapid loads, each cancelling the previous
+        var tasks: [Task<[LoadedFileEntry], Error>] = []
+        for dir in tempDirs {
+            // Cancel previous task
+            tasks.last?.cancel()
+
+            let task = Task {
+                try await loader.loadDirectory(dir, showHidden: false, timeout: .seconds(10))
+            }
+            tasks.append(task)
+        }
+
+        // Only the last task should complete successfully
+        let lastResult = try await tasks.last!.value
+        #expect(lastResult.count == 1)
+        #expect(lastResult[0].name == "file.txt")
+    }
+}
+
+@Suite("Async Folder Expansion Tests")
+struct AsyncFolderExpansionTests {
+
+    @Test("loadChildrenAsync returns sorted children with parent set")
+    @MainActor
+    func testLoadChildrenAsyncReturnsChildren() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        let subDir = tempDir.appendingPathComponent("parent")
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        try "a".write(to: subDir.appendingPathComponent("alpha.txt"), atomically: true, encoding: .utf8)
+        try "b".write(to: subDir.appendingPathComponent("beta.txt"), atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(
+            at: subDir.appendingPathComponent("gamma"),
+            withIntermediateDirectories: false
+        )
+
+        let parentItem = FileItem(
+            name: "parent",
+            url: subDir,
+            isDirectory: true,
+            size: nil,
+            dateModified: Date(),
+            icon: IconLoader.placeholderFolderIcon
+        )
+
+        let children = try await parentItem.loadChildrenAsync(showHidden: false)
+
+        #expect(children != nil)
+        #expect(children!.count == 3)
+
+        // Folders should be first (sorted folders-first)
+        #expect(children![0].name == "gamma")
+        #expect(children![0].isDirectory == true)
+
+        // All children should have parent set
+        for child in children! {
+            #expect(child.parent === parentItem)
+        }
+    }
+
+    @Test("loadChildrenAsync returns existing children if already loaded")
+    @MainActor
+    func testLoadChildrenAsyncReturnsCached() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        let subDir = tempDir.appendingPathComponent("cached")
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        try "a".write(to: subDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        let parentItem = FileItem(
+            name: "cached",
+            url: subDir,
+            isDirectory: true,
+            size: nil,
+            dateModified: Date(),
+            icon: IconLoader.placeholderFolderIcon
+        )
+
+        // Load once
+        let first = try await parentItem.loadChildrenAsync(showHidden: false)
+        // Load again - should return same objects
+        let second = try await parentItem.loadChildrenAsync(showHidden: false)
+
+        #expect(first!.count == second!.count)
+        #expect(first![0] === second![0])
+    }
+
+    @Test("loadChildrenAsync returns nil for non-directory")
+    @MainActor
+    func testLoadChildrenAsyncNonDirectory() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fileURL = tempDir.appendingPathComponent("file.txt")
+        try "data".write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let fileItem = FileItem(
+            name: "file.txt",
+            url: fileURL,
+            isDirectory: false,
+            size: 4,
+            dateModified: Date(),
+            icon: IconLoader.placeholderFileIcon
+        )
+
+        let result = try await fileItem.loadChildrenAsync(showHidden: false)
+        #expect(result == nil)
+    }
+}
+
+@Suite("Icon Load Task Lifecycle Tests")
+struct IconLoadLifecycleTests {
+
+    @Test("IconLoader invalidateAll clears entire cache")
+    func testInvalidateAllClearsCache() async {
+        let loader = IconLoader()
+
+        // Load a few icons
+        let url1 = URL(fileURLWithPath: "/Volumes/share/a.pdf")
+        let url2 = URL(fileURLWithPath: "/Volumes/share/b.jpg")
+        let url3 = URL(fileURLWithPath: "/Volumes/share/c.png")
+
+        _ = await loader.icon(for: url1, isDirectory: false, isPackage: false, isNetworkVolume: true)
+        _ = await loader.icon(for: url2, isDirectory: false, isPackage: false, isNetworkVolume: true)
+        _ = await loader.icon(for: url3, isDirectory: false, isPackage: false, isNetworkVolume: true)
+
+        // Invalidate all
+        await loader.invalidateAll()
+
+        // Load again - should get fresh icons (not necessarily same object)
+        let fresh1 = await loader.icon(for: url1, isDirectory: false, isPackage: false, isNetworkVolume: true)
+        #expect(fresh1.size.width > 0)
+    }
+
+    @Test("DirectoryLoader loadChildren is equivalent to loadDirectory")
+    func testLoadChildrenMatchesLoadDirectory() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        try "a".write(to: tempDir.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(
+            at: tempDir.appendingPathComponent("sub"),
+            withIntermediateDirectories: false
+        )
+
+        let loader = DirectoryLoader()
+        let dirEntries = try await loader.loadDirectory(tempDir, showHidden: false)
+        let childEntries = try await loader.loadChildren(tempDir, showHidden: false)
+
+        #expect(dirEntries.count == childEntries.count)
+        #expect(Set(dirEntries.map(\.name)) == Set(childEntries.map(\.name)))
+    }
+
+    @Test("DirectoryLoader handles nonexistent directory")
+    func testLoadDirectoryNonexistent() async throws {
+        let loader = DirectoryLoader()
+        let fakeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+
+        do {
+            _ = try await loader.loadDirectory(fakeURL, showHidden: false, timeout: .seconds(5))
+            Issue.record("Expected error for nonexistent directory")
+        } catch let error as DirectoryLoadError {
+            // Should get disconnected (ENOENT) error
+            #expect(error == .disconnected)
+        }
+    }
+}

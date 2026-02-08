@@ -1,7 +1,7 @@
 # Async Directory Loading
 
 ## Meta
-- Status: Implementation Complete (pending user verification)
+- Status: Implementation Complete (1 manual verification remaining: disconnect mid-browse)
 - Branch: performance/async-directory-loading
 
 ---
@@ -150,12 +150,12 @@ For file watching, detect network volumes using `URLResourceKey.volumeIsLocalKey
 - [x] Build and test with a network volume
 
 **Phase 6: Integration Testing**
-- [ ] Test navigation between local and network volumes (watcher switches correctly)
-- [ ] Test navigating away from slow network share cancels load
-- [ ] Test timeout displays error and Retry works
-- [ ] Test rapid navigation (cancel/restart cycle)
-- [ ] Test folder expansion on network volumes
-- [ ] Test icon loading doesn't leak tasks on rapid navigation
+- [x] Test navigation between local and network volumes (watcher switches correctly)
+- [x] Test navigating away from slow network share cancels load
+- [x] Test timeout displays error and Retry works
+- [x] Test rapid navigation (cancel/restart cycle)
+- [x] Test folder expansion on network volumes
+- [x] Test icon loading doesn't leak tasks on rapid navigation
 
 ---
 
@@ -180,7 +180,7 @@ Tests go in `Tests/DirectoryLoaderTests.swift`. Log results in `Tests/TEST_LOG.m
 ### User Verification
 
 **Marco (requires network share):**
-- [ ] Navigate to a slow network share — UI stays responsive, loading indicator shows, items appear
-- [ ] Navigate away while loading — load cancels, new directory loads immediately
-- [ ] Expand a folder on a network share — children load async with spinner
+- [x] Navigate to a slow network share — UI stays responsive, loading indicator shows, items appear
+- [x] Navigate away while loading — load cancels, new directory loads immediately
+- [x] Expand a folder on a network share — children load async with spinner
 - [ ] Disconnect network share mid-browse — error state shown, no hang

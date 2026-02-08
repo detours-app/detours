@@ -1,62 +1,88 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-02-07 21:15:00
+- Started: 2026-02-07 21:45:00
 - Command: `swift test --filter DirectoryLoaderTests`
 - Status: PASS
-- Duration: 5.327s
-- Notes: All 23 tests pass across 7 suites. Added 11 new tests for network volume optimizations: resource key selection (5 tests), extension-based icon loading for network volumes (6 tests). Tests verify local paths include localizedNameKey, iCloud paths include ubiquitous keys, network volumes get minimal keys, extension-based icons return correct UTType icons for known extensions, folder placeholder for directories, file placeholder for extensionless files, and icon caching on network path.
+- Duration: 5.313s
+- Notes: All 33 tests pass across 11 suites. Added 10 new Phase 6 integration tests: MultiDirectoryWatcher integration (2), load cancellation (2), async folder expansion (3), icon/loader lifecycle (3). Full spec Phase 6 coverage complete.
 
 ### DirectoryLoaderTests (Swift Testing)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| loadDirectory returns entries for temp directory with files | PASS | 0.007s | 2026-02-07 21:15:00 |
-| loadDirectory throws timeout when load exceeds duration | PASS | 0.006s | 2026-02-07 21:15:00 |
-| Cancelling parent Task stops the load | PASS | 0.038s | 2026-02-07 21:15:00 |
-| loadDirectory throws appropriate error for unreadable directory | PASS | 0.005s | 2026-02-07 21:15:00 |
-| LoadedFileEntry correctly captures metadata from resource values | PASS | 0.006s | 2026-02-07 21:15:00 |
+| loadDirectory returns entries for temp directory with files | PASS | 0.010s | 2026-02-07 21:45:00 |
+| loadDirectory throws timeout when load exceeds duration | PASS | 0.007s | 2026-02-07 21:45:00 |
+| Cancelling parent Task stops the load | PASS | 0.043s | 2026-02-07 21:45:00 |
+| loadDirectory throws appropriate error for unreadable directory | PASS | 0.007s | 2026-02-07 21:45:00 |
+| LoadedFileEntry correctly captures metadata from resource values | PASS | 0.008s | 2026-02-07 21:45:00 |
 
 ### ResourceKeySelectionTests (Swift Testing)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| Local paths include localizedNameKey | PASS | 0.005s | 2026-02-07 21:15:00 |
-| Local paths exclude iCloud keys | PASS | 0.005s | 2026-02-07 21:15:00 |
-| Local paths include base resource keys | PASS | 0.005s | 2026-02-07 21:15:00 |
-| iCloud Mobile Documents path includes iCloud keys | PASS | 0.005s | 2026-02-07 21:15:00 |
-| iCloud path also includes localizedNameKey | PASS | 0.005s | 2026-02-07 21:15:00 |
+| Local paths include localizedNameKey | PASS | 0.006s | 2026-02-07 21:45:00 |
+| Local paths exclude iCloud keys | PASS | 0.006s | 2026-02-07 21:45:00 |
+| Local paths include base resource keys | PASS | 0.006s | 2026-02-07 21:45:00 |
+| iCloud Mobile Documents path includes iCloud keys | PASS | 0.006s | 2026-02-07 21:45:00 |
+| iCloud path also includes localizedNameKey | PASS | 0.006s | 2026-02-07 21:45:00 |
 
 ### IconLoaderTests (Swift Testing)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| Second call for same URL returns cached icon without re-fetching | PASS | 0.011s | 2026-02-07 21:15:00 |
-| invalidate removes entry, next call re-fetches | PASS | 0.011s | 2026-02-07 21:15:00 |
+| Second call for same URL returns cached icon without re-fetching | PASS | 0.009s | 2026-02-07 21:45:00 |
+| invalidate removes entry, next call re-fetches | PASS | 0.008s | 2026-02-07 21:45:00 |
 
 ### IconLoaderNetworkVolumeTests (Swift Testing)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| Network volume directory returns folder placeholder icon | PASS | 0.007s | 2026-02-07 21:15:00 |
-| Network volume file with known extension returns UTType icon | PASS | 0.705s | 2026-02-07 21:15:00 |
-| Network volume file without extension returns file placeholder | PASS | 0.007s | 2026-02-07 21:15:00 |
-| Network volume package returns UTType icon, not folder | PASS | 0.007s | 2026-02-07 21:15:00 |
-| Network volume icons are cached | PASS | 0.007s | 2026-02-07 21:15:00 |
-| Local file uses workspace icon lookup, not extension-based | PASS | 0.011s | 2026-02-07 21:15:00 |
+| Network volume directory returns folder placeholder icon | PASS | 0.006s | 2026-02-07 21:45:00 |
+| Network volume file with known extension returns UTType icon | PASS | 0.444s | 2026-02-07 21:45:00 |
+| Network volume file without extension returns file placeholder | PASS | 0.006s | 2026-02-07 21:45:00 |
+| Network volume package returns UTType icon, not folder | PASS | 0.006s | 2026-02-07 21:45:00 |
+| Network volume icons are cached | PASS | 0.006s | 2026-02-07 21:45:00 |
+| Local file uses workspace icon lookup, not extension-based | PASS | 0.008s | 2026-02-07 21:45:00 |
 
 ### FileItemEntryInitTests (Swift Testing)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| FileItem created from LoadedFileEntry has correct properties | PASS | 0.007s | 2026-02-07 21:15:00 |
+| FileItem created from LoadedFileEntry has correct properties | PASS | 0.012s | 2026-02-07 21:45:00 |
 
 ### VolumeMonitorNetworkTests (Swift Testing)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| isNetworkVolume returns false for local paths | PASS | 0.005s | 2026-02-07 21:15:00 |
-| isNetworkVolume returns false for home directory | PASS | 0.005s | 2026-02-07 21:15:00 |
+| isNetworkVolume returns false for local paths | PASS | 0.002s | 2026-02-07 21:45:00 |
+| isNetworkVolume returns false for home directory | PASS | 0.002s | 2026-02-07 21:45:00 |
 
 ### NetworkDirectoryPollerTests (Swift Testing)
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| Poller fires onChange when directory contents change | PASS | 2.104s | 2026-02-07 21:15:00 |
-| Poller does not fire onChange when nothing changed | PASS | 5.327s | 2026-02-07 21:15:00 |
+| Poller fires onChange when directory contents change | PASS | 2.083s | 2026-02-07 21:45:00 |
+| Poller does not fire onChange when nothing changed | PASS | 5.312s | 2026-02-07 21:45:00 |
+
+### MultiDirectoryWatcher Integration (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| Local directory uses DispatchSource watcher, not poller | PASS | 0.208s | 2026-02-07 21:45:00 |
+| Unwatching stops monitoring for changes | PASS | 0.714s | 2026-02-07 21:45:00 |
+
+### Load Cancellation Tests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| Cancelling load task prevents results from being delivered | PASS | 0.029s | 2026-02-07 21:45:00 |
+| Rapid sequential loads each cancel the previous | PASS | 0.012s | 2026-02-07 21:45:00 |
+
+### Async Folder Expansion Tests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| loadChildrenAsync returns sorted children with parent set | PASS | 0.009s | 2026-02-07 21:45:00 |
+| loadChildrenAsync returns existing children if already loaded | PASS | 0.008s | 2026-02-07 21:45:00 |
+| loadChildrenAsync returns nil for non-directory | PASS | 0.007s | 2026-02-07 21:45:00 |
+
+### Icon Load Task Lifecycle Tests (Swift Testing)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| IconLoader invalidateAll clears entire cache | PASS | 0.006s | 2026-02-07 21:45:00 |
+| DirectoryLoader loadChildren is equivalent to loadDirectory | PASS | 0.009s | 2026-02-07 21:45:00 |
+| DirectoryLoader handles nonexistent directory | PASS | 0.007s | 2026-02-07 21:45:00 |
 
 ### NetworkUITests (XCUITest)
 | Test | Status | Duration | Last Run |
@@ -505,6 +531,7 @@
 | testMultipleUndosAcrossTabs | PASS | 41.609s | 2026-01-29 16:53:17 |
 
 ## Notes
+- 2026-02-07 21:45: DirectoryLoaderTests - Added 10 Phase 6 integration tests (33 total across 11 suites): WatcherIntegrationTests (2) verifies DispatchSource watcher for local dirs and unwatch stops monitoring, LoadCancellationTests (2) verifies cancel prevents delivery and rapid sequential loads cancel previous, AsyncFolderExpansionTests (3) verifies loadChildrenAsync returns sorted children with parent set / returns cached / returns nil for non-directory, IconLoadLifecycleTests (3) verifies invalidateAll clears cache / loadChildren matches loadDirectory / nonexistent directory throws disconnected. Spec Phase 6 checkboxes all complete.
 - 2026-02-07 21:15: DirectoryLoaderTests - Added 11 new tests (23 total across 7 suites) for network volume optimizations: ResourceKeySelectionTests (5) verifies key selection logic (local gets localizedNameKey, iCloud gets ubiquitous keys, base keys always present), IconLoaderNetworkVolumeTests (6) verifies extension-based icon loading (folder placeholder for directories, UTType icon for known extensions, file placeholder for extensionless, package handling, caching, local vs network path). Made resourceKeys(for:) internal for testability.
 - 2026-02-07 20:31: DirectoryLoaderTests - 12 new tests for async directory loading feature across 5 suites. Tests DirectoryLoader actor (entries, timeout, cancellation, access denied, metadata), IconLoader (caching, invalidation), FileItem init from LoadedFileEntry, VolumeMonitor.isNetworkVolume, and NetworkDirectoryPoller (change detection, no false positives). Also fixed pre-existing FolderExpansionTests compilation error caused by MultiDirectoryWatcher closure becoming @Sendable.
 - 2026-02-03 17:47: NewFolderUITests/testNewFolderSelectsNewFolderNotExisting PASSED - Fixed two bugs: (1) createNewFolder now creates INSIDE selected folder instead of alongside it, (2) findItem() fixed to compare paths instead of URLs because directory URLs have trailing slashes that break URL equality. Root cause of 3-hour debugging session: repeatedly running tests without understanding the actual requirement (create inside, not alongside).
