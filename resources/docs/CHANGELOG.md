@@ -1,95 +1,63 @@
 # Changelog
 
-## 260207
+## 0.12.0 (260208)
+
+### Network Shares
+
+Network volumes are now first-class citizens. Browse NAS drives, connect to SMB/AFP servers, and work with remote files without the UI locking up.
+
+- Sidebar shows network volumes grouped under their parent server in a dedicated NETWORK section
+- Bonjour auto-discovery finds servers on the local network; manual Connect to Share (Cmd-K) for everything else
+- Eject button on servers disconnects all mounted volumes; right-click individual shares to eject one at a time
+- Offline servers shown dimmed with badge when network drops but volumes remain mounted
+- Distinct teal icon for network shares so they're visually separate from local drives
 
 ### Async Directory Loading
-- Added: DirectoryLoader actor for non-blocking directory enumeration with configurable timeout
-- Added: IconLoader actor with background icon loading and in-memory cache
-- Added: Loading spinner overlay while directory contents load
-- Added: Error overlay with Retry button for timeout, access denied, and disconnected states
-- Added: NetworkDirectoryPoller for change detection on network volumes (2-second polling interval)
-- Added: VolumeMonitor.isNetworkVolume() for detecting network paths
-- Changed: Directory loading is now fully asynchronous (UI stays responsive during slow network shares)
-- Changed: File icons load progressively in background after directory listing appears
-- Changed: Folder expansion on network volumes loads children asynchronously with spinner
-- Changed: MultiDirectoryWatcher automatically uses polling for network volumes instead of DispatchSource
-- Changed: Navigation cancels any in-progress directory load before starting a new one
 
-### Network Volume Performance Optimizations
-- Fixed: iCloud URLResourceKeys no longer requested for network volumes (was causing 30s+ enumeration times)
-- Fixed: FrecencyStore.recordVisit() no longer blocks main thread with fileExists check on network paths
-- Added: Extension-based icon loading for network volumes (UTType lookup, zero network I/O)
-- Added: Visible-first icon loading prioritizes on-screen rows before loading off-screen icons
-- Changed: localizedNameKey excluded from resource keys for network volumes (falls back to lastPathComponent)
-- Added: 23 unit tests for DirectoryLoader, IconLoader, resource key selection, and network icon loading
+Opening a folder on a slow network share no longer freezes the app. Directory enumeration, icon loading, and change detection all happen off the main thread.
 
-## 260204
+- Loading spinner while directories enumerate; error overlay with Retry on timeout or disconnect
+- File icons load progressively in the background, prioritizing visible rows first
+- Folder expansion inside network volumes loads children asynchronously with inline spinner
+- Network-aware resource keys avoid expensive iCloud metadata lookups that were causing 30s+ hangs
+- Polling-based change detection for network volumes (FSEvents doesn't work on remote mounts)
 
-### Rename Field Indentation Fix
-- Fixed: Inline rename/new folder text field now aligns correctly at all nesting depths in expanded view
-- Fixed: Text field no longer overlaps disclosure triangle (caret) for nested items
-- Fixed: Text field vertical and horizontal positioning matches name label exactly (no shift on rename)
-- Fixed: Sendable concurrency warning in KeychainCredentialStore
+### Undo & Redo (Cmd-Z / Cmd-Shift-Z)
 
-## 0.11.0 (260203)
+Full undo/redo for file operations, scoped per tab so each tab has its own independent history.
 
-### Network Volume Support
+- Undo delete, copy, move, duplicate, and new folder/file creation
+- Edit menu shows the operation name ("Undo Delete", "Undo Move", etc.)
+- Conflict-safe restore with unique naming if a file already exists at the original location
+- Delete Immediately remains intentionally non-undoable
 
-#### Network Volume Improvements
-- Added: Eject button on servers with mounted volumes (ejects all volumes from that server)
-- Added: Right-click context menu "Eject" option for servers
-- Added: Right-click "Connect to Share..." to mount additional shares on already-connected servers
-- Added: Click on server row to expand/collapse (no disclosure triangle)
-- Changed: Removed disclosure triangle from sidebar for cleaner appearance
-- Changed: Network shares now use distinct teal icon to differentiate from local volumes
-- Changed: Network volume eject now uses diskutil with auto force fallback for busy volumes
-- Changed: Subtle 8px indent for shares under servers (per Apple HIG sidebar guidance)
-- Fixed: Permission denied errors now show appropriate message for network vs local volumes
-- Fixed: Eject button layout and constraint issues in sidebar
+### Filter-in-Place
 
-### 260202
+Press `/` or Cmd-F to filter the current file list without leaving the directory.
 
-#### Hierarchical Network Volumes
-- Changed: Network volumes now appear under their parent server in NETWORK section instead of flat DEVICES list
-- Added: DEVICES section shows only local volumes (internal drives, USB, etc.)
-- Added: Servers with mounted volumes auto-expand to show nested volumes
-- Added: Synthetic servers for volumes mounted via manual URL (Cmd+K) without Bonjour discovery
-- Added: Offline server tracking - dimmed appearance with "offline" badge when server goes offline but volumes remain mounted
-- Fixed: Duplicate server entries when volume host differs from Bonjour name
+- Case-insensitive substring matching filters in real-time as you type
+- Auto-expands folders to reveal matching nested files
+- Match count shows visible items (e.g., "12 of 347")
+- Escape clears filter text; second press closes the filter bar
 
-#### Sidebar Drop-to-Favorite Fix
-- Fixed: Dragging files onto a sidebar favorite now copies/moves them to that folder instead of adding as a new favorite
-- Added: Hold Option while dropping to copy instead of move (matches file list behavior)
+### Session Auto-Save
 
----
+Session state now saves continuously instead of only on quit, protecting against data loss from crashes.
 
-### 260129
+- Tabs, selections, navigation history, and expansion state survive unexpected termination
+- Saves trigger on tab/navigation/pane changes with 2-second debounce
 
-#### Operation Undo (Cmd-Z)
-- Added: Undo support for file operations - delete, copy, move, duplicate, create folder/file
-- Added: Tab-scoped undo stacks - each tab has its own undo history
-- Added: Edit menu shows operation name ("Undo Delete", "Undo Copy", etc.)
-- Added: Redo support (Cmd-Shift-Z) for all undone operations
-- Added: Conflict handling on restore - uses unique naming if file exists at original location
-- Added: Graceful error handling if undo fails (e.g., trash emptied)
-- Changed: Delete Immediately remains non-undoable (intentionally destructive)
+### Bug Fixes
 
-### 260128
-
-#### Session Auto-Save
-- Added: Automatic session state persistence instead of only saving on quit
-- Added: Protects against data loss from crashes - tabs, selections, navigation, and expansion state survive unexpected termination
-- Added: Saves trigger on tab create/close/reorder, tab selection, navigation (navigate/back/forward/up), cross-pane tab moves
-- Added: 2-second debounce coalesces rapid changes to avoid excessive disk writes
-
-#### Bug Fixes
-- Fixed: Crash when dropping PDF pages due to MainActor isolation issue in file promise callback
-- Fixed: Tab clicks now activate the containing pane for consistent focus behavior
-
-#### Known Limitations
-- Copy/paste to Messages shows generic filename (drag and drop works correctly)
-
----
+- Fixed: Crash when dropping PDF pages (MainActor isolation issue in file promise callback)
+- Fixed: Inline rename text field misaligned at deep nesting levels in expanded view
+- Fixed: New folder/file creation failed inside selected folders in expanded view
+- Fixed: Selection not restored when canceling new folder/file creation
+- Fixed: Drag-and-drop target outline stuck after dragging out of view
+- Fixed: Sidebar drop onto favorites was adding a favorite instead of moving/copying files
+- Fixed: Click-through now works when clicking into an inactive window
+- Fixed: Tab clicks now activate the containing pane
+- Fixed: Stuck focus ring on outline view
 
 ## 0.9.3 (260127)
 
