@@ -35,6 +35,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     let renameController = RenameController()
     private var directoryWatcher: MultiDirectoryWatcher?
     private var directoryChangeDebounce: DispatchWorkItem?
+    /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
+    private var pendingPostLoadAction: (() -> Void)?
     private var selectionAnchor: Int?
     private var selectionCursor: Int?
     /// Tracks whether folder expansion was enabled before the last settings change
@@ -429,6 +431,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
                 self.startWatching(url)
                 self.navigationDelegate?.fileListDidLoadDirectory()
+
+                // Run one-shot post-load action (e.g. select + rename newly created item)
+                let action = self.pendingPostLoadAction
+                self.pendingPostLoadAction = nil
+                action?()
 
             case .failure(let error):
                 self.showErrorOverlay(for: error)
@@ -862,19 +869,21 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 directoryChangeDebounce?.cancel()
                 directoryChangeDebounce = nil
 
-                // Reload directory, then select the new folder using selectItem
-                // which correctly handles expanded folders via tableView.row(forItem:)
-                loadDirectory(currentDirectory, preserveExpansion: true)
-
-                // If we created inside a folder, expand it so the new folder is visible
-                if destination != currentDirectory {
-                    if let parentItem = dataSource.findItem(withURL: destination, in: dataSource.items) {
-                        tableView.expandItem(parentItem)
+                // Schedule post-load action to select and rename the new folder
+                // (loadDirectory is async, so we can't do this synchronously after)
+                pendingPostLoadAction = { [weak self] in
+                    guard let self else { return }
+                    // If we created inside a subfolder, expand it so the new folder is visible
+                    if destination != currentDirectory {
+                        if let parentItem = self.dataSource.findItem(withURL: destination, in: self.dataSource.items) {
+                            self.tableView.expandItem(parentItem)
+                        }
                     }
+                    self.selectItem(at: newFolder)
+                    self.renameSelection(isNewItem: true)
                 }
 
-                selectItem(at: newFolder)
-                renameSelection(isNewItem: true)
+                loadDirectory(currentDirectory, preserveExpansion: true)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -912,19 +921,19 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 directoryChangeDebounce?.cancel()
                 directoryChangeDebounce = nil
 
-                // Reload directory, then select the new file using selectItem
-                // which correctly handles expanded folders via tableView.row(forItem:)
-                loadDirectory(currentDirectory, preserveExpansion: true)
-
-                // If we created inside a folder, expand it so the new file is visible
-                if destination != currentDirectory {
-                    if let parentItem = dataSource.findItem(withURL: destination, in: dataSource.items) {
-                        tableView.expandItem(parentItem)
+                // Schedule post-load action to select and rename the new file
+                pendingPostLoadAction = { [weak self] in
+                    guard let self else { return }
+                    if destination != currentDirectory {
+                        if let parentItem = self.dataSource.findItem(withURL: destination, in: self.dataSource.items) {
+                            self.tableView.expandItem(parentItem)
+                        }
                     }
+                    self.selectItem(at: newFile)
+                    self.renameSelection(isNewItem: true)
                 }
 
-                selectItem(at: newFile)
-                renameSelection(isNewItem: true)
+                loadDirectory(currentDirectory, preserveExpansion: true)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -953,8 +962,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             Task { @MainActor in
                 do {
                     let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: fileName, undoManager: self.undoManager)
+                    self.pendingPostLoadAction = { [weak self] in
+                        self?.selectItem(at: newFile)
+                    }
                     self.loadDirectory(currentDirectory, preserveExpansion: true)
-                    self.selectItem(at: newFile)
                 } catch {
                     FileOperationQueue.shared.presentError(error)
                 }
@@ -1812,8 +1823,10 @@ extension FileListViewController: RenameControllerDelegate {
         guard let currentDirectory else { return }
         selectionBeforeNewItem = nil
         dataSource.invalidateGitStatus()
+        pendingPostLoadAction = { [weak self] in
+            self?.selectItem(at: newURL)
+        }
         loadDirectory(currentDirectory, preserveExpansion: true)
-        selectItem(at: newURL)
     }
 
     func renameControllerDidCancelNewItem(_ controller: RenameController, item: FileItem) {

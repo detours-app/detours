@@ -918,6 +918,8 @@ extension MainSplitViewController: SidebarDelegate {
             let mountPoint = try await NetworkMounter.shared.mount(url: url)
             navigateActivePane(to: mountPoint)
             view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
+        } catch NetworkMountError.cancelled {
+            logger.info("User cancelled mount for \(url.absoluteString)")
         } catch NetworkMountError.authenticationFailed {
             // Need credentials - show auth dialog
             guard let window = view.window else { return }
@@ -1009,6 +1011,8 @@ extension MainSplitViewController: SidebarDelegate {
             )
             navigateActivePane(to: mountPoint)
             view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
+        } catch NetworkMountError.cancelled {
+            logger.info("User cancelled mount for \(server.name)")
         } catch NetworkMountError.authenticationFailed {
             // Need credentials - show auth dialog
             await promptForCredentialsAndMount(server: server, window: window)

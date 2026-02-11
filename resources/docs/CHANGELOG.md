@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Click empty space in file list to deselect all items, matching Finder behavior
+- New folder/file creation reliably selects and begins rename after directory loads
+- Cancelling "Connect to Share" no longer shows an error dialog
+
 ## 0.12.0 (260208)
 
 ### Network Shares

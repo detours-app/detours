@@ -114,12 +114,10 @@ final class BandedOutlineView: NSOutlineView {
         let clickedRow = row(at: point)
         let windowWasKey = window?.isKeyWindow ?? false
 
-        // Clicking empty space deselects when multiple items are selected
-        // Single selection is preserved (common dual-pane behavior)
+        // Clicking empty space deselects all items (matches Finder behavior)
+        // This ensures "New Folder" targets the current directory, not a selected folder
         if clickedRow < 0 {
-            if selectedRowIndexes.count > 1 {
-                deselectAll(nil)
-            }
+            deselectAll(nil)
             window?.makeFirstResponder(self)
             onActivate?()
             return
