@@ -835,53 +835,88 @@ final class FileOperationQueue {
             }
         }
 
-        // Extract directly into the parent directory of the archive.
-        // The archive's internal structure already provides folder organization.
+        // Extract into the parent directory of the archive.
+        // If the archive contains multiple top-level items, create a wrapper folder
+        // to keep things organized. Single top-level items extract directly.
         let parentDir = archive.deletingLastPathComponent()
         let fileManager = FileManager.default
 
-        // Check for conflicts before extracting
         let topLevelEntries = await listArchiveTopLevelEntries(
             archive: archive, format: format, password: password
         )
         let archiveName = archive.lastPathComponent
-        let conflictingItems = topLevelEntries.filter { entry in
-            entry != archiveName
-                && fileManager.fileExists(atPath: parentDir.appendingPathComponent(entry).path)
-        }
+        let needsWrapperFolder = topLevelEntries.count > 1
 
+        var extractionDir: URL
         var extractToTemp = false
-        if !conflictingItems.isEmpty {
-            let choice = await resolveExtractConflict(
-                conflictingItems: conflictingItems.sorted(),
-                destination: parentDir
-            )
-            switch choice {
-            case .replace:
-                for item in conflictingItems {
-                    let itemURL = parentDir.appendingPathComponent(item)
-                    try fileManager.trashItem(at: itemURL, resultingItemURL: nil)
+
+        if needsWrapperFolder {
+            // Multiple top-level items — create a wrapper folder named after the archive
+            var wrapperName = archive.deletingPathExtension().lastPathComponent
+            if wrapperName.hasSuffix(".tar") {
+                wrapperName = String(wrapperName.dropLast(4))
+            }
+            let wrapperURL = parentDir.appendingPathComponent(wrapperName)
+
+            if fileManager.fileExists(atPath: wrapperURL.path) {
+                let choice = await resolveExtractConflict(
+                    conflictingItems: [wrapperName],
+                    destination: parentDir
+                )
+                switch choice {
+                case .replace:
+                    try fileManager.trashItem(at: wrapperURL, resultingItemURL: nil)
+                    try fileManager.createDirectory(at: wrapperURL, withIntermediateDirectories: true)
+                    extractionDir = wrapperURL
+                case .keepBoth:
+                    let uniqueURL = uniqueCopyDestination(for: wrapperURL, in: parentDir)
+                    try fileManager.createDirectory(at: uniqueURL, withIntermediateDirectories: true)
+                    extractionDir = uniqueURL
+                case .stop:
+                    throw FileOperationError.cancelled
                 }
-            case .keepBoth:
-                extractToTemp = true
-            case .stop:
-                throw FileOperationError.cancelled
+            } else {
+                try fileManager.createDirectory(at: wrapperURL, withIntermediateDirectories: true)
+                extractionDir = wrapperURL
+            }
+        } else {
+            // Single top-level item — extract directly into parent
+            let conflictingItems = topLevelEntries.filter { entry in
+                entry != archiveName
+                    && fileManager.fileExists(atPath: parentDir.appendingPathComponent(entry).path)
+            }
+
+            if !conflictingItems.isEmpty {
+                let choice = await resolveExtractConflict(
+                    conflictingItems: conflictingItems.sorted(),
+                    destination: parentDir
+                )
+                switch choice {
+                case .replace:
+                    for item in conflictingItems {
+                        let itemURL = parentDir.appendingPathComponent(item)
+                        try fileManager.trashItem(at: itemURL, resultingItemURL: nil)
+                    }
+                case .keepBoth:
+                    extractToTemp = true
+                case .stop:
+                    throw FileOperationError.cancelled
+                }
+            }
+
+            if extractToTemp {
+                extractionDir = parentDir.appendingPathComponent(
+                    ".detours-extract-\(UUID().uuidString)"
+                )
+                try fileManager.createDirectory(
+                    at: extractionDir, withIntermediateDirectories: true
+                )
+            } else {
+                extractionDir = parentDir
             }
         }
 
         try checkCancelled()
-
-        let extractionDir: URL
-        if extractToTemp {
-            extractionDir = parentDir.appendingPathComponent(
-                ".detours-extract-\(UUID().uuidString)"
-            )
-            try fileManager.createDirectory(
-                at: extractionDir, withIntermediateDirectories: true
-            )
-        } else {
-            extractionDir = parentDir
-        }
 
         // Snapshot directory contents before extraction to detect what was created
         let contentsBefore = Set(
@@ -898,7 +933,7 @@ final class FileOperationQueue {
                 try await extractTar(archive: archive, destination: extractionDir)
             }
         } catch {
-            if extractToTemp {
+            if needsWrapperFolder || extractToTemp {
                 try? fileManager.removeItem(at: extractionDir)
             }
             throw error
@@ -911,7 +946,10 @@ final class FileOperationQueue {
         let newItems = contentsAfter.subtracting(contentsBefore)
 
         let resultURL: URL
-        if extractToTemp {
+        if needsWrapperFolder {
+            // The wrapper folder itself is the result
+            resultURL = extractionDir
+        } else if extractToTemp {
             var movedItems: [URL] = []
             do {
                 for item in newItems {
