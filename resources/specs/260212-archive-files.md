@@ -199,11 +199,11 @@ Visual inspection and functional verification:
 - [x] Default name matches selection context
 - [x] Format picker shows all 5 formats with clear descriptions
 - [x] Password field only enabled for ZIP and 7Z
-- [ ] Dialog fonts match app theme size
-- [ ] Created archive selected after completion
-- [ ] Extract Here works from File menu with Cmd-Shift-E
-- [ ] Extract Here works from right-click context menu
-- [ ] Extract creates subfolder named after archive
-- [ ] Password prompt appears for encrypted archives
-- [ ] Extracted folder selected after completion
-- [ ] Extract menu only enabled when archive file is selected
+- [x] Dialog fonts match app theme size
+- [x] Created archive selected after completion
+- [x] Extract Here works from File menu with Cmd-Shift-E
+- [x] Extract Here works from right-click context menu
+- [x] Extract creates subfolder named after archive
+- [x] Password prompt appears for encrypted archives
+- [x] Extracted folder selected after completion
+- [x] Extract menu only enabled when archive file is selected
