@@ -322,6 +322,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
+        } else if CompressionTools.isExtractable(item.url) {
+            tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            extractSelectedArchive()
         } else {
             FileOpenHelper.open(item.url)
         }

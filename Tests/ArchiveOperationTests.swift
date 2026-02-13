@@ -197,7 +197,7 @@ final class ArchiveOperationTests: XCTestCase {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
-        // Create a zip first
+        // Create a file, archive it, then delete the original
         try createTestFile(in: temp, name: "readme.txt", content: "Read me")
         let file = temp.appendingPathComponent("readme.txt")
         let archive = try await FileOperationQueue.shared.archive(
@@ -206,17 +206,16 @@ final class ArchiveOperationTests: XCTestCase {
             archiveName: "readme",
             password: nil
         )
+        try FileManager.default.removeItem(at: file)
 
-        // Extract it
+        // Extract — should put readme.txt directly in temp/
         let extracted = try await FileOperationQueue.shared.extract(archive: archive)
 
+        // The single new item should be readme.txt
+        XCTAssertEqual(extracted.lastPathComponent, "readme.txt")
         XCTAssertTrue(FileManager.default.fileExists(atPath: extracted.path))
-        XCTAssertEqual(extracted.lastPathComponent, "readme")
 
-        let extractedFile = extracted.appendingPathComponent("readme.txt")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: extractedFile.path))
-
-        let content = try String(contentsOf: extractedFile, encoding: .utf8)
+        let content = try String(contentsOf: extracted, encoding: .utf8)
         XCTAssertEqual(content, "Read me")
     }
 
@@ -224,7 +223,7 @@ final class ArchiveOperationTests: XCTestCase {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
-        // Create a tar.gz first
+        // Create a folder, archive it, then delete the original
         let folder = try createTestFolder(in: temp, name: "project")
         try createTestFile(in: folder, name: "main.swift", content: "import Foundation")
 
@@ -234,14 +233,15 @@ final class ArchiveOperationTests: XCTestCase {
             archiveName: "project",
             password: nil
         )
+        try FileManager.default.removeItem(at: folder)
 
-        // Extract it
+        // Extract — should recreate project/ directly in temp/
         let extracted = try await FileOperationQueue.shared.extract(archive: archive)
 
+        XCTAssertEqual(extracted.lastPathComponent, "project")
         XCTAssertTrue(FileManager.default.fileExists(atPath: extracted.path))
-        XCTAssertEqual(extracted.lastPathComponent, "project 2") // "project" folder already exists
 
-        let extractedFile = extracted.appendingPathComponent("project/main.swift")
+        let extractedFile = extracted.appendingPathComponent("main.swift")
         XCTAssertTrue(FileManager.default.fileExists(atPath: extractedFile.path))
     }
 
@@ -249,7 +249,7 @@ final class ArchiveOperationTests: XCTestCase {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
-        // Create encrypted zip
+        // Create encrypted zip, then delete original
         try createTestFile(in: temp, name: "private.txt", content: "Top secret")
         let file = temp.appendingPathComponent("private.txt")
         let archive = try await FileOperationQueue.shared.archive(
@@ -258,23 +258,24 @@ final class ArchiveOperationTests: XCTestCase {
             archiveName: "private",
             password: "mypass"
         )
+        try FileManager.default.removeItem(at: file)
 
         // Extract with correct password
         let extracted = try await FileOperationQueue.shared.extract(archive: archive, password: "mypass")
 
+        XCTAssertEqual(extracted.lastPathComponent, "private.txt")
         XCTAssertTrue(FileManager.default.fileExists(atPath: extracted.path))
-        let extractedFile = extracted.appendingPathComponent("private.txt")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: extractedFile.path))
 
-        let content = try String(contentsOf: extractedFile, encoding: .utf8)
+        let content = try String(contentsOf: extracted, encoding: .utf8)
         XCTAssertEqual(content, "Top secret")
     }
 
-    func testExtractDestinationCollision() async throws {
+    func testExtractOverwritesExisting() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
-        try createTestFile(in: temp, name: "data.txt", content: "Data")
+        // Create a file with old content and archive it
+        try createTestFile(in: temp, name: "data.txt", content: "New content")
         let file = temp.appendingPathComponent("data.txt")
         let archive = try await FileOperationQueue.shared.archive(
             items: [file],
@@ -283,13 +284,14 @@ final class ArchiveOperationTests: XCTestCase {
             password: nil
         )
 
-        // Extract once
-        let first = try await FileOperationQueue.shared.extract(archive: archive)
-        XCTAssertEqual(first.lastPathComponent, "data")
+        // Overwrite original with different content
+        try Data("Old content".utf8).write(to: file)
 
-        // Extract again — should get " 2" suffix
-        let second = try await FileOperationQueue.shared.extract(archive: archive)
-        XCTAssertEqual(second.lastPathComponent, "data 2")
+        // Extract — should overwrite the existing file
+        _ = try await FileOperationQueue.shared.extract(archive: archive)
+
+        let content = try String(contentsOf: file, encoding: .utf8)
+        XCTAssertEqual(content, "New content")
     }
 
     // MARK: - Dialog Model

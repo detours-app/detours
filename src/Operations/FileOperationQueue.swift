@@ -17,6 +17,7 @@ final class FileOperationQueue {
     private var isRunning = false
     private var isCancelled = false
     private var progressWindow: ProgressWindowController?
+    private var progressDelayTask: DispatchWorkItem?
 
     // MARK: - Public API
 
@@ -834,32 +835,37 @@ final class FileOperationQueue {
             }
         }
 
-        // Determine destination: subfolder named after archive (without extension)
+        // Extract directly into the parent directory of the archive.
+        // The archive's internal structure already provides folder organization.
         let parentDir = archive.deletingLastPathComponent()
-        let baseName = extractionBaseName(from: archive, format: format)
-        let destinationDir = uniqueExtractDestination(in: parentDir, baseName: baseName)
 
-        try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true, attributes: nil)
+        // Snapshot directory contents before extraction to detect what was created
+        let contentsBefore = Set((try? FileManager.default.contentsOfDirectory(atPath: parentDir.path)) ?? [])
 
         try checkCancelled()
 
-        do {
-            switch format {
-            case .zip:
-                try await extractZip(archive: archive, destination: destinationDir, password: password)
-            case .sevenZ:
-                try await extractSevenZip(archive: archive, destination: destinationDir, password: password)
-            case .tarGz, .tarBz2, .tarXz:
-                try await extractTar(archive: archive, destination: destinationDir)
-            }
-        } catch {
-            // Clean up destination on failure
-            try? FileManager.default.removeItem(at: destinationDir)
-            throw error
+        switch format {
+        case .zip:
+            try await extractZip(archive: archive, destination: parentDir, password: password)
+        case .sevenZ:
+            try await extractSevenZip(archive: archive, destination: parentDir, password: password)
+        case .tarGz, .tarBz2, .tarXz:
+            try await extractTar(archive: archive, destination: parentDir)
         }
 
-        updateProgress(operation: operation, currentItem: destinationDir, completed: 1, total: 1)
-        return destinationDir
+        // Detect what was extracted by diffing directory contents
+        let contentsAfter = Set((try? FileManager.default.contentsOfDirectory(atPath: parentDir.path)) ?? [])
+        let newItems = contentsAfter.subtracting(contentsBefore)
+
+        let resultURL: URL
+        if newItems.count == 1, let newItem = newItems.first {
+            resultURL = parentDir.appendingPathComponent(newItem)
+        } else {
+            resultURL = parentDir
+        }
+
+        updateProgress(operation: operation, currentItem: resultURL, completed: 1, total: 1)
+        return resultURL
     }
 
     private func extractZip(archive: URL, destination: URL, password: String?) async throws {
@@ -954,29 +960,6 @@ final class FileOperationQueue {
         return false
     }
 
-    private func extractionBaseName(from archive: URL, format: ArchiveFormat) -> String {
-        let name = archive.lastPathComponent
-        let ext = "." + format.fileExtension
-        if name.lowercased().hasSuffix(ext.lowercased()) {
-            return String(name.dropLast(ext.count))
-        }
-        // Handle short aliases like .tgz, .tbz2, .txz
-        return archive.deletingPathExtension().lastPathComponent
-    }
-
-    private func uniqueExtractDestination(in directory: URL, baseName: String) -> URL {
-        let fileManager = FileManager.default
-        var attempt = 1
-        while true {
-            let name = attempt == 1 ? baseName : "\(baseName) \(attempt)"
-            let candidate = directory.appendingPathComponent(name)
-            if !fileManager.fileExists(atPath: candidate.path) {
-                return candidate
-            }
-            attempt += 1
-        }
-    }
-
     // MARK: - Progress
 
     private func startOperation(_ operation: FileOperation, totalCount: Int) {
@@ -1004,7 +987,7 @@ final class FileOperationQueue {
         }
 
         if shouldShowProgress {
-            showProgress(progress)
+            scheduleProgress(progress)
         }
     }
 
@@ -1023,13 +1006,25 @@ final class FileOperationQueue {
 
     private func finishOperation() {
         currentOperation = nil
+        progressDelayTask?.cancel()
+        progressDelayTask = nil
         progressWindow?.dismiss()
         progressWindow = nil
     }
 
-    private func showProgress(_ progress: FileOperationProgress) {
-        // Skip showing progress window during tests (no UI)
+    private func scheduleProgress(_ progress: FileOperationProgress) {
         guard !isRunningTests else { return }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            guard self.currentOperation != nil else { return }
+            self.showProgress(progress)
+        }
+        progressDelayTask = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
+    }
+
+    private func showProgress(_ progress: FileOperationProgress) {
         guard let window = NSApp.keyWindow else { return }
         let controller = ProgressWindowController(progress: progress) { [weak self] in
             self?.cancelCurrentOperation()
