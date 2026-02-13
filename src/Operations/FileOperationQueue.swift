@@ -838,34 +838,234 @@ final class FileOperationQueue {
         // Extract directly into the parent directory of the archive.
         // The archive's internal structure already provides folder organization.
         let parentDir = archive.deletingLastPathComponent()
+        let fileManager = FileManager.default
 
-        // Snapshot directory contents before extraction to detect what was created
-        let contentsBefore = Set((try? FileManager.default.contentsOfDirectory(atPath: parentDir.path)) ?? [])
+        // Check for conflicts before extracting
+        let topLevelEntries = await listArchiveTopLevelEntries(
+            archive: archive, format: format, password: password
+        )
+        let archiveName = archive.lastPathComponent
+        let conflictingItems = topLevelEntries.filter { entry in
+            entry != archiveName
+                && fileManager.fileExists(atPath: parentDir.appendingPathComponent(entry).path)
+        }
+
+        var extractToTemp = false
+        if !conflictingItems.isEmpty {
+            let choice = await resolveExtractConflict(
+                conflictingItems: conflictingItems.sorted(),
+                destination: parentDir
+            )
+            switch choice {
+            case .replace:
+                for item in conflictingItems {
+                    let itemURL = parentDir.appendingPathComponent(item)
+                    try fileManager.trashItem(at: itemURL, resultingItemURL: nil)
+                }
+            case .keepBoth:
+                extractToTemp = true
+            case .stop:
+                throw FileOperationError.cancelled
+            }
+        }
 
         try checkCancelled()
 
-        switch format {
-        case .zip:
-            try await extractZip(archive: archive, destination: parentDir, password: password)
-        case .sevenZ:
-            try await extractSevenZip(archive: archive, destination: parentDir, password: password)
-        case .tarGz, .tarBz2, .tarXz:
-            try await extractTar(archive: archive, destination: parentDir)
+        let extractionDir: URL
+        if extractToTemp {
+            extractionDir = parentDir.appendingPathComponent(
+                ".detours-extract-\(UUID().uuidString)"
+            )
+            try fileManager.createDirectory(
+                at: extractionDir, withIntermediateDirectories: true
+            )
+        } else {
+            extractionDir = parentDir
+        }
+
+        // Snapshot directory contents before extraction to detect what was created
+        let contentsBefore = Set(
+            (try? fileManager.contentsOfDirectory(atPath: extractionDir.path)) ?? []
+        )
+
+        do {
+            switch format {
+            case .zip:
+                try await extractZip(archive: archive, destination: extractionDir, password: password)
+            case .sevenZ:
+                try await extractSevenZip(archive: archive, destination: extractionDir, password: password)
+            case .tarGz, .tarBz2, .tarXz:
+                try await extractTar(archive: archive, destination: extractionDir)
+            }
+        } catch {
+            if extractToTemp {
+                try? fileManager.removeItem(at: extractionDir)
+            }
+            throw error
         }
 
         // Detect what was extracted by diffing directory contents
-        let contentsAfter = Set((try? FileManager.default.contentsOfDirectory(atPath: parentDir.path)) ?? [])
+        let contentsAfter = Set(
+            (try? fileManager.contentsOfDirectory(atPath: extractionDir.path)) ?? []
+        )
         let newItems = contentsAfter.subtracting(contentsBefore)
 
         let resultURL: URL
-        if newItems.count == 1, let newItem = newItems.first {
-            resultURL = parentDir.appendingPathComponent(newItem)
+        if extractToTemp {
+            var movedItems: [URL] = []
+            do {
+                for item in newItems {
+                    let sourceItem = extractionDir.appendingPathComponent(item)
+                    let destItem = parentDir.appendingPathComponent(item)
+                    let finalDest: URL
+                    if fileManager.fileExists(atPath: destItem.path) {
+                        finalDest = uniqueCopyDestination(for: destItem, in: parentDir)
+                    } else {
+                        finalDest = destItem
+                    }
+                    try fileManager.moveItem(at: sourceItem, to: finalDest)
+                    movedItems.append(finalDest)
+                }
+            } catch {
+                try? fileManager.removeItem(at: extractionDir)
+                throw error
+            }
+            try? fileManager.removeItem(at: extractionDir)
+            if movedItems.count == 1 {
+                resultURL = movedItems[0]
+            } else {
+                resultURL = parentDir
+            }
         } else {
-            resultURL = parentDir
+            if newItems.count == 1, let newItem = newItems.first {
+                resultURL = parentDir.appendingPathComponent(newItem)
+            } else {
+                resultURL = parentDir
+            }
         }
 
         updateProgress(operation: operation, currentItem: resultURL, completed: 1, total: 1)
         return resultURL
+    }
+
+    private func listArchiveTopLevelEntries(
+        archive: URL,
+        format: ArchiveFormat,
+        password: String?
+    ) async -> Set<String> {
+        let process = Process()
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+
+        switch format {
+        case .zip:
+            process.executableURL = URL(fileURLWithPath: CompressionTool.unzip.path)
+            process.arguments = ["-Z1", archive.path]
+        case .sevenZ:
+            process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
+            var args = ["l", "-slt"]
+            if let password, !password.isEmpty {
+                args.append("-p\(password)")
+            }
+            args.append(archive.path)
+            process.arguments = args
+        case .tarGz, .tarBz2, .tarXz:
+            process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
+            process.arguments = ["-tf", archive.path]
+        }
+
+        do {
+            try process.run()
+        } catch {
+            return []
+        }
+        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0,
+              let output = String(data: data, encoding: .utf8) else {
+            return []
+        }
+
+        var topLevel = Set<String>()
+
+        if format == .sevenZ {
+            var seenSeparator = false
+            for line in output.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("----------") {
+                    seenSeparator = true
+                    continue
+                }
+                if seenSeparator, trimmed.hasPrefix("Path = ") {
+                    let path = String(trimmed.dropFirst("Path = ".count))
+                    var components = path.components(separatedBy: "/")
+                    if components.first == "." { components.removeFirst() }
+                    if let first = components.first, !first.isEmpty {
+                        topLevel.insert(first)
+                    }
+                }
+            }
+        } else {
+            for line in output.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { continue }
+                var components = trimmed.components(separatedBy: "/")
+                if components.first == "." { components.removeFirst() }
+                if let first = components.first, !first.isEmpty {
+                    topLevel.insert(first)
+                }
+            }
+        }
+
+        return topLevel
+    }
+
+    private enum ExtractConflictChoice {
+        case replace
+        case keepBoth
+        case stop
+    }
+
+    private func resolveExtractConflict(
+        conflictingItems: [String],
+        destination: URL
+    ) async -> ExtractConflictChoice {
+        if isRunningTests {
+            return .keepBoth
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Item Already Exists"
+
+        if conflictingItems.count == 1 {
+            alert.informativeText = "\"\(conflictingItems[0])\" already exists in " +
+                "\"\(destination.lastPathComponent)\". Do you want to replace it " +
+                "with the extracted version?"
+        } else {
+            let names = conflictingItems.prefix(3)
+                .map { "\"\($0)\"" }.joined(separator: ", ")
+            let remaining = conflictingItems.count - 3
+            let suffix = remaining > 0 ? " and \(remaining) more" : ""
+            alert.informativeText = "\(names)\(suffix) already exist in " +
+                "\"\(destination.lastPathComponent)\". Do you want to replace them " +
+                "with the extracted versions?"
+        }
+
+        alert.addButton(withTitle: "Keep Both")
+        alert.addButton(withTitle: "Replace")
+        alert.addButton(withTitle: "Stop")
+
+        let response = alert.runModal()
+        switch response {
+        case .alertFirstButtonReturn:
+            return .keepBoth
+        case .alertSecondButtonReturn:
+            return .replace
+        default:
+            return .stop
+        }
     }
 
     private func extractZip(archive: URL, destination: URL, password: String?) async throws {

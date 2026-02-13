@@ -270,12 +270,12 @@ final class ArchiveOperationTests: XCTestCase {
         XCTAssertEqual(content, "Top secret")
     }
 
-    func testExtractOverwritesExisting() async throws {
+    func testExtractKeepsBothOnConflict() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
-        // Create a file with old content and archive it
-        try createTestFile(in: temp, name: "data.txt", content: "New content")
+        // Create a file and archive it
+        try createTestFile(in: temp, name: "data.txt", content: "Archived content")
         let file = temp.appendingPathComponent("data.txt")
         let archive = try await FileOperationQueue.shared.archive(
             items: [file],
@@ -285,13 +285,21 @@ final class ArchiveOperationTests: XCTestCase {
         )
 
         // Overwrite original with different content
-        try Data("Old content".utf8).write(to: file)
+        try Data("Existing content".utf8).write(to: file)
 
-        // Extract — should overwrite the existing file
-        _ = try await FileOperationQueue.shared.extract(archive: archive)
+        // Extract — conflict resolved as Keep Both (test default)
+        let extracted = try await FileOperationQueue.shared.extract(archive: archive)
 
-        let content = try String(contentsOf: file, encoding: .utf8)
-        XCTAssertEqual(content, "New content")
+        // Original should remain untouched
+        let originalContent = try String(contentsOf: file, encoding: .utf8)
+        XCTAssertEqual(originalContent, "Existing content")
+
+        // Extracted version should have " copy" suffix
+        XCTAssertEqual(extracted.lastPathComponent, "data copy.txt")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: extracted.path))
+
+        let extractedContent = try String(contentsOf: extracted, encoding: .utf8)
+        XCTAssertEqual(extractedContent, "Archived content")
     }
 
     // MARK: - Dialog Model

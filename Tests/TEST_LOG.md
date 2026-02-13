@@ -1,44 +1,44 @@
 # Test Log
 
 ## Latest Run
-- Started: 2026-02-13 07:35:46
+- Started: 2026-02-13 10:27:44
 - Command: `swift test --filter ArchiveOperationTests`
 - Status: PASS
-- Duration: 1.072s
-- Notes: All 29 archive tests pass. Covers format detection (8), tool detection (5), archive creation (6), extraction (4), dialog model (4), format properties (2).
+- Duration: 1.418s
+- Notes: All 29 archive tests pass. Added extraction conflict dialog — replaced testExtractOverwritesExisting with testExtractKeepsBothOnConflict. Extraction now checks for existing items before extracting and shows Keep Both / Replace / Stop dialog.
 
 ### ArchiveOperationTests
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| testDetectZipFormat | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDetect7zFormat | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDetectTarGzFormat | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDetectTgzFormat | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDetectTarBz2Format | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDetectTarXzFormat | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDetectUnknownFormat | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDetectCaseInsensitive | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDetectZipAvailable | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDetectUnzipAvailable | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDetectTarAvailable | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testIsExtractableForArchive | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testIsExtractableForNonArchive | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testCreateZipArchive | PASS | 0.067s | 2026-02-13 07:35:46 |
-| testCreateZipArchiveMultipleFiles | PASS | 0.069s | 2026-02-13 07:35:46 |
-| testCreateZipWithPassword | PASS | 0.066s | 2026-02-13 07:35:46 |
-| testCreateTarGzArchive | PASS | 0.066s | 2026-02-13 07:35:46 |
-| testCreateTarBz2Archive | PASS | 0.069s | 2026-02-13 07:35:46 |
-| testArchiveNameCollision | PASS | 0.132s | 2026-02-13 07:35:46 |
-| testExtractZipArchive | PASS | 0.135s | 2026-02-13 07:35:46 |
-| testExtractTarGzArchive | PASS | 0.131s | 2026-02-13 07:35:46 |
-| testExtractPasswordZip | PASS | 0.134s | 2026-02-13 07:35:46 |
-| testExtractDestinationCollision | PASS | 0.195s | 2026-02-13 07:35:46 |
-| testDialogDefaultNameSingleFile | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDialogDefaultNameSingleFolder | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDialogDefaultNameMultiple | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testDialogValidation | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testPasswordDisabledForTarFormats | PASS | 0.000s | 2026-02-13 07:35:46 |
-| testPasswordEnabledForZipAnd7z | PASS | 0.000s | 2026-02-13 07:35:46 |
+| testDetectZipFormat | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDetect7zFormat | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDetectTarGzFormat | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDetectTgzFormat | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDetectTarBz2Format | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDetectTarXzFormat | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDetectUnknownFormat | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDetectCaseInsensitive | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDetectZipAvailable | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDetectUnzipAvailable | PASS | 0.002s | 2026-02-13 10:27:44 |
+| testDetectTarAvailable | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testIsExtractableForArchive | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testIsExtractableForNonArchive | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testCreateZipArchive | PASS | 0.071s | 2026-02-13 10:27:44 |
+| testCreateZipArchiveMultipleFiles | PASS | 0.081s | 2026-02-13 10:27:44 |
+| testCreateZipWithPassword | PASS | 0.070s | 2026-02-13 10:27:44 |
+| testCreateTarGzArchive | PASS | 0.067s | 2026-02-13 10:27:44 |
+| testCreateTarBz2Archive | PASS | 0.071s | 2026-02-13 10:27:44 |
+| testArchiveNameCollision | PASS | 0.141s | 2026-02-13 10:27:44 |
+| testExtractZipArchive | PASS | 0.219s | 2026-02-13 10:27:44 |
+| testExtractTarGzArchive | PASS | 0.233s | 2026-02-13 10:27:44 |
+| testExtractPasswordZip | PASS | 0.219s | 2026-02-13 10:27:44 |
+| testExtractKeepsBothOnConflict | PASS | 0.236s | 2026-02-13 10:27:44 |
+| testDialogDefaultNameSingleFile | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDialogDefaultNameSingleFolder | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDialogDefaultNameMultiple | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDialogValidation | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testPasswordDisabledForTarFormats | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testPasswordEnabledForZipAnd7z | PASS | 0.000s | 2026-02-13 10:27:44 |
 
 ## Previous Run
 - Started: 2026-02-07 21:45:00
