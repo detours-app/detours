@@ -53,10 +53,31 @@ enum ArchiveFormat: String, CaseIterable, Codable {
         case .tarXz: return [.tar, .xz]
         }
     }
+
+    var extractionTools: [CompressionTool] {
+        switch self {
+        case .zip: return [.unzip]
+        case .sevenZ: return [.sevenZip]
+        case .tarGz, .tarBz2, .tarXz: return [.tar]
+        }
+    }
+
+    static func detect(from url: URL) -> ArchiveFormat? {
+        let name = url.lastPathComponent.lowercased()
+        if name.hasSuffix(".tar.gz") || name.hasSuffix(".tgz") { return .tarGz }
+        if name.hasSuffix(".tar.bz2") || name.hasSuffix(".tbz2") { return .tarBz2 }
+        if name.hasSuffix(".tar.xz") || name.hasSuffix(".txz") { return .tarXz }
+        switch url.pathExtension.lowercased() {
+        case "zip": return .zip
+        case "7z": return .sevenZ
+        default: return nil
+        }
+    }
 }
 
 enum CompressionTool: String {
     case zip
+    case unzip
     case sevenZip
     case tar
     case gzip
@@ -66,6 +87,7 @@ enum CompressionTool: String {
     var path: String {
         switch self {
         case .zip: return "/usr/bin/zip"
+        case .unzip: return "/usr/bin/unzip"
         case .sevenZip: return "/opt/homebrew/bin/7z"
         case .tar: return "/usr/bin/tar"
         case .gzip: return "/usr/bin/gzip"
@@ -77,6 +99,7 @@ enum CompressionTool: String {
     var displayName: String {
         switch self {
         case .zip: return "zip"
+        case .unzip: return "unzip"
         case .sevenZip: return "7z"
         case .tar: return "tar"
         case .gzip: return "gzip"
@@ -107,5 +130,14 @@ enum CompressionTools {
             return tool.displayName
         }
         return nil
+    }
+
+    static func canExtract(_ format: ArchiveFormat) -> Bool {
+        format.extractionTools.allSatisfy { isAvailable($0) }
+    }
+
+    static func isExtractable(_ url: URL) -> Bool {
+        guard let format = ArchiveFormat.detect(from: url) else { return false }
+        return canExtract(format)
     }
 }

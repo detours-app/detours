@@ -91,6 +91,13 @@ final class FileOperationQueue {
         }
     }
 
+    @discardableResult
+    func extract(archive: URL, password: String? = nil) async throws -> URL {
+        try await enqueue {
+            try await self.performExtract(archive: archive, password: password)
+        }
+    }
+
     func cancelCurrentOperation() {
         isCancelled = true
     }
@@ -135,6 +142,9 @@ final class FileOperationQueue {
             case .insufficientDiskSpace:
                 alert.messageText = "Insufficient Disk Space"
                 alert.informativeText = "There is not enough disk space to create the archive."
+            case .archivePasswordRequired:
+                // Handled by the caller to prompt for password
+                return
             default:
                 alert.messageText = "Operation Failed"
                 alert.informativeText = operationError.localizedDescription
@@ -808,6 +818,165 @@ final class FileOperationQueue {
         }
     }
 
+    private func performExtract(archive: URL, password: String?) async throws -> URL {
+        guard let format = ArchiveFormat.detect(from: archive) else {
+            throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.pathExtension)")
+        }
+
+        let operation = FileOperation.extract(archive: archive, format: format)
+        startOperation(operation, totalCount: 1)
+        defer { finishOperation() }
+
+        // Verify extraction tools are available
+        if !CompressionTools.canExtract(format) {
+            if let tool = CompressionTools.unavailableToolName(for: format) {
+                throw FileOperationError.archiveToolNotFound(tool)
+            }
+        }
+
+        // Determine destination: subfolder named after archive (without extension)
+        let parentDir = archive.deletingLastPathComponent()
+        let baseName = extractionBaseName(from: archive, format: format)
+        let destinationDir = uniqueExtractDestination(in: parentDir, baseName: baseName)
+
+        try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true, attributes: nil)
+
+        try checkCancelled()
+
+        do {
+            switch format {
+            case .zip:
+                try await extractZip(archive: archive, destination: destinationDir, password: password)
+            case .sevenZ:
+                try await extractSevenZip(archive: archive, destination: destinationDir, password: password)
+            case .tarGz, .tarBz2, .tarXz:
+                try await extractTar(archive: archive, destination: destinationDir)
+            }
+        } catch {
+            // Clean up destination on failure
+            try? FileManager.default.removeItem(at: destinationDir)
+            throw error
+        }
+
+        updateProgress(operation: operation, currentItem: destinationDir, completed: 1, total: 1)
+        return destinationDir
+    }
+
+    private func extractZip(archive: URL, destination: URL, password: String?) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.unzip.path)
+
+        var arguments = ["-o", "-q"]
+        if let password, !password.isEmpty {
+            arguments.append(contentsOf: ["-P", password])
+        }
+        arguments.append(archive.path)
+        arguments.append(contentsOf: ["-d", destination.path])
+        process.arguments = arguments
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: password == nil)
+    }
+
+    private func extractSevenZip(archive: URL, destination: URL, password: String?) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
+
+        var arguments = ["x", "-y", "-o\(destination.path)"]
+        if let password, !password.isEmpty {
+            arguments.append("-p\(password)")
+        }
+        arguments.append(archive.path)
+        process.arguments = arguments
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: password == nil)
+    }
+
+    private func extractTar(archive: URL, destination: URL) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
+        process.arguments = ["-xf", archive.path, "-C", destination.path]
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: false)
+    }
+
+    private func runExtractProcess(_ process: Process, errorPipe: Pipe, destination: URL, passwordProtected: Bool) async throws {
+        try process.run()
+
+        let cancelTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try await Task.sleep(nanoseconds: 100_000_000)
+                if self?.isCancelled == true {
+                    process.terminate()
+                    return
+                }
+            }
+        }
+
+        process.waitUntilExit()
+        cancelTask.cancel()
+
+        if isCancelled {
+            try? FileManager.default.removeItem(at: destination)
+            throw FileOperationError.cancelled
+        }
+
+        if process.terminationStatus != 0 {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorMessage = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown error"
+
+            // Detect password-required errors
+            if passwordProtected && isPasswordError(errorMessage, terminationStatus: process.terminationStatus) {
+                throw FileOperationError.archivePasswordRequired
+            }
+
+            throw FileOperationError.archiveProcessFailed(errorMessage)
+        }
+    }
+
+    private func isPasswordError(_ message: String, terminationStatus: Int32) -> Bool {
+        let lower = message.lowercased()
+        if lower.contains("password") || lower.contains("incorrect password") || lower.contains("wrong password") {
+            return true
+        }
+        // unzip returns exit code 82 for incorrect password, and exit code 1 for skipped encrypted entries
+        if terminationStatus == 82 || (terminationStatus == 1 && lower.contains("encrypt")) {
+            return true
+        }
+        return false
+    }
+
+    private func extractionBaseName(from archive: URL, format: ArchiveFormat) -> String {
+        let name = archive.lastPathComponent
+        let ext = "." + format.fileExtension
+        if name.lowercased().hasSuffix(ext.lowercased()) {
+            return String(name.dropLast(ext.count))
+        }
+        // Handle short aliases like .tgz, .tbz2, .txz
+        return archive.deletingPathExtension().lastPathComponent
+    }
+
+    private func uniqueExtractDestination(in directory: URL, baseName: String) -> URL {
+        let fileManager = FileManager.default
+        var attempt = 1
+        while true {
+            let name = attempt == 1 ? baseName : "\(baseName) \(attempt)"
+            let candidate = directory.appendingPathComponent(name)
+            if !fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            attempt += 1
+        }
+    }
+
     // MARK: - Progress
 
     private func startOperation(_ operation: FileOperation, totalCount: Int) {
@@ -828,8 +997,8 @@ final class FileOperationQueue {
         // or for any operation with multiple items
         let shouldShowProgress: Bool
         switch operation {
-        case .copy, .move, .archive:
-            shouldShowProgress = true  // Always show for copy/move/archive - could be large
+        case .copy, .move, .archive, .extract:
+            shouldShowProgress = true  // Always show for copy/move/archive/extract - could be large
         default:
             shouldShowProgress = totalCount > 5
         }

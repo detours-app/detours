@@ -664,6 +664,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
+        } else if CompressionTools.isExtractable(item.url) {
+            extractSelectedArchive()
         } else {
             NSWorkspace.shared.open(item.url)
         }
@@ -865,6 +867,50 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             }
         }
         controller.present(from: window)
+    }
+
+    func extractSelectedArchive(password: String? = nil) {
+        let urls = selectedURLs
+        guard urls.count == 1, let archiveURL = urls.first else { return }
+        guard CompressionTools.isExtractable(archiveURL) else { return }
+
+        Task { @MainActor in
+            do {
+                let extractedURL = try await FileOperationQueue.shared.extract(archive: archiveURL, password: password)
+                self.loadDirectory(self.currentDirectory ?? archiveURL.deletingLastPathComponent(), preserveExpansion: true)
+                self.pendingPostLoadAction = {
+                    self.selectItem(at: extractedURL)
+                }
+            } catch FileOperationError.archivePasswordRequired {
+                self.promptForArchivePassword(archive: archiveURL)
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    private func promptForArchivePassword(archive: URL) {
+        guard let window = view.window else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Password Required"
+        alert.informativeText = "\"\(archive.lastPathComponent)\" is password-protected."
+        alert.addButton(withTitle: "Extract")
+        alert.addButton(withTitle: "Cancel")
+
+        let passwordField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        passwordField.placeholderString = "Password"
+        alert.accessoryView = passwordField
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            let enteredPassword = passwordField.stringValue
+            guard !enteredPassword.isEmpty else { return }
+            self?.extractSelectedArchive(password: enteredPassword)
+        }
+
+        // Focus the password field after sheet appears
+        alert.window.initialFirstResponder = passwordField
     }
 
     private func createNewFolder() {
@@ -1729,6 +1775,10 @@ extension FileListViewController {
         archiveSelection()
     }
 
+    @objc func extractArchive(_ sender: Any?) {
+        extractSelectedArchive()
+    }
+
     @objc func newFolder(_ sender: Any?) {
         createNewFolder()
     }
@@ -1836,6 +1886,9 @@ extension FileListViewController: NSMenuItemValidation {
              #selector(getInfo(_:)), #selector(copyPath(_:)), #selector(showInFinder(_:)),
              #selector(archive(_:)):
             return !selectedURLs.isEmpty
+        case #selector(extractArchive(_:)):
+            let urls = selectedURLs
+            return urls.count == 1 && CompressionTools.isExtractable(urls[0])
         case #selector(paste(_:)):
             return ClipboardManager.shared.hasValidItems && currentDirectory != nil
         case #selector(newFolder(_:)):

@@ -10,7 +10,7 @@ final class ArchiveWindowController: NSWindowController {
         self.onComplete = completion
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 380),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 400),
             styleMask: [.titled],
             backing: .buffered,
             defer: false

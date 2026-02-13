@@ -3,9 +3,11 @@
 ## Unreleased
 
 - Archive creation from selected files/folders via File > Archive... (Cmd-Shift-A)
+- Extract archives via File > Extract Here (Cmd-Shift-E) or double-click
 - Five format options: ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ with format descriptions
-- Optional password encryption for ZIP and 7Z archives
+- Optional password encryption for ZIP and 7Z archives; password prompt on extract
 - Auto-detects installed compression tools; unavailable formats shown dimmed
+- Archive and Extract available in right-click context menu
 - Remembers last-used format between sessions
 - Click empty space in file list to deselect all items, matching Finder behavior
 - New folder/file creation reliably selects and begins rename after directory loads

@@ -79,43 +79,63 @@ struct ArchiveDialog: View {
     var onConfirm: (ArchiveModel) -> Void
     var onCancel: () -> Void
 
+    private let themeFontName = ThemeManager.shared.currentTheme.fontName
+    private let themeFontSize = ThemeManager.shared.fontSize
+
+    private var titleFont: Font {
+        .system(size: themeFontSize + 2, weight: .semibold)
+    }
+
+    private var labelFont: Font {
+        .system(size: themeFontSize, weight: .regular)
+    }
+
+    private var monoFont: Font {
+        .system(size: themeFontSize, design: .monospaced)
+    }
+
+    private var smallFont: Font {
+        .system(size: themeFontSize, weight: .regular)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Create Archive")
-                .font(.headline)
+                .font(titleFont)
 
             // Source info
             VStack(alignment: .leading, spacing: 4) {
                 Text("Items:")
-                    .font(.subheadline)
+                    .font(labelFont)
                     .foregroundStyle(.secondary)
                 if model.sourceURLs.count == 1 {
                     Text(model.sourceURLs[0].lastPathComponent)
-                        .font(.system(.body, design: .monospaced))
+                        .font(monoFont)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 } else {
                     Text("\(model.sourceURLs.count) items selected")
-                        .font(.system(.body, design: .monospaced))
+                        .font(monoFont)
                 }
             }
 
             // Archive name
             VStack(alignment: .leading, spacing: 4) {
                 Text("Archive name:")
-                    .font(.subheadline)
+                    .font(labelFont)
                     .foregroundStyle(.secondary)
                 HStack(spacing: 4) {
                     TextField("Archive name", text: $model.archiveName)
                         .textFieldStyle(.roundedBorder)
+                        .font(monoFont)
                     Text(".\(model.format.fileExtension)")
                         .foregroundStyle(.secondary)
-                        .font(.system(.body, design: .monospaced))
+                        .font(monoFont)
                 }
 
                 if let error = model.validationError {
                     Text(error)
-                        .font(.caption)
+                        .font(smallFont)
                         .foregroundStyle(.red)
                 }
             }
@@ -123,7 +143,7 @@ struct ArchiveDialog: View {
             // Format picker
             VStack(alignment: .leading, spacing: 4) {
                 Text("Format:")
-                    .font(.subheadline)
+                    .font(labelFont)
                     .foregroundStyle(.secondary)
                 Picker("", selection: $model.format) {
                     ForEach(ArchiveFormat.allCases, id: \.self) { format in
@@ -148,18 +168,20 @@ struct ArchiveDialog: View {
 
             // Format info
             Text(model.format.description)
-                .font(.caption)
+                .font(smallFont)
                 .foregroundStyle(.secondary)
 
             // Password
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("Encrypt with password", isOn: $model.includePassword)
                     .toggleStyle(.checkbox)
+                    .font(labelFont)
                     .disabled(!model.format.supportsPassword)
 
                 if model.includePassword && model.format.supportsPassword {
                     SecureField("Password", text: $model.password)
                         .textFieldStyle(.roundedBorder)
+                        .font(monoFont)
                 }
             }
 
@@ -182,6 +204,6 @@ struct ArchiveDialog: View {
             }
         }
         .padding(20)
-        .frame(width: 420, height: 380)
+        .frame(width: 440, height: 400)
     }
 }

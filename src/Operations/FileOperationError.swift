@@ -11,6 +11,7 @@ enum FileOperationError: Error {
     case archiveToolNotFound(String)
     case archiveProcessFailed(String)
     case insufficientDiskSpace
+    case archivePasswordRequired
 }
 
 extension FileOperationError: LocalizedError {
@@ -36,6 +37,8 @@ extension FileOperationError: LocalizedError {
             return "Archive creation failed: \(message)"
         case .insufficientDiskSpace:
             return "Not enough disk space to create the archive."
+        case .archivePasswordRequired:
+            return "This archive is password-protected."
         }
     }
 }
