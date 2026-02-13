@@ -76,6 +76,21 @@ extension FileListViewController: FileListContextMenuDelegate {
                 duplicateStructureItem.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: nil)
                 menu.addItem(duplicateStructureItem)
             }
+
+            let archiveItem = NSMenuItem(title: "Archive...", action: #selector(archive(_:)), keyEquivalent: "A")
+            archiveItem.keyEquivalentModifierMask = [.command, .shift]
+            archiveItem.target = self
+            archiveItem.image = NSImage(systemSymbolName: "archivebox", accessibilityDescription: nil)
+            menu.addItem(archiveItem)
+
+            // Extract (only for single archive file)
+            if let singleFile = singleItem, CompressionTools.isExtractable(singleFile.url) {
+                let extractItem = NSMenuItem(title: "Extract Here", action: #selector(extractArchive(_:)), keyEquivalent: "E")
+                extractItem.keyEquivalentModifierMask = [.command, .shift]
+                extractItem.target = self
+                extractItem.image = NSImage(systemSymbolName: "arrow.up.bin", accessibilityDescription: nil)
+                menu.addItem(extractItem)
+            }
         }
 
         menu.addItem(NSMenuItem.separator())
@@ -230,6 +245,8 @@ extension FileListViewController: FileListContextMenuDelegate {
 
         if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
+        } else if CompressionTools.isExtractable(item.url) {
+            extractSelectedArchive()
         } else {
             NSWorkspace.shared.open(item.url)
         }

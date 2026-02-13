@@ -17,6 +17,7 @@ final class FileOperationQueue {
     private var isRunning = false
     private var isCancelled = false
     private var progressWindow: ProgressWindowController?
+    private var progressDelayTask: DispatchWorkItem?
 
     // MARK: - Public API
 
@@ -84,6 +85,20 @@ final class FileOperationQueue {
         }
     }
 
+    @discardableResult
+    func archive(items: [URL], format: ArchiveFormat, archiveName: String, password: String?) async throws -> URL {
+        try await enqueue {
+            try await self.performArchive(items: items, format: format, archiveName: archiveName, password: password)
+        }
+    }
+
+    @discardableResult
+    func extract(archive: URL, password: String? = nil) async throws -> URL {
+        try await enqueue {
+            try await self.performExtract(archive: archive, password: password)
+        }
+    }
+
     func cancelCurrentOperation() {
         isCancelled = true
     }
@@ -119,6 +134,18 @@ final class FileOperationQueue {
                 } else {
                     alert.informativeText = "Permission denied for \"\(url.lastPathComponent)\". Check Full Disk Access in System Settings."
                 }
+            case let .archiveToolNotFound(tool):
+                alert.messageText = "Tool Not Found"
+                alert.informativeText = "\(tool) is not installed. Install it via Homebrew:\n\nbrew install \(tool)"
+            case let .archiveProcessFailed(message):
+                alert.messageText = "Archive Failed"
+                alert.informativeText = message
+            case .insufficientDiskSpace:
+                alert.messageText = "Insufficient Disk Space"
+                alert.informativeText = "There is not enough disk space to create the archive."
+            case .archivePasswordRequired:
+                // Handled by the caller to prompt for password
+                return
             default:
                 alert.messageText = "Operation Failed"
                 alert.informativeText = operationError.localizedDescription
@@ -644,6 +671,495 @@ final class FileOperationQueue {
         }
     }
 
+    private func performArchive(items: [URL], format: ArchiveFormat, archiveName: String, password: String?) async throws -> URL {
+        let operation = FileOperation.archive(items: items, format: format)
+        startOperation(operation, totalCount: items.count)
+        defer { finishOperation() }
+
+        // Verify tools are available
+        if let missingTool = CompressionTools.unavailableToolName(for: format) {
+            throw FileOperationError.archiveToolNotFound(missingTool)
+        }
+
+        // Determine destination path
+        let parentDir = items[0].deletingLastPathComponent()
+        let archiveURL = uniqueArchiveDestination(in: parentDir, baseName: archiveName, format: format)
+
+        try checkCancelled()
+
+        // Build and run the compression process
+        switch format {
+        case .zip:
+            try await runZip(items: items, destination: archiveURL, password: password)
+        case .sevenZ:
+            try await runSevenZip(items: items, destination: archiveURL, password: password)
+        case .tarGz:
+            try await runTar(items: items, destination: archiveURL, flag: "z")
+        case .tarBz2:
+            try await runTar(items: items, destination: archiveURL, flag: "j")
+        case .tarXz:
+            try await runTar(items: items, destination: archiveURL, flag: "J")
+        }
+
+        updateProgress(operation: operation, currentItem: archiveURL, completed: items.count, total: items.count)
+        return archiveURL
+    }
+
+    private func runZip(items: [URL], destination: URL, password: String?) async throws {
+        let parentDir = items[0].deletingLastPathComponent().path
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.zip.path)
+        process.currentDirectoryURL = URL(fileURLWithPath: parentDir)
+
+        var arguments = ["-r", "-q"]
+        if let password, !password.isEmpty {
+            arguments.append(contentsOf: ["-P", password])
+        }
+        arguments.append(destination.path)
+        for item in items {
+            arguments.append(item.lastPathComponent)
+        }
+        process.arguments = arguments
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runProcess(process, errorPipe: errorPipe, partialFile: destination)
+    }
+
+    private func runSevenZip(items: [URL], destination: URL, password: String?) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
+
+        var arguments = ["a", "-t7z"]
+        if let password, !password.isEmpty {
+            arguments.append("-p\(password)")
+            arguments.append("-mhe=on")
+        }
+        arguments.append(destination.path)
+        for item in items {
+            arguments.append(item.path)
+        }
+        process.arguments = arguments
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runProcess(process, errorPipe: errorPipe, partialFile: destination)
+    }
+
+    private func runTar(items: [URL], destination: URL, flag: String) async throws {
+        let parentDir = items[0].deletingLastPathComponent().path
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
+        process.currentDirectoryURL = URL(fileURLWithPath: parentDir)
+
+        var arguments = ["-c\(flag)f", destination.path]
+        for item in items {
+            arguments.append(item.lastPathComponent)
+        }
+        process.arguments = arguments
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runProcess(process, errorPipe: errorPipe, partialFile: destination)
+    }
+
+    private func runProcess(_ process: Process, errorPipe: Pipe, partialFile: URL) async throws {
+        try process.run()
+
+        // Monitor for cancellation
+        let cancelTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                if self?.isCancelled == true {
+                    process.terminate()
+                    // Clean up partial file
+                    try? FileManager.default.removeItem(at: partialFile)
+                    return
+                }
+            }
+        }
+
+        process.waitUntilExit()
+        cancelTask.cancel()
+
+        if isCancelled {
+            try? FileManager.default.removeItem(at: partialFile)
+            throw FileOperationError.cancelled
+        }
+
+        if process.terminationStatus != 0 {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorMessage = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown error"
+            // Clean up partial file on failure
+            try? FileManager.default.removeItem(at: partialFile)
+            throw FileOperationError.archiveProcessFailed(errorMessage)
+        }
+    }
+
+    private func uniqueArchiveDestination(in directory: URL, baseName: String, format: ArchiveFormat) -> URL {
+        let fileManager = FileManager.default
+        let ext = format.fileExtension
+
+        var attempt = 1
+        while true {
+            let name: String
+            if attempt == 1 {
+                name = "\(baseName).\(ext)"
+            } else {
+                name = "\(baseName) \(attempt).\(ext)"
+            }
+            let candidate = directory.appendingPathComponent(name)
+            if !fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            attempt += 1
+        }
+    }
+
+    private func performExtract(archive: URL, password: String?) async throws -> URL {
+        guard let format = ArchiveFormat.detect(from: archive) else {
+            throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.pathExtension)")
+        }
+
+        let operation = FileOperation.extract(archive: archive, format: format)
+        startOperation(operation, totalCount: 1)
+        defer { finishOperation() }
+
+        // Verify extraction tools are available
+        if !CompressionTools.canExtract(format) {
+            if let tool = CompressionTools.unavailableToolName(for: format) {
+                throw FileOperationError.archiveToolNotFound(tool)
+            }
+        }
+
+        // Extract directly into the parent directory of the archive.
+        // The archive's internal structure already provides folder organization.
+        let parentDir = archive.deletingLastPathComponent()
+        let fileManager = FileManager.default
+
+        // Check for conflicts before extracting
+        let topLevelEntries = await listArchiveTopLevelEntries(
+            archive: archive, format: format, password: password
+        )
+        let archiveName = archive.lastPathComponent
+        let conflictingItems = topLevelEntries.filter { entry in
+            entry != archiveName
+                && fileManager.fileExists(atPath: parentDir.appendingPathComponent(entry).path)
+        }
+
+        var extractToTemp = false
+        if !conflictingItems.isEmpty {
+            let choice = await resolveExtractConflict(
+                conflictingItems: conflictingItems.sorted(),
+                destination: parentDir
+            )
+            switch choice {
+            case .replace:
+                for item in conflictingItems {
+                    let itemURL = parentDir.appendingPathComponent(item)
+                    try fileManager.trashItem(at: itemURL, resultingItemURL: nil)
+                }
+            case .keepBoth:
+                extractToTemp = true
+            case .stop:
+                throw FileOperationError.cancelled
+            }
+        }
+
+        try checkCancelled()
+
+        let extractionDir: URL
+        if extractToTemp {
+            extractionDir = parentDir.appendingPathComponent(
+                ".detours-extract-\(UUID().uuidString)"
+            )
+            try fileManager.createDirectory(
+                at: extractionDir, withIntermediateDirectories: true
+            )
+        } else {
+            extractionDir = parentDir
+        }
+
+        // Snapshot directory contents before extraction to detect what was created
+        let contentsBefore = Set(
+            (try? fileManager.contentsOfDirectory(atPath: extractionDir.path)) ?? []
+        )
+
+        do {
+            switch format {
+            case .zip:
+                try await extractZip(archive: archive, destination: extractionDir, password: password)
+            case .sevenZ:
+                try await extractSevenZip(archive: archive, destination: extractionDir, password: password)
+            case .tarGz, .tarBz2, .tarXz:
+                try await extractTar(archive: archive, destination: extractionDir)
+            }
+        } catch {
+            if extractToTemp {
+                try? fileManager.removeItem(at: extractionDir)
+            }
+            throw error
+        }
+
+        // Detect what was extracted by diffing directory contents
+        let contentsAfter = Set(
+            (try? fileManager.contentsOfDirectory(atPath: extractionDir.path)) ?? []
+        )
+        let newItems = contentsAfter.subtracting(contentsBefore)
+
+        let resultURL: URL
+        if extractToTemp {
+            var movedItems: [URL] = []
+            do {
+                for item in newItems {
+                    let sourceItem = extractionDir.appendingPathComponent(item)
+                    let destItem = parentDir.appendingPathComponent(item)
+                    let finalDest: URL
+                    if fileManager.fileExists(atPath: destItem.path) {
+                        finalDest = uniqueCopyDestination(for: destItem, in: parentDir)
+                    } else {
+                        finalDest = destItem
+                    }
+                    try fileManager.moveItem(at: sourceItem, to: finalDest)
+                    movedItems.append(finalDest)
+                }
+            } catch {
+                try? fileManager.removeItem(at: extractionDir)
+                throw error
+            }
+            try? fileManager.removeItem(at: extractionDir)
+            if movedItems.count == 1 {
+                resultURL = movedItems[0]
+            } else {
+                resultURL = parentDir
+            }
+        } else {
+            if newItems.count == 1, let newItem = newItems.first {
+                resultURL = parentDir.appendingPathComponent(newItem)
+            } else {
+                resultURL = parentDir
+            }
+        }
+
+        updateProgress(operation: operation, currentItem: resultURL, completed: 1, total: 1)
+        return resultURL
+    }
+
+    private func listArchiveTopLevelEntries(
+        archive: URL,
+        format: ArchiveFormat,
+        password: String?
+    ) async -> Set<String> {
+        let process = Process()
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+
+        switch format {
+        case .zip:
+            process.executableURL = URL(fileURLWithPath: CompressionTool.unzip.path)
+            process.arguments = ["-Z1", archive.path]
+        case .sevenZ:
+            process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
+            var args = ["l", "-slt"]
+            if let password, !password.isEmpty {
+                args.append("-p\(password)")
+            }
+            args.append(archive.path)
+            process.arguments = args
+        case .tarGz, .tarBz2, .tarXz:
+            process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
+            process.arguments = ["-tf", archive.path]
+        }
+
+        do {
+            try process.run()
+        } catch {
+            return []
+        }
+        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0,
+              let output = String(data: data, encoding: .utf8) else {
+            return []
+        }
+
+        var topLevel = Set<String>()
+
+        if format == .sevenZ {
+            var seenSeparator = false
+            for line in output.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("----------") {
+                    seenSeparator = true
+                    continue
+                }
+                if seenSeparator, trimmed.hasPrefix("Path = ") {
+                    let path = String(trimmed.dropFirst("Path = ".count))
+                    var components = path.components(separatedBy: "/")
+                    if components.first == "." { components.removeFirst() }
+                    if let first = components.first, !first.isEmpty {
+                        topLevel.insert(first)
+                    }
+                }
+            }
+        } else {
+            for line in output.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { continue }
+                var components = trimmed.components(separatedBy: "/")
+                if components.first == "." { components.removeFirst() }
+                if let first = components.first, !first.isEmpty {
+                    topLevel.insert(first)
+                }
+            }
+        }
+
+        return topLevel
+    }
+
+    private enum ExtractConflictChoice {
+        case replace
+        case keepBoth
+        case stop
+    }
+
+    private func resolveExtractConflict(
+        conflictingItems: [String],
+        destination: URL
+    ) async -> ExtractConflictChoice {
+        if isRunningTests {
+            return .keepBoth
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Item Already Exists"
+
+        if conflictingItems.count == 1 {
+            alert.informativeText = "\"\(conflictingItems[0])\" already exists in " +
+                "\"\(destination.lastPathComponent)\". Do you want to replace it " +
+                "with the extracted version?"
+        } else {
+            let names = conflictingItems.prefix(3)
+                .map { "\"\($0)\"" }.joined(separator: ", ")
+            let remaining = conflictingItems.count - 3
+            let suffix = remaining > 0 ? " and \(remaining) more" : ""
+            alert.informativeText = "\(names)\(suffix) already exist in " +
+                "\"\(destination.lastPathComponent)\". Do you want to replace them " +
+                "with the extracted versions?"
+        }
+
+        alert.addButton(withTitle: "Keep Both")
+        alert.addButton(withTitle: "Replace")
+        alert.addButton(withTitle: "Stop")
+
+        let response = alert.runModal()
+        switch response {
+        case .alertFirstButtonReturn:
+            return .keepBoth
+        case .alertSecondButtonReturn:
+            return .replace
+        default:
+            return .stop
+        }
+    }
+
+    private func extractZip(archive: URL, destination: URL, password: String?) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.unzip.path)
+
+        var arguments = ["-o", "-q"]
+        if let password, !password.isEmpty {
+            arguments.append(contentsOf: ["-P", password])
+        }
+        arguments.append(archive.path)
+        arguments.append(contentsOf: ["-d", destination.path])
+        process.arguments = arguments
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: password == nil)
+    }
+
+    private func extractSevenZip(archive: URL, destination: URL, password: String?) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
+
+        var arguments = ["x", "-y", "-o\(destination.path)"]
+        if let password, !password.isEmpty {
+            arguments.append("-p\(password)")
+        }
+        arguments.append(archive.path)
+        process.arguments = arguments
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: password == nil)
+    }
+
+    private func extractTar(archive: URL, destination: URL) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
+        process.arguments = ["-xf", archive.path, "-C", destination.path]
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: false)
+    }
+
+    private func runExtractProcess(_ process: Process, errorPipe: Pipe, destination: URL, passwordProtected: Bool) async throws {
+        try process.run()
+
+        let cancelTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try await Task.sleep(nanoseconds: 100_000_000)
+                if self?.isCancelled == true {
+                    process.terminate()
+                    return
+                }
+            }
+        }
+
+        process.waitUntilExit()
+        cancelTask.cancel()
+
+        if isCancelled {
+            try? FileManager.default.removeItem(at: destination)
+            throw FileOperationError.cancelled
+        }
+
+        if process.terminationStatus != 0 {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorMessage = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown error"
+
+            // Detect password-required errors
+            if passwordProtected && isPasswordError(errorMessage, terminationStatus: process.terminationStatus) {
+                throw FileOperationError.archivePasswordRequired
+            }
+
+            throw FileOperationError.archiveProcessFailed(errorMessage)
+        }
+    }
+
+    private func isPasswordError(_ message: String, terminationStatus: Int32) -> Bool {
+        let lower = message.lowercased()
+        if lower.contains("password") || lower.contains("incorrect password") || lower.contains("wrong password") {
+            return true
+        }
+        // unzip returns exit code 82 for incorrect password, and exit code 1 for skipped encrypted entries
+        if terminationStatus == 82 || (terminationStatus == 1 && lower.contains("encrypt")) {
+            return true
+        }
+        return false
+    }
+
     // MARK: - Progress
 
     private func startOperation(_ operation: FileOperation, totalCount: Int) {
@@ -664,14 +1180,14 @@ final class FileOperationQueue {
         // or for any operation with multiple items
         let shouldShowProgress: Bool
         switch operation {
-        case .copy, .move:
-            shouldShowProgress = true  // Always show for copy/move - could be large folder
+        case .copy, .move, .archive, .extract:
+            shouldShowProgress = true  // Always show for copy/move/archive/extract - could be large
         default:
             shouldShowProgress = totalCount > 5
         }
 
         if shouldShowProgress {
-            showProgress(progress)
+            scheduleProgress(progress)
         }
     }
 
@@ -690,13 +1206,25 @@ final class FileOperationQueue {
 
     private func finishOperation() {
         currentOperation = nil
+        progressDelayTask?.cancel()
+        progressDelayTask = nil
         progressWindow?.dismiss()
         progressWindow = nil
     }
 
-    private func showProgress(_ progress: FileOperationProgress) {
-        // Skip showing progress window during tests (no UI)
+    private func scheduleProgress(_ progress: FileOperationProgress) {
         guard !isRunningTests else { return }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            guard self.currentOperation != nil else { return }
+            self.showProgress(progress)
+        }
+        progressDelayTask = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
+    }
+
+    private func showProgress(_ progress: FileOperationProgress) {
         guard let window = NSApp.keyWindow else { return }
         let controller = ProgressWindowController(progress: progress) { [weak self] in
             self?.cancelCurrentOperation()

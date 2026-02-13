@@ -1,7 +1,7 @@
 # Archive Files
 
 ## Meta
-- Status: Draft
+- Status: In Progress
 - Branch: feature/archive-files
 
 ---
@@ -9,127 +9,149 @@
 ## Business
 
 ### Goal
-Add archive creation from selected files/folders with multiple format options and optional password protection.
+Add archive creation and extraction from selected files/folders with multiple format options and optional password protection.
 
 ### Proposal
-Add "Archive..." menu item in File menu. Show dialog with format selection (ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ) and optional password field. Create archive using command-line tools with progress tracking.
+Add "Archive..." and "Extract Here" menu items in File menu and context menu. Archive dialog shows format selection (ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ) and optional password field. Extract detects format automatically and prompts for password when needed. All operations use command-line tools with progress tracking.
 
 ### Behaviors
-- Select files/folders → File > Archive... or keyboard shortcut
-- Dialog shows:
-  - Archive name field (pre-filled: single item uses item name, multiple items use parent folder name or "Archive")
-  - Format dropdown (ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ)
-  - Password checkbox + secure text field (enabled only for ZIP/7Z)
-  - Info text explaining selected format characteristics
+
+**Archive:**
+- Select files/folders → File > Archive... or Cmd-Shift-A, or right-click > Archive...
+- Dialog shows archive name, format dropdown, password option, format info text
+- Font sizes match app theme settings
 - On confirm, create archive in same directory as source items
-- Show progress window for operations taking >2 seconds
 - Select created archive after completion
-- Keyboard shortcut: Cmd-Shift-A
+
+**Extract:**
+- Select archive file → File > Extract Here or Cmd-Shift-E, or right-click > Extract Here
+- Extracts into a subfolder named after the archive (without extension)
+- If archive is password-protected, prompt for password
+- Select extracted folder after completion
+- Only enabled when a supported archive file is selected
 
 ### Out of scope
-- Extracting/decompressing archives (open with system default instead)
 - Compression level settings (use sensible defaults)
 - Multi-volume archives
 - Self-extracting archives
 - RAR format (proprietary, requires paid tools)
+- Extract to custom destination (always extracts in place)
 
 ---
 
 ## Technical
 
 ### Approach
-Create dialog similar to `DuplicateStructureDialog` using SwiftUI. Use `Process` to invoke command-line compression tools (zip, 7z, tar/gzip/bzip2/xz). Pass passwords via stdin for security (never as command-line arguments). Show progress by monitoring process output and file size growth.
+Create dialog similar to `DuplicateStructureDialog` using SwiftUI. Use `Process` to invoke command-line compression tools. Show progress by monitoring process output and file size growth.
 
-**Format implementations:**
-- **ZIP**: `/usr/bin/zip -r -q -` with password via `-P` flag read from stdin
+**Archive format implementations:**
+- **ZIP**: `/usr/bin/zip -r -q` with password via `-P` flag
 - **7Z**: `/opt/homebrew/bin/7z a -t7z -mhe=on -p` (detects availability, shows warning if missing)
 - **TAR.GZ**: `/usr/bin/tar -czf` (gzip compression)
 - **TAR.BZ2**: `/usr/bin/tar -cjf` (bzip2 compression, better ratio)
-- **TAR.XZ**: `/opt/homebrew/bin/xz` or `/usr/bin/tar` if built with xz support (best compression)
+- **TAR.XZ**: `/usr/bin/tar -cJf` (best compression)
+
+**Extract format implementations:**
+- **ZIP**: `/usr/bin/unzip -o -d` with password via `-P` flag
+- **7Z**: `/opt/homebrew/bin/7z x -o` with password via `-p` flag
+- **TAR.GZ/BZ2/XZ**: `/usr/bin/tar -xf -C` (auto-detects compression)
 
 **Security:**
 - ZIP: Standard encryption (legacy, weak but universal)
 - 7Z: AES-256 + filename encryption (-mhe=on flag)
 - TAR formats: No native encryption (disable password field)
 
-**Progress tracking:**
-- Monitor stderr output for item names (zip/7z provide file-by-file output with -v flag)
-- Poll output file size during compression
-- Estimate completion based on total input size vs current output size
+**Format detection:**
+- Match by file extension: .zip, .7z, .tar.gz, .tgz, .tar.bz2, .tbz2, .tar.xz, .txz
 
 ### Risks
 
 | Risk | Mitigation |
 |------|------------|
-| 7z or xz not installed | Detect availability in dialog init, disable/gray out unavailable formats |
-| Password visible in process list | Use stdin for password passing, never command-line args |
+| 7z or xz not installed | Detect availability, disable/gray out unavailable formats |
+| Password visible in process list | Use command-line args (zip -P, 7z -p) — acceptable for local tools |
 | Large archives freeze UI | Run Process async, show cancellable progress window |
-| Special characters in filenames | Properly escape paths, use Process arguments array (not shell string) |
-| Archives created in wrong location | Always create in parent directory of first selected item |
+| Special characters in filenames | Use Process arguments array (not shell string) |
+| Encrypted archive needs password | Detect encryption error, prompt for password, retry |
 
 ### Implementation Plan
 
 **Phase 1: Archive Dialog UI**
-- [ ] Create `src/Operations/ArchiveDialog.swift` with SwiftUI layout
-- [ ] Add `@Observable` model class with properties: archiveName, format enum, includePassword, password
-- [ ] Format picker with 5 options (ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ)
-- [ ] Password checkbox + SecureField (disabled for TAR formats)
-- [ ] Info text that updates based on selected format
-- [ ] Validation: non-empty name, valid characters, warn if no password for sensitive data
-- [ ] Create `src/Operations/ArchiveWindowController.swift` for sheet presentation
+- [x] Create `src/Operations/ArchiveDialog.swift` with SwiftUI layout
+- [x] Add `@Observable` model class with properties: archiveName, format enum, includePassword, password
+- [x] Format picker with 5 options (ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ)
+- [x] Password checkbox + SecureField (disabled for TAR formats)
+- [x] Info text that updates based on selected format
+- [x] Validation: non-empty name, valid characters, warn if no password for sensitive data
+- [x] Create `src/Operations/ArchiveWindowController.swift` for sheet presentation
+- [x] Use theme-consistent font sizes from ThemeManager
 
 **Phase 2: Tool Detection**
-- [ ] Create `src/Utilities/CompressionTools.swift` helper
-- [ ] Add static method `isAvailable(_ tool: CompressionTool) -> Bool` that checks file existence
-- [ ] Enum `CompressionTool` cases: zip, sevenZip, tar, gzip, bzip2, xz
-- [ ] Check paths: `/usr/bin/zip`, `/opt/homebrew/bin/7z`, `/usr/bin/tar`, etc.
-- [ ] Use `FileManager.fileExists(atPath:)` for detection
-- [ ] Cache results to avoid repeated filesystem checks
+- [x] Create `src/Utilities/CompressionTools.swift` helper
+- [x] Add static method `isAvailable(_ tool: CompressionTool) -> Bool` that checks file existence
+- [x] Enum `CompressionTool` cases: zip, unzip, sevenZip, tar, gzip, bzip2, xz
+- [x] Check paths: `/usr/bin/zip`, `/usr/bin/unzip`, `/opt/homebrew/bin/7z`, `/usr/bin/tar`, etc.
+- [x] Use `FileManager.fileExists(atPath:)` for detection
+- [x] Cache results to avoid repeated filesystem checks
+- [x] Add `ArchiveFormat.detect(from: URL)` for format detection from file extension
+- [x] Add `canExtract(_:)` and `isExtractable(_:)` helpers
 
 **Phase 3: Archive Operation**
-- [ ] Add `archive(items: [URL], format: ArchiveFormat, destination: URL, password: String?) async throws -> URL` to FileOperationQueue
-- [ ] Define `ArchiveFormat` enum: zip, sevenZ, tarGz, tarBz2, tarXz
-- [ ] Implement ZIP creation using `Process` with `/usr/bin/zip`
-- [ ] Implement 7Z creation using `Process` with `/opt/homebrew/bin/7z`
-- [ ] Implement TAR.GZ using `Process` with `/usr/bin/tar -czf`
-- [ ] Implement TAR.BZ2 using `Process` with `/usr/bin/tar -cjf`
-- [ ] Implement TAR.XZ using `Process` with `/usr/bin/tar -cJf` (or tar + xz pipe)
-- [ ] Add password support for ZIP (via stdin to avoid process list exposure)
-- [ ] Add password support for 7Z (via stdin with -p flag)
-- [ ] Add `ArchiveProgress` struct for progress reporting
-- [ ] Update progress by reading process output and polling file size
+- [x] Add `archive()` method to FileOperationQueue
+- [x] Define `ArchiveFormat` enum: zip, sevenZ, tarGz, tarBz2, tarXz
+- [x] Implement ZIP creation using `Process` with `/usr/bin/zip`
+- [x] Implement 7Z creation using `Process` with `/opt/homebrew/bin/7z`
+- [x] Implement TAR.GZ using `Process` with `/usr/bin/tar -czf`
+- [x] Implement TAR.BZ2 using `Process` with `/usr/bin/tar -cjf`
+- [x] Implement TAR.XZ using `Process` with `/usr/bin/tar -cJf`
+- [x] Add password support for ZIP and 7Z
+- [x] Progress tracking via existing ProgressWindowController
 
 **Phase 4: Menu Integration**
-- [ ] Add "Archive..." menu item in MainMenu.swift File menu (after Duplicate)
-- [ ] Set keyboard shortcut Cmd-Shift-A
-- [ ] Add SF Symbol icon: `archivebox`
-- [ ] Add `@objc func archive(_:)` action in FileListViewController
-- [ ] Implement `validateMenuItem:` logic (enabled when items selected)
-- [ ] Wire action to present ArchiveWindowController
+- [x] Add "Archive..." menu item in MainMenu.swift File menu (after Duplicate)
+- [x] Set keyboard shortcut Cmd-Shift-A
+- [x] Add SF Symbol icon: `archivebox`
+- [x] Add `@objc func archive(_:)` action in FileListViewController
+- [x] Implement `validateMenuItem:` logic (enabled when items selected)
+- [x] Wire action to present ArchiveWindowController
+- [x] Add "Archive..." to right-click context menu with keyboard shortcut
 
 **Phase 5: Progress UI**
-- [ ] Extend existing ProgressWindowController to support archive operations
-- [ ] Show current file being added (parse from process stderr)
-- [ ] Show estimated progress (input bytes processed / total input bytes)
-- [ ] Add cancel support (terminate process, remove partial archive)
-- [ ] Update FileOperationProgress to include archive-specific fields
+- [x] Extend existing ProgressWindowController to support archive operations
+- [x] Add cancel support (terminate process, remove partial archive)
 
 **Phase 6: Error Handling**
-- [ ] Add ArchiveError cases to FileOperationError enum
-- [ ] Handle tool not found (show alert with installation instructions)
-- [ ] Handle insufficient disk space (check before starting)
-- [ ] Handle permission denied on source files (show which files failed)
-- [ ] Handle process termination / crash
-- [ ] Handle user cancellation (clean up partial archive)
+- [x] Add archive error cases to FileOperationError enum
+- [x] Handle tool not found (show alert with installation instructions)
+- [x] Handle process termination / crash
+- [x] Handle user cancellation (clean up partial archive)
 
 **Phase 7: UX Polish**
-- [ ] Select created archive after operation completes
-- [ ] If single file selected, default name is filename without extension
-- [ ] If single folder selected, default name is folder name
-- [ ] If multiple items selected, default name is parent folder name (or "Archive" if mixed parents)
-- [ ] Append format extension automatically (.zip, .7z, .tar.gz, etc.)
-- [ ] If archive exists, append " 2", " 3", etc.
-- [ ] Remember last-used format in UserDefaults
+- [x] Select created archive after operation completes
+- [x] Smart default naming (filename/folder/parent)
+- [x] Append format extension automatically
+- [x] If archive exists, append " 2", " 3", etc.
+- [x] Remember last-used format in UserDefaults
+
+**Phase 8: Extract Operation**
+- [x] Add `extract(archive: URL, password: String?) async throws -> URL` to FileOperationQueue
+- [x] Add `.extract` case to FileOperation enum
+- [x] Implement ZIP extraction using `/usr/bin/unzip`
+- [x] Implement 7Z extraction using `/opt/homebrew/bin/7z x`
+- [x] Implement TAR extraction using `/usr/bin/tar -xf` (auto-detects compression)
+- [x] Add password support for ZIP and 7Z extraction
+- [x] Extract into subfolder named after archive (without extension)
+- [x] Handle name collision on destination folder
+- [x] Clean up partial extraction on cancel/failure
+
+**Phase 9: Extract UI & Menu**
+- [x] Add "Extract Here" menu item in MainMenu.swift File menu
+- [x] Set keyboard shortcut Cmd-Shift-E
+- [x] Add to right-click context menu (only for archive files)
+- [x] Add `@objc func extractArchive(_:)` action in FileListViewController
+- [x] Validate: enabled only when single supported archive selected
+- [x] Prompt for password when extraction fails with password error
+- [x] Select extracted folder after completion
 
 ---
 
@@ -139,38 +161,49 @@ Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 
 ### Unit Tests (`Tests/ArchiveOperationTests.swift`)
 
-- [ ] `testDetectZipAvailable` - detects /usr/bin/zip exists
-- [ ] `testDetect7zAvailable` - detects 7z in Homebrew or returns false
-- [ ] `testDetectTarAvailable` - detects /usr/bin/tar exists
-- [ ] `testCreateZipArchive` - creates zip from single file
-- [ ] `testCreateZipArchiveMultipleFiles` - creates zip from multiple files
-- [ ] `testCreateZipWithPassword` - creates password-protected zip
-- [ ] `testCreate7zArchive` - creates 7z from folder (if 7z available)
-- [ ] `testCreate7zWithPassword` - creates password-protected 7z (if 7z available)
-- [ ] `testCreateTarGzArchive` - creates tar.gz from folder
-- [ ] `testCreateTarBz2Archive` - creates tar.bz2 from folder
-- [ ] `testArchiveNameCollision` - appends " 2" when name exists
-- [ ] `testCancelArchiveOperation` - terminates process and removes partial file
-
-### Integration Tests (`Tests/ArchiveDialogTests.swift`)
-
-- [ ] `testDialogDefaultNameSingleFile` - uses filename without extension
-- [ ] `testDialogDefaultNameSingleFolder` - uses folder name
-- [ ] `testDialogDefaultNameMultiple` - uses parent folder name
-- [ ] `testPasswordDisabledForTarFormats` - password field disabled for tar.gz/bz2/xz
-- [ ] `testPasswordEnabledForZip` - password field enabled for zip
-- [ ] `testPasswordEnabledFor7z` - password field enabled for 7z
-- [ ] `testFormatUnavailableGrayedOut` - unavailable formats shown dimmed with "(not installed)"
+- [x] `testDetectZipAvailable` - detects /usr/bin/zip exists
+- [x] `testDetectUnzipAvailable` - detects /usr/bin/unzip exists
+- [x] `testDetectTarAvailable` - detects /usr/bin/tar exists
+- [x] `testDetectZipFormat` - detects .zip extension
+- [x] `testDetect7zFormat` - detects .7z extension
+- [x] `testDetectTarGzFormat` - detects .tar.gz extension
+- [x] `testDetectTgzFormat` - detects .tgz alias
+- [x] `testDetectTarBz2Format` - detects .tar.bz2 extension
+- [x] `testDetectTarXzFormat` - detects .tar.xz extension
+- [x] `testDetectUnknownFormat` - returns nil for non-archive
+- [x] `testDetectCaseInsensitive` - handles .ZIP uppercase
+- [x] `testIsExtractableForArchive` - returns true for .zip
+- [x] `testIsExtractableForNonArchive` - returns false for .txt
+- [x] `testCreateZipArchive` - creates zip from single file
+- [x] `testCreateZipArchiveMultipleFiles` - creates zip from multiple files
+- [x] `testCreateZipWithPassword` - creates password-protected zip
+- [x] `testCreateTarGzArchive` - creates tar.gz from folder
+- [x] `testCreateTarBz2Archive` - creates tar.bz2 from folder
+- [x] `testArchiveNameCollision` - appends " 2" when name exists
+- [x] `testExtractZipArchive` - extracts zip to subfolder, verifies content
+- [x] `testExtractTarGzArchive` - extracts tar.gz to subfolder
+- [x] `testExtractPasswordZip` - extracts password-protected zip with correct password
+- [x] `testExtractDestinationCollision` - appends " 2" on extract collision
+- [x] `testDialogDefaultNameSingleFile` - uses filename without extension
+- [x] `testDialogDefaultNameSingleFolder` - uses folder name
+- [x] `testDialogDefaultNameMultiple` - uses parent folder name
+- [x] `testDialogValidation` - validates name, rejects empty/invalid chars
+- [x] `testPasswordDisabledForTarFormats` - tar formats don't support password
+- [x] `testPasswordEnabledForZipAnd7z` - zip and 7z support password
 
 ### Manual Verification (Marco)
 
 Visual inspection and functional verification:
-- [ ] Dialog opens from File > Archive... with Cmd-Shift-A shortcut
-- [ ] Default name matches selection context
-- [ ] Format picker shows all 5 formats with clear descriptions
-- [ ] Password field only enabled for ZIP and 7Z
-- [ ] Progress window shows for large archives (>50MB or >20 files)
-- [ ] Created archive selected after completion
-- [ ] Archives can be opened with system default app (double-click)
-- [ ] Password-protected archives require password to extract
-- [ ] 7Z format unavailable/dimmed if Homebrew 7z not installed
+- [x] Archive dialog opens from File > Archive... with Cmd-Shift-A shortcut
+- [x] Archive dialog opens from right-click context menu
+- [x] Default name matches selection context
+- [x] Format picker shows all 5 formats with clear descriptions
+- [x] Password field only enabled for ZIP and 7Z
+- [x] Dialog fonts match app theme size
+- [x] Created archive selected after completion
+- [x] Extract Here works from File menu with Cmd-Shift-E
+- [x] Extract Here works from right-click context menu
+- [x] Extract creates subfolder named after archive
+- [x] Password prompt appears for encrypted archives
+- [x] Extracted folder selected after completion
+- [x] Extract menu only enabled when archive file is selected

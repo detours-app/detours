@@ -73,6 +73,16 @@ func setupMainMenu(target: AppDelegate) {
     duplicateItem.image = NSImage(systemSymbolName: "plus.square.on.square", accessibilityDescription: nil)
     fileMenu.addItem(duplicateItem)
 
+    let archiveItem = NSMenuItem(title: "Archive...", action: #selector(FileListViewController.archive(_:)), keyEquivalent: "A")
+    archiveItem.keyEquivalentModifierMask = [.command, .shift]
+    archiveItem.image = NSImage(systemSymbolName: "archivebox", accessibilityDescription: nil)
+    fileMenu.addItem(archiveItem)
+
+    let extractItem = NSMenuItem(title: "Extract Here", action: #selector(FileListViewController.extractArchive(_:)), keyEquivalent: "E")
+    extractItem.keyEquivalentModifierMask = [.command, .shift]
+    extractItem.image = NSImage(systemSymbolName: "arrow.up.bin", accessibilityDescription: nil)
+    fileMenu.addItem(extractItem)
+
     fileMenu.addItem(NSMenuItem.separator())
 
     let getInfoItem = NSMenuItem(title: "Get Info", action: #selector(FileListViewController.getInfo(_:)), keyEquivalent: "i")

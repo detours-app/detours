@@ -1,6 +1,46 @@
 # Test Log
 
 ## Latest Run
+- Started: 2026-02-13 10:27:44
+- Command: `swift test --filter ArchiveOperationTests`
+- Status: PASS
+- Duration: 1.418s
+- Notes: All 29 archive tests pass. Added extraction conflict dialog — replaced testExtractOverwritesExisting with testExtractKeepsBothOnConflict. Extraction now checks for existing items before extracting and shows Keep Both / Replace / Stop dialog.
+
+### ArchiveOperationTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testDetectZipFormat | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDetect7zFormat | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDetectTarGzFormat | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDetectTgzFormat | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDetectTarBz2Format | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDetectTarXzFormat | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDetectUnknownFormat | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDetectCaseInsensitive | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDetectZipAvailable | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDetectUnzipAvailable | PASS | 0.002s | 2026-02-13 10:27:44 |
+| testDetectTarAvailable | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testIsExtractableForArchive | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testIsExtractableForNonArchive | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testCreateZipArchive | PASS | 0.071s | 2026-02-13 10:27:44 |
+| testCreateZipArchiveMultipleFiles | PASS | 0.081s | 2026-02-13 10:27:44 |
+| testCreateZipWithPassword | PASS | 0.070s | 2026-02-13 10:27:44 |
+| testCreateTarGzArchive | PASS | 0.067s | 2026-02-13 10:27:44 |
+| testCreateTarBz2Archive | PASS | 0.071s | 2026-02-13 10:27:44 |
+| testArchiveNameCollision | PASS | 0.141s | 2026-02-13 10:27:44 |
+| testExtractZipArchive | PASS | 0.219s | 2026-02-13 10:27:44 |
+| testExtractTarGzArchive | PASS | 0.233s | 2026-02-13 10:27:44 |
+| testExtractPasswordZip | PASS | 0.219s | 2026-02-13 10:27:44 |
+| testExtractKeepsBothOnConflict | PASS | 0.236s | 2026-02-13 10:27:44 |
+| testDialogDefaultNameSingleFile | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDialogDefaultNameSingleFolder | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testDialogDefaultNameMultiple | PASS | 0.001s | 2026-02-13 10:27:44 |
+| testDialogValidation | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testPasswordDisabledForTarFormats | PASS | 0.000s | 2026-02-13 10:27:44 |
+| testPasswordEnabledForZipAnd7z | PASS | 0.000s | 2026-02-13 10:27:44 |
+
+## Previous Run
 - Started: 2026-02-07 21:45:00
 - Command: `swift test --filter DirectoryLoaderTests`
 - Status: PASS
