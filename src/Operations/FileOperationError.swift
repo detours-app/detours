@@ -8,6 +8,9 @@ enum FileOperationError: Error {
     case cancelled
     case partialFailure(succeeded: [URL], failed: [(URL, Error)])
     case unknown(Error)
+    case archiveToolNotFound(String)
+    case archiveProcessFailed(String)
+    case insufficientDiskSpace
 }
 
 extension FileOperationError: LocalizedError {
@@ -27,6 +30,12 @@ extension FileOperationError: LocalizedError {
             return "\(failed.count) item\(failed.count == 1 ? "" : "s") failed."
         case let .unknown(error):
             return error.localizedDescription
+        case let .archiveToolNotFound(tool):
+            return "\(tool) is not installed. Install it via Homebrew: brew install \(tool)"
+        case let .archiveProcessFailed(message):
+            return "Archive creation failed: \(message)"
+        case .insufficientDiskSpace:
+            return "Not enough disk space to create the archive."
         }
     }
 }

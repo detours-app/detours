@@ -838,6 +838,35 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
+    private func archiveSelection() {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+        guard let window = view.window else { return }
+
+        let controller = ArchiveWindowController(sourceURLs: urls) { [weak self] model in
+            guard let self else { return }
+            let password = model.includePassword && model.format.supportsPassword && !model.password.isEmpty ? model.password : nil
+
+            Task { @MainActor in
+                do {
+                    let archiveURL = try await FileOperationQueue.shared.archive(
+                        items: urls,
+                        format: model.format,
+                        archiveName: model.archiveName,
+                        password: password
+                    )
+                    self.loadDirectory(self.currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
+                    self.pendingPostLoadAction = {
+                        self.selectItem(at: archiveURL)
+                    }
+                } catch {
+                    FileOperationQueue.shared.presentError(error)
+                }
+            }
+        }
+        controller.present(from: window)
+    }
+
     private func createNewFolder() {
         guard let currentDirectory else { return }
 
@@ -1696,6 +1725,10 @@ extension FileListViewController {
         duplicateSelection()
     }
 
+    @objc func archive(_ sender: Any?) {
+        archiveSelection()
+    }
+
     @objc func newFolder(_ sender: Any?) {
         createNewFolder()
     }
@@ -1800,7 +1833,8 @@ extension FileListViewController: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(copy(_:)), #selector(cut(_:)), #selector(delete(_:)), #selector(duplicate(_:)),
-             #selector(getInfo(_:)), #selector(copyPath(_:)), #selector(showInFinder(_:)):
+             #selector(getInfo(_:)), #selector(copyPath(_:)), #selector(showInFinder(_:)),
+             #selector(archive(_:)):
             return !selectedURLs.isEmpty
         case #selector(paste(_:)):
             return ClipboardManager.shared.hasValidItems && currentDirectory != nil

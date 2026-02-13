@@ -70,66 +70,66 @@ Create dialog similar to `DuplicateStructureDialog` using SwiftUI. Use `Process`
 ### Implementation Plan
 
 **Phase 1: Archive Dialog UI**
-- [ ] Create `src/Operations/ArchiveDialog.swift` with SwiftUI layout
-- [ ] Add `@Observable` model class with properties: archiveName, format enum, includePassword, password
-- [ ] Format picker with 5 options (ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ)
-- [ ] Password checkbox + SecureField (disabled for TAR formats)
-- [ ] Info text that updates based on selected format
-- [ ] Validation: non-empty name, valid characters, warn if no password for sensitive data
-- [ ] Create `src/Operations/ArchiveWindowController.swift` for sheet presentation
+- [x] Create `src/Operations/ArchiveDialog.swift` with SwiftUI layout
+- [x] Add `@Observable` model class with properties: archiveName, format enum, includePassword, password
+- [x] Format picker with 5 options (ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ)
+- [x] Password checkbox + SecureField (disabled for TAR formats)
+- [x] Info text that updates based on selected format
+- [x] Validation: non-empty name, valid characters, warn if no password for sensitive data
+- [x] Create `src/Operations/ArchiveWindowController.swift` for sheet presentation
 
 **Phase 2: Tool Detection**
-- [ ] Create `src/Utilities/CompressionTools.swift` helper
-- [ ] Add static method `isAvailable(_ tool: CompressionTool) -> Bool` that checks file existence
-- [ ] Enum `CompressionTool` cases: zip, sevenZip, tar, gzip, bzip2, xz
-- [ ] Check paths: `/usr/bin/zip`, `/opt/homebrew/bin/7z`, `/usr/bin/tar`, etc.
-- [ ] Use `FileManager.fileExists(atPath:)` for detection
-- [ ] Cache results to avoid repeated filesystem checks
+- [x] Create `src/Utilities/CompressionTools.swift` helper
+- [x] Add static method `isAvailable(_ tool: CompressionTool) -> Bool` that checks file existence
+- [x] Enum `CompressionTool` cases: zip, sevenZip, tar, gzip, bzip2, xz
+- [x] Check paths: `/usr/bin/zip`, `/opt/homebrew/bin/7z`, `/usr/bin/tar`, etc.
+- [x] Use `FileManager.fileExists(atPath:)` for detection
+- [x] Cache results to avoid repeated filesystem checks
 
 **Phase 3: Archive Operation**
-- [ ] Add `archive(items: [URL], format: ArchiveFormat, destination: URL, password: String?) async throws -> URL` to FileOperationQueue
-- [ ] Define `ArchiveFormat` enum: zip, sevenZ, tarGz, tarBz2, tarXz
-- [ ] Implement ZIP creation using `Process` with `/usr/bin/zip`
-- [ ] Implement 7Z creation using `Process` with `/opt/homebrew/bin/7z`
-- [ ] Implement TAR.GZ using `Process` with `/usr/bin/tar -czf`
-- [ ] Implement TAR.BZ2 using `Process` with `/usr/bin/tar -cjf`
-- [ ] Implement TAR.XZ using `Process` with `/usr/bin/tar -cJf` (or tar + xz pipe)
-- [ ] Add password support for ZIP (via stdin to avoid process list exposure)
-- [ ] Add password support for 7Z (via stdin with -p flag)
-- [ ] Add `ArchiveProgress` struct for progress reporting
-- [ ] Update progress by reading process output and polling file size
+- [x] Add `archive(items: [URL], format: ArchiveFormat, destination: URL, password: String?) async throws -> URL` to FileOperationQueue
+- [x] Define `ArchiveFormat` enum: zip, sevenZ, tarGz, tarBz2, tarXz
+- [x] Implement ZIP creation using `Process` with `/usr/bin/zip`
+- [x] Implement 7Z creation using `Process` with `/opt/homebrew/bin/7z`
+- [x] Implement TAR.GZ using `Process` with `/usr/bin/tar -czf`
+- [x] Implement TAR.BZ2 using `Process` with `/usr/bin/tar -cjf`
+- [x] Implement TAR.XZ using `Process` with `/usr/bin/tar -cJf` (or tar + xz pipe)
+- [x] Add password support for ZIP (via stdin to avoid process list exposure)
+- [x] Add password support for 7Z (via stdin with -p flag)
+- [x] Add `ArchiveProgress` struct for progress reporting
+- [x] Update progress by reading process output and polling file size
 
 **Phase 4: Menu Integration**
-- [ ] Add "Archive..." menu item in MainMenu.swift File menu (after Duplicate)
-- [ ] Set keyboard shortcut Cmd-Shift-A
-- [ ] Add SF Symbol icon: `archivebox`
-- [ ] Add `@objc func archive(_:)` action in FileListViewController
-- [ ] Implement `validateMenuItem:` logic (enabled when items selected)
-- [ ] Wire action to present ArchiveWindowController
+- [x] Add "Archive..." menu item in MainMenu.swift File menu (after Duplicate)
+- [x] Set keyboard shortcut Cmd-Shift-A
+- [x] Add SF Symbol icon: `archivebox`
+- [x] Add `@objc func archive(_:)` action in FileListViewController
+- [x] Implement `validateMenuItem:` logic (enabled when items selected)
+- [x] Wire action to present ArchiveWindowController
 
 **Phase 5: Progress UI**
-- [ ] Extend existing ProgressWindowController to support archive operations
-- [ ] Show current file being added (parse from process stderr)
-- [ ] Show estimated progress (input bytes processed / total input bytes)
-- [ ] Add cancel support (terminate process, remove partial archive)
-- [ ] Update FileOperationProgress to include archive-specific fields
+- [x] Extend existing ProgressWindowController to support archive operations
+- [x] Show current file being added (parse from process stderr)
+- [x] Show estimated progress (input bytes processed / total input bytes)
+- [x] Add cancel support (terminate process, remove partial archive)
+- [x] Update FileOperationProgress to include archive-specific fields
 
 **Phase 6: Error Handling**
-- [ ] Add ArchiveError cases to FileOperationError enum
-- [ ] Handle tool not found (show alert with installation instructions)
-- [ ] Handle insufficient disk space (check before starting)
-- [ ] Handle permission denied on source files (show which files failed)
-- [ ] Handle process termination / crash
-- [ ] Handle user cancellation (clean up partial archive)
+- [x] Add ArchiveError cases to FileOperationError enum
+- [x] Handle tool not found (show alert with installation instructions)
+- [x] Handle insufficient disk space (check before starting)
+- [x] Handle permission denied on source files (show which files failed)
+- [x] Handle process termination / crash
+- [x] Handle user cancellation (clean up partial archive)
 
 **Phase 7: UX Polish**
-- [ ] Select created archive after operation completes
-- [ ] If single file selected, default name is filename without extension
-- [ ] If single folder selected, default name is folder name
-- [ ] If multiple items selected, default name is parent folder name (or "Archive" if mixed parents)
-- [ ] Append format extension automatically (.zip, .7z, .tar.gz, etc.)
-- [ ] If archive exists, append " 2", " 3", etc.
-- [ ] Remember last-used format in UserDefaults
+- [x] Select created archive after operation completes
+- [x] If single file selected, default name is filename without extension
+- [x] If single folder selected, default name is folder name
+- [x] If multiple items selected, default name is parent folder name (or "Archive" if mixed parents)
+- [x] Append format extension automatically (.zip, .7z, .tar.gz, etc.)
+- [x] If archive exists, append " 2", " 3", etc.
+- [x] Remember last-used format in UserDefaults
 
 ---
 

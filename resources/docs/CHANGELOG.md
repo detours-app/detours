@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Archive creation from selected files/folders via File > Archive... (Cmd-Shift-A)
+- Five format options: ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ with format descriptions
+- Optional password encryption for ZIP and 7Z archives
+- Auto-detects installed compression tools; unavailable formats shown dimmed
+- Remembers last-used format between sessions
 - Click empty space in file list to deselect all items, matching Finder behavior
 - New folder/file creation reliably selects and begins rename after directory loads
 - Cancelling "Connect to Share" no longer shows an error dialog

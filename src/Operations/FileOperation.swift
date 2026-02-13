@@ -9,6 +9,7 @@ enum FileOperation {
     case duplicate(items: [URL])
     case createFolder(directory: URL, name: String)
     case createFile(directory: URL, name: String)
+    case archive(items: [URL], format: ArchiveFormat)
 
     var description: String {
         switch self {
@@ -28,6 +29,8 @@ enum FileOperation {
             return "Creating folder..."
         case .createFile:
             return "Creating file..."
+        case let .archive(items, format):
+            return "Creating \(format.displayName) archive with \(items.count) item\(items.count == 1 ? "" : "s")..."
         }
     }
 }
