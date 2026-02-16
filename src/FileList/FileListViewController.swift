@@ -376,6 +376,85 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         loadDirectory(currentDirectory, preserveExpansion: true)
     }
 
+    /// Refresh and select moved/copied files after load completes.
+    /// If destination is a subfolder, expands the ancestor chain to reveal the files.
+    /// - Parameters:
+    ///   - urls: Full URLs of the moved/copied files
+    ///   - expandTo: If the files were placed in a subfolder of the current directory,
+    ///               pass that folder URL so the tree expands to reveal them
+    func refreshSelectingItems(at urls: [URL], expandingTo subfolder: URL? = nil, completion: (() -> Void)? = nil) {
+        guard currentDirectory != nil else { return }
+        setPendingSelection(at: urls, expandingTo: subfolder, completion: completion)
+        refresh()
+    }
+
+    /// Set a pending action to select items after the next load completes.
+    /// Call this before triggering a load (e.g. via navigate or refresh).
+    func setPendingSelection(at urls: [URL], expandingTo subfolder: URL? = nil, completion: (() -> Void)? = nil) {
+        pendingPostLoadAction = { [weak self] in
+            guard let self else { return }
+
+            // If files are in a subfolder, expand the ancestor chain to reveal them
+            if let subfolder {
+                self.expandAncestorChain(to: subfolder)
+            }
+
+            // Now select the files by URL
+            var indicesToSelect: [Int] = []
+            for url in urls {
+                if let item = self.dataSource.findItem(withURL: url, in: self.dataSource.items) {
+                    let row = self.tableView.row(forItem: item)
+                    if row >= 0 {
+                        indicesToSelect.append(row)
+                    }
+                }
+            }
+            if !indicesToSelect.isEmpty {
+                self.tableView.selectRowIndexes(IndexSet(indicesToSelect), byExtendingSelection: false)
+                self.tableView.scrollRowToVisible(indicesToSelect.first!)
+            }
+
+            completion?()
+        }
+    }
+
+    /// Expand all folders in the ancestor chain from the current directory down to the given URL.
+    private func expandAncestorChain(to folderURL: URL) {
+        guard let currentDirectory else { return }
+        let basePath = currentDirectory.standardizedFileURL.path
+        let targetPath = folderURL.standardizedFileURL.path
+
+        // Build list of intermediate folder URLs from current directory to target
+        guard targetPath.hasPrefix(basePath) else { return }
+        let relativePath = String(targetPath.dropFirst(basePath.count))
+        let components = relativePath.split(separator: "/").map(String.init)
+        guard !components.isEmpty else { return }
+
+        // Build URL-to-item map starting from root items
+        var urlToItem: [URL: FileItem] = [:]
+        for item in dataSource.items {
+            urlToItem[item.url.standardizedFileURL] = item
+        }
+
+        // Expand each ancestor folder in order
+        var current = currentDirectory.standardizedFileURL
+        for component in components {
+            current = current.appendingPathComponent(component).standardizedFileURL
+            if let item = urlToItem[current], item.isNavigableFolder {
+                if item.children == nil {
+                    _ = item.loadChildren(showHidden: dataSource.showHiddenFiles)
+                }
+                tableView.expandItem(item)
+                // Add children to map so next level can be found
+                if let children = item.children {
+                    for child in children {
+                        urlToItem[child.url.standardizedFileURL] = child
+                    }
+                }
+            }
+        }
+    }
+
     func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false) {
         // Cancel any in-progress load before starting a new one
         dataSource.cancelCurrentLoad()

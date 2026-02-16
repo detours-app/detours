@@ -503,26 +503,20 @@ final class MainSplitViewController: NSSplitViewController {
         // Use effective destination: if a folder is selected, move into it
         guard let destination = destinationPane.effectiveDestination else { return }
 
-        // Remember the moved file names to select in destination
-        let movedNames = items.map { $0.lastPathComponent }
+        let isSubfolder = destination != destinationPane.currentDirectory
 
         Task { @MainActor in
             do {
-                try await FileOperationQueue.shared.move(items: items, to: destination)
+                let actualURLs = try await FileOperationQueue.shared.move(items: items, to: destination)
                 pane.refresh()
-                destinationPane.refresh()
-                // Select moved files in destination pane
-                if let tab = destinationPane.selectedTab {
-                    let tableView = tab.fileListViewController.tableView
-                    let dataSource = tab.fileListViewController.dataSource
-                    let indicesToSelect = dataSource.items.enumerated()
-                        .filter { movedNames.contains($0.element.name) }
-                        .map { $0.offset }
-                    if !indicesToSelect.isEmpty {
-                        tableView.selectRowIndexes(IndexSet(indicesToSelect), byExtendingSelection: false)
-                        tableView.scrollRowToVisible(indicesToSelect.first!)
+
+                // Refresh target pane, expand subfolder if needed, select moved files, then focus
+                if let flvc = destinationPane.selectedTab?.fileListViewController {
+                    flvc.refreshSelectingItems(at: actualURLs, expandingTo: isSubfolder ? destination : nil) { [weak self] in
+                        // Activate destination pane AFTER data loads and selection is set
+                        self?.setActivePaneFromChild(destinationPane)
+                        self?.view.window?.makeFirstResponder(flvc.tableView)
                     }
-                    view.window?.makeFirstResponder(tableView)
                 }
             } catch {
                 FileOperationQueue.shared.presentError(error)
@@ -536,25 +530,18 @@ final class MainSplitViewController: NSSplitViewController {
         // Use effective destination: if a folder is selected, copy into it
         guard let destination = destinationPane.effectiveDestination else { return }
 
-        // Remember the copied file names to select in destination
-        let copiedNames = items.map { $0.lastPathComponent }
+        let isSubfolder = destination != destinationPane.currentDirectory
 
         Task { @MainActor in
             do {
-                try await FileOperationQueue.shared.copy(items: items, to: destination)
-                destinationPane.refresh()
-                // Select copied files in destination pane
-                if let tab = destinationPane.selectedTab {
-                    let tableView = tab.fileListViewController.tableView
-                    let dataSource = tab.fileListViewController.dataSource
-                    let indicesToSelect = dataSource.items.enumerated()
-                        .filter { copiedNames.contains($0.element.name) }
-                        .map { $0.offset }
-                    if !indicesToSelect.isEmpty {
-                        tableView.selectRowIndexes(IndexSet(indicesToSelect), byExtendingSelection: false)
-                        tableView.scrollRowToVisible(indicesToSelect.first!)
+                let actualURLs = try await FileOperationQueue.shared.copy(items: items, to: destination)
+
+                // Refresh target pane, expand subfolder if needed, select copied files
+                if let flvc = destinationPane.selectedTab?.fileListViewController {
+                    flvc.refreshSelectingItems(at: actualURLs, expandingTo: isSubfolder ? destination : nil) { [weak self] in
+                        self?.setActivePaneFromChild(destinationPane)
+                        self?.view.window?.makeFirstResponder(flvc.tableView)
                     }
-                    view.window?.makeFirstResponder(tableView)
                 }
             } catch {
                 FileOperationQueue.shared.presentError(error)
