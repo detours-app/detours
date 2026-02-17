@@ -96,6 +96,16 @@ func setupMainMenu(target: AppDelegate) {
     let showPackageContentsItem = NSMenuItem(title: "Show Package Contents", action: #selector(FileListViewController.showPackageContents), keyEquivalent: "")
     showPackageContentsItem.image = NSImage(systemSymbolName: "shippingbox", accessibilityDescription: nil)
     fileMenu.addItem(showPackageContentsItem)
+
+    let mainShareMenu = NSMenu(title: "Share")
+    let mainShareDelegate = MainMenuShareDelegate()
+    mainShareMenu.delegate = mainShareDelegate
+    let mainShareItem = NSMenuItem(title: "Share", action: nil, keyEquivalent: "")
+    mainShareItem.submenu = mainShareMenu
+    mainShareItem.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: nil)
+    // Store delegate to prevent deallocation
+    mainShareItem.representedObject = mainShareDelegate
+    fileMenu.addItem(mainShareItem)
     fileMenu.addItem(NSMenuItem.separator())
 
     let deleteItem = NSMenuItem(title: "Move to Trash", action: #selector(FileListViewController.delete(_:)), keyEquivalent: String(Character(UnicodeScalar(NSDeleteCharacter)!)))
@@ -433,5 +443,79 @@ final class WindowMenuDelegate: NSObject, NSMenuDelegate {
         for item in menu.items where item.action == #selector(NSWindow.toggleFullScreen(_:)) {
             menu.removeItem(item)
         }
+    }
+}
+
+// MARK: - Main Menu Share Delegate
+
+/// Delegate that dynamically populates the Share submenu in the File menu
+/// using the responder chain to find the active FileListViewController
+@MainActor
+final class MainMenuShareDelegate: NSObject, NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        // Find the active FileListViewController via the responder chain
+        guard let appDelegate = NSApp.delegate as? AppDelegate,
+              let splitVC = appDelegate.mainWindowController?.splitViewController else {
+            let noItems = NSMenuItem(title: "No files selected", action: nil, keyEquivalent: "")
+            noItems.isEnabled = false
+            menu.addItem(noItems)
+            return
+        }
+
+        guard let activeFileList = splitVC.activePane.selectedTab?.fileListViewController else {
+            let noItems = NSMenuItem(title: "No files selected", action: nil, keyEquivalent: "")
+            noItems.isEnabled = false
+            menu.addItem(noItems)
+            return
+        }
+        let urls = activeFileList.selectedURLs
+        guard !urls.isEmpty else {
+            let noItems = NSMenuItem(title: "No files selected", action: nil, keyEquivalent: "")
+            noItems.isEnabled = false
+            menu.addItem(noItems)
+            return
+        }
+
+        let services = SharingServiceHelper.services(for: urls)
+        guard !services.isEmpty else {
+            let noServices = NSMenuItem(title: "No sharing services available", action: nil, keyEquivalent: "")
+            noServices.isEnabled = false
+            menu.addItem(noServices)
+            return
+        }
+
+        // Find AirDrop and put it first
+        var airDropService: NSSharingService?
+        var otherServices: [NSSharingService] = []
+        for service in services {
+            if service == NSSharingService(named: .sendViaAirDrop) {
+                airDropService = service
+            } else {
+                otherServices.append(service)
+            }
+        }
+
+        if let airDrop = airDropService {
+            let item = makeMenuItem(for: airDrop)
+            menu.addItem(item)
+            if !otherServices.isEmpty {
+                menu.addItem(NSMenuItem.separator())
+            }
+        }
+
+        for service in otherServices {
+            let item = makeMenuItem(for: service)
+            menu.addItem(item)
+        }
+    }
+
+    private func makeMenuItem(for service: NSSharingService) -> NSMenuItem {
+        let item = NSMenuItem(title: service.title, action: #selector(FileListViewController.shareViaService(_:)), keyEquivalent: "")
+        item.representedObject = service
+        item.image = service.image
+        item.image?.size = NSSize(width: 16, height: 16)
+        return item
     }
 }

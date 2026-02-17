@@ -53,19 +53,19 @@ Files affected:
 ### Implementation Plan
 
 **Phase 1: Share submenu in context menu**
-- [ ] Add `shareViaService(_:)` action method to `FileListViewController` that calls `service.perform(withItems:)` with `selectedURLs`
-- [ ] Create a helper method `buildShareMenu(for urls: [URL]) -> NSMenu` in `FileListViewController+ContextMenu.swift` that queries `NSSharingService.sharingServices(forItems:)`, builds menu items with service name and image, puts AirDrop (`NSSharingService.Name.sendViaAirDrop`) first with a separator after it
-- [ ] Add "Share" submenu to `buildContextMenu(for:clickedRow:)` after the "Reveal in Finder" item, gated on `hasSelection`
-- [ ] Make the Share submenu use an `NSMenuDelegate` to rebuild items in `menuNeedsUpdate(_:)` so it reflects current selection
+- [x] Add `shareViaService(_:)` action method to `FileListViewController` that calls `service.perform(withItems:)` with `selectedURLs`
+- [x] Create a helper method `buildShareMenu(for urls: [URL]) -> NSMenu` in `FileListViewController+ContextMenu.swift` that queries `NSSharingService.sharingServices(forItems:)`, builds menu items with service name and image, puts AirDrop (`NSSharingService.Name.sendViaAirDrop`) first with a separator after it
+- [x] Add "Share" submenu to `buildContextMenu(for:clickedRow:)` after the "Reveal in Finder" item, gated on `hasSelection`
+- [x] Make the Share submenu use an `NSMenuDelegate` to rebuild items in `menuNeedsUpdate(_:)` so it reflects current selection
 
 **Phase 2: Share submenu in main menu**
-- [ ] Add "Share" submenu to the File menu in `MainMenu.swift` after the "Reveal in Finder" / "Show Package Contents" group
-- [ ] Wire it to the same `shareViaService(_:)` action via responder chain
-- [ ] Use the same `NSMenuDelegate` approach so items update dynamically
+- [x] Add "Share" submenu to the File menu in `MainMenu.swift` after the "Reveal in Finder" / "Show Package Contents" group
+- [x] Wire it to the same `shareViaService(_:)` action via responder chain
+- [x] Use the same `NSMenuDelegate` approach so items update dynamically
 
 **Phase 3: Validation**
-- [ ] Ensure `validateMenuItem` in `FileListViewController` disables Share when `selectedURLs` is empty
-- [ ] Build and verify
+- [x] Ensure `validateMenuItem` in `FileListViewController` disables Share when `selectedURLs` is empty
+- [x] Build and verify
 
 ---
 
