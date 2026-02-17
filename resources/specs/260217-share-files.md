@@ -76,7 +76,7 @@ Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 ### Manual Verification (Marco)
 
 Visual inspection items that cannot be automated:
-- [ ] Context menu shows "Share" submenu with AirDrop and other services when files are selected
-- [ ] File menu shows "Share" submenu, disabled when nothing is selected
-- [ ] Selecting AirDrop opens the system AirDrop picker with the selected files
-- [ ] Selecting another service (e.g., Mail) opens that service's compose window with files attached
+- [x] Context menu shows "Share" submenu with AirDrop and other services when files are selected
+- [x] File menu shows "Share" submenu, disabled when nothing is selected
+- [x] Selecting AirDrop opens the system AirDrop picker with the selected files
+- [x] Selecting another service (e.g., Mail) opens that service's compose window with files attached
