@@ -1944,6 +1944,13 @@ extension FileListViewController {
         NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
 
+    @objc func shareViaService(_ sender: NSMenuItem) {
+        guard let service = sender.representedObject as? NSSharingService else { return }
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+        service.perform(withItems: urls)
+    }
+
     // MARK: - Navigation Actions (for menu responder chain)
 
     @objc func goBack(_ sender: Any?) {
@@ -1966,7 +1973,7 @@ extension FileListViewController: NSMenuItemValidation {
         switch menuItem.action {
         case #selector(copy(_:)), #selector(cut(_:)), #selector(delete(_:)), #selector(duplicate(_:)),
              #selector(getInfo(_:)), #selector(copyPath(_:)), #selector(showInFinder(_:)),
-             #selector(archive(_:)):
+             #selector(archive(_:)), #selector(shareViaService(_:)):
             return !selectedURLs.isEmpty
         case #selector(extractArchive(_:)):
             let urls = selectedURLs

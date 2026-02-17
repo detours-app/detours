@@ -37,6 +37,17 @@ extension FileListViewController: FileListContextMenuDelegate {
             showInFinderItem.target = self
             showInFinderItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
             menu.addItem(showInFinderItem)
+
+            // Share submenu
+            let shareMenu = NSMenu(title: "Share")
+            let shareDelegate = ShareMenuDelegate(fileListViewController: self)
+            shareMenu.delegate = shareDelegate
+            let shareItem = NSMenuItem(title: "Share", action: nil, keyEquivalent: "")
+            shareItem.submenu = shareMenu
+            shareItem.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: nil)
+            // Store delegate to prevent deallocation
+            shareItem.representedObject = shareDelegate
+            menu.addItem(shareItem)
         }
 
         menu.addItem(NSMenuItem.separator())
@@ -302,5 +313,88 @@ extension FileListViewController: FileListContextMenuDelegate {
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row), item.isNavigableFolder else { return }
         showDuplicateStructureDialog(for: item.url)
+    }
+}
+
+// MARK: - Share Menu Delegate
+
+@MainActor
+final class ShareMenuDelegate: NSObject, NSMenuDelegate {
+    private weak var fileListViewController: FileListViewController?
+
+    init(fileListViewController: FileListViewController) {
+        self.fileListViewController = fileListViewController
+        super.init()
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        guard let fileListVC = fileListViewController else { return }
+        let urls = fileListVC.selectedURLs
+        guard !urls.isEmpty else {
+            let noItems = NSMenuItem(title: "No files selected", action: nil, keyEquivalent: "")
+            noItems.isEnabled = false
+            menu.addItem(noItems)
+            return
+        }
+
+        let services = SharingServiceHelper.services(for: urls)
+        guard !services.isEmpty else {
+            let noServices = NSMenuItem(title: "No sharing services available", action: nil, keyEquivalent: "")
+            noServices.isEnabled = false
+            menu.addItem(noServices)
+            return
+        }
+
+        // Find AirDrop and put it first
+        var airDropService: NSSharingService?
+        var otherServices: [NSSharingService] = []
+        for service in services {
+            if service == NSSharingService(named: .sendViaAirDrop) {
+                airDropService = service
+            } else {
+                otherServices.append(service)
+            }
+        }
+
+        if let airDrop = airDropService {
+            let item = makeMenuItem(for: airDrop, target: fileListVC)
+            menu.addItem(item)
+            if !otherServices.isEmpty {
+                menu.addItem(NSMenuItem.separator())
+            }
+        }
+
+        for service in otherServices {
+            let item = makeMenuItem(for: service, target: fileListVC)
+            menu.addItem(item)
+        }
+    }
+
+    private func makeMenuItem(for service: NSSharingService, target: FileListViewController) -> NSMenuItem {
+        let item = NSMenuItem(title: service.title, action: #selector(FileListViewController.shareViaService(_:)), keyEquivalent: "")
+        item.target = target
+        item.representedObject = service
+        item.image = service.image
+        item.image?.size = NSSize(width: 16, height: 16)
+        return item
+    }
+}
+
+// MARK: - Sharing Service Helper
+
+/// Wraps the deprecated `sharingServices(forItems:)` call.
+/// Apple recommends `NSSharingServicePicker.standardShareMenuItem` but that
+/// doesn't allow custom ordering (AirDrop first with separator).
+enum SharingServiceHelper {
+    static func services(for items: [Any]) -> [NSSharingService] {
+        sharingServicesCompat(items)
+    }
+
+    // Isolated to contain the deprecation warning to a single location
+    @available(macOS, deprecated: 13.0)
+    private static func sharingServicesCompat(_ items: [Any]) -> [NSSharingService] {
+        NSSharingService.sharingServices(forItems: items)
     }
 }
