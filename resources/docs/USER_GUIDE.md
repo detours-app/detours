@@ -54,7 +54,7 @@ At the bottom of each pane (toggle with View menu):
 
 ### Sidebar
 
-The sidebar shows mounted volumes and favorite folders:
+The sidebar shows mounted volumes, network shares, and favorite folders:
 
 | Action | How |
 |--------|-----|
@@ -63,7 +63,10 @@ The sidebar shows mounted volumes and favorite folders:
 | Reorder favorites | Drag to new position |
 | Remove favorite | Right-click → Remove from Favorites |
 | Eject volume | Right-click → Eject, or click eject button |
+| Connect to server | Right-click network section → Connect to Share (Cmd-K) |
 | Toggle sidebar | Cmd-0 |
+
+**Network shares:** The sidebar has a dedicated NETWORK section showing servers discovered via Bonjour. Servers group their mounted volumes underneath. Offline servers appear dimmed. Use Cmd-K to connect to a server manually (SMB/AFP).
 
 ---
 
@@ -146,12 +149,54 @@ After the operation, the moved/copied files are automatically selected in the de
 | Reveal in Finder | File menu → Reveal in Finder |
 | Show Package Contents | File menu (for .app bundles etc.) |
 
+### Archives
+
+Create and extract archives directly from the file list.
+
+| Action | Shortcut |
+|--------|----------|
+| Archive selected items | Cmd-Shift-A |
+| Extract archive | Cmd-Shift-E or double-click |
+
+**Creating archives:**
+- Select files/folders, then File > Archive... (or right-click > Archive...)
+- Five formats: ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ
+- ZIP and 7Z support optional password encryption
+- Formats requiring external tools (7z, xz, bzip2) are shown dimmed if not installed
+- Last-used format is remembered between sessions
+
+**Extracting archives:**
+- Select an archive, then File > Extract Here (or right-click > Extract Here, or double-click)
+- Password-protected archives prompt for password
+- Conflict dialog when extracting over existing items (Skip/Replace/Keep Both)
+
+### Share
+
+Share files via AirDrop and other system sharing services:
+
+- File > Share (or right-click > Share)
+- AirDrop is listed first for quick access
+- Available sharing services depend on the selected file types
+
+### Disk Images
+
+Opening `.dmg`, `.sparsebundle`, `.sparseimage`, or `.iso` files (via Cmd-P, double-click, or Enter) mounts them and navigates the pane to the mounted volume. For encrypted disk images, the pane navigates after the password dialog completes.
+
 ### Conflict Resolution
 
 When pasting files that already exist at the destination, a dialog offers:
 - **Skip**: Don't copy this file
 - **Replace**: Overwrite existing file
 - **Keep Both**: Rename the new file (adds number suffix)
+
+### Undo and Redo
+
+Most file operations can be undone with **Cmd-Z** and redone with **Cmd-Shift-Z**:
+
+- Undo delete (restores from Trash), copy, move, duplicate, rename, and new folder/file
+- Each tab has its own independent undo history
+- Edit menu shows the operation name (e.g., "Undo Delete", "Undo Move")
+- Delete Immediately cannot be undone
 
 ### Delete Immediately
 
@@ -160,6 +205,18 @@ When pasting files that already exist at the destination, a dialog offers:
 > "filename" will be deleted immediately. You can't undo this action.
 
 Use with caution - this bypasses the Trash completely.
+
+---
+
+## Filter-in-Place
+
+Press `/` or `Cmd-F` to filter the current file list without leaving the directory.
+
+- Case-insensitive substring matching filters in real-time as you type
+- Auto-expands folders to reveal matching nested files
+- Match count shows visible items (e.g., "12 of 347")
+- Escape clears filter text; second press closes the filter bar
+- Down arrow moves focus from filter field to file list
 
 ---
 
@@ -322,6 +379,7 @@ With "Restore session" enabled:
 - Drag files between panes to move them
 - Drag files to Finder to copy
 - Drag files to other apps (e.g., attach to email)
+- Drop files from Mail attachments (and other apps using file promises) into panes
 - Drag folders to sidebar to add as favorites
 - Drag path bar segments to terminal to insert path
 
@@ -334,6 +392,7 @@ With "Restore session" enabled:
 | Action | Shortcut |
 |--------|----------|
 | Quick Open | Cmd-P |
+| Filter in place | / or Cmd-F |
 | Go back | Cmd-Left |
 | Go forward | Cmd-Right |
 | Go to parent | Cmd-Up |
@@ -342,6 +401,7 @@ With "Restore session" enabled:
 | Next tab | Ctrl-Tab |
 | Previous tab | Ctrl-Shift-Tab |
 | Select tab 1-9 | Cmd-1 through Cmd-9 |
+| Connect to Share | Cmd-K |
 
 ### Files
 
@@ -368,7 +428,10 @@ With "Restore session" enabled:
 | Delete Immediately | Cmd-Option-Delete |
 | New Folder | Cmd-Shift-N or F7 |
 | New Text File | Cmd-Option-N |
+| Archive | Cmd-Shift-A |
+| Extract Here | Cmd-Shift-E |
 | Undo | Cmd-Z |
+| Redo | Cmd-Shift-Z |
 
 ### Cross-Pane
 

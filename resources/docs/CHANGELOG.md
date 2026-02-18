@@ -2,16 +2,37 @@
 
 ## Unreleased
 
-- Archive creation from selected files/folders via File > Archive... (Cmd-Shift-A)
-- Extract archives via File > Extract Here (Cmd-Shift-E) or double-click
-- Five format options: ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ with format descriptions
-- Optional password encryption for ZIP and 7Z archives; password prompt on extract
-- Auto-detects installed compression tools; unavailable formats shown dimmed
-- Archive and Extract available in right-click context menu
-- Remembers last-used format between sessions
-- Click empty space in file list to deselect all items, matching Finder behavior
-- New folder/file creation reliably selects and begins rename after directory loads
-- Cancelling "Connect to Share" no longer shows an error dialog
+### Archives
+
+Create and extract archives without leaving the app.
+
+- Create archives from selected files/folders via File > Archive... (Cmd-Shift-A) or right-click context menu
+- Extract archives via File > Extract Here (Cmd-Shift-E), right-click, or double-click
+- Five formats: ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ
+- Optional password encryption for ZIP and 7Z; password prompt on extract
+- Formats requiring external tools shown dimmed when not installed
+- Last-used format remembered between sessions
+
+### Share
+
+- Share submenu in File menu and right-click context menu for AirDrop and system sharing services
+- AirDrop listed first for quick access
+
+### Disk Images
+
+- Opening .dmg or .sparsebundle files via Quick Open (Cmd-P) or double-click now mounts the image and navigates the pane to the mounted volume
+- Encrypted disk images supported; pane navigates after the password dialog completes
+
+### Improvements
+
+- Move/copy to other pane selects the transferred files in the destination pane and shifts focus
+- New folder/file creation reliably selects the new item and begins inline rename
+
+### Bug Fixes
+
+- Archive extraction no longer dumps loose files into parent directory when the archive contains a single root folder
+- Clicking empty space in the file list correctly deselects all items
+- Cancelling "Connect to Share" no longer shows a spurious error dialog
 
 ## 0.12.0 (260208)
 
