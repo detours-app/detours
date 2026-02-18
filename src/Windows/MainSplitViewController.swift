@@ -449,9 +449,9 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func navigateActivePane(to url: URL) {
-        // Disk images should be opened, not navigated into
+        // Disk images: mount and navigate to the mounted volume
         if FileOpenHelper.isDiskImage(url) {
-            FileOpenHelper.open(url)
+            mountAndNavigate(url)
             return
         }
 
@@ -460,6 +460,17 @@ final class MainSplitViewController: NSSplitViewController {
         // Ensure focus returns to the file list after navigation (e.g., from QuickNav)
         if let tableView = activePane.selectedTab?.fileListViewController.tableView {
             view.window?.makeFirstResponder(tableView)
+        }
+    }
+
+    private func mountAndNavigate(_ url: URL) {
+        Task {
+            guard let mountPoint = await FileOpenHelper.openAndMount(url) else { return }
+            activePane.navigate(to: mountPoint)
+            FrecencyStore.shared.recordVisit(mountPoint)
+            if let tableView = activePane.selectedTab?.fileListViewController.tableView {
+                view.window?.makeFirstResponder(tableView)
+            }
         }
     }
 

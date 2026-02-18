@@ -325,6 +325,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         } else if CompressionTools.isExtractable(item.url) {
             tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
             extractSelectedArchive()
+        } else if FileOpenHelper.isDiskImage(item.url) {
+            Task { @MainActor in
+                guard let mountPoint = await FileOpenHelper.openAndMount(item.url) else { return }
+                navigationDelegate?.fileListDidRequestNavigation(to: mountPoint)
+            }
         } else {
             FileOpenHelper.open(item.url)
         }
