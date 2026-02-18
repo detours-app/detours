@@ -22,6 +22,7 @@ struct Settings: Equatable {
     var showStatusBar: Bool = true
     var sidebarVisible: Bool = true
     var folderExpansionEnabled: Bool = true
+    var foldersOnTop: Bool = true
 
     // Sidebar
     var favorites: [String] = Settings.defaultFavorites
@@ -63,6 +64,7 @@ extension Settings: Codable {
         case showStatusBar
         case sidebarVisible
         case folderExpansionEnabled
+        case foldersOnTop
         case favorites
         case recentServers
         case gitStatusEnabled
@@ -91,6 +93,7 @@ extension Settings: Codable {
         showStatusBar = (try? container.decodeIfPresent(Bool.self, forKey: .showStatusBar)) ?? defaults.showStatusBar
         sidebarVisible = (try? container.decodeIfPresent(Bool.self, forKey: .sidebarVisible)) ?? defaults.sidebarVisible
         folderExpansionEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .folderExpansionEnabled)) ?? defaults.folderExpansionEnabled
+        foldersOnTop = (try? container.decodeIfPresent(Bool.self, forKey: .foldersOnTop)) ?? defaults.foldersOnTop
 
         // Sidebar - favorites are critical, preserve them
         favorites = (try? container.decodeIfPresent([String].self, forKey: .favorites)) ?? defaults.favorites
@@ -124,6 +127,7 @@ extension Settings: Codable {
         try container.encode(showStatusBar, forKey: .showStatusBar)
         try container.encode(sidebarVisible, forKey: .sidebarVisible)
         try container.encode(folderExpansionEnabled, forKey: .folderExpansionEnabled)
+        try container.encode(foldersOnTop, forKey: .foldersOnTop)
         try container.encode(favorites, forKey: .favorites)
         try container.encode(recentServers, forKey: .recentServers)
         try container.encode(gitStatusEnabled, forKey: .gitStatusEnabled)

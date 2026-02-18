@@ -54,26 +54,26 @@ For expanded subfolders, sorting happens per-level: `items` (top-level) gets sor
 ### Implementation Plan
 
 **Phase 1: Sort Model & Settings**
-- [ ] Add `SortColumn` enum (name, size, dateModified) and `SortDescriptor` struct (column + ascending) to `src/FileList/FileItem.swift`
-- [ ] Add `foldersOnTop: Bool = true` to `Settings` struct in `src/Preferences/Settings.swift`, with CodingKey and robust decode/encode
-- [ ] Add `foldersOnTop` accessor to `SettingsManager` in `src/Preferences/SettingsManager.swift`
-- [ ] Add "Folders on top" toggle to the View section in `src/Preferences/GeneralSettingsView.swift`
+- [x] Add `SortColumn` enum (name, size, dateModified) and `SortDescriptor` struct (column + ascending) to `src/FileList/FileItem.swift`
+- [x] Add `foldersOnTop: Bool = true` to `Settings` struct in `src/Preferences/Settings.swift`, with CodingKey and robust decode/encode
+- [x] Add `foldersOnTop` accessor to `SettingsManager` in `src/Preferences/SettingsManager.swift`
+- [x] Add "Folders on top" toggle to the View section in `src/Preferences/GeneralSettingsView.swift`
 
 **Phase 2: Configurable Sort Logic**
-- [ ] Replace `FileItem.sortFoldersFirst(_:)` with `FileItem.sorted(_:by:foldersOnTop:)` that accepts a `SortDescriptor` and `foldersOnTop` flag
-- [ ] Update `FileItem.loadChildren(showHidden:)` to accept a `SortDescriptor` and `foldersOnTop` parameter, pass through to the sort function
-- [ ] Update `FileListDataSource` to store a `sortDescriptor` property, use it when loading directories and when re-sorting
-- [ ] Add a `resort()` method to `FileListDataSource` that re-sorts `items` (and expanded children recursively) in place, preserving selection and expansion
+- [x] Replace `FileItem.sortFoldersFirst(_:)` with `FileItem.sorted(_:by:foldersOnTop:)` that accepts a `SortDescriptor` and `foldersOnTop` flag
+- [x] Update `FileItem.loadChildren(showHidden:)` to accept a `SortDescriptor` and `foldersOnTop` parameter, pass through to the sort function
+- [x] Update `FileListDataSource` to store a `sortDescriptor` property, use it when loading directories and when re-sorting
+- [x] Add a `resort()` method to `FileListDataSource` that re-sorts `items` (and expanded children recursively) in place, preserving selection and expansion
 
 **Phase 3: Column Header Click Handling**
-- [ ] Add `sortDescriptor` property to `FileListViewController`, default to name ascending
-- [ ] Implement `outlineView(_:didClick:)` delegate method in `FileListViewController` to update sort descriptor and trigger re-sort
-- [ ] Set `highlightedTableColumn` and `indicatorImage` on the table view to show the sort arrow on the active column
-- [ ] Extend `ThemedHeaderCell` in `src/FileList/BandedOutlineView.swift` to draw sort indicator arrow using theme colors
+- [x] Add `sortDescriptor` property to `FileListViewController`, default to name ascending
+- [x] Implement `outlineView(_:didClick:)` delegate method in `FileListViewController` to update sort descriptor and trigger re-sort
+- [x] Set `highlightedTableColumn` and `indicatorImage` on the table view to show the sort arrow on the active column
+- [x] Extend `ThemedHeaderCell` in `src/FileList/BandedOutlineView.swift` to draw sort indicator arrow using theme colors
 
 **Phase 4: Settings Integration**
-- [ ] Observe `SettingsManager.settingsDidChange` in `FileListDataSource` to re-sort when `foldersOnTop` changes
-- [ ] Pass `foldersOnTop` from settings into all sort calls
+- [x] Observe `SettingsManager.settingsDidChange` in `FileListDataSource` to re-sort when `foldersOnTop` changes
+- [x] Pass `foldersOnTop` from settings into all sort calls
 
 ---
 
@@ -83,21 +83,21 @@ Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 
 ### Unit Tests (`Tests/FileItemTests.swift`)
 
-- [ ] `testSortByNameAscending` - Files sorted A-Z by name
-- [ ] `testSortByNameDescending` - Files sorted Z-A by name
-- [ ] `testSortBySizeAscending` - Files sorted smallest to largest
-- [ ] `testSortBySizeDescending` - Files sorted largest to smallest
-- [ ] `testSortByDateAscending` - Files sorted oldest to newest
-- [ ] `testSortByDateDescending` - Files sorted newest to oldest
-- [ ] `testSortFoldersOnTopByName` - Folders above files, each group sorted by name
-- [ ] `testSortFoldersOnTopBySize` - Folders above files, each group sorted by size
-- [ ] `testSortFoldersOnTopOff` - Folders and files intermixed, sorted together
-- [ ] `testSortPreservesChildrenUnderParent` - Expanded subfolder children stay under parent after sort
+- [x] `testSortByNameAscending` - Files sorted A-Z by name
+- [x] `testSortByNameDescending` - Files sorted Z-A by name
+- [x] `testSortBySizeAscending` - Files sorted smallest to largest
+- [x] `testSortBySizeDescending` - Files sorted largest to smallest
+- [x] `testSortByDateAscending` - Files sorted oldest to newest
+- [x] `testSortByDateDescending` - Files sorted newest to oldest
+- [x] `testSortFoldersOnTopByName` - Folders above files, each group sorted by name
+- [x] `testSortFoldersOnTopBySize` - Folders above files, each group sorted by size
+- [x] `testSortFoldersOnTopOff` - Folders and files intermixed, sorted together
+- [x] `testSortPreservesChildrenUnderParent` - Expanded subfolder children stay under parent after sort
 
 ### Manual Verification (Marco)
 
 Visual inspection items that cannot be automated:
-- [ ] Sort indicator arrow visible and correctly themed on active column header
-- [ ] Clicking column headers toggles sort direction visually
-- [ ] "Folders on top" toggle in Preferences works and re-sorts immediately
-- [ ] Expanded subfolders maintain correct hierarchy after sorting by size/date
+- [x] Sort indicator arrow visible and correctly themed on active column header
+- [x] Clicking column headers toggles sort direction visually
+- [x] "Folders on top" toggle in Preferences works and re-sorts immediately
+- [x] Expanded subfolders maintain correct hierarchy after sorting by size/date

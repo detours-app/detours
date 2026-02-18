@@ -1,6 +1,29 @@
 # Test Log
 
 ## Latest Run
+- Started: 2026-02-18 22:49:26
+- Command: `swift test --filter FileItemTests`
+- Status: PASS
+- Duration: ~1s
+- Notes: All 13 FileItemTests pass, including 10 new column sorting tests (sort by name/size/date asc/desc, folders-on-top by name/size, folders-on-top off, children preservation).
+
+### FileItemTests (Column Sorting)
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testSortByNameAscending | PASS | 0.000s | 2026-02-18 22:49:26 |
+| testSortByNameDescending | PASS | 0.000s | 2026-02-18 22:49:26 |
+| testSortBySizeAscending | PASS | 0.000s | 2026-02-18 22:49:26 |
+| testSortBySizeDescending | PASS | 0.000s | 2026-02-18 22:49:26 |
+| testSortByDateAscending | PASS | 0.000s | 2026-02-18 22:49:26 |
+| testSortByDateDescending | PASS | 0.000s | 2026-02-18 22:49:26 |
+| testSortFoldersOnTopByName | PASS | 0.000s | 2026-02-18 22:49:26 |
+| testSortFoldersOnTopBySize | PASS | 0.000s | 2026-02-18 22:49:26 |
+| testSortFoldersOnTopOff | PASS | 0.000s | 2026-02-18 22:49:26 |
+| testSortPreservesChildrenUnderParent | PASS | 0.000s | 2026-02-18 22:49:26 |
+
+---
+
+## Previous Run
 - Started: 2026-02-13 10:27:44
 - Command: `swift test --filter ArchiveOperationTests`
 - Status: PASS
