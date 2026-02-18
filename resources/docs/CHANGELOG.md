@@ -13,10 +13,13 @@ Create and extract archives without leaving the app.
 - Formats requiring external tools shown dimmed when not installed
 - Last-used format remembered between sessions
 
-### Share
+### AirDrop and Share
 
-- Share submenu in File menu and right-click context menu for AirDrop and system sharing services
-- AirDrop listed first for quick access
+Share files directly from Detours via AirDrop, Messages, Mail, and other macOS sharing services — no need to switch to Finder.
+
+- Share submenu in File menu and right-click context menu
+- AirDrop listed first for quick access; all system sharing services available
+- Works with any file type and multi-selection
 
 ### Disk Images
 

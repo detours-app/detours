@@ -240,6 +240,29 @@ If you find yourself wanting to permanently delete something, STOP and reconside
 
 ---
 
+## Competition
+
+macOS dual-pane and power-user file managers. Use this for feature comparison when planning new features.
+
+| App | Panes | AirDrop/Share | Archives | Themes | Folder Expansion | Undo | Filter | Git Status | Price |
+|-----|-------|---------------|----------|--------|------------------|------|--------|------------|-------|
+| **Detours** | 2 | Yes (Share menu, context menu) | Create + extract (ZIP, 7Z, TAR.*) | 4 built-in + custom | Yes | Yes (per-tab) | Yes (in-place) | Yes | Free/OSS |
+| **Marta** | 2 | No | Open/extract many formats | 5 built-in + custom | Yes | No | Yes | No | Free |
+| **Commander One** | 2 | No | ZIP, RAR, 7Z, TAR, etc. | Light/Dark | Yes | No | Yes | No | Free / $30 Pro |
+| **ForkLift** | 2 | Yes (Share menu) | ZIP, TAR, etc. | Light/Dark | Yes | Yes | Yes | Yes | $30 |
+| **Path Finder** | 2 | Yes (Share menu + sidebar AirDrop panel) | ZIP, TAR, etc. | Customizable | Yes | Yes | Yes | No | $36/yr |
+| **QSpace** | 2-12 | Yes (toolbar button, Stash Shelf, context menu) | Browse + extract via MacZip | Customizable | Yes | No | Yes | No | ~$25 |
+| **Bloom** | Multi (12 layouts) | No | No | Native (light/dark) | No | Yes (Footprints) | Yes | No | $16 |
+
+**Notes:**
+- Marta is the closest competitor in the dual-pane keyboard-driven space but lacks AirDrop, undo, and git status
+- ForkLift is the most feature-complete paid alternative with remote server support
+- QSpace excels at multi-pane layouts (up to 12) and cloud/server integrations
+- Bloom focuses on visual browsing and media operations; no traditional dual-pane
+- Path Finder is subscription-based; most full-featured Finder replacement
+
+---
+
 ## When Stuck
 
 After 2-3 failed approaches, stop and research:
