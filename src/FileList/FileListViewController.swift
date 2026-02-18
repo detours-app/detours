@@ -188,8 +188,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Update the tracking variable
         wasFolderExpansionEnabled = isNowEnabled
 
-        // Reload outline view when settings change (folder expansion, git status, etc.)
-        tableView.reloadData()
+        // Re-sort (handles foldersOnTop changes) and reload
+        dataSource.resort()
 
         // Restore expansion state (restoreExpansion checks folderExpansionEnabled internally)
         restoreExpansion(expandedURLs)
@@ -369,6 +369,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         // Set up themed header view
         tableView.headerView = ThemedHeaderView()
+
+        // Set initial sort indicator on Name column (default sort)
+        dataSource.updateSortIndicators(on: tableView)
     }
 
     private func updateColumnHeaderColors() {
@@ -447,7 +450,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             current = current.appendingPathComponent(component).standardizedFileURL
             if let item = urlToItem[current], item.isNavigableFolder {
                 if item.children == nil {
-                    _ = item.loadChildren(showHidden: dataSource.showHiddenFiles)
+                    _ = item.loadChildren(showHidden: dataSource.showHiddenFiles, sortDescriptor: dataSource.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
                 }
                 tableView.expandItem(item)
                 // Add children to map so next level can be found
@@ -731,7 +734,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             if let item = urlToItem[normalized], item.isNavigableFolder {
                 // Only load children if not already loaded
                 if item.children == nil {
-                    _ = item.loadChildren(showHidden: dataSource.showHiddenFiles)
+                    _ = item.loadChildren(showHidden: dataSource.showHiddenFiles, sortDescriptor: dataSource.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
                 }
                 tableView.expandItem(item)
 
@@ -1538,7 +1541,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func expandItemRecursively(_ item: FileItem) {
         // Load children if not already loaded
         if item.children == nil {
-            _ = item.loadChildren(showHidden: dataSource.showHiddenFiles)
+            _ = item.loadChildren(showHidden: dataSource.showHiddenFiles, sortDescriptor: dataSource.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
         }
 
         tableView.expandItem(item)

@@ -188,7 +188,7 @@ final class FileItem {
     /// Loads children for this directory. Returns nil for files.
     /// Empty array means directory is empty (not same as nil which means not loaded).
     /// If children are already loaded, returns existing children without reloading.
-    func loadChildren(showHidden: Bool) -> [FileItem]? {
+    func loadChildren(showHidden: Bool, sortDescriptor: SortDescriptor = .defaultSort, foldersOnTop: Bool = true) -> [FileItem]? {
         guard isNavigableFolder else { return nil }
 
         // Return existing children if already loaded to preserve object identity
@@ -208,7 +208,7 @@ final class FileItem {
                 options: options
             )
 
-            let items = FileItem.sortFoldersFirst(contents.map { FileItem(url: $0) })
+            let items = FileItem.sorted(contents.map { FileItem(url: $0) }, by: sortDescriptor, foldersOnTop: foldersOnTop)
             // Set parent reference on all children
             for item in items {
                 item.parent = self
@@ -224,7 +224,7 @@ final class FileItem {
 
     /// Async version of loadChildren for network volumes.
     /// Loads children on a background thread via DirectoryLoader.
-    func loadChildrenAsync(showHidden: Bool) async throws -> [FileItem]? {
+    func loadChildrenAsync(showHidden: Bool, sortDescriptor: SortDescriptor = .defaultSort, foldersOnTop: Bool = true) async throws -> [FileItem]? {
         guard isNavigableFolder else { return nil }
 
         if let existingChildren = children {
@@ -243,7 +243,7 @@ final class FileItem {
             return FileItem(entry: entry, icon: placeholder)
         }
 
-        let sorted = FileItem.sortFoldersFirst(items)
+        let sorted = FileItem.sorted(items, by: sortDescriptor, foldersOnTop: foldersOnTop)
         for item in sorted {
             item.parent = self
         }
@@ -257,6 +257,21 @@ final class FileItem {
     }
 }
 
+// MARK: - Sort Types
+
+enum SortColumn: String, Codable {
+    case name
+    case size
+    case dateModified
+}
+
+struct SortDescriptor: Equatable {
+    var column: SortColumn
+    var ascending: Bool
+
+    static let defaultSort = SortDescriptor(column: .name, ascending: true)
+}
+
 // MARK: - Sorting
 
 extension FileItem {
@@ -265,10 +280,40 @@ extension FileItem {
         isDirectory && !isPackage && !FileOpenHelper.isDiskImage(url)
     }
 
-    static func sortFoldersFirst(_ items: [FileItem]) -> [FileItem] {
-        let folders = items.filter { $0.isNavigableFolder }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        let files = items.filter { !$0.isNavigableFolder }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        return folders + files
+    /// Sorts items by the given descriptor with optional folders-on-top grouping.
+    /// Within each group (or all items if foldersOnTop is false), items are sorted by
+    /// the specified column and direction. Ties are broken by name for stability.
+    static func sorted(_ items: [FileItem], by descriptor: SortDescriptor, foldersOnTop: Bool) -> [FileItem] {
+        let comparator: (FileItem, FileItem) -> Bool = { a, b in
+            let result: ComparisonResult
+            switch descriptor.column {
+            case .name:
+                result = a.name.localizedCaseInsensitiveCompare(b.name)
+            case .size:
+                let sizeA = a.size ?? 0
+                let sizeB = b.size ?? 0
+                if sizeA == sizeB {
+                    result = a.name.localizedCaseInsensitiveCompare(b.name)
+                } else {
+                    result = sizeA < sizeB ? .orderedAscending : .orderedDescending
+                }
+            case .dateModified:
+                if a.dateModified == b.dateModified {
+                    result = a.name.localizedCaseInsensitiveCompare(b.name)
+                } else {
+                    result = a.dateModified < b.dateModified ? .orderedAscending : .orderedDescending
+                }
+            }
+            return descriptor.ascending ? result == .orderedAscending : result == .orderedDescending
+        }
+
+        if foldersOnTop {
+            let folders = items.filter { $0.isNavigableFolder }.sorted(by: comparator)
+            let files = items.filter { !$0.isNavigableFolder }.sorted(by: comparator)
+            return folders + files
+        } else {
+            return items.sorted(by: comparator)
+        }
     }
 }
 

@@ -262,6 +262,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     }
 
     var showHiddenFiles: Bool = false
+    var sortDescriptor: SortDescriptor = .defaultSort
     private var currentDirectoryForGit: URL?
     private var gitStatuses: [URL: GitStatus] = [:]
 
@@ -321,7 +322,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                     return FileItem(entry: entry, icon: placeholder)
                 }
 
-                self.items = FileItem.sortFoldersFirst(fileItems)
+                self.items = FileItem.sorted(fileItems, by: self.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
                 self.currentDirectoryForGit = url
                 self.gitStatuses = [:]
                 self.expandedFolders = previousExpanded
@@ -379,6 +380,61 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             task.cancel()
         }
         iconLoadTasks.removeAll()
+    }
+
+    /// Re-sorts all items (root and expanded children) in place, preserving selection and expansion.
+    func resort() {
+        guard let outlineView else { return }
+
+        let foldersOnTop = SettingsManager.shared.foldersOnTop
+
+        // Save selection by URL
+        let selectedURLs = outlineView.selectedRowIndexes.compactMap { row -> URL? in
+            (outlineView.item(atRow: row) as? FileItem)?.url
+        }
+        let expanded = expandedFolders
+
+        // Re-sort root items and children recursively
+        items = FileItem.sorted(items, by: sortDescriptor, foldersOnTop: foldersOnTop)
+        resortChildren(of: items, foldersOnTop: foldersOnTop)
+
+        // Suppress collapse notifications during reload
+        suppressCollapseNotifications = true
+        outlineView.reloadData()
+
+        // Restore expansion (parents before children)
+        let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
+        for url in sortedExpanded {
+            if let item = findItem(withURL: url, in: items), item.isNavigableFolder {
+                outlineView.expandItem(item)
+            }
+        }
+        expandedFolders = expanded
+        suppressCollapseNotifications = false
+
+        // Restore selection
+        var rowIndexes = IndexSet()
+        for url in selectedURLs {
+            if let item = findItem(withURL: url, in: items) {
+                let row = outlineView.row(forItem: item)
+                if row >= 0 {
+                    rowIndexes.insert(row)
+                }
+            }
+        }
+        if !rowIndexes.isEmpty {
+            outlineView.selectRowIndexes(rowIndexes, byExtendingSelection: false)
+        }
+    }
+
+    /// Recursively re-sorts loaded children of the given items
+    private func resortChildren(of items: [FileItem], foldersOnTop: Bool) {
+        for item in items {
+            guard let children = item.children else { continue }
+            let sorted = FileItem.sorted(children, by: sortDescriptor, foldersOnTop: foldersOnTop)
+            item.children = sorted
+            resortChildren(of: sorted, foldersOnTop: foldersOnTop)
+        }
     }
 
     /// Kicks off background icon loading for visible items, updating cells as icons arrive.
@@ -492,7 +548,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                         // Only load children if not already loaded - avoid replacing existing children
                         // which would create new FileItem objects and break outline view references
                         if item.children == nil {
-                            _ = item.loadChildren(showHidden: showHiddenFiles)
+                            _ = item.loadChildren(showHidden: showHiddenFiles, sortDescriptor: sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
                         }
                         outlineView?.expandItem(item)
                     }
@@ -761,7 +817,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         }
 
         // Local volume: load synchronously as before
-        _ = fileItem.loadChildren(showHidden: showHiddenFiles)
+        _ = fileItem.loadChildren(showHidden: showHiddenFiles, sortDescriptor: sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
         if let children = fileItem.children {
             updateGitStatus(for: children, statuses: gitStatuses)
         }
@@ -786,6 +842,8 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
         let showHidden = showHiddenFiles
         let statuses = gitStatuses
+        let sort = sortDescriptor
+        let foldersTop = SettingsManager.shared.foldersOnTop
 
         Task { @MainActor [weak self] in
             defer {
@@ -794,7 +852,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             }
 
             do {
-                _ = try await item.loadChildrenAsync(showHidden: showHidden)
+                _ = try await item.loadChildrenAsync(showHidden: showHidden, sortDescriptor: sort, foldersOnTop: foldersTop)
                 guard let self else { return }
 
                 if let children = item.children {
@@ -863,6 +921,49 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         guard let fileItem = notification.userInfo?["NSObject"] as? FileItem else { return }
         expandedFolders.remove(fileItem.url.standardizedFileURL)
         expansionDelegate?.dataSourceDidCollapseItem(fileItem)
+    }
+
+    // MARK: - Column Header Click
+
+    func outlineView(_ outlineView: NSOutlineView, didClick tableColumn: NSTableColumn) {
+        let clickedColumn: SortColumn
+        switch tableColumn.identifier.rawValue {
+        case "Name": clickedColumn = .name
+        case "Size": clickedColumn = .size
+        case "Date": clickedColumn = .dateModified
+        default: return
+        }
+
+        if sortDescriptor.column == clickedColumn {
+            sortDescriptor.ascending.toggle()
+        } else {
+            sortDescriptor = SortDescriptor(column: clickedColumn, ascending: true)
+        }
+
+        // Update visual sort indicators on header cells
+        updateSortIndicators(on: outlineView)
+
+        resort()
+    }
+
+    /// Updates the sort indicator arrows on column headers to reflect the current sort state
+    func updateSortIndicators(on outlineView: NSOutlineView) {
+        for column in outlineView.tableColumns {
+            guard let headerCell = column.headerCell as? ThemedHeaderCell else { continue }
+            let columnId: SortColumn
+            switch column.identifier.rawValue {
+            case "Name": columnId = .name
+            case "Size": columnId = .size
+            case "Date": columnId = .dateModified
+            default: continue
+            }
+            if columnId == sortDescriptor.column {
+                headerCell.sortAscending = sortDescriptor.ascending
+            } else {
+                headerCell.sortAscending = nil
+            }
+        }
+        outlineView.headerView?.needsDisplay = true
     }
 
     // MARK: - Cell Creation

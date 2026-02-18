@@ -113,13 +113,127 @@ final class FileItemTests: XCTestCase {
         SettingsManager.shared.dateFormatOtherYears = "MMM d, yyyy"
     }
 
-    func testSortFoldersFirst() {
-        let folderURL = URL(fileURLWithPath: "/tmp/folder")
-        let fileURL = URL(fileURLWithPath: "/tmp/file.txt")
-        let folder = FileItem(name: "Folder", url: folderURL, isDirectory: true, size: nil, dateModified: Date(), icon: NSImage())
-        let file = FileItem(name: "File.txt", url: fileURL, isDirectory: false, size: 1, dateModified: Date(), icon: NSImage())
+    // MARK: - Sort Tests
 
-        let sorted = FileItem.sortFoldersFirst([file, folder])
-        XCTAssertEqual(sorted.first?.isDirectory, true)
+    private func makeItem(name: String, isDirectory: Bool, size: Int64?, date: Date) -> FileItem {
+        let url = URL(fileURLWithPath: "/tmp/\(name)")
+        return FileItem(name: name, url: url, isDirectory: isDirectory, size: size, dateModified: date, icon: NSImage())
+    }
+
+    func testSortByNameAscending() {
+        let items = [
+            makeItem(name: "Charlie.txt", isDirectory: false, size: 100, date: Date()),
+            makeItem(name: "Alpha.txt", isDirectory: false, size: 200, date: Date()),
+            makeItem(name: "Bravo.txt", isDirectory: false, size: 150, date: Date()),
+        ]
+        let sorted = FileItem.sorted(items, by: SortDescriptor(column: .name, ascending: true), foldersOnTop: false)
+        XCTAssertEqual(sorted.map(\.name), ["Alpha.txt", "Bravo.txt", "Charlie.txt"])
+    }
+
+    func testSortByNameDescending() {
+        let items = [
+            makeItem(name: "Alpha.txt", isDirectory: false, size: 100, date: Date()),
+            makeItem(name: "Charlie.txt", isDirectory: false, size: 200, date: Date()),
+            makeItem(name: "Bravo.txt", isDirectory: false, size: 150, date: Date()),
+        ]
+        let sorted = FileItem.sorted(items, by: SortDescriptor(column: .name, ascending: false), foldersOnTop: false)
+        XCTAssertEqual(sorted.map(\.name), ["Charlie.txt", "Bravo.txt", "Alpha.txt"])
+    }
+
+    func testSortBySizeAscending() {
+        let items = [
+            makeItem(name: "Big.txt", isDirectory: false, size: 1000, date: Date()),
+            makeItem(name: "Small.txt", isDirectory: false, size: 10, date: Date()),
+            makeItem(name: "Medium.txt", isDirectory: false, size: 500, date: Date()),
+        ]
+        let sorted = FileItem.sorted(items, by: SortDescriptor(column: .size, ascending: true), foldersOnTop: false)
+        XCTAssertEqual(sorted.map(\.name), ["Small.txt", "Medium.txt", "Big.txt"])
+    }
+
+    func testSortBySizeDescending() {
+        let items = [
+            makeItem(name: "Big.txt", isDirectory: false, size: 1000, date: Date()),
+            makeItem(name: "Small.txt", isDirectory: false, size: 10, date: Date()),
+            makeItem(name: "Medium.txt", isDirectory: false, size: 500, date: Date()),
+        ]
+        let sorted = FileItem.sorted(items, by: SortDescriptor(column: .size, ascending: false), foldersOnTop: false)
+        XCTAssertEqual(sorted.map(\.name), ["Big.txt", "Medium.txt", "Small.txt"])
+    }
+
+    func testSortByDateAscending() {
+        let now = Date()
+        let items = [
+            makeItem(name: "Recent.txt", isDirectory: false, size: 100, date: now),
+            makeItem(name: "Old.txt", isDirectory: false, size: 100, date: now.addingTimeInterval(-3600)),
+            makeItem(name: "Middle.txt", isDirectory: false, size: 100, date: now.addingTimeInterval(-1800)),
+        ]
+        let sorted = FileItem.sorted(items, by: SortDescriptor(column: .dateModified, ascending: true), foldersOnTop: false)
+        XCTAssertEqual(sorted.map(\.name), ["Old.txt", "Middle.txt", "Recent.txt"])
+    }
+
+    func testSortByDateDescending() {
+        let now = Date()
+        let items = [
+            makeItem(name: "Recent.txt", isDirectory: false, size: 100, date: now),
+            makeItem(name: "Old.txt", isDirectory: false, size: 100, date: now.addingTimeInterval(-3600)),
+            makeItem(name: "Middle.txt", isDirectory: false, size: 100, date: now.addingTimeInterval(-1800)),
+        ]
+        let sorted = FileItem.sorted(items, by: SortDescriptor(column: .dateModified, ascending: false), foldersOnTop: false)
+        XCTAssertEqual(sorted.map(\.name), ["Recent.txt", "Middle.txt", "Old.txt"])
+    }
+
+    func testSortFoldersOnTopByName() {
+        let items = [
+            makeItem(name: "Zeta.txt", isDirectory: false, size: 100, date: Date()),
+            makeItem(name: "Beta", isDirectory: true, size: nil, date: Date()),
+            makeItem(name: "Alpha.txt", isDirectory: false, size: 200, date: Date()),
+            makeItem(name: "Delta", isDirectory: true, size: nil, date: Date()),
+        ]
+        let sorted = FileItem.sorted(items, by: SortDescriptor(column: .name, ascending: true), foldersOnTop: true)
+        XCTAssertEqual(sorted.map(\.name), ["Beta", "Delta", "Alpha.txt", "Zeta.txt"])
+    }
+
+    func testSortFoldersOnTopBySize() {
+        let items = [
+            makeItem(name: "Big.txt", isDirectory: false, size: 1000, date: Date()),
+            makeItem(name: "FolderB", isDirectory: true, size: nil, date: Date()),
+            makeItem(name: "Small.txt", isDirectory: false, size: 10, date: Date()),
+            makeItem(name: "FolderA", isDirectory: true, size: nil, date: Date()),
+        ]
+        let sorted = FileItem.sorted(items, by: SortDescriptor(column: .size, ascending: true), foldersOnTop: true)
+        // Folders on top (sorted by size=0, tie-broken by name), then files by size
+        XCTAssertEqual(sorted.map(\.name), ["FolderA", "FolderB", "Small.txt", "Big.txt"])
+    }
+
+    func testSortFoldersOnTopOff() {
+        let items = [
+            makeItem(name: "Zeta.txt", isDirectory: false, size: 100, date: Date()),
+            makeItem(name: "Alpha", isDirectory: true, size: nil, date: Date()),
+            makeItem(name: "Beta.txt", isDirectory: false, size: 200, date: Date()),
+        ]
+        let sorted = FileItem.sorted(items, by: SortDescriptor(column: .name, ascending: true), foldersOnTop: false)
+        // All intermixed, sorted by name
+        XCTAssertEqual(sorted.map(\.name), ["Alpha", "Beta.txt", "Zeta.txt"])
+    }
+
+    func testSortPreservesChildrenUnderParent() {
+        // Create a parent folder with children
+        let parent = makeItem(name: "Parent", isDirectory: true, size: nil, date: Date())
+        let childA = makeItem(name: "ChildA.txt", isDirectory: false, size: 500, date: Date())
+        let childB = makeItem(name: "ChildB.txt", isDirectory: false, size: 100, date: Date())
+        childA.parent = parent
+        childB.parent = parent
+        parent.children = [childA, childB]
+
+        let otherFile = makeItem(name: "Other.txt", isDirectory: false, size: 200, date: Date())
+
+        // Sort root items by size ascending with foldersOnTop
+        let rootItems = [otherFile, parent]
+        let sorted = FileItem.sorted(rootItems, by: SortDescriptor(column: .size, ascending: true), foldersOnTop: true)
+
+        // Parent folder should still be first (foldersOnTop), and children array is unchanged
+        XCTAssertEqual(sorted[0].name, "Parent")
+        XCTAssertEqual(sorted[0].children?.map(\.name), ["ChildA.txt", "ChildB.txt"])
+        XCTAssertEqual(sorted[1].name, "Other.txt")
     }
 }

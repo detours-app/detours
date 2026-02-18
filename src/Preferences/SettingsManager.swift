@@ -127,6 +127,11 @@ final class SettingsManager {
         set { settings.folderExpansionEnabled = newValue }
     }
 
+    var foldersOnTop: Bool {
+        get { settings.foldersOnTop }
+        set { settings.foldersOnTop = newValue }
+    }
+
     // MARK: - Git Settings
 
     var gitStatusEnabled: Bool {

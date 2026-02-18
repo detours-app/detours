@@ -5,6 +5,7 @@ struct GeneralSettingsView: View {
     @State private var showHiddenByDefault: Bool
     @State private var searchIncludesHidden: Bool
     @State private var folderExpansionEnabled: Bool
+    @State private var foldersOnTop: Bool
 
     init() {
         let settings = SettingsManager.shared
@@ -12,6 +13,7 @@ struct GeneralSettingsView: View {
         _showHiddenByDefault = State(initialValue: settings.showHiddenByDefault)
         _searchIncludesHidden = State(initialValue: settings.searchIncludesHidden)
         _folderExpansionEnabled = State(initialValue: settings.folderExpansionEnabled)
+        _foldersOnTop = State(initialValue: settings.foldersOnTop)
     }
 
     var body: some View {
@@ -44,6 +46,12 @@ struct GeneralSettingsView: View {
                     .accessibilityIdentifier("folderExpansionToggle")
                     .onChange(of: folderExpansionEnabled) { _, newValue in
                         SettingsManager.shared.folderExpansionEnabled = newValue
+                    }
+
+                Toggle("Folders on top", isOn: $foldersOnTop)
+                    .accessibilityIdentifier("foldersOnTopToggle")
+                    .onChange(of: foldersOnTop) { _, newValue in
+                        SettingsManager.shared.foldersOnTop = newValue
                     }
             } header: {
                 Text("View")
