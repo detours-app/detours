@@ -96,8 +96,8 @@ gh release upload v0.7.0 Detours-0.7.0.dmg --repo detours-app/detours
 ## Pre-release Checklist
 
 - [ ] All tests pass
-- [ ] CHANGELOG.md updated
-- [ ] Version number bumped
+- [ ] CHANGELOG.md updated (heading changed from "Unreleased" to version + date)
+- [ ] `VERSION` file bumped (single source of truth - build.sh reads this)
 - [ ] Build succeeds in release mode
 - [ ] App launches and basic functionality works
 - [ ] No debug logging left enabled
