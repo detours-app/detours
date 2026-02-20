@@ -792,7 +792,8 @@ final class FileOperationQueue {
 
         if process.terminationStatus != 0 {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorMessage = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown error"
+            let decoded = (String(data: errorData, encoding: .utf8) ?? String(data: errorData, encoding: .isoLatin1))?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let errorMessage = (decoded?.isEmpty == false) ? decoded! : "Process exited with code \(process.terminationStatus)"
             // Clean up partial file on failure
             try? FileManager.default.removeItem(at: partialFile)
             throw FileOperationError.archiveProcessFailed(errorMessage)
@@ -824,6 +825,166 @@ final class FileOperationQueue {
             throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.pathExtension)")
         }
 
+        // Route ZIP to dedicated ditto-based extraction, everything else to existing logic
+        switch format {
+        case .zip:
+            return try await performExtractZip(archive: archive, format: format, password: password)
+        case .sevenZ, .tarGz, .tarBz2, .tarXz:
+            return try await performExtractNonZip(archive: archive, format: format, password: password)
+        }
+    }
+
+    // MARK: - ZIP Extraction (ditto)
+
+    /// Extract ZIP archives using ditto. Extracts to a temp dir first to discover
+    /// actual filenames (avoids encoding issues with unzip -Z1), then moves results
+    /// into place with proper conflict handling.
+    private func performExtractZip(archive: URL, format: ArchiveFormat, password: String?) async throws -> URL {
+        let operation = FileOperation.extract(archive: archive, format: format)
+        startOperation(operation, totalCount: 1)
+        defer { finishOperation() }
+
+        // ditto is always available on macOS — no tool check needed
+
+        let parentDir = archive.deletingLastPathComponent()
+        let fileManager = FileManager.default
+
+        // Create temp dir for extraction
+        let tempDir = parentDir.appendingPathComponent(".detours-extract-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        defer {
+            try? fileManager.removeItem(at: tempDir)
+        }
+
+        try checkCancelled()
+
+        // Extract into temp dir
+        // Use ditto for non-encrypted (handles legacy filename encoding correctly),
+        // fall back to unzip for password-protected (ditto --password needs a real TTY)
+        if let password, !password.isEmpty {
+            try await extractZipWithUnzip(archive: archive, destination: tempDir, password: password)
+        } else {
+            try await extractZipWithDitto(archive: archive, destination: tempDir)
+        }
+
+        // Scan temp dir for top-level items (real filenames from the filesystem, no encoding issues)
+        let extractedItems = try fileManager.contentsOfDirectory(atPath: tempDir.path)
+            .filter { !$0.hasPrefix(".") }
+
+        guard !extractedItems.isEmpty else {
+            throw FileOperationError.archiveProcessFailed("Archive appears to be empty")
+        }
+
+        let resultURL: URL
+
+        if extractedItems.count > 1 {
+            // Multiple top-level items — create wrapper folder named after the zip
+            var wrapperName = archive.deletingPathExtension().lastPathComponent
+            if wrapperName.hasSuffix(".tar") {
+                wrapperName = String(wrapperName.dropLast(4))
+            }
+            var wrapperURL = parentDir.appendingPathComponent(wrapperName)
+
+            if fileManager.fileExists(atPath: wrapperURL.path) {
+                let choice = await resolveExtractConflict(
+                    conflictingItems: [wrapperName],
+                    destination: parentDir
+                )
+                switch choice {
+                case .replace:
+                    try fileManager.trashItem(at: wrapperURL, resultingItemURL: nil)
+                case .keepBoth:
+                    wrapperURL = uniqueCopyDestination(for: wrapperURL, in: parentDir)
+                case .stop:
+                    throw FileOperationError.cancelled
+                }
+            }
+
+            try fileManager.createDirectory(at: wrapperURL, withIntermediateDirectories: true)
+
+            // Move all extracted items into wrapper
+            for item in extractedItems {
+                let src = tempDir.appendingPathComponent(item)
+                let dst = wrapperURL.appendingPathComponent(item)
+                try fileManager.moveItem(at: src, to: dst)
+            }
+
+            resultURL = wrapperURL
+        } else {
+            // Single top-level item — move to parent, renamed to match the zip filename
+            let itemName = extractedItems[0]
+            let src = tempDir.appendingPathComponent(itemName)
+
+            // Use the zip's name (without extension) for the extracted item when it's a folder,
+            // so "Entscheid GGSt Bachwiesstr.zip" extracts to "Entscheid GGSt Bachwiesstr/"
+            // regardless of what the internal folder is called
+            let isDirectory = (try? src.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+            let destName: String
+            if isDirectory {
+                destName = archive.deletingPathExtension().lastPathComponent
+            } else {
+                destName = itemName
+            }
+            var dst = parentDir.appendingPathComponent(destName)
+
+            if fileManager.fileExists(atPath: dst.path) {
+                // Don't prompt conflict if the existing item IS the archive itself
+                if dst.path != archive.path {
+                    let choice = await resolveExtractConflict(
+                        conflictingItems: [destName],
+                        destination: parentDir
+                    )
+                    switch choice {
+                    case .replace:
+                        try fileManager.trashItem(at: dst, resultingItemURL: nil)
+                    case .keepBoth:
+                        dst = uniqueCopyDestination(for: dst, in: parentDir)
+                    case .stop:
+                        throw FileOperationError.cancelled
+                    }
+                } else {
+                    dst = uniqueCopyDestination(for: dst, in: parentDir)
+                }
+            }
+
+            try fileManager.moveItem(at: src, to: dst)
+            resultURL = dst
+        }
+
+        updateProgress(operation: operation, currentItem: resultURL, completed: 1, total: 1)
+        return resultURL
+    }
+
+    /// Extract ZIP with ditto (non-encrypted)
+    private func extractZipWithDitto(archive: URL, destination: URL) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.ditto.path)
+        process.arguments = ["-xk", archive.path, destination.path]
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: true)
+    }
+
+    /// Extract password-protected ZIP with unzip.
+    /// ditto --password requires a real TTY (readpassphrase), so we use unzip for encrypted zips.
+    /// This is fine because the encoding bug only affects unencrypted zips with legacy filenames.
+    private func extractZipWithUnzip(archive: URL, destination: URL, password: String) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.unzip.path)
+        process.arguments = ["-o", "-q", "-P", password, archive.path, "-d", destination.path]
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: true)
+    }
+
+    // MARK: - Non-ZIP Extraction (tar, 7z)
+
+    private func performExtractNonZip(archive: URL, format: ArchiveFormat, password: String?) async throws -> URL {
         let operation = FileOperation.extract(archive: archive, format: format)
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
@@ -835,9 +996,6 @@ final class FileOperationQueue {
             }
         }
 
-        // Extract into the parent directory of the archive.
-        // If the archive contains multiple top-level items, create a wrapper folder
-        // to keep things organized. Single top-level items extract directly.
         let parentDir = archive.deletingLastPathComponent()
         let fileManager = FileManager.default
 
@@ -851,7 +1009,6 @@ final class FileOperationQueue {
         var extractToTemp = false
 
         if needsWrapperFolder {
-            // Multiple top-level items — create a wrapper folder named after the archive
             var wrapperName = archive.deletingPathExtension().lastPathComponent
             if wrapperName.hasSuffix(".tar") {
                 wrapperName = String(wrapperName.dropLast(4))
@@ -880,7 +1037,6 @@ final class FileOperationQueue {
                 extractionDir = wrapperURL
             }
         } else {
-            // Single top-level item — extract directly into parent
             let conflictingItems = topLevelEntries.filter { entry in
                 entry != archiveName
                     && fileManager.fileExists(atPath: parentDir.appendingPathComponent(entry).path)
@@ -918,19 +1074,18 @@ final class FileOperationQueue {
 
         try checkCancelled()
 
-        // Snapshot directory contents before extraction to detect what was created
         let contentsBefore = Set(
             (try? fileManager.contentsOfDirectory(atPath: extractionDir.path)) ?? []
         )
 
         do {
             switch format {
-            case .zip:
-                try await extractZip(archive: archive, destination: extractionDir, password: password)
             case .sevenZ:
                 try await extractSevenZip(archive: archive, destination: extractionDir, password: password)
             case .tarGz, .tarBz2, .tarXz:
                 try await extractTar(archive: archive, destination: extractionDir)
+            case .zip:
+                break // Unreachable — zip is handled by performExtractZip
             }
         } catch {
             if needsWrapperFolder || extractToTemp {
@@ -939,7 +1094,6 @@ final class FileOperationQueue {
             throw error
         }
 
-        // Detect what was extracted by diffing directory contents
         let contentsAfter = Set(
             (try? fileManager.contentsOfDirectory(atPath: extractionDir.path)) ?? []
         )
@@ -947,7 +1101,6 @@ final class FileOperationQueue {
 
         let resultURL: URL
         if needsWrapperFolder {
-            // The wrapper folder itself is the result
             resultURL = extractionDir
         } else if extractToTemp {
             var movedItems: [URL] = []
@@ -998,8 +1151,9 @@ final class FileOperationQueue {
 
         switch format {
         case .zip:
-            process.executableURL = URL(fileURLWithPath: CompressionTool.unzip.path)
-            process.arguments = ["-Z1", archive.path]
+            // ZIP listing is no longer used — performExtractZip discovers filenames
+            // from the filesystem after extraction. Return empty to trigger wrapper folder.
+            return []
         case .sevenZ:
             process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
             var args = ["l", "-slt"]
@@ -1021,8 +1175,13 @@ final class FileOperationQueue {
         let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
 
-        guard process.terminationStatus == 0,
-              let output = String(data: data, encoding: .utf8) else {
+        guard process.terminationStatus == 0 else {
+            return []
+        }
+
+        // Try UTF-8 first, fall back to Latin-1 for legacy-encoded filenames
+        guard let output = String(data: data, encoding: .utf8)
+                ?? String(data: data, encoding: .isoLatin1) else {
             return []
         }
 
@@ -1106,24 +1265,6 @@ final class FileOperationQueue {
         }
     }
 
-    private func extractZip(archive: URL, destination: URL, password: String?) async throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: CompressionTool.unzip.path)
-
-        var arguments = ["-o", "-q"]
-        if let password, !password.isEmpty {
-            arguments.append(contentsOf: ["-P", password])
-        }
-        arguments.append(archive.path)
-        arguments.append(contentsOf: ["-d", destination.path])
-        process.arguments = arguments
-
-        let errorPipe = Pipe()
-        process.standardError = errorPipe
-
-        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: password == nil)
-    }
-
     private func extractSevenZip(archive: URL, destination: URL, password: String?) async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
@@ -1175,7 +1316,8 @@ final class FileOperationQueue {
 
         if process.terminationStatus != 0 {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorMessage = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown error"
+            let decoded = (String(data: errorData, encoding: .utf8) ?? String(data: errorData, encoding: .isoLatin1))?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let errorMessage = (decoded?.isEmpty == false) ? decoded! : "Process exited with code \(process.terminationStatus)"
 
             // Detect password-required errors
             if passwordProtected && isPasswordError(errorMessage, terminationStatus: process.terminationStatus) {
@@ -1189,6 +1331,10 @@ final class FileOperationQueue {
     private func isPasswordError(_ message: String, terminationStatus: Int32) -> Bool {
         let lower = message.lowercased()
         if lower.contains("password") || lower.contains("incorrect password") || lower.contains("wrong password") {
+            return true
+        }
+        // ditto: "no password was provided" for encrypted zips without password
+        if lower.contains("no password was provided") {
             return true
         }
         // unzip returns exit code 82 for incorrect password, and exit code 1 for skipped encrypted entries

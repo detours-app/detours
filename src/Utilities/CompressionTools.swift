@@ -56,7 +56,7 @@ enum ArchiveFormat: String, CaseIterable, Codable {
 
     var extractionTools: [CompressionTool] {
         switch self {
-        case .zip: return [.unzip]
+        case .zip: return [.ditto]
         case .sevenZ: return [.sevenZip]
         case .tarGz, .tarBz2, .tarXz: return [.tar]
         }
@@ -83,6 +83,7 @@ enum CompressionTool: String {
     case gzip
     case bzip2
     case xz
+    case ditto
 
     var path: String {
         switch self {
@@ -93,6 +94,7 @@ enum CompressionTool: String {
         case .gzip: return "/usr/bin/gzip"
         case .bzip2: return "/usr/bin/bzip2"
         case .xz: return "/opt/homebrew/bin/xz"
+        case .ditto: return "/usr/bin/ditto"
         }
     }
 
@@ -105,6 +107,7 @@ enum CompressionTool: String {
         case .gzip: return "gzip"
         case .bzip2: return "bzip2"
         case .xz: return "xz"
+        case .ditto: return "ditto"
         }
     }
 }
