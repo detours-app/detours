@@ -20,6 +20,7 @@ struct LoadedFileEntry: Sendable {
     let name: String
     let isDirectory: Bool
     let isPackage: Bool
+    let isAliasFile: Bool
     let isHidden: Bool
     let fileSize: Int64?
     let contentModificationDate: Date
@@ -34,6 +35,7 @@ struct LoadedFileEntry: Sendable {
         self.name = values?.localizedName ?? url.lastPathComponent
         self.isDirectory = values?.isDirectory ?? false
         self.isPackage = values?.isPackage ?? false
+        self.isAliasFile = values?.isAliasFile ?? false
         self.isHidden = url.lastPathComponent.hasPrefix(".")
         self.fileSize = (values?.isDirectory ?? false) ? nil : values?.fileSize.map { Int64($0) }
         self.contentModificationDate = values?.contentModificationDate ?? Date()
@@ -53,6 +55,7 @@ actor DirectoryLoader {
     private static let baseResourceKeys: [URLResourceKey] = [
         .isDirectoryKey,
         .isPackageKey,
+        .isAliasFileKey,
         .fileSizeKey,
         .contentModificationDateKey,
     ]

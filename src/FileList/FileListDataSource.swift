@@ -684,9 +684,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
         // Determine destination
         let destination: URL
-        if let fileItem = item as? FileItem, fileItem.isDirectory {
-            // Dropping on a folder
-            destination = fileItem.url
+        if let fileItem = item as? FileItem, let dropDest = fileItem.dropDestination {
+            // Dropping on a folder or alias to a folder
+            destination = dropDest
             dropTargetItem = fileItem
         } else {
             // Dropping on background - use current directory
@@ -716,10 +716,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: any NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
         guard let currentDir = dropDelegate?.currentDirectoryURL else { return false }
 
-        // Determine destination
+        // Determine destination (resolve aliases to their target directory)
         let destination: URL
-        if let fileItem = item as? FileItem, fileItem.isDirectory {
-            destination = fileItem.url
+        if let fileItem = item as? FileItem, let dropDest = fileItem.dropDestination {
+            destination = dropDest
         } else {
             destination = currentDir
         }

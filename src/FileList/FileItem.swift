@@ -12,6 +12,7 @@ final class FileItem {
     let url: URL
     let isDirectory: Bool
     let isPackage: Bool
+    let isAliasFile: Bool
     let isHiddenFile: Bool
     let size: Int64?
     let dateModified: Date
@@ -24,11 +25,12 @@ final class FileItem {
     var children: [FileItem]?  // nil = not loaded, empty = loaded but empty
     weak var parent: FileItem?
 
-    init(name: String, url: URL, isDirectory: Bool, isPackage: Bool = false, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
+    init(name: String, url: URL, isDirectory: Bool, isPackage: Bool = false, isAliasFile: Bool = false, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
         self.name = name
         self.url = url
         self.isDirectory = isDirectory
         self.isPackage = isPackage
+        self.isAliasFile = isAliasFile
         self.isHiddenFile = isHiddenFile
         self.size = size
         self.dateModified = dateModified
@@ -49,6 +51,7 @@ final class FileItem {
         }
         self.isDirectory = entry.isDirectory
         self.isPackage = entry.isPackage
+        self.isAliasFile = entry.isAliasFile
         self.isHiddenFile = entry.isHidden
         self.size = entry.fileSize
         self.dateModified = entry.contentModificationDate
@@ -90,6 +93,7 @@ final class FileItem {
         let resourceKeys: Set<URLResourceKey> = [
             .isDirectoryKey,
             .isPackageKey,
+            .isAliasFileKey,
             .fileSizeKey,
             .contentModificationDateKey,
             .localizedNameKey,
@@ -110,6 +114,7 @@ final class FileItem {
         }
         self.isDirectory = values?.isDirectory ?? false
         self.isPackage = values?.isPackage ?? false
+        self.isAliasFile = values?.isAliasFile ?? false
         self.isHiddenFile = url.lastPathComponent.hasPrefix(".")
         self.size = isDirectory ? nil : Int64(values?.fileSize ?? 0)
         self.dateModified = values?.contentModificationDate ?? Date()
@@ -278,6 +283,17 @@ extension FileItem {
     /// True if this is a navigable folder (directory but not a package or disk image)
     var isNavigableFolder: Bool {
         isDirectory && !isPackage && !FileOpenHelper.isDiskImage(url)
+    }
+
+    /// Returns the resolved directory URL if this item can accept dropped files.
+    /// For directories, returns self.url. For Finder aliases to directories, returns the resolved target.
+    /// Returns nil if this item is not a valid drop target.
+    var dropDestination: URL? {
+        if isDirectory { return url }
+        guard isAliasFile else { return nil }
+        guard let resolved = try? URL(resolvingAliasFileAt: url, options: [.withoutUI, .withoutMounting]) else { return nil }
+        let isDir = (try? resolved.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+        return isDir ? resolved : nil
     }
 
     /// Sorts items by the given descriptor with optional folders-on-top grouping.
