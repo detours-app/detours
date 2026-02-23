@@ -1,6 +1,22 @@
 # Test Log
 
 ## Latest Run
+- Started: 2026-02-23 13:11:28
+- Command: `swift test --filter StatusBarCountTests`
+- Status: PASS
+- Duration: 0.130s
+- Notes: All 5 StatusBarCountTests pass. Verifies status bar count fixes: numberOfRows vs items.count, selectedCount bounds, filter item count, item(at:) correctness, totalVisibleItemCount with filter.
+
+### StatusBarCountTests
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testItemCountMatchesOutlineViewRows | PASS | 0.006s | 2026-02-23 13:11:28 |
+| testSelectedCountNeverExceedsItemCount | PASS | 0.033s | 2026-02-23 13:11:28 |
+| testFilteredItemCountReflectsFilter | PASS | 0.082s | 2026-02-23 13:11:28 |
+| testSelectionSizeUsesCorrectItems | PASS | 0.005s | 2026-02-23 13:11:28 |
+| testTotalVisibleItemCountRespectsFilter | PASS | 0.004s | 2026-02-23 13:11:28 |
+
+## Previous Run
 - Started: 2026-02-18 22:49:26
 - Command: `swift test --filter FileItemTests`
 - Status: PASS

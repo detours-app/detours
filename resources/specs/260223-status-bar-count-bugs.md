@@ -49,21 +49,21 @@ Finally, `updateStatusBar()` is never called after filter changes or expand/coll
 ### Implementation Plan
 
 **Phase 1: Fix count sources in `updateStatusBar()`**
-- [ ] Change `itemCount` from `dataSource.items.count` to `tab.fileListViewController.tableView.numberOfRows` in `PaneViewController.swift:703`
-- [ ] Change selection size loop to use `dataSource.item(at: index)` instead of `dataSource.items[index]` in `PaneViewController.swift:715-726`
-- [ ] Remove the `if index < dataSource.items.count` guard (no longer needed — `item(at:)` returns optional)
+- [x] Change `itemCount` from `dataSource.items.count` to `tab.fileListViewController.tableView.numberOfRows` in `PaneViewController.swift:703`
+- [x] Change selection size loop to use `dataSource.item(at: index)` instead of `dataSource.items[index]` in `PaneViewController.swift:715-726`
+- [x] Remove the `if index < dataSource.items.count` guard (no longer needed — `item(at:)` returns optional)
 
 **Phase 2: Fix `totalVisibleItemCount` in data source**
-- [ ] Change `totalVisibleItemCount` to count from `visibleItems` instead of `items` in `FileListDataSource.swift:197`
-- [ ] Also make the recursive walk use `filteredChildren(of:)` instead of raw `item.children` so expanded children respect the filter
+- [x] Change `totalVisibleItemCount` to count from `visibleItems` instead of `items` in `FileListDataSource.swift:197`
+- [x] Also make the recursive walk use `filteredChildren(of:)` instead of raw `item.children` so expanded children respect the filter
 
 **Phase 3: Fix filter bar total count**
-- [ ] Change `filterBar.updateCount(visible:total:)` call to pass `dataSource.totalItemCount` (unfiltered root count) as the total, not `totalVisibleItemCount` in `FileListViewController.swift:1657`
+- [x] Change `filterBar.updateCount(visible:total:)` call to pass `dataSource.totalItemCount` (unfiltered root count) as the total, not `totalVisibleItemCount` in `FileListViewController.swift:1657`
 
 **Phase 4: Add missing status bar update triggers**
-- [ ] Call `navigationDelegate?.fileListDidChangeSelection()` at the end of `updateFilter()` in `FileListViewController.swift` (after filter changes)
-- [ ] Call `navigationDelegate?.fileListDidChangeSelection()` in `outlineViewItemDidExpand()` in `FileListViewController.swift:151-157`
-- [ ] Call `navigationDelegate?.fileListDidChangeSelection()` in `outlineViewItemDidCollapse()` in `FileListViewController.swift:159-165`
+- [x] Call `navigationDelegate?.fileListDidChangeSelection()` at the end of `updateFilter()` in `FileListViewController.swift` (after filter changes)
+- [x] Call `navigationDelegate?.fileListDidChangeSelection()` in `outlineViewItemDidExpand()` in `FileListViewController.swift:151-157`
+- [x] Call `navigationDelegate?.fileListDidChangeSelection()` in `outlineViewItemDidCollapse()` in `FileListViewController.swift:159-165`
 
 ---
 
@@ -71,10 +71,10 @@ Finally, `updateStatusBar()` is never called after filter changes or expand/coll
 
 ### Unit Tests (`Tests/StatusBarCountTests.swift`)
 
-- [ ] `testItemCountMatchesOutlineViewRows` - Status bar itemCount equals outlineView.numberOfRows, not raw items.count
-- [ ] `testSelectedCountNeverExceedsItemCount` - With expanded folders, selectedCount <= itemCount
-- [ ] `testFilteredItemCountReflectsFilter` - With filter active, itemCount reflects only visible filtered rows
-- [ ] `testSelectionSizeUsesCorrectItems` - Selection size computed from actual selected FileItems, not array index lookup
+- [x] `testItemCountMatchesOutlineViewRows` - Status bar itemCount equals outlineView.numberOfRows, not raw items.count
+- [x] `testSelectedCountNeverExceedsItemCount` - With expanded folders, selectedCount <= itemCount
+- [x] `testFilteredItemCountReflectsFilter` - With filter active, itemCount reflects only visible filtered rows
+- [x] `testSelectionSizeUsesCorrectItems` - Selection size computed from actual selected FileItems, not array index lookup
 
 ### Manual Verification (Marco)
 
