@@ -19,7 +19,7 @@ Correct all count calculations so the status bar always shows accurate numbers r
 - Selection count never exceeds item count
 - Selection size reflects the actual selected items, not wrong items from a mismatched array
 - Status bar updates immediately when filter text changes, folders expand, or folders collapse
-- Filter bar shows "X of Y" where X is matching items and Y is the total items before filtering
+- Filter bar shows "X of Y" where X is selected items and Y is total items found by filter
 
 ### Out of scope
 - Changing status bar layout or adding new information
@@ -78,7 +78,7 @@ Finally, `updateStatusBar()` is never called after filter changes or expand/coll
 
 ### Manual Verification (Marco)
 
-- [ ] Apply a filter with expanded folders, select several items — status bar shows correct "X of Y selected"
-- [ ] Expand/collapse folders without filter — status bar total updates immediately
-- [ ] Clear filter — status bar reverts to correct unfiltered count
-- [ ] Filter bar "X of Y" shows matches vs. total root items, not expanded row count
+- [x] Apply a filter with expanded folders, select several items — status bar shows correct "X of Y selected"
+- [x] Expand/collapse folders without filter — status bar total updates immediately
+- [x] Clear filter — status bar reverts to correct unfiltered count
+- [x] Filter bar "X of Y" shows selected vs. total found by filter
