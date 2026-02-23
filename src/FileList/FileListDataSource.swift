@@ -159,7 +159,7 @@ protocol FileListExpansionDelegate: AnyObject {
 
 @MainActor
 final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
-    private(set) var items: [FileItem] = []
+    var items: [FileItem] = []
     weak var outlineView: NSOutlineView?
     weak var dropDelegate: FileListDropDelegate?
     weak var expansionDelegate: FileListExpansionDelegate?
@@ -181,20 +181,21 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     /// Returns total count of all visible items including expanded folder contents
     var totalVisibleItemCount: Int {
-        guard let outlineView else { return items.count }
+        guard let outlineView else { return visibleItems.count }
 
         func countItems(_ itemList: [FileItem]) -> Int {
             var count = 0
             for item in itemList {
                 count += 1
-                if item.isDirectory, outlineView.isItemExpanded(item), let children = item.children {
+                if item.isDirectory, outlineView.isItemExpanded(item),
+                   let children = filteredChildren(of: item) {
                     count += countItems(children)
                 }
             }
             return count
         }
 
-        return countItems(items)
+        return countItems(visibleItems)
     }
 
     /// Returns filtered root items based on filterPredicate

@@ -700,7 +700,7 @@ final class PaneViewController: NSViewController {
         }
 
         let dataSource = tab.fileListViewController.dataSource
-        let itemCount = dataSource.items.count
+        let itemCount = tab.fileListViewController.tableView.numberOfRows
         let selectedIndexes = tab.fileListViewController.tableView.selectedRowIndexes
         let selectedCount = selectedIndexes.count
 
@@ -710,11 +710,10 @@ final class PaneViewController: NSViewController {
             hiddenCount = countHiddenFiles(in: tab.currentDirectory)
         }
 
-        // Calculate selection size
+        // Calculate selection size using outline view's item(at:) to get correct items
         var selectionSize: Int64 = 0
         for index in selectedIndexes {
-            if index < dataSource.items.count {
-                let item = dataSource.items[index]
+            if let item = dataSource.item(at: index) {
                 if item.isDirectory {
                     if let size = FolderSizeCache.shared.size(for: item.url) {
                         selectionSize += size

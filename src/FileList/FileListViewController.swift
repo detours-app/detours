@@ -154,6 +154,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         if let item = notification.userInfo?["NSObject"] as? FileItem {
             watchExpandedDirectory(item.url)
         }
+        navigationDelegate?.fileListDidChangeSelection()
     }
 
     @objc private func outlineViewItemDidCollapse(_ notification: Notification) {
@@ -162,6 +163,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         if let item = notification.userInfo?["NSObject"] as? FileItem {
             unwatchCollapsedDirectory(item.url)
         }
+        navigationDelegate?.fileListDidChangeSelection()
     }
 
     @objc private func handleSettingsChange() {
@@ -1654,7 +1656,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         // Update count label - count actual matches, not just visible root items
         let matchCount = countMatchingItems(text)
-        filterBar.updateCount(visible: matchCount, total: dataSource.totalVisibleItemCount)
+        filterBar.updateCount(visible: matchCount, total: dataSource.totalItemCount)
 
         // Show/hide "No matches" label
         noMatchesLabel.isHidden = text.isEmpty || matchCount > 0
@@ -1671,6 +1673,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         if tableView.numberOfRows > 0 {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
+
+        // Update status bar counts after filter change
+        navigationDelegate?.fileListDidChangeSelection()
     }
 
     /// Recursively expand folders that contain matching descendants
