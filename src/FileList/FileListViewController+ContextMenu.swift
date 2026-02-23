@@ -388,13 +388,15 @@ final class ShareMenuDelegate: NSObject, NSMenuDelegate {
 /// Apple recommends `NSSharingServicePicker.standardShareMenuItem` but that
 /// doesn't allow custom ordering (AirDrop first with separator).
 enum SharingServiceHelper {
+    /// Returns sharing services for the given items.
+    /// Uses dynamic dispatch to call the deprecated `sharingServices(forItems:)` —
+    /// `NSSharingServicePicker.standardShareMenuItem` doesn't allow custom ordering
+    /// (AirDrop first with separator), so we still need the old API.
     static func services(for items: [Any]) -> [NSSharingService] {
-        sharingServicesCompat(items)
-    }
-
-    // Isolated to contain the deprecation warning to a single location
-    @available(macOS, deprecated: 13.0)
-    private static func sharingServicesCompat(_ items: [Any]) -> [NSSharingService] {
-        NSSharingService.sharingServices(forItems: items)
+        let selector = NSSelectorFromString("sharingServicesForItems:")
+        guard let result = NSSharingService.perform(selector, with: items) else {
+            return []
+        }
+        return result.takeUnretainedValue() as? [NSSharingService] ?? []
     }
 }
