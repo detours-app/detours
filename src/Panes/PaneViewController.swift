@@ -924,23 +924,30 @@ final class PaneViewController: NSViewController {
     }
 
     private func updatePathControl() {
-        guard let url = selectedTab?.currentDirectory else {
+        guard let tab = selectedTab else {
             pathControl.pathItems = []
             pathItemURLs = []
             return
         }
+        let url = tab.currentDirectory
 
         // Build path items manually to control truncation
-        var components: [(String, URL)] = []
-        var current = url
-        while current.path != "/" {
-            let name = friendlyPathComponentName(for: current)
-            components.insert((name, current), at: 0)
-            current = current.deletingLastPathComponent()
-        }
+        let components: [(String, URL)]
+        if tab.iCloudListingMode == .sharedTopLevel,
+           let sharedComponents = sharedBreadcrumbComponents(for: tab) {
+            components = sharedComponents
+        } else {
+            var built: [(String, URL)] = []
+            var current = url
+            while current.path != "/" {
+                let name = friendlyPathComponentName(for: current)
+                built.insert((name, current), at: 0)
+                current = current.deletingLastPathComponent()
+            }
 
-        // Collapse iCloud path: replace ~/Library/Mobile Documents with iCloud Drive
-        components = collapseICloudPath(components)
+            // Collapse iCloud path: replace ~/Library/Mobile Documents with iCloud Drive
+            components = collapseICloudPath(built)
+        }
 
         // Calculate available width and determine how many items fit
         let availableWidth = pathControl.bounds.width
@@ -1044,7 +1051,7 @@ final class PaneViewController: NSViewController {
     private func listingModeForPathNavigation(to url: URL) -> ICloudListingMode {
         guard let tab = selectedTab else { return .normal }
         if tab.iCloudListingMode == .sharedTopLevel,
-           tab.currentDirectory.standardizedFileURL == url.standardizedFileURL {
+           url.lastPathComponent == "com~apple~CloudDocs" {
             return .sharedTopLevel
         }
         return .normal
@@ -1085,6 +1092,46 @@ final class PaneViewController: NSViewController {
         }
 
         return nil
+    }
+
+    private func cloudDocsURL() -> URL? {
+        guard let mobileDocs = iCloudDriveURL() else { return nil }
+        let cloudDocs = mobileDocs.appendingPathComponent("com~apple~CloudDocs").standardizedFileURL
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: cloudDocs.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return cloudDocs
+        }
+        return nil
+    }
+
+    private func sharedBreadcrumbComponents(for tab: PaneTab) -> [(String, URL)]? {
+        guard let mobileDocs = iCloudDriveURL()?.standardizedFileURL,
+              let cloudDocs = cloudDocsURL()?.standardizedFileURL else {
+            return nil
+        }
+
+        var components: [(String, URL)] = [("iCloud Drive", mobileDocs), ("Shared", cloudDocs)]
+        let current = tab.currentDirectory.standardizedFileURL
+        if current == cloudDocs {
+            return components
+        }
+
+        let root = tab.sharedNavigationRootURL?.standardizedFileURL ?? current
+        components.append((friendlyPathComponentName(for: root), root))
+
+        let rootPath = root.path
+        let currentPath = current.path
+        if current != root, currentPath.hasPrefix(rootPath + "/") {
+            let relativePath = String(currentPath.dropFirst(rootPath.count + 1))
+            var running = root
+            for part in relativePath.split(separator: "/").map(String.init) {
+                running = running.appendingPathComponent(part).standardizedFileURL
+                components.append((part, running))
+            }
+        }
+
+        return components
     }
 
     private func updateBackgroundTint() {
@@ -1235,7 +1282,8 @@ extension PaneViewController: PaneTabBarDelegate {
 
 extension PaneViewController: FileListNavigationDelegate {
     func fileListDidRequestNavigation(to url: URL) {
-        navigate(to: url, iCloudListingMode: .normal)
+        let mode: ICloudListingMode = selectedTab?.iCloudListingMode == .sharedTopLevel ? .sharedTopLevel : .normal
+        navigate(to: url, iCloudListingMode: mode)
     }
 
     func fileListDidRequestICloudSharedNavigation(cloudDocsURL: URL) {
@@ -1269,8 +1317,7 @@ extension PaneViewController: FileListNavigationDelegate {
     func fileListDidRequestOpenInNewTab(url: URL) {
         let mode: ICloudListingMode
         if let currentTab = selectedTab,
-           currentTab.iCloudListingMode == .sharedTopLevel,
-           currentTab.currentDirectory.standardizedFileURL == url.standardizedFileURL {
+           currentTab.iCloudListingMode == .sharedTopLevel {
             mode = .sharedTopLevel
         } else {
             mode = .normal

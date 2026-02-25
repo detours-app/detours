@@ -1,7 +1,7 @@
 # iCloud Shared Split with Finder-Parity Listing
 
 ## Meta
-- Status: Draft
+- Status: Implemented
 - Branch: fix/icloud-shared-finder-parity
 
 ---
@@ -61,33 +61,33 @@ The data source will build iCloud root entries from real filesystem metadata, th
 ### Implementation Plan
 
 **Phase 1: Remove incorrect naming and add role-complete labels**
-- [ ] Update [src/FileList/FileItem.swift](/Users/marco/dev/detours/src/FileList/FileItem.swift) to stop renaming `com~apple~CloudDocs` to `Shared` in both initializers.
-- [ ] Extend `FileItem` shared metadata mapping in [src/FileList/FileItem.swift](/Users/marco/dev/detours/src/FileList/FileItem.swift) to represent both participant and owner roles.
-- [ ] Update shared-label rendering in [src/FileList/FileListCell.swift](/Users/marco/dev/detours/src/FileList/FileListCell.swift) to show `Shared by me` for owner role and `Shared by <owner>` for participant role.
-- [ ] Update iCloud-friendly title/path mapping in [src/Panes/PaneTab.swift](/Users/marco/dev/detours/src/Panes/PaneTab.swift) and [src/Panes/PaneViewController.swift](/Users/marco/dev/detours/src/Panes/PaneViewController.swift) so real CloudDocs is never displayed as `Shared`.
+- [x] Update [src/FileList/FileItem.swift](/Users/marco/dev/detours/src/FileList/FileItem.swift) to stop renaming `com~apple~CloudDocs` to `Shared` in both initializers.
+- [x] Extend `FileItem` shared metadata mapping in [src/FileList/FileItem.swift](/Users/marco/dev/detours/src/FileList/FileItem.swift) to represent both participant and owner roles.
+- [x] Update shared-label rendering in [src/FileList/FileListCell.swift](/Users/marco/dev/detours/src/FileList/FileListCell.swift) to show `Shared by me` for owner role and `Shared by <owner>` for participant role.
+- [x] Update iCloud-friendly title/path mapping in [src/Panes/PaneTab.swift](/Users/marco/dev/detours/src/Panes/PaneTab.swift) and [src/Panes/PaneViewController.swift](/Users/marco/dev/detours/src/Panes/PaneViewController.swift) so real CloudDocs is never displayed as `Shared`.
 
 **Phase 2: Add explicit iCloud listing modes**
-- [ ] Introduce iCloud listing mode (`normal`, `sharedTopLevel`) in tab/navigation state in [src/Panes/PaneTab.swift](/Users/marco/dev/detours/src/Panes/PaneTab.swift), including Back/Forward/history entries.
-- [ ] Thread listing mode through file-list loading in [src/FileList/FileListViewController.swift](/Users/marco/dev/detours/src/FileList/FileListViewController.swift) and [src/FileList/FileListDataSource.swift](/Users/marco/dev/detours/src/FileList/FileListDataSource.swift).
-- [ ] Persist and restore iCloud listing mode with tab/session state in [src/Panes/PaneViewController.swift](/Users/marco/dev/detours/src/Panes/PaneViewController.swift) and [src/Windows/MainSplitViewController.swift](/Users/marco/dev/detours/src/Windows/MainSplitViewController.swift).
+- [x] Introduce iCloud listing mode (`normal`, `sharedTopLevel`) in tab/navigation state in [src/Panes/PaneTab.swift](/Users/marco/dev/detours/src/Panes/PaneTab.swift), including Back/Forward/history entries.
+- [x] Thread listing mode through file-list loading in [src/FileList/FileListViewController.swift](/Users/marco/dev/detours/src/FileList/FileListViewController.swift) and [src/FileList/FileListDataSource.swift](/Users/marco/dev/detours/src/FileList/FileListDataSource.swift).
+- [x] Persist and restore iCloud listing mode with tab/session state in [src/Panes/PaneViewController.swift](/Users/marco/dev/detours/src/Panes/PaneViewController.swift) and [src/Windows/MainSplitViewController.swift](/Users/marco/dev/detours/src/Windows/MainSplitViewController.swift).
 
 **Phase 3: Compose Finder-like iCloud root and dedicated Shared folder**
-- [ ] Add iCloud root builder logic in [src/FileList/FileListDataSource.swift](/Users/marco/dev/detours/src/FileList/FileListDataSource.swift) to:
+- [x] Add iCloud root builder logic in [src/FileList/FileListDataSource.swift](/Users/marco/dev/detours/src/FileList/FileListDataSource.swift) to:
   - derive Finder-like visible root entries
   - partition top-level CloudDocs children by `ubiquitousItemIsShared` + role
   - exclude shared items from normal listing
   - inject dedicated `Shared` folder entry
-- [ ] Add shared-view loader in [src/FileList/FileListDataSource.swift](/Users/marco/dev/detours/src/FileList/FileListDataSource.swift) for `sharedTopLevel` mode:
+- [x] Add shared-view loader in [src/FileList/FileListDataSource.swift](/Users/marco/dev/detours/src/FileList/FileListDataSource.swift) for `sharedTopLevel` mode:
   - include only top-level shared items
   - include both files and folders
   - no recursive descent
-- [ ] Ensure hidden-file behavior in both iCloud modes follows existing tab setting (`showHiddenFiles`) in [src/FileList/FileListDataSource.swift](/Users/marco/dev/detours/src/FileList/FileListDataSource.swift).
-- [ ] Keep iCloud button target and root entrypoint consistent in [src/Panes/PaneViewController.swift](/Users/marco/dev/detours/src/Panes/PaneViewController.swift).
+- [x] Ensure hidden-file behavior in both iCloud modes follows existing tab setting (`showHiddenFiles`) in [src/FileList/FileListDataSource.swift](/Users/marco/dev/detours/src/FileList/FileListDataSource.swift).
+- [x] Keep iCloud button target and root entrypoint consistent in [src/Panes/PaneViewController.swift](/Users/marco/dev/detours/src/Panes/PaneViewController.swift).
 
 **Phase 4: Regression-proofing**
-- [ ] Verify folder/container navigation rules remain intact (including `Documents` auto-resolution) in [src/Panes/PaneTab.swift](/Users/marco/dev/detours/src/Panes/PaneTab.swift).
-- [ ] Verify file operations are disabled or correctly scoped where the view is virtual/shared-only in [src/FileList/FileListViewController.swift](/Users/marco/dev/detours/src/FileList/FileListViewController.swift).
-- [ ] Update docs in [resources/docs/USER_GUIDE.md](/Users/marco/dev/detours/resources/docs/USER_GUIDE.md) and [resources/docs/CHANGELOG.md](/Users/marco/dev/detours/resources/docs/CHANGELOG.md).
+- [x] Verify folder/container navigation rules remain intact (including `Documents` auto-resolution) in [src/Panes/PaneTab.swift](/Users/marco/dev/detours/src/Panes/PaneTab.swift).
+- [x] Verify file operations are disabled or correctly scoped where the view is virtual/shared-only in [src/FileList/FileListViewController.swift](/Users/marco/dev/detours/src/FileList/FileListViewController.swift).
+- [x] Update docs in [resources/docs/USER_GUIDE.md](/Users/marco/dev/detours/resources/docs/USER_GUIDE.md) and [resources/docs/CHANGELOG.md](/Users/marco/dev/detours/resources/docs/CHANGELOG.md).
 
 ---
 
@@ -96,28 +96,27 @@ The data source will build iCloud root entries from real filesystem metadata, th
 Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 
 ### Unit Tests (`Tests/FileItemTests.swift`)
-- [ ] `testSharedOwnerLabelIsSharedByMe` - Owner role maps to `Shared by me`.
-- [ ] `testSharedParticipantLabelUsesOwnerName` - Participant role maps to `Shared by <owner>`.
-- [ ] `testCloudDocsNotRenamedToShared` - `com~apple~CloudDocs` keeps real iCloud naming.
+- [x] `testSharedOwnerLabelIsSharedByMe` - Owner role maps to `Shared by me`.
+- [x] `testSharedParticipantLabelUsesOwnerName` - Participant role maps to `Shared by <owner>`.
+- [x] `testCloudDocsNotRenamedToShared` - `com~apple~CloudDocs` keeps real iCloud naming.
 
 ### Unit Tests (`Tests/FileListDataSourceTests.swift`)
-- [ ] `testICloudRootExcludesTopLevelSharedItems` - Shared top-level items are removed from normal iCloud listing.
-- [ ] `testICloudRootIncludesDedicatedSharedFolder` - Dedicated `Shared` folder is injected in iCloud root.
-- [ ] `testSharedModeShowsTopLevelOnly` - Shared mode does not recurse into descendants.
-- [ ] `testSharedModeIncludesFilesAndFolders` - Shared mode includes both item types.
-- [ ] `testShowHiddenAffectsICloudModes` - Hidden toggle affects both normal and shared iCloud modes.
+- [x] `testICloudRootExcludesTopLevelSharedItems` - Shared top-level items are removed from normal iCloud listing.
+- [x] `testICloudRootIncludesDedicatedSharedFolder` - Dedicated `Shared` folder is injected in iCloud root.
+- [x] `testSharedModeShowsTopLevelOnly` - Shared mode does not recurse into descendants.
+- [x] `testSharedModeIncludesFilesAndFolders` - Shared mode includes both item types.
+- [x] `testShowHiddenAffectsICloudModes` - Hidden toggle affects both normal and shared iCloud modes.
 
 ### Unit Tests (`Tests/PaneTabTests.swift`)
-- [ ] `testHistoryPreservesICloudListingMode` - Back/Forward restores normal vs shared mode correctly.
-- [ ] `testGoUpBehaviorUnchangedForICloudContainers` - Existing iCloud container go-up rules still hold.
+- [x] `testHistoryPreservesICloudListingMode` - Back/Forward restores normal vs shared mode correctly.
+- [x] `testGoUpBehaviorUnchangedForICloudContainers` - Existing iCloud container go-up rules still hold.
 
 ### Unit Tests (`Tests/PaneViewControllerTests.swift`)
-- [ ] `testICloudButtonOpensICloudRootMode` - iCloud button enters normal iCloud root mode.
-- [ ] `testSessionRestorePreservesICloudMode` - Tab restore keeps shared vs normal mode.
+- [x] `testICloudButtonOpensICloudRootMode` - iCloud button enters normal iCloud root mode.
+- [x] `testSessionRestorePreservesICloudMode` - Tab restore keeps shared vs normal mode.
 
 ### Manual Verification (Marco)
 - [ ] In iCloud root, non-shared folders/files match Finder-like expectations and shared items are absent.
 - [ ] `Shared` opens as one combined list containing top-level shared-to-me and shared-by-me items, with correct labels.
 - [ ] Toggling hidden files on/off updates both normal iCloud view and `Shared` view correctly.
 - [ ] No duplicate nested-folder regressions (no repeated folder-in-folder artifacts).
-

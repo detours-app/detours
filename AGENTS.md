@@ -7,4 +7,4 @@
   - `commit`
   - `commit-fast`
   - `release`
-
+- Build rule: ALWAYS use `resources/scripts/build.sh` (never run `swift build` directly).

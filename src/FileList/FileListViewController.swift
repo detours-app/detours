@@ -50,7 +50,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var selectionBeforeNewItem: URL?
 
     private var isSharedTopLevelView: Bool {
-        currentICloudListingMode == .sharedTopLevel
+        currentICloudListingMode == .sharedTopLevel &&
+            currentDirectory?.lastPathComponent == "com~apple~CloudDocs"
     }
 
     // Loading state

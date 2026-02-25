@@ -116,8 +116,8 @@ final class PaneTabTests: XCTestCase {
         tab.navigate(to: cloudDocs, iCloudListingMode: .sharedTopLevel)
         XCTAssertEqual(tab.iCloudListingMode, .sharedTopLevel)
 
-        tab.navigate(to: nested)
-        XCTAssertEqual(tab.iCloudListingMode, .normal)
+        tab.navigate(to: nested, iCloudListingMode: .sharedTopLevel)
+        XCTAssertEqual(tab.iCloudListingMode, .sharedTopLevel)
 
         XCTAssertTrue(tab.goBack())
         XCTAssertEqual(tab.currentDirectory.standardizedFileURL, cloudDocs.standardizedFileURL)
@@ -125,7 +125,7 @@ final class PaneTabTests: XCTestCase {
 
         XCTAssertTrue(tab.goForward())
         XCTAssertEqual(tab.currentDirectory.standardizedFileURL, nested.standardizedFileURL)
-        XCTAssertEqual(tab.iCloudListingMode, .normal)
+        XCTAssertEqual(tab.iCloudListingMode, .sharedTopLevel)
     }
 
     func testGoUpBehaviorUnchangedForICloudContainers() throws {
@@ -139,5 +139,39 @@ final class PaneTabTests: XCTestCase {
         let tab = PaneTab(directory: documents)
         XCTAssertTrue(tab.goUp())
         XCTAssertEqual(tab.currentDirectory.standardizedFileURL, mobileDocs.standardizedFileURL)
+    }
+
+    func testSharedContextGoUpFromNestedFolderGoesToSharedRoot() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let mobileDocs = try createTestFolder(in: temp, name: "Mobile Documents")
+        let cloudDocs = try createTestFolder(in: mobileDocs, name: "com~apple~CloudDocs")
+        let sharedRoot = try createTestFolder(in: cloudDocs, name: "Steuern Tanja")
+        let nested = try createTestFolder(in: sharedRoot, name: "Steuerperiode 2025")
+
+        let tab = PaneTab(directory: cloudDocs, iCloudListingMode: .sharedTopLevel)
+        tab.navigate(to: sharedRoot, iCloudListingMode: .sharedTopLevel)
+        tab.navigate(to: nested, iCloudListingMode: .sharedTopLevel)
+
+        XCTAssertTrue(tab.goUp())
+        XCTAssertEqual(tab.currentDirectory.standardizedFileURL, sharedRoot.standardizedFileURL)
+        XCTAssertEqual(tab.iCloudListingMode, .sharedTopLevel)
+    }
+
+    func testSharedContextGoUpFromSharedRootReturnsToSharedList() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let mobileDocs = try createTestFolder(in: temp, name: "Mobile Documents")
+        let cloudDocs = try createTestFolder(in: mobileDocs, name: "com~apple~CloudDocs")
+        let sharedRoot = try createTestFolder(in: cloudDocs, name: "Steuern Tanja")
+
+        let tab = PaneTab(directory: cloudDocs, iCloudListingMode: .sharedTopLevel)
+        tab.navigate(to: sharedRoot, iCloudListingMode: .sharedTopLevel)
+
+        XCTAssertTrue(tab.goUp())
+        XCTAssertEqual(tab.currentDirectory.standardizedFileURL, cloudDocs.standardizedFileURL)
+        XCTAssertEqual(tab.iCloudListingMode, .sharedTopLevel)
     }
 }

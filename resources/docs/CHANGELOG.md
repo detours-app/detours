@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.13.1 (260225)
+
+### iCloud Shared Split
+
+- Added: Dedicated `Shared` folder/view in iCloud root that combines top-level items shared to you and shared by you
+- Added: Shared labels now support both roles: `Shared by <owner>` and `Shared by me`
+- Added: iCloud listing mode state (`normal`, `sharedTopLevel`) is tracked in tab history and session restore
+
+### iCloud Root Parity
+
+- Changed: iCloud root now composes a Finder-like top-level list from `com~apple~CloudDocs` + app containers
+- Changed: Top-level shared items are removed from normal iCloud root and shown only in `Shared`
+- Fixed: `com~apple~CloudDocs` is no longer renamed to `Shared` in tabs/breadcrumbs (the `Shared` name is now reserved for the dedicated view)
+- Fixed: Hidden-files toggle is respected in both normal iCloud root mode and `Shared` mode
+- Fixed: Virtual shared view correctly scopes/disables write operations that rely on a concrete current folder target
+
 ## 0.13.0 (260218)
 
 ### Archives

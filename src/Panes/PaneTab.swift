@@ -8,12 +8,14 @@ final class PaneTab {
     private struct HistoryEntry {
         let directory: URL
         let iCloudListingMode: ICloudListingMode
+        let sharedNavigationRootURL: URL?
         let selectionToRestore: URL?  // Item to select when returning to this directory
     }
 
     let id: UUID
     private(set) var currentDirectory: URL
     private(set) var iCloudListingMode: ICloudListingMode
+    private(set) var sharedNavigationRootURL: URL?
     private var backStack: [HistoryEntry] = []
     private var forwardStack: [HistoryEntry] = []
 
@@ -67,12 +69,22 @@ final class PaneTab {
         self.id = UUID()
         self.currentDirectory = Self.normalizeDirectoryURL(directory)
         self.iCloudListingMode = Self.resolveListingMode(for: self.currentDirectory, requested: iCloudListingMode)
+        if self.iCloudListingMode == .sharedTopLevel,
+           !Self.isCloudDocs(self.currentDirectory),
+           !Self.isMobileDocuments(self.currentDirectory) {
+            self.sharedNavigationRootURL = self.currentDirectory
+        } else {
+            self.sharedNavigationRootURL = nil
+        }
     }
 
     // MARK: - Navigation
 
     /// Navigate to a directory, optionally adding current to history
     func navigate(to url: URL, iCloudListingMode listingMode: ICloudListingMode = .normal, addToHistory: Bool = true, skipContainerResolution: Bool = false) {
+        let previousDirectory = currentDirectory
+        let previousMode = iCloudListingMode
+        let previousSharedRoot = sharedNavigationRootURL
         var normalized = Self.normalizeDirectoryURL(url)
         // Check if it's actually a directory
         var isDirectory: ObjCBool = false
@@ -89,16 +101,29 @@ final class PaneTab {
         }
 
         let resolvedMode = Self.resolveListingMode(for: normalized, requested: listingMode)
+        let resolvedSharedRoot = Self.resolveSharedNavigationRoot(
+            target: normalized,
+            mode: resolvedMode,
+            previousDirectory: previousDirectory,
+            previousMode: previousMode,
+            previousRoot: previousSharedRoot
+        )
 
         if addToHistory && (currentDirectory != normalized || iCloudListingMode != resolvedMode) {
             // Store current directory with the folder we're navigating into as the selection to restore
-            let entry = HistoryEntry(directory: currentDirectory, iCloudListingMode: iCloudListingMode, selectionToRestore: normalized)
+            let entry = HistoryEntry(
+                directory: currentDirectory,
+                iCloudListingMode: iCloudListingMode,
+                sharedNavigationRootURL: sharedNavigationRootURL,
+                selectionToRestore: normalized
+            )
             backStack.append(entry)
             forwardStack.removeAll()
         }
 
         currentDirectory = normalized
         iCloudListingMode = resolvedMode
+        sharedNavigationRootURL = resolvedSharedRoot
         fileListViewController.loadDirectory(currentDirectory, iCloudListingMode: resolvedMode)
     }
 
@@ -107,10 +132,16 @@ final class PaneTab {
     func goBack() -> Bool {
         guard let previous = backStack.popLast() else { return false }
         // When going back, store current directory; when user goes forward again, select where they came from
-        let entry = HistoryEntry(directory: currentDirectory, iCloudListingMode: iCloudListingMode, selectionToRestore: previous.selectionToRestore)
+        let entry = HistoryEntry(
+            directory: currentDirectory,
+            iCloudListingMode: iCloudListingMode,
+            sharedNavigationRootURL: sharedNavigationRootURL,
+            selectionToRestore: previous.selectionToRestore
+        )
         forwardStack.append(entry)
         currentDirectory = previous.directory
         iCloudListingMode = previous.iCloudListingMode
+        sharedNavigationRootURL = previous.sharedNavigationRootURL
         fileListViewController.loadDirectory(currentDirectory, selectingItem: previous.selectionToRestore, iCloudListingMode: previous.iCloudListingMode)
         return true
     }
@@ -120,10 +151,16 @@ final class PaneTab {
     func goForward() -> Bool {
         guard let next = forwardStack.popLast() else { return false }
         // When going forward, store current directory with the target as selection to restore on back
-        let entry = HistoryEntry(directory: currentDirectory, iCloudListingMode: iCloudListingMode, selectionToRestore: next.directory)
+        let entry = HistoryEntry(
+            directory: currentDirectory,
+            iCloudListingMode: iCloudListingMode,
+            sharedNavigationRootURL: sharedNavigationRootURL,
+            selectionToRestore: next.directory
+        )
         backStack.append(entry)
         currentDirectory = next.directory
         iCloudListingMode = next.iCloudListingMode
+        sharedNavigationRootURL = next.sharedNavigationRootURL
         fileListViewController.loadDirectory(currentDirectory, selectingItem: next.selectionToRestore, iCloudListingMode: next.iCloudListingMode)
         return true
     }
@@ -135,10 +172,12 @@ final class PaneTab {
     /// Go to parent directory. Returns false if already at root.
     @discardableResult
     func goUp() -> Bool {
-        // Don't go up from Mobile Documents (treat it as iCloud root)
-        if Self.isMobileDocuments(currentDirectory) {
-            return false
+        if iCloudListingMode == .sharedTopLevel {
+            return goUpInSharedContext()
         }
+
+        // Don't go up from Mobile Documents (treat it as iCloud root)
+        if Self.isMobileDocuments(currentDirectory) { return false }
 
         let currentDir = currentDirectory
         var parent = Self.normalizeDirectoryURL(currentDirectory.deletingLastPathComponent())
@@ -150,11 +189,17 @@ final class PaneTab {
         }
 
         // Navigate to parent, selecting the folder we just left
-        let entry = HistoryEntry(directory: currentDir, iCloudListingMode: iCloudListingMode, selectionToRestore: currentDir)
+        let entry = HistoryEntry(
+            directory: currentDir,
+            iCloudListingMode: iCloudListingMode,
+            sharedNavigationRootURL: sharedNavigationRootURL,
+            selectionToRestore: currentDir
+        )
         backStack.append(entry)
         forwardStack.removeAll()
         currentDirectory = parent
         iCloudListingMode = .normal
+        sharedNavigationRootURL = nil
         fileListViewController.loadDirectory(parent, selectingItem: currentDir, iCloudListingMode: iCloudListingMode)
         return true
     }
@@ -172,14 +217,30 @@ final class PaneTab {
     }
 
     private static func resolveListingMode(for url: URL, requested: ICloudListingMode) -> ICloudListingMode {
-        if requested == .sharedTopLevel, isCloudDocs(url) {
-            return .sharedTopLevel
-        }
-        return .normal
+        requested == .sharedTopLevel ? .sharedTopLevel : .normal
     }
 
     private static func isCloudDocs(_ url: URL) -> Bool {
         url.lastPathComponent == "com~apple~CloudDocs"
+    }
+
+    private static func cloudDocsURL() -> URL? {
+        let cloudDocs = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
+            .standardizedFileURL
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: cloudDocs.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return cloudDocs
+        }
+        return nil
+    }
+
+    private static func cloudDocsAncestor(of url: URL) -> URL? {
+        let components = url.standardizedFileURL.pathComponents
+        guard let index = components.firstIndex(of: "com~apple~CloudDocs") else { return nil }
+        let prefix = components.prefix(index + 1)
+        return URL(fileURLWithPath: NSString.path(withComponents: Array(prefix))).standardizedFileURL
     }
 
     private static func cloudDocsDisplayName(for url: URL) -> String {
@@ -188,6 +249,79 @@ final class PaneTab {
             return localizedName
         }
         return "iCloud Drive"
+    }
+
+    private static func isWithin(_ child: URL, root: URL) -> Bool {
+        let childPath = child.standardizedFileURL.path
+        let rootPath = root.standardizedFileURL.path
+        return childPath == rootPath || childPath.hasPrefix(rootPath + "/")
+    }
+
+    private static func resolveSharedNavigationRoot(
+        target: URL,
+        mode: ICloudListingMode,
+        previousDirectory: URL,
+        previousMode: ICloudListingMode,
+        previousRoot: URL?
+    ) -> URL? {
+        guard mode == .sharedTopLevel else { return nil }
+        if isCloudDocs(target) || isMobileDocuments(target) {
+            return nil
+        }
+
+        if previousMode != .sharedTopLevel || isCloudDocs(previousDirectory) || isMobileDocuments(previousDirectory) {
+            return target
+        }
+
+        if let previousRoot, isWithin(target, root: previousRoot) {
+            return previousRoot.standardizedFileURL
+        }
+        return target
+    }
+
+    private func goUpInSharedContext() -> Bool {
+        if Self.isCloudDocs(currentDirectory) || Self.isMobileDocuments(currentDirectory) {
+            return false
+        }
+
+        let currentDir = currentDirectory.standardizedFileURL
+        let root = sharedNavigationRootURL?.standardizedFileURL ?? currentDir
+        let sharedListURL = Self.cloudDocsAncestor(of: currentDir) ??
+            Self.cloudDocsAncestor(of: root) ??
+            Self.cloudDocsURL()
+        let entry = HistoryEntry(
+            directory: currentDir,
+            iCloudListingMode: iCloudListingMode,
+            sharedNavigationRootURL: sharedNavigationRootURL,
+            selectionToRestore: currentDir
+        )
+        backStack.append(entry)
+        forwardStack.removeAll()
+
+        if currentDir == root || !Self.isWithin(currentDir, root: root) {
+            guard let cloudDocs = sharedListURL else { return false }
+            currentDirectory = cloudDocs
+            iCloudListingMode = .sharedTopLevel
+            sharedNavigationRootURL = nil
+            fileListViewController.loadDirectory(cloudDocs, selectingItem: currentDir, iCloudListingMode: .sharedTopLevel)
+            return true
+        }
+
+        let parent = currentDir.deletingLastPathComponent().standardizedFileURL
+        if parent == root.deletingLastPathComponent().standardizedFileURL || !Self.isWithin(parent, root: root) {
+            guard let cloudDocs = sharedListURL else { return false }
+            currentDirectory = cloudDocs
+            iCloudListingMode = .sharedTopLevel
+            sharedNavigationRootURL = nil
+            fileListViewController.loadDirectory(cloudDocs, selectingItem: root, iCloudListingMode: .sharedTopLevel)
+            return true
+        }
+
+        currentDirectory = parent
+        iCloudListingMode = .sharedTopLevel
+        sharedNavigationRootURL = root
+        fileListViewController.loadDirectory(parent, selectingItem: currentDir, iCloudListingMode: .sharedTopLevel)
+        return true
     }
 
     /// For iCloud app containers (inside Mobile Documents), skip to Documents subfolder

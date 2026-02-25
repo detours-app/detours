@@ -392,7 +392,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             let entries = try await DirectoryLoader.shared.loadDirectory(directory, showHidden: showHidden)
             return baseFileItems(for: entries)
         case .sharedTopLevel:
-            return try await loadICloudSharedTopLevelItems(baseURL: directory, showHidden: showHidden)
+            if Self.isMobileDocuments(directory) || Self.isCloudDocs(directory) {
+                return try await loadICloudSharedTopLevelItems(baseURL: directory, showHidden: showHidden)
+            }
+            let entries = try await DirectoryLoader.shared.loadDirectory(directory, showHidden: showHidden)
+            return baseFileItems(for: entries)
         }
     }
 
