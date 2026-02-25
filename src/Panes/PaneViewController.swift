@@ -318,7 +318,7 @@ final class PaneViewController: NSViewController {
     private let pathControl = DroppablePathControl()
     private let tabContainer = NSView()
     private let statusBar = StatusBarView()
-    let activityStrip = ActivityStrip()
+    let activityButton = ActivityToolbarButton()
     private var detailPopover: OperationDetailPopover?
 
     private(set) var tabs: [PaneTab] = []
@@ -328,7 +328,7 @@ final class PaneViewController: NSViewController {
     private var pathItemURLs: [URL?] = []  // URLs for each path item (nil for ellipsis)
     private var statusBarBottomConstraint: NSLayoutConstraint?
     private var tabContainerBottomConstraint: NSLayoutConstraint?
-    private var activityStripBottomConstraint: NSLayoutConstraint?
+    private var pathControlTrailingConstraint: NSLayoutConstraint?
 
     var selectedTab: PaneTab? {
         guard selectedTabIndex >= 0 && selectedTabIndex < tabs.count else { return nil }
@@ -348,7 +348,7 @@ final class PaneViewController: NSViewController {
         setupICloudButton()
         setupPathControl()
         setupTabContainer()
-        setupActivityStrip()
+        setupActivityButton()
         setupStatusBar()
         setupConstraints()
 
@@ -462,16 +462,89 @@ final class PaneViewController: NSViewController {
         view.addSubview(tabContainer)
     }
 
-    private func setupActivityStrip() {
-        activityStrip.isHidden = true
-        view.addSubview(activityStrip)
+    private func setupActivityButton() {
+        activityButton.isHidden = true
+        activityButton.alphaValue = 0
+        view.addSubview(activityButton)
 
-        activityStrip.onClick = { [weak self] in
-            self?.showDetailPopover()
+        activityButton.onClick = { [weak self] in
+            self?.handleActivityButtonClick()
         }
-        activityStrip.onDismissError = { [weak self] in
-            self?.detailPopover?.close()
-            self?.detailPopover = nil
+    }
+
+    private func handleActivityButtonClick() {
+        if case .error = activityButton.state {
+            // Dismiss error — MainSplitViewController handles hiding
+            return
+        }
+        showDetailPopover()
+    }
+
+    private func showDetailPopover() {
+        guard let operation = FileOperationQueue.shared.currentOperation else { return }
+        let progress = FileOperationProgress(
+            operation: operation,
+            currentItem: nil,
+            completedCount: 0,
+            totalCount: 0,
+            bytesCompleted: 0,
+            bytesTotal: 0
+        )
+        let popover = OperationDetailPopover(progress: progress) {
+            FileOperationQueue.shared.cancelCurrentOperation()
+        }
+        popover.show(relativeTo: activityButton.bounds, of: activityButton, preferredEdge: NSRectEdge.maxY)
+        detailPopover = popover
+    }
+
+    func closeDetailPopover() {
+        detailPopover?.close()
+        detailPopover = nil
+    }
+
+    func updateDetailPopover(_ progress: FileOperationProgress) {
+        detailPopover?.update(progress)
+    }
+
+    func showActivityButton(indeterminate: Bool) {
+        // Unhide before adding animation — Core Animation drops animations on hidden layers
+        activityButton.isHidden = false
+        activityButton.startProgress(indeterminate: indeterminate)
+
+        // Adjust path control trailing to make room
+        pathControlTrailingConstraint?.constant = -36
+
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                self.activityButton.animator().alphaValue = 1
+            }
+        } else {
+            activityButton.alphaValue = 1
+        }
+    }
+
+    func hideActivityButton() {
+        closeDetailPopover()
+
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.2
+                self.activityButton.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.activityButton.isHidden = true
+                    self.activityButton.alphaValue = 0
+                    self.activityButton.reset()
+                    self.pathControlTrailingConstraint?.constant = -8
+                }
+            })
+        } else {
+            activityButton.isHidden = true
+            activityButton.alphaValue = 0
+            activityButton.reset()
+            pathControlTrailingConstraint?.constant = -8
         }
     }
 
@@ -490,21 +563,16 @@ final class PaneViewController: NSViewController {
 
         // Update constraints
         tabContainerBottomConstraint?.isActive = false
-        activityStripBottomConstraint?.isActive = false
         statusBarBottomConstraint?.isActive = false
 
-        // Layout: tabContainer → activityStrip → statusBar → bottom
-        tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: activityStrip.topAnchor)
-
         if shouldShow {
-            activityStripBottomConstraint = activityStrip.bottomAnchor.constraint(equalTo: statusBar.topAnchor)
+            tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: statusBar.topAnchor)
             statusBarBottomConstraint = statusBar.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         } else {
-            activityStripBottomConstraint = activityStrip.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         }
 
         tabContainerBottomConstraint?.isActive = true
-        activityStripBottomConstraint?.isActive = true
         statusBarBottomConstraint?.isActive = true
     }
 
@@ -513,9 +581,11 @@ final class PaneViewController: NSViewController {
         homeButton.translatesAutoresizingMaskIntoConstraints = false
         iCloudButton.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
+        activityButton.translatesAutoresizingMaskIntoConstraints = false
         tabContainer.translatesAutoresizingMaskIntoConstraints = false
-        activityStrip.translatesAutoresizingMaskIntoConstraints = false
         statusBar.translatesAutoresizingMaskIntoConstraints = false
+
+        pathControlTrailingConstraint = pathControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8)
 
         NSLayoutConstraint.activate([
             // Tab bar at top, 32px height
@@ -537,17 +607,17 @@ final class PaneViewController: NSViewController {
             iCloudButton.heightAnchor.constraint(equalToConstant: 24),
 
             pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 6),
-            pathControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            pathControlTrailingConstraint!,
             pathControl.heightAnchor.constraint(equalToConstant: 24),
+
+            // Activity button at trailing edge of path row
+            activityButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
+            activityButton.centerYAnchor.constraint(equalTo: pathControl.centerYAnchor),
 
             // Tab container fills remaining space (bottom constraint handled dynamically)
             tabContainer.topAnchor.constraint(equalTo: pathControl.bottomAnchor),
             tabContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-
-            // Activity strip (height managed by ActivityStrip itself)
-            activityStrip.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            activityStrip.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 
             // Status bar at bottom, 20px height
             statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -557,34 +627,6 @@ final class PaneViewController: NSViewController {
 
         // Set up dynamic bottom constraints based on status bar visibility
         updateStatusBarVisibility()
-    }
-
-    // MARK: - Activity Strip
-
-    private func showDetailPopover() {
-        guard let operation = FileOperationQueue.shared.currentOperation else { return }
-        let progress = FileOperationProgress(
-            operation: operation,
-            currentItem: nil,
-            completedCount: 0,
-            totalCount: 0,
-            bytesCompleted: 0,
-            bytesTotal: 0
-        )
-        let popover = OperationDetailPopover(progress: progress) {
-            FileOperationQueue.shared.cancelCurrentOperation()
-        }
-        popover.show(relativeTo: activityStrip.bounds, of: activityStrip, preferredEdge: .maxY)
-        detailPopover = popover
-    }
-
-    func closeDetailPopover() {
-        detailPopover?.close()
-        detailPopover = nil
-    }
-
-    func updateDetailPopover(_ progress: FileOperationProgress) {
-        detailPopover?.update(progress)
     }
 
     func showDoneFlash() {

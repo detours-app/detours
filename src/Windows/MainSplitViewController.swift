@@ -15,6 +15,7 @@ final class MainSplitViewController: NSSplitViewController {
     private var lastMediaKeyTimestamp: TimeInterval = 0
     private var quickNavController: QuickNavController?
     private var saveSessionWorkItem: DispatchWorkItem?
+    private var hideActivityWorkItem: DispatchWorkItem?
 
     private enum SessionKeys {
         static let leftTabs = "Detours.LeftPaneTabs"
@@ -92,25 +93,25 @@ final class MainSplitViewController: NSSplitViewController {
         )
 
         // Wire activity strip to file operation queue
-        setupActivityStripCallbacks()
+        setupActivityCallbacks()
     }
 
-    private func setupActivityStripCallbacks() {
+    private func setupActivityCallbacks() {
         let queue = FileOperationQueue.shared
 
-        queue.onOperationStart = { [weak self] operation, totalCount in
+        queue.onOperationStart = { [weak self] operation, _ in
             guard let self else { return }
-            let label = self.shortOperationLabel(operation)
-            let queued = queue.pendingCount
-            self.leftPane.activityStrip.showStarting(operationType: label, totalCount: totalCount, queuedCount: queued)
-            self.rightPane.activityStrip.showStarting(operationType: label, totalCount: totalCount, queuedCount: queued)
+            let isIndeterminate = Self.isIndeterminateOperation(operation)
+            self.leftPane.showActivityButton(indeterminate: isIndeterminate)
+            self.rightPane.showActivityButton(indeterminate: isIndeterminate)
         }
 
         queue.onProgressUpdate = { [weak self] progress in
             guard let self else { return }
-            let queued = queue.pendingCount
-            self.leftPane.activityStrip.updateProgress(progress, queuedCount: queued)
-            self.rightPane.activityStrip.updateProgress(progress, queuedCount: queued)
+            if progress.totalCount > 0 {
+                self.leftPane.activityButton.updateProgress(progress.fractionCompleted)
+                self.rightPane.activityButton.updateProgress(progress.fractionCompleted)
+            }
             self.leftPane.updateDetailPopover(progress)
             self.rightPane.updateDetailPopover(progress)
         }
@@ -122,35 +123,32 @@ final class MainSplitViewController: NSSplitViewController {
 
             if let error {
                 if let opError = error as? FileOperationError, case .cancelled = opError {
-                    // Cancelled — just collapse silently
-                    self.leftPane.activityStrip.collapse()
-                    self.rightPane.activityStrip.collapse()
+                    self.leftPane.hideActivityButton()
+                    self.rightPane.hideActivityButton()
                 } else {
-                    let message = (error as? FileOperationError)?.localizedDescription ?? error.localizedDescription
-                    self.leftPane.activityStrip.showError(message: message)
-                    self.rightPane.activityStrip.showError(message: message)
+                    self.leftPane.activityButton.showError()
+                    self.rightPane.activityButton.showError()
                 }
             } else {
-                self.leftPane.activityStrip.showCompleting()
-                self.rightPane.activityStrip.showCompleting()
+                self.leftPane.activityButton.showCompleting()
+                self.rightPane.activityButton.showCompleting()
                 self.leftPane.showDoneFlash()
                 self.rightPane.showDoneFlash()
+
+                let workItem = DispatchWorkItem { [weak self] in
+                    self?.leftPane.hideActivityButton()
+                    self?.rightPane.hideActivityButton()
+                }
+                self.hideActivityWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: workItem)
             }
         }
     }
 
-    private func shortOperationLabel(_ operation: FileOperation) -> String {
+    private static func isIndeterminateOperation(_ operation: FileOperation) -> Bool {
         switch operation {
-        case .copy: return "Copying"
-        case .move: return "Moving"
-        case .delete: return "Trashing"
-        case .deleteImmediately: return "Deleting"
-        case .rename: return "Renaming"
-        case .duplicate: return "Duplicating"
-        case .createFolder: return "Creating"
-        case .createFile: return "Creating"
-        case .archive: return "Archiving"
-        case .extract: return "Extracting"
+        case .archive, .extract: return true
+        default: return false
         }
     }
 

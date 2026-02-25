@@ -12,6 +12,7 @@ final class OperationDetailPopover: NSPopover {
         super.init()
 
         behavior = .semitransient
+        contentSize = NSSize(width: 300, height: 160)
         let cancelHandler = onCancel
         let hostingView = NSHostingView(rootView: OperationDetailView(model: model) {
             cancelHandler()
