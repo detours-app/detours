@@ -607,7 +607,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: cloudDocsURL,
             includingPropertiesForKeys: [.isSymbolicLinkKey],
-            options: [.skipsHiddenFiles]
+            options: []
         ) else {
             return []
         }

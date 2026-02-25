@@ -366,6 +366,35 @@ final class FileListDataSourceTests: XCTestCase {
         XCTAssertEqual(items.first?.url.standardizedFileURL, expectedURL)
     }
 
+    func testSharedModeRemapsSpotlightPathUsingHiddenSymlinkAlias() throws {
+        let dataSource = FileListDataSource()
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let cloudDocs = try createTestFolder(in: temp, name: "com~apple~CloudDocs")
+        let documents = try createTestFolder(in: temp, name: "Documents")
+        _ = try createTestFolder(in: documents, name: "Steuern Tanja")
+        let hiddenAlias = cloudDocs.appendingPathComponent(".Documents")
+        try FileManager.default.createSymbolicLink(at: hiddenAlias, withDestinationURL: documents)
+
+        let spotlightOwnerShare = makeEntry(
+            url: documents.appendingPathComponent("Steuern Tanja"),
+            isDirectory: true,
+            isShared: true,
+            role: .owner
+        )
+
+        let items = dataSource.composeICloudSharedTopLevelItems(
+            cloudDocsChildren: [],
+            cloudDocsURL: cloudDocs,
+            spotlightEntries: [spotlightOwnerShare],
+            showHidden: false
+        )
+
+        let expectedURL = hiddenAlias.appendingPathComponent("Steuern Tanja").standardizedFileURL
+        XCTAssertEqual(items.first?.url.standardizedFileURL, expectedURL)
+    }
+
     // MARK: - Bug Fix Verification Tests
 
     /// Tests that nested folder structure is correctly traversable.
