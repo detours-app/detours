@@ -1,5 +1,15 @@
 import AppKit
+import Observation
 import SwiftUI
+
+@Observable
+final class ProgressModel {
+    var progress: FileOperationProgress
+
+    init(progress: FileOperationProgress) {
+        self.progress = progress
+    }
+}
 
 @MainActor
 final class OperationDetailPopover: NSPopover {
