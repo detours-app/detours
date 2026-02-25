@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- File operations (copy, move, delete) no longer block the main thread on slow volumes (NAS, SMB)
+- Deleting files on remote volumes now warns that Trash is unavailable and offers permanent deletion
+- Error indicator (red triangle) auto-dismisses after 3 seconds instead of persisting forever
+
 ## 1.4.0 (260225)
 
 First stable release under the 1.x version scheme. Detours is a native dual-pane file manager for macOS built with Swift and AppKit.

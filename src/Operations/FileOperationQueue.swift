@@ -165,6 +165,15 @@ final class FileOperationQueue {
         alert.runModal()
     }
 
+    // MARK: - File I/O (off main thread)
+
+    /// Run a blocking file operation off the main thread to prevent UI freezes on slow volumes (NAS, etc.)
+    private func runFileIO<T: Sendable>(_ operation: @Sendable @escaping () throws -> T) async throws -> T {
+        try await Task.detached(priority: .userInitiated) {
+            try operation()
+        }.value
+    }
+
     // MARK: - Queue
 
     private func enqueue<T>(_ work: @escaping () async throws -> T) async throws -> T {
@@ -243,7 +252,7 @@ final class FileOperationQueue {
                         skipped = true
                         destinationURL = initialDestination
                     case .replace:
-                        try fileManager.removeItem(at: initialDestination)
+                        try await runFileIO { try FileManager.default.removeItem(at: initialDestination) }
                         destinationURL = initialDestination
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
@@ -253,7 +262,7 @@ final class FileOperationQueue {
                 }
 
                 if !skipped {
-                    try fileManager.copyItem(at: source, to: destinationURL)
+                    try await runFileIO { try FileManager.default.copyItem(at: source, to: destinationURL) }
                     successes.append(destinationURL)
                 }
             } catch {
@@ -324,7 +333,7 @@ final class FileOperationQueue {
                         skipped = true
                         destinationURL = initialDestination
                     case .replace:
-                        try fileManager.removeItem(at: initialDestination)
+                        try await runFileIO { try FileManager.default.removeItem(at: initialDestination) }
                         destinationURL = initialDestination
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
@@ -334,7 +343,7 @@ final class FileOperationQueue {
                 }
 
                 if !skipped {
-                    try fileManager.moveItem(at: source, to: destinationURL)
+                    try await runFileIO { try FileManager.default.moveItem(at: source, to: destinationURL) }
                     successes.append((source: source, destination: destinationURL))
                 }
             } catch {
@@ -443,7 +452,6 @@ final class FileOperationQueue {
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
 
-        let fileManager = FileManager.default
         var failures: [(URL, Error)] = []
         var successes: [URL] = []
 
@@ -458,7 +466,7 @@ final class FileOperationQueue {
             )
 
             do {
-                try fileManager.removeItem(at: item)
+                try await runFileIO { try FileManager.default.removeItem(at: item) }
                 successes.append(item)
             } catch {
                 failures.append((item, mapError(error, url: item)))
@@ -495,7 +503,7 @@ final class FileOperationQueue {
         }
 
         do {
-            try FileManager.default.moveItem(at: item, to: destination)
+            try await runFileIO { try FileManager.default.moveItem(at: item, to: destination) }
             updateProgress(operation: operation, currentItem: item, completed: 1, total: 1)
             return destination
         } catch {
@@ -508,7 +516,6 @@ final class FileOperationQueue {
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
 
-        let fileManager = FileManager.default
         var failures: [(URL, Error)] = []
         var successes: [URL] = []
 
@@ -524,7 +531,7 @@ final class FileOperationQueue {
 
             do {
                 let destination = uniqueCopyDestination(for: source, in: source.deletingLastPathComponent())
-                try fileManager.copyItem(at: source, to: destination)
+                try await runFileIO { try FileManager.default.copyItem(at: source, to: destination) }
                 successes.append(destination)
             } catch {
                 failures.append((source, mapError(error, url: source)))
@@ -565,7 +572,7 @@ final class FileOperationQueue {
         let destination = uniqueFolderDestination(in: directory, baseName: name)
 
         do {
-            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false, attributes: nil)
+            try await runFileIO { try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false, attributes: nil) }
             updateProgress(operation: operation, currentItem: destination, completed: 1, total: 1)
 
             // Register undo to trash the created folder (synchronous)
@@ -595,7 +602,7 @@ final class FileOperationQueue {
         let destination = uniqueFileDestination(in: directory, baseName: name)
 
         do {
-            try content.write(to: destination)
+            try await runFileIO { try content.write(to: destination) }
             updateProgress(operation: operation, currentItem: destination, completed: 1, total: 1)
 
             // Register undo to trash the created file (synchronous)
@@ -631,7 +638,7 @@ final class FileOperationQueue {
         // Create all directories
         for dirURL in directoriesToCreate {
             do {
-                try fileManager.createDirectory(at: dirURL, withIntermediateDirectories: true, attributes: nil)
+                try await runFileIO { try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true, attributes: nil) }
             } catch {
                 throw mapError(error, url: dirURL)
             }
@@ -1437,10 +1444,14 @@ final class FileOperationQueue {
             NSWorkspace.shared.recycle([item]) { trashedURLs, error in
                 if let error {
                     continuation.resume(throwing: error)
-                } else if let trashURL = trashedURLs[item] {
+                } else if let trashURL = trashedURLs[item] ?? trashedURLs.values.first {
+                    // Fall back to first value in case of URL key mismatch (e.g. resolved symlinks)
                     continuation.resume(returning: trashURL)
                 } else {
-                    continuation.resume(throwing: FileOperationError.unknown(NSError(domain: "Detours", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to get trash URL"])))
+                    continuation.resume(throwing: FileOperationError.unknown(NSError(
+                        domain: "Detours", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to get trash URL"]
+                    )))
                 }
             }
         }

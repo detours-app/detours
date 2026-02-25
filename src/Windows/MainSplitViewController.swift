@@ -128,6 +128,15 @@ final class MainSplitViewController: NSSplitViewController {
                 } else {
                     self.leftPane.activityButton.showError()
                     self.rightPane.activityButton.showError()
+
+                    // Auto-dismiss error triangles after 3 seconds
+                    self.hideActivityWorkItem?.cancel()
+                    let workItem = DispatchWorkItem { [weak self] in
+                        self?.leftPane.hideActivityButton()
+                        self?.rightPane.hideActivityButton()
+                    }
+                    self.hideActivityWorkItem = workItem
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: workItem)
                 }
             } else {
                 self.leftPane.activityButton.showCompleting()

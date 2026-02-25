@@ -884,6 +884,32 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
 
+        // Check if any items are on a remote volume (NAS, SMB, etc.) where Trash isn't available
+        let isRemote = urls.contains { url in
+            (try? url.resourceValues(forKeys: [.volumeIsLocalKey]))?.volumeIsLocal == false
+        }
+
+        if isRemote {
+            // Remote volumes can't use Trash — warn and offer permanent deletion
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            if urls.count == 1 {
+                alert.messageText = "Delete \"\(urls[0].lastPathComponent)\" permanently?"
+            } else {
+                alert.messageText = "Delete \(urls.count) items permanently?"
+            }
+            alert.informativeText = "This volume doesn't support Trash. Items will be deleted immediately and can't be recovered."
+            alert.addButton(withTitle: "Delete")
+            alert.addButton(withTitle: "Cancel")
+            alert.buttons[0].hasDestructiveAction = true
+
+            let response = alert.runModal()
+            guard response == .alertFirstButtonReturn else { return }
+
+            performDeleteImmediately(urls: urls)
+            return
+        }
+
         // Remember selection index to restore after delete
         let selectedIndex = tableView.selectedRow
 
@@ -928,7 +954,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let response = alert.runModal()
         guard response == .alertFirstButtonReturn else { return }
 
-        // Remember selection index to restore after delete
+        performDeleteImmediately(urls: urls)
+    }
+
+    private func performDeleteImmediately(urls: [URL]) {
         let selectedIndex = tableView.selectedRow
 
         Task { @MainActor in
@@ -936,7 +965,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 try await FileOperationQueue.shared.deleteImmediately(items: urls)
                 dataSource.invalidateGitStatus()
                 loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
-                // Select next file at same row position (accounting for expanded folders)
                 let rowCount = tableView.numberOfRows
                 if rowCount > 0 && selectedIndex >= 0 {
                     let newIndex = min(selectedIndex, rowCount - 1)
