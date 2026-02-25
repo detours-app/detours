@@ -333,6 +333,37 @@ final class FileListDataSourceTests: XCTestCase {
         )
 
         XCTAssertEqual(items.filter { $0.name == "Steuern Tanja" }.count, 1)
+        let expectedURL = cloudDocs.appendingPathComponent("Documents/Steuern Tanja").standardizedFileURL
+        XCTAssertEqual(items.first(where: { $0.name == "Steuern Tanja" })?.url.standardizedFileURL, expectedURL)
+    }
+
+    func testSharedModeRemapsSpotlightPathToCloudDocsSymlinkPath() throws {
+        let dataSource = FileListDataSource()
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let cloudDocs = try createTestFolder(in: temp, name: "com~apple~CloudDocs")
+        let documents = try createTestFolder(in: temp, name: "Documents")
+        _ = try createTestFolder(in: documents, name: "Steuern Tanja")
+        let cloudDocsDocumentsLink = cloudDocs.appendingPathComponent("Documents")
+        try FileManager.default.createSymbolicLink(at: cloudDocsDocumentsLink, withDestinationURL: documents)
+
+        let spotlightOwnerShare = makeEntry(
+            url: documents.appendingPathComponent("Steuern Tanja"),
+            isDirectory: true,
+            isShared: true,
+            role: .owner
+        )
+
+        let items = dataSource.composeICloudSharedTopLevelItems(
+            cloudDocsChildren: [],
+            cloudDocsURL: cloudDocs,
+            spotlightEntries: [spotlightOwnerShare],
+            showHidden: false
+        )
+
+        let expectedURL = cloudDocs.appendingPathComponent("Documents/Steuern Tanja").standardizedFileURL
+        XCTAssertEqual(items.first?.url.standardizedFileURL, expectedURL)
     }
 
     // MARK: - Bug Fix Verification Tests

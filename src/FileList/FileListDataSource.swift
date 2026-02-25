@@ -535,11 +535,12 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             if !showHidden, entry.isHidden {
                 continue
             }
-            let key = sharedPathKey(for: entry.url)
+            let remappedEntry = remapSpotlightSharedEntry(entry, cloudDocsURL: cloudDocsURL)
+            let key = sharedPathKey(for: remappedEntry.url)
             if seenPaths.contains(key) {
                 continue
             }
-            merged.append(makeFileItem(from: entry))
+            merged.append(makeFileItem(from: remappedEntry))
             seenPaths.insert(key)
         }
 
@@ -551,6 +552,77 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             .standardizedFileURL
             .path
             .precomposedStringWithCanonicalMapping
+    }
+
+    private func remapSpotlightSharedEntry(_ entry: LoadedFileEntry, cloudDocsURL: URL) -> LoadedFileEntry {
+        let remappedURL = cloudDocsAliasedURL(for: entry.url, cloudDocsURL: cloudDocsURL)
+        guard remappedURL.standardizedFileURL != entry.url.standardizedFileURL else {
+            return entry
+        }
+
+        return LoadedFileEntry(
+            url: remappedURL,
+            name: remappedURL.lastPathComponent,
+            isDirectory: entry.isDirectory,
+            isPackage: entry.isPackage,
+            isAliasFile: entry.isAliasFile,
+            isSymbolicLink: entry.isSymbolicLink,
+            isHidden: entry.isHidden,
+            fileSize: entry.fileSize,
+            contentModificationDate: entry.contentModificationDate,
+            ubiquitousItemIsShared: entry.ubiquitousItemIsShared,
+            ubiquitousSharedItemCurrentUserRole: entry.ubiquitousSharedItemCurrentUserRole,
+            ubiquitousSharedItemOwnerNameComponents: entry.ubiquitousSharedItemOwnerNameComponents,
+            ubiquitousItemDownloadingStatus: entry.ubiquitousItemDownloadingStatus,
+            ubiquitousItemIsDownloading: entry.ubiquitousItemIsDownloading
+        )
+    }
+
+    private func cloudDocsAliasedURL(for url: URL, cloudDocsURL: URL) -> URL {
+        let standardizedCloudDocsURL = cloudDocsURL.standardizedFileURL
+        let standardizedURL = url.standardizedFileURL
+        let sourcePath = standardizedURL.path
+        let cloudDocsPath = standardizedCloudDocsURL.path
+
+        if sourcePath == cloudDocsPath || sourcePath.hasPrefix(cloudDocsPath + "/") {
+            return standardizedURL
+        }
+
+        let symlinkTargets = cloudDocsSymlinkTargets(cloudDocsURL: standardizedCloudDocsURL)
+        for (aliasURL, targetURL) in symlinkTargets {
+            let targetPath = targetURL.path
+            if sourcePath == targetPath {
+                return aliasURL.standardizedFileURL
+            }
+            if sourcePath.hasPrefix(targetPath + "/") {
+                let relativePath = String(sourcePath.dropFirst(targetPath.count + 1))
+                return aliasURL.appendingPathComponent(relativePath).standardizedFileURL
+            }
+        }
+
+        return standardizedURL
+    }
+
+    private func cloudDocsSymlinkTargets(cloudDocsURL: URL) -> [(aliasURL: URL, targetURL: URL)] {
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: cloudDocsURL,
+            includingPropertiesForKeys: [.isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        var targets: [(aliasURL: URL, targetURL: URL)] = []
+        for aliasURL in entries {
+            let values = try? aliasURL.resourceValues(forKeys: [.isSymbolicLinkKey])
+            guard values?.isSymbolicLink == true else { continue }
+
+            let targetURL = aliasURL.resolvingSymlinksInPath().standardizedFileURL
+            guard targetURL != aliasURL.standardizedFileURL else { continue }
+            targets.append((aliasURL.standardizedFileURL, targetURL))
+        }
+
+        return targets
     }
 
     private func makeSharedRootItem(record: ICloudSharedRootRecord, url: URL) -> FileItem {
