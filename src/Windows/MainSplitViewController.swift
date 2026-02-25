@@ -15,6 +15,7 @@ final class MainSplitViewController: NSSplitViewController {
     private var lastMediaKeyTimestamp: TimeInterval = 0
     private var quickNavController: QuickNavController?
     private var saveSessionWorkItem: DispatchWorkItem?
+    private var hideActivityWorkItem: DispatchWorkItem?
 
     private enum SessionKeys {
         static let leftTabs = "Detours.LeftPaneTabs"
@@ -90,6 +91,65 @@ final class MainSplitViewController: NSSplitViewController {
             name: NSWorkspace.didUnmountNotification,
             object: nil
         )
+
+        // Wire activity strip to file operation queue
+        setupActivityCallbacks()
+    }
+
+    private func setupActivityCallbacks() {
+        let queue = FileOperationQueue.shared
+
+        queue.onOperationStart = { [weak self] operation, _ in
+            guard let self else { return }
+            let isIndeterminate = Self.isIndeterminateOperation(operation)
+            self.leftPane.showActivityButton(indeterminate: isIndeterminate)
+            self.rightPane.showActivityButton(indeterminate: isIndeterminate)
+        }
+
+        queue.onProgressUpdate = { [weak self] progress in
+            guard let self else { return }
+            if progress.totalCount > 0 {
+                self.leftPane.activityButton.updateProgress(progress.fractionCompleted)
+                self.rightPane.activityButton.updateProgress(progress.fractionCompleted)
+            }
+            self.leftPane.updateDetailPopover(progress)
+            self.rightPane.updateDetailPopover(progress)
+        }
+
+        queue.onOperationFinish = { [weak self] _, error in
+            guard let self else { return }
+            self.leftPane.closeDetailPopover()
+            self.rightPane.closeDetailPopover()
+
+            if let error {
+                if let opError = error as? FileOperationError, case .cancelled = opError {
+                    self.leftPane.hideActivityButton()
+                    self.rightPane.hideActivityButton()
+                } else {
+                    self.leftPane.activityButton.showError()
+                    self.rightPane.activityButton.showError()
+                }
+            } else {
+                self.leftPane.activityButton.showCompleting()
+                self.rightPane.activityButton.showCompleting()
+                self.leftPane.showDoneFlash()
+                self.rightPane.showDoneFlash()
+
+                let workItem = DispatchWorkItem { [weak self] in
+                    self?.leftPane.hideActivityButton()
+                    self?.rightPane.hideActivityButton()
+                }
+                self.hideActivityWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: workItem)
+            }
+        }
+    }
+
+    private static func isIndeterminateOperation(_ operation: FileOperation) -> Bool {
+        switch operation {
+        case .archive, .extract: return true
+        default: return false
+        }
     }
 
     private var hasSetInitialFirstResponder = false

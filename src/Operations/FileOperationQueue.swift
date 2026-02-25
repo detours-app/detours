@@ -12,12 +12,18 @@ final class FileOperationQueue {
 
     private(set) var currentOperation: FileOperation?
     var onProgressUpdate: ((FileOperationProgress) -> Void)?
+    var onOperationStart: ((FileOperation, Int) -> Void)?
+    var onOperationFinish: ((FileOperation?, Error?) -> Void)?
+
+    var pendingCount: Int { pending.count }
 
     private var pending: [() async -> Void] = []
     private var isRunning = false
     private var isCancelled = false
-    private var progressWindow: ProgressWindowController?
-    private var progressDelayTask: DispatchWorkItem?
+    private var lastProgressTime: CFAbsoluteTime = 0
+    private var pendingProgress: FileOperationProgress?
+    private var progressThrottleWorkItem: DispatchWorkItem?
+    private var lastFinishedOperation: FileOperation?
 
     // MARK: - Public API
 
@@ -166,8 +172,10 @@ final class FileOperationQueue {
             enqueue {
                 do {
                     let result = try await work()
+                    self.onOperationFinish?(self.lastFinishedOperation, nil)
                     continuation.resume(returning: result)
                 } catch {
+                    self.onOperationFinish?(self.lastFinishedOperation, error)
                     continuation.resume(throwing: error)
                 }
             }
@@ -769,20 +777,24 @@ final class FileOperationQueue {
     private func runProcess(_ process: Process, errorPipe: Pipe, partialFile: URL) async throws {
         try process.run()
 
-        // Monitor for cancellation
+        // Monitor for cancellation while process runs
         let cancelTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try await Task.sleep(nanoseconds: 100_000_000) // 100ms
                 if self?.isCancelled == true {
                     process.terminate()
-                    // Clean up partial file
                     try? FileManager.default.removeItem(at: partialFile)
                     return
                 }
             }
         }
 
-        process.waitUntilExit()
+        // Await process completion without blocking the main thread
+        let terminationStatus: Int32 = await withCheckedContinuation { continuation in
+            process.terminationHandler = { proc in
+                continuation.resume(returning: proc.terminationStatus)
+            }
+        }
         cancelTask.cancel()
 
         if isCancelled {
@@ -790,11 +802,10 @@ final class FileOperationQueue {
             throw FileOperationError.cancelled
         }
 
-        if process.terminationStatus != 0 {
+        if terminationStatus != 0 {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             let decoded = (String(data: errorData, encoding: .utf8) ?? String(data: errorData, encoding: .isoLatin1))?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let errorMessage = (decoded?.isEmpty == false) ? decoded! : "Process exited with code \(process.terminationStatus)"
-            // Clean up partial file on failure
+            let errorMessage = (decoded?.isEmpty == false) ? decoded! : "Process exited with code \(terminationStatus)"
             try? FileManager.default.removeItem(at: partialFile)
             throw FileOperationError.archiveProcessFailed(errorMessage)
         }
@@ -1349,6 +1360,7 @@ final class FileOperationQueue {
     private func startOperation(_ operation: FileOperation, totalCount: Int) {
         currentOperation = operation
         isCancelled = false
+        lastProgressTime = 0
 
         let progress = FileOperationProgress(
             operation: operation,
@@ -1359,20 +1371,7 @@ final class FileOperationQueue {
             bytesTotal: 0
         )
         onProgressUpdate?(progress)
-
-        // Show progress window for copy/move operations (can be slow even with 1 large folder)
-        // or for any operation with multiple items
-        let shouldShowProgress: Bool
-        switch operation {
-        case .copy, .move, .archive, .extract:
-            shouldShowProgress = true  // Always show for copy/move/archive/extract - could be large
-        default:
-            shouldShowProgress = totalCount > 5
-        }
-
-        if shouldShowProgress {
-            scheduleProgress(progress)
-        }
+        onOperationStart?(operation, totalCount)
     }
 
     private func updateProgress(operation: FileOperation, currentItem: URL?, completed: Int, total: Int) {
@@ -1384,37 +1383,45 @@ final class FileOperationQueue {
             bytesCompleted: 0,
             bytesTotal: 0
         )
+
+        // Throttle UI updates to 16Hz (60ms intervals)
+        let now = CFAbsoluteTimeGetCurrent()
+        let elapsed = now - lastProgressTime
+
+        if elapsed >= 0.060 {
+            lastProgressTime = now
+            pendingProgress = nil
+            progressThrottleWorkItem?.cancel()
+            progressThrottleWorkItem = nil
+            deliverProgress(progress)
+        } else {
+            // Buffer and deliver after remaining interval
+            pendingProgress = progress
+            if progressThrottleWorkItem == nil {
+                let delay = 0.060 - elapsed
+                let workItem = DispatchWorkItem { [weak self] in
+                    guard let self, let buffered = self.pendingProgress else { return }
+                    self.lastProgressTime = CFAbsoluteTimeGetCurrent()
+                    self.pendingProgress = nil
+                    self.progressThrottleWorkItem = nil
+                    self.deliverProgress(buffered)
+                }
+                progressThrottleWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+            }
+        }
+    }
+
+    private func deliverProgress(_ progress: FileOperationProgress) {
         onProgressUpdate?(progress)
-        progressWindow?.update(progress)
     }
 
     private func finishOperation() {
+        lastFinishedOperation = currentOperation
         currentOperation = nil
-        progressDelayTask?.cancel()
-        progressDelayTask = nil
-        progressWindow?.dismiss()
-        progressWindow = nil
-    }
-
-    private func scheduleProgress(_ progress: FileOperationProgress) {
-        guard !isRunningTests else { return }
-
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            guard self.currentOperation != nil else { return }
-            self.showProgress(progress)
-        }
-        progressDelayTask = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
-    }
-
-    private func showProgress(_ progress: FileOperationProgress) {
-        guard let window = NSApp.keyWindow else { return }
-        let controller = ProgressWindowController(progress: progress) { [weak self] in
-            self?.cancelCurrentOperation()
-        }
-        controller.show(over: window)
-        progressWindow = controller
+        progressThrottleWorkItem?.cancel()
+        progressThrottleWorkItem = nil
+        pendingProgress = nil
     }
 
     // MARK: - Helpers

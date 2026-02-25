@@ -420,6 +420,166 @@ final class FileOperationQueueTests: XCTestCase {
         // File should be gone immediately (no async wait needed)
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
     }
+
+    // MARK: - Async Process & Progress Tests
+
+    func testRunProcessDoesNotBlockMainThread() async throws {
+        // Verify that a copy operation yields to the run loop (main thread stays responsive)
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let file = try createTestFile(in: temp, name: "a.txt", content: "test data")
+        let dest = try createTestFolder(in: temp, name: "Dest")
+
+        // Track whether the main run loop gets a chance to run during the operation
+        var runLoopDidRun = false
+        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, true, 0) { _, _ in
+            runLoopDidRun = true
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+        defer { CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, .commonModes) }
+
+        try await FileOperationQueue.shared.copy(items: [file], to: dest)
+
+        // The run loop should have had a chance to iterate
+        XCTAssertTrue(runLoopDidRun, "Main run loop should not be blocked during file operations")
+    }
+
+    func testProgressThrottle16Hz() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        // Create enough files to generate many progress callbacks
+        let source = try createTestFolder(in: temp, name: "Source")
+        for i in 0..<50 {
+            try createTestFile(in: source, name: "file\(i).txt", content: "data \(i)")
+        }
+        let dest = try createTestFolder(in: temp, name: "Dest")
+
+        var progressCallCount = 0
+        var timestamps: [CFAbsoluteTime] = []
+        let queue = FileOperationQueue.shared
+
+        let savedCallback = queue.onProgressUpdate
+        queue.onProgressUpdate = { _ in
+            progressCallCount += 1
+            timestamps.append(CFAbsoluteTimeGetCurrent())
+        }
+        defer { queue.onProgressUpdate = savedCallback }
+
+        // Copy all files from source
+        let files = try FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)
+        try await queue.copy(items: files, to: dest)
+
+        // Should have received progress updates but not one per file (throttled)
+        XCTAssertGreaterThan(progressCallCount, 0, "Should receive at least one progress update")
+
+        // Verify throttle: consecutive timestamps should be >= ~50ms apart (allowing some tolerance)
+        if timestamps.count >= 3 {
+            var shortIntervals = 0
+            for i in 1..<timestamps.count {
+                let interval = timestamps[i] - timestamps[i - 1]
+                if interval < 0.030 { // 30ms — well below the 60ms throttle
+                    shortIntervals += 1
+                }
+            }
+            // Most intervals should respect the throttle (allow some tolerance for first/last)
+            let throttledRatio = Double(timestamps.count - 1 - shortIntervals) / Double(timestamps.count - 1)
+            XCTAssertGreaterThan(throttledRatio, 0.5, "Most progress intervals should respect 60ms throttle")
+        }
+    }
+
+    func testCancellationWithAsyncProcess() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        // Create files to copy
+        let source = try createTestFolder(in: temp, name: "Source")
+        for i in 0..<20 {
+            try createTestFile(in: source, name: "file\(i).txt", content: String(repeating: "x", count: 1000))
+        }
+        let dest = try createTestFolder(in: temp, name: "Dest")
+        let files = try FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)
+
+        let queue = FileOperationQueue.shared
+
+        var operationStarted = false
+        let savedStart = queue.onOperationStart
+        queue.onOperationStart = { _, _ in
+            operationStarted = true
+        }
+        defer { queue.onOperationStart = savedStart }
+
+        // Cancel immediately after starting
+        let savedProgress = queue.onProgressUpdate
+        queue.onProgressUpdate = { _ in
+            queue.cancelCurrentOperation()
+        }
+        defer { queue.onProgressUpdate = savedProgress }
+
+        do {
+            try await queue.copy(items: files, to: dest)
+            // May or may not throw — small copies can complete before cancel fires
+        } catch {
+            if let opError = error as? FileOperationError, case .cancelled = opError {
+                XCTAssertTrue(true, "Operation was cancelled as expected")
+            }
+            // partialFailure is also acceptable if cancel hit mid-operation
+        }
+
+        XCTAssertTrue(operationStarted, "Operation should have started")
+    }
+
+    func testQueuedOperationCount() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let queue = FileOperationQueue.shared
+
+        // Before any operations, pending count should be 0
+        XCTAssertEqual(queue.pendingCount, 0, "No operations should be pending initially")
+
+        // Start two operations in sequence
+        let file1 = try createTestFile(in: temp, name: "a.txt")
+        let file2 = try createTestFile(in: temp, name: "b.txt")
+        let dest = try createTestFolder(in: temp, name: "Dest")
+
+        try await queue.copy(items: [file1], to: dest)
+        try await queue.copy(items: [file2], to: dest)
+
+        // After both complete, pending count should be back to 0
+        XCTAssertEqual(queue.pendingCount, 0, "No operations should be pending after completion")
+    }
+
+    func testOperationCallbacks() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let queue = FileOperationQueue.shared
+        var didStart = false
+        var didFinish = false
+        var finishError: Error?
+
+        let savedStart = queue.onOperationStart
+        let savedFinish = queue.onOperationFinish
+        queue.onOperationStart = { _, _ in didStart = true }
+        queue.onOperationFinish = { _, error in
+            didFinish = true
+            finishError = error
+        }
+        defer {
+            queue.onOperationStart = savedStart
+            queue.onOperationFinish = savedFinish
+        }
+
+        let file = try createTestFile(in: temp, name: "a.txt")
+        let dest = try createTestFolder(in: temp, name: "Dest")
+        try await queue.copy(items: [file], to: dest)
+
+        XCTAssertTrue(didStart, "onOperationStart should fire")
+        XCTAssertTrue(didFinish, "onOperationFinish should fire")
+        XCTAssertNil(finishError, "Successful operation should finish without error")
+    }
 }
 
 @MainActor

@@ -71,6 +71,27 @@ final class StatusBarView: NSView {
 
     // MARK: - Public API
 
+    private var flashWorkItem: DispatchWorkItem?
+
+    func showDoneFlash() {
+        flashWorkItem?.cancel()
+        let theme = ThemeManager.shared.currentTheme
+        let savedText = label.stringValue
+        label.stringValue = "Done"
+        label.textColor = theme.accent
+        needsDisplay = true
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.label.stringValue = savedText
+            self.label.textColor = ThemeManager.shared.currentTheme.textSecondary
+            self.needsDisplay = true
+            self.flashWorkItem = nil
+        }
+        flashWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: workItem)
+    }
+
     func update(
         itemCount: Int,
         selectedCount: Int,

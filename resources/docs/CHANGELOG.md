@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.14.0 (260225)
+
+### Activity Indicator
+
+Non-blocking progress indicator for file operations.
+
+- Added: Circular activity button in each pane's path control row, accent-colored, with rotating icon during indeterminate operations and progress ring for determinate operations
+- Added: Detail popover on click with full file path, progress percentage, and Cancel button
+- Added: "Done" flash in status bar on operation completion
+- Fixed: Archive operations no longer freeze the UI (async process execution replaces blocking waitUntilExit)
+- Fixed: Progress updates throttled to 16Hz to prevent UI saturation during bulk operations
+- Removed: Modal progress sheet (replaced by activity indicator)
+
 ## 0.13.1 (260225)
 
 ### iCloud Shared Split

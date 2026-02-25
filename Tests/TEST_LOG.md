@@ -1,6 +1,19 @@
 # Test Log
 
 ## Latest Run
+- Started: 2026-02-25 17:10:27
+- Command: `swift test --filter '(ActivityToolbarButtonTests|FileOperationQueueTests)'`
+- Status: PASS
+- Duration: 5.9s
+- Notes: 39 tests passed. 8 new ActivityToolbarButton tests (state transitions, error persistence, progress clamping). 5 new FileOperationQueue tests (async process, throttle, cancellation, queued count, callbacks). All 26 existing queue tests still pass.
+
+### Activity Indicator Suites
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| ActivityToolbarButtonTests (8 tests) | PASS | 0.047s | 2026-02-25 17:10:27 |
+| FileOperationQueueTests (31 tests) | PASS | 4.9s | 2026-02-25 17:10:31 |
+
+## Previous Run
 - Started: 2026-02-25 10:35:41
 - Command: `swift test --filter '(FileItemTests|FileListDataSourceTests|PaneTabTests|PaneViewControllerTests)'`
 - Status: PASS
