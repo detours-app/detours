@@ -1,70 +1,42 @@
 # Changelog
 
-## 0.14.0 (260225)
+## 1.4.0 (260225)
 
-### Activity Indicator
+First stable release under the 1.x version scheme. Detours is a native dual-pane file manager for macOS built with Swift and AppKit.
 
-Non-blocking progress indicator for file operations.
+### Highlights
 
-- Added: Circular activity button in each pane's path control row, accent-colored, with rotating icon during indeterminate operations and progress ring for determinate operations
-- Added: Detail popover on click with full file path, progress percentage, and Cancel button
-- Added: "Done" flash in status bar on operation completion
-- Fixed: Archive operations no longer freeze the UI (async process execution replaces blocking waitUntilExit)
-- Fixed: Progress updates throttled to 16Hz to prevent UI saturation during bulk operations
-- Removed: Modal progress sheet (replaced by activity indicator)
+- **Dual-pane layout** with independent tabs, navigation history, and session restore
+- **Keyboard-driven** — full navigation, file operations, and Quick Open (Cmd-P) without touching the mouse
+- **Archives** — create and extract ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ with optional password encryption
+- **AirDrop and Share** — share files via AirDrop, Messages, Mail, and other system services directly from the file list
+- **Undo/Redo** — per-tab undo for delete, copy, move, duplicate, and new folder/file
+- **Filter-in-place** — press `/` to filter the current directory in real-time, with auto-expansion into subfolders
+- **Folder expansion** — Finder-style disclosure triangles with keyboard expand/collapse and recursive Option-click
+- **Git status** — colored sidebar indicators for modified, staged, untracked, and conflicted files
+- **Themes** — four built-in themes (Light, Dark, Foolscap, Drafting) plus full custom theme support
+- **Sidebar** — devices with capacity bars, favorites with drag-to-add, network volumes with Bonjour discovery
+- **iCloud Drive** — native browsing with localized app folder names and a dedicated Shared view
+- **Network shares** — SMB/AFP with async directory loading, background icon fetch, and polling-based change detection
+- **Disk images** — mount DMG and sparsebundle files on double-click or from Quick Open
 
-## 0.13.1 (260225)
+### New in 1.4.0
 
-### iCloud Shared Split
+#### Activity Indicator
 
-- Added: Dedicated `Shared` folder/view in iCloud root that combines top-level items shared to you and shared by you
-- Added: Shared labels now support both roles: `Shared by <owner>` and `Shared by me`
-- Added: iCloud listing mode state (`normal`, `sharedTopLevel`) is tracked in tab history and session restore
+Non-blocking progress indicator for file operations, replacing the modal progress sheet.
 
-### iCloud Root Parity
+- Circular activity button in each pane's path row with rotating icon during operations
+- Detail popover on click showing file path, progress percentage, and Cancel button
+- "Done" flash in status bar on completion
+- Archive operations no longer freeze the UI
+- Progress updates throttled to 16Hz to prevent UI saturation
 
-- Changed: iCloud root now composes a Finder-like top-level list from `com~apple~CloudDocs` + app containers
-- Changed: Top-level shared items are removed from normal iCloud root and shown only in `Shared`
-- Fixed: `com~apple~CloudDocs` is no longer renamed to `Shared` in tabs/breadcrumbs (the `Shared` name is now reserved for the dedicated view)
-- Fixed: Hidden-files toggle is respected in both normal iCloud root mode and `Shared` mode
-- Fixed: Virtual shared view correctly scopes/disables write operations that rely on a concrete current folder target
+#### iCloud Shared
 
-## 0.13.0 (260218)
-
-### Archives
-
-Create and extract archives without leaving the app.
-
-- Create archives from selected files/folders via File > Archive... (Cmd-Shift-A) or right-click context menu
-- Extract archives via File > Extract Here (Cmd-Shift-E), right-click, or double-click
-- Five formats: ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ
-- Optional password encryption for ZIP and 7Z; password prompt on extract
-- Formats requiring external tools shown dimmed when not installed
-- Last-used format remembered between sessions
-
-### AirDrop and Share
-
-Share files directly from Detours via AirDrop, Messages, Mail, and other macOS sharing services — no need to switch to Finder.
-
-- Share submenu in File menu and right-click context menu
-- AirDrop listed first for quick access; all system sharing services available
-- Works with any file type and multi-selection
-
-### Disk Images
-
-- Opening .dmg or .sparsebundle files via Quick Open (Cmd-P) or double-click now mounts the image and navigates the pane to the mounted volume
-- Encrypted disk images supported; pane navigates after the password dialog completes
-
-### Improvements
-
-- Move/copy to other pane selects the transferred files in the destination pane and shifts focus
-- New folder/file creation reliably selects the new item and begins inline rename
-
-### Bug Fixes
-
-- Archive extraction no longer dumps loose files into parent directory when the archive contains a single root folder
-- Clicking empty space in the file list correctly deselects all items
-- Cancelling "Connect to Share" no longer shows a spurious error dialog
+- Dedicated Shared view in iCloud root combining items shared to you and shared by you
+- iCloud root now matches Finder's top-level layout
+- Shared listing mode tracked in tab history and session restore
 
 ## 0.12.0 (260208)
 
