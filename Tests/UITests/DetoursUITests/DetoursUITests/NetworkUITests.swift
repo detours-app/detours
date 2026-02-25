@@ -1,6 +1,7 @@
 import XCTest
 
 /// UI tests for network volume support
+@MainActor
 final class NetworkUITests: BaseUITest {
 
     // MARK: - Sidebar Network Section

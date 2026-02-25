@@ -650,6 +650,9 @@ private final class NavigationDelegateSpy: FileListNavigationDelegate {
     func fileListDidRequestNavigation(to url: URL) {
         navigatedTo = url
     }
+    func fileListDidRequestICloudSharedNavigation(cloudDocsURL: URL) {
+        navigatedTo = cloudDocsURL
+    }
     func fileListDidRequestParentNavigation() {
         parentNavigationRequested = true
     }

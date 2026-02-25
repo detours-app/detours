@@ -1,6 +1,21 @@
 # Test Log
 
 ## Latest Run
+- Started: 2026-02-25 10:35:41
+- Command: `swift test --filter '(FileItemTests|FileListDataSourceTests|PaneTabTests|PaneViewControllerTests)'`
+- Status: PASS
+- Duration: 0.651s
+- Notes: 61 tests passed across iCloud/shared implementation suites. Includes new coverage for shared-owner labels, iCloud root/shared composition, listing-mode history/session restore, and iCloud button mode behavior.
+
+### iCloud Shared Split Suites
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileItemTests (23 tests) | PASS | 0.144s | 2026-02-25 10:35:41 |
+| FileListDataSourceTests (13 tests) | PASS | 0.016s | 2026-02-25 10:35:41 |
+| PaneTabTests (12 tests) | PASS | 0.113s | 2026-02-25 10:35:41 |
+| PaneViewControllerTests (13 tests) | PASS | 0.375s | 2026-02-25 10:35:41 |
+
+## Previous Run
 - Started: 2026-02-23 13:11:28
 - Command: `swift test --filter StatusBarCountTests`
 - Status: PASS

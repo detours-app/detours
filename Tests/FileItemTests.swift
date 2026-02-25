@@ -27,6 +27,41 @@ final class FileItemTests: XCTestCase {
         XCTAssertNil(item.size)
     }
 
+    func testSharedOwnerLabelIsSharedByMe() {
+        let url = URL(fileURLWithPath: "/tmp/shared-owner")
+        let item = FileItem(name: "shared-owner", url: url, isDirectory: false, size: 1, dateModified: Date(), icon: NSImage(), sharedRole: .owner)
+        XCTAssertEqual(item.sharedLabelText, "Shared by me")
+    }
+
+    func testSharedParticipantLabelUsesOwnerName() {
+        let url = URL(fileURLWithPath: "/tmp/shared-participant")
+        let item = FileItem(name: "shared-participant", url: url, isDirectory: false, size: 1, dateModified: Date(), icon: NSImage(), sharedRole: .participant(ownerName: "Taylor"))
+        XCTAssertEqual(item.sharedLabelText, "Shared by Taylor")
+    }
+
+    func testSharedOwnerLabelFromRoleWhenIsSharedFlagIsFalse() {
+        let entry = LoadedFileEntry(
+            url: URL(fileURLWithPath: "/tmp/shared-owner-role-only"),
+            name: "shared-owner-role-only",
+            isDirectory: true,
+            ubiquitousItemIsShared: false,
+            ubiquitousSharedItemCurrentUserRole: .owner
+        )
+        let item = FileItem(entry: entry, icon: NSImage())
+        XCTAssertEqual(item.sharedLabelText, "Shared by me")
+    }
+
+    func testCloudDocsNotRenamedToShared() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let cloudDocs = try createTestFolder(in: temp, name: "com~apple~CloudDocs")
+        let item = FileItem(url: cloudDocs)
+
+        XCTAssertEqual(item.name, "com~apple~CloudDocs")
+        XCTAssertNotEqual(item.name, "Shared")
+    }
+
     func testFormattedSizeBytes() {
         let url = URL(fileURLWithPath: "/tmp/bytes")
         let item = FileItem(name: "bytes", url: url, isDirectory: false, size: 512, dateModified: Date(), icon: NSImage())

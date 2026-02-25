@@ -10,7 +10,7 @@ final class SystemKeyHandlerTests: XCTestCase {
     }
 
     func testSystemDefinedDictationKeyTriggersCopyToOtherPane() throws {
-        let (splitVC, fileURL, cleanup) = try makeSplitViewControllerWithDestination()
+        let (splitVC, _, cleanup) = try makeSplitViewControllerWithDestination()
         defer { cleanup() }
 
         let event = makeSystemDefinedKeyEvent(keyCode: SystemMediaKey.dictationKeyCode, keyDown: true)
@@ -18,7 +18,7 @@ final class SystemKeyHandlerTests: XCTestCase {
     }
 
     func testSystemDefinedF5KeyTriggersCopyToOtherPane() throws {
-        let (splitVC, fileURL, cleanup) = try makeSplitViewControllerWithDestination()
+        let (splitVC, _, cleanup) = try makeSplitViewControllerWithDestination()
         defer { cleanup() }
 
         let event = makeSystemDefinedKeyEvent(keyCode: SystemMediaKey.f5KeyCode, keyDown: true)
@@ -26,7 +26,7 @@ final class SystemKeyHandlerTests: XCTestCase {
     }
 
     func testGlobalKeyDownF5TriggersCopyToOtherPane() throws {
-        let (splitVC, fileURL, cleanup) = try makeSplitViewControllerWithDestination()
+        let (splitVC, _, cleanup) = try makeSplitViewControllerWithDestination()
         defer { cleanup() }
 
         let event = makeKeyDownEvent(functionKey: NSF5FunctionKey, keyCode: UInt16(SystemMediaKey.f5KeyCode))

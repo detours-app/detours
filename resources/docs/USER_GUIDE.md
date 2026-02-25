@@ -353,7 +353,11 @@ Features that aren't immediately obvious:
 
 - iCloud app folders show friendly names (e.g., "Pages" instead of "com~apple~Pages")
 - Navigating into an iCloud app container automatically skips to its Documents subfolder
-- "Shared" items show who shared them
+- iCloud root uses a Finder-like top-level list (Documents, Downloads, app folders, etc.)
+- Top-level shared items are split into a dedicated `Shared` folder
+- `Shared` shows one combined list for items shared to you and by you
+- Shared labels show `Shared by <owner>` or `Shared by me`
+- Hidden-files toggle applies to both iCloud root and `Shared` view
 
 ### Packages
 

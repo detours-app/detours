@@ -7,6 +7,11 @@ enum ICloudStatus {
     case downloading
 }
 
+enum SharedItemRole: Equatable {
+    case participant(ownerName: String)
+    case owner
+}
+
 final class FileItem {
     let name: String
     let url: URL
@@ -17,7 +22,8 @@ final class FileItem {
     let size: Int64?
     let dateModified: Date
     var icon: NSImage
-    let sharedByName: String?
+    let sharedRole: SharedItemRole?
+    let isVirtualSharedFolder: Bool
     let iCloudStatus: ICloudStatus
     var gitStatus: GitStatus?
 
@@ -25,7 +31,7 @@ final class FileItem {
     var children: [FileItem]?  // nil = not loaded, empty = loaded but empty
     weak var parent: FileItem?
 
-    init(name: String, url: URL, isDirectory: Bool, isPackage: Bool = false, isAliasFile: Bool = false, size: Int64?, dateModified: Date, icon: NSImage, sharedByName: String? = nil, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
+    init(name: String, url: URL, isDirectory: Bool, isPackage: Bool = false, isAliasFile: Bool = false, size: Int64?, dateModified: Date, icon: NSImage, sharedRole: SharedItemRole? = nil, isVirtualSharedFolder: Bool = false, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
         self.name = name
         self.url = url
         self.isDirectory = isDirectory
@@ -35,20 +41,15 @@ final class FileItem {
         self.size = size
         self.dateModified = dateModified
         self.icon = icon
-        self.sharedByName = sharedByName
+        self.sharedRole = sharedRole
+        self.isVirtualSharedFolder = isVirtualSharedFolder
         self.iCloudStatus = iCloudStatus
         self.gitStatus = gitStatus
     }
 
     init(entry: LoadedFileEntry, icon: NSImage) {
         self.url = entry.url
-
-        // Show "Shared" for iCloud Drive folder (com~apple~CloudDocs)
-        if entry.url.lastPathComponent == "com~apple~CloudDocs" {
-            self.name = "Shared"
-        } else {
-            self.name = entry.name
-        }
+        self.name = entry.name
         self.isDirectory = entry.isDirectory
         self.isPackage = entry.isPackage
         self.isAliasFile = entry.isAliasFile
@@ -57,14 +58,12 @@ final class FileItem {
         self.dateModified = entry.contentModificationDate
         self.icon = icon
 
-        // Show "Shared by X" if shared and we're not the owner
-        if entry.ubiquitousItemIsShared,
-           entry.ubiquitousSharedItemCurrentUserRole == .participant,
-           let ownerComponents = entry.ubiquitousSharedItemOwnerNameComponents {
-            self.sharedByName = ownerComponents.formatted(.name(style: .short))
-        } else {
-            self.sharedByName = nil
-        }
+        self.sharedRole = Self.makeSharedRole(
+            isShared: entry.ubiquitousItemIsShared,
+            role: entry.ubiquitousSharedItemCurrentUserRole,
+            ownerComponents: entry.ubiquitousSharedItemOwnerNameComponents
+        )
+        self.isVirtualSharedFolder = false
 
         // Determine iCloud download status
         if entry.ubiquitousItemIsDownloading {
@@ -94,6 +93,7 @@ final class FileItem {
             .isDirectoryKey,
             .isPackageKey,
             .isAliasFileKey,
+            .isSymbolicLinkKey,
             .fileSizeKey,
             .contentModificationDateKey,
             .localizedNameKey,
@@ -106,13 +106,21 @@ final class FileItem {
 
         let values = try? url.resourceValues(forKeys: resourceKeys)
 
-        // Show "Shared" for iCloud Drive folder (com~apple~CloudDocs)
-        if url.lastPathComponent == "com~apple~CloudDocs" {
-            self.name = "Shared"
-        } else {
-            self.name = values?.localizedName ?? url.lastPathComponent
-        }
-        self.isDirectory = values?.isDirectory ?? false
+        let isDirectory: Bool = {
+            if values?.isDirectory == true {
+                return true
+            }
+            if values?.isAliasFile == true || values?.isSymbolicLink == true {
+                var dir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: url.path, isDirectory: &dir) {
+                    return dir.boolValue
+                }
+            }
+            return false
+        }()
+
+        self.name = values?.localizedName ?? url.lastPathComponent
+        self.isDirectory = isDirectory
         self.isPackage = values?.isPackage ?? false
         self.isAliasFile = values?.isAliasFile ?? false
         self.isHiddenFile = url.lastPathComponent.hasPrefix(".")
@@ -127,14 +135,12 @@ final class FileItem {
             self.icon = systemIcon
         }
 
-        // Show "Shared by X" if shared and we're not the owner
-        if values?.ubiquitousItemIsShared == true,
-           values?.ubiquitousSharedItemCurrentUserRole == .participant,
-           let ownerComponents = values?.ubiquitousSharedItemOwnerNameComponents {
-            self.sharedByName = ownerComponents.formatted(.name(style: .short))
-        } else {
-            self.sharedByName = nil
-        }
+        self.sharedRole = Self.makeSharedRole(
+            isShared: values?.ubiquitousItemIsShared == true,
+            role: values?.ubiquitousSharedItemCurrentUserRole,
+            ownerComponents: values?.ubiquitousSharedItemOwnerNameComponents
+        )
+        self.isVirtualSharedFolder = false
 
         // Determine iCloud download status
         if values?.ubiquitousItemIsDownloading == true {
@@ -154,6 +160,33 @@ final class FileItem {
 
         // Git status is set externally by data source
         self.gitStatus = nil
+    }
+
+    private static func makeSharedRole(
+        isShared: Bool,
+        role: URLUbiquitousSharedItemRole?,
+        ownerComponents: PersonNameComponents?
+    ) -> SharedItemRole? {
+        guard isShared || role != nil else { return nil }
+
+        switch role {
+        case .owner:
+            return .owner
+        case .participant:
+            let ownerName = ownerComponents?.formatted(.name(style: .short)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let ownerName, !ownerName.isEmpty {
+                return .participant(ownerName: ownerName)
+            }
+            return .participant(ownerName: "someone")
+        case nil:
+            let ownerName = ownerComponents?.formatted(.name(style: .short)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let ownerName, !ownerName.isEmpty {
+                return .participant(ownerName: ownerName)
+            }
+            return .participant(ownerName: "someone")
+        default:
+            return nil
+        }
     }
 
     // MARK: - Formatted Properties
@@ -285,10 +318,22 @@ extension FileItem {
         isDirectory && !isPackage && !FileOpenHelper.isDiskImage(url)
     }
 
+    var sharedLabelText: String? {
+        switch sharedRole {
+        case .participant(let ownerName):
+            return "Shared by \(ownerName)"
+        case .owner:
+            return "Shared by me"
+        case nil:
+            return nil
+        }
+    }
+
     /// Returns the resolved directory URL if this item can accept dropped files.
     /// For directories, returns self.url. For Finder aliases to directories, returns the resolved target.
     /// Returns nil if this item is not a valid drop target.
     var dropDestination: URL? {
+        guard !isVirtualSharedFolder else { return nil }
         if isDirectory { return url }
         guard isAliasFile else { return nil }
         guard let resolved = try? URL(resolvingAliasFileAt: url, options: [.withoutUI, .withoutMounting]) else { return nil }
