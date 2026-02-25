@@ -90,6 +90,68 @@ final class MainSplitViewController: NSSplitViewController {
             name: NSWorkspace.didUnmountNotification,
             object: nil
         )
+
+        // Wire activity strip to file operation queue
+        setupActivityStripCallbacks()
+    }
+
+    private func setupActivityStripCallbacks() {
+        let queue = FileOperationQueue.shared
+
+        queue.onOperationStart = { [weak self] operation, totalCount in
+            guard let self else { return }
+            let label = self.shortOperationLabel(operation)
+            let queued = queue.pendingCount
+            self.leftPane.activityStrip.showStarting(operationType: label, totalCount: totalCount, queuedCount: queued)
+            self.rightPane.activityStrip.showStarting(operationType: label, totalCount: totalCount, queuedCount: queued)
+        }
+
+        queue.onProgressUpdate = { [weak self] progress in
+            guard let self else { return }
+            let queued = queue.pendingCount
+            self.leftPane.activityStrip.updateProgress(progress, queuedCount: queued)
+            self.rightPane.activityStrip.updateProgress(progress, queuedCount: queued)
+            self.leftPane.updateDetailPopover(progress)
+            self.rightPane.updateDetailPopover(progress)
+        }
+
+        queue.onOperationFinish = { [weak self] _, error in
+            guard let self else { return }
+            self.leftPane.closeDetailPopover()
+            self.rightPane.closeDetailPopover()
+
+            if let error {
+                if let opError = error as? FileOperationError, case .cancelled = opError {
+                    // Cancelled — just collapse silently
+                    self.leftPane.activityStrip.collapse()
+                    self.rightPane.activityStrip.collapse()
+                } else {
+                    let message = (error as? FileOperationError)?.localizedDescription ?? error.localizedDescription
+                    self.leftPane.activityStrip.showError(message: message)
+                    self.rightPane.activityStrip.showError(message: message)
+                }
+            } else {
+                self.leftPane.activityStrip.showCompleting()
+                self.rightPane.activityStrip.showCompleting()
+                self.leftPane.showDoneFlash()
+                self.rightPane.showDoneFlash()
+            }
+        }
+    }
+
+    private func shortOperationLabel(_ operation: FileOperation) -> String {
+        switch operation {
+        case .copy: return "Copying"
+        case .move: return "Moving"
+        case .delete: return "Trashing"
+        case .deleteImmediately: return "Deleting"
+        case .rename: return "Renaming"
+        case .duplicate: return "Duplicating"
+        case .createFolder: return "Creating"
+        case .createFile: return "Creating"
+        case .archive: return "Archiving"
+        case .extract: return "Extracting"
+        }
     }
 
     private var hasSetInitialFirstResponder = false

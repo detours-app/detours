@@ -1,7 +1,7 @@
 # Activity Bar
 
 ## Meta
-- Status: Draft
+- Status: In Progress
 - Branch: feature/activity-bar
 
 ---
@@ -73,36 +73,36 @@ The strip connects to the existing `FileOperationQueue.onProgressUpdate` callbac
 ### Implementation Plan
 
 **Phase 1: Fix async process execution**
-- [ ] Replace `process.waitUntilExit()` in `runProcess` with an async wrapper using `Process.terminationHandler` and `withCheckedContinuation` (`FileOperationQueue.swift`)
-- [ ] Verify cancellation monitoring still works with the new async approach
-- [ ] Add 16Hz throttle to `updateProgress` calls — buffer updates and deliver at most once per 60ms
+- [x] Replace `process.waitUntilExit()` in `runProcess` with an async wrapper using `Process.terminationHandler` and `withCheckedContinuation` (`FileOperationQueue.swift`)
+- [x] Verify cancellation monitoring still works with the new async approach
+- [x] Add 16Hz throttle to `updateProgress` calls — buffer updates and deliver at most once per 60ms
 
 **Phase 2: ActivityStrip view**
-- [ ] Create `ActivityStrip` NSView with layout: spinner (12×12), operation label, separator dot, file name label (truncates middle), count label, 2pt linear progress bar along bottom edge (`src/Operations/ActivityStrip.swift`)
-- [ ] Implement width adaptation: hide file name below 320pt, hide count below 600pt
-- [ ] Implement states: hidden → starting (indeterminate spinner) → active (determinate bar) → completing (hold 600ms) → done (collapse) → error (tinted, dismiss button)
-- [ ] Implement appear/collapse height animation via `NSAnimationContext` (180ms ease-out appear, 220ms ease-in collapse); skip animation when `accessibilityDisplayShouldReduceMotion` is true
-- [ ] Wire to `ThemeManager.themeDidChange` for colors, fonts, border
+- [x] Create `ActivityStrip` NSView with layout: spinner (12×12), operation label, separator dot, file name label (truncates middle), count label, 2pt linear progress bar along bottom edge (`src/Operations/ActivityStrip.swift`)
+- [x] Implement width adaptation: hide file name below 320pt, hide count below 600pt
+- [x] Implement states: hidden → starting (indeterminate spinner) → active (determinate bar) → completing (hold 600ms) → done (collapse) → error (tinted, dismiss button)
+- [x] Implement appear/collapse height animation via `NSAnimationContext` (180ms ease-out appear, 220ms ease-in collapse); skip animation when `accessibilityDisplayShouldReduceMotion` is true
+- [x] Wire to `ThemeManager.themeDidChange` for colors, fonts, border
 
 **Phase 3: Detail popover**
-- [ ] Create `OperationDetailPopover` using NSPopover + NSHostingView with SwiftUI content: full file path (wrappable), count fraction, full-width progress bar with percentage, "Cancel Operation" button (`src/Operations/OperationDetailPopover.swift`)
-- [ ] Open popover on strip click, anchored below strip with arrow pointing up
-- [ ] Close popover automatically when operation ends
-- [ ] Wire Cancel button to `FileOperationQueue.cancelCurrentOperation()`
+- [x] Create `OperationDetailPopover` using NSPopover + NSHostingView with SwiftUI content: full file path (wrappable), count fraction, full-width progress bar with percentage, "Cancel Operation" button (`src/Operations/OperationDetailPopover.swift`)
+- [x] Open popover on strip click, anchored below strip with arrow pointing up
+- [x] Close popover automatically when operation ends
+- [x] Wire Cancel button to `FileOperationQueue.cancelCurrentOperation()`
 
 **Phase 4: Integration**
-- [ ] Add `ActivityStrip` to the window's split view controller, constrained between file list area and status bars
-- [ ] Connect `FileOperationQueue.onProgressUpdate` to drive the strip
-- [ ] Add completion callback to `FileOperationQueue` to trigger strip collapse + Done flash
-- [ ] Add `showDoneFlash()` to `StatusBarView` — temporarily replace label text with "Done" in accent color for 1.5s, then restore stats
-- [ ] Remove `ProgressWindowController` modal sheet and its 1-second delay scheduling
-- [ ] Add queued-operation count to strip label ("+ N queued") when `pending.count > 0`
+- [x] Add `ActivityStrip` to the window's split view controller, constrained between file list area and status bars
+- [x] Connect `FileOperationQueue.onProgressUpdate` to drive the strip
+- [x] Add completion callback to `FileOperationQueue` to trigger strip collapse + Done flash
+- [x] Add `showDoneFlash()` to `StatusBarView` — temporarily replace label text with "Done" in accent color for 1.5s, then restore stats
+- [x] Remove `ProgressWindowController` modal sheet and its 1-second delay scheduling
+- [x] Add queued-operation count to strip label ("+ N queued") when `pending.count > 0`
 
 **Phase 5: Accessibility**
-- [ ] Set `NSAccessibilityProgressIndicatorRole` on the strip with value attribute for fraction
-- [ ] Post `NSAccessibilityAnnouncement` when operation starts ("Copying 42 items…"), completes ("Copy complete"), and fails
-- [ ] Make strip a tab stop in the window's key view loop
-- [ ] Focus Cancel button when popover opens; Escape closes without cancelling
+- [x] Set `NSAccessibilityProgressIndicatorRole` on the strip with value attribute for fraction
+- [x] Post `NSAccessibilityAnnouncement` when operation starts ("Copying 42 items…"), completes ("Copy complete"), and fails
+- [x] Make strip a tab stop in the window's key view loop
+- [x] Focus Cancel button when popover opens; Escape closes without cancelling
 
 ---
 

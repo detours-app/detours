@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.0 (260225)
+
+### Activity Strip
+
+Non-blocking progress indicator for file operations.
+
+- Added: Activity strip appears between file list and status bar during operations, showing operation type, current file, and progress
+- Added: Detail popover on click with full file path, progress percentage, and Cancel button
+- Added: "Done" flash in status bar on operation completion
+- Added: Queue count badge ("+ N queued") when multiple operations are pending
+- Added: Width-adaptive layout (compact/standard/wide breakpoints)
+- Fixed: Archive operations no longer freeze the UI (async process execution replaces blocking waitUntilExit)
+- Fixed: Progress updates throttled to 16Hz to prevent UI saturation during bulk operations
+- Removed: Modal progress sheet (replaced by activity strip)
+
 ## 0.13.1 (260225)
 
 ### iCloud Shared Split

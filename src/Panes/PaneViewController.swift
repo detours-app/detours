@@ -318,6 +318,8 @@ final class PaneViewController: NSViewController {
     private let pathControl = DroppablePathControl()
     private let tabContainer = NSView()
     private let statusBar = StatusBarView()
+    let activityStrip = ActivityStrip()
+    private var detailPopover: OperationDetailPopover?
 
     private(set) var tabs: [PaneTab] = []
     private(set) var selectedTabIndex: Int = 0
@@ -326,6 +328,7 @@ final class PaneViewController: NSViewController {
     private var pathItemURLs: [URL?] = []  // URLs for each path item (nil for ellipsis)
     private var statusBarBottomConstraint: NSLayoutConstraint?
     private var tabContainerBottomConstraint: NSLayoutConstraint?
+    private var activityStripBottomConstraint: NSLayoutConstraint?
 
     var selectedTab: PaneTab? {
         guard selectedTabIndex >= 0 && selectedTabIndex < tabs.count else { return nil }
@@ -345,6 +348,7 @@ final class PaneViewController: NSViewController {
         setupICloudButton()
         setupPathControl()
         setupTabContainer()
+        setupActivityStrip()
         setupStatusBar()
         setupConstraints()
 
@@ -458,6 +462,19 @@ final class PaneViewController: NSViewController {
         view.addSubview(tabContainer)
     }
 
+    private func setupActivityStrip() {
+        activityStrip.isHidden = true
+        view.addSubview(activityStrip)
+
+        activityStrip.onClick = { [weak self] in
+            self?.showDetailPopover()
+        }
+        activityStrip.onDismissError = { [weak self] in
+            self?.detailPopover?.close()
+            self?.detailPopover = nil
+        }
+    }
+
     private func setupStatusBar() {
         view.addSubview(statusBar)
         statusBar.isHidden = !SettingsManager.shared.settings.showStatusBar
@@ -473,16 +490,21 @@ final class PaneViewController: NSViewController {
 
         // Update constraints
         tabContainerBottomConstraint?.isActive = false
+        activityStripBottomConstraint?.isActive = false
         statusBarBottomConstraint?.isActive = false
 
+        // Layout: tabContainer → activityStrip → statusBar → bottom
+        tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: activityStrip.topAnchor)
+
         if shouldShow {
-            tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: statusBar.topAnchor)
+            activityStripBottomConstraint = activityStrip.bottomAnchor.constraint(equalTo: statusBar.topAnchor)
             statusBarBottomConstraint = statusBar.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         } else {
-            tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            activityStripBottomConstraint = activityStrip.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         }
 
         tabContainerBottomConstraint?.isActive = true
+        activityStripBottomConstraint?.isActive = true
         statusBarBottomConstraint?.isActive = true
     }
 
@@ -492,6 +514,7 @@ final class PaneViewController: NSViewController {
         iCloudButton.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
         tabContainer.translatesAutoresizingMaskIntoConstraints = false
+        activityStrip.translatesAutoresizingMaskIntoConstraints = false
         statusBar.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
@@ -522,6 +545,10 @@ final class PaneViewController: NSViewController {
             tabContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 
+            // Activity strip (height managed by ActivityStrip itself)
+            activityStrip.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            activityStrip.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+
             // Status bar at bottom, 20px height
             statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -530,6 +557,38 @@ final class PaneViewController: NSViewController {
 
         // Set up dynamic bottom constraints based on status bar visibility
         updateStatusBarVisibility()
+    }
+
+    // MARK: - Activity Strip
+
+    private func showDetailPopover() {
+        guard let operation = FileOperationQueue.shared.currentOperation else { return }
+        let progress = FileOperationProgress(
+            operation: operation,
+            currentItem: nil,
+            completedCount: 0,
+            totalCount: 0,
+            bytesCompleted: 0,
+            bytesTotal: 0
+        )
+        let popover = OperationDetailPopover(progress: progress) {
+            FileOperationQueue.shared.cancelCurrentOperation()
+        }
+        popover.show(relativeTo: activityStrip.bounds, of: activityStrip, preferredEdge: .maxY)
+        detailPopover = popover
+    }
+
+    func closeDetailPopover() {
+        detailPopover?.close()
+        detailPopover = nil
+    }
+
+    func updateDetailPopover(_ progress: FileOperationProgress) {
+        detailPopover?.update(progress)
+    }
+
+    func showDoneFlash() {
+        statusBar.showDoneFlash()
     }
 
     // MARK: - Tab Management
