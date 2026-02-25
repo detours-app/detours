@@ -976,11 +976,11 @@ final class PaneViewController: NSViewController {
 
             // Only load selected tab immediately - others load on-demand via ensureLoaded
             if index == clampedIndex {
-                tabs[index].fileListViewController.loadDirectory(url, iCloudListingMode: tabs[index].iCloudListingMode)
-                // Restore expansion BEFORE selection - items inside folders don't exist until expanded
+                // Store expansion/selection for deferred restore after async load completes
                 if let expansions, index < expansions.count {
-                    tabs[index].fileListViewController.restoreExpansion(expansions[index])
+                    tabs[index].fileListViewController.pendingExpansionRestore = expansions[index]
                 }
+                tabs[index].fileListViewController.loadDirectory(url, iCloudListingMode: tabs[index].iCloudListingMode)
                 if let selections, index < selections.count {
                     tabs[index].fileListViewController.restoreSelection(selections[index])
                 }

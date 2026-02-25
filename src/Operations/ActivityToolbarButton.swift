@@ -150,6 +150,7 @@ final class ActivityToolbarButton: NSView {
         stopIconSpin()
         state = .active(fraction: fraction)
 
+        iconView.isHidden = true
         trackLayer.isHidden = false
         progressLayer.isHidden = false
 
@@ -192,6 +193,7 @@ final class ActivityToolbarButton: NSView {
         completingWorkItem?.cancel()
         completingWorkItem = nil
 
+        iconView.isHidden = false
         trackLayer.isHidden = true
         progressLayer.isHidden = true
 
@@ -210,6 +212,7 @@ final class ActivityToolbarButton: NSView {
         completingWorkItem?.cancel()
         completingWorkItem = nil
 
+        iconView.isHidden = false
         trackLayer.isHidden = true
         progressLayer.isHidden = true
         progressLayer.strokeEnd = 0

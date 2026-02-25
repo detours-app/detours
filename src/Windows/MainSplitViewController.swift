@@ -102,51 +102,43 @@ final class MainSplitViewController: NSSplitViewController {
         queue.onOperationStart = { [weak self] operation, _ in
             guard let self else { return }
             let isIndeterminate = Self.isIndeterminateOperation(operation)
-            self.leftPane.showActivityButton(indeterminate: isIndeterminate)
-            self.rightPane.showActivityButton(indeterminate: isIndeterminate)
+            self.activePane.showActivityButton(indeterminate: isIndeterminate)
         }
 
         queue.onProgressUpdate = { [weak self] progress in
             guard let self else { return }
+            let pane = self.activePane
             if progress.totalCount > 0 {
-                self.leftPane.activityButton.updateProgress(progress.fractionCompleted)
-                self.rightPane.activityButton.updateProgress(progress.fractionCompleted)
+                pane.activityButton.updateProgress(progress.fractionCompleted)
             }
-            self.leftPane.updateDetailPopover(progress)
-            self.rightPane.updateDetailPopover(progress)
+            pane.updateDetailPopover(progress)
         }
 
         queue.onOperationFinish = { [weak self] _, error in
             guard let self else { return }
-            self.leftPane.closeDetailPopover()
-            self.rightPane.closeDetailPopover()
+            let pane = self.activePane
+            pane.closeDetailPopover()
 
             if let error {
                 if let opError = error as? FileOperationError, case .cancelled = opError {
-                    self.leftPane.hideActivityButton()
-                    self.rightPane.hideActivityButton()
+                    pane.hideActivityButton()
                 } else {
-                    self.leftPane.activityButton.showError()
-                    self.rightPane.activityButton.showError()
+                    pane.activityButton.showError()
 
-                    // Auto-dismiss error triangles after 3 seconds
+                    // Auto-dismiss error triangle after 3 seconds
                     self.hideActivityWorkItem?.cancel()
-                    let workItem = DispatchWorkItem { [weak self] in
-                        self?.leftPane.hideActivityButton()
-                        self?.rightPane.hideActivityButton()
+                    let workItem = DispatchWorkItem { [weak pane] in
+                        pane?.hideActivityButton()
                     }
                     self.hideActivityWorkItem = workItem
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: workItem)
                 }
             } else {
-                self.leftPane.activityButton.showCompleting()
-                self.rightPane.activityButton.showCompleting()
-                self.leftPane.showDoneFlash()
-                self.rightPane.showDoneFlash()
+                pane.activityButton.showCompleting()
+                pane.showDoneFlash()
 
-                let workItem = DispatchWorkItem { [weak self] in
-                    self?.leftPane.hideActivityButton()
-                    self?.rightPane.hideActivityButton()
+                let workItem = DispatchWorkItem { [weak pane] in
+                    pane?.hideActivityButton()
                 }
                 self.hideActivityWorkItem = workItem
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: workItem)
@@ -156,7 +148,8 @@ final class MainSplitViewController: NSSplitViewController {
 
     private static func isIndeterminateOperation(_ operation: FileOperation) -> Bool {
         switch operation {
-        case .archive, .extract: return true
+        case .archive, .extract, .deleteImmediately: return true
+        case .delete(let items): return items.count <= 1
         default: return false
         }
     }

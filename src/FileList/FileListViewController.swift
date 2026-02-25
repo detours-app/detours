@@ -48,6 +48,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var preservedExpansionWhenDisabled: Set<URL>?
     /// Selection to restore when user cancels new folder/file creation
     private var selectionBeforeNewItem: URL?
+    /// Expansion state to restore after async directory load completes
+    var pendingExpansionRestore: Set<URL>?
 
     private var isSharedTopLevelView: Bool {
         currentICloudListingMode == .sharedTopLevel &&
@@ -475,7 +477,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
-    func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false, iCloudListingMode requestedListingMode: ICloudListingMode? = nil) {
+    func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false, iCloudListingMode requestedListingMode: ICloudListingMode? = nil, showSpinner: Bool = true) {
         // Cancel any in-progress load before starting a new one
         dataSource.cancelCurrentLoad()
         hideLoadingIndicator()
@@ -528,6 +530,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     self.restoreExpansion(previousExpanded)
                 }
 
+                // Apply deferred expansion from session restore
+                if let pending = self.pendingExpansionRestore {
+                    self.pendingExpansionRestore = nil
+                    self.restoreExpansion(pending)
+                }
+
                 if let targetURL = pendingItemToSelect {
                     // Select specific item
                     self.selectItem(at: targetURL)
@@ -558,6 +566,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             }
         }
 
+        suppressLoadingSpinner = !showSpinner
         dataSource.loadDirectory(normalizedURL, preserveExpansion: preserveExpansion, iCloudListingMode: effectiveListingMode)
         hasLoadedDirectory = true
 
@@ -567,8 +576,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     // MARK: - Loading & Error States
 
+    private var suppressLoadingSpinner = false
+
     private func showLoadingIndicator() {
         hideErrorOverlay()
+        guard !suppressLoadingSpinner else { return }
         guard loadingSpinner == nil else { return }
 
         let spinner = NSProgressIndicator()
@@ -686,7 +698,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func performDirectoryReload() {
         guard let currentDirectory else { return }
-        loadDirectory(currentDirectory, preserveExpansion: true)
+        loadDirectory(currentDirectory, preserveExpansion: true, showSpinner: false)
     }
 
     func ensureLoaded() {

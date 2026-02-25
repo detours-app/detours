@@ -1,6 +1,15 @@
 import AppKit
 import Foundation
 
+/// Type-erased cancellable handle for a Task, so we can store tasks with different Success types.
+struct AnyCancellableTask: Sendable {
+    private let _cancel: @Sendable () -> Void
+    init<T: Sendable>(_ task: Task<T, any Error>) {
+        _cancel = { task.cancel() }
+    }
+    func cancel() { _cancel() }
+}
+
 @MainActor
 final class FileOperationQueue {
     static let shared = FileOperationQueue()
@@ -20,6 +29,7 @@ final class FileOperationQueue {
     private var pending: [() async -> Void] = []
     private var isRunning = false
     private var isCancelled = false
+    private var currentIOCancellable: AnyCancellableTask?
     private var lastProgressTime: CFAbsoluteTime = 0
     private var pendingProgress: FileOperationProgress?
     private var progressThrottleWorkItem: DispatchWorkItem?
@@ -107,6 +117,7 @@ final class FileOperationQueue {
 
     func cancelCurrentOperation() {
         isCancelled = true
+        currentIOCancellable?.cancel()
     }
 
     func presentError(_ error: Error) {
@@ -169,9 +180,12 @@ final class FileOperationQueue {
 
     /// Run a blocking file operation off the main thread to prevent UI freezes on slow volumes (NAS, etc.)
     private func runFileIO<T: Sendable>(_ operation: @Sendable @escaping () throws -> T) async throws -> T {
-        try await Task.detached(priority: .userInitiated) {
+        let task = Task.detached(priority: .userInitiated) {
             try operation()
-        }.value
+        }
+        currentIOCancellable = AnyCancellableTask(task)
+        defer { currentIOCancellable = nil }
+        return try await task.value
     }
 
     // MARK: - Queue
@@ -449,38 +463,65 @@ final class FileOperationQueue {
 
     private func performDeleteImmediately(items: [URL]) async throws {
         let operation = FileOperation.deleteImmediately(items: items)
-        startOperation(operation, totalCount: items.count)
+
+        // Show spinning indicator immediately while we scan the directory tree
+        startOperation(operation, totalCount: 0)
         defer { finishOperation() }
 
-        var failures: [(URL, Error)] = []
-        var successes: [URL] = []
+        // Show which item is being scanned
+        updateProgress(operation: operation, currentItem: items.first, completed: 0, total: 0)
 
-        for (index, item) in items.enumerated() {
+        // Enumerate all descendant files to get accurate progress (cancellable)
+        let allFiles = try await runFileIO { () throws -> [URL] in
+            var result: [URL] = []
+            let fm = FileManager.default
+            for item in items {
+                guard !Task.isCancelled else { throw FileOperationError.cancelled }
+                var isDir: ObjCBool = false
+                if fm.fileExists(atPath: item.path, isDirectory: &isDir), isDir.boolValue {
+                    if let enumerator = fm.enumerator(at: item, includingPropertiesForKeys: nil, options: []) {
+                        for case let fileURL as URL in enumerator {
+                            guard !Task.isCancelled else { throw FileOperationError.cancelled }
+                            result.append(fileURL)
+                        }
+                    }
+                }
+                result.append(item)
+            }
+            return result
+        }
+
+        // Sort deepest paths first so directories are empty when we reach them
+        let sorted = allFiles.sorted { $0.pathComponents.count > $1.pathComponents.count }
+        let totalCount = sorted.count
+        var failures: [(URL, Error)] = []
+
+        for (index, file) in sorted.enumerated() {
             try checkCancelled()
 
             updateProgress(
                 operation: operation,
-                currentItem: item,
+                currentItem: file,
                 completed: index,
-                total: items.count
+                total: totalCount
             )
 
             do {
-                try await runFileIO { try FileManager.default.removeItem(at: item) }
-                successes.append(item)
+                try await runFileIO { try FileManager.default.removeItem(at: file) }
+                try checkCancelled()
             } catch {
-                failures.append((item, mapError(error, url: item)))
+                if let opError = error as? FileOperationError, case .cancelled = opError {
+                    throw error
+                }
+                let nsError = error as NSError
+                // Skip "No such file" — parent removal may have already deleted this
+                if nsError.domain != NSCocoaErrorDomain || nsError.code != CocoaError.fileNoSuchFile.rawValue {
+                    failures.append((file, mapError(error, url: file)))
+                }
             }
-
-            updateProgress(
-                operation: operation,
-                currentItem: item,
-                completed: index + 1,
-                total: items.count
-            )
         }
 
-        try handleFailures(successes: successes, failures: failures)
+        try handleFailures(successes: items, failures: failures)
     }
 
     private func performRename(item: URL, to newName: String) async throws -> URL {

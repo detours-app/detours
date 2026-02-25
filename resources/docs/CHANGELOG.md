@@ -7,6 +7,14 @@
 - File operations (copy, move, delete) no longer block the main thread on slow volumes (NAS, SMB)
 - Deleting files on remote volumes now warns that Trash is unavailable and offers permanent deletion
 - Error indicator (red triangle) auto-dismisses after 3 seconds instead of persisting forever
+- Activity indicator now shows only on the active pane, not both
+- Delete Immediately shows real per-file progress with cancellable scan and delete phases
+- Activity icon hidden during determinate progress ring (no overlapping arrows)
+- Loading spinner no longer flashes on every polling refresh for network volumes
+- Folder expansion state now persists correctly for network volumes across sessions
+- Cancel operation is now responsive during both scan and delete phases
+- Operation descriptions show actual file names instead of generic "1 item"
+- Delete ordering fixed: files removed deepest-first so parent directories are empty before deletion
 
 ## 1.4.0 (260225)
 

@@ -15,17 +15,27 @@ enum FileOperation {
     var description: String {
         switch self {
         case let .copy(sources, _):
-            return "Copying \(sources.count) item\(sources.count == 1 ? "" : "s")..."
+            return sources.count == 1
+                ? "Copying \"\(sources[0].lastPathComponent)\"..."
+                : "Copying \(sources.count) items..."
         case let .move(sources, _):
-            return "Moving \(sources.count) item\(sources.count == 1 ? "" : "s")..."
+            return sources.count == 1
+                ? "Moving \"\(sources[0].lastPathComponent)\"..."
+                : "Moving \(sources.count) items..."
         case let .delete(items):
-            return "Moving \(items.count) item\(items.count == 1 ? "" : "s") to Trash..."
+            return items.count == 1
+                ? "Moving \"\(items[0].lastPathComponent)\" to Trash..."
+                : "Moving \(items.count) items to Trash..."
         case let .deleteImmediately(items):
-            return "Deleting \(items.count) item\(items.count == 1 ? "" : "s") permanently..."
-        case .rename:
-            return "Renaming item..."
+            return items.count == 1
+                ? "Deleting \"\(items[0].lastPathComponent)\" permanently..."
+                : "Deleting \(items.count) items permanently..."
+        case let .rename(item, newName):
+            return "Renaming \"\(item.lastPathComponent)\" to \"\(newName)\"..."
         case let .duplicate(items):
-            return "Duplicating \(items.count) item\(items.count == 1 ? "" : "s")..."
+            return items.count == 1
+                ? "Duplicating \"\(items[0].lastPathComponent)\"..."
+                : "Duplicating \(items.count) items..."
         case .createFolder:
             return "Creating folder..."
         case .createFile:

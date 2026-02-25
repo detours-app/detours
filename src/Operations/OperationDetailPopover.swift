@@ -78,6 +78,16 @@ private struct OperationDetailView: View {
             } else {
                 ProgressView()
                     .progressViewStyle(.linear)
+
+                if let currentItem = model.progress.currentItem {
+                    Text("Scanning \"\(currentItem.lastPathComponent)\"...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Scanning...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             HStack {
