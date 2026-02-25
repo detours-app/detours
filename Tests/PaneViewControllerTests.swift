@@ -3,6 +3,15 @@ import XCTest
 
 @MainActor
 final class PaneViewControllerTests: XCTestCase {
+    private func waitUntil(_ condition: @autoclosure () -> Bool, timeout: TimeInterval = 2) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTFail("Timed out waiting for condition")
+    }
+
     func testCreateTabAddsToArray() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()
@@ -105,6 +114,43 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertEqual(pane.selectedTabIndex, 2)
     }
 
+    func testICloudButtonOpensICloudRootMode() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let cloudDocs = try createTestFolder(in: temp, name: "com~apple~CloudDocs")
+        pane.navigate(to: cloudDocs, iCloudListingMode: .sharedTopLevel)
+        XCTAssertEqual(pane.selectedTab?.iCloudListingMode, .sharedTopLevel)
+
+        pane.openICloudRoot(urlOverride: temp)
+        XCTAssertEqual(pane.selectedTab?.currentDirectory.standardizedFileURL, temp.standardizedFileURL)
+        XCTAssertEqual(pane.selectedTab?.iCloudListingMode, .normal)
+    }
+
+    func testSessionRestorePreservesICloudMode() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let cloudDocs = try createTestFolder(in: temp, name: "com~apple~CloudDocs")
+
+        pane.restoreTabs(
+            from: [cloudDocs],
+            selectedIndex: 0,
+            selections: nil,
+            showHiddenFiles: nil,
+            expansions: nil,
+            iCloudListingModes: [.sharedTopLevel]
+        )
+
+        XCTAssertEqual(pane.selectedTab?.currentDirectory.standardizedFileURL, cloudDocs.standardizedFileURL)
+        XCTAssertEqual(pane.selectedTab?.iCloudListingMode, .sharedTopLevel)
+    }
+
     // MARK: - Bug Fix Verification Tests
 
     /// Tests that restoreTabs correctly handles expansion and selection data.
@@ -139,6 +185,7 @@ final class PaneViewControllerTests: XCTestCase {
         // Without the fix, selection would fail because the folder isn't expanded yet.
         let fileListVC = pane.tabs.first?.fileListViewController
         XCTAssertNotNil(fileListVC, "FileListViewController should exist")
+        waitUntil((fileListVC?.dataSource.items.count ?? 0) == 1)
 
         // Verify the directory was loaded correctly
         XCTAssertEqual(fileListVC?.dataSource.items.count, 1, "Should have 1 item (Folder)")

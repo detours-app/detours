@@ -2,10 +2,12 @@ import AppKit
 
 extension FileListViewController: FileListDropDelegate {
     var currentDirectoryURL: URL? {
-        currentDirectory
+        guard currentICloudListingMode != .sharedTopLevel else { return nil }
+        return currentDirectory
     }
 
     func handleDrop(urls: [URL], to destination: URL, isCopy: Bool) {
+        guard currentICloudListingMode != .sharedTopLevel else { return }
         Task { @MainActor in
             do {
                 if isCopy {

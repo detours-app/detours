@@ -7,6 +7,7 @@ private let logger = Logger(subsystem: "com.detours", category: "filelist")
 @MainActor
 protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestNavigation(to url: URL)
+    func fileListDidRequestICloudSharedNavigation(cloudDocsURL: URL)
     func fileListDidRequestParentNavigation()
     func fileListDidRequestBack()
     func fileListDidRequestForward()
@@ -30,7 +31,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var typeSelectBuffer = ""
     private var typeSelectTimer: Timer?
     private var pendingDirectory: URL?
+    private var pendingICloudListingMode: ICloudListingMode?
     var currentDirectory: URL?
+    var currentICloudListingMode: ICloudListingMode = .normal
     private var hasLoadedDirectory = false
     let renameController = RenameController()
     private var directoryWatcher: MultiDirectoryWatcher?
@@ -45,6 +48,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var preservedExpansionWhenDisabled: Set<URL>?
     /// Selection to restore when user cancels new folder/file creation
     private var selectionBeforeNewItem: URL?
+
+    private var isSharedTopLevelView: Bool {
+        currentICloudListingMode == .sharedTopLevel
+    }
 
     // Loading state
     private var loadingSpinner: NSProgressIndicator?
@@ -97,7 +104,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         if let pendingDirectory {
             self.pendingDirectory = nil
-            loadDirectory(pendingDirectory)
+            let mode = pendingICloudListingMode
+            pendingICloudListingMode = nil
+            loadDirectory(pendingDirectory, iCloudListingMode: mode)
         }
 
         // Observe selection changes to detect when this pane becomes active
@@ -322,7 +331,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func handleDoubleClick(row: Int) {
         guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        if item.isNavigableFolder {
+        if item.isVirtualSharedFolder {
+            navigationDelegate?.fileListDidRequestICloudSharedNavigation(cloudDocsURL: item.url)
+        } else if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         } else if CompressionTools.isExtractable(item.url) {
             tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
@@ -451,9 +462,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         for component in components {
             current = current.appendingPathComponent(component).standardizedFileURL
             if let item = urlToItem[current], item.isNavigableFolder {
-                if item.children == nil {
-                    _ = item.loadChildren(showHidden: dataSource.showHiddenFiles, sortDescriptor: dataSource.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
-                }
+                loadChildrenIfNeededForExpansion(item)
                 tableView.expandItem(item)
                 // Add children to map so next level can be found
                 if let children = item.children {
@@ -465,13 +474,25 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
-    func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false) {
+    func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false, iCloudListingMode requestedListingMode: ICloudListingMode? = nil) {
         // Cancel any in-progress load before starting a new one
         dataSource.cancelCurrentLoad()
         hideLoadingIndicator()
         hideErrorOverlay()
 
-        currentDirectory = url
+        let normalizedURL = url.standardizedFileURL
+        let previousDirectory = currentDirectory?.standardizedFileURL
+        let effectiveListingMode: ICloudListingMode
+        if let requestedListingMode {
+            effectiveListingMode = requestedListingMode
+        } else if previousDirectory == normalizedURL {
+            effectiveListingMode = currentICloudListingMode
+        } else {
+            effectiveListingMode = .normal
+        }
+
+        currentDirectory = normalizedURL
+        currentICloudListingMode = effectiveListingMode
 
         // Hide filter bar when navigating to a new directory
         if isFilterBarVisible {
@@ -479,7 +500,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
 
         guard isViewLoaded else {
-            pendingDirectory = url
+            pendingDirectory = normalizedURL
+            pendingICloudListingMode = effectiveListingMode
             hasLoadedDirectory = false
             return
         }
@@ -521,7 +543,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
                 }
 
-                self.startWatching(url)
+                self.startWatching(normalizedURL)
                 self.navigationDelegate?.fileListDidLoadDirectory()
 
                 // Run one-shot post-load action (e.g. select + rename newly created item)
@@ -535,11 +557,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             }
         }
 
-        dataSource.loadDirectory(url, preserveExpansion: preserveExpansion)
+        dataSource.loadDirectory(normalizedURL, preserveExpansion: preserveExpansion, iCloudListingMode: effectiveListingMode)
         hasLoadedDirectory = true
 
         // Track directory visit for frecency (this is instant, no I/O)
-        FrecencyStore.shared.recordVisit(url)
+        FrecencyStore.shared.recordVisit(normalizedURL)
     }
 
     // MARK: - Loading & Error States
@@ -735,9 +757,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             let normalized = url.standardizedFileURL
             if let item = urlToItem[normalized], item.isNavigableFolder {
                 // Only load children if not already loaded
-                if item.children == nil {
-                    _ = item.loadChildren(showHidden: dataSource.showHiddenFiles, sortDescriptor: dataSource.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
-                }
+                loadChildrenIfNeededForExpansion(item)
                 tableView.expandItem(item)
 
                 // Add children to the map for nested expansion
@@ -750,11 +770,20 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
+    private func loadChildrenIfNeededForExpansion(_ item: FileItem) {
+        guard item.children == nil else { return }
+        // Virtual Shared must load through outline expansion callback, not filesystem.
+        guard !item.isVirtualSharedFolder else { return }
+        _ = item.loadChildren(showHidden: dataSource.showHiddenFiles, sortDescriptor: dataSource.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
+    }
+
     private func openSelectedItem() {
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        if item.isNavigableFolder {
+        if item.isVirtualSharedFolder {
+            navigationDelegate?.fileListDidRequestICloudSharedNavigation(cloudDocsURL: item.url)
+        } else if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         } else if CompressionTools.isExtractable(item.url) {
             extractSelectedArchive()
@@ -767,7 +796,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        if item.isNavigableFolder {
+        if item.isVirtualSharedFolder {
+            navigationDelegate?.fileListDidRequestOpenInNewTab(url: item.url)
+        } else if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestOpenInNewTab(url: item.url)
         }
     }
@@ -793,12 +824,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func cutSelection() {
+        guard !isSharedTopLevelView else { return }
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
         ClipboardManager.shared.cut(items: urls)
     }
 
     private func pasteHere() {
+        guard !isSharedTopLevelView else { return }
         guard let currentDirectory else { return }
         let wasCut = ClipboardManager.shared.isCut
 
@@ -846,6 +879,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func deleteSelection() {
+        guard !isSharedTopLevelView else { return }
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
 
@@ -871,6 +905,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func deleteSelectionImmediately() {
+        guard !isSharedTopLevelView else { return }
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
 
@@ -914,6 +949,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func duplicateSelection() {
+        guard !isSharedTopLevelView else { return }
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
 
@@ -933,6 +969,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func archiveSelection() {
+        guard !isSharedTopLevelView else { return }
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
         guard let window = view.window else { return }
@@ -1006,6 +1043,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func createNewFolder() {
+        guard !isSharedTopLevelView else { return }
         guard let currentDirectory else { return }
 
         // Save current selection so we can restore it if user cancels
@@ -1058,6 +1096,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func createNewFile(name: String) {
+        guard !isSharedTopLevelView else { return }
         guard let currentDirectory else { return }
 
         // Save current selection so we can restore it if user cancels
@@ -1141,6 +1180,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func renameSelection(isNewItem: Bool = false) {
+        guard !isSharedTopLevelView else { return }
         guard tableView.selectedRowIndexes.count == 1 else { return }
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
@@ -1148,6 +1188,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func moveSelectionToOtherPane() {
+        guard !isSharedTopLevelView else { return }
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
         navigationDelegate?.fileListDidRequestMoveToOtherPane(items: urls)
@@ -1542,9 +1583,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     /// Recursively expand a folder and all its subfolders
     private func expandItemRecursively(_ item: FileItem) {
         // Load children if not already loaded
-        if item.children == nil {
-            _ = item.loadChildren(showHidden: dataSource.showHiddenFiles, sortDescriptor: dataSource.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
-        }
+        loadChildrenIfNeededForExpansion(item)
 
         tableView.expandItem(item)
 
@@ -1984,17 +2023,19 @@ extension FileListViewController {
 extension FileListViewController: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(copy(_:)), #selector(cut(_:)), #selector(delete(_:)), #selector(duplicate(_:)),
-             #selector(getInfo(_:)), #selector(copyPath(_:)), #selector(showInFinder(_:)),
-             #selector(archive(_:)), #selector(shareViaService(_:)):
+        case #selector(copy(_:)), #selector(getInfo(_:)), #selector(copyPath(_:)), #selector(showInFinder(_:)),
+             #selector(shareViaService(_:)):
             return !selectedURLs.isEmpty
+        case #selector(cut(_:)), #selector(delete(_:)), #selector(deleteImmediately(_:)),
+             #selector(duplicate(_:)), #selector(archive(_:)):
+            return !selectedURLs.isEmpty && !isSharedTopLevelView
         case #selector(extractArchive(_:)):
             let urls = selectedURLs
             return urls.count == 1 && CompressionTools.isExtractable(urls[0])
         case #selector(paste(_:)):
-            return ClipboardManager.shared.hasValidItems && currentDirectory != nil
-        case #selector(newFolder(_:)):
-            return currentDirectory != nil
+            return ClipboardManager.shared.hasValidItems && currentDirectory != nil && !isSharedTopLevelView
+        case #selector(newFolder(_:)), #selector(newTextFile(_:)), #selector(newMarkdownFile(_:)), #selector(newEmptyFile(_:)):
+            return currentDirectory != nil && !isSharedTopLevelView
         case #selector(showPackageContents):
             let row = tableView.selectedRow
             guard row >= 0, let item = dataSource.item(at: row) else { return false }

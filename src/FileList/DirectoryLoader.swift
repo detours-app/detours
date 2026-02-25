@@ -21,6 +21,7 @@ struct LoadedFileEntry: Sendable {
     let isDirectory: Bool
     let isPackage: Bool
     let isAliasFile: Bool
+    let isSymbolicLink: Bool
     let isHidden: Bool
     let fileSize: Int64?
     let contentModificationDate: Date
@@ -31,19 +32,67 @@ struct LoadedFileEntry: Sendable {
     let ubiquitousItemIsDownloading: Bool
 
     init(url: URL, resourceValues values: URLResourceValues?) {
+        let isSymbolicLink = values?.isSymbolicLink ?? false
+        let isAliasFile = values?.isAliasFile ?? false
+        let isDirectory: Bool = {
+            if values?.isDirectory == true {
+                return true
+            }
+            if isSymbolicLink || isAliasFile {
+                var dir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: url.path, isDirectory: &dir) {
+                    return dir.boolValue
+                }
+            }
+            return false
+        }()
+
         self.url = url
         self.name = values?.localizedName ?? url.lastPathComponent
-        self.isDirectory = values?.isDirectory ?? false
+        self.isDirectory = isDirectory
         self.isPackage = values?.isPackage ?? false
-        self.isAliasFile = values?.isAliasFile ?? false
-        self.isHidden = url.lastPathComponent.hasPrefix(".")
-        self.fileSize = (values?.isDirectory ?? false) ? nil : values?.fileSize.map { Int64($0) }
+        self.isAliasFile = isAliasFile
+        self.isSymbolicLink = isSymbolicLink
+        self.isHidden = values?.isHidden ?? url.lastPathComponent.hasPrefix(".")
+        self.fileSize = isDirectory ? nil : values?.fileSize.map { Int64($0) }
         self.contentModificationDate = values?.contentModificationDate ?? Date()
         self.ubiquitousItemIsShared = values?.ubiquitousItemIsShared ?? false
         self.ubiquitousSharedItemCurrentUserRole = values?.ubiquitousSharedItemCurrentUserRole
         self.ubiquitousSharedItemOwnerNameComponents = values?.ubiquitousSharedItemOwnerNameComponents
         self.ubiquitousItemDownloadingStatus = values?.ubiquitousItemDownloadingStatus
         self.ubiquitousItemIsDownloading = values?.ubiquitousItemIsDownloading ?? false
+    }
+
+    init(
+        url: URL,
+        name: String,
+        isDirectory: Bool,
+        isPackage: Bool = false,
+        isAliasFile: Bool = false,
+        isSymbolicLink: Bool = false,
+        isHidden: Bool = false,
+        fileSize: Int64? = nil,
+        contentModificationDate: Date = Date(),
+        ubiquitousItemIsShared: Bool = false,
+        ubiquitousSharedItemCurrentUserRole: URLUbiquitousSharedItemRole? = nil,
+        ubiquitousSharedItemOwnerNameComponents: PersonNameComponents? = nil,
+        ubiquitousItemDownloadingStatus: URLUbiquitousItemDownloadingStatus? = nil,
+        ubiquitousItemIsDownloading: Bool = false
+    ) {
+        self.url = url
+        self.name = name
+        self.isDirectory = isDirectory
+        self.isPackage = isPackage
+        self.isAliasFile = isAliasFile
+        self.isSymbolicLink = isSymbolicLink
+        self.isHidden = isHidden
+        self.fileSize = fileSize
+        self.contentModificationDate = contentModificationDate
+        self.ubiquitousItemIsShared = ubiquitousItemIsShared
+        self.ubiquitousSharedItemCurrentUserRole = ubiquitousSharedItemCurrentUserRole
+        self.ubiquitousSharedItemOwnerNameComponents = ubiquitousSharedItemOwnerNameComponents
+        self.ubiquitousItemDownloadingStatus = ubiquitousItemDownloadingStatus
+        self.ubiquitousItemIsDownloading = ubiquitousItemIsDownloading
     }
 }
 
@@ -56,6 +105,8 @@ actor DirectoryLoader {
         .isDirectoryKey,
         .isPackageKey,
         .isAliasFileKey,
+        .isSymbolicLinkKey,
+        .isHiddenKey,
         .fileSizeKey,
         .contentModificationDateKey,
     ]
@@ -132,6 +183,72 @@ actor DirectoryLoader {
         timeout: Duration = .seconds(15)
     ) async throws -> [LoadedFileEntry] {
         try await loadDirectory(url, showHidden: showHidden, timeout: timeout)
+    }
+
+    /// Query Spotlight for files/folders that are shared via iCloud.
+    /// This surfaces owner shares that may not appear as top-level CloudDocs children.
+    func loadSpotlightSharedItems(showHidden: Bool) async throws -> [LoadedFileEntry] {
+        try await withCheckedThrowingContinuation { continuation in
+            let keys = Set(Self.baseResourceKeys + Self.localResourceKeys + Self.iCloudResourceKeys)
+            operationQueue.addOperation {
+                do {
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
+                    process.arguments = ["kMDItemIsShared == 1"]
+
+                    let outputPipe = Pipe()
+                    process.standardOutput = outputPipe
+                    process.standardError = FileHandle.nullDevice
+
+                    try process.run()
+                    process.waitUntilExit()
+
+                    guard process.terminationStatus == 0 else {
+                        continuation.resume(returning: [])
+                        return
+                    }
+
+                    let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                    guard let output = String(data: outputData, encoding: .utf8) else {
+                        continuation.resume(returning: [])
+                        return
+                    }
+
+                    var entries: [LoadedFileEntry] = []
+                    var seenPaths: Set<String> = []
+
+                    for rawLine in output.split(whereSeparator: \.isNewline) {
+                        let path = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !path.isEmpty else { continue }
+
+                        let url = URL(fileURLWithPath: path).standardizedFileURL
+                        if !showHidden, url.lastPathComponent.hasPrefix(".") {
+                            continue
+                        }
+
+                        let values = try? url.resourceValues(forKeys: keys)
+                        guard values?.ubiquitousItemIsShared == true else {
+                            continue
+                        }
+
+                        let dedupeKey = url.resolvingSymlinksInPath()
+                            .standardizedFileURL
+                            .path
+                            .precomposedStringWithCanonicalMapping
+                        guard seenPaths.insert(dedupeKey).inserted else {
+                            continue
+                        }
+
+                        entries.append(LoadedFileEntry(url: url, resourceValues: values))
+                    }
+
+                    logger.info("Spotlight shared items found \(entries.count) entries")
+                    continuation.resume(returning: entries)
+                } catch {
+                    continuation.resume(throwing: DirectoryLoadError.other(error.localizedDescription))
+                }
+            }
+        }
     }
 
     private func enumerateDirectory(

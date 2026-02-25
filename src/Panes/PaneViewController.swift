@@ -535,8 +535,8 @@ final class PaneViewController: NSViewController {
     // MARK: - Tab Management
 
     @discardableResult
-    func createTab(at url: URL, select: Bool = true, useDefaultHiddenSetting: Bool = true) -> PaneTab {
-        let tab = PaneTab(directory: url)
+    func createTab(at url: URL, iCloudListingMode: ICloudListingMode = .normal, select: Bool = true, useDefaultHiddenSetting: Bool = true) -> PaneTab {
+        let tab = PaneTab(directory: url, iCloudListingMode: iCloudListingMode)
         tab.fileListViewController.navigationDelegate = self
 
         // Apply show hidden files default from preferences for new tabs
@@ -765,8 +765,8 @@ final class PaneViewController: NSViewController {
 
     // MARK: - Navigation (delegate to selected tab)
 
-    func navigate(to url: URL) {
-        selectedTab?.navigate(to: url)
+    func navigate(to url: URL, iCloudListingMode: ICloudListingMode = .normal) {
+        selectedTab?.navigate(to: url, iCloudListingMode: iCloudListingMode)
         reloadTabBar() // Title may have changed
         scheduleSessionSave()
     }
@@ -810,7 +810,8 @@ final class PaneViewController: NSViewController {
     /// If a file is selected, returns its parent directory.
     /// If nothing is selected, returns the current directory (pane root).
     var effectiveDestination: URL? {
-        selectedTab?.fileListViewController.effectivePasteDestination ?? currentDirectory
+        guard let tab = selectedTab, tab.iCloudListingMode != .sharedTopLevel else { return nil }
+        return tab.fileListViewController.effectivePasteDestination ?? tab.currentDirectory
     }
 
     func refresh() {
@@ -833,6 +834,10 @@ final class PaneViewController: NSViewController {
         tabs.map { $0.currentDirectory }
     }
 
+    var tabICloudListingModes: [ICloudListingMode] {
+        tabs.map { $0.iCloudListingMode }
+    }
+
     var tabSelections: [[URL]] {
         tabs.map { $0.fileListViewController.selectedURLs }
     }
@@ -845,7 +850,7 @@ final class PaneViewController: NSViewController {
         tabs.map { $0.fileListViewController.dataSource.expandedFolders }
     }
 
-    func restoreTabs(from urls: [URL], selectedIndex: Int, selections: [[URL]]? = nil, showHiddenFiles: [Bool]? = nil, expansions: [Set<URL>]? = nil) {
+    func restoreTabs(from urls: [URL], selectedIndex: Int, selections: [[URL]]? = nil, showHiddenFiles: [Bool]? = nil, expansions: [Set<URL>]? = nil, iCloudListingModes: [ICloudListingMode]? = nil) {
         guard !urls.isEmpty else { return }
 
         tabs.forEach { tab in
@@ -859,8 +864,9 @@ final class PaneViewController: NSViewController {
         let clampedIndex = min(max(0, selectedIndex), urls.count - 1)
 
         for (index, url) in urls.enumerated() {
+            let mode = iCloudListingModes?[safe: index] ?? .normal
             // Don't apply default hidden setting - we'll set it explicitly from saved state
-            createTab(at: url, select: false, useDefaultHiddenSetting: false)
+            createTab(at: url, iCloudListingMode: mode, select: false, useDefaultHiddenSetting: false)
 
             // Set showHiddenFiles before loading
             if let showHiddenFiles, index < showHiddenFiles.count {
@@ -869,7 +875,7 @@ final class PaneViewController: NSViewController {
 
             // Only load selected tab immediately - others load on-demand via ensureLoaded
             if index == clampedIndex {
-                tabs[index].fileListViewController.loadDirectory(url)
+                tabs[index].fileListViewController.loadDirectory(url, iCloudListingMode: tabs[index].iCloudListingMode)
                 // Restore expansion BEFORE selection - items inside folders don't exist until expanded
                 if let expansions, index < expansions.count {
                     tabs[index].fileListViewController.restoreExpansion(expansions[index])
@@ -1008,7 +1014,16 @@ final class PaneViewController: NSViewController {
         let name = url.lastPathComponent
         switch name {
         case "com~apple~CloudDocs":
-            return "Shared"
+            if let tab = selectedTab,
+               tab.iCloudListingMode == .sharedTopLevel,
+               tab.currentDirectory.standardizedFileURL == url.standardizedFileURL {
+                return "Shared"
+            }
+            if let localized = try? url.resourceValues(forKeys: [.localizedNameKey]).localizedName,
+               !localized.isEmpty {
+                return localized
+            }
+            return "iCloud Drive"
         case "Mobile Documents":
             return "iCloud Drive"
         default:
@@ -1026,21 +1041,34 @@ final class PaneViewController: NSViewController {
         return Array(components[iCloudIndex...])
     }
 
+    private func listingModeForPathNavigation(to url: URL) -> ICloudListingMode {
+        guard let tab = selectedTab else { return .normal }
+        if tab.iCloudListingMode == .sharedTopLevel,
+           tab.currentDirectory.standardizedFileURL == url.standardizedFileURL {
+            return .sharedTopLevel
+        }
+        return .normal
+    }
+
     @objc private func pathControlClicked(_ sender: NSPathControl) {
         guard let clickedItem = sender.clickedPathItem,
               let index = sender.pathItems.firstIndex(of: clickedItem),
               index < pathItemURLs.count,
               let url = pathItemURLs[index] else { return }
-        navigate(to: url)
+        navigate(to: url, iCloudListingMode: listingModeForPathNavigation(to: url))
     }
 
     @objc private func homeClicked() {
-        navigate(to: FileManager.default.homeDirectoryForCurrentUser)
+        navigate(to: FileManager.default.homeDirectoryForCurrentUser, iCloudListingMode: .normal)
     }
 
     @objc private func iCloudClicked() {
-        guard let url = iCloudDriveURL() else { return }
-        navigate(to: url)
+        openICloudRoot()
+    }
+
+    func openICloudRoot(urlOverride: URL? = nil) {
+        guard let url = urlOverride ?? iCloudDriveURL() else { return }
+        navigate(to: url, iCloudListingMode: .normal)
     }
 
     private func iCloudDriveURL() -> URL? {
@@ -1137,7 +1165,8 @@ extension PaneViewController: PaneTabBarDelegate {
 
     func tabBarDidRequestNewTab() {
         let currentDir = selectedTab?.currentDirectory ?? FileManager.default.homeDirectoryForCurrentUser
-        createTab(at: currentDir, select: true)
+        let mode = selectedTab?.iCloudListingMode ?? .normal
+        createTab(at: currentDir, iCloudListingMode: mode, select: true)
     }
 
     func tabBarDidRequestBack() {
@@ -1206,7 +1235,11 @@ extension PaneViewController: PaneTabBarDelegate {
 
 extension PaneViewController: FileListNavigationDelegate {
     func fileListDidRequestNavigation(to url: URL) {
-        navigate(to: url)
+        navigate(to: url, iCloudListingMode: .normal)
+    }
+
+    func fileListDidRequestICloudSharedNavigation(cloudDocsURL: URL) {
+        navigate(to: cloudDocsURL, iCloudListingMode: .sharedTopLevel)
     }
 
     func fileListDidRequestParentNavigation() {
@@ -1234,7 +1267,15 @@ extension PaneViewController: FileListNavigationDelegate {
     }
 
     func fileListDidRequestOpenInNewTab(url: URL) {
-        createTab(at: url, select: true)
+        let mode: ICloudListingMode
+        if let currentTab = selectedTab,
+           currentTab.iCloudListingMode == .sharedTopLevel,
+           currentTab.currentDirectory.standardizedFileURL == url.standardizedFileURL {
+            mode = .sharedTopLevel
+        } else {
+            mode = .normal
+        }
+        createTab(at: url, iCloudListingMode: mode, select: true)
     }
 
     func fileListDidRequestMoveToOtherPane(items: [URL]) {
@@ -1307,7 +1348,13 @@ extension PaneViewController: DroppablePathControlDelegate {
 
     func pathControlDestinationURL(forItemAt index: Int) -> URL? {
         guard index < pathItemURLs.count else { return nil }
-        return pathItemURLs[index]
+        guard let url = pathItemURLs[index] else { return nil }
+        if let tab = selectedTab,
+           tab.iCloudListingMode == .sharedTopLevel,
+           tab.currentDirectory.standardizedFileURL == url.standardizedFileURL {
+            return nil
+        }
+        return url
     }
 
     func pathControlDragSourceURL(forItemAt index: Int) -> URL? {
@@ -1317,6 +1364,6 @@ extension PaneViewController: DroppablePathControlDelegate {
 
     func pathControlDidClick(at index: Int) {
         guard index < pathItemURLs.count, let url = pathItemURLs[index] else { return }
-        navigate(to: url)
+        navigate(to: url, iCloudListingMode: listingModeForPathNavigation(to: url))
     }
 }

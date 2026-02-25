@@ -176,8 +176,8 @@ final class FileListCell: NSTableCellView {
             cloudIcon.isHidden = true
         }
 
-        if let sharedBy = item.sharedByName {
-            sharedLabel.stringValue = "Shared by \(sharedBy)"
+        if let sharedLabelText = item.sharedLabelText {
+            sharedLabel.stringValue = sharedLabelText
             sharedLabel.isHidden = false
         } else {
             sharedLabel.stringValue = ""

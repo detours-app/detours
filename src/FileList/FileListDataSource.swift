@@ -265,6 +265,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     var showHiddenFiles: Bool = false
     var sortDescriptor: SortDescriptor = .defaultSort
     private var currentDirectoryForGit: URL?
+    private var currentICloudListingMode: ICloudListingMode = .normal
     private var gitStatuses: [URL: GitStatus] = [:]
 
     /// Active directory load task (cancelled when navigating away)
@@ -285,7 +286,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     /// Flag to suppress collapse notifications during reload
     private var suppressCollapseNotifications = false
 
-    func loadDirectory(_ url: URL, preserveExpansion: Bool = false) {
+    func loadDirectory(_ url: URL, preserveExpansion: Bool = false, iCloudListingMode: ICloudListingMode = .normal) {
         // Cancel any in-flight load and icon tasks
         cancelCurrentLoad()
 
@@ -300,31 +301,25 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
         onLoadStarted?()
 
+        currentICloudListingMode = iCloudListingMode
         let showHidden = showHiddenFiles
+        let normalizedURL = url.standardizedFileURL
+        let shouldFetchGitStatus = shouldFetchGitStatus(for: normalizedURL, mode: iCloudListingMode)
 
         currentLoadTask = Task { @MainActor [weak self] in
             guard let self else { return }
 
             do {
-                let entries = try await DirectoryLoader.shared.loadDirectory(
-                    url,
-                    showHidden: showHidden
+                let fileItems = try await self.loadItems(
+                    for: normalizedURL,
+                    showHidden: showHidden,
+                    mode: iCloudListingMode
                 )
 
                 guard !Task.isCancelled else { return }
 
-                let fileItems = entries.map { entry -> FileItem in
-                    let placeholder: NSImage
-                    if entry.isDirectory && !entry.isPackage {
-                        placeholder = FileItem.tintedFolderIcon(IconLoader.placeholderFolderIcon)
-                    } else {
-                        placeholder = IconLoader.placeholderFileIcon
-                    }
-                    return FileItem(entry: entry, icon: placeholder)
-                }
-
                 self.items = FileItem.sorted(fileItems, by: self.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
-                self.currentDirectoryForGit = url
+                self.currentDirectoryForGit = shouldFetchGitStatus ? normalizedURL : nil
                 self.gitStatuses = [:]
                 self.expandedFolders = previousExpanded
                 self.outlineView?.reloadData()
@@ -334,11 +329,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 self.onLoadCompleted?(.success(()))
 
                 // Kick off async icon loads for visible items
-                self.loadIconsAsync(for: self.items, isNetwork: VolumeMonitor.isNetworkVolume(url))
+                self.loadIconsAsync(for: self.items, isNetwork: VolumeMonitor.isNetworkVolume(normalizedURL))
 
                 // Fetch git status asynchronously if enabled
-                if SettingsManager.shared.settings.gitStatusEnabled {
-                    self.fetchGitStatus(for: url)
+                if shouldFetchGitStatus && SettingsManager.shared.settings.gitStatusEnabled {
+                    self.fetchGitStatus(for: normalizedURL)
                 }
             } catch is CancellationError {
                 // Load was cancelled (navigated away) - do nothing
@@ -350,7 +345,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 if self.items.isEmpty {
                     self.items = []
                 }
-                self.currentDirectoryForGit = url
+                self.currentDirectoryForGit = shouldFetchGitStatus ? normalizedURL : nil
                 self.expandedFolders = previousExpanded
                 self.outlineView?.reloadData()
                 self.outlineView?.needsLayout = true
@@ -381,6 +376,316 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             task.cancel()
         }
         iconLoadTasks.removeAll()
+    }
+
+    private func shouldFetchGitStatus(for directory: URL, mode: ICloudListingMode) -> Bool {
+        mode == .normal && !Self.isMobileDocuments(directory)
+    }
+
+    private func loadItems(for directory: URL, showHidden: Bool, mode: ICloudListingMode) async throws -> [FileItem] {
+        switch mode {
+        case .normal:
+            if Self.isMobileDocuments(directory) {
+                return try await loadICloudRootItems(mobileDocsURL: directory, showHidden: showHidden)
+            }
+
+            let entries = try await DirectoryLoader.shared.loadDirectory(directory, showHidden: showHidden)
+            return baseFileItems(for: entries)
+        case .sharedTopLevel:
+            return try await loadICloudSharedTopLevelItems(baseURL: directory, showHidden: showHidden)
+        }
+    }
+
+    private func baseFileItems(for entries: [LoadedFileEntry]) -> [FileItem] {
+        entries.map { entry in
+            makeFileItem(from: entry)
+        }
+    }
+
+    private func makeFileItem(from entry: LoadedFileEntry) -> FileItem {
+        let placeholder: NSImage
+        if entry.isDirectory && !entry.isPackage {
+            placeholder = FileItem.tintedFolderIcon(IconLoader.placeholderFolderIcon)
+        } else {
+            placeholder = IconLoader.placeholderFileIcon
+        }
+        return FileItem(entry: entry, icon: placeholder)
+    }
+
+    private func loadICloudRootItems(mobileDocsURL: URL, showHidden: Bool) async throws -> [FileItem] {
+        let rootEntries = try await DirectoryLoader.shared.loadDirectory(mobileDocsURL, showHidden: showHidden)
+        guard let cloudDocsEntry = rootEntries.first(where: { Self.isCloudDocs($0.url) }) else {
+            return baseFileItems(for: dedupeEntries(rootEntries))
+        }
+
+        // CloudDocs can contain Finder-visible entries that are flagged hidden (Desktop/Documents links).
+        // Load all entries and apply Finder-like visibility rules in composition.
+        let cloudDocsChildren = try await DirectoryLoader.shared.loadDirectory(cloudDocsEntry.url, showHidden: true)
+        return composeICloudRootItems(
+            rootEntries: rootEntries,
+            cloudDocsChildren: cloudDocsChildren,
+            cloudDocsURL: cloudDocsEntry.url,
+            cloudDocsModifiedDate: cloudDocsEntry.contentModificationDate,
+            showHidden: showHidden
+        )
+    }
+
+    private func loadICloudSharedTopLevelItems(baseURL: URL, showHidden: Bool) async throws -> [FileItem] {
+        let cloudDocsURL = Self.isCloudDocs(baseURL) ? baseURL : Self.cloudDocsURL(for: baseURL)
+        let sources = try await loadICloudSharedSources(cloudDocsURL: cloudDocsURL, showHidden: showHidden)
+        return composeICloudSharedTopLevelItems(from: sources, cloudDocsURL: cloudDocsURL, showHidden: showHidden)
+    }
+
+    // MARK: - iCloud Shared Listing Strategy
+
+    /// Shared view is Finder-like union of three sources:
+    /// 1) top-level CloudDocs entries marked shared,
+    /// 2) CloudDocs database share roots (includes owner shares behind Desktop/Documents links),
+    /// 3) Spotlight shared index fallback (surfaces owner shares outside CloudDocs top-level).
+    /// Merging dedupes by resolved path so symlink aliases collapse to a single row.
+    private struct ICloudSharedSources {
+        let cloudDocsChildren: [LoadedFileEntry]
+        let sharedRootRecords: [ICloudSharedRootRecord]
+        let spotlightEntries: [LoadedFileEntry]
+    }
+
+    private func loadICloudSharedSources(cloudDocsURL: URL, showHidden: Bool) async throws -> ICloudSharedSources {
+        async let cloudDocsChildren = DirectoryLoader.shared.loadDirectory(cloudDocsURL, showHidden: true)
+        async let sharedRootRecords = Self.loadICloudSharedRootRecords()
+        async let spotlightEntries = Self.loadICloudSharedSpotlightEntries(showHidden: showHidden)
+        return ICloudSharedSources(
+            cloudDocsChildren: try await cloudDocsChildren,
+            sharedRootRecords: await sharedRootRecords,
+            spotlightEntries: await spotlightEntries
+        )
+    }
+
+    private func composeICloudSharedTopLevelItems(from sources: ICloudSharedSources, cloudDocsURL: URL, showHidden: Bool) -> [FileItem] {
+        composeICloudSharedTopLevelItems(
+            cloudDocsChildren: sources.cloudDocsChildren,
+            cloudDocsURL: cloudDocsURL,
+            sharedRootRecords: sources.sharedRootRecords,
+            spotlightEntries: sources.spotlightEntries,
+            showHidden: showHidden
+        )
+    }
+
+    func composeICloudRootItems(rootEntries: [LoadedFileEntry], cloudDocsChildren: [LoadedFileEntry], cloudDocsURL: URL, cloudDocsModifiedDate: Date, showHidden: Bool = true) -> [FileItem] {
+        let nonCloudDocsRootEntries = rootEntries.filter { !Self.isCloudDocs($0.url) }
+        let cloudDocsPath = cloudDocsURL.standardizedFileURL.path
+        let visibleCloudDocsChildren = visibleICloudEntries(cloudDocsChildren, cloudDocsURL: cloudDocsURL, showHidden: showHidden)
+        let cloudDocsNonSharedEntries = visibleCloudDocsChildren.filter {
+            !isSharedEntry($0) &&
+                $0.url.deletingLastPathComponent().standardizedFileURL.path == cloudDocsPath
+        }
+        var items = baseFileItems(for: dedupeEntries(cloudDocsNonSharedEntries + nonCloudDocsRootEntries))
+        items.append(makeVirtualSharedFolder(cloudDocsURL: cloudDocsURL, modifiedDate: cloudDocsModifiedDate))
+        return items
+    }
+
+    func composeICloudSharedTopLevelItems(
+        cloudDocsChildren: [LoadedFileEntry],
+        cloudDocsURL: URL,
+        sharedRootRecords: [ICloudSharedRootRecord] = [],
+        spotlightEntries: [LoadedFileEntry] = [],
+        showHidden: Bool = true
+    ) -> [FileItem] {
+        let cloudDocsPath = cloudDocsURL.standardizedFileURL.path
+        let visibleCloudDocsChildren = visibleICloudEntries(cloudDocsChildren, cloudDocsURL: cloudDocsURL, showHidden: showHidden)
+        let sharedEntries = visibleCloudDocsChildren.filter {
+            isSharedEntry($0) &&
+                $0.url.deletingLastPathComponent().standardizedFileURL.path == cloudDocsPath
+        }
+        let directItems = baseFileItems(for: dedupeEntries(sharedEntries))
+        return mergeSharedTopLevelItems(
+            directItems: directItems,
+            sharedRootRecords: sharedRootRecords,
+            spotlightEntries: spotlightEntries,
+            cloudDocsURL: cloudDocsURL,
+            showHidden: showHidden
+        )
+    }
+
+    private func mergeSharedTopLevelItems(
+        directItems: [FileItem],
+        sharedRootRecords: [ICloudSharedRootRecord],
+        spotlightEntries: [LoadedFileEntry],
+        cloudDocsURL: URL,
+        showHidden: Bool
+    ) -> [FileItem] {
+        var merged = directItems
+        var seenPaths = Set(directItems.map { sharedPathKey(for: $0.url) })
+
+        // Database roots are highest-confidence owner-share roots in iCloud metadata.
+        for record in sharedRootRecords {
+            let itemURL = cloudDocsURL.appendingPathComponent(record.relativePath).standardizedFileURL
+            if !showHidden, itemURL.lastPathComponent.hasPrefix(".") {
+                continue
+            }
+            let key = sharedPathKey(for: itemURL)
+            if seenPaths.contains(key) {
+                continue
+            }
+            merged.append(makeSharedRootItem(record: record, url: itemURL))
+            seenPaths.insert(key)
+        }
+
+        // Spotlight supplements shares that may exist outside CloudDocs top-level.
+        for entry in spotlightEntries where isSharedEntry(entry) {
+            if !showHidden, entry.isHidden {
+                continue
+            }
+            let key = sharedPathKey(for: entry.url)
+            if seenPaths.contains(key) {
+                continue
+            }
+            merged.append(makeFileItem(from: entry))
+            seenPaths.insert(key)
+        }
+
+        return merged
+    }
+
+    private func sharedPathKey(for url: URL) -> String {
+        url.resolvingSymlinksInPath()
+            .standardizedFileURL
+            .path
+            .precomposedStringWithCanonicalMapping
+    }
+
+    private func makeSharedRootItem(record: ICloudSharedRootRecord, url: URL) -> FileItem {
+        let resourceKeys: Set<URLResourceKey> = [
+            .isDirectoryKey,
+            .isAliasFileKey,
+            .isSymbolicLinkKey,
+            .fileSizeKey,
+            .contentModificationDateKey,
+            .localizedNameKey,
+            .ubiquitousSharedItemOwnerNameComponentsKey,
+        ]
+
+        let values = try? url.resourceValues(forKeys: resourceKeys)
+        var isDirectory = record.isDirectory
+        if values?.isDirectory == true {
+            isDirectory = true
+        } else if values?.isAliasFile == true || values?.isSymbolicLink == true {
+            var directoryFlag: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &directoryFlag) {
+                isDirectory = directoryFlag.boolValue
+            }
+        }
+
+        let ownerName = values?.ubiquitousSharedItemOwnerNameComponents?
+            .formatted(.name(style: .short))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let sharedRole: SharedItemRole
+        if record.creatorID == 0 {
+            sharedRole = .owner
+        } else if let ownerName, !ownerName.isEmpty {
+            sharedRole = .participant(ownerName: ownerName)
+        } else {
+            sharedRole = .participant(ownerName: "someone")
+        }
+
+        let icon: NSImage
+        if isDirectory {
+            icon = FileItem.tintedFolderIcon(IconLoader.placeholderFolderIcon)
+        } else {
+            icon = IconLoader.placeholderFileIcon
+        }
+
+        return FileItem(
+            name: values?.localizedName ?? url.lastPathComponent,
+            url: url,
+            isDirectory: isDirectory,
+            isAliasFile: values?.isAliasFile ?? false,
+            size: isDirectory ? nil : values?.fileSize.map(Int64.init),
+            dateModified: values?.contentModificationDate ?? Date(),
+            icon: icon,
+            sharedRole: sharedRole
+        )
+    }
+
+    nonisolated private static func loadICloudSharedRootRecords() async -> [ICloudSharedRootRecord] {
+        await Task.detached(priority: .utility) {
+            ICloudSharedRootsDatabase.loadSharedRootRecords()
+        }.value
+    }
+
+    nonisolated private static func loadICloudSharedSpotlightEntries(showHidden: Bool) async -> [LoadedFileEntry] {
+        (try? await DirectoryLoader.shared.loadSpotlightSharedItems(showHidden: showHidden)) ?? []
+    }
+
+    private func visibleICloudEntries(_ entries: [LoadedFileEntry], cloudDocsURL: URL, showHidden: Bool) -> [LoadedFileEntry] {
+        guard !showHidden else { return entries }
+        return entries.filter { entry in
+            if !entry.isHidden {
+                return true
+            }
+            return isFinderVisibleCloudDocsLink(entry, cloudDocsURL: cloudDocsURL)
+        }
+    }
+
+    private func isFinderVisibleCloudDocsLink(_ entry: LoadedFileEntry, cloudDocsURL: URL) -> Bool {
+        guard entry.isSymbolicLink else { return false }
+        guard entry.url.deletingLastPathComponent().standardizedFileURL.path == cloudDocsURL.standardizedFileURL.path else {
+            return false
+        }
+        let name = entry.url.lastPathComponent
+        return name == "Desktop" || name == "Documents"
+    }
+
+    private func isSharedEntry(_ entry: LoadedFileEntry) -> Bool {
+        entry.ubiquitousItemIsShared || entry.ubiquitousSharedItemCurrentUserRole != nil
+    }
+
+    private func dedupeEntries(_ entries: [LoadedFileEntry]) -> [LoadedFileEntry] {
+        var seen: Set<String> = []
+        var deduped: [LoadedFileEntry] = []
+        for entry in entries {
+            let key = entry.url.standardizedFileURL.path
+            if seen.insert(key).inserted {
+                deduped.append(entry)
+            }
+        }
+        return deduped
+    }
+
+    private func makeVirtualSharedFolder(cloudDocsURL: URL, modifiedDate: Date) -> FileItem {
+        FileItem(
+            name: "Shared",
+            url: cloudDocsURL,
+            isDirectory: true,
+            size: nil,
+            dateModified: modifiedDate,
+            icon: FileItem.tintedFolderIcon(IconLoader.placeholderFolderIcon),
+            isVirtualSharedFolder: true
+        )
+    }
+
+    private static func isMobileDocuments(_ url: URL) -> Bool {
+        let mobileDocsPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents").standardizedFileURL.path
+        return url.standardizedFileURL.path == mobileDocsPath
+    }
+
+    private static func cloudDocsURL(for baseURL: URL) -> URL {
+        if isCloudDocs(baseURL) {
+            return baseURL.standardizedFileURL
+        }
+
+        if isMobileDocuments(baseURL) {
+            return baseURL.appendingPathComponent("com~apple~CloudDocs").standardizedFileURL
+        }
+
+        let mobileDocsRoot = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents")
+            .standardizedFileURL
+        return mobileDocsRoot.appendingPathComponent("com~apple~CloudDocs").standardizedFileURL
+    }
+
+    private static func isCloudDocs(_ url: URL) -> Bool {
+        url.lastPathComponent == "com~apple~CloudDocs"
     }
 
     /// Re-sorts all items (root and expanded children) in place, preserving selection and expansion.
@@ -477,6 +782,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         let isNetworkVolume = isNetwork
 
         for item in sortedItems {
+            if item.isVirtualSharedFolder {
+                continue
+            }
             let task = Task { @MainActor [weak self] in
                 guard !Task.isCancelled else { return }
 
@@ -548,7 +856,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                     if let item = findItem(withURL: url, in: items), item.isNavigableFolder {
                         // Only load children if not already loaded - avoid replacing existing children
                         // which would create new FileItem objects and break outline view references
-                        if item.children == nil {
+                        if item.children == nil && !item.isVirtualSharedFolder {
                             _ = item.loadChildren(showHidden: showHiddenFiles, sortDescriptor: sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
                         }
                         outlineView?.expandItem(item)
@@ -802,6 +1110,14 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     func outlineView(_ outlineView: NSOutlineView, shouldExpandItem item: Any) -> Bool {
         guard let fileItem = item as? FileItem else { return false }
 
+        if fileItem.isVirtualSharedFolder {
+            if fileItem.children != nil {
+                return true
+            }
+            loadVirtualSharedChildrenAsync(for: fileItem, in: outlineView)
+            return false
+        }
+
         // If children are already loaded, expand immediately
         if fileItem.children != nil {
             // Apply git status to children
@@ -863,6 +1179,36 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 outlineView.expandItem(item)
             } catch {
                 // Expansion failed - set empty children so folder shows as empty
+                item.children = []
+                outlineView.reloadItem(item, reloadChildren: true)
+            }
+        }
+    }
+
+    private func loadVirtualSharedChildrenAsync(for item: FileItem, in outlineView: NSOutlineView) {
+        let showHidden = showHiddenFiles
+        let sort = sortDescriptor
+        let foldersTop = SettingsManager.shared.foldersOnTop
+        let cloudDocsURL = item.url.standardizedFileURL
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let sources = try await self.loadICloudSharedSources(cloudDocsURL: cloudDocsURL, showHidden: showHidden)
+                let sharedItems = self.composeICloudSharedTopLevelItems(
+                    from: sources,
+                    cloudDocsURL: cloudDocsURL,
+                    showHidden: showHidden
+                )
+                let sortedChildren = FileItem.sorted(sharedItems, by: sort, foldersOnTop: foldersTop)
+                for child in sortedChildren {
+                    child.parent = item
+                }
+                item.children = sortedChildren
+                self.updateGitStatus(for: sortedChildren, statuses: self.gitStatuses)
+                outlineView.reloadItem(item, reloadChildren: true)
+                outlineView.expandItem(item)
+            } catch {
                 item.children = []
                 outlineView.reloadItem(item, reloadChildren: true)
             }

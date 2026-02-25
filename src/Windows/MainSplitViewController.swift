@@ -21,10 +21,12 @@ final class MainSplitViewController: NSSplitViewController {
         static let leftSelectedIndex = "Detours.LeftPaneSelectedIndex"
         static let leftSelections = "Detours.LeftPaneSelections"
         static let leftShowHiddenFiles = "Detours.LeftPaneShowHiddenFiles"
+        static let leftICloudListingModes = "Detours.LeftPaneICloudListingModes"
         static let rightTabs = "Detours.RightPaneTabs"
         static let rightSelectedIndex = "Detours.RightPaneSelectedIndex"
         static let rightSelections = "Detours.RightPaneSelections"
         static let rightShowHiddenFiles = "Detours.RightPaneShowHiddenFiles"
+        static let rightICloudListingModes = "Detours.RightPaneICloudListingModes"
         static let leftExpansions = "Detours.LeftPaneExpansions"
         static let rightExpansions = "Detours.RightPaneExpansions"
         static let activePane = "Detours.ActivePane"
@@ -264,11 +266,13 @@ final class MainSplitViewController: NSSplitViewController {
         defaults.set(leftPane.selectedTabIndex, forKey: SessionKeys.leftSelectedIndex)
         defaults.set(encodeSelections(leftPane.tabSelections), forKey: SessionKeys.leftSelections)
         defaults.set(leftPane.tabShowHiddenFiles, forKey: SessionKeys.leftShowHiddenFiles)
+        defaults.set(encodeICloudListingModes(leftPane.tabICloudListingModes), forKey: SessionKeys.leftICloudListingModes)
         defaults.set(encodeExpansions(leftPane.tabExpansions), forKey: SessionKeys.leftExpansions)
         defaults.set(rightPane.tabDirectories.map { $0.path }, forKey: SessionKeys.rightTabs)
         defaults.set(rightPane.selectedTabIndex, forKey: SessionKeys.rightSelectedIndex)
         defaults.set(encodeSelections(rightPane.tabSelections), forKey: SessionKeys.rightSelections)
         defaults.set(rightPane.tabShowHiddenFiles, forKey: SessionKeys.rightShowHiddenFiles)
+        defaults.set(encodeICloudListingModes(rightPane.tabICloudListingModes), forKey: SessionKeys.rightICloudListingModes)
         defaults.set(encodeExpansions(rightPane.tabExpansions), forKey: SessionKeys.rightExpansions)
         defaults.set(activePaneIndex, forKey: SessionKeys.activePane)
         defaults.set(!sidebarItem.isCollapsed, forKey: SessionKeys.sidebarVisible)
@@ -306,6 +310,15 @@ final class MainSplitViewController: NSSplitViewController {
         selections.map { urls in urls.map { $0.path } }
     }
 
+    private func encodeICloudListingModes(_ modes: [ICloudListingMode]) -> [String] {
+        modes.map(\.rawValue)
+    }
+
+    private func decodeICloudListingModes(_ data: Any?) -> [ICloudListingMode]? {
+        guard let rawValues = data as? [String] else { return nil }
+        return rawValues.compactMap(ICloudListingMode.init(rawValue:))
+    }
+
     private func decodeSelections(_ data: Any?) -> [[URL]]? {
         guard let paths = data as? [[String]] else { return nil }
         return paths.map { pathList in pathList.compactMap { URL(fileURLWithPath: $0) } }
@@ -325,8 +338,8 @@ final class MainSplitViewController: NSSplitViewController {
         guard SettingsManager.shared.restoreSession else {
             // Start fresh with home directory
             let homeDir = FileManager.default.homeDirectoryForCurrentUser
-            leftPane.restoreTabs(from: [homeDir], selectedIndex: 0, selections: nil, showHiddenFiles: nil)
-            rightPane.restoreTabs(from: [homeDir], selectedIndex: 0, selections: nil, showHiddenFiles: nil)
+            leftPane.restoreTabs(from: [homeDir], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
+            rightPane.restoreTabs(from: [homeDir], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
             return
         }
 
@@ -336,7 +349,8 @@ final class MainSplitViewController: NSSplitViewController {
             let selections = decodeSelections(defaults.object(forKey: SessionKeys.leftSelections))
             let showHiddenFiles = defaults.array(forKey: SessionKeys.leftShowHiddenFiles) as? [Bool]
             let expansions = decodeExpansions(defaults.object(forKey: SessionKeys.leftExpansions))
-            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles, expansions: expansions)
+            let iCloudListingModes = decodeICloudListingModes(defaults.object(forKey: SessionKeys.leftICloudListingModes))
+            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles, expansions: expansions, iCloudListingModes: iCloudListingModes)
         }
 
         let rightTabs = restoreTabs(forKey: SessionKeys.rightTabs)
@@ -345,7 +359,8 @@ final class MainSplitViewController: NSSplitViewController {
             let selections = decodeSelections(defaults.object(forKey: SessionKeys.rightSelections))
             let showHiddenFiles = defaults.array(forKey: SessionKeys.rightShowHiddenFiles) as? [Bool]
             let expansions = decodeExpansions(defaults.object(forKey: SessionKeys.rightExpansions))
-            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles, expansions: expansions)
+            let iCloudListingModes = decodeICloudListingModes(defaults.object(forKey: SessionKeys.rightICloudListingModes))
+            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles, expansions: expansions, iCloudListingModes: iCloudListingModes)
         }
     }
 
