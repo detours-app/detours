@@ -27,7 +27,7 @@ Upgrade the UI layer across sidebar, file list, tab bar, and window chrome with 
 - New themes or theme color changes (existing palette stays the same)
 - New features or functionality
 - Custom theme editor changes (it already works with the existing color properties)
-- Changes to the Preferences window itself
+- NSAlert dialogs (12 instances across MainSplitViewController, FileListViewController, FileOperationQueue) — these use system-native styling by design and cannot be meaningfully themed without reimplementing as custom sheets
 - Path control / breadcrumb redesign (separate effort)
 
 ---
@@ -71,6 +71,9 @@ Each phase is independently shippable and visually coherent — no intermediate 
 - [ ] Switch `SidebarItemView` name labels to `uiFont(size: 13)` for items and `uiFont(size: 11)` for section headers in `src/Sidebar/SidebarItemView.swift`
 - [ ] Switch `ThemedHeaderCell` text to `uiFont(size: 11)` in `src/FileList/BandedOutlineView.swift`
 - [ ] Switch `FilterBarView` count label to `uiFont(size: 10)` in `src/FileList/FilterBarView.swift`
+- [ ] Switch sidebar protocol badge from hardcoded `.systemFont(ofSize: 9, weight: .medium)` to `uiFont(size: 9)` in `SidebarItemView` (lines 39, 178, 211)
+- [ ] Switch sidebar placeholder text from hardcoded `.systemFont(ofSize: 11)` to `uiFont(size: 11)` in `SidebarItemView.configureAsPlaceholder()`
+- [ ] Switch new tab button "+" from hardcoded `NSFont.systemFont(ofSize: 18, weight: .light)` to `uiFont(size: 18)` in `PaneTabBar`
 - [ ] Keep `FileListCell` name label and shared label on the existing theme `font(size:)` (monospace) — no change needed
 - [ ] Build and verify all text renders correctly with mixed fonts
 
@@ -84,7 +87,9 @@ Each phase is independently shippable and visually coherent — no intermediate 
 - [ ] Increase sidebar left padding from 10px to 14px and icon-to-label gap from 6px to 8px in `SidebarItemView`
 - [ ] Add 6px top padding before sidebar section headers (adjust section header cell height or add spacing)
 - [ ] Increase tab bar intrinsic height from 32 to 36 in `PaneTabBar`
-- [ ] Increase status bar height if fixed (check constraints), or let it grow with the larger font
+- [ ] Increase status bar height from 20px to 22px in `PaneViewController.setupConstraints()` to accommodate larger font
+- [ ] Update sidebar eject button icon from `pointSize: 10` to `pointSize: 11` in `SidebarItemView` to match larger rows
+- [ ] Update folder expansion loading spinner position from hardcoded `x: 4` and `16x16` frame to center properly in new 28px row in `FileListDataSource.loadChildrenAsync()`
 - [ ] Build and verify layout at various font sizes (10px through 16px)
 
 **Phase 3: Hover States and Selection**
@@ -137,7 +142,63 @@ Each phase is independently shippable and visually coherent — no intermediate 
 - [ ] Slightly round tab button background for the selected tab (4px corner radius)
 - [ ] Adjust close button size to 14x14 and add fade-in/fade-out animation on hover (200ms)
 - [ ] Ensure inactive pane tab bar is visually distinct (slightly dimmer) from active pane
+- [ ] Update per-tab selected indicator (2px accent bottom border) to work with new rounded tab background — ensure they don't conflict visually
 - [ ] Build and verify tab switching, drag-to-reorder, and close button behavior
+
+**Phase 8: Quick Nav Panel (Cmd-P)**
+- [ ] Replace hardcoded `monospacedSystemFont` in search field with `ThemeManager.shared.currentTheme.font(size: 15)` in `QuickNavView`
+- [ ] Replace hardcoded monospace fonts in `ResultRow` (filename 13pt, path 11pt, footer 12pt) with theme fonts
+- [ ] Replace `Color(nsColor: .windowBackgroundColor)` background with theme background color
+- [ ] Use theme accent at 20% opacity for selected row background (currently uses `Color.accentColor.opacity(0.2)` which ignores theme accent)
+- [ ] Use theme `textSecondary` for secondary text (path, footer hints) instead of `.secondary`
+- [ ] Update `QuickNavController` panel background to match theme
+- [ ] Increase panel corner radius from 8px to 12px for modern macOS look
+- [ ] Build and verify Quick Nav looks correct in all themes
+
+**Phase 9: Filter Bar Refinement**
+- [ ] Increase filter bar height from 28px to 32px (match the new tab bar height) in `FileListViewController.filterBarHeight`
+- [ ] Switch search field font from theme mono font to theme UI font in `FilterBarView.setup()` and `applyTheme()` — the filter is UI chrome, not file data
+- [ ] Switch count label from `NSFont.systemFont(ofSize: smallSystemFontSize)` to `ThemeManager.shared.currentTheme.uiFont(size: 11)` for consistency
+- [ ] Increase left padding from 8px to 12px for better alignment with file list content
+- [ ] Add a subtle top border in addition to the existing bottom border (the bar currently floats between tab bar and content with only a bottom line)
+- [ ] Build and verify filter bar looks correct in all themes and at all font sizes
+
+**Phase 10: Path Control Bar and Inline Rename**
+- [ ] Increase path control row height from 24px to 28px in `PaneViewController.setupConstraints()`
+- [ ] Update home button and iCloud button from 24x24 to 26x26 for better proportion with taller row
+- [ ] Switch path control text from `NSFont.systemFont` to `ThemeManager.shared.currentTheme.uiFont()` in `updatePathControlColors()`
+- [ ] Update `RenameController` to use theme font instead of hardcoded `monospacedSystemFont(ofSize: 13)` — use `ThemeManager.shared.currentFont`
+- [ ] Update rename field background from `.textBackgroundColor` to theme surface color for consistency
+- [ ] Update path control drag image in `DroppablePathControl.createDragImage()` — replace `NSFont.systemFont` with theme UI font, replace `controlBackgroundColor` with theme surface color
+- [ ] Update path control drop highlight in `DroppablePathControl.updateHighlight()` — accent at 0.5 opacity is heavy, reduce to 0.25 to match softer selection style
+- [ ] Update rename field positioning math in `RenameController.beginRename()` to account for new 18x18 icon size (currently uses `iconLeading + 18` offset based on 16px icon + 2px gap)
+- [ ] Build and verify rename field and path bar in all themes
+
+**Phase 11: Network Dialogs (Authentication + Connect to Server)**
+- [ ] Update `AuthenticationView` — replace hardcoded `.font(.system(size: 32))` server icon, `.headline`/`.subheadline`/`.secondary` with theme-aware colors and fonts
+- [ ] Update `ConnectToServerView` — same typography fixes as AuthenticationView
+- [ ] Update recent server row in `ConnectToServerView` — replace `Color.secondary.opacity(0.1)` background with theme surface color, replace `cornerRadius: 4` with consistent value
+- [ ] Both dialogs use `.foregroundStyle(.secondary)` throughout — switch to theme `textSecondary` color
+- [ ] Both dialogs use `.foregroundStyle(.red)` for validation errors — keep red but ensure it's `NSColor.systemRed` for consistency
+- [ ] Build and verify both dialogs look correct in all themes
+
+**Phase 12: Preferences Visual Consistency**
+- [ ] Update `ShortcutRecorder` — replace `Color.accentColor.opacity(0.2)` with theme accent at 20%, replace `Color(nsColor: .controlBackgroundColor)` with theme surface, replace `Color(nsColor: .separatorColor)` with theme border
+- [ ] Update `ShortcutRecorder` font from `.system(.body, design: .monospaced)` to theme monospace font
+- [ ] Update `GitSettingsView` description font from `.callout` to theme UI font, `.foregroundColor(.secondary)` to theme textSecondary
+- [ ] Update `GitStatusPreview` indicator to use theme-aware dimensions (match new git bar height of 16px from Phase 2)
+- [ ] Update `GeneralSettingsView`, `ShortcutsSettingsView` — replace `.secondary`/`.caption` with theme-aware equivalents where visible
+- [ ] Update About panel credits in `AppDelegate.showAbout()` — replace hardcoded `NSFont.systemFont(ofSize: 11)` with theme UI font, `NSColor.secondaryLabelColor` with theme textSecondary
+- [ ] Build and verify all preference panes look correct in all themes
+
+**Phase 13: SwiftUI Dialogs and Popovers**
+- [ ] Standardize `ArchiveDialog` typography — replace hardcoded `themeFontSize + 2` title with consistent `.headline`, use theme UI font for labels
+- [ ] Standardize `DuplicateStructureDialog` to use the same typography approach as `ArchiveDialog` (currently mixes `.headline`/`.subheadline` with no theme awareness)
+- [ ] Update `OperationDetailPopover` (`OperationDetailView`) to use theme-aware colors for text — currently uses only system `.headline`/`.caption`/`.secondary` with no theme integration
+- [ ] Update error overlay in `FileListViewController.showErrorOverlay()` — replace hardcoded `systemFont(ofSize: 14)` with theme UI font
+- [ ] Update the "No matches" label font to theme UI font for consistency
+- [ ] Update `ThemePreview` in `AppearanceSettingsView` to reflect new row heights (28px), mixed fonts (UI font for chrome), and softer selection tint (accent at 20% opacity instead of solid accent)
+- [ ] Build and verify all dialogs and popovers look correct in all themes
 
 ---
 
@@ -166,3 +227,12 @@ Visual inspection items that cannot be automated:
 - [ ] App still feels fast — no perceptible performance regression from hover tracking
 - [ ] Activity indicator looks native in all states: idle (faint ring), indeterminate (traveling arc), progress (thin ring fill), completing (scale-down fade), error (red color shift)
 - [ ] Activity indicator transitions feel smooth — no jarring icon swaps or geometry changes between states
+- [ ] Quick Nav panel (Cmd-P) uses theme colors and fonts, looks cohesive with the rest of the app in all themes
+- [ ] Path control bar and inline rename field are visually consistent with their surrounding UI — no jarring font or color mismatches
+- [ ] Archive dialog, Duplicate Structure dialog, and operation detail popover feel theme-aware — no "system default" elements breaking the visual consistency
+- [ ] Error overlay and "No matches" empty states look intentional, not like unstyled fallbacks
+- [ ] Authentication and Connect to Server dialogs feel theme-aware — no system-default colors breaking visual consistency
+- [ ] Preferences panes (Shortcuts recorder, Git status preview, General settings) respect the current theme
+- [ ] About panel credits text matches theme styling
+- [ ] Path control drag images use themed background and font
+- [ ] Folder expansion loading spinner positions correctly in the new 28px row height
