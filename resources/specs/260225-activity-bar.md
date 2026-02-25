@@ -100,18 +100,18 @@ Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 
 ### Unit Tests (`Tests/FileOperationQueueTests.swift`)
 
-- [ ] `testRunProcessDoesNotBlockMainThread` - Verify async process wrapper yields to run loop during execution
-- [ ] `testProgressThrottle16Hz` - Verify rapid progress updates are coalesced to ≤16Hz delivery
-- [ ] `testCancellationWithAsyncProcess` - Verify cancelling terminates the process and cleans up partial files
-- [ ] `testQueuedOperationCount` - Verify pending count is exposed correctly during serial execution
+- [x] `testRunProcessDoesNotBlockMainThread` - Verify async process wrapper yields to run loop during execution
+- [x] `testProgressThrottle16Hz` - Verify rapid progress updates are coalesced to ≤16Hz delivery
+- [x] `testCancellationWithAsyncProcess` - Verify cancelling terminates the process and cleans up partial files
+- [x] `testQueuedOperationCount` - Verify pending count is exposed correctly during serial execution
 
 ### Unit Tests (`Tests/ActivityToolbarButtonTests.swift`)
 
-- [ ] `testButtonHiddenWhenIdle` - Button is hidden when no operation is active
-- [ ] `testButtonAppearsOnOperationStart` - Button becomes visible when operation starts
-- [ ] `testButtonHidesOnCompletion` - Button hides after operation completes
-- [ ] `testIndeterminateShowsSpinningIcon` - Icon rotates when totalCount is 0
-- [ ] `testErrorStatePersistsUntilDismissed` - Error state does not auto-hide
+- [x] `testButtonHiddenWhenIdle` - Button is hidden when no operation is active
+- [x] `testButtonAppearsOnOperationStart` - Button becomes visible when operation starts
+- [x] `testButtonHidesOnCompletion` - Button hides after operation completes
+- [x] `testIndeterminateShowsSpinningIcon` - Icon rotates when totalCount is 0
+- [x] `testErrorStatePersistsUntilDismissed` - Error state does not auto-hide
 
 ### Manual Verification (Marco)
 
