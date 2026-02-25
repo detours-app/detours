@@ -118,7 +118,19 @@ Each phase is independently shippable and visually coherent — no intermediate 
 - [ ] Verify full-screen behavior (if enabled in future) is not broken
 - [ ] Build and verify the unified look in all themes
 
-**Phase 6: Tab Bar Refinement**
+**Phase 6: Activity Indicator Redesign**
+- [ ] Increase button size from 28x28 to 32x32, reduce ring diameter from 22px to 18px for better proportions in `ActivityToolbarButton`
+- [ ] Reduce ring stroke from 2.5px to 1.5px with `.round` line cap — thinner rings read as native macOS (matches Xcode/Safari indicators)
+- [ ] Change track layer color from `theme.border` to accent at 8% opacity — unifies track/fill into one hue family instead of gray-under-color
+- [ ] Replace spinning icon indeterminate state with a traveling arc animation: `CAKeyframeAnimation` on `strokeStart`/`strokeEnd` together, ~90-degree arc looping around the ring at 1.2s with easeInEaseOut
+- [ ] Hide the center icon during indeterminate and active states — the ring is the indicator, the icon competes with it
+- [ ] In idle state, show a faint ring at 20% opacity as a subtle affordance (remove the `arrow.triangle.2.circlepath` icon)
+- [ ] Replace error state icon swap with a color transition: animate `strokeColor` from accent to `systemRed` over 0.25s, then pulse ring opacity (1.0 to 0.4 to 1.0 over 0.4s)
+- [ ] Add completion animation: after `strokeEnd` reaches 1.0, scale ring down to 0.6 and fade out over 0.3s (`CAAnimationGroup`), then fade the entire button out
+- [ ] Reduce icon point size from 14pt to 11pt for any remaining icon states (error tooltip, etc.)
+- [ ] Build and verify all states: idle, indeterminate, determinate progress, completing, error
+
+**Phase 7: Tab Bar Refinement**
 - [ ] Increase active tab font to 13px semibold (from 12px) in `PaneTabBar`
 - [ ] Add a subtle bottom border/separator between tab bar and file list content (1px theme border color)
 - [ ] Refine tab button padding: 12px horizontal padding (from 8px left / 4px right)
@@ -152,3 +164,5 @@ Visual inspection items that cannot be automated:
 - [ ] Tab bar hierarchy is clear — active tab stands out from inactive tabs and from inactive pane
 - [ ] Overall spacing feels balanced at default (13px) and extreme (10px, 16px) font sizes
 - [ ] App still feels fast — no perceptible performance regression from hover tracking
+- [ ] Activity indicator looks native in all states: idle (faint ring), indeterminate (traveling arc), progress (thin ring fill), completing (scale-down fade), error (red color shift)
+- [ ] Activity indicator transitions feel smooth — no jarring icon swaps or geometry changes between states
