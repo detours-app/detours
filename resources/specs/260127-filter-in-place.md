@@ -1,7 +1,7 @@
 # Filter-in-Place
 
 ## Meta
-- Status: Draft
+- Status: Implemented
 - Branch: feature/filter-in-place
 
 ---

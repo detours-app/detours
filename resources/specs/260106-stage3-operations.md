@@ -1,7 +1,7 @@
 # Stage 3: File Operations
 
 ## Meta
-- Status: Draft
+- Status: Implemented
 - Branch: feature/stage3-operations
 - Parent: [260105-detours-overview.md](260105-detours-overview.md)
 

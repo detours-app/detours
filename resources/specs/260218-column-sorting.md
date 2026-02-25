@@ -1,7 +1,7 @@
 # Column Sorting
 
 ## Meta
-- Status: Draft
+- Status: Implemented
 - Branch: feature/column-sorting
 
 ---

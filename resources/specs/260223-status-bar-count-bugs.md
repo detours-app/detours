@@ -1,7 +1,7 @@
 # Fix Status Bar Count Bugs During Filtering and Expansion
 
 ## Meta
-- Status: Draft
+- Status: Implemented
 - Branch: fix/status-bar-counts
 
 ---

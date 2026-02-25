@@ -1,7 +1,7 @@
 # Stage 1: Foundation
 
 ## Meta
-- Status: Draft
+- Status: Implemented
 - Branch: feature/stage1-foundation
 - Parent: [260105-detours-overview.md](260105-detours-overview.md)
 

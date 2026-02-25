@@ -1,7 +1,7 @@
 # Archive Files
 
 ## Meta
-- Status: In Progress
+- Status: Implemented
 - Branch: feature/archive-files
 
 ---

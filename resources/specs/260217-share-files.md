@@ -1,7 +1,7 @@
 # Share Files (AirDrop & System Sharing)
 
 ## Meta
-- Status: Draft
+- Status: Implemented
 - Branch: feature/share-files
 
 ---

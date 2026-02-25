@@ -1,7 +1,7 @@
 # Stage 6: Folder Expansion
 
 ## Meta
-- Status: Draft
+- Status: Superseded by 260111-stage8-folder-expansion.md
 - Branch: feature/stage6-folder-expansion
 
 ---

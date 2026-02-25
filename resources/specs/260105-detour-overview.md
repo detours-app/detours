@@ -1,7 +1,7 @@
 # Detours - macOS File Manager Overview
 
 ## Meta
-- Status: Draft
+- Status: Implemented
 - Type: Architecture Overview
 
 ## Vision
