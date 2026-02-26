@@ -295,7 +295,7 @@ final class BandedOutlineView: NSOutlineView {
             startY = lastRect.maxY
             nextIndex = numberOfRows
         } else {
-            startY = headerView?.frame.maxY ?? 0
+            startY = 0
             nextIndex = 0
         }
 
