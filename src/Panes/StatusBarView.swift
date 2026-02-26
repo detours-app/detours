@@ -24,7 +24,7 @@ final class StatusBarView: NSView {
     private func setup() {
         let theme = ThemeManager.shared.currentTheme
 
-        label.font = theme.font(size: ThemeManager.shared.fontSize - 2)
+        label.font = theme.uiFont(size: ThemeManager.shared.fontSize - 2)
         label.textColor = theme.textSecondary
         label.lineBreakMode = .byTruncatingMiddle
         label.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -50,7 +50,7 @@ final class StatusBarView: NSView {
 
     @objc private func handleThemeChange() {
         let theme = ThemeManager.shared.currentTheme
-        label.font = theme.font(size: ThemeManager.shared.fontSize - 2)
+        label.font = theme.uiFont(size: ThemeManager.shared.fontSize - 2)
         label.textColor = theme.textSecondary
         needsDisplay = true
     }

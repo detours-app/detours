@@ -17,12 +17,11 @@ final class ActivityToolbarButton: NSView {
     private let progressLayer = CAShapeLayer()
     private let iconView = NSImageView()
 
-    private let ringDiameter: CGFloat = 22
-    private let ringLineWidth: CGFloat = 2.5
-    private let buttonSize: CGFloat = 28
+    private let ringDiameter: CGFloat = 18
+    private let ringLineWidth: CGFloat = 1.5
+    private let buttonSize: CGFloat = 32
 
     private var completingWorkItem: DispatchWorkItem?
-    private var iconSpinTimer: Timer?
 
     var onClick: (() -> Void)?
 
@@ -55,17 +54,17 @@ final class ActivityToolbarButton: NSView {
 
         let layerFrame = CGRect(x: 0, y: 0, width: buttonSize, height: buttonSize)
 
-        // Track layer (full circle, subtle) — only visible during determinate progress
+        // Track layer (full circle) — always visible, faint
         trackLayer.frame = layerFrame
         trackLayer.path = circlePath
-        trackLayer.strokeColor = theme.border.cgColor
+        trackLayer.strokeColor = theme.accent.withAlphaComponent(0.08).cgColor
         trackLayer.fillColor = nil
         trackLayer.lineWidth = ringLineWidth
         trackLayer.lineCap = .round
-        trackLayer.isHidden = true
+        trackLayer.opacity = 0.2
         layer?.addSublayer(trackLayer)
 
-        // Progress layer (fills clockwise) — only visible during determinate progress
+        // Progress layer (fills clockwise)
         progressLayer.frame = layerFrame
         progressLayer.path = circlePath
         progressLayer.strokeColor = theme.accent.cgColor
@@ -76,20 +75,21 @@ final class ActivityToolbarButton: NSView {
         progressLayer.isHidden = true
         layer?.addSublayer(progressLayer)
 
-        // Center icon — accent-colored, rotates during indeterminate
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        // Center icon — hidden in idle state
+        let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
         iconView.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Activity")?
             .withSymbolConfiguration(config)
         iconView.contentTintColor = theme.accent
         iconView.imageScaling = .scaleProportionallyDown
+        iconView.isHidden = true
         addSubview(iconView)
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             iconView.centerXAnchor.constraint(equalTo: centerXAnchor),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 18),
-            iconView.heightAnchor.constraint(equalToConstant: 18),
+            iconView.widthAnchor.constraint(equalToConstant: 16),
+            iconView.heightAnchor.constraint(equalToConstant: 16),
         ])
 
         translatesAutoresizingMaskIntoConstraints = false
@@ -126,33 +126,35 @@ final class ActivityToolbarButton: NSView {
         completingWorkItem = nil
 
         let theme = ThemeManager.shared.currentTheme
-        iconView.contentTintColor = theme.accent
-        setActivityIcon()
+        progressLayer.strokeColor = theme.accent.cgColor
 
         if indeterminate {
             state = .indeterminate
-            trackLayer.isHidden = true
-            progressLayer.isHidden = true
-            startIconSpin()
+            iconView.isHidden = true
+            trackLayer.opacity = 1.0
+            progressLayer.isHidden = false
+            startTravelingArc()
         } else {
             state = .active(fraction: 0)
-            stopIconSpin()
-            trackLayer.isHidden = false
+            iconView.isHidden = true
+            stopTravelingArc()
+            trackLayer.opacity = 1.0
             progressLayer.isHidden = false
+            progressLayer.strokeStart = 0
             progressLayer.strokeEnd = 0
-            progressLayer.strokeColor = theme.accent.cgColor
         }
 
         setAccessibilityValue(indeterminate ? "In progress" : "0%")
     }
 
     func updateProgress(_ fraction: Double) {
-        stopIconSpin()
+        stopTravelingArc()
         state = .active(fraction: fraction)
 
         iconView.isHidden = true
-        trackLayer.isHidden = false
+        trackLayer.opacity = 1.0
         progressLayer.isHidden = false
+        progressLayer.strokeStart = 0
 
         let clamped = min(max(fraction, 0), 1)
 
@@ -171,17 +173,62 @@ final class ActivityToolbarButton: NSView {
 
     func showCompleting() {
         state = .completing
-        stopIconSpin()
+        stopTravelingArc()
 
-        let animation = CABasicAnimation(keyPath: "strokeEnd")
-        animation.fromValue = progressLayer.presentation()?.strokeEnd ?? progressLayer.strokeEnd
-        animation.toValue = 1.0
-        animation.duration = 0.2
-        animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        animation.isRemovedOnCompletion = false
-        animation.fillMode = .forwards
+        // Fill to 100%
+        let fillAnimation = CABasicAnimation(keyPath: "strokeEnd")
+        fillAnimation.fromValue = progressLayer.presentation()?.strokeEnd ?? progressLayer.strokeEnd
+        fillAnimation.toValue = 1.0
+        fillAnimation.duration = 0.2
+        fillAnimation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        fillAnimation.isRemovedOnCompletion = false
+        fillAnimation.fillMode = .forwards
         progressLayer.strokeEnd = 1.0
-        progressLayer.add(animation, forKey: "completeAnimation")
+        progressLayer.add(fillAnimation, forKey: "completeAnimation")
+
+        // Scale down and fade to idle after fill
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+
+        let delay = reduceMotion ? 0.2 : 0.3
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+
+            if !reduceMotion {
+                // Scale ring down
+                let scaleAnim = CABasicAnimation(keyPath: "transform.scale")
+                scaleAnim.fromValue = 1.0
+                scaleAnim.toValue = 0.6
+                scaleAnim.duration = 0.3
+                scaleAnim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                scaleAnim.isRemovedOnCompletion = false
+                scaleAnim.fillMode = .forwards
+                self.progressLayer.add(scaleAnim, forKey: "scaleDown")
+                if let copy = scaleAnim.copy() as? CAAnimation {
+                    self.trackLayer.add(copy, forKey: "scaleDown")
+                }
+            }
+
+            // Fade to idle opacity
+            let fadeAnim = CABasicAnimation(keyPath: "opacity")
+            fadeAnim.fromValue = 1.0
+            fadeAnim.toValue = 0.2
+            fadeAnim.duration = reduceMotion ? 0.15 : 0.3
+            fadeAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            fadeAnim.isRemovedOnCompletion = false
+            fadeAnim.fillMode = .forwards
+            self.trackLayer.add(fadeAnim, forKey: "fadeToIdle")
+            if let copy = fadeAnim.copy() as? CAAnimation {
+                self.progressLayer.add(copy, forKey: "fadeToIdle")
+            }
+
+            // Reset to idle after animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.15 : 0.3)) { [weak self] in
+                self?.reset()
+            }
+        }
+        completingWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
 
         setAccessibilityValue("Complete")
         postAccessibilityAnnouncement("Operation complete")
@@ -189,18 +236,40 @@ final class ActivityToolbarButton: NSView {
 
     func showError() {
         state = .error
-        stopIconSpin()
+        stopTravelingArc()
         completingWorkItem?.cancel()
         completingWorkItem = nil
 
-        iconView.isHidden = false
-        trackLayer.isHidden = true
-        progressLayer.isHidden = true
+        iconView.isHidden = true
+        trackLayer.opacity = 1.0
+        progressLayer.isHidden = false
+        progressLayer.strokeStart = 0
+        progressLayer.strokeEnd = 1.0
 
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        iconView.image = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "Error")?
-            .withSymbolConfiguration(config)
-        iconView.contentTintColor = NSColor.systemRed
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+
+        // Animate stroke color from accent to red
+        let colorAnim = CABasicAnimation(keyPath: "strokeColor")
+        colorAnim.fromValue = ThemeManager.shared.currentTheme.accent.cgColor
+        colorAnim.toValue = NSColor.systemRed.cgColor
+        colorAnim.duration = reduceMotion ? 0.0 : 0.25
+        colorAnim.isRemovedOnCompletion = false
+        colorAnim.fillMode = .forwards
+        progressLayer.strokeColor = NSColor.systemRed.cgColor
+        progressLayer.add(colorAnim, forKey: "errorColor")
+        trackLayer.strokeColor = NSColor.systemRed.withAlphaComponent(0.08).cgColor
+
+        // Pulse ring opacity (skip if reduce motion)
+        if !reduceMotion {
+            let pulseAnim = CAKeyframeAnimation(keyPath: "opacity")
+            pulseAnim.values = [1.0, 0.4, 1.0]
+            pulseAnim.keyTimes = [0, 0.5, 1.0]
+            pulseAnim.duration = 0.4
+            pulseAnim.beginTime = CACurrentMediaTime() + 0.25
+            pulseAnim.isRemovedOnCompletion = false
+            pulseAnim.fillMode = .forwards
+            progressLayer.add(pulseAnim, forKey: "errorPulse")
+        }
 
         setAccessibilityValue("Error")
         postAccessibilityAnnouncement("Operation failed")
@@ -208,18 +277,24 @@ final class ActivityToolbarButton: NSView {
 
     func reset() {
         state = .idle
-        stopIconSpin()
+        stopTravelingArc()
         completingWorkItem?.cancel()
         completingWorkItem = nil
 
-        iconView.isHidden = false
-        trackLayer.isHidden = true
+        iconView.isHidden = true
         progressLayer.isHidden = true
         progressLayer.strokeEnd = 0
+        progressLayer.strokeStart = 0
         progressLayer.removeAllAnimations()
+        trackLayer.removeAllAnimations()
 
-        setActivityIcon()
-        iconView.contentTintColor = ThemeManager.shared.currentTheme.accent
+        // Idle: faint ring at 20% opacity
+        let theme = ThemeManager.shared.currentTheme
+        trackLayer.opacity = 0.2
+        trackLayer.strokeColor = theme.accent.withAlphaComponent(0.08).cgColor
+        trackLayer.transform = CATransform3DIdentity
+        progressLayer.transform = CATransform3DIdentity
+        progressLayer.strokeColor = theme.accent.cgColor
     }
 
     // MARK: - Mouse
@@ -234,39 +309,46 @@ final class ActivityToolbarButton: NSView {
 
     // MARK: - Private
 
-    private func setActivityIcon() {
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        iconView.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Activity")?
-            .withSymbolConfiguration(config)
-    }
-
-    private func startIconSpin() {
-        guard iconSpinTimer == nil else { return }
+    private func startTravelingArc() {
+        progressLayer.removeAllAnimations()
+        progressLayer.strokeStart = 0
+        progressLayer.strokeEnd = 0.25
 
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            // Static arc — no animation
             return
         }
 
-        iconView.wantsLayer = true
-        guard let iconLayer = iconView.layer else { return }
+        let startAnim = CABasicAnimation(keyPath: "strokeStart")
+        startAnim.fromValue = 0
+        startAnim.toValue = 0.75
 
-        // Set anchor point to center for rotation
-        iconLayer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        iconLayer.position = CGPoint(x: iconView.frame.midX, y: iconView.frame.midY)
+        let endAnim = CABasicAnimation(keyPath: "strokeEnd")
+        endAnim.fromValue = 0.25
+        endAnim.toValue = 1.0
 
+        let group = CAAnimationGroup()
+        group.animations = [startAnim, endAnim]
+        group.duration = 1.2
+        group.repeatCount = .infinity
+        group.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        group.isRemovedOnCompletion = false
+        progressLayer.add(group, forKey: "travelingArc")
+
+        // Also rotate the layer for continuous motion
         let rotation = CABasicAnimation(keyPath: "transform.rotation.z")
         rotation.fromValue = 0
         rotation.toValue = 2 * Double.pi
         rotation.duration = 1.2
         rotation.repeatCount = .infinity
         rotation.isRemovedOnCompletion = false
-        iconLayer.add(rotation, forKey: "iconSpin")
+        progressLayer.add(rotation, forKey: "arcRotation")
     }
 
-    private func stopIconSpin() {
-        iconSpinTimer?.invalidate()
-        iconSpinTimer = nil
-        iconView.layer?.removeAnimation(forKey: "iconSpin")
+    private func stopTravelingArc() {
+        progressLayer.removeAnimation(forKey: "travelingArc")
+        progressLayer.removeAnimation(forKey: "arcRotation")
+        progressLayer.strokeStart = 0
     }
 
     @objc private func handleClick(_ sender: Any?) {
@@ -283,14 +365,17 @@ final class ActivityToolbarButton: NSView {
 
     @objc private func handleThemeChange() {
         let theme = ThemeManager.shared.currentTheme
-        trackLayer.strokeColor = theme.border.cgColor
 
         switch state {
         case .error:
-            iconView.contentTintColor = NSColor.systemRed
-        default:
+            trackLayer.strokeColor = NSColor.systemRed.withAlphaComponent(0.08).cgColor
+            progressLayer.strokeColor = NSColor.systemRed.cgColor
+        case .idle:
+            trackLayer.strokeColor = theme.accent.withAlphaComponent(0.08).cgColor
             progressLayer.strokeColor = theme.accent.cgColor
-            iconView.contentTintColor = theme.accent
+        default:
+            trackLayer.strokeColor = theme.accent.withAlphaComponent(0.08).cgColor
+            progressLayer.strokeColor = theme.accent.cgColor
         }
     }
 }

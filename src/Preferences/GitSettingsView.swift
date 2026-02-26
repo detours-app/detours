@@ -12,8 +12,8 @@ struct GitSettingsView: View {
                     }
 
                 Text("Display colored bars next to files that have been modified, staged, or are untracked in git repositories.")
-                    .font(.callout)
-                    .foregroundColor(.secondary)
+                    .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 12)))
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
             }
 
             Section("Indicator Colors") {
@@ -33,22 +33,22 @@ struct GitStatusPreview: View {
             HStack(spacing: 12) {
                 statusIndicator(for: .modified)
                 Text("Modified")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
             }
             HStack(spacing: 12) {
                 statusIndicator(for: .staged)
                 Text("Staged")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
             }
             HStack(spacing: 12) {
                 statusIndicator(for: .untracked)
                 Text("Untracked")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
             }
             HStack(spacing: 12) {
                 statusIndicator(for: .conflict)
                 Text("Conflict")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
             }
         }
         .padding(.vertical, 4)
@@ -59,7 +59,7 @@ struct GitStatusPreview: View {
         let appearance: NSAppearance? = colorScheme == .dark ? NSAppearance(named: .darkAqua) : NSAppearance(named: .aqua)
         RoundedRectangle(cornerRadius: 1)
             .fill(Color(status.color(for: appearance)))
-            .frame(width: 2, height: 14)
+            .frame(width: 2, height: 16)
     }
 }
 

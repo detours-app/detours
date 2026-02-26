@@ -244,12 +244,12 @@ final class PreferencesTests: XCTestCase {
 
     func testThemeManagerBuiltInThemes() async throws {
         // Test Light theme
-        XCTAssertEqual(Theme.light.fontName, "SF Mono")
+        XCTAssertEqual(Theme.light.fontName, "SF Pro")
         XCTAssertEqual(Theme.light.background, NSColor(hex: "#FAFAF8"))
         XCTAssertEqual(Theme.light.accent, NSColor(hex: "#1F4D4D"))
 
         // Test Dark theme
-        XCTAssertEqual(Theme.dark.fontName, "SF Mono")
+        XCTAssertEqual(Theme.dark.fontName, "SF Pro")
         XCTAssertEqual(Theme.dark.background, NSColor(hex: "#262626"))
         XCTAssertEqual(Theme.dark.accent, NSColor(hex: "#3D8A8A"))
 
@@ -275,7 +275,8 @@ final class PreferencesTests: XCTestCase {
             textTertiary: CodableColor(hex: "#333333"),
             accent: CodableColor(hex: "#AABBCC"),
             accentText: CodableColor(hex: "#FFFFFF"),
-            fontName: "Menlo"
+            fontName: "Menlo",
+            uiFontName: "Avenir"
         )
 
         // Create theme from custom colors

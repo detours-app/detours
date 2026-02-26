@@ -39,8 +39,8 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         } else {
             iconLeading = 12
         }
-        // iconLeading + 16 (icon) + 6 (gap to name) - 4 (text field internal padding)
-        let nameOffset = iconLeading + 18
+        // iconLeading + 18 (icon) + 2 (gap) - accounts for new 18x18 icon
+        let nameOffset = iconLeading + 20
 
         let targetRect = NSRect(
             x: cellFrame.origin.x + nameOffset,
@@ -51,12 +51,12 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         let field = NSTextField(frame: targetRect)
         field.stringValue = item.name
-        field.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        field.font = ThemeManager.shared.currentFont
         field.isBordered = true
         field.focusRingType = .none
         field.delegate = self
         field.drawsBackground = true
-        field.backgroundColor = .textBackgroundColor
+        field.backgroundColor = ThemeManager.shared.currentTheme.surface
         field.wantsLayer = true
         field.layer?.zPosition = 1000
         tableView.addSubview(field)

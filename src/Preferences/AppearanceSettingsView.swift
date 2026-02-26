@@ -211,6 +211,28 @@ struct CustomThemeEditor: View {
         "Andale Mono"
     ]
 
+    private let availableUIFonts = [
+        // System fonts
+        "SF Pro",
+        "SF Pro Text",
+        "Helvetica Neue",
+        "Helvetica",
+        "Lucida Grande",
+        // Elegant sans-serif
+        "Avenir",
+        "Avenir Next",
+        "Optima",
+        "Gill Sans",
+        "Futura",
+        // Humanist
+        "Verdana",
+        "Trebuchet MS",
+        "Geneva",
+        // Classic
+        "Arial",
+        "Tahoma",
+    ]
+
     var body: some View {
         Group {
             ColorPickerRow(label: "Background", color: binding(for: \.background))
@@ -224,6 +246,12 @@ struct CustomThemeEditor: View {
 
             Picker("Font", selection: $colors.fontName) {
                 ForEach(availableFonts, id: \.self) { font in
+                    Text(font).tag(font)
+                }
+            }
+
+            Picker("UI Font", selection: $colors.uiFontName) {
+                ForEach(availableUIFonts, id: \.self) { font in
                     Text(font).tag(font)
                 }
             }
@@ -290,15 +318,15 @@ struct ThemePreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
+            // Header (uses UI font for chrome)
             HStack {
                 Text("~/Documents")
-                    .font(.custom(theme.monoFont, size: CGFloat(fontSize)))
+                    .font(Font(theme.uiFont(size: CGFloat(fontSize))))
                     .foregroundColor(Color(theme.textPrimary))
                 Spacer()
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, 6)
             .background(Color(theme.surface))
 
             Divider()
@@ -359,37 +387,29 @@ struct FileRowPreview: View {
 
     private var iconColor: Color {
         if isSelected {
-            return Color(Self.lightenedColor(theme.accent, amount: 0.7))
+            return Color(theme.accent)
         }
         return isDirectory ? folderColor : fileColor
-    }
-
-    private static func lightenedColor(_ color: NSColor, amount: CGFloat) -> NSColor {
-        guard let rgb = color.usingColorSpace(.sRGB) else { return color }
-        let r = rgb.redComponent + (1 - rgb.redComponent) * amount
-        let g = rgb.greenComponent + (1 - rgb.greenComponent) * amount
-        let b = rgb.blueComponent + (1 - rgb.blueComponent) * amount
-        return NSColor(red: r, green: g, blue: b, alpha: 1.0)
     }
 
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: isDirectory ? "folder.fill" : "doc")
                 .foregroundColor(iconColor)
-                .frame(width: 16)
+                .frame(width: 18)
             Text(name)
                 .font(.custom(theme.monoFont, size: CGFloat(fontSize)))
-                .foregroundColor(isSelected ? Color(theme.accentText) : Color(theme.textPrimary))
+                .foregroundColor(isSelected ? Color(theme.accent) : Color(theme.textPrimary))
                 .lineLimit(1)
             Spacer()
             Text(dateString)
                 .font(.custom(theme.monoFont, size: CGFloat(fontSize - 1)))
-                .foregroundColor(isSelected ? Color(theme.accentText).opacity(0.8) : Color(theme.textTertiary))
+                .foregroundColor(isSelected ? Color(theme.accent).opacity(0.8) : Color(theme.textTertiary))
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSelected ? Color(theme.accent) : Color.clear)
+        .background(isSelected ? Color(theme.accent).opacity(0.2) : Color.clear)
     }
 }
 

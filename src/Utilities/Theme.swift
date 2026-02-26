@@ -11,6 +11,7 @@ struct Theme: Equatable {
     var accent: NSColor
     var accentText: NSColor
     var fontName: String
+    var uiFontName: String
 
     // Legacy accessor for compatibility
     var monoFont: String { fontName }
@@ -31,12 +32,24 @@ struct Theme: Equatable {
         // Fallback to system font
         return NSFont.systemFont(ofSize: size, weight: .regular)
     }
+
+    /// The proportional font used for UI chrome (tabs, sidebar, headers, status bar)
+    func uiFont(size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
+        if uiFontName == "SF Pro" || uiFontName == "SF Pro Text" {
+            return NSFont.systemFont(ofSize: size, weight: weight)
+        }
+        // Non-system fonts ignore weight parameter
+        if let font = NSFont(name: uiFontName, size: size) {
+            return font
+        }
+        return NSFont.systemFont(ofSize: size, weight: weight)
+    }
 }
 
 // MARK: - Built-in Themes
 
 extension Theme {
-    /// Light theme: neutral warm gray, teal accent, SF Mono
+    /// Light theme: neutral warm gray, teal accent, system font
     static let light = Theme(
         background: NSColor(hex: "#FAFAF8"),
         surface: NSColor(hex: "#F5F5F3"),
@@ -46,10 +59,11 @@ extension Theme {
         textTertiary: NSColor(hex: "#9C9990"),
         accent: NSColor(hex: "#1F4D4D"),
         accentText: NSColor(hex: "#FFFFFF"),
-        fontName: "SF Mono"
+        fontName: "SF Pro",
+        uiFontName: "SF Pro"
     )
 
-    /// Dark theme: neutral dark, teal accent, SF Mono
+    /// Dark theme: neutral dark, teal accent, system font
     static let dark = Theme(
         background: NSColor(hex: "#262626"),
         surface: NSColor(hex: "#242322"),
@@ -59,7 +73,8 @@ extension Theme {
         textTertiary: NSColor(hex: "#6B6965"),
         accent: NSColor(hex: "#3D8A8A"),
         accentText: NSColor(hex: "#FFFFFF"),
-        fontName: "SF Mono"
+        fontName: "SF Pro",
+        uiFontName: "SF Pro"
     )
 
     /// Foolscap theme: warm cream, terracotta accent, Courier - analog comfort
@@ -72,7 +87,8 @@ extension Theme {
         textTertiary: NSColor(hex: "#A69F93"),
         accent: NSColor(hex: "#B85C38"),
         accentText: NSColor(hex: "#FFFFFF"),
-        fontName: "Courier"
+        fontName: "Courier",
+        uiFontName: "SF Pro"
     )
 
     /// Drafting theme: cool blue-white, blue accent, JetBrains Mono - technical precision
@@ -85,7 +101,8 @@ extension Theme {
         textTertiary: NSColor(hex: "#94A3B8"),
         accent: NSColor(hex: "#2563EB"),
         accentText: NSColor(hex: "#FFFFFF"),
-        fontName: "JetBrains Mono NL"
+        fontName: "JetBrains Mono NL",
+        uiFontName: "SF Pro"
     )
 
     /// Create a theme from custom colors stored in settings
@@ -99,7 +116,8 @@ extension Theme {
             textTertiary: colors.textTertiary.nsColor,
             accent: colors.accent.nsColor,
             accentText: colors.accentText.nsColor,
-            fontName: colors.fontName
+            fontName: colors.fontName,
+            uiFontName: colors.uiFontName
         )
     }
 }

@@ -27,14 +27,14 @@ struct AuthenticationView: View {
             HStack(spacing: 12) {
                 Image(systemName: "server.rack")
                     .font(.system(size: 32))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect to Server")
                         .font(.headline)
                     Text(model.serverName)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                 }
 
                 Spacer()
@@ -47,7 +47,7 @@ struct AuthenticationView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Username:")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                     TextField("Username", text: $model.username)
                         .textFieldStyle(.roundedBorder)
                         .textContentType(.username)
@@ -56,7 +56,7 @@ struct AuthenticationView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Password:")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                     SecureField("Password", text: $model.password)
                         .textFieldStyle(.roundedBorder)
                         .textContentType(.password)

@@ -14,15 +14,15 @@ struct ShortcutRecorder: View {
             isRecording = true
         } label: {
             Text(displayText)
-                .font(.system(.body, design: .monospaced))
+                .font(Font(ThemeManager.shared.currentTheme.font(size: NSFont.systemFontSize)))
                 .frame(minWidth: 80, alignment: .trailing)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(isRecording ? Color.accentColor.opacity(0.2) : Color(nsColor: .controlBackgroundColor))
+                .background(isRecording ? Color(ThemeManager.shared.currentTheme.accent).opacity(0.2) : Color(ThemeManager.shared.currentTheme.surface))
                 .cornerRadius(6)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(isRecording ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: 1)
+                        .stroke(isRecording ? Color(ThemeManager.shared.currentTheme.accent) : Color(ThemeManager.shared.currentTheme.border), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)

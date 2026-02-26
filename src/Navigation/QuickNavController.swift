@@ -55,14 +55,14 @@ final class QuickNavController {
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.hasShadow = true
-        panel.backgroundColor = .windowBackgroundColor
+        panel.backgroundColor = ThemeManager.shared.currentTheme.background
         panel.isOpaque = false
         panel.contentViewController = hostingController
 
         // Rounded corners
         if let contentView = panel.contentView {
             contentView.wantsLayer = true
-            contentView.layer?.cornerRadius = 8
+            contentView.layer?.cornerRadius = 12
             contentView.layer?.masksToBounds = true
         }
 

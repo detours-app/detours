@@ -106,11 +106,16 @@ final class InactiveHidingRowView: NSTableRowView {
         didSet {
             if isTableActive != oldValue {
                 needsDisplay = true
-                // Update cell colors when active state changes
                 for subview in subviews {
                     updateCellBackgroundStyle(subview)
                 }
             }
+        }
+    }
+
+    var isHovered: Bool = false {
+        didSet {
+            if isHovered != oldValue { needsDisplay = true }
         }
     }
 
@@ -119,10 +124,21 @@ final class InactiveHidingRowView: NSTableRowView {
         set { }
     }
 
+    override func drawBackground(in dirtyRect: NSRect) {
+        // Draw hover highlight for non-selected rows
+        if isHovered && !isSelected {
+            let hoverColor = MainActor.assumeIsolated {
+                ThemeManager.shared.currentTheme.textPrimary.withAlphaComponent(0.06)
+            }
+            hoverColor.setFill()
+            bounds.fill()
+        }
+    }
+
     override func drawSelection(in dirtyRect: NSRect) {
         guard isTableActive, isSelected else { return }
         let accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
-        accentColor.setFill()
+        accentColor.withAlphaComponent(0.3).setFill()
         bounds.fill()
     }
 
@@ -1227,7 +1243,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             indicator.style = .spinning
             indicator.controlSize = .small
             indicator.sizeToFit()
-            indicator.frame = NSRect(x: 4, y: (rowView.bounds.height - 16) / 2, width: 16, height: 16)
+            indicator.frame = NSRect(x: 6, y: (rowView.bounds.height - 16) / 2, width: 16, height: 16)
             rowView.addSubview(indicator)
             indicator.startAnimation(nil)
             spinner = indicator

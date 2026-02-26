@@ -83,19 +83,19 @@ struct ArchiveDialog: View {
     private let themeFontSize = ThemeManager.shared.fontSize
 
     private var titleFont: Font {
-        .system(size: themeFontSize + 2, weight: .semibold)
+        Font(ThemeManager.shared.currentTheme.uiFont(size: themeFontSize + 2, weight: .semibold))
     }
 
     private var labelFont: Font {
-        .system(size: themeFontSize, weight: .regular)
+        Font(ThemeManager.shared.currentTheme.uiFont(size: themeFontSize))
     }
 
     private var monoFont: Font {
-        .system(size: themeFontSize, design: .monospaced)
+        Font(ThemeManager.shared.currentTheme.font(size: themeFontSize))
     }
 
     private var smallFont: Font {
-        .system(size: themeFontSize, weight: .regular)
+        Font(ThemeManager.shared.currentTheme.uiFont(size: themeFontSize))
     }
 
     var body: some View {

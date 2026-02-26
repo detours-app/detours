@@ -159,7 +159,7 @@ enum ThemeChoice: String, Codable, CaseIterable {
 
 // MARK: - Custom Theme Colors
 
-struct CustomThemeColors: Codable, Equatable {
+struct CustomThemeColors: Equatable {
     var background: CodableColor
     var surface: CodableColor
     var border: CodableColor
@@ -169,6 +169,7 @@ struct CustomThemeColors: Codable, Equatable {
     var accent: CodableColor
     var accentText: CodableColor
     var fontName: String
+    var uiFontName: String
 
     static var defaultLight: CustomThemeColors {
         CustomThemeColors(
@@ -180,8 +181,31 @@ struct CustomThemeColors: Codable, Equatable {
             textTertiary: CodableColor(hex: "#9C9990"),
             accent: CodableColor(hex: "#1F4D4D"),
             accentText: CodableColor(hex: "#FFFFFF"),
-            fontName: "SF Mono"
+            fontName: "SF Pro",
+            uiFontName: "SF Pro"
         )
+    }
+}
+
+extension CustomThemeColors: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case background, surface, border
+        case textPrimary, textSecondary, textTertiary
+        case accent, accentText, fontName, uiFontName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        background = try container.decode(CodableColor.self, forKey: .background)
+        surface = try container.decode(CodableColor.self, forKey: .surface)
+        border = try container.decode(CodableColor.self, forKey: .border)
+        textPrimary = try container.decode(CodableColor.self, forKey: .textPrimary)
+        textSecondary = try container.decode(CodableColor.self, forKey: .textSecondary)
+        textTertiary = try container.decode(CodableColor.self, forKey: .textTertiary)
+        accent = try container.decode(CodableColor.self, forKey: .accent)
+        accentText = try container.decode(CodableColor.self, forKey: .accentText)
+        fontName = try container.decode(String.self, forKey: .fontName)
+        uiFontName = (try? container.decodeIfPresent(String.self, forKey: .uiFontName)) ?? "SF Pro"
     }
 }
 

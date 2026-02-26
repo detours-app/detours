@@ -149,7 +149,7 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
     }
 
     private func createDragImage(for title: String) -> NSImage {
-        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        let font = ThemeManager.shared.currentTheme.uiFont(size: NSFont.systemFontSize)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: NSColor.labelColor
@@ -162,7 +162,7 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
 
         // Draw background
         let bgRect = NSRect(origin: .zero, size: imageSize)
-        NSColor.controlBackgroundColor.withAlphaComponent(0.9).setFill()
+        ThemeManager.shared.currentTheme.surface.withAlphaComponent(0.9).setFill()
         NSBezierPath(roundedRect: bgRect, xRadius: 4, yRadius: 4).fill()
 
         // Draw text
@@ -278,7 +278,7 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
 
         let layer = CALayer()
         layer.frame = highlightRect
-        layer.backgroundColor = ThemeManager.shared.currentTheme.accent.withAlphaComponent(0.5).cgColor
+        layer.backgroundColor = ThemeManager.shared.currentTheme.accent.withAlphaComponent(0.25).cgColor
         layer.cornerRadius = 4
         self.layer?.addSublayer(layer)
         highlightLayer = layer
@@ -451,7 +451,7 @@ final class PaneViewController: NSViewController {
         for item in pathControl.pathItems {
             let attrs: [NSAttributedString.Key: Any] = [
                 .foregroundColor: theme.textSecondary,
-                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize)
+                .font: ThemeManager.shared.currentTheme.uiFont(size: NSFont.systemFontSize)
             ]
             item.attributedTitle = NSAttributedString(string: item.title, attributes: attrs)
         }
@@ -588,7 +588,7 @@ final class PaneViewController: NSViewController {
         pathControlTrailingConstraint = pathControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8)
 
         NSLayoutConstraint.activate([
-            // Tab bar at top, 32px height
+            // Tab bar at top, 36px height
             tabBar.topAnchor.constraint(equalTo: view.topAnchor),
             tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -619,7 +619,7 @@ final class PaneViewController: NSViewController {
             tabContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 
-            // Status bar at bottom, 20px height
+            // Status bar at bottom, 22px height
             statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             statusBar.heightAnchor.constraint(equalToConstant: 20),
