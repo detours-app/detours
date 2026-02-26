@@ -37,7 +37,7 @@ behind the title bar's view layer.
 
 macOS has a layered view hierarchy for titled windows:
 
-```
+```text
 Window frame
   +-- NSTitlebarContainerView  (ON TOP, managed by system)
   |     +-- NSTitlebarView
@@ -134,6 +134,7 @@ using the window's content layout guide. The tab bar would sit
 just below the title bar zone.
 
 In `PaneViewController`, change:
+
 ```swift
 // Instead of:
 tabBar.topAnchor.constraint(equalTo: view.topAnchor)
