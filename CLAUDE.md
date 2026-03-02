@@ -29,6 +29,7 @@ codesign ... build/      # Script handles signing
 ```
 
 The script:
+
 1. Compiles with `swift build`
 2. Creates fresh app bundle with Info.plist, icons
 3. Code signs to preserve macOS TCC permissions
@@ -69,11 +70,13 @@ swift test --filter SomeTestClass
 Use the `macos-ui-automation` MCP server to automate UI verification instead of manual testing.
 
 **Launch app in background** to avoid disturbing Marco's work:
+
 ```bash
 open -g /Applications/Detours.app
 ```
 
 **MCP workflow:**
+
 1. Build the app with `resources/scripts/build.sh`
 2. Launch in background: `open -g /Applications/Detours.app`
 3. Use `find_elements_in_app` to locate UI elements by accessibility identifier
@@ -82,13 +85,15 @@ open -g /Applications/Detours.app
 6. Verify expected UI state with `find_elements` or `get_element_details`
 
 **Example selectors:**
-```
+
+```text
 $..[?(@.ax_identifier=='toggleSidebarButton')]
 $..[?(@.role=='button' && @.title=='Eject')]
 $..[?(@.role=='outlinerow')]
 ```
 
 **Tips:**
+
 - Set accessibility identifiers on custom views for reliable selection
 - Use `list_running_applications` to verify app is running
 - Keep tests focused - one verification per MCP interaction sequence
@@ -136,10 +141,12 @@ macOS icons require specific sizing and effects (NOT auto-applied by system):
 - **Drop shadow**: 28px blur, 12px Y-offset, black 50%
 
 Source files in `resources/icons/`:
+
 - `icon_base.png` - 1024×1024 master with shadow and transparency
 - `AppIcon.icns` - compiled iconset
 
 To regenerate from a new source image:
+
 ```bash
 cd resources/icons
 
@@ -228,13 +235,25 @@ build/             # Temp build output (deleted after install)
 **NEVER use `deleteImmediately` or `FileManager.removeItem` for user files.**
 
 All file deletion MUST:
+
 1. Go to Trash via `FileManager.trashItem` or `NSWorkspace.recycle`
 2. Support undo via `UndoManager`
 
 The ONLY exception is the explicit "Delete Immediately" menu action which:
+
 - Requires user confirmation dialog
 - Is triggered ONLY by user explicitly choosing that action
 - Must NEVER be called from undo handlers, cleanup code, or any automated flow
+
+### `removeItem` rules for internal cleanup
+
+`FileManager.removeItem` is allowed ONLY for files/directories the app itself created:
+
+- **Partial archive files** (e.g. incomplete `.zip` being written) — safe to delete on cancel/error
+- **`.detours-extract-*` temp directories** — use `removeAppCreatedDirectory()` which validates the prefix before deleting and refuses anything else
+- **App-created wrapper directories** — tracked via `appCreatedExtractionDir` flag in extraction code; only directories created in the current operation are eligible
+
+**NEVER pass a user-provided path to `removeItem`.** Extraction destinations, parent directories, download folders — these are user directories and must never be deleted by cleanup code.
 
 If you find yourself wanting to permanently delete something, STOP and reconsider. Use trash instead.
 
@@ -245,7 +264,7 @@ If you find yourself wanting to permanently delete something, STOP and reconside
 macOS dual-pane and power-user file managers. Use this for feature comparison when planning new features.
 
 | App | Panes | AirDrop/Share | Archives | Themes | Folder Expansion | Undo | Filter | Git Status | Price |
-|-----|-------|---------------|----------|--------|------------------|------|--------|------------|-------|
+| --- | ----- | ------------- | -------- | ------ | ---------------- | ---- | ------ | ---------- | ----- |
 | **Detours** | 2 | Yes (Share menu, context menu) | Create + extract (ZIP, 7Z, TAR.*) | 4 built-in + custom | Yes | Yes (per-tab) | Yes (in-place) | Yes | Free/OSS |
 | **Marta** | 2 | No | Open/extract many formats | 5 built-in + custom | Yes | No | Yes | No | Free |
 | **Commander One** | 2 | No | ZIP, RAR, 7Z, TAR, etc. | Light/Dark | Yes | No | Yes | No | Free / $30 Pro |
@@ -255,6 +274,7 @@ macOS dual-pane and power-user file managers. Use this for feature comparison wh
 | **Bloom** | Multi (12 layouts) | No | No | Native (light/dark) | No | Yes (Footprints) | Yes | No | $16 |
 
 **Notes:**
+
 - Marta is the closest competitor in the dual-pane keyboard-driven space but lacks AirDrop, undo, and git status
 - ForkLift is the most feature-complete paid alternative with remote server support
 - QSpace excels at multi-pane layouts (up to 12) and cloud/server integrations
