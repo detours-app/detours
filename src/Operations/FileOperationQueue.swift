@@ -767,7 +767,7 @@ final class FileOperationQueue {
         case .zip:
             try await runZip(items: items, destination: archiveURL, password: password, sourceSize: sourceSize)
         case .sevenZ:
-            try await runSevenZip(items: items, destination: archiveURL, password: password)
+            try await runSevenZip(items: items, destination: archiveURL, password: password, sourceSize: sourceSize)
         case .tarGz:
             try await runTar(items: items, destination: archiveURL, flag: "z", sourceSize: sourceSize)
         case .tarBz2:
@@ -828,7 +828,7 @@ final class FileOperationQueue {
         try await runProcess(process, errorPipe: errorPipe, partialFile: destination, progressMode: mode)
     }
 
-    private func runSevenZip(items: [URL], destination: URL, password: String?) async throws {
+    private func runSevenZip(items: [URL], destination: URL, password: String?, sourceSize: Int64) async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
 
@@ -846,7 +846,7 @@ final class FileOperationQueue {
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
-        try await runProcess(process, errorPipe: errorPipe, partialFile: destination, progressMode: .parseStderr)
+        try await runProcess(process, errorPipe: errorPipe, partialFile: destination, progressMode: .parseStderr(referenceSize: sourceSize))
     }
 
     private func runTar(items: [URL], destination: URL, flag: String, sourceSize: Int64) async throws {
@@ -874,8 +874,9 @@ final class FileOperationQueue {
         case none
         /// Poll the output file size against a known source size (ZIP, TAR)
         case pollFileSize(sourceSize: Int64)
-        /// Parse percentage from 7z's stderr output (`-bsp2` flag)
-        case parseStderr
+        /// Parse percentage from 7z's stderr output (`-bsp2` flag).
+        /// `referenceSize` is used to convert percentage into byte values for display.
+        case parseStderr(referenceSize: Int64)
     }
 
     private func runProcess(
@@ -916,7 +917,7 @@ final class FileOperationQueue {
                         )
                     }
                 }
-            case .parseStderr:
+            case let .parseStderr(refSize):
                 guard let pipe = stderrProgressPipe else { break }
                 let handle = pipe.fileHandleForReading
                 // Read stderr chunks and parse percentage
@@ -932,17 +933,17 @@ final class FileOperationQueue {
                            let range = Range(match.range(at: 1), in: str),
                            let percent = Int(str[range]) {
                             let fraction = min(Double(percent) / 100.0, 1.0)
+                            let bytesCompleted = Int64(Double(refSize) * fraction)
                             await MainActor.run { [weak self] in
                                 guard let self, let operation = self.currentOperation else { return }
                                 self.updateProgress(
                                     operation: operation,
                                     currentItem: partialFile,
-                                    completed: percent,
-                                    total: 100,
-                                    bytesCompleted: 0,
-                                    bytesTotal: 0
+                                    completed: 0,
+                                    total: 0,
+                                    bytesCompleted: bytesCompleted,
+                                    bytesTotal: refSize
                                 )
-                                _ = fraction // suppress unused warning
                             }
                         }
                     }
@@ -1480,7 +1481,8 @@ final class FileOperationQueue {
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
-        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: password == nil, progressMode: .parseStderr)
+        let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: password == nil, progressMode: .parseStderr(referenceSize: archiveSize))
     }
 
     private func extractTar(archive: URL, destination: URL) async throws {
@@ -1535,7 +1537,7 @@ final class FileOperationQueue {
                         )
                     }
                 }
-            case .parseStderr:
+            case let .parseStderr(refSize):
                 guard let pipe = stderrProgressPipe else { break }
                 let handle = pipe.fileHandleForReading
                 while !Task.isCancelled {
@@ -1547,15 +1549,17 @@ final class FileOperationQueue {
                            let match = regex.matches(in: str, range: NSRange(str.startIndex..., in: str)).last,
                            let range = Range(match.range(at: 1), in: str),
                            let percent = Int(str[range]) {
+                            let fraction = min(Double(percent) / 100.0, 1.0)
+                            let bytesCompleted = Int64(Double(refSize) * fraction)
                             await MainActor.run { [weak self] in
                                 guard let self, let operation = self.currentOperation else { return }
                                 self.updateProgress(
                                     operation: operation,
                                     currentItem: destination,
-                                    completed: percent,
-                                    total: 100,
-                                    bytesCompleted: 0,
-                                    bytesTotal: 0
+                                    completed: 0,
+                                    total: 0,
+                                    bytesCompleted: bytesCompleted,
+                                    bytesTotal: refSize
                                 )
                             }
                         }
