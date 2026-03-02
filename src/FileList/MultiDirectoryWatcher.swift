@@ -1,3 +1,4 @@
+import CoreServices
 import Foundation
 import os.log
 
@@ -70,12 +71,14 @@ final class MultiDirectoryWatcher: @unchecked Sendable {
 
 // MARK: - Single Directory Watcher (Internal)
 
-/// Internal class that watches a single directory using DispatchSource.
+/// Internal class that watches a single directory using FSEvents.
+/// FSEvents detects all changes including in-place file modifications
+/// (touch, echo >>), unlike DispatchSource which only detects directory
+/// entry changes (add/remove/rename).
 private final class SingleDirectoryWatcher: @unchecked Sendable {
     let url: URL
     private let onChange: () -> Void
-    private var fileDescriptor: Int32 = -1
-    private var source: DispatchSourceFileSystemObject?
+    private var stream: FSEventStreamRef?
 
     init(url: URL, onChange: @escaping () -> Void) {
         self.url = url
@@ -89,54 +92,61 @@ private final class SingleDirectoryWatcher: @unchecked Sendable {
     func start() {
         stop()
 
-        let path = url.path
-        // Open file descriptor on background queue to avoid blocking main thread
-        // (open() on network paths can block for seconds)
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
-
-            let fd = Darwin.open(path, O_EVTONLY)
-            guard fd >= 0 else {
-                logger.warning("Failed to open directory for watching (FD limit?): \(path)")
-                return
-            }
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self else {
-                    Darwin.close(fd)
-                    return
-                }
-
-                self.fileDescriptor = fd
-
-                self.source = DispatchSource.makeFileSystemObjectSource(
-                    fileDescriptor: fd,
-                    eventMask: [.write, .link, .rename, .delete],
-                    queue: .main
-                )
-
-                self.source?.setEventHandler { [weak self] in
-                    self?.onChange()
-                }
-
-                self.source?.setCancelHandler { [weak self] in
-                    guard let self, self.fileDescriptor >= 0 else { return }
-                    Darwin.close(self.fileDescriptor)
-                    self.fileDescriptor = -1
-                }
-
-                self.source?.resume()
-                logger.debug("Started watching: \(path)")
-            }
+        // Use realpath to resolve firmlinks (e.g. /var → /private/var)
+        // so the path matches what FSEvents uses internally
+        let resolvedPath: String
+        if let rp = realpath(url.path, nil) {
+            resolvedPath = String(cString: rp)
+            free(rp)
+        } else {
+            resolvedPath = url.path
         }
+
+        let pathsToWatch = [resolvedPath] as CFArray
+
+        var context = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil,
+            release: nil,
+            copyDescription: nil
+        )
+
+        // No path filtering — any event in this directory tree triggers onChange.
+        // The stream is already scoped to the watched directory, and the existing
+        // debounce in handleDirectoryChange coalesces rapid events.
+        let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
+            guard let info else { return }
+            let watcher = Unmanaged<SingleDirectoryWatcher>.fromOpaque(info).takeUnretainedValue()
+            watcher.onChange()
+        }
+
+        guard let stream = FSEventStreamCreate(
+            nil,
+            callback,
+            &context,
+            pathsToWatch,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0.2,
+            UInt32(kFSEventStreamCreateFlagNoDefer)
+        ) else {
+            logger.warning("Failed to create FSEventStream for: \(resolvedPath)")
+            return
+        }
+
+        FSEventStreamSetDispatchQueue(stream, .main)
+        FSEventStreamStart(stream)
+        self.stream = stream
+        logger.debug("Started watching: \(resolvedPath)")
     }
 
     func stop() {
-        if let source {
-            source.cancel()
-            self.source = nil
-            logger.debug("Stopped watching: \(self.url.path)")
-        }
+        guard let stream else { return }
+        FSEventStreamStop(stream)
+        FSEventStreamInvalidate(stream)
+        FSEventStreamRelease(stream)
+        self.stream = nil
+        logger.debug("Stopped watching: \(self.url.path)")
     }
 }
 

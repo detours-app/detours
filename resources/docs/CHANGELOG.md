@@ -4,6 +4,10 @@
 
 ### Bug Fixes
 
+- **File metadata updates** — File sizes and dates now update when files are
+  modified on disk (touch, echo >>, in-place edits). Replaced DispatchSource
+  (which only detected directory entry changes) with FSEvents (which detects
+  all filesystem changes including in-place file modifications).
 - **Folder watching** — Fixed directory watcher being destroyed and recreated
   on every reload, which caused a blind window where filesystem changes were
   missed after the first watcher-triggered reload. Expanded subdirectory watches

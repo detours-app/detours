@@ -39,6 +39,145 @@ struct MultiDirectoryWatcherTests {
         watcher.unwatchAll()
     }
 
+    @Test("Detects touch on existing file")
+    func testDetectsTouchOnExistingFile() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let testFile = tempDir.appendingPathComponent("existing.txt")
+        try "hello".write(to: testFile, atomically: true, encoding: .utf8)
+
+        // Wait so the timestamp is clearly different after touch
+        try await Task.sleep(nanoseconds: 1_500_000_000)
+
+        nonisolated(unsafe) var changeDetected = false
+
+        let watcher = MultiDirectoryWatcher { _ in
+            changeDetected = true
+        }
+        watcher.watch(tempDir)
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        // Use actual touch command like the user does
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/touch")
+        proc.arguments = [testFile.path]
+        try proc.run()
+        proc.waitUntilExit()
+
+        // Wait up to 5s (poller interval is 2s)
+        for _ in 0..<50 {
+            if changeDetected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(changeDetected)
+        watcher.unwatchAll()
+    }
+
+    @Test("Detects echo append to existing file")
+    func testDetectsEchoAppend() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let testFile = tempDir.appendingPathComponent("existing.txt")
+        try "hello".write(to: testFile, atomically: true, encoding: .utf8)
+
+        try await Task.sleep(nanoseconds: 1_500_000_000)
+
+        nonisolated(unsafe) var changeDetected = false
+
+        let watcher = MultiDirectoryWatcher { _ in
+            changeDetected = true
+        }
+        watcher.watch(tempDir)
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        // Use actual echo >> like the user does
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/bash")
+        proc.arguments = ["-c", "echo 'more data' >> '\(testFile.path)'"]
+        try proc.run()
+        proc.waitUntilExit()
+
+        for _ in 0..<50 {
+            if changeDetected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(changeDetected)
+        watcher.unwatchAll()
+    }
+
+    @Test("Detects file creation via touch")
+    func testDetectsFileCreationViaTouch() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        nonisolated(unsafe) var changeDetected = false
+
+        let watcher = MultiDirectoryWatcher { _ in
+            changeDetected = true
+        }
+        watcher.watch(tempDir)
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        // Create a new file via touch (like the user reported)
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/touch")
+        proc.arguments = [tempDir.appendingPathComponent("newfile.txt").path]
+        try proc.run()
+        proc.waitUntilExit()
+
+        for _ in 0..<50 {
+            if changeDetected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(changeDetected)
+        watcher.unwatchAll()
+    }
+
+    @Test("Detects touch in home directory path")
+    func testDetectsTouchInHomeDir() async throws {
+        // Test outside /tmp to verify path resolution works for real directories
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        let testDir = homeDir.appendingPathComponent(".detours_test_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: testDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: testDir) }
+
+        let testFile = testDir.appendingPathComponent("test.txt")
+        try "original".write(to: testFile, atomically: true, encoding: .utf8)
+
+        try await Task.sleep(nanoseconds: 1_500_000_000)
+
+        nonisolated(unsafe) var changeDetected = false
+
+        let watcher = MultiDirectoryWatcher { _ in
+            changeDetected = true
+        }
+        watcher.watch(testDir)
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/touch")
+        proc.arguments = [testFile.path]
+        try proc.run()
+        proc.waitUntilExit()
+
+        for _ in 0..<50 {
+            if changeDetected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(changeDetected)
+        watcher.unwatchAll()
+    }
+
     @Test("Detects file deletion")
     func testDetectsFileDeletion() async throws {
         let tempDir = try makeTempDir()
