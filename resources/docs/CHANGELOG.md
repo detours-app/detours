@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- **Folder watching** — Fixed directory watcher being destroyed and recreated
+  on every reload, which caused a blind window where filesystem changes were
+  missed after the first watcher-triggered reload. Expanded subdirectory watches
+  are now preserved across reloads. Removed unused `DirectoryWatcher.swift`.
+
 ### Visual Design Overhaul
 
 Modernized the entire UI to match the polish of contemporary macOS file
