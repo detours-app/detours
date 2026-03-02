@@ -622,6 +622,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             messageText = "Connection timed out"
         case .accessDenied:
             messageText = "Access denied"
+        case .notFound:
+            messageText = "Folder not found"
         case .disconnected:
             messageText = "Volume disconnected"
         case .cancelled:

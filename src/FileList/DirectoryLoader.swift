@@ -9,6 +9,7 @@ enum DirectoryLoadError: Error, Equatable {
     case timeout
     case cancelled
     case accessDenied
+    case notFound
     case disconnected
     case other(String)
 }
@@ -277,12 +278,13 @@ actor DirectoryLoader {
 
                     continuation.resume(returning: entries)
                 } catch let error as NSError {
+                    let isNetwork = VolumeMonitor.isNetworkVolume(url)
                     if error.domain == NSCocoaErrorDomain {
                         switch error.code {
                         case NSFileReadNoPermissionError:
                             continuation.resume(throwing: DirectoryLoadError.accessDenied)
                         case NSFileReadNoSuchFileError, NSFileNoSuchFileError:
-                            continuation.resume(throwing: DirectoryLoadError.disconnected)
+                            continuation.resume(throwing: isNetwork ? DirectoryLoadError.disconnected : DirectoryLoadError.notFound)
                         default:
                             continuation.resume(throwing: DirectoryLoadError.other(error.localizedDescription))
                         }
@@ -293,7 +295,7 @@ actor DirectoryLoader {
                         case 13: // EACCES
                             continuation.resume(throwing: DirectoryLoadError.accessDenied)
                         case 2: // ENOENT
-                            continuation.resume(throwing: DirectoryLoadError.disconnected)
+                            continuation.resume(throwing: isNetwork ? DirectoryLoadError.disconnected : DirectoryLoadError.notFound)
                         default:
                             continuation.resume(throwing: DirectoryLoadError.other(error.localizedDescription))
                         }
