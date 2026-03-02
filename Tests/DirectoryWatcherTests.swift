@@ -235,4 +235,68 @@ struct MultiDirectoryWatcherTests {
         #expect(callbackCount >= 1)
         watcher.unwatchAll()
     }
+
+    @Test("Detects file content modification (touch)")
+    func testDetectsContentModification() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let testFile = tempDir.appendingPathComponent("test.txt")
+        try "hello".write(to: testFile, atomically: true, encoding: .utf8)
+
+        nonisolated(unsafe) var changeDetected = false
+
+        let watcher = MultiDirectoryWatcher { _ in
+            changeDetected = true
+        }
+        watcher.watch(tempDir)
+
+        // Wait for watcher + poller to initialize (poller takes initial snapshot)
+        try await Task.sleep(nanoseconds: 3_000_000_000)
+
+        // Modify existing file content — DispatchSource alone can't detect this
+        try "hello world".write(to: testFile, atomically: true, encoding: .utf8)
+
+        // Poller interval is 2s, so allow enough time
+        for _ in 0..<40 {
+            if changeDetected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(changeDetected)
+        watcher.unwatchAll()
+    }
+
+    @Test("Detects file size change via append")
+    func testDetectsFileSizeChange() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let testFile = tempDir.appendingPathComponent("test.txt")
+        try "hello".write(to: testFile, atomically: true, encoding: .utf8)
+
+        nonisolated(unsafe) var changeDetected = false
+
+        let watcher = MultiDirectoryWatcher { _ in
+            changeDetected = true
+        }
+        watcher.watch(tempDir)
+
+        // Wait for watcher + poller to initialize
+        try await Task.sleep(nanoseconds: 3_000_000_000)
+
+        // Append to file using FileHandle
+        let handle = try FileHandle(forWritingTo: testFile)
+        handle.seekToEndOfFile()
+        handle.write(Data(" world".utf8))
+        handle.closeFile()
+
+        for _ in 0..<40 {
+            if changeDetected { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(changeDetected)
+        watcher.unwatchAll()
+    }
 }

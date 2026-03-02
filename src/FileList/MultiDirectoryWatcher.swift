@@ -19,7 +19,9 @@ final class MultiDirectoryWatcher: @unchecked Sendable {
     }
 
     /// Start watching a directory. If already watching, does nothing.
-    /// Automatically detects network volumes and uses polling instead of DispatchSource.
+    /// Network volumes use polling only. Local volumes use DispatchSource for instant
+    /// structural changes (add/remove/rename) plus polling for metadata changes
+    /// (size/date) that DispatchSource cannot detect.
     func watch(_ url: URL) {
         let normalized = url.standardizedFileURL
         guard watchers[normalized] == nil, pollers[normalized] == nil else { return }
@@ -36,6 +38,13 @@ final class MultiDirectoryWatcher: @unchecked Sendable {
             }
             watchers[normalized] = watcher
             watcher.start()
+
+            // Poll for in-place metadata changes (touch, echo >>) that kqueue can't detect
+            let poller = NetworkDirectoryPoller(url: normalized) { [weak self] in
+                self?.onChange(normalized)
+            }
+            pollers[normalized] = poller
+            poller.start()
         }
     }
 

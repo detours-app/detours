@@ -4,6 +4,9 @@
 
 ### Bug Fixes
 
+- **File metadata updates** — File sizes and modification dates now refresh
+  when files are modified in-place (e.g. `touch`, `echo >>`). Added lightweight
+  polling alongside the existing instant watcher for structural changes.
 - **Folder watching** — Fixed directory watcher being destroyed and recreated
   on every reload, which caused a blind window where filesystem changes were
   missed after the first watcher-triggered reload. Expanded subdirectory watches
