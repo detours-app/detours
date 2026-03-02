@@ -551,7 +551,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
                 }
 
-                self.startWatching(normalizedURL)
                 self.navigationDelegate?.fileListDidLoadDirectory()
 
                 // Run one-shot post-load action (e.g. select + rename newly created item)
@@ -563,6 +562,13 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 self.showErrorOverlay(for: error)
                 self.navigationDelegate?.fileListDidLoadDirectory()
             }
+        }
+
+        // Only reset the watcher when navigating to a different directory.
+        // Same-directory reloads (watcher-triggered, file operations, undo)
+        // skip this to preserve expanded subdirectory watches.
+        if previousDirectory != normalizedURL {
+            startWatching(normalizedURL)
         }
 
         suppressLoadingSpinner = !showSpinner
@@ -666,11 +672,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func startWatching(_ url: URL) {
-        directoryWatcher?.unwatchAll()
-        directoryWatcher = MultiDirectoryWatcher { [weak self] changedURL in
-            DispatchQueue.main.async {
-                self?.handleDirectoryChange(at: changedURL)
+        if directoryWatcher == nil {
+            directoryWatcher = MultiDirectoryWatcher { [weak self] changedURL in
+                DispatchQueue.main.async {
+                    self?.handleDirectoryChange(at: changedURL)
+                }
             }
+        } else {
+            directoryWatcher?.unwatchAll()
         }
         directoryWatcher?.watch(url)
     }

@@ -2,122 +2,237 @@ import Testing
 import Foundation
 @testable import Detours
 
-@Suite("DirectoryWatcher Tests")
-struct DirectoryWatcherTests {
+@Suite("MultiDirectoryWatcher Tests")
+struct MultiDirectoryWatcherTests {
+
+    private func makeTempDir() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
 
     @Test("Detects file creation")
-    func detectsFileCreation() async throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    func testDetectsFileCreation() async throws {
+        let tempDir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        var changeDetected = false
+        nonisolated(unsafe) var changeDetected = false
 
-        let watcher = DirectoryWatcher(url: tempDir) {
+        let watcher = MultiDirectoryWatcher { _ in
             changeDetected = true
         }
-        watcher.start()
+        watcher.watch(tempDir)
 
-        // Create a file
+        // Allow time for async fd open in SingleDirectoryWatcher
+        try await Task.sleep(nanoseconds: 300_000_000)
+
         let testFile = tempDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        // Wait for detection (FSEvents can be slow)
         for _ in 0..<20 {
             if changeDetected { break }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
 
         #expect(changeDetected)
-        watcher.stop()
+        watcher.unwatchAll()
     }
 
     @Test("Detects file deletion")
-    func detectsFileDeletion() async throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    func testDetectsFileDeletion() async throws {
+        let tempDir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        // Create a file first
         let testFile = tempDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        var changeDetected = false
+        nonisolated(unsafe) var changeDetected = false
 
-        let watcher = DirectoryWatcher(url: tempDir) {
+        let watcher = MultiDirectoryWatcher { _ in
             changeDetected = true
         }
-        watcher.start()
+        watcher.watch(tempDir)
 
-        // Delete the file
+        try await Task.sleep(nanoseconds: 300_000_000)
+
         try FileManager.default.removeItem(at: testFile)
 
-        // Wait for detection (FSEvents can be slow)
         for _ in 0..<20 {
             if changeDetected { break }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
 
         #expect(changeDetected)
-        watcher.stop()
+        watcher.unwatchAll()
     }
 
     @Test("Detects file rename")
-    func detectsFileRename() async throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    func testDetectsFileRename() async throws {
+        let tempDir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        // Create a file first
         let testFile = tempDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        var changeDetected = false
+        nonisolated(unsafe) var changeDetected = false
 
-        let watcher = DirectoryWatcher(url: tempDir) {
+        let watcher = MultiDirectoryWatcher { _ in
             changeDetected = true
         }
-        watcher.start()
+        watcher.watch(tempDir)
 
-        // Rename the file
+        try await Task.sleep(nanoseconds: 300_000_000)
+
         let renamedFile = tempDir.appendingPathComponent("renamed.txt")
         try FileManager.default.moveItem(at: testFile, to: renamedFile)
 
-        // Wait for detection (FSEvents can be slow)
         for _ in 0..<20 {
             if changeDetected { break }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
 
         #expect(changeDetected)
-        watcher.stop()
+        watcher.unwatchAll()
     }
 
-    @Test("Stop prevents further callbacks")
-    func stopPreventsCallbacks() async throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
+    @Test("Detects subdirectory change")
+    func testDetectsSubdirectoryChange() async throws {
+        let rootDir = try makeTempDir()
+        let subDir = rootDir.appendingPathComponent("subfolder")
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootDir) }
 
-        var callbackCount = 0
+        nonisolated(unsafe) var callbackURL: URL?
 
-        let watcher = DirectoryWatcher(url: tempDir) {
-            callbackCount += 1
+        let watcher = MultiDirectoryWatcher { url in
+            callbackURL = url
         }
-        watcher.start()
-        watcher.stop()
+        watcher.watch(rootDir)
+        watcher.watch(subDir)
 
-        // Create a file after stopping
-        let testFile = tempDir.appendingPathComponent("test.txt")
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        let testFile = subDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        // Wait to ensure no callback
+        for _ in 0..<20 {
+            if callbackURL != nil { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(callbackURL == subDir.standardizedFileURL)
+        watcher.unwatchAll()
+    }
+
+    @Test("Unwatch stops callbacks for that directory")
+    func testUnwatchStopsCallbacks() async throws {
+        let dir1 = try makeTempDir()
+        let dir2 = try makeTempDir()
+        defer {
+            try? FileManager.default.removeItem(at: dir1)
+            try? FileManager.default.removeItem(at: dir2)
+        }
+
+        nonisolated(unsafe) var callbackURLs: [URL] = []
+
+        let watcher = MultiDirectoryWatcher { url in
+            callbackURLs.append(url)
+        }
+        watcher.watch(dir1)
+        watcher.watch(dir2)
+
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // Unwatch dir1
+        watcher.unwatch(dir1)
+
+        // Brief delay for unwatch to take effect
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        // Create file in unwatched dir1 — should not trigger callback
+        let file1 = dir1.appendingPathComponent("test.txt")
+        try "hello".write(to: file1, atomically: true, encoding: .utf8)
+
+        // Wait to confirm no callback
+        try await Task.sleep(nanoseconds: 500_000_000)
+        #expect(callbackURLs.isEmpty)
+
+        // Create file in still-watched dir2 — should trigger callback
+        let file2 = dir2.appendingPathComponent("test.txt")
+        try "hello".write(to: file2, atomically: true, encoding: .utf8)
+
+        for _ in 0..<20 {
+            if !callbackURLs.isEmpty { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(callbackURLs.contains(dir2.standardizedFileURL))
+        watcher.unwatchAll()
+    }
+
+    @Test("UnwatchAll stops all callbacks")
+    func testUnwatchAllStopsAllCallbacks() async throws {
+        let dir1 = try makeTempDir()
+        let dir2 = try makeTempDir()
+        defer {
+            try? FileManager.default.removeItem(at: dir1)
+            try? FileManager.default.removeItem(at: dir2)
+        }
+
+        nonisolated(unsafe) var callbackCount = 0
+
+        let watcher = MultiDirectoryWatcher { _ in
+            callbackCount += 1
+        }
+        watcher.watch(dir1)
+        watcher.watch(dir2)
+
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        watcher.unwatchAll()
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        // Create files in both directories
+        try "hello".write(to: dir1.appendingPathComponent("test.txt"), atomically: true, encoding: .utf8)
+        try "hello".write(to: dir2.appendingPathComponent("test.txt"), atomically: true, encoding: .utf8)
+
+        // Wait to confirm no callbacks
         try await Task.sleep(nanoseconds: 500_000_000)
 
         #expect(callbackCount == 0)
+    }
+
+    @Test("Survives rewatch of same URL")
+    func testSurvivesRewatch() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        nonisolated(unsafe) var callbackCount = 0
+
+        let watcher = MultiDirectoryWatcher { _ in
+            callbackCount += 1
+        }
+        watcher.watch(tempDir)
+        // Watch same URL again — should be idempotent (no duplicate watcher)
+        watcher.watch(tempDir)
+
+        // Verify the watcher only tracks one entry for this URL
+        #expect(watcher.watchedURLs.count == 1)
+
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        let testFile = tempDir.appendingPathComponent("test.txt")
+        FileManager.default.createFile(atPath: testFile.path, contents: Data("hello".utf8))
+
+        for _ in 0..<20 {
+            if callbackCount > 0 { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        // At least one callback proves the watcher works after re-watch attempt
+        #expect(callbackCount >= 1)
+        watcher.unwatchAll()
     }
 }

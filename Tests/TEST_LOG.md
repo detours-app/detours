@@ -2,6 +2,16 @@
 
 ## Latest Run
 
+- Started: 2026-03-02 11:06:13
+- Command: `swift test --filter MultiDirectoryWatcherTests`
+- Status: PASS
+- Duration: 0.9s
+- Notes: 7 tests passed. Rewrote DirectoryWatcherTests as
+  MultiDirectoryWatcherTests using MultiDirectoryWatcher API (creation,
+  deletion, rename, subdirectory change, unwatch, unwatchAll, rewatch).
+
+## Previous Run
+
 - Started: 2026-02-25 17:10:27
 - Command: `swift test --filter '(ActivityToolbarButtonTests|FileOperationQueueTests)'`
 - Status: PASS
