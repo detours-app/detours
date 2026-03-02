@@ -49,7 +49,7 @@ The core problem is in `FileListViewController.startWatching(_:)` — it destroy
 ### Risks
 
 | Risk | Mitigation |
-|------|------------|
+| --- | --- |
 | Watcher accumulates stale watches for folders that no longer exist | `unwatch` is already called on collapse; navigation resets all watches. Nonexistent directories fail silently in DispatchSource (fd open fails). |
 | Reordering watcher setup could miss changes during initial load | The watcher is set up before the async load starts, so changes during load are caught and trigger another debounced reload. |
 | Network poller handles differently than DispatchSource | No change to `MultiDirectoryWatcher` internals — fix is only in the controller's lifecycle management. |

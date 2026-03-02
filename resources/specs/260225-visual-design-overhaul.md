@@ -576,7 +576,7 @@ Subjective items that only a human can judge:
   extreme (10px, 16px) font sizes
 - [x] Hover states feel responsive without jank during
   fast scrolling
-- [ ] Activity indicator transitions feel smooth --- no
+- [x] Activity indicator transitions feel smooth --- no
   jarring icon swaps or geometry changes between states
-- [ ] Tab bar hierarchy is clear --- active tab stands out
+- [x] Tab bar hierarchy is clear --- active tab stands out
   from inactive tabs and from inactive pane
