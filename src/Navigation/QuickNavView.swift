@@ -21,7 +21,7 @@ struct QuickNavView: View {
             // Search field
             TextField("Quick Open...", text: $query)
                 .textFieldStyle(.plain)
-                .font(Font(NSFont.monospacedSystemFont(ofSize: 15, weight: .regular)))
+                .font(Font(ThemeManager.shared.currentTheme.font(size: 15)))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
                 .focused($isTextFieldFocused)
@@ -38,7 +38,7 @@ struct QuickNavView: View {
             // Results list
             if results.isEmpty && !query.isEmpty {
                 Text("No matches")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                     .padding(.vertical, 24)
             } else {
                 ScrollViewReader { proxy in
@@ -76,12 +76,12 @@ struct QuickNavView: View {
                 Text("⌘↵ reveal")
                 Text("⇥ autocomplete")
             }
-            .font(Font(NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)))
-            .foregroundColor(.secondary)
+            .font(Font(ThemeManager.shared.currentTheme.font(size: 12)))
+            .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
             .padding(.vertical, 8)
         }
         .frame(width: 900)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(ThemeManager.shared.currentTheme.background))
         .task {
             loadInitialResults()
             // Delay focus slightly to ensure window is ready
@@ -232,21 +232,21 @@ private struct ResultRow: View {
                 // Line 1: Filename with star if frecent
                 HStack(spacing: 6) {
                     Text(url.lastPathComponent)
-                        .font(Font(NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)))
+                        .font(Font(ThemeManager.shared.currentTheme.font(size: 13)))
                         .lineLimit(1)
                         .truncationMode(.middle)
 
                     if isFrecent {
                         Image(systemName: "star.fill")
                             .font(.system(size: 9))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                     }
                 }
 
                 // Line 2: Full path (secondary, smaller)
                 Text(displayPath)
-                    .font(Font(NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)))
-                    .foregroundColor(.secondary)
+                    .font(Font(ThemeManager.shared.currentTheme.font(size: 11)))
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -256,14 +256,14 @@ private struct ResultRow: View {
             // Enter symbol for selected row
             if isSelected {
                 Text("↵")
-                    .font(Font(NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)))
-                    .foregroundColor(.secondary)
+                    .font(Font(ThemeManager.shared.currentTheme.font(size: 12)))
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
         .frame(height: Self.rowHeight)
-        .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        .background(isSelected ? Color(ThemeManager.shared.currentTheme.accent).opacity(0.2) : Color.clear)
         .contentShape(Rectangle())
     }
 

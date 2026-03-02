@@ -38,12 +38,12 @@ final class FilterBarView: NSView {
         searchField.placeholderString = "Filter"
         searchField.focusRingType = .none
         searchField.bezelStyle = .roundedBezel
-        searchField.font = ThemeManager.shared.currentFont
+        searchField.font = ThemeManager.shared.currentUIFont
         searchField.delegate = self
         searchField.setAccessibilityIdentifier("filterSearchField")
 
         // Count label
-        countLabel.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        countLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 11)
         countLabel.textColor = ThemeManager.shared.currentTheme.textSecondary
         countLabel.alignment = .right
         countLabel.setContentHuggingPriority(.defaultHigh, for: .horizontal)
@@ -55,7 +55,7 @@ final class FilterBarView: NSView {
         countLabel.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            searchField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            searchField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             searchField.centerYAnchor.constraint(equalTo: centerYAnchor),
             searchField.trailingAnchor.constraint(equalTo: countLabel.leadingAnchor, constant: -8),
 
@@ -94,16 +94,19 @@ final class FilterBarView: NSView {
         let theme = ThemeManager.shared.currentTheme
         layer?.backgroundColor = theme.surface.cgColor
         countLabel.textColor = theme.textSecondary
-        searchField.font = ThemeManager.shared.currentFont
+        searchField.font = ThemeManager.shared.currentUIFont
+        countLabel.font = theme.uiFont(size: 11)
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        // Draw bottom border
         let theme = ThemeManager.shared.currentTheme
         theme.border.setFill()
+        // Bottom border
         NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
+        // Top border
+        NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
     }
 
     func updateCount(visible: Int, total: Int) {

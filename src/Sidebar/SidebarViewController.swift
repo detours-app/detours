@@ -6,6 +6,8 @@ private let logger = Logger(subsystem: "com.detours", category: "sidebar")
 final class SidebarViewController: NSViewController {
     private let outlineView = SidebarOutlineView()
     private let scrollView = NSScrollView()
+    private let effectView = NSVisualEffectView()
+    private var sidebarSeparator: NSView?
 
     weak var delegate: SidebarDelegate?
 
@@ -17,17 +19,45 @@ final class SidebarViewController: NSViewController {
 
     private var sections: [SidebarSection] = SidebarSection.allCases
 
+    /// Themes that support vibrancy (system default / light / dark)
+    private var isVibrancyTheme: Bool {
+        let choice = SettingsManager.shared.theme
+        return choice == .system || choice == .light || choice == .dark
+    }
+
     override func loadView() {
-        view = NSView()
-        view.wantsLayer = true
+        effectView.material = .sidebar
+        effectView.blendingMode = .behindWindow
+        effectView.state = .followsWindowActiveState
+        view = effectView
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         setupScrollView()
         setupOutlineView()
+        setupSidebarSeparator()
         applyTheme()
         observeNotifications()
+    }
+
+    private func setupSidebarSeparator() {
+        let separator = NSView()
+        separator.wantsLayer = true
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(separator)
+        NSLayoutConstraint.activate([
+            separator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            separator.topAnchor.constraint(equalTo: view.topAnchor),
+            separator.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            separator.widthAnchor.constraint(equalToConstant: 1),
+        ])
+        sidebarSeparator = separator
+        updateSeparatorColor()
+    }
+
+    private func updateSeparatorColor() {
+        sidebarSeparator?.layer?.backgroundColor = ThemeManager.shared.currentTheme.border.cgColor
     }
 
     private func setupScrollView() {
@@ -153,7 +183,17 @@ final class SidebarViewController: NSViewController {
 
     private func applyTheme() {
         let theme = ThemeManager.shared.currentTheme
-        view.layer?.backgroundColor = theme.surface.cgColor
+        if isVibrancyTheme {
+            effectView.state = .followsWindowActiveState
+            effectView.layer?.backgroundColor = nil
+            outlineView.backgroundColor = .clear
+        } else {
+            effectView.state = .inactive
+            effectView.wantsLayer = true
+            effectView.layer?.backgroundColor = theme.surface.cgColor
+            outlineView.backgroundColor = .clear
+        }
+        updateSeparatorColor()
     }
 
     // MARK: - Public API
@@ -519,6 +559,13 @@ extension SidebarViewController: NSOutlineViewDelegate {
         return cellView
     }
 
+    func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        if item is SidebarSection {
+            return 30 // 24px base + 6px top padding for section headers
+        }
+        return 24
+    }
+
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
         // Don't allow selecting section headers or placeholders
         if item is SidebarSection { return false }
@@ -572,7 +619,7 @@ extension SidebarViewController: NSOutlineViewDelegate {
     }
 
     func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
-        return nil  // Use default
+        return SidebarRowView()
     }
 }
 

@@ -46,7 +46,7 @@ final class SidebarItemView: NSTableCellView {
         ejectButton.bezelStyle = .inline
         ejectButton.isBordered = false
         let ejectImage = NSImage(systemSymbolName: "eject.fill", accessibilityDescription: "Eject")
-        let smallConfig = NSImage.SymbolConfiguration(pointSize: 10, weight: .regular)
+        let smallConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
         ejectButton.image = ejectImage?.withSymbolConfiguration(smallConfig)
         ejectButton.imageScaling = .scaleProportionallyDown
         ejectButton.imagePosition = .imageOnly
@@ -103,7 +103,7 @@ final class SidebarItemView: NSTableCellView {
     private func configureAsSection(_ section: SidebarSection, theme: Theme) {
         iconView.isHidden = true
         nameLabel.stringValue = section.title
-        nameLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        nameLabel.font = theme.uiFont(size: 11)
         nameLabel.textColor = theme.textSecondary
         capacityLabel.isHidden = true
 
@@ -111,14 +111,20 @@ final class SidebarItemView: NSTableCellView {
         if let constraint = constraints.first(where: { $0.firstAnchor == nameLabel.leadingAnchor }) {
             constraint.isActive = false
         }
-        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14).isActive = true
+
+        // Offset content down by 6px to create top padding (row is 34px: 6px top + 28px content)
+        for constraint in constraints where constraint.firstAnchor == nameLabel.centerYAnchor {
+            constraint.isActive = false
+        }
+        nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 3).isActive = true
     }
 
     private func configureAsDevice(_ volume: VolumeInfo, theme: Theme) {
         iconView.isHidden = false
         iconView.image = volume.icon
         nameLabel.stringValue = volume.name
-        nameLabel.font = theme.font(size: 12)
+        nameLabel.font = theme.uiFont(size: 13)
         nameLabel.textColor = theme.textPrimary
 
         // Show eject button for ejectable volumes
@@ -170,12 +176,12 @@ final class SidebarItemView: NSTableCellView {
         }
 
         nameLabel.stringValue = server.name
-        nameLabel.font = theme.font(size: 12)
+        nameLabel.font = theme.uiFont(size: 13)
         capacityLabel.isHidden = true
 
         // Show protocol/status badge
         protocolBadge.isHidden = false
-        protocolBadge.font = .systemFont(ofSize: 9, weight: .medium)
+        protocolBadge.font = theme.uiFont(size: 9)
         protocolBadge.textColor = theme.textTertiary
 
         // Show eject button when server has mounted volumes
@@ -201,14 +207,14 @@ final class SidebarItemView: NSTableCellView {
         iconView.image = serverIcon
         iconView.contentTintColor = theme.textSecondary
         nameLabel.stringValue = server.displayName
-        nameLabel.font = theme.font(size: 12)
+        nameLabel.font = theme.uiFont(size: 13)
         nameLabel.textColor = theme.textPrimary
         capacityLabel.isHidden = true
 
         // Show "manual" badge instead of protocol
         protocolBadge.isHidden = false
         protocolBadge.stringValue = "manual"
-        protocolBadge.font = .systemFont(ofSize: 9, weight: .medium)
+        protocolBadge.font = theme.uiFont(size: 9)
         protocolBadge.textColor = theme.textTertiary
 
         // Show eject button when server has mounted volumes
@@ -235,7 +241,7 @@ final class SidebarItemView: NSTableCellView {
         iconView.image = shareIcon
         iconView.contentTintColor = theme.accent
         nameLabel.stringValue = volume.name
-        nameLabel.font = theme.font(size: 12)
+        nameLabel.font = theme.uiFont(size: 13)
         nameLabel.textColor = theme.textPrimary
 
         // Show eject button for ejectable network volumes
@@ -268,7 +274,7 @@ final class SidebarItemView: NSTableCellView {
     func configureAsPlaceholder(_ placeholder: NetworkPlaceholder, theme: Theme) {
         iconView.isHidden = true
         nameLabel.stringValue = placeholder.text
-        nameLabel.font = .systemFont(ofSize: 11)
+        nameLabel.font = theme.uiFont(size: 11)
         nameLabel.textColor = theme.textTertiary
         capacityLabel.isHidden = true
         protocolBadge.isHidden = true
@@ -277,13 +283,13 @@ final class SidebarItemView: NSTableCellView {
         for constraint in constraints where constraint.firstAnchor == nameLabel.leadingAnchor {
             constraint.isActive = false
         }
-        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14).isActive = true
     }
 
     private func configureAsFavorite(_ url: URL, theme: Theme) {
         iconView.isHidden = false
         iconView.image = NSWorkspace.shared.icon(forFile: url.path)
-        nameLabel.font = theme.font(size: 12)
+        nameLabel.font = theme.uiFont(size: 13)
         capacityLabel.isHidden = true
 
         // Check if favorite exists
@@ -306,8 +312,8 @@ final class SidebarItemView: NSTableCellView {
         for constraint in constraints where constraint.firstAnchor == iconView.leadingAnchor {
             constraint.isActive = false
         }
-        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10 + indent).isActive = true
-        nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6).isActive = true
+        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14 + indent).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8).isActive = true
     }
 
     override func prepareForReuse() {
@@ -333,6 +339,6 @@ final class SidebarItemView: NSTableCellView {
         for constraint in constraints where constraint.firstAnchor == iconView.leadingAnchor {
             constraint.isActive = false
         }
-        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10).isActive = true
+        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14).isActive = true
     }
 }

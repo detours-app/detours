@@ -92,8 +92,8 @@ final class FileListCell: NSTableCellView {
             cloudIcon.widthAnchor.constraint(equalToConstant: 12),
             cloudIcon.heightAnchor.constraint(equalToConstant: 12),
 
-            // Name: 6px after icon (tighter spacing)
-            nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
+            // Name: 8px after icon
+            nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
 
             // Shared label: after name, before trailing edge
@@ -270,13 +270,13 @@ final class FileListCell: NSTableCellView {
         let isEmphasized = backgroundStyle == .emphasized
 
         if isEmphasized {
-            // Selected row: use accentText (white) for text visibility
-            nameLabel.textColor = theme.accentText
-            sharedLabel.textColor = theme.accentText
-            cloudIcon.contentTintColor = theme.accentText
-            // Only lighten folder icons (which are tinted), not file/app icons
+            // Selected row: white text on accent background
+            nameLabel.textColor = .white
+            sharedLabel.textColor = NSColor.white.withAlphaComponent(0.8)
+            cloudIcon.contentTintColor = .white
+            // Tint folder icons with accent color
             if isNavigableFolder, let original = originalIcon {
-                iconView.image = Self.lightenedIcon(original, amount: 0.7)
+                iconView.image = Self.tintedIcon(original, color: theme.accent)
             }
         } else {
             // Normal row: use theme colors
@@ -288,24 +288,24 @@ final class FileListCell: NSTableCellView {
         }
     }
 
-    /// Creates a lightened version of an icon by blending with white
-    private static func lightenedIcon(_ icon: NSImage, amount: CGFloat) -> NSImage {
+    /// Creates a tinted version of an icon using the given color
+    private static func tintedIcon(_ icon: NSImage, color: NSColor) -> NSImage {
         let size = icon.size
         guard size.width > 0, size.height > 0 else { return icon }
 
-        let lightened = NSImage(size: size, flipped: false) { rect in
+        let tinted = NSImage(size: size, flipped: false) { rect in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
 
             // Draw original icon
             icon.draw(in: rect)
 
-            // Overlay white with partial opacity to lighten
+            // Overlay tint color
             ctx.setBlendMode(.sourceAtop)
-            ctx.setFillColor(NSColor.white.withAlphaComponent(amount).cgColor)
+            ctx.setFillColor(color.withAlphaComponent(0.8).cgColor)
             ctx.fill(rect)
 
             return true
         }
-        return lightened
+        return tinted
     }
 }

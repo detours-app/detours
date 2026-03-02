@@ -44,7 +44,7 @@ final class ThemedHeaderCell: NSTableHeaderCell {
         let theme = ThemeManager.shared.currentTheme
         let attrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: theme.textSecondary,
-            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
+            .font: ThemeManager.shared.currentTheme.uiFont(size: 11)
         ]
 
         let title = stringValue
@@ -95,24 +95,94 @@ final class BandedOutlineView: NSOutlineView {
     weak var contextMenuDelegate: FileListContextMenuDelegate?
     var onActivate: (() -> Void)?
 
+    /// Currently hovered row (-1 = none)
+    private var hoveredRow: Int = -1
+    private var trackingArea: NSTrackingArea?
+    private var scrollObserver: NSObjectProtocol?
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setAccessibilityIdentifier("fileListOutlineView")
+        setupHoverTracking()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setAccessibilityIdentifier("fileListOutlineView")
+        setupHoverTracking()
     }
 
-    /// Even row color from current theme (background)
-    private var evenRowColor: NSColor {
-        ThemeManager.shared.currentTheme.background
+    private func setupHoverTracking() {
+        updateTrackingArea()
     }
 
-    /// Odd row color from current theme (surface for subtle banding)
-    private var oddRowColor: NSColor {
-        ThemeManager.shared.currentTheme.surface
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        updateTrackingArea()
+    }
+
+    private func updateTrackingArea() {
+        if let existing = trackingArea {
+            removeTrackingArea(existing)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeInActiveApp, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+
+        // Observe scroll to clear hover
+        scrollObserver = nil
+        if let clipView = enclosingScrollView?.contentView {
+            scrollObserver = NotificationCenter.default.addObserver(
+                forName: NSView.boundsDidChangeNotification,
+                object: clipView,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.clearHover()
+                }
+            }
+        }
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let newRow = row(at: point)
+        if newRow != hoveredRow {
+            let oldRow = hoveredRow
+            hoveredRow = newRow
+            setHovered(false, forRow: oldRow)
+            setHovered(true, forRow: newRow)
+        }
+        super.mouseMoved(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        clearHover()
+        super.mouseExited(with: event)
+    }
+
+    private func clearHover() {
+        if hoveredRow >= 0 {
+            let old = hoveredRow
+            hoveredRow = -1
+            setHovered(false, forRow: old)
+        }
+    }
+
+    private func setHovered(_ hovered: Bool, forRow row: Int) {
+        guard row >= 0, row < numberOfRows else { return }
+        if let rowView = rowView(atRow: row, makeIfNecessary: false) as? InactiveHidingRowView {
+            rowView.isHovered = hovered
+        }
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -201,23 +271,45 @@ final class BandedOutlineView: NSOutlineView {
     }
 
     override func drawBackground(inClipRect clipRect: NSRect) {
-        let rowStride = rowHeight + intercellSpacing.height
-        guard rowStride > 0 else {
-            evenRowColor.setFill()
-            clipRect.fill()
-            return
+        let theme = ThemeManager.shared.currentTheme
+        theme.background.setFill()
+        clipRect.fill()
+
+        let bandColor = theme.textPrimary.withAlphaComponent(0.04)
+        let rowH = rowHeight + intercellSpacing.height
+
+        // Band existing rows
+        for row in 0..<numberOfRows {
+            guard row % 2 == 0 else { continue }
+            let rowRect = rect(ofRow: row).intersection(clipRect)
+            guard !rowRect.isEmpty else { continue }
+            bandColor.setFill()
+            rowRect.fill()
         }
 
-        // Draw alternating bands for the entire visible area (not just actual rows)
-        let startRow = max(0, Int(floor(clipRect.minY / rowStride)))
-        let endRow = Int(ceil(clipRect.maxY / rowStride))
+        // Continue virtual bands below the last row to fill the visible area
+        let startY: CGFloat
+        let nextIndex: Int
+        if numberOfRows > 0 {
+            let lastRect = rect(ofRow: numberOfRows - 1)
+            startY = lastRect.maxY
+            nextIndex = numberOfRows
+        } else {
+            startY = 0
+            nextIndex = 0
+        }
 
-        for row in startRow..<endRow {
-            let y = CGFloat(row) * rowStride
-            let rowRect = NSRect(x: clipRect.minX, y: y, width: bounds.width, height: rowStride)
-            let color = row % 2 == 0 ? evenRowColor : oddRowColor
-            color.setFill()
-            rowRect.intersection(clipRect).fill()
+        var y = startY
+        var idx = nextIndex
+        bandColor.setFill()
+        while y < clipRect.maxY {
+            if idx % 2 == 0 {
+                let bandRect = NSRect(x: clipRect.minX, y: y, width: clipRect.width, height: rowH)
+                    .intersection(clipRect)
+                if !bandRect.isEmpty { bandRect.fill() }
+            }
+            y += rowH
+            idx += 1
         }
     }
 }

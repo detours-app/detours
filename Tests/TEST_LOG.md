@@ -1,26 +1,37 @@
 # Test Log
 
 ## Latest Run
+
 - Started: 2026-02-25 17:10:27
 - Command: `swift test --filter '(ActivityToolbarButtonTests|FileOperationQueueTests)'`
 - Status: PASS
 - Duration: 5.9s
-- Notes: 39 tests passed. 8 new ActivityToolbarButton tests (state transitions, error persistence, progress clamping). 5 new FileOperationQueue tests (async process, throttle, cancellation, queued count, callbacks). All 26 existing queue tests still pass.
+- Notes: 39 tests passed. 8 new ActivityToolbarButton tests
+  (state transitions, error persistence, progress clamping).
+  5 new FileOperationQueue tests (async process, throttle,
+  cancellation, queued count, callbacks). All 26 existing
+  queue tests still pass.
 
 ### Activity Indicator Suites
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | ActivityToolbarButtonTests (8 tests) | PASS | 0.047s | 2026-02-25 17:10:27 |
 | FileOperationQueueTests (31 tests) | PASS | 4.9s | 2026-02-25 17:10:31 |
 
-## Previous Run
+## Run 20260225
+
 - Started: 2026-02-25 10:35:41
 - Command: `swift test --filter '(FileItemTests|FileListDataSourceTests|PaneTabTests|PaneViewControllerTests)'`
 - Status: PASS
 - Duration: 0.651s
-- Notes: 61 tests passed across iCloud/shared implementation suites. Includes new coverage for shared-owner labels, iCloud root/shared composition, listing-mode history/session restore, and iCloud button mode behavior.
+- Notes: 61 tests passed across iCloud/shared suites.
+  Includes new coverage for shared-owner labels, iCloud
+  root/shared composition, listing-mode history/session
+  restore, and iCloud button mode behavior.
 
 ### iCloud Shared Split Suites
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | FileItemTests (23 tests) | PASS | 0.144s | 2026-02-25 10:35:41 |
@@ -28,14 +39,19 @@
 | PaneTabTests (12 tests) | PASS | 0.113s | 2026-02-25 10:35:41 |
 | PaneViewControllerTests (13 tests) | PASS | 0.375s | 2026-02-25 10:35:41 |
 
-## Previous Run
+## Run 20260223
+
 - Started: 2026-02-23 13:11:28
 - Command: `swift test --filter StatusBarCountTests`
 - Status: PASS
 - Duration: 0.130s
-- Notes: All 5 StatusBarCountTests pass. Verifies status bar count fixes: numberOfRows vs items.count, selectedCount bounds, filter item count, item(at:) correctness, totalVisibleItemCount with filter.
+- Notes: All 5 StatusBarCountTests pass. Verifies status
+  bar count fixes: numberOfRows vs items.count,
+  selectedCount bounds, filter item count, item(at:)
+  correctness, totalVisibleItemCount with filter.
 
 ### StatusBarCountTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testItemCountMatchesOutlineViewRows | PASS | 0.006s | 2026-02-23 13:11:28 |
@@ -44,14 +60,19 @@
 | testSelectionSizeUsesCorrectItems | PASS | 0.005s | 2026-02-23 13:11:28 |
 | testTotalVisibleItemCountRespectsFilter | PASS | 0.004s | 2026-02-23 13:11:28 |
 
-## Previous Run
+## Run 20260218
+
 - Started: 2026-02-18 22:49:26
 - Command: `swift test --filter FileItemTests`
 - Status: PASS
 - Duration: ~1s
-- Notes: All 13 FileItemTests pass, including 10 new column sorting tests (sort by name/size/date asc/desc, folders-on-top by name/size, folders-on-top off, children preservation).
+- Notes: All 13 FileItemTests pass, including 10 new
+  column sorting tests (sort by name/size/date asc/desc,
+  folders-on-top by name/size, folders-on-top off,
+  children preservation).
 
 ### FileItemTests (Column Sorting)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testSortByNameAscending | PASS | 0.000s | 2026-02-18 22:49:26 |
@@ -67,14 +88,20 @@
 
 ---
 
-## Previous Run
+## Run 20260213
+
 - Started: 2026-02-13 10:27:44
 - Command: `swift test --filter ArchiveOperationTests`
 - Status: PASS
 - Duration: 1.418s
-- Notes: All 29 archive tests pass. Added extraction conflict dialog — replaced testExtractOverwritesExisting with testExtractKeepsBothOnConflict. Extraction now checks for existing items before extracting and shows Keep Both / Replace / Stop dialog.
+- Notes: All 29 archive tests pass. Added extraction
+  conflict dialog — replaced testExtractOverwritesExisting
+  with testExtractKeepsBothOnConflict. Extraction now
+  checks for existing items before extracting and shows
+  Keep Both / Replace / Stop dialog.
 
 ### ArchiveOperationTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testDetectZipFormat | PASS | 0.001s | 2026-02-13 10:27:44 |
@@ -107,14 +134,20 @@
 | testPasswordDisabledForTarFormats | PASS | 0.000s | 2026-02-13 10:27:44 |
 | testPasswordEnabledForZipAnd7z | PASS | 0.000s | 2026-02-13 10:27:44 |
 
-## Previous Run
+## Run 20260207
+
 - Started: 2026-02-07 21:45:00
 - Command: `swift test --filter DirectoryLoaderTests`
 - Status: PASS
 - Duration: 5.313s
-- Notes: All 33 tests pass across 11 suites. Added 10 new Phase 6 integration tests: MultiDirectoryWatcher integration (2), load cancellation (2), async folder expansion (3), icon/loader lifecycle (3). Full spec Phase 6 coverage complete.
+- Notes: All 33 tests pass across 11 suites. Added 10
+  new Phase 6 integration tests: MultiDirectoryWatcher
+  integration (2), load cancellation (2), async folder
+  expansion (3), icon/loader lifecycle (3). Full spec
+  Phase 6 coverage complete.
 
 ### DirectoryLoaderTests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | loadDirectory returns entries for temp directory with files | PASS | 0.010s | 2026-02-07 21:45:00 |
@@ -124,6 +157,7 @@
 | LoadedFileEntry correctly captures metadata from resource values | PASS | 0.008s | 2026-02-07 21:45:00 |
 
 ### ResourceKeySelectionTests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | Local paths include localizedNameKey | PASS | 0.006s | 2026-02-07 21:45:00 |
@@ -133,12 +167,14 @@
 | iCloud path also includes localizedNameKey | PASS | 0.006s | 2026-02-07 21:45:00 |
 
 ### IconLoaderTests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | Second call for same URL returns cached icon without re-fetching | PASS | 0.009s | 2026-02-07 21:45:00 |
 | invalidate removes entry, next call re-fetches | PASS | 0.008s | 2026-02-07 21:45:00 |
 
 ### IconLoaderNetworkVolumeTests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | Network volume directory returns folder placeholder icon | PASS | 0.006s | 2026-02-07 21:45:00 |
@@ -149,35 +185,41 @@
 | Local file uses workspace icon lookup, not extension-based | PASS | 0.008s | 2026-02-07 21:45:00 |
 
 ### FileItemEntryInitTests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | FileItem created from LoadedFileEntry has correct properties | PASS | 0.012s | 2026-02-07 21:45:00 |
 
 ### VolumeMonitorNetworkTests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | isNetworkVolume returns false for local paths | PASS | 0.002s | 2026-02-07 21:45:00 |
 | isNetworkVolume returns false for home directory | PASS | 0.002s | 2026-02-07 21:45:00 |
 
 ### NetworkDirectoryPollerTests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | Poller fires onChange when directory contents change | PASS | 2.083s | 2026-02-07 21:45:00 |
 | Poller does not fire onChange when nothing changed | PASS | 5.312s | 2026-02-07 21:45:00 |
 
 ### MultiDirectoryWatcher Integration (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | Local directory uses DispatchSource watcher, not poller | PASS | 0.208s | 2026-02-07 21:45:00 |
 | Unwatching stops monitoring for changes | PASS | 0.714s | 2026-02-07 21:45:00 |
 
 ### Load Cancellation Tests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | Cancelling load task prevents results from being delivered | PASS | 0.029s | 2026-02-07 21:45:00 |
 | Rapid sequential loads each cancel the previous | PASS | 0.012s | 2026-02-07 21:45:00 |
 
 ### Async Folder Expansion Tests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | loadChildrenAsync returns sorted children with parent set | PASS | 0.009s | 2026-02-07 21:45:00 |
@@ -185,6 +227,7 @@
 | loadChildrenAsync returns nil for non-directory | PASS | 0.007s | 2026-02-07 21:45:00 |
 
 ### Icon Load Task Lifecycle Tests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | IconLoader invalidateAll clears entire cache | PASS | 0.006s | 2026-02-07 21:45:00 |
@@ -192,6 +235,7 @@
 | DirectoryLoader handles nonexistent directory | PASS | 0.007s | 2026-02-07 21:45:00 |
 
 ### NetworkUITests (XCUITest)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testNetworkSectionExists | PASS | 25.35s | 2026-02-03 14:18:00 |
@@ -203,6 +247,7 @@
 | testGoMenuHasConnectToServer | PASS | 19.24s | 2026-02-03 14:18:00 |
 
 ### NetworkTests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testNetworkProtocolURLSchemes | PASS | 0.000s | 2026-02-03 14:14:49 |
@@ -217,6 +262,7 @@
 | testSyntheticServerDisplayName | PASS | 0.000s | 2026-02-03 14:14:49 |
 
 ### SmokeTests (XCUITest)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testAppLaunchesWithWindow | PASS | 4.27s | 2026-01-21 17:39:25 |
@@ -225,6 +271,7 @@
 | testHomeButtonShowsOutlineRows | PASS | 6.98s | 2026-01-21 17:43:08 |
 
 ### FolderExpansionUITests (XCUITest)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testDisclosureTriangleExpand | PASS | 13.49s | 2026-01-21 17:29:12 |
@@ -252,6 +299,7 @@
 | testExternalRenameLosesExpansionState | SKIP | - | 2026-01-21 20:14:00 |
 
 ### DirectoryWatcherTests (Swift Testing)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | Detects file creation | PASS | 0.008s | 2026-01-13 12:27:35 |
@@ -260,6 +308,7 @@
 | Stop prevents further callbacks | PASS | 0.534s | 2026-01-13 12:27:35 |
 
 ### ClipboardManagerTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testClearResetsState | PASS | 0.009s | 2026-01-13 12:27:04 |
@@ -272,6 +321,7 @@
 | testIsItemCut | PASS | 0.001s | 2026-01-13 12:27:04 |
 
 ### FileItemTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testFormattedDateDifferentYear | PASS | 0.005s | 2026-01-13 12:28:24 |
@@ -287,6 +337,7 @@
 | testSortFoldersFirst | PASS | 0.000s | 2026-01-13 12:28:24 |
 
 ### FileListDataSourceTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testLoadDirectory | PASS | 0.002s | 2026-01-22 11:38:36 |
@@ -299,6 +350,7 @@
 | testItemAtReturnsCorrectItem | PASS | 0.016s | 2026-01-22 11:38:36 |
 
 ### FileListResponderTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testCmdLeftKeyEventOnSecondViewControllerGoesToItsDelegate | PASS | 0.099s | 2026-01-13 12:29:13 |
@@ -332,6 +384,7 @@
 | testTableViewIsInViewControllerHierarchy | PASS | 0.004s | 2026-01-13 12:29:13 |
 
 ### FileOpenHelperTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testDiskImageExtensionsContainsExpectedTypes | PASS | 0.002s | 2026-01-13 12:30:01 |
@@ -350,6 +403,7 @@
 | testIsNotDiskImageZip | PASS | 0.000s | 2026-01-13 12:30:01 |
 
 ### FileOperationQueueTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testCopyDirectory | PASS | 0.005s | 2026-02-03 15:44:24 |
@@ -380,6 +434,7 @@
 | testUndoIsSynchronous | PASS | 0.002s | 2026-02-03 15:44:24 |
 
 ### DuplicateStructureTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testDuplicateStructureCreatesDirectories | PASS | 0.005s | 2026-01-27 09:58:35 |
@@ -394,6 +449,7 @@
 | testModelValidation | PASS | 0.001s | 2026-01-27 11:33:49 |
 
 ### PaneTabTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testCanGoBackWhenStackEmpty | PASS | 0.002s | 2026-01-13 12:32:18 |
@@ -408,6 +464,7 @@
 | testTitleReturnsLastComponent | PASS | 0.000s | 2026-01-13 12:32:18 |
 
 ### PaneViewControllerTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testCloseLastTabCreatesNewHome | PASS | 0.131s | 2026-01-22 11:38:36 |
@@ -423,6 +480,7 @@
 | testExpansionPreservedOnTabSwitch | PASS | 0.055s | 2026-01-22 11:38:36 |
 
 ### SystemKeyHandlerTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testGlobalKeyDownF5TriggersCopyToOtherPane | PASS | 0.164s | 2026-01-13 12:35:18 |
@@ -431,6 +489,7 @@
 | testSystemMediaKeyCodeParsingDetectsKeyDown | PASS | 0.000s | 2026-01-13 12:35:18 |
 
 ### FrecencyStoreTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testFrecencyScoreDecaysOverTime | PASS | 0.004s | 2026-01-13 12:30:59 |
@@ -447,6 +506,7 @@
 | testTopDirectoriesSortedByFrecency | PASS | 0.002s | 2026-01-13 12:30:59 |
 
 ### QuickNavTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testTopDirectoriesExcludesDeletedDirectories | PASS | 0.004s | 2026-01-13 12:33:42 |
@@ -456,6 +516,7 @@
 | testTopDirectoriesWithQueryMatchesPartialName | PASS | 0.001s | 2026-01-13 12:33:42 |
 
 ### SidebarTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testSettingsFavoritesDefault | PASS | 0.001s | 2026-01-13 12:34:06 |
@@ -468,6 +529,7 @@
 | testVolumeMonitorReturnsVolumes | PASS | 0.000s | 2026-01-13 12:34:06 |
 
 ### SplitPositionTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testCollapsedSidebar | PASS | 0.001s | 2026-01-13 12:34:31 |
@@ -482,6 +544,7 @@
 | testSmallRatio | PASS | 0.000s | 2026-01-13 12:34:31 |
 
 ### SystemIntegrationTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testContextMenuBuildsForFile | PASS | 0.149s | 2026-01-21 10:30:00 |
@@ -492,6 +555,7 @@
 | testOpenWithAppsForTextFile | PASS | 0.002s | 2026-01-21 10:30:00 |
 
 ### DroppablePathControlTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testCalculateItemRectsReturnsRectForEachItem | PASS | 0.000s | 2026-01-13 12:27:58 |
@@ -501,6 +565,7 @@
 | testPathItemIndexReturnsNilForEmptyPathItems | PASS | 0.000s | 2026-01-13 12:27:58 |
 
 ### HousekeepingTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testAboutPanelVersion | PASS | 0.000s | 2026-01-13 12:31:53 |
@@ -513,6 +578,7 @@
 | testViewMenuHasToggleHiddenFiles | PASS | 0.000s | 2026-01-13 12:31:53 |
 
 ### PreferencesTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testCodableColorFromHex | PASS | 0.005s | 2026-01-13 12:33:07 |
@@ -539,6 +605,7 @@
 | testThemeManagerCustomTheme | PASS | 0.001s | 2026-01-13 12:33:07 |
 
 ### GitStatusTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testFileItemGitStatusProperty | PASS | 0.001s | 2026-01-21 10:30:00 |
@@ -549,6 +616,7 @@
 | testGitStatusNonRepo | PASS | 0.013s | 2026-01-21 10:30:00 |
 
 ### FolderExpansionTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testFileItemLoadChildren | PASS | 0.010s | 2026-01-22 11:31:12 |
@@ -568,6 +636,7 @@
 | testExpansionMustPrecedeSelection | PASS | 0.002s | 2026-01-22 11:31:12 |
 
 ### PasteSelectionUITests (XCUITest)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testPasteInExpandedFolderKeepsSelectionInFolder | PASS | 31.0s | 2026-01-22 15:38:00 |
@@ -575,12 +644,14 @@
 | testDuplicateInExpandedFolderSelectsDuplicate | - | - | - |
 
 ### QuickNavCmdEnterUITests (XCUITest)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testCmdEnterSelectsSearchedItem | PASS | 20.121s | 2026-01-23 14:17:30 |
 | testEnterVsCmdEnter | - | - | - |
 
 ### DuplicateStructureUITests (XCUITest)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testDuplicateStructureCreatesFolder | PASS | 26.283s | 2026-01-27 11:37:24 |
@@ -588,6 +659,7 @@
 | testDuplicateStructureEscapeDismisses | PASS | 22.979s | 2026-01-27 11:38:39 |
 
 ### FolderExpansionUITests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testActivePanePreservedOnRelaunch | PASS | 33.801s | 2026-01-22 14:45:12 |
@@ -598,6 +670,7 @@
 | testDeletePreservesExpansion | PASS | 21.431s | 2026-01-22 12:27:32 |
 
 ### FilterTests
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testFilterMatchesSubstring | PASS | 0.005s | 2026-01-27 23:27:24 |
@@ -609,6 +682,7 @@
 | testFilterMatchesNestedFileRecursively | PASS | 0.007s | 2026-01-27 23:27:24 |
 
 ### FilterUITests (XCUITest)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testCmdFShowsFilterBar | PASS | 13.7s | 2026-01-27 23:24:09 |
@@ -619,6 +693,7 @@
 | testFilterAutoExpandsToShowNestedMatches | PASS | 22.9s | 2026-01-27 23:25:24 |
 
 ### NewFolderUITests (XCUITest)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testNewFolderSelectsNewFolderNotExisting | PASS | 30.580s | 2026-02-03 17:47:54 |
@@ -626,6 +701,7 @@
 | testCancelNewFolderDoesNotDeleteExisting | PASS | 24.170s | 2026-02-03 16:03:59 |
 
 ### UndoUITests (XCUITest)
+
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | testUndoDelete | PASS | 19.602s | 2026-01-29 16:23:39 |
@@ -638,40 +714,181 @@
 | testMultipleUndosAcrossTabs | PASS | 41.609s | 2026-01-29 16:53:17 |
 
 ## Notes
-- 2026-02-07 21:45: DirectoryLoaderTests - Added 10 Phase 6 integration tests (33 total across 11 suites): WatcherIntegrationTests (2) verifies DispatchSource watcher for local dirs and unwatch stops monitoring, LoadCancellationTests (2) verifies cancel prevents delivery and rapid sequential loads cancel previous, AsyncFolderExpansionTests (3) verifies loadChildrenAsync returns sorted children with parent set / returns cached / returns nil for non-directory, IconLoadLifecycleTests (3) verifies invalidateAll clears cache / loadChildren matches loadDirectory / nonexistent directory throws disconnected. Spec Phase 6 checkboxes all complete.
-- 2026-02-07 21:15: DirectoryLoaderTests - Added 11 new tests (23 total across 7 suites) for network volume optimizations: ResourceKeySelectionTests (5) verifies key selection logic (local gets localizedNameKey, iCloud gets ubiquitous keys, base keys always present), IconLoaderNetworkVolumeTests (6) verifies extension-based icon loading (folder placeholder for directories, UTType icon for known extensions, file placeholder for extensionless, package handling, caching, local vs network path). Made resourceKeys(for:) internal for testability.
-- 2026-02-07 20:31: DirectoryLoaderTests - 12 new tests for async directory loading feature across 5 suites. Tests DirectoryLoader actor (entries, timeout, cancellation, access denied, metadata), IconLoader (caching, invalidation), FileItem init from LoadedFileEntry, VolumeMonitor.isNetworkVolume, and NetworkDirectoryPoller (change detection, no false positives). Also fixed pre-existing FolderExpansionTests compilation error caused by MultiDirectoryWatcher closure becoming @Sendable.
-- 2026-02-03 17:47: NewFolderUITests/testNewFolderSelectsNewFolderNotExisting PASSED - Fixed two bugs: (1) createNewFolder now creates INSIDE selected folder instead of alongside it, (2) findItem() fixed to compare paths instead of URLs because directory URLs have trailing slashes that break URL equality. Root cause of 3-hour debugging session: repeatedly running tests without understanding the actual requirement (create inside, not alongside).
-- 2026-02-02 20:39: NetworkTests - Added 3 new tests for hierarchical network volume display: testVolumeInfoMatchesServer (volume-to-server host matching), testSyntheticServerEquality, testSyntheticServerDisplayName. Total: 10 NetworkTests all PASS.
-- 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches PASSED - Fixed recursive filter auto-expand. Root cause: FileItem.loadChildren() was recreating children even when already loaded, breaking NSOutlineView's item identity tracking. Fix: early return if children != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify dataSource.filteredChildren() recursive filtering.
-- 2026-01-27 22:52: FilterUITests/testSlashKeyShowsFilterBar PASSED - Fixed "/" key handling. XCUI sends "/" with shift modifier (mods=131072) and wrong keyCode (26 instead of 44). Changed check to match character "/" with empty modifiers OR shift only.
-- 2026-01-22 15:38: PasteSelectionUITests/testPasteInExpandedFolderKeepsSelectionInFolder PASSED (manual verification) - Fixed paste destination to use selected item's parent folder instead of root. When file.txt in SubfolderA1 selected, paste now goes to SubfolderA1. Conflict dialog appeared proving correct location. Also fixed: delete/duplicate selection using tableView.numberOfRows instead of dataSource.items.count, selectItem(at:) now searches full tree.
-- 2026-01-22 14:45: FolderExpansionUITests/testActivePanePreservedOnRelaunch PASSED - Fixed active pane jumping to right on relaunch. Root cause: tableViewSelectionDidChange called fileListDidBecomeActive for programmatic changes (git status), stealing focus. Fix: only call fileListDidBecomeActive on user clicks (onActivate), not programmatic selection.
-- 2026-01-22 12:39: FolderExpansionUITests/testRenamePreservesExpansion PASSED - Fixed test to use context menu for rename (XCUITest keyboard shortcut handling unreliable for function keys and Shift+Enter). Test verifies rename operation preserves folder expansion state.
-- 2026-01-22 12:31: FolderExpansionUITests/testPastePreservesExpansion PASSED - Added Cmd+A before typing to select all text in rename field. Paste operation preserves folder expansion state.
-- 2026-01-22 12:25: FolderExpansionUITests/testSelectionPreservedAfterRefresh FAILED - Known test infrastructure issue with XCUI nested outline rows. Clicking on SubfolderA1 selects FolderA instead. App behavior is correct; test helper is the issue.
-- 2026-01-22 12:23: FolderExpansionUITests/testNestedExpansionSurvivesRefresh PASSED - Fixed by adding Hashable conformance to FileItem. NSOutlineView uses hash/isEqual to match items across reloadData().
-- 2026-01-22 11:50: FolderExpansionUITests/testNestedExpansionSurvivesRefresh FAILED - After Cmd+R refresh, SubfolderA1 visible but file.txt not visible. Nested expansion not fully preserved. Depth sorting fix may be incomplete.
-- 2026-01-22 11:45: FolderExpansionUITests/testRenamePreservesExpansion FAILED - Shift+Enter rename didn't produce expected result, renamed.txt not found after rename operation.
-- 2026-01-22: Added comprehensive bug fix verification tests. FileListDataSourceTests: 3 new tests (testNestedFolderChildrenLoadable, testItemLocatableByURLAfterExpansion, testItemAtReturnsCorrectItem). PaneViewControllerTests: 3 new tests (testRestoreTabsWithExpansionAndSelection, testRestoreTabsWithEmptyState, testExpansionPreservedOnTabSwitch). FolderExpansionTests: 4 new tests for depth sorting and selection. FolderExpansionUITests: 5 new tests (testRenamePreservesExpansion, testPastePreservesExpansion, testNestedExpansionSurvivesRefresh, testSelectionPreservedAfterRefresh, testDeletePreservesExpansion). All unit tests pass (34 tests). UI tests pending approval.
-- 2026-01-21: Added FolderExpansionTests (11 tests) for Stage 8 folder expansion: FileItem.loadChildren, MultiDirectoryWatcher, expansion state persistence, and settings toggle. SystemIntegrationTests updated: testDragPasteboardContainsFileURLs renamed to testFileItemsHaveURLsForDragging, testDropTargetRowTracking removed (used NSTableView API). Full suite: 201 tests in 20 classes, ALL PASS.
-- 2026-01-13: Full test suite run (190 tests in 19 classes). All pass. New test classes: FileOpenHelperTests (14), SidebarTests (8), SplitPositionTests (10). New tests: 2 in FileItemTests (date format settings), 2 in PreferencesTests (date format settings). Test names renamed in SystemKeyHandlerTests and FileListResponderTests.
-- 2026-01-08: Added ThemeManager tests (4 tests): built-in themes, custom theme, system choice, font validation.
-- 2026-01-08: Added GitStatusTests (6 tests) for Phase 6 git integration: non-repo handling, caching, FileItem property.
-- 2026-01-08: Added testGitStatusColors to PreferencesTests for git status color verification.
-- 2026-01-08: Fixed testTableViewNextResponderIsViewController - renamed to testTableViewIsInViewControllerHierarchy, checks view hierarchy instead of responder chain (which requires a window).
-- 2026-01-08: Added ShortcutManager tests (4 tests) for Phase 5 keyboard shortcuts: defaults, custom override, restore defaults, key equivalents.
-- 2026-01-07: Added PreferencesTests (11 tests) for Stage 6 settings infrastructure, SettingsManager, KeyCombo, CodableColor.
-- 2026-01-07: Fixed FileListResponderTests - changed testHandleKeyDownHandlesCmdIGetInfo to testMenuValidationForCmdIGetInfo to avoid opening real Finder info panels during tests.
-- 2026-01-07: Fixed DirectoryWatcherTests - increased timeout from 500ms to 2s with polling loop for FSEvents latency.
+
+- 2026-02-07 21:45: DirectoryLoaderTests - Added 10 Phase 6 integration tests
+  (33 total across 11 suites): WatcherIntegrationTests (2) verifies
+  DispatchSource watcher for local dirs and unwatch stops monitoring,
+  LoadCancellationTests (2) verifies cancel prevents delivery and rapid
+  sequential loads cancel previous, AsyncFolderExpansionTests (3) verifies
+  loadChildrenAsync returns sorted children with parent set / returns cached /
+  returns nil for non-directory, IconLoadLifecycleTests (3) verifies
+  invalidateAll clears cache / loadChildren matches loadDirectory / nonexistent
+  directory throws disconnected. Spec Phase 6 checkboxes all complete.
+
+- 2026-02-07 21:15: DirectoryLoaderTests - Added 11 new tests (23 total across 7
+  suites) for network volume optimizations: ResourceKeySelectionTests (5)
+  verifies key selection logic (local gets localizedNameKey, iCloud gets
+  ubiquitous keys, base keys always present), IconLoaderNetworkVolumeTests (6)
+  verifies extension-based icon loading (folder placeholder for directories,
+  UTType icon for known extensions, file placeholder for extensionless, package
+  handling, caching, local vs network path). Made resourceKeys(for:) internal
+  for testability.
+
+- 2026-02-07 20:31: DirectoryLoaderTests - 12 new tests for async directory
+  loading feature across 5 suites. Tests DirectoryLoader actor (entries,
+  timeout, cancellation, access denied, metadata), IconLoader (caching,
+  invalidation), FileItem init from LoadedFileEntry,
+  VolumeMonitor.isNetworkVolume, and NetworkDirectoryPoller (change detection,
+  no false positives). Also fixed pre-existing FolderExpansionTests compilation
+  error caused by MultiDirectoryWatcher closure becoming @Sendable.
+
+- 2026-02-03 17:47: NewFolderUITests/testNewFolderSelectsNewFolderNotExisting
+  PASSED - Fixed two bugs: (1) createNewFolder now creates INSIDE selected
+  folder instead of alongside it, (2) findItem() fixed to compare paths instead
+  of URLs because directory URLs have trailing slashes that break URL equality.
+  Root cause of 3-hour debugging session: repeatedly running tests without
+  understanding the actual requirement (create inside, not alongside).
+
+- 2026-02-02 20:39: NetworkTests - Added 3 new tests for hierarchical network
+  volume display: testVolumeInfoMatchesServer (volume-to-server host matching),
+  testSyntheticServerEquality, testSyntheticServerDisplayName. Total: 10
+  NetworkTests all PASS.
+
+- 2026-01-27 23:25: FilterUITests/testFilterAutoExpandsToShowNestedMatches
+  PASSED - Fixed recursive filter auto-expand. Root cause:
+  FileItem.loadChildren() was recreating children even when already loaded,
+  breaking NSOutlineView's item identity tracking. Fix: early return if children
+  != nil. Also added testFilterMatchesNestedFileRecursively unit test to verify
+  dataSource.filteredChildren() recursive filtering.
+
+- 2026-01-27 22:52: FilterUITests/testSlashKeyShowsFilterBar PASSED - Fixed "/"
+  key handling. XCUI sends "/" with shift modifier (mods=131072) and wrong
+  keyCode (26 instead of 44). Changed check to match character "/" with empty
+  modifiers OR shift only.
+
+- 2026-01-22 15:38:
+  PasteSelectionUITests/testPasteInExpandedFolderKeepsSelectionInFolder PASSED
+  (manual verification) - Fixed paste destination to use selected item's parent
+  folder instead of root. When file.txt in SubfolderA1 selected, paste now goes
+  to SubfolderA1. Conflict dialog appeared proving correct location. Also fixed:
+  delete/duplicate selection using tableView.numberOfRows instead of
+  dataSource.items.count, selectItem(at:) now searches full tree.
+
+- 2026-01-22 14:45: FolderExpansionUITests/testActivePanePreservedOnRelaunch
+  PASSED - Fixed active pane jumping to right on relaunch. Root cause:
+  tableViewSelectionDidChange called fileListDidBecomeActive for programmatic
+  changes (git status), stealing focus. Fix: only call fileListDidBecomeActive
+  on user clicks (onActivate), not programmatic selection.
+
+- 2026-01-22 12:39: FolderExpansionUITests/testRenamePreservesExpansion PASSED -
+  Fixed test to use context menu for rename (XCUITest keyboard shortcut handling
+  unreliable for function keys and Shift+Enter). Test verifies rename operation
+  preserves folder expansion state.
+
+- 2026-01-22 12:31: FolderExpansionUITests/testPastePreservesExpansion PASSED -
+  Added Cmd+A before typing to select all text in rename field. Paste operation
+  preserves folder expansion state.
+
+- 2026-01-22 12:25: FolderExpansionUITests/testSelectionPreservedAfterRefresh
+  FAILED - Known test infrastructure issue with XCUI nested outline rows.
+  Clicking on SubfolderA1 selects FolderA instead. App behavior is correct; test
+  helper is the issue.
+
+- 2026-01-22 12:23: FolderExpansionUITests/testNestedExpansionSurvivesRefresh
+  PASSED - Fixed by adding Hashable conformance to FileItem. NSOutlineView uses
+  hash/isEqual to match items across reloadData().
+
+- 2026-01-22 11:50: FolderExpansionUITests/testNestedExpansionSurvivesRefresh
+  FAILED - After Cmd+R refresh, SubfolderA1 visible but file.txt not visible.
+  Nested expansion not fully preserved. Depth sorting fix may be incomplete.
+
+- 2026-01-22 11:45: FolderExpansionUITests/testRenamePreservesExpansion FAILED -
+  Shift+Enter rename didn't produce expected result, renamed.txt not found after
+  rename operation.
+
+- 2026-01-22: Added comprehensive bug fix verification tests.
+  FileListDataSourceTests: 3 new tests (testNestedFolderChildrenLoadable,
+  testItemLocatableByURLAfterExpansion, testItemAtReturnsCorrectItem).
+  PaneViewControllerTests: 3 new tests
+  (testRestoreTabsWithExpansionAndSelection, testRestoreTabsWithEmptyState,
+  testExpansionPreservedOnTabSwitch). FolderExpansionTests: 4 new tests for
+  depth sorting and selection. FolderExpansionUITests: 5 new tests
+  (testRenamePreservesExpansion, testPastePreservesExpansion,
+  testNestedExpansionSurvivesRefresh, testSelectionPreservedAfterRefresh,
+  testDeletePreservesExpansion). All unit tests pass (34 tests). UI tests
+  pending approval.
+
+- 2026-01-21: Added FolderExpansionTests (11 tests) for Stage 8 folder
+  expansion: FileItem.loadChildren, MultiDirectoryWatcher, expansion state
+  persistence, and settings toggle. SystemIntegrationTests updated:
+  testDragPasteboardContainsFileURLs renamed to
+  testFileItemsHaveURLsForDragging, testDropTargetRowTracking removed (used
+  NSTableView API). Full suite: 201 tests in 20 classes, ALL PASS.
+
+- 2026-01-13: Full test suite run (190 tests in 19 classes). All pass. New test
+  classes: FileOpenHelperTests (14), SidebarTests (8), SplitPositionTests (10).
+  New tests: 2 in FileItemTests (date format settings), 2 in PreferencesTests
+  (date format settings). Test names renamed in SystemKeyHandlerTests and
+  FileListResponderTests.
+
+- 2026-01-08: Added ThemeManager tests (4 tests): built-in themes, custom theme,
+  system choice, font validation.
+
+- 2026-01-08: Added GitStatusTests (6 tests) for Phase 6 git integration:
+  non-repo handling, caching, FileItem property.
+
+- 2026-01-08: Added testGitStatusColors to PreferencesTests for git status color
+  verification.
+
+- 2026-01-08: Fixed testTableViewNextResponderIsViewController - renamed to
+  testTableViewIsInViewControllerHierarchy, checks view hierarchy instead of
+  responder chain (which requires a window).
+
+- 2026-01-08: Added ShortcutManager tests (4 tests) for Phase 5 keyboard
+  shortcuts: defaults, custom override, restore defaults, key equivalents.
+
+- 2026-01-07: Added PreferencesTests (11 tests) for Stage 6 settings
+  infrastructure, SettingsManager, KeyCombo, CodableColor.
+
+- 2026-01-07: Fixed FileListResponderTests - changed
+  testHandleKeyDownHandlesCmdIGetInfo to testMenuValidationForCmdIGetInfo to
+  avoid opening real Finder info panels during tests.
+
+- 2026-01-07: Fixed DirectoryWatcherTests - increased timeout from 500ms to 2s
+  with polling loop for FSEvents latency.
+
 - 2026-01-07: Fixed QuickNavTests - same substring vs fuzzy issue. 5 tests pass.
-- 2026-01-07: Fixed FrecencyStoreTests - changed fuzzy matching tests to substring matching tests (implementation uses substring, not fuzzy). 12 tests pass.
-- 2026-01-07: Added SystemIntegrationTests (7 tests) for Stage 5 context menus, drag-drop, Open With.
-- 2026-01-07: Added 15 new FileListResponderTests for navigation actions, first-responder handling, copy path.
-- 2026-01-06 15:45:35: Added DirectoryWatcherTests (4 tests) using Swift Testing framework for filesystem watching.
-- 2026-01-06 10:55:22: SystemMediaKey parsing now uses unsigned data1 to avoid sign issues.
-- 2026-01-06 10:55:22: Added F5 system-defined and global key-down coverage in SystemKeyHandlerTests.
-- 2026-01-06 10:25:43: Per-test timestamps are derived from the run start time plus reported durations in xcresult order.
-- 2026-01-27: Added DuplicateStructureUITests (3 UI tests) verifying end-to-end duplicate structure workflow: folder creation, Cancel dismissal, Escape dismissal. Fixed callback bug where onComplete was cleared before being called.
-- 2026-01-27: Added DuplicateStructureTests (10 unit tests) for duplicate folder structure feature: directory creation, depth preservation, file omission, year substitution, destination exists error, year detection regex, model destination URL, and validation.
-- 2026-01-06 10:25:43: Added system-defined media key handling for the dictation key (F5 on many keyboards) and tests for the path.
+- 2026-01-07: Fixed FrecencyStoreTests - changed fuzzy matching tests to
+  substring matching tests (implementation uses substring, not fuzzy). 12 tests
+  pass.
+
+- 2026-01-07: Added SystemIntegrationTests (7 tests) for Stage 5 context menus,
+  drag-drop, Open With.
+
+- 2026-01-07: Added 15 new FileListResponderTests for navigation actions,
+  first-responder handling, copy path.
+
+- 2026-01-06 15:45:35: Added DirectoryWatcherTests (4 tests) using Swift Testing
+  framework for filesystem watching.
+
+- 2026-01-06 10:55:22: SystemMediaKey parsing now uses unsigned data1 to avoid
+  sign issues.
+
+- 2026-01-06 10:55:22: Added F5 system-defined and global key-down coverage in
+  SystemKeyHandlerTests.
+
+- 2026-01-06 10:25:43: Per-test timestamps are derived from the run start time
+  plus reported durations in xcresult order.
+
+- 2026-01-27: Added DuplicateStructureUITests (3 UI tests) verifying end-to-end
+  duplicate structure workflow: folder creation, Cancel dismissal, Escape
+  dismissal. Fixed callback bug where onComplete was cleared before being
+  called.
+
+- 2026-01-27: Added DuplicateStructureTests (10 unit tests) for duplicate folder
+  structure feature: directory creation, depth preservation, file omission, year
+  substitution, destination exists error, year detection regex, model
+  destination URL, and validation.
+
+- 2026-01-06 10:25:43: Added system-defined media key handling for the dictation
+  key (F5 on many keyboards) and tests for the path.

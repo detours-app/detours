@@ -46,6 +46,10 @@ final class PaneTabBar: NSView {
         ThemeManager.shared.currentTheme.textSecondary
     }
 
+    private var borderColor: NSColor {
+        ThemeManager.shared.currentTheme.border
+    }
+
     // MARK: - Initialization
 
     override init(frame frameRect: NSRect) {
@@ -125,7 +129,7 @@ final class PaneTabBar: NSView {
     private func setupNewTabButton() {
         newTabButton.bezelStyle = .inline
         newTabButton.title = "+"
-        newTabButton.font = NSFont.systemFont(ofSize: 18, weight: .light)
+        newTabButton.font = ThemeManager.shared.currentTheme.uiFont(size: 18)
         newTabButton.target = self
         newTabButton.action = #selector(newTabClicked)
         newTabButton.toolTip = "New Tab"
@@ -167,14 +171,20 @@ final class PaneTabBar: NSView {
     override var isOpaque: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
-        ThemeManager.shared.currentTheme.surface.setFill()
+        let theme = ThemeManager.shared.currentTheme
+        let fillColor = isActive ? theme.surface : (theme.surface.blended(withFraction: 0.30, of: theme.background) ?? theme.surface)
+        fillColor.setFill()
         bounds.fill()
+
+        // Bottom separator
+        theme.border.setFill()
+        NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
 
         // Draw drop indicator if needed
         if let dropIndex = dropIndicatorIndex {
             let x = xPositionForIndex(dropIndex)
             let indicatorRect = NSRect(x: x - 1, y: 4, width: 2, height: bounds.height - 8)
-            ThemeManager.shared.currentTheme.accent.setFill()
+            theme.accent.setFill()
             indicatorRect.fill()
         }
     }
@@ -190,12 +200,15 @@ final class PaneTabBar: NSView {
 
         // Create new buttons
         for (index, tab) in tabs.enumerated() {
+            let symbolName = Self.symbolName(for: tab.currentDirectory)
             let button = TabButton(
                 title: tab.title,
+                symbolName: symbolName,
                 isSelected: index == selectedIndex,
                 colors: TabButton.Colors(
                     surface: surfaceColor,
                     background: backgroundColor,
+                    border: borderColor,
                     accent: accentColor,
                     textPrimary: textPrimaryColor,
                     textSecondary: textSecondaryColor
@@ -249,11 +262,10 @@ final class PaneTabBar: NSView {
 
     private func layoutTabButtons() {
         var xOffset: CGFloat = 0
-        let maxWidth: CGFloat = 160
         let height: CGFloat = 32
 
         for button in tabButtons {
-            let width = min(button.idealWidth, maxWidth)
+            let width = button.idealWidth
             button.frame = NSRect(x: xOffset, y: 0, width: width, height: height)
             xOffset += width
         }
@@ -280,6 +292,43 @@ final class PaneTabBar: NSView {
             .font: NSFont.systemFont(ofSize: 18, weight: .light)
         ]
         newTabButton.attributedTitle = NSAttributedString(string: "+", attributes: attrs)
+    }
+
+    // MARK: - Tab Icon Mapping
+
+    private static func symbolName(for directory: URL) -> String {
+        let path = directory.path
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+
+        if path == home {
+            return "house"
+        }
+        if path == home + "/Desktop" {
+            return "macwindow"
+        }
+        if path == home + "/Documents" {
+            return "doc"
+        }
+        if path == home + "/Downloads" {
+            return "arrow.down.circle"
+        }
+        if path == home + "/Applications" || path == "/Applications" || path == "/System/Applications" {
+            return "square.grid.2x2"
+        }
+        if path == home + "/Developer" {
+            return "chevron.left.forwardslash.chevron.right"
+        }
+        if path.contains("/Library/Mobile Documents") || path.contains("com~apple~CloudDocs") {
+            return "icloud"
+        }
+        // Volumes (external drives, mounted disks)
+        if path.hasPrefix("/Volumes/") {
+            return "externaldrive"
+        }
+        if path == "/" {
+            return "internaldrive"
+        }
+        return "folder"
     }
 
     // MARK: - Actions
@@ -522,19 +571,26 @@ private final class TabButton: NSView {
     struct Colors {
         let surface: NSColor
         let background: NSColor
+        let border: NSColor
         let accent: NSColor
         let textPrimary: NSColor
         let textSecondary: NSColor
     }
 
-    private let titleLabel = NSTextField(labelWithString: "")
+    private let iconView = NSImageView()
     private let closeButton = NSButton()
+    private let titleLabel = NSTextField(labelWithString: "")
     private var isSelected: Bool = false
     private var isHovered: Bool = false
     private var isDropTarget: Bool = false
     private var isPaneActive: Bool = true
     private var trackingArea: NSTrackingArea?
     private let colors: Colors
+
+    private static let iconSize: CGFloat = 16
+    private static let leadingPad: CGFloat = 8
+    private static let iconTextGap: CGFloat = 5
+    private static let trailingPad: CGFloat = 10
 
     var tabAction: (() -> Void)?
     var closeAction: (() -> Void)?
@@ -543,19 +599,20 @@ private final class TabButton: NSView {
     private var mouseDownLocation: NSPoint?
 
     var idealWidth: CGFloat {
-        let textWidth = titleLabel.attributedStringValue.size().width
-        return textWidth + 16 + 24 // padding + close button space
+        let textWidth = ceil(titleLabel.intrinsicContentSize.width)
+        return Self.leadingPad + Self.iconSize + Self.iconTextGap + textWidth + Self.trailingPad
     }
 
-    init(title: String, isSelected: Bool, colors: Colors) {
+    init(title: String, symbolName: String, isSelected: Bool, colors: Colors) {
         self.isSelected = isSelected
         self.colors = colors
         super.init(frame: .zero)
 
         wantsLayer = true
 
-        setupTitleLabel(title)
+        setupIcon(symbolName)
         setupCloseButton()
+        setupTitleLabel(title)
 
         updateAppearance()
     }
@@ -564,42 +621,63 @@ private final class TabButton: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    private func setupTitleLabel(_ title: String) {
-        titleLabel.stringValue = title
-        titleLabel.font = NSFont.systemFont(ofSize: 12, weight: isSelected ? .semibold : .medium)
-        titleLabel.lineBreakMode = .byTruncatingTail
-        titleLabel.isEditable = false
-        titleLabel.isSelectable = false
-        titleLabel.isBordered = false
-        titleLabel.drawsBackground = false
+    private func setupIcon(_ symbolName: String) {
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+        iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+        iconView.contentTintColor = colors.textSecondary
+        iconView.imageScaling = .scaleNone
 
-        addSubview(titleLabel)
+        addSubview(iconView)
 
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        iconView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
-            titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.leadingPad),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: Self.iconSize),
+            iconView.heightAnchor.constraint(equalToConstant: Self.iconSize),
         ])
     }
 
     private func setupCloseButton() {
         closeButton.bezelStyle = .regularSquare
         closeButton.isBordered = false
-        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close Tab")
-        closeButton.imageScaling = .scaleProportionallyDown
+        let config = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
+        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close Tab")?
+            .withSymbolConfiguration(config)
+        closeButton.imageScaling = .scaleNone
         closeButton.target = self
         closeButton.action = #selector(closeClicked)
-        closeButton.alphaValue = 0 // Hidden until hover
+        closeButton.isHidden = true
 
         addSubview(closeButton)
 
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            closeButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.leadingPad),
             closeButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-            closeButton.widthAnchor.constraint(equalToConstant: 16),
-            closeButton.heightAnchor.constraint(equalToConstant: 16),
+            closeButton.widthAnchor.constraint(equalToConstant: Self.iconSize),
+            closeButton.heightAnchor.constraint(equalToConstant: Self.iconSize),
+        ])
+    }
+
+    private func setupTitleLabel(_ title: String) {
+        titleLabel.stringValue = title
+        titleLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 13, weight: isSelected ? .semibold : .medium)
+        titleLabel.lineBreakMode = .byClipping
+        titleLabel.isEditable = false
+        titleLabel.isSelectable = false
+        titleLabel.isBordered = false
+        titleLabel.drawsBackground = false
+        titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        addSubview(titleLabel)
+
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: Self.iconTextGap),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -Self.trailingPad),
+            titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
 
@@ -609,7 +687,7 @@ private final class TabButton: NSView {
 
     func setSelected(_ selected: Bool) {
         isSelected = selected
-        titleLabel.font = NSFont.systemFont(ofSize: 12, weight: isSelected ? .semibold : .medium)
+        titleLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 13, weight: isSelected ? .semibold : .medium)
         updateAppearance()
     }
 
@@ -624,37 +702,45 @@ private final class TabButton: NSView {
     }
 
     private func updateAppearance() {
-        if isDropTarget {
-            layer?.backgroundColor = colors.accent.withAlphaComponent(0.3).cgColor
-            titleLabel.textColor = colors.textPrimary
-        } else if isSelected {
-            layer?.backgroundColor = colors.background.cgColor
-            titleLabel.textColor = colors.textPrimary
-        } else if isHovered {
-            // Darken surface by 5%
-            layer?.backgroundColor = colors.surface.blended(withFraction: 0.05, of: .black)?.cgColor
-            titleLabel.textColor = colors.textSecondary
-        } else {
-            layer?.backgroundColor = colors.surface.cgColor
-            titleLabel.textColor = colors.textSecondary
-        }
+        layer?.backgroundColor = nil
+        layer?.cornerRadius = 0
 
-        closeButton.contentTintColor = isSelected ? colors.textPrimary : colors.textSecondary
-        closeButton.alphaValue = isHovered || isSelected ? 1 : 0
+        let textColor = (isDropTarget || isSelected) ? colors.textPrimary : colors.textSecondary
+        titleLabel.textColor = textColor
+        iconView.contentTintColor = textColor
+        closeButton.contentTintColor = textColor
+
+        // Inactive pane dims everything
+        let paneAlpha: CGFloat = isPaneActive ? 1.0 : 0.6
+        titleLabel.alphaValue = paneAlpha
+        iconView.alphaValue = paneAlpha
+
+        // On hover: swap icon for close button
+        iconView.isHidden = isHovered
+        closeButton.isHidden = !isHovered
 
         needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
+        let b = bounds
 
-        // Draw border on bottom for selected tab or drop target
-        if isSelected || isDropTarget {
-            let borderRect = NSRect(x: 0, y: 0, width: bounds.width, height: 2)
-            // Use accent color for active pane, gray for inactive
-            let borderColor = isPaneActive ? colors.accent : colors.textSecondary
-            borderColor.setFill()
-            borderRect.fill()
+        if isDropTarget {
+            colors.accent.withAlphaComponent(0.3).setFill()
+            let path = NSBezierPath(roundedRect: b, xRadius: 4, yRadius: 4)
+            path.fill()
+        } else if isSelected {
+            let fillColor = isPaneActive ? colors.background : colors.surface
+            fillColor.setFill()
+            b.fill()
+
+            // Accent indicator at bottom edge
+            let indicatorColor = isPaneActive ? colors.accent : colors.accent.withAlphaComponent(0.4)
+            indicatorColor.setFill()
+            NSRect(x: 0, y: 0, width: b.width, height: 2).fill()
+        } else if isHovered {
+            (colors.surface.blended(withFraction: 0.08, of: .black) ?? colors.surface).setFill()
+            b.fill()
         }
     }
 
@@ -684,8 +770,24 @@ private final class TabButton: NSView {
         updateAppearance()
     }
 
+    // Prevent close button from capturing mouse events — we handle
+    // all clicks in mouseDown so drag-to-reorder works correctly
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        if bounds.contains(local) {
+            return self
+        }
+        return nil
+    }
+
     override func mouseDown(with event: NSEvent) {
-        mouseDownLocation = convert(event.locationInWindow, from: nil)
+        let point = convert(event.locationInWindow, from: nil)
+        let closeHitArea = closeButton.frame.insetBy(dx: -4, dy: -4)
+        if isHovered && closeHitArea.contains(point) {
+            closeAction?()
+            return
+        }
+        mouseDownLocation = point
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -694,7 +796,6 @@ private final class TabButton: NSView {
         let currentLocation = convert(event.locationInWindow, from: nil)
         let distance = hypot(currentLocation.x - startLocation.x, currentLocation.y - startLocation.y)
 
-        // Start drag after moving 5 pixels
         if distance > 5 {
             mouseDownLocation = nil
             dragAction?(event)
@@ -703,7 +804,6 @@ private final class TabButton: NSView {
 
     override func mouseUp(with event: NSEvent) {
         if mouseDownLocation != nil {
-            // Click (no drag occurred)
             tabAction?()
         }
         mouseDownLocation = nil

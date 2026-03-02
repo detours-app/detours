@@ -49,13 +49,13 @@ private struct OperationDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(model.progress.operation.description)
-                .font(.headline)
+                .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 14, weight: .semibold)))
                 .lineLimit(2)
 
             if let currentItem = model.progress.currentItem {
                 Text(currentItem.path)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 11)))
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                     .lineLimit(3)
                     .textSelection(.enabled)
             }
@@ -66,14 +66,14 @@ private struct OperationDetailView: View {
 
                 HStack {
                     Text("\(model.progress.completedCount) of \(model.progress.totalCount)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 11)))
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
 
                     Spacer()
 
                     Text("\(Int(model.progress.fractionCompleted * 100))%")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 11)))
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                 }
             } else {
                 ProgressView()
@@ -81,12 +81,12 @@ private struct OperationDetailView: View {
 
                 if let currentItem = model.progress.currentItem {
                     Text("Scanning \"\(currentItem.lastPathComponent)\"...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 11)))
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                 } else {
                     Text("Scanning...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 11)))
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                 }
             }
 

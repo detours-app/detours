@@ -239,9 +239,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func applyThemeBackground() {
-        // Table view draws its own themed background via drawBackground(inClipRect:)
-        // Just ensure scroll view doesn't draw over it
         scrollView.drawsBackground = false
+        tableView.backgroundColor = ThemeManager.shared.currentTheme.background
     }
 
     override func viewDidAppear() {
@@ -276,7 +275,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         view.addSubview(scrollView)
 
         // Set up "No matches" label (hidden by default)
-        noMatchesLabel.font = ThemeManager.shared.currentFont
+        noMatchesLabel.font = ThemeManager.shared.currentUIFont
         noMatchesLabel.textColor = ThemeManager.shared.currentTheme.textTertiary
         noMatchesLabel.alignment = .center
         noMatchesLabel.isHidden = true
@@ -307,7 +306,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func setupTableView() {
-        tableView.backgroundColor = .clear
+        tableView.backgroundColor = ThemeManager.shared.currentTheme.background
         tableView.style = .plain
         tableView.rowHeight = 24
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
@@ -626,7 +625,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
 
         let label = NSTextField(labelWithString: messageText)
-        label.font = .systemFont(ofSize: 14, weight: .medium)
+        label.font = ThemeManager.shared.currentTheme.uiFont(size: 14)
         label.textColor = theme.textSecondary
         label.alignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false

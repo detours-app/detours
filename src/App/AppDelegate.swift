@@ -140,8 +140,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let credits = NSAttributedString(
             string: "Dual-pane file manager with tabs, folder expansion, Quick Open, and git status. Keyboard-first, fully themeable.",
             attributes: [
-                .font: NSFont.systemFont(ofSize: 11),
-                .foregroundColor: NSColor.secondaryLabelColor
+                .font: ThemeManager.shared.currentTheme.uiFont(size: 11),
+                .foregroundColor: ThemeManager.shared.currentTheme.textSecondary
             ]
         )
 

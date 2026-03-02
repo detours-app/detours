@@ -106,4 +106,14 @@ final class ThemeManager {
     func font(size: CGFloat) -> NSFont {
         currentTheme.font(size: size)
     }
+
+    /// The current UI (proportional) font at the configured size
+    var currentUIFont: NSFont {
+        currentTheme.uiFont(size: fontSize)
+    }
+
+    /// The current UI (proportional) font at a custom size
+    func uiFont(size: CGFloat) -> NSFont {
+        currentTheme.uiFont(size: size)
+    }
 }

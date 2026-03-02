@@ -17,9 +17,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.tabbingMode = .disallowed
         window.collectionBehavior = .fullScreenNone
 
-        // Unified title bar with toolbar appearance
-        window.titlebarAppearsTransparent = false
-        window.titleVisibility = .visible
+        // Clean title bar: no title text, blends with content
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.titlebarSeparatorStyle = .none
 
         super.init(window: window)
 

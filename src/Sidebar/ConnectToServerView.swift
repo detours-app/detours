@@ -40,14 +40,14 @@ struct ConnectToServerView: View {
             HStack(spacing: 12) {
                 Image(systemName: "network")
                     .font(.system(size: 32))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect to Server")
                         .font(.headline)
                     Text("Enter the address of the server")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                 }
 
                 Spacer()
@@ -59,7 +59,7 @@ struct ConnectToServerView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Server Address:")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
 
                 TextField("smb://server/share or nfs://server/export", text: $model.urlString)
                     .textFieldStyle(.roundedBorder)
@@ -81,7 +81,7 @@ struct ConnectToServerView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Recent Servers:")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 4) {
@@ -91,7 +91,7 @@ struct ConnectToServerView: View {
                                 } label: {
                                     HStack {
                                         Image(systemName: "clock")
-                                            .foregroundStyle(.secondary)
+                                            .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                                         Text(server)
                                             .lineLimit(1)
                                             .truncationMode(.middle)
@@ -103,8 +103,8 @@ struct ConnectToServerView: View {
                                 .padding(.vertical, 4)
                                 .padding(.horizontal, 8)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.secondary.opacity(0.1))
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Color(ThemeManager.shared.currentTheme.surface))
                                 )
                             }
                         }

@@ -25,8 +25,8 @@ struct ShortcutsSettingsView: View {
                 Text("Keyboard Shortcuts")
             } footer: {
                 Text("Click a shortcut to change it. Press Escape to cancel, Delete to clear.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 11)))
+                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
             }
 
             Section {
@@ -59,7 +59,7 @@ private struct ShortcutRow: View {
                     ShortcutManager.shared.setKeyCombo(nil, for: action)
                 } label: {
                     Image(systemName: "arrow.uturn.backward.circle")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                 }
                 .buttonStyle(.plain)
                 .help("Reset to default")
