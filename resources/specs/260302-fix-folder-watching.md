@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Draft
+- Status: Reviewed
 - Branch: fix/folder-watching
 
 ---
@@ -29,6 +29,7 @@ Two bugs cause Detours to miss filesystem changes after the first watcher-trigge
 - Migrating from DispatchSource to FSEvents (future improvement, separate spec)
 - Recursive watching of unexpanded subdirectories
 - Changing debounce timing
+- Handling overlapping loads (already existing behavior, not introduced by this change)
 
 ---
 
@@ -40,17 +41,19 @@ The core problem is in `FileListViewController.startWatching(_:)` — it destroy
 
 **Fix strategy:**
 
-1. **Keep the watcher alive across reloads.** Instead of destroying and recreating the watcher, only do a full reset when navigating to a *different* directory. For same-directory reloads (watcher-triggered), skip the watcher reset entirely — the existing watches are already correct.
+1. **Keep the watcher alive across reloads.** Instead of destroying and recreating the watcher, only do a full reset when navigating to a *different* directory. For same-directory reloads (watcher-triggered, file operations, undo), skip the watcher reset entirely — the existing watches are already correct.
 
 2. **On navigation to a new directory**, reset the watcher (unwatchAll + watch new root), but do it *before* the async load starts, not after. Then after expansion restoration completes, the subdirectory watches added by the expand notifications will stick.
 
 3. **Remove dead code.** The original `DirectoryWatcher.swift` is unused (replaced by `SingleDirectoryWatcher` inside `MultiDirectoryWatcher.swift`). Remove it.
 
+**How same-directory reloads skip the watcher reset:** `loadDirectory` already captures `previousDirectory` at line 486 and compares it with `normalizedURL` at line 490. Gate the `startWatching` call on `previousDirectory != normalizedURL` so it only fires when actually navigating to a different directory. Since `performDirectoryReload` and all other reload-like callers (file operations, undo, archive extraction) pass `currentDirectory`, the guard evaluates to false and the watcher stays untouched.
+
 ### Risks
 
 | Risk | Mitigation |
 | --- | --- |
-| Watcher accumulates stale watches for folders that no longer exist | `unwatch` is already called on collapse; navigation resets all watches. Nonexistent directories fail silently in DispatchSource (fd open fails). |
+| Watcher accumulates stale watches for folders that no longer exist | `unwatch` is already called on collapse; navigation resets all watches. Nonexistent directories fail silently in DispatchSource (fd open fails, logs warning). |
 | Reordering watcher setup could miss changes during initial load | The watcher is set up before the async load starts, so changes during load are caught and trigger another debounced reload. |
 | Network poller handles differently than DispatchSource | No change to `MultiDirectoryWatcher` internals — fix is only in the controller's lifecycle management. |
 
@@ -58,15 +61,20 @@ The core problem is in `FileListViewController.startWatching(_:)` — it destroy
 
 **Phase 1: Fix watcher lifecycle in FileListViewController**
 
-- [ ] Change `startWatching(_:)` to only create a new `MultiDirectoryWatcher` if one doesn't exist yet. When the watcher already exists, just call `unwatchAll()` and `watch(url)` on the existing instance.
-- [ ] Move the `startWatching` call from after `restoreExpansion` (line 554) to before the async load begins — right after capturing previous state but before `dataSource.loadDirectory`. This way the watcher is watching the new root during the load, and expansion notifications after load will add to it rather than being wiped.
-- [ ] In `performDirectoryReload`, skip the watcher reset entirely — just call `loadDirectory` without touching the watcher, since the existing watches are still valid.
-- [ ] Verify that navigating to a different directory still fully resets watches (the `startWatching` call before load handles this).
+- [ ] Change `startWatching(_:)` to reuse the existing `MultiDirectoryWatcher` instance. Only create a new one if `directoryWatcher` is nil. When the watcher already exists, call `unwatchAll()` then `watch(url)` on the existing instance.
+- [ ] Move the `startWatching` call out of the `onLoadCompleted` callback (remove line 554) and into the body of `loadDirectory`, between `suppressLoadingSpinner` (line 568) and `dataSource.loadDirectory` (line 569). Guard it with `previousDirectory != normalizedURL` so it only fires when navigating to a different directory. This means:
+  - Navigation to a new directory: watcher resets to the new root before the async load starts, and subdirectory watches added by `restoreExpansion` in the completion callback will persist.
+  - Same-directory reloads (`performDirectoryReload`, file operations, undo): the guard skips `startWatching` entirely, preserving all existing watches including expanded subdirectories.
+- [ ] Verify: `performDirectoryReload` requires no changes — it passes `currentDirectory` to `loadDirectory`, so `previousDirectory == normalizedURL` and the guard skips `startWatching`.
+- [ ] Verify: navigating to a different directory fully resets watches — `previousDirectory != normalizedURL` triggers `startWatching`, which calls `unwatchAll()` + `watch(newURL)`.
+- [ ] Verify: first load works — when `currentDirectory` is nil (app startup), `previousDirectory` is nil, so `nil != normalizedURL` triggers `startWatching` correctly.
 
 **Phase 2: Remove dead code**
 
 - [ ] Delete `src/FileList/DirectoryWatcher.swift` (the old single-directory watcher class, fully replaced by `SingleDirectoryWatcher` inside `MultiDirectoryWatcher.swift`)
-- [ ] Update existing tests in `Tests/DirectoryWatcherTests.swift` to use `MultiDirectoryWatcher` instead of the deleted `DirectoryWatcher`
+- [ ] Rewrite tests in `Tests/DirectoryWatcherTests.swift` to use `MultiDirectoryWatcher` instead of the deleted `DirectoryWatcher`. Key API differences to handle:
+  - `MultiDirectoryWatcher.init` takes `@Sendable (URL) -> Void` (callback receives the changed URL), not `() -> Void`. Since the closure is `@Sendable`, test state tracking (change flags, counters) must use a thread-safe mechanism — use `nonisolated(unsafe)` for test variables or an `OSAllocatedUnfairLock`-wrapped value.
+  - `SingleDirectoryWatcher.start()` opens file descriptors asynchronously on a background queue before setting up the DispatchSource on main. Tests must add a brief delay (~200ms) after calling `watch()` and before triggering filesystem changes to ensure the watcher is active.
 
 ---
 
@@ -76,15 +84,19 @@ Tests are implementation tasks — the implementer writes and passes each one. R
 
 ### Unit Tests (`Tests/DirectoryWatcherTests.swift`)
 
-- [ ] `testMultiWatcherDetectsFileCreation` - MultiDirectoryWatcher detects file creation in a watched directory
-- [ ] `testMultiWatcherDetectsFileDeletion` - MultiDirectoryWatcher detects file deletion in a watched directory
-- [ ] `testMultiWatcherDetectsSubdirectoryChange` - MultiDirectoryWatcher detects changes in a second watched directory (simulates expanded subdirectory)
-- [ ] `testMultiWatcherUnwatchStopsCallbacks` - Unwatching a directory stops callbacks for that directory only
-- [ ] `testMultiWatcherUnwatchAllStopsAllCallbacks` - UnwatchAll stops all callbacks
-- [ ] `testMultiWatcherSurvivesRewatch` - Calling watch on an already-watched URL doesn't duplicate or interrupt monitoring
+Rewrite the existing 4 tests (which use the deleted `DirectoryWatcher`) as 7 tests using `MultiDirectoryWatcher`. Rename the suite from `DirectoryWatcherTests` to `MultiDirectoryWatcherTests`. Use the Swift Testing framework (`@Test`, `#expect`) matching the existing test style.
+
+- [ ] `testDetectsFileCreation` — Create a file in a watched directory, verify the `onChange` callback fires with the correct URL
+- [ ] `testDetectsFileDeletion` — Delete a file in a watched directory, verify callback fires
+- [ ] `testDetectsFileRename` — Rename a file in a watched directory, verify callback fires (maintains parity with the existing rename test)
+- [ ] `testDetectsSubdirectoryChange` — Watch two directories (simulating root + expanded subdirectory), create a file in the second directory, verify callback fires with the subdirectory URL
+- [ ] `testUnwatchStopsCallbacks` — Watch two directories, unwatch one, create a file in the unwatched directory, verify no callback. Create a file in the still-watched directory, verify callback fires.
+- [ ] `testUnwatchAllStopsAllCallbacks` — Watch two directories, call `unwatchAll()`, create files in both, verify no callbacks for either
+- [ ] `testSurvivesRewatch` — Watch a directory, call `watch()` again on the same URL, create a file, verify exactly one callback (no duplicate from double-watching). This verifies the existing idempotency guard in `MultiDirectoryWatcher.watch()`.
 
 ### Manual Verification (Marco)
 
 - [ ] Navigate to a folder with expanded subfolders, create/delete files in a subfolder from Terminal — verify Detours updates without manual refresh
 - [ ] Create multiple files rapidly in the current directory — verify all appear after debounce
 - [ ] Navigate between directories and verify no stale entries from the previous directory appear
+- [ ] Trigger a watcher-driven reload (create file from Terminal), then immediately expand a subfolder and create a file inside it from Terminal — verify both the root and subfolder changes are detected
