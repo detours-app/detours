@@ -10,6 +10,21 @@ struct AnyCancellableTask: Sendable {
     func cancel() { _cancel() }
 }
 
+/// Thread-safe one-shot flag for continuation resume guards.
+private final class OnceFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fired = false
+
+    /// Returns true exactly once; all subsequent calls return false.
+    func tryFire() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !fired else { return false }
+        fired = true
+        return true
+    }
+}
+
 @MainActor
 final class FileOperationQueue {
     static let shared = FileOperationQueue()
@@ -34,6 +49,7 @@ final class FileOperationQueue {
     private var pendingProgress: FileOperationProgress?
     private var progressThrottleWorkItem: DispatchWorkItem?
     private(set) var lastFinishedOperation: FileOperation?
+    private(set) var lastReceivedProgress: FileOperationProgress?
 
     // MARK: - Public API
 
@@ -743,25 +759,53 @@ final class FileOperationQueue {
 
         try checkCancelled()
 
+        // Calculate total source size for progress reporting
+        let sourceSize = Self.calculateTotalSize(of: items)
+
         // Build and run the compression process
         switch format {
         case .zip:
-            try await runZip(items: items, destination: archiveURL, password: password)
+            try await runZip(items: items, destination: archiveURL, password: password, sourceSize: sourceSize)
         case .sevenZ:
             try await runSevenZip(items: items, destination: archiveURL, password: password)
         case .tarGz:
-            try await runTar(items: items, destination: archiveURL, flag: "z")
+            try await runTar(items: items, destination: archiveURL, flag: "z", sourceSize: sourceSize)
         case .tarBz2:
-            try await runTar(items: items, destination: archiveURL, flag: "j")
+            try await runTar(items: items, destination: archiveURL, flag: "j", sourceSize: sourceSize)
         case .tarXz:
-            try await runTar(items: items, destination: archiveURL, flag: "J")
+            try await runTar(items: items, destination: archiveURL, flag: "J", sourceSize: sourceSize)
         }
 
         updateProgress(operation: operation, currentItem: archiveURL, completed: items.count, total: items.count)
         return archiveURL
     }
 
-    private func runZip(items: [URL], destination: URL, password: String?) async throws {
+    /// Recursively calculate total file size of given items.
+    private static func calculateTotalSize(of items: [URL]) -> Int64 {
+        let fm = FileManager.default
+        var total: Int64 = 0
+        for item in items {
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: item.path, isDirectory: &isDir) else { continue }
+            if isDir.boolValue {
+                if let enumerator = fm.enumerator(at: item, includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]) {
+                    for case let fileURL as URL in enumerator {
+                        if let values = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]),
+                           values.isRegularFile == true {
+                            total += Int64(values.totalFileAllocatedSize ?? 0)
+                        }
+                    }
+                }
+            } else {
+                if let values = try? item.resourceValues(forKeys: [.totalFileAllocatedSizeKey]) {
+                    total += Int64(values.totalFileAllocatedSize ?? 0)
+                }
+            }
+        }
+        return total
+    }
+
+    private func runZip(items: [URL], destination: URL, password: String?, sourceSize: Int64) async throws {
         let parentDir = items[0].deletingLastPathComponent().path
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.zip.path)
@@ -780,14 +824,15 @@ final class FileOperationQueue {
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
-        try await runProcess(process, errorPipe: errorPipe, partialFile: destination)
+        let mode: ArchiveProgressMode = sourceSize > 0 ? .pollFileSize(sourceSize: sourceSize) : .none
+        try await runProcess(process, errorPipe: errorPipe, partialFile: destination, progressMode: mode)
     }
 
     private func runSevenZip(items: [URL], destination: URL, password: String?) async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
 
-        var arguments = ["a", "-t7z"]
+        var arguments = ["a", "-t7z", "-bsp2"]
         if let password, !password.isEmpty {
             arguments.append("-p\(password)")
             arguments.append("-mhe=on")
@@ -801,10 +846,10 @@ final class FileOperationQueue {
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
-        try await runProcess(process, errorPipe: errorPipe, partialFile: destination)
+        try await runProcess(process, errorPipe: errorPipe, partialFile: destination, progressMode: .parseStderr)
     }
 
-    private func runTar(items: [URL], destination: URL, flag: String) async throws {
+    private func runTar(items: [URL], destination: URL, flag: String, sourceSize: Int64) async throws {
         let parentDir = items[0].deletingLastPathComponent().path
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
@@ -819,31 +864,116 @@ final class FileOperationQueue {
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
-        try await runProcess(process, errorPipe: errorPipe, partialFile: destination)
+        let mode: ArchiveProgressMode = sourceSize > 0 ? .pollFileSize(sourceSize: sourceSize) : .none
+        try await runProcess(process, errorPipe: errorPipe, partialFile: destination, progressMode: mode)
     }
 
-    private func runProcess(_ process: Process, errorPipe: Pipe, partialFile: URL) async throws {
+    /// Progress mode for archive subprocess monitoring.
+    private enum ArchiveProgressMode {
+        /// No intermediate progress (used when source size is unknown)
+        case none
+        /// Poll the output file size against a known source size (ZIP, TAR)
+        case pollFileSize(sourceSize: Int64)
+        /// Parse percentage from 7z's stderr output (`-bsp2` flag)
+        case parseStderr
+    }
+
+    private func runProcess(
+        _ process: Process,
+        errorPipe: Pipe,
+        partialFile: URL,
+        progressMode: ArchiveProgressMode = .none
+    ) async throws {
+        // For 7z stderr progress parsing, we need a separate pipe
+        var stderrProgressPipe: Pipe?
+        if case .parseStderr = progressMode {
+            let pipe = Pipe()
+            stderrProgressPipe = pipe
+            process.standardError = pipe
+        }
+
         try process.run()
 
-        // Monitor for cancellation while process runs
-        let cancelTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                try await Task.sleep(nanoseconds: 100_000_000) // 100ms
-                if self?.isCancelled == true {
-                    process.terminate()
-                    try? FileManager.default.removeItem(at: partialFile)
-                    return
+        // Start progress monitoring task
+        let progressTask = Task { [weak self] in
+            switch progressMode {
+            case .none:
+                break
+            case let .pollFileSize(sourceSize):
+                while !Task.isCancelled {
+                    try await Task.sleep(nanoseconds: 500_000_000) // 500ms
+                    let attrs = try? FileManager.default.attributesOfItem(atPath: partialFile.path)
+                    let currentSize = (attrs?[.size] as? Int64) ?? 0
+                    await MainActor.run { [weak self] in
+                        guard let self, let operation = self.currentOperation else { return }
+                        self.updateProgress(
+                            operation: operation,
+                            currentItem: partialFile,
+                            completed: 0,
+                            total: 0,
+                            bytesCompleted: currentSize,
+                            bytesTotal: sourceSize
+                        )
+                    }
+                }
+            case .parseStderr:
+                guard let pipe = stderrProgressPipe else { break }
+                let handle = pipe.fileHandleForReading
+                // Read stderr chunks and parse percentage
+                while !Task.isCancelled {
+                    let data = handle.availableData
+                    if data.isEmpty { break } // EOF
+                    if let str = String(data: data, encoding: .utf8) {
+                        // 7z progress format: " 45%" with backspace characters
+                        // Find the last percentage match
+                        let pattern = #"(\d+)%"#
+                        if let regex = try? NSRegularExpression(pattern: pattern),
+                           let match = regex.matches(in: str, range: NSRange(str.startIndex..., in: str)).last,
+                           let range = Range(match.range(at: 1), in: str),
+                           let percent = Int(str[range]) {
+                            let fraction = min(Double(percent) / 100.0, 1.0)
+                            await MainActor.run { [weak self] in
+                                guard let self, let operation = self.currentOperation else { return }
+                                self.updateProgress(
+                                    operation: operation,
+                                    currentItem: partialFile,
+                                    completed: percent,
+                                    total: 100,
+                                    bytesCompleted: 0,
+                                    bytesTotal: 0
+                                )
+                                _ = fraction // suppress unused warning
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // Await process completion without blocking the main thread
-        let terminationStatus: Int32 = await withCheckedContinuation { continuation in
-            process.terminationHandler = { proc in
-                continuation.resume(returning: proc.terminationStatus)
+        // Await process with cancellation support
+        // Uses withTaskCancellationHandler to avoid hung continuation if process dies
+        let once = OnceFlag()
+
+        let terminationStatus: Int32 = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                process.terminationHandler = { proc in
+                    if once.tryFire() {
+                        continuation.resume(returning: proc.terminationStatus)
+                    }
+                }
+
+                // Guard: process may have already exited before handler was set
+                if !process.isRunning {
+                    if once.tryFire() {
+                        continuation.resume(returning: process.terminationStatus)
+                    }
+                }
             }
+        } onCancel: {
+            process.terminate()
         }
-        cancelTask.cancel()
+
+        progressTask.cancel()
 
         if isCancelled {
             try? FileManager.default.removeItem(at: partialFile)
@@ -851,7 +981,13 @@ final class FileOperationQueue {
         }
 
         if terminationStatus != 0 {
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            // For 7z with separate progress pipe, read error output from that pipe
+            let errorData: Data
+            if let stderrPipe = stderrProgressPipe {
+                errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            } else {
+                errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            }
             let decoded = (String(data: errorData, encoding: .utf8) ?? String(data: errorData, encoding: .isoLatin1))?.trimmingCharacters(in: .whitespacesAndNewlines)
             let errorMessage = (decoded?.isEmpty == false) ? decoded! : "Process exited with code \(terminationStatus)"
             try? FileManager.default.removeItem(at: partialFile)
@@ -1024,7 +1160,11 @@ final class FileOperationQueue {
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
-        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: true)
+        // Use archive size as rough progress indicator — extracted data is larger,
+        // but the progress bar will fill and then hold at ~100% until complete
+        let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
+        let mode: ArchiveProgressMode = archiveSize > 0 ? .pollFileSize(sourceSize: archiveSize * 3) : .none
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: true, progressMode: mode)
     }
 
     /// Extract password-protected ZIP with unzip.
@@ -1038,7 +1178,9 @@ final class FileOperationQueue {
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
-        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: true)
+        let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
+        let mode: ArchiveProgressMode = archiveSize > 0 ? .pollFileSize(sourceSize: archiveSize * 3) : .none
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: true, progressMode: mode)
     }
 
     // MARK: - Non-ZIP Extraction (tar, 7z)
@@ -1328,7 +1470,7 @@ final class FileOperationQueue {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
 
-        var arguments = ["x", "-y", "-o\(destination.path)"]
+        var arguments = ["x", "-y", "-bsp2", "-o\(destination.path)"]
         if let password, !password.isEmpty {
             arguments.append("-p\(password)")
         }
@@ -1338,7 +1480,7 @@ final class FileOperationQueue {
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
-        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: password == nil)
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: password == nil, progressMode: .parseStderr)
     }
 
     private func extractTar(archive: URL, destination: URL) async throws {
@@ -1349,42 +1491,140 @@ final class FileOperationQueue {
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
-        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: false)
+        // Estimate uncompressed size as ~3x archive size for progress
+        let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
+        let mode: ArchiveProgressMode = archiveSize > 0 ? .pollFileSize(sourceSize: archiveSize * 3) : .none
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: false, progressMode: mode)
     }
 
-    private func runExtractProcess(_ process: Process, errorPipe: Pipe, destination: URL, passwordProtected: Bool) async throws {
+    private func runExtractProcess(
+        _ process: Process,
+        errorPipe: Pipe,
+        destination: URL,
+        passwordProtected: Bool,
+        progressMode: ArchiveProgressMode = .none
+    ) async throws {
+        // For 7z stderr progress parsing, use a separate pipe
+        var stderrProgressPipe: Pipe?
+        if case .parseStderr = progressMode {
+            let pipe = Pipe()
+            stderrProgressPipe = pipe
+            process.standardError = pipe
+        }
+
         try process.run()
 
-        let cancelTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                try await Task.sleep(nanoseconds: 100_000_000)
-                if self?.isCancelled == true {
-                    process.terminate()
-                    return
+        // Start progress monitoring
+        let progressTask = Task { [weak self] in
+            switch progressMode {
+            case .none:
+                break
+            case let .pollFileSize(expectedSize):
+                while !Task.isCancelled {
+                    try await Task.sleep(nanoseconds: 500_000_000) // 500ms
+                    let currentSize = Self.directorySize(at: destination)
+                    await MainActor.run { [weak self] in
+                        guard let self, let operation = self.currentOperation else { return }
+                        self.updateProgress(
+                            operation: operation,
+                            currentItem: destination,
+                            completed: 0,
+                            total: 0,
+                            bytesCompleted: currentSize,
+                            bytesTotal: expectedSize
+                        )
+                    }
+                }
+            case .parseStderr:
+                guard let pipe = stderrProgressPipe else { break }
+                let handle = pipe.fileHandleForReading
+                while !Task.isCancelled {
+                    let data = handle.availableData
+                    if data.isEmpty { break }
+                    if let str = String(data: data, encoding: .utf8) {
+                        let pattern = #"(\d+)%"#
+                        if let regex = try? NSRegularExpression(pattern: pattern),
+                           let match = regex.matches(in: str, range: NSRange(str.startIndex..., in: str)).last,
+                           let range = Range(match.range(at: 1), in: str),
+                           let percent = Int(str[range]) {
+                            await MainActor.run { [weak self] in
+                                guard let self, let operation = self.currentOperation else { return }
+                                self.updateProgress(
+                                    operation: operation,
+                                    currentItem: destination,
+                                    completed: percent,
+                                    total: 100,
+                                    bytesCompleted: 0,
+                                    bytesTotal: 0
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        process.waitUntilExit()
-        cancelTask.cancel()
+        // Await process with cancellation support (same pattern as runProcess)
+        let once = OnceFlag()
+
+        let terminationStatus: Int32 = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                process.terminationHandler = { proc in
+                    if once.tryFire() {
+                        continuation.resume(returning: proc.terminationStatus)
+                    }
+                }
+
+                if !process.isRunning {
+                    if once.tryFire() {
+                        continuation.resume(returning: process.terminationStatus)
+                    }
+                }
+            }
+        } onCancel: {
+            process.terminate()
+        }
+
+        progressTask.cancel()
 
         if isCancelled {
             try? FileManager.default.removeItem(at: destination)
             throw FileOperationError.cancelled
         }
 
-        if process.terminationStatus != 0 {
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        if terminationStatus != 0 {
+            let errorData: Data
+            if let stderrPipe = stderrProgressPipe {
+                errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            } else {
+                errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            }
             let decoded = (String(data: errorData, encoding: .utf8) ?? String(data: errorData, encoding: .isoLatin1))?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let errorMessage = (decoded?.isEmpty == false) ? decoded! : "Process exited with code \(process.terminationStatus)"
+            let errorMessage = (decoded?.isEmpty == false) ? decoded! : "Process exited with code \(terminationStatus)"
 
             // Detect password-required errors
-            if passwordProtected && isPasswordError(errorMessage, terminationStatus: process.terminationStatus) {
+            if passwordProtected && isPasswordError(errorMessage, terminationStatus: terminationStatus) {
                 throw FileOperationError.archivePasswordRequired
             }
 
             throw FileOperationError.archiveProcessFailed(errorMessage)
         }
+    }
+
+    /// Calculate total size of a directory by summing all files recursively.
+    private static func directorySize(at url: URL) -> Int64 {
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]) else {
+            return 0
+        }
+        var total: Int64 = 0
+        for case let fileURL as URL in enumerator {
+            if let values = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]),
+               values.isRegularFile == true {
+                total += Int64(values.totalFileAllocatedSize ?? 0)
+            }
+        }
+        return total
     }
 
     private func isPasswordError(_ message: String, terminationStatus: Int32) -> Bool {
@@ -1422,14 +1662,21 @@ final class FileOperationQueue {
         onOperationStart?(operation, totalCount)
     }
 
-    private func updateProgress(operation: FileOperation, currentItem: URL?, completed: Int, total: Int) {
+    private func updateProgress(
+        operation: FileOperation,
+        currentItem: URL?,
+        completed: Int,
+        total: Int,
+        bytesCompleted: Int64 = 0,
+        bytesTotal: Int64 = 0
+    ) {
         let progress = FileOperationProgress(
             operation: operation,
             currentItem: currentItem,
             completedCount: completed,
             totalCount: total,
-            bytesCompleted: 0,
-            bytesTotal: 0
+            bytesCompleted: bytesCompleted,
+            bytesTotal: bytesTotal
         )
 
         // Throttle UI updates to 16Hz (60ms intervals)
@@ -1461,12 +1708,14 @@ final class FileOperationQueue {
     }
 
     private func deliverProgress(_ progress: FileOperationProgress) {
+        lastReceivedProgress = progress
         onProgressUpdate?(progress)
     }
 
     private func finishOperation() {
         lastFinishedOperation = currentOperation
         currentOperation = nil
+        lastReceivedProgress = nil
         progressThrottleWorkItem?.cancel()
         progressThrottleWorkItem = nil
         pendingProgress = nil

@@ -60,7 +60,24 @@ private struct OperationDetailView: View {
                     .textSelection(.enabled)
             }
 
-            if model.progress.totalCount > 0 {
+            if model.progress.bytesTotal > 0 {
+                // Byte-level progress (archive/extract with known size)
+                ProgressView(value: model.progress.fractionCompleted)
+                    .progressViewStyle(.linear)
+
+                HStack {
+                    Text("\(Self.formatBytes(model.progress.bytesCompleted)) of \(Self.formatBytes(model.progress.bytesTotal))")
+                        .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 11)))
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
+
+                    Spacer()
+
+                    Text("\(Int(model.progress.fractionCompleted * 100))%")
+                        .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 11)))
+                        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
+                }
+            } else if model.progress.totalCount > 0 {
+                // Item-count progress (copy, move, etc.)
                 ProgressView(value: model.progress.fractionCompleted)
                     .progressViewStyle(.linear)
 
@@ -100,5 +117,11 @@ private struct OperationDetailView: View {
         }
         .padding(16)
         .frame(width: 300)
+    }
+
+    private static func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
     }
 }

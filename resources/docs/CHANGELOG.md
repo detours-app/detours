@@ -4,6 +4,11 @@
 
 ### Bug Fixes
 
+- **Archive/extract operations** — Fixed operations that could hang permanently
+  (stuck spinner, unresponsive cancel) due to a race condition in subprocess
+  management. Cancel now reliably terminates the compression process. Extraction
+  no longer freezes the UI (beachball). All formats (ZIP, TAR, 7z) now show
+  real progress with byte counts or percentage in the activity popover.
 - **File metadata updates** — File sizes and modification dates now refresh
   when files are modified in-place (e.g. `touch`, `echo >>`). Added lightweight
   polling alongside the existing instant watcher for structural changes.

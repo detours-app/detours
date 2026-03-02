@@ -481,9 +481,9 @@ final class PaneViewController: NSViewController {
     }
 
     private func showDetailPopover() {
-        guard let operation = FileOperationQueue.shared.currentOperation
-            ?? FileOperationQueue.shared.lastFinishedOperation else { return }
-        let progress = FileOperationProgress(
+        let queue = FileOperationQueue.shared
+        guard let operation = queue.currentOperation ?? queue.lastFinishedOperation else { return }
+        let progress = queue.lastReceivedProgress ?? FileOperationProgress(
             operation: operation,
             currentItem: nil,
             completedCount: 0,
