@@ -9,6 +9,10 @@
   management. Cancel now reliably terminates the compression process. Extraction
   no longer freezes the UI (beachball). All formats (ZIP, TAR, 7z) now show
   real progress with byte counts or percentage in the activity popover.
+- **SAFETY: Cancel no longer deletes user directories** — Cancelling an
+  extraction could permanently delete the destination folder (e.g. ~/Downloads)
+  if the archive extracted without a wrapper directory. Removed the dangerous
+  cleanup and ensured only temp directories created by the app are ever deleted.
 - **File metadata updates** — File sizes and modification dates now refresh
   when files are modified in-place (e.g. `touch`, `echo >>`). Added lightweight
   polling alongside the existing instant watcher for structural changes.

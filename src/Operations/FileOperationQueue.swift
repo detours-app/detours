@@ -45,6 +45,7 @@ final class FileOperationQueue {
     private var isRunning = false
     private var isCancelled = false
     private var currentIOCancellable: AnyCancellableTask?
+    private var currentProcess: Process?
     private var lastProgressTime: CFAbsoluteTime = 0
     private var pendingProgress: FileOperationProgress?
     private var progressThrottleWorkItem: DispatchWorkItem?
@@ -133,6 +134,7 @@ final class FileOperationQueue {
 
     func cancelCurrentOperation() {
         isCancelled = true
+        currentProcess?.terminate()
         currentIOCancellable?.cancel()
     }
 
@@ -894,6 +896,8 @@ final class FileOperationQueue {
         }
 
         try process.run()
+        currentProcess = process
+        defer { currentProcess = nil }
 
         // Start progress monitoring task
         let progressTask = Task { [weak self] in
@@ -1515,6 +1519,8 @@ final class FileOperationQueue {
         }
 
         try process.run()
+        currentProcess = process
+        defer { currentProcess = nil }
 
         // Start progress monitoring
         let progressTask = Task { [weak self] in
@@ -1592,7 +1598,9 @@ final class FileOperationQueue {
         progressTask.cancel()
 
         if isCancelled {
-            try? FileManager.default.removeItem(at: destination)
+            // SAFETY: Never delete destination here — it may be a user directory (e.g. ~/Downloads).
+            // Callers (performExtractZip, performExtractNonZip) handle cleanup of any temp/wrapper
+            // directories they created via their own defer blocks and error handlers.
             throw FileOperationError.cancelled
         }
 
@@ -1719,6 +1727,7 @@ final class FileOperationQueue {
     private func finishOperation() {
         lastFinishedOperation = currentOperation
         currentOperation = nil
+        currentProcess = nil
         lastReceivedProgress = nil
         progressThrottleWorkItem?.cancel()
         progressThrottleWorkItem = nil
