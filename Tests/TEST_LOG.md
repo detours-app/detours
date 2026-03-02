@@ -2,31 +2,13 @@
 
 ## Latest Run
 
-- Started: 2026-03-02 12:12:22
+- Started: 2026-03-02 11:06:13
 - Command: `swift test --filter MultiDirectoryWatcherTests`
 - Status: PASS
-- Duration: 2.1s
-- Notes: 11 tests passed. Replaced DispatchSource with FSEvents in
-  SingleDirectoryWatcher. 4 new tests: touch on existing file, echo
-  append, touch creating new file, touch in home directory path. All
-  original tests still pass (creation, deletion, rename, subdirectory,
-  unwatch, unwatchAll, rewatch).
-
-### MultiDirectoryWatcher Suite
-
-| Test | Status | Duration | Last Run |
-| --- | --- | --- | --- |
-| Detects file creation | PASS | 0.44s | 2026-03-02 12:12:22 |
-| Detects file creation via touch | PASS | 0.65s | 2026-03-02 12:12:22 |
-| Detects touch on existing file | PASS | 2.13s | 2026-03-02 12:12:22 |
-| Detects echo append to existing file | PASS | 2.13s | 2026-03-02 12:12:22 |
-| Detects touch in home directory path | PASS | 2.13s | 2026-03-02 12:12:22 |
-| Detects file deletion | PASS | 0.33s | 2026-03-02 12:12:22 |
-| Detects file rename | PASS | 0.44s | 2026-03-02 12:12:22 |
-| Detects subdirectory change | PASS | 0.44s | 2026-03-02 12:12:22 |
-| Survives rewatch of same URL | PASS | 0.44s | 2026-03-02 12:12:22 |
-| Unwatch stops callbacks | PASS | 1.07s | 2026-03-02 12:12:22 |
-| UnwatchAll stops all callbacks | PASS | 0.97s | 2026-03-02 12:12:22 |
+- Duration: 0.9s
+- Notes: 7 tests passed. Rewrote DirectoryWatcherTests as
+  MultiDirectoryWatcherTests using MultiDirectoryWatcher API (creation,
+  deletion, rename, subdirectory change, unwatch, unwatchAll, rewatch).
 
 ## Previous Run
 
