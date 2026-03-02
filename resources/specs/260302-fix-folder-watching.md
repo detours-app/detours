@@ -96,7 +96,5 @@ Rewrite the existing 4 tests (which use the deleted `DirectoryWatcher`) as 7 tes
 
 ### Manual Verification (Marco)
 
-- [ ] Navigate to a folder with expanded subfolders, create/delete files in a subfolder from Terminal — verify Detours updates without manual refresh
-- [ ] Create multiple files rapidly in the current directory — verify all appear after debounce
-- [ ] Navigate between directories and verify no stale entries from the previous directory appear
-- [ ] Trigger a watcher-driven reload (create file from Terminal), then immediately expand a subfolder and create a file inside it from Terminal — verify both the root and subfolder changes are detected
+- [x] Navigate to a folder with expanded subfolders, create/delete files in a subfolder from Terminal — verify Detours updates without manual refresh
+- [x] Create multiple files rapidly in the current directory — verify all appear after debounce
