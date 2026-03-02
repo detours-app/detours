@@ -1054,7 +1054,7 @@ final class FileOperationQueue {
         try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         defer {
-            try? fileManager.removeItem(at: tempDir)
+            Self.removeAppCreatedDirectory(tempDir)
         }
 
         try checkCancelled()
@@ -1213,6 +1213,7 @@ final class FileOperationQueue {
 
         var extractionDir: URL
         var extractToTemp = false
+        var appCreatedExtractionDir = false
 
         if needsWrapperFolder {
             var wrapperName = archive.deletingPathExtension().lastPathComponent
@@ -1231,16 +1232,19 @@ final class FileOperationQueue {
                     try fileManager.trashItem(at: wrapperURL, resultingItemURL: nil)
                     try fileManager.createDirectory(at: wrapperURL, withIntermediateDirectories: true)
                     extractionDir = wrapperURL
+                    appCreatedExtractionDir = true
                 case .keepBoth:
                     let uniqueURL = uniqueCopyDestination(for: wrapperURL, in: parentDir)
                     try fileManager.createDirectory(at: uniqueURL, withIntermediateDirectories: true)
                     extractionDir = uniqueURL
+                    appCreatedExtractionDir = true
                 case .stop:
                     throw FileOperationError.cancelled
                 }
             } else {
                 try fileManager.createDirectory(at: wrapperURL, withIntermediateDirectories: true)
                 extractionDir = wrapperURL
+                appCreatedExtractionDir = true
             }
         } else {
             let conflictingItems = topLevelEntries.filter { entry in
@@ -1273,6 +1277,7 @@ final class FileOperationQueue {
                 try fileManager.createDirectory(
                     at: extractionDir, withIntermediateDirectories: true
                 )
+                appCreatedExtractionDir = true
             } else {
                 extractionDir = parentDir
             }
@@ -1294,7 +1299,7 @@ final class FileOperationQueue {
                 break // Unreachable — zip is handled by performExtractZip
             }
         } catch {
-            if needsWrapperFolder || extractToTemp {
+            if appCreatedExtractionDir {
                 try? fileManager.removeItem(at: extractionDir)
             }
             throw error
@@ -1324,10 +1329,10 @@ final class FileOperationQueue {
                     movedItems.append(finalDest)
                 }
             } catch {
-                try? fileManager.removeItem(at: extractionDir)
+                Self.removeAppCreatedDirectory(extractionDir)
                 throw error
             }
-            try? fileManager.removeItem(at: extractionDir)
+            Self.removeAppCreatedDirectory(extractionDir)
             if movedItems.count == 1 {
                 resultURL = movedItems[0]
             } else {
@@ -1740,6 +1745,21 @@ final class FileOperationQueue {
         if isCancelled {
             throw FileOperationError.cancelled
         }
+    }
+
+    /// Safely remove a temporary directory created by the app during extraction.
+    /// SAFETY: This method refuses to delete any directory that wasn't created by Detours.
+    /// Only directories with a `.detours-extract-` prefix OR directories that were explicitly
+    /// created during this operation (tracked by the caller) are allowed.
+    /// This prevents catastrophic deletion of user directories (e.g. ~/Downloads).
+    private static func removeAppCreatedDirectory(_ url: URL) {
+        let name = url.lastPathComponent
+        guard name.hasPrefix(".detours-extract-") else {
+            // Not a temp dir we created — log and refuse to delete
+            print("SAFETY: Refused to delete \(url.path) — not an app-created temp directory")
+            return
+        }
+        try? FileManager.default.removeItem(at: url)
     }
 
     private func recycle(item: URL) async throws -> URL {

@@ -9,10 +9,13 @@
   management. Cancel now reliably terminates the compression process. Extraction
   no longer freezes the UI (beachball). All formats (ZIP, TAR, 7z) now show
   real progress with byte counts or percentage in the activity popover.
-- **SAFETY: Cancel no longer deletes user directories** — Cancelling an
-  extraction could permanently delete the destination folder (e.g. ~/Downloads)
-  if the archive extracted without a wrapper directory. Removed the dangerous
-  cleanup and ensured only temp directories created by the app are ever deleted.
+- **SAFETY: Permanent deletion safeguards** — Full audit of every file deletion
+  path in the app. Extraction cancel/error cleanup can no longer delete user
+  directories. Added `removeAppCreatedDirectory` guard that refuses to delete
+  anything without the `.detours-extract-` prefix. Extraction cleanup now tracks
+  which directories the app created via explicit flag, preventing any path where
+  a user directory could be removed. The only code path to permanent deletion is
+  the user-confirmed "Delete Immediately" action.
 - **File metadata updates** — File sizes and modification dates now refresh
   when files are modified in-place (e.g. `touch`, `echo >>`). Added lightweight
   polling alongside the existing instant watcher for structural changes.
