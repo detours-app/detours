@@ -33,7 +33,7 @@ final class FileOperationQueue {
     private var lastProgressTime: CFAbsoluteTime = 0
     private var pendingProgress: FileOperationProgress?
     private var progressThrottleWorkItem: DispatchWorkItem?
-    private var lastFinishedOperation: FileOperation?
+    private(set) var lastFinishedOperation: FileOperation?
 
     // MARK: - Public API
 

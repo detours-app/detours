@@ -21,9 +21,10 @@ managers.
   system/light/dark themes; opaque fallback for Foolscap/Drafting/Custom
 - **Unified toolbar** — transparent title bar with NSToolbar for a modern
   window appearance
-- **Activity indicator redesign** — thinner ring (1.5px stroke), traveling arc
-  animation for indeterminate state, smooth scale-down completion, color
-  transition for errors
+- **Activity indicator redesign** — thinner ring (1.5px stroke), smooth
+  traveling arc animation for indeterminate state, scale-down completion, color
+  transition for errors; clicking popover works reliably throughout operation
+  lifecycle
 - **Tab bar refinement** — rounded selected tab, fade-in close button, bottom
   separator, inactive pane dimming
 - **Themed dialogs** — Quick Nav panel, filter bar, archive dialog, operation

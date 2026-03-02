@@ -312,35 +312,46 @@ final class ActivityToolbarButton: NSView {
     private func startTravelingArc() {
         progressLayer.removeAllAnimations()
         progressLayer.strokeStart = 0
-        progressLayer.strokeEnd = 0.25
+        progressLayer.strokeEnd = 0.02
 
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             // Static arc — no animation
+            progressLayer.strokeEnd = 0.25
             return
         }
 
-        let startAnim = CABasicAnimation(keyPath: "strokeStart")
-        startAnim.fromValue = 0
-        startAnim.toValue = 0.75
+        // Keyframe animations: arc grows then shrinks each cycle.
+        // At cycle boundaries the arc is near-zero, so the repeat reset is invisible.
+        let endAnim = CAKeyframeAnimation(keyPath: "strokeEnd")
+        endAnim.values = [0.02, 0.95, 0.95]
+        endAnim.keyTimes = [0, 0.45, 1.0]
+        endAnim.timingFunctions = [
+            CAMediaTimingFunction(name: .easeOut),
+            CAMediaTimingFunction(name: .linear),
+        ]
 
-        let endAnim = CABasicAnimation(keyPath: "strokeEnd")
-        endAnim.fromValue = 0.25
-        endAnim.toValue = 1.0
+        let startAnim = CAKeyframeAnimation(keyPath: "strokeStart")
+        startAnim.values = [0.0, 0.0, 0.93]
+        startAnim.keyTimes = [0, 0.45, 1.0]
+        startAnim.timingFunctions = [
+            CAMediaTimingFunction(name: .linear),
+            CAMediaTimingFunction(name: .easeIn),
+        ]
 
         let group = CAAnimationGroup()
         group.animations = [startAnim, endAnim]
-        group.duration = 1.2
+        group.duration = 1.4
         group.repeatCount = .infinity
-        group.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         group.isRemovedOnCompletion = false
         progressLayer.add(group, forKey: "travelingArc")
 
-        // Also rotate the layer for continuous motion
+        // Continuous rotation — slightly desynchronized from stroke cycle for organic feel
         let rotation = CABasicAnimation(keyPath: "transform.rotation.z")
         rotation.fromValue = 0
         rotation.toValue = 2 * Double.pi
-        rotation.duration = 1.2
+        rotation.duration = 1.8
         rotation.repeatCount = .infinity
+        rotation.timingFunction = CAMediaTimingFunction(name: .linear)
         rotation.isRemovedOnCompletion = false
         progressLayer.add(rotation, forKey: "arcRotation")
     }

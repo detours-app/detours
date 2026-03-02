@@ -572,9 +572,9 @@ Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 
 Subjective items that only a human can judge:
 
-- [ ] Overall spacing feels balanced at default (13px) and
+- [x] Overall spacing feels balanced at default (13px) and
   extreme (10px, 16px) font sizes
-- [ ] Hover states feel responsive without jank during
+- [x] Hover states feel responsive without jank during
   fast scrolling
 - [ ] Activity indicator transitions feel smooth --- no
   jarring icon swaps or geometry changes between states
