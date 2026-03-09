@@ -1315,7 +1315,11 @@ extension PaneViewController: PaneTabBarDelegate {
     func tabBarDidRequestNewTab() {
         let currentDir = selectedTab?.currentDirectory ?? FileManager.default.homeDirectoryForCurrentUser
         let mode = selectedTab?.iCloudListingMode ?? .normal
-        createTab(at: currentDir, iCloudListingMode: mode, select: true)
+        let expandedFolders = selectedTab?.fileListViewController.dataSource.expandedFolders
+        let tab = createTab(at: currentDir, iCloudListingMode: mode, select: true)
+        if let expandedFolders, !expandedFolders.isEmpty {
+            tab.fileListViewController.pendingExpansionRestore = expandedFolders
+        }
     }
 
     func tabBarDidRequestBack() {

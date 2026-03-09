@@ -567,7 +567,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Only reset the watcher when navigating to a different directory.
         // Same-directory reloads (watcher-triggered, file operations, undo)
         // skip this to preserve expanded subdirectory watches.
-        if previousDirectory != normalizedURL {
+        // Always start watching on first load (directoryWatcher is nil) since
+        // PaneTab's lazy init pre-sets currentDirectory, making previousDirectory == normalizedURL.
+        if previousDirectory != normalizedURL || directoryWatcher == nil {
             startWatching(normalizedURL)
         }
 
