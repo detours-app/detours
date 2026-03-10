@@ -960,11 +960,20 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         Task { @MainActor in
             do {
                 let pastedURLs = try await ClipboardManager.shared.paste(to: pasteDestination, undoManager: undoManager)
-                loadDirectory(currentDirectory, preserveExpansion: true)
-                // Select the first pasted file
-                if let firstURL = pastedURLs.first {
-                    selectItem(at: firstURL)
+                pendingPostLoadAction = { [weak self] in
+                    guard let self else { return }
+                    // Expand the destination folder so pasted items are visible
+                    if pasteDestination != currentDirectory {
+                        if let parentItem = self.dataSource.findItem(withURL: pasteDestination, in: self.dataSource.items) {
+                            self.tableView.expandItem(parentItem)
+                        }
+                    }
+                    // Select the first pasted file
+                    if let firstURL = pastedURLs.first {
+                        self.selectItem(at: firstURL)
+                    }
                 }
+                loadDirectory(currentDirectory, preserveExpansion: true)
                 // Refresh other pane if showing affected directories
                 navigationDelegate?.fileListDidRequestRefreshSourceDirectories(directoriesToRefresh)
                 // Keep focus on destination pane (where we pasted)

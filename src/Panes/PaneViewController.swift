@@ -765,10 +765,12 @@ final class PaneViewController: NSViewController {
     /// Apply any pending restore state (expansions/selections) after tab is loaded
     private func applyPendingRestore(for tab: PaneTab) {
         if let expansions = tab.pendingExpansions {
-            tab.fileListViewController.restoreExpansion(expansions)
+            // Use pendingExpansionRestore so it's applied after async load completes
+            tab.fileListViewController.pendingExpansionRestore = expansions
         }
         if let selections = tab.pendingSelections {
-            tab.fileListViewController.restoreSelection(selections)
+            // Defer selection restore until after async load completes
+            tab.fileListViewController.setPendingSelection(at: selections)
         }
         tab.clearPendingRestore()
     }
