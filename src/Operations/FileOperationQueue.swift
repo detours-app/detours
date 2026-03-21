@@ -249,6 +249,11 @@ final class FileOperationQueue {
 
     private func performCopy(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
         let operation = FileOperation.copy(sources: items, destination: destination)
+
+        // Pre-calculate per-item sizes for byte-level progress
+        let itemSizes = await Task.detached { items.map { Self.calculateTotalSize(of: [$0]) } }.value
+        let totalSize = itemSizes.reduce(0, +)
+
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
 
@@ -256,6 +261,7 @@ final class FileOperationQueue {
         var failures: [(URL, Error)] = []
         var successes: [URL] = []
         var conflictChoice: ConflictChoice?
+        var bytesCopied: Int64 = 0
 
         for (index, source) in items.enumerated() {
             try checkCancelled()
@@ -264,7 +270,9 @@ final class FileOperationQueue {
                 operation: operation,
                 currentItem: source,
                 completed: index,
-                total: items.count
+                total: items.count,
+                bytesCompleted: bytesCopied,
+                bytesTotal: totalSize
             )
 
             let targetDir = destination
@@ -294,18 +302,31 @@ final class FileOperationQueue {
                 }
 
                 if !skipped {
+                    let pollTask = startBytePollTask(
+                        destination: destinationURL,
+                        operation: operation,
+                        currentItem: source,
+                        itemIndex: index,
+                        itemCount: items.count,
+                        bytesCopiedBefore: bytesCopied,
+                        totalSize: totalSize
+                    )
                     try await runFileIO { try FileManager.default.copyItem(at: source, to: destinationURL) }
+                    pollTask.cancel()
                     successes.append(destinationURL)
                 }
             } catch {
                 failures.append((source, mapError(error, url: source)))
             }
 
+            bytesCopied += itemSizes[index]
             updateProgress(
                 operation: operation,
                 currentItem: source,
                 completed: index + 1,
-                total: items.count
+                total: items.count,
+                bytesCompleted: bytesCopied,
+                bytesTotal: totalSize
             )
         }
 
@@ -330,6 +351,11 @@ final class FileOperationQueue {
 
     private func performMove(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
         let operation = FileOperation.move(sources: items, destination: destination)
+
+        // Pre-calculate per-item sizes for byte-level progress (cross-volume moves)
+        let itemSizes = await Task.detached { items.map { Self.calculateTotalSize(of: [$0]) } }.value
+        let totalSize = itemSizes.reduce(0, +)
+
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
 
@@ -337,6 +363,7 @@ final class FileOperationQueue {
         var failures: [(URL, Error)] = []
         var successes: [(source: URL, destination: URL)] = []
         var conflictChoice: ConflictChoice?
+        var bytesMoved: Int64 = 0
 
         for (index, source) in items.enumerated() {
             try checkCancelled()
@@ -345,7 +372,9 @@ final class FileOperationQueue {
                 operation: operation,
                 currentItem: source,
                 completed: index,
-                total: items.count
+                total: items.count,
+                bytesCompleted: bytesMoved,
+                bytesTotal: totalSize
             )
 
             let targetDir = destination
@@ -375,18 +404,31 @@ final class FileOperationQueue {
                 }
 
                 if !skipped {
+                    let pollTask = startBytePollTask(
+                        destination: destinationURL,
+                        operation: operation,
+                        currentItem: source,
+                        itemIndex: index,
+                        itemCount: items.count,
+                        bytesCopiedBefore: bytesMoved,
+                        totalSize: totalSize
+                    )
                     try await runFileIO { try FileManager.default.moveItem(at: source, to: destinationURL) }
+                    pollTask.cancel()
                     successes.append((source: source, destination: destinationURL))
                 }
             } catch {
                 failures.append((source, mapError(error, url: source)))
             }
 
+            bytesMoved += itemSizes[index]
             updateProgress(
                 operation: operation,
                 currentItem: source,
                 completed: index + 1,
-                total: items.count
+                total: items.count,
+                bytesCompleted: bytesMoved,
+                bytesTotal: totalSize
             )
         }
 
@@ -783,7 +825,7 @@ final class FileOperationQueue {
     }
 
     /// Recursively calculate total file size of given items.
-    private static func calculateTotalSize(of items: [URL]) -> Int64 {
+    nonisolated private static func calculateTotalSize(of items: [URL]) -> Int64 {
         let fm = FileManager.default
         var total: Int64 = 0
         for item in items {
@@ -1629,7 +1671,7 @@ final class FileOperationQueue {
     }
 
     /// Calculate total size of a directory by summing all files recursively.
-    private static func directorySize(at url: URL) -> Int64 {
+    nonisolated private static func directorySize(at url: URL) -> Int64 {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]) else {
             return 0
@@ -1658,6 +1700,38 @@ final class FileOperationQueue {
             return true
         }
         return false
+    }
+
+    // MARK: - Byte-Level Progress Polling
+
+    /// Poll the destination file/folder size during a copy or move to report byte-level progress.
+    /// Returns a cancellable task — cancel it when the I/O operation completes.
+    private func startBytePollTask(
+        destination: URL,
+        operation: FileOperation,
+        currentItem: URL,
+        itemIndex: Int,
+        itemCount: Int,
+        bytesCopiedBefore: Int64,
+        totalSize: Int64
+    ) -> Task<Void, Never> {
+        Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
+                guard !Task.isCancelled else { break }
+                let currentDestSize = Self.calculateTotalSize(of: [destination])
+                await MainActor.run { [weak self] in
+                    self?.updateProgress(
+                        operation: operation,
+                        currentItem: currentItem,
+                        completed: itemIndex,
+                        total: itemCount,
+                        bytesCompleted: bytesCopiedBefore + currentDestSize,
+                        bytesTotal: totalSize
+                    )
+                }
+            }
+        }
     }
 
     // MARK: - Progress

@@ -108,8 +108,9 @@ final class MainSplitViewController: NSSplitViewController {
         queue.onProgressUpdate = { [weak self] progress in
             guard let self else { return }
             let pane = self.activePane
-            if progress.totalCount > 0 || progress.bytesTotal > 0 {
-                pane.activityButton.updateProgress(progress.fractionCompleted)
+            let fraction = progress.fractionCompleted
+            if fraction > 0, progress.totalCount > 0 || progress.bytesTotal > 0 {
+                pane.activityButton.updateProgress(fraction)
             }
             pane.updateDetailPopover(progress)
         }
@@ -148,6 +149,7 @@ final class MainSplitViewController: NSSplitViewController {
 
     private static func isIndeterminateOperation(_ operation: FileOperation) -> Bool {
         switch operation {
+        case .copy, .move: return true
         case .deleteImmediately: return true
         case .delete(let items): return items.count <= 1
         default: return false
