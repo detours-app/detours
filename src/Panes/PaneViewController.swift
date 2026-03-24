@@ -951,7 +951,18 @@ final class PaneViewController: NSViewController {
     }
 
     var tabExpansions: [Set<URL>] {
-        tabs.map { $0.fileListViewController.dataSource.expandedFolders }
+        tabs.map { tab in
+            // For tabs with pending state (never loaded), use the pending expansions
+            if let pending = tab.pendingExpansions {
+                return pending
+            }
+            // For tabs where the async load is still in-flight, pendingExpansionRestore
+            // is set but expandedFolders is still empty — use the pending value
+            if let pending = tab.fileListViewController.pendingExpansionRestore {
+                return pending
+            }
+            return tab.fileListViewController.dataSource.expandedFolders
+        }
     }
 
     func restoreTabs(from urls: [URL], selectedIndex: Int, selections: [[URL]]? = nil, showHiddenFiles: [Bool]? = nil, expansions: [Set<URL>]? = nil, iCloudListingModes: [ICloudListingMode]? = nil) {
