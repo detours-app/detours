@@ -1091,11 +1091,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             do {
                 let duplicatedURLs = try await FileOperationQueue.shared.duplicate(items: urls, undoManager: undoManager)
                 dataSource.invalidateGitStatus()
-                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
-                // Select the first duplicated file
                 if let firstURL = duplicatedURLs.first {
-                    selectItem(at: firstURL)
+                    pendingPostLoadAction = { [weak self] in
+                        self?.selectItem(at: firstURL)
+                    }
                 }
+                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }

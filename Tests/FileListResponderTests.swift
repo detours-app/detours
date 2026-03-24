@@ -55,7 +55,7 @@ final class FileListResponderTests: XCTestCase {
 
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        viewController.loadDirectory(source)
+        await loadDirectoryAndWaitAsync(source, in: viewController)
         viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         let cleanup = {
@@ -66,7 +66,7 @@ final class FileListResponderTests: XCTestCase {
 
         XCTAssertTrue(viewController.handleKeyDown(makeKeyEvent(characters: "x", keyCode: 7, modifiers: [.command])))
 
-        viewController.loadDirectory(destination)
+        await loadDirectoryAndWaitAsync(destination, in: viewController)
         XCTAssertTrue(viewController.handleKeyDown(makeKeyEvent(characters: "v", keyCode: 9, modifiers: [.command])))
 
         let movedURL = destination.appendingPathComponent("move.txt")
@@ -122,19 +122,21 @@ final class FileListResponderTests: XCTestCase {
         XCTAssertGreaterThan(afterCount, beforeCount)
     }
 
-    func testHandleKeyDownHandlesCmdRRefresh() throws {
+    func testHandleKeyDownHandlesCmdRRefresh() async throws {
         let temp = try createTempDirectory()
         _ = try createTestFile(in: temp, name: "a.txt")
 
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        viewController.loadDirectory(temp)
+        await loadDirectoryAndWaitAsync(temp, in: viewController)
 
         XCTAssertEqual(viewController.tableView.numberOfRows, 1)
         _ = try createTestFile(in: temp, name: "b.txt")
 
         let event = makeKeyEvent(characters: "r", keyCode: 15, modifiers: [.command])
         XCTAssertTrue(viewController.handleKeyDown(event))
+        let refreshed = await waitForRowCount(2, in: viewController.tableView)
+        XCTAssertTrue(refreshed, "Refresh should reload the additional file")
         XCTAssertEqual(viewController.tableView.numberOfRows, 2)
 
         cleanupTempDirectory(temp)
@@ -142,8 +144,22 @@ final class FileListResponderTests: XCTestCase {
     }
 
     func testHandleKeyDownHandlesCmdDDuplicate() async throws {
-        let (viewController, fileURL, cleanup) = try makeViewControllerWithSelection()
+        let temp = try createTempDirectory()
+        let fileURL = try createTestFile(in: temp, name: "a.txt")
+
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        viewController.loadDirectory(temp)
+
+        let cleanup = {
+            cleanupTempDirectory(temp)
+            ClipboardManager.shared.clear()
+        }
         defer { cleanup() }
+
+        let loadCompleted = await waitForRowCount(1, in: viewController.tableView)
+        XCTAssertTrue(loadCompleted, "Directory should finish loading before duplicating")
+        viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         let event = makeKeyEvent(characters: "d", keyCode: 2, modifiers: [.command])
         XCTAssertTrue(viewController.handleKeyDown(event))
@@ -151,13 +167,17 @@ final class FileListResponderTests: XCTestCase {
         let duplicateURL = fileURL.deletingLastPathComponent().appendingPathComponent("a copy.txt")
         let duplicateExists = await waitForFile(at: duplicateURL, exists: true)
         XCTAssertTrue(duplicateExists)
+
+        let duplicateSelected = await waitForSelectedURL(duplicateURL, in: viewController)
+        XCTAssertTrue(duplicateSelected, "Duplicate should be selected after duplication")
+        XCTAssertEqual(viewController.selectedURLs.map(\.standardizedFileURL), [duplicateURL.standardizedFileURL])
     }
 
     func testHandleKeyDownHandlesF7NewFolder() async throws {
         let temp = try createTempDirectory()
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        viewController.loadDirectory(temp)
+        await loadDirectoryAndWaitAsync(temp, in: viewController)
 
         let cleanup = {
             cleanupTempDirectory(temp)
@@ -173,12 +193,12 @@ final class FileListResponderTests: XCTestCase {
         XCTAssertTrue(folderExists, "New folder should be created with name 'Folder'")
     }
 
-    func testHandleKeyDownHandlesF7NewFolderInCurrentDirectoryWithSelectedFolder() async throws {
+    func testHandleKeyDownHandlesF7NewFolderInsideSelectedFolder() async throws {
         let temp = try createTempDirectory()
-        _ = try createTestFolder(in: temp, name: "existing")
+        let selectedFolder = try createTestFolder(in: temp, name: "existing")
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        viewController.loadDirectory(temp)
+        await loadDirectoryAndWaitAsync(temp, in: viewController)
         viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         let cleanup = {
@@ -190,9 +210,11 @@ final class FileListResponderTests: XCTestCase {
         let event = makeFunctionKeyEvent(keyCode: 98, functionKey: NSF7FunctionKey)
         XCTAssertTrue(viewController.handleKeyDown(event))
 
-        let newFolder = temp.appendingPathComponent("Folder")
+        let newFolder = selectedFolder.appendingPathComponent("Folder")
         let folderExists = await waitForFile(at: newFolder, exists: true)
-        XCTAssertTrue(folderExists, "New folder should be created in current directory")
+        XCTAssertTrue(folderExists, "New folder should be created inside the selected folder")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent("Folder").path),
+                       "New folder should not be created alongside the selected folder")
     }
 
     func testHandleKeyDownHandlesCmdUpParentNavigation() throws {
@@ -463,7 +485,7 @@ final class FileListResponderTests: XCTestCase {
 
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        viewController.loadDirectory(temp)
+        loadDirectoryAndWait(temp, in: viewController)
         viewController.tableView.selectRowIndexes(IndexSet([0, 1]), byExtendingSelection: false)
 
         let cleanup = {
@@ -489,7 +511,7 @@ final class FileListResponderTests: XCTestCase {
 
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        viewController.loadDirectory(temp)
+        loadDirectoryAndWait(temp, in: viewController)
         viewController.tableView.selectRowIndexes(IndexSet([0]), byExtendingSelection: false)
 
         let cleanup = {
@@ -529,7 +551,7 @@ final class FileListResponderTests: XCTestCase {
 
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        viewController.loadDirectory(temp)
+        loadDirectoryAndWait(temp, in: viewController)
         viewController.tableView.deselectAll(nil)  // Ensure no selection
 
         let cleanup = {
@@ -546,7 +568,7 @@ final class FileListResponderTests: XCTestCase {
     }
 
     func testHandleKeyDownHandlesF8Delete() async throws {
-        let (viewController, fileURL, cleanup) = try makeViewControllerWithSelection()
+        let (viewController, fileURL, cleanup) = try await makeViewControllerWithSelectionAsync()
         defer { cleanup() }
 
         let event = makeFunctionKeyEvent(keyCode: 100, functionKey: NSF8FunctionKey)
@@ -565,7 +587,7 @@ final class FileListResponderTests: XCTestCase {
         let viewController = FileListViewController()
         viewController.navigationDelegate = spy
         viewController.loadViewIfNeeded()
-        viewController.loadDirectory(source)
+        await loadDirectoryAndWaitAsync(source, in: viewController, delegate: spy)
         viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         let cleanup = {
@@ -575,7 +597,7 @@ final class FileListResponderTests: XCTestCase {
         defer { cleanup() }
 
         XCTAssertTrue(viewController.handleKeyDown(makeKeyEvent(characters: "x", keyCode: 7, modifiers: [.command])))
-        viewController.loadDirectory(destination)
+        await loadDirectoryAndWaitAsync(destination, in: viewController, delegate: spy)
         XCTAssertTrue(viewController.handleKeyDown(makeKeyEvent(characters: "v", keyCode: 9, modifiers: [.command])))
 
         // After paste, both source (for cut) and destination should be in refresh set
@@ -588,7 +610,7 @@ final class FileListResponderTests: XCTestCase {
     private func makeViewControllerWithSelection(
         directory: URL? = nil,
         fileName: String = "a.txt",
-        delegate: FileListNavigationDelegate? = nil
+        delegate: NavigationDelegateSpy? = nil
     ) throws -> (FileListViewController, URL, () -> Void) {
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
@@ -597,7 +619,7 @@ final class FileListResponderTests: XCTestCase {
         let temp = try (directory ?? createTempDirectory())
         let fileURL = try createTestFile(in: temp, name: fileName)
 
-        viewController.loadDirectory(temp)
+        loadDirectoryAndWait(temp, in: viewController, delegate: delegate)
         viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         let cleanup = {
@@ -606,6 +628,89 @@ final class FileListResponderTests: XCTestCase {
         }
 
         return (viewController, fileURL, cleanup)
+    }
+
+    private func makeViewControllerWithSelectionAsync(
+        directory: URL? = nil,
+        fileName: String = "a.txt",
+        delegate: NavigationDelegateSpy? = nil
+    ) async throws -> (FileListViewController, URL, () -> Void) {
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        viewController.navigationDelegate = delegate
+
+        let temp = try (directory ?? createTempDirectory())
+        let fileURL = try createTestFile(in: temp, name: fileName)
+
+        await loadDirectoryAndWaitAsync(temp, in: viewController, delegate: delegate)
+        viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        let cleanup = {
+            cleanupTempDirectory(temp)
+            ClipboardManager.shared.clear()
+        }
+
+        return (viewController, fileURL, cleanup)
+    }
+
+    private func loadDirectoryAndWait(
+        _ url: URL,
+        in viewController: FileListViewController,
+        delegate: NavigationDelegateSpy? = nil,
+        timeout: TimeInterval = 2.0
+    ) {
+        let loadSpy = ensureLoadSpy(for: viewController, delegate: delegate)
+        let previousLoadCount = loadSpy.directoryLoadCount
+        let expectation = expectation(description: "loadDirectory \(url.path)")
+
+        loadSpy.onDidLoadDirectory = {
+            if loadSpy.directoryLoadCount > previousLoadCount {
+                expectation.fulfill()
+            }
+        }
+
+        viewController.loadDirectory(url)
+        wait(for: [expectation], timeout: timeout)
+        loadSpy.onDidLoadDirectory = nil
+    }
+
+    private func loadDirectoryAndWaitAsync(
+        _ url: URL,
+        in viewController: FileListViewController,
+        delegate: NavigationDelegateSpy? = nil,
+        timeout: TimeInterval = 2.0
+    ) async {
+        let loadSpy = ensureLoadSpy(for: viewController, delegate: delegate)
+        let previousLoadCount = loadSpy.directoryLoadCount
+        let expectation = expectation(description: "loadDirectory \(url.path)")
+
+        loadSpy.onDidLoadDirectory = {
+            if loadSpy.directoryLoadCount > previousLoadCount {
+                expectation.fulfill()
+            }
+        }
+
+        viewController.loadDirectory(url)
+        await fulfillment(of: [expectation], timeout: timeout)
+        loadSpy.onDidLoadDirectory = nil
+    }
+
+    private func ensureLoadSpy(
+        for viewController: FileListViewController,
+        delegate: NavigationDelegateSpy?
+    ) -> NavigationDelegateSpy {
+        if let delegate {
+            viewController.navigationDelegate = delegate
+            return delegate
+        }
+
+        if let existingSpy = viewController.navigationDelegate as? NavigationDelegateSpy {
+            return existingSpy
+        }
+
+        let loadSpy = NavigationDelegateSpy()
+        viewController.navigationDelegate = loadSpy
+        return loadSpy
     }
 
     private func makeKeyEvent(
@@ -632,6 +737,41 @@ final class FileListResponderTests: XCTestCase {
         return makeKeyEvent(characters: chars, keyCode: keyCode)
     }
 
+    private func waitForSelectedURL(
+        _ url: URL,
+        in viewController: FileListViewController,
+        timeout: TimeInterval = 2.0
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        let targetURL = url.standardizedFileURL
+
+        while Date() < deadline {
+            if viewController.selectedURLs.map(\.standardizedFileURL) == [targetURL] {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        return viewController.selectedURLs.map(\.standardizedFileURL) == [targetURL]
+    }
+
+    private func waitForRowCount(
+        _ minimumRowCount: Int,
+        in tableView: NSTableView,
+        timeout: TimeInterval = 2.0
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if tableView.numberOfRows >= minimumRowCount {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        return tableView.numberOfRows >= minimumRowCount
+    }
+
     private func borderedTextFieldCount(in tableView: NSTableView) -> Int {
         tableView.subviews.compactMap { $0 as? NSTextField }.filter { $0.isBordered }.count
     }
@@ -646,6 +786,8 @@ private final class NavigationDelegateSpy: FileListNavigationDelegate {
     var parentNavigationRequested = false
     var backRequested = false
     var forwardRequested = false
+    var directoryLoadCount = 0
+    var onDidLoadDirectory: (() -> Void)?
 
     func fileListDidRequestNavigation(to url: URL) {
         navigatedTo = url
@@ -680,5 +822,8 @@ private final class NavigationDelegateSpy: FileListNavigationDelegate {
 
     func fileListDidChangeSelection() {}
 
-    func fileListDidLoadDirectory() {}
+    func fileListDidLoadDirectory() {
+        directoryLoadCount += 1
+        onDidLoadDirectory?()
+    }
 }

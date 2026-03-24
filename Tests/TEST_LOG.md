@@ -2,6 +2,82 @@
 
 ## Latest Run
 
+- Started: 2026-03-24 18:08:13
+- Command: `swift test --filter FileListResponderTests`
+- Status: PASS
+- Duration: 0.7s
+- Notes: All 30 responder tests passed. Added load-completion
+  waiting to stabilize async directory setup and corrected the
+  selected-folder new-folder expectation to match implemented behavior.
+
+### File List Responder 18:08
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileListResponderTests (30 tests) | PASS | 0.742s | 2026-03-24 18:08:13 |
+
+## Previous Run
+
+- Started: 2026-03-24 18:07:11
+- Command: `swift test --filter FileListResponderTests`
+- Status: FAIL
+- Duration: 2.9s
+- Notes: 29 responder tests passed after adding load-completion waits.
+  The lone failure was `testHandleKeyDownHandlesF7NewFolderInCurrentDirectoryWithSelectedFolder`,
+  whose expectation conflicted with the actual/new-folder-inside-selected-folder behavior.
+
+### File List Responder 18:07
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileListResponderTests (29 passed, 1 failed: `testHandleKeyDownHandlesF7NewFolderInCurrentDirectoryWithSelectedFolder` expected wrong destination) | FAIL | 2.855s | 2026-03-24 18:07:11 |
+
+## Run 20260324
+
+- Started: 2026-03-24 17:56:00
+- Command: `swift test --filter FileListResponderTests/testHandleKeyDownHandlesCmdDDuplicate`
+- Status: PASS
+- Duration: 0.2s
+- Notes: Focused duplicate responder regression test passed.
+  Verifies Cmd-D creates `a copy.txt` and moves selection to the
+  duplicate after the directory reload completes.
+
+### File List Responder 17:56
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| testHandleKeyDownHandlesCmdDDuplicate | PASS | 0.175s | 2026-03-24 17:56:00 |
+
+- Started: 2026-03-24 17:54:30
+- Command: `swift test --filter FileListResponderTests`
+- Status: FAIL
+- Duration: 22.9s
+- Notes: `testCopyPathEscapesSpaces` was fixed, but the broader
+  responder-suite rerun still failed in 13 places while probing async
+  directory-load assumptions, including the duplicate regression test.
+
+### File List Responder 17:54
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileListResponderTests (13 failures while rerunning async load-sensitive responder tests, including duplicate selection) | FAIL | 22.886s | 2026-03-24 17:54:30 |
+
+- Started: 2026-03-24 17:51:33
+- Command: `swift test --filter FileListResponderTests`
+- Status: FAIL
+- Duration: 8.8s
+- Notes: Aborted during `testCopyPathEscapesSpaces` with an
+  `XCTAssertNotNil` failure followed by a nil unwrap while verifying
+  duplicate-selection behavior in the responder suite.
+
+### File List Responder 17:51
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileListResponderTests (aborted in `testCopyPathEscapesSpaces` after `XCTAssertNotNil` failed) | FAIL | 8.819s | 2026-03-24 17:51:33 |
+
+## Run 20260324 16:43
+
 - Started: 2026-03-24 16:43:53
 - Command: `swift test --filter FileOperationQueueTests`
 - Status: PASS
@@ -17,7 +93,7 @@
 | --- | --- | --- | --- |
 | FileOperationQueueTests (35 tests) | PASS | 4.815s | 2026-03-24 16:43:53 |
 
-## Previous Run
+## Run 20260302
 
 - Started: 2026-03-02 11:06:13
 - Command: `swift test --filter MultiDirectoryWatcherTests`
