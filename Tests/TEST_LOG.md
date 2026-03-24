@@ -2,6 +2,23 @@
 
 ## Latest Run
 
+- Started: 2026-03-24 16:43:53
+- Command: `swift test --filter FileOperationQueueTests`
+- Status: PASS
+- Duration: 4.8s
+- Notes: All 35 FileOperationQueueTests passed. Added year-aware
+  duplicate naming coverage for incrementing file and folder names,
+  skipping occupied next-year conflicts, and falling back to the
+  copy suffix when multiple different years make the name ambiguous.
+
+### File Operation Queue
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileOperationQueueTests (35 tests) | PASS | 4.815s | 2026-03-24 16:43:53 |
+
+## Previous Run
+
 - Started: 2026-03-02 11:06:13
 - Command: `swift test --filter MultiDirectoryWatcherTests`
 - Status: PASS
@@ -9,18 +26,6 @@
 - Notes: 7 tests passed. Rewrote DirectoryWatcherTests as
   MultiDirectoryWatcherTests using MultiDirectoryWatcher API (creation,
   deletion, rename, subdirectory change, unwatch, unwatchAll, rewatch).
-
-## Previous Run
-
-- Started: 2026-02-25 17:10:27
-- Command: `swift test --filter '(ActivityToolbarButtonTests|FileOperationQueueTests)'`
-- Status: PASS
-- Duration: 5.9s
-- Notes: 39 tests passed. 8 new ActivityToolbarButton tests
-  (state transitions, error persistence, progress clamping).
-  5 new FileOperationQueue tests (async process, throttle,
-  cancellation, queued count, callbacks). All 26 existing
-  queue tests still pass.
 
 ### Activity Indicator Suites
 

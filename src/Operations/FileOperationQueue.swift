@@ -631,7 +631,7 @@ final class FileOperationQueue {
             )
 
             do {
-                let destination = uniqueCopyDestination(for: source, in: source.deletingLastPathComponent())
+                let destination = uniqueDuplicateDestination(for: source)
                 try await runFileIO { try FileManager.default.copyItem(at: source, to: destination) }
                 successes.append(destination)
             } catch {
@@ -1958,6 +1958,97 @@ final class FileOperationQueue {
         }
 
         return .unknown(error)
+    }
+
+    private struct IncrementableYearName {
+        private static let yearRegex = try? NSRegularExpression(pattern: #"(?<!\d)(19|20)\d{2}(?!\d)"#)
+
+        let baseName: String
+        let matchedRanges: [Range<String.Index>]
+        let originalYear: Int
+
+        init?(baseName: String) {
+            guard let regex = Self.yearRegex else {
+                return nil
+            }
+
+            let range = NSRange(baseName.startIndex..., in: baseName)
+            let matches = regex.matches(in: baseName, range: range)
+            let matchedRanges = matches.compactMap { Range($0.range, in: baseName) }
+            guard !matchedRanges.isEmpty else {
+                return nil
+            }
+
+            let matchedYears = matchedRanges.map { String(baseName[$0]) }
+            guard let firstYear = matchedYears.first,
+                  Set(matchedYears).count == 1,
+                  let originalYear = Int(firstYear) else {
+                return nil
+            }
+
+            self.baseName = baseName
+            self.matchedRanges = matchedRanges
+            self.originalYear = originalYear
+        }
+
+        func name(incrementedBy amount: Int) -> String {
+            let replacement = String(originalYear + amount)
+            var pieces: [String] = []
+            var cursor = baseName.startIndex
+
+            for range in matchedRanges {
+                pieces.append(String(baseName[cursor..<range.lowerBound]))
+                pieces.append(replacement)
+                cursor = range.upperBound
+            }
+
+            pieces.append(String(baseName[cursor...]))
+            return pieces.joined()
+        }
+    }
+
+    private func uniqueDuplicateDestination(for source: URL) -> URL {
+        let directory = source.deletingLastPathComponent()
+
+        if let yearIncrementedDestination = uniqueYearIncrementedDuplicateDestination(for: source, in: directory) {
+            return yearIncrementedDestination
+        }
+
+        return uniqueCopyDestination(for: source, in: directory)
+    }
+
+    private func uniqueYearIncrementedDuplicateDestination(for source: URL, in directory: URL) -> URL? {
+        let fileManager = FileManager.default
+        let components = duplicateNameComponents(for: source)
+
+        guard let incrementableName = IncrementableYearName(baseName: components.baseName) else {
+            return nil
+        }
+
+        var attempt = 1
+        while true {
+            var name = incrementableName.name(incrementedBy: attempt)
+            if !components.pathExtension.isEmpty {
+                name += ".\(components.pathExtension)"
+            }
+
+            let candidate = directory.appendingPathComponent(name)
+            if !fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+
+            attempt += 1
+        }
+    }
+
+    private func duplicateNameComponents(for source: URL) -> (baseName: String, pathExtension: String) {
+        if let values = try? source.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey]),
+           values.isDirectory == true,
+           values.isPackage != true {
+            return (source.lastPathComponent, "")
+        }
+
+        return (source.deletingPathExtension().lastPathComponent, source.pathExtension)
     }
 
     private func uniqueCopyDestination(for source: URL, in directory: URL) -> URL {
