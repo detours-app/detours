@@ -262,6 +262,7 @@ final class FileItem {
 
     /// Async version of loadChildren for network volumes.
     /// Loads children on a background thread via DirectoryLoader.
+    @MainActor
     func loadChildrenAsync(showHidden: Bool, sortDescriptor: SortDescriptor = .defaultSort, foldersOnTop: Bool = true) async throws -> [FileItem]? {
         guard isNavigableFolder else { return nil }
 

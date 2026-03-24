@@ -268,6 +268,44 @@ final class FolderExpansionTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testRestoreExpansionAfterLoadSupportsAsyncNestedExpansion() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let folderURL = try createTestFolder(in: temp, name: "folder")
+        let subfolderURL = try createTestFolder(in: folderURL, name: "subfolder")
+        let childURL = try createTestFile(in: subfolderURL, name: "child.txt")
+
+        let viewController = FileListViewController()
+        viewController.currentDirectory = temp
+        viewController.loadViewIfNeeded()
+
+        let rootItem = FileItem(url: folderURL)
+        viewController.dataSource.items = [rootItem]
+        viewController.tableView.reloadData()
+
+        await viewController.restoreExpansionAfterLoad(
+            [folderURL, subfolderURL],
+            preferAsyncChildLoads: true
+        )
+        viewController.restoreSelection([childURL])
+
+        let restoredSubfolder = viewController.dataSource.findItem(
+            withURL: subfolderURL,
+            in: viewController.dataSource.items
+        )
+        let subfolderItem = try XCTUnwrap(restoredSubfolder)
+
+        XCTAssertTrue(viewController.tableView.isItemExpanded(rootItem))
+        XCTAssertTrue(viewController.tableView.isItemExpanded(subfolderItem))
+        XCTAssertEqual(viewController.tableView.numberOfRows, 3)
+        XCTAssertEqual(
+            viewController.selectedURLs.map(\.standardizedFileURL),
+            [childURL.standardizedFileURL]
+        )
+    }
+
     // MARK: - Selection URL Preservation Tests (Bug Fix Verification)
 
     func testSelectionByURLNotRowIndex() throws {

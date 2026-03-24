@@ -2,6 +2,60 @@
 
 ## Latest Run
 
+- Started: 2026-03-24 11:13:52
+- Command: `swift test --filter FolderExpansionTests/testRestoreExpansionAfterLoadSupportsAsyncNestedExpansion`
+- Status: PASS
+- Duration: 7.8s
+- Notes: Re-ran the isolated regression test after the SwiftLint
+  refactor. The async expansion restore test still passes.
+
+## Previous Run
+
+- Started: 2026-03-24 11:12:01
+- Command: `swift test --filter FolderExpansionTests/testRestoreExpansionAfterLoadSupportsAsyncNestedExpansion`
+- Status: PASS
+- Duration: 3.7s
+- Notes: Isolated regression test passed. Confirms post-load
+  expansion restore can async-load missing children, expand
+  nested folders, and then restore selection.
+
+## Run 20260324
+
+- Started: 2026-03-24 11:11:43
+- Command: `swift test --filter FolderExpansionTests/testRestoreExpansionAfterLoadSupportsAsyncNestedExpansion`
+- Status: FAIL
+- Duration: 2.0s
+- Notes: Assertion compared equivalent temp URLs with `/private/var`
+  vs `/var` prefixes. Fixed by normalizing expected and actual URLs
+  with `standardizedFileURL`.
+
+- Started: 2026-03-24 11:11:20
+- Command: `swift test --filter FolderExpansionTests`
+- Status: FAIL
+- Duration: 4.0s
+- Notes: Build succeeded, but the runner exited with signal 5 before
+  `FolderExpansionTests` completed. The async child-loading sub-suite
+  still passed, so verification was narrowed to the isolated regression
+  test above.
+
+- Started: 2026-03-24 11:10:46
+- Command: `swift test --filter '(FolderExpansionTests|DirectoryLoaderTests)'`
+- Status: FAIL
+- Duration: 12.4s
+- Notes: Build succeeded, but the mixed XCTest/Swift Testing run exited
+  with signal 5 before finishing. Switched to narrower verification to
+  isolate the new async expansion restore path.
+
+- Started: 2026-03-24 11:10:02
+- Command: `swift test --filter '(FolderExpansionTests|DirectoryLoaderTests)'`
+- Status: FAIL
+- Duration: 5.9s
+- Notes: Build failed before tests ran because the new restore path
+  called `FileItem.loadChildrenAsync` across an unsafe isolation
+  boundary. Fixed by marking `loadChildrenAsync` as `@MainActor`.
+
+## Archived Run 20260302
+
 - Started: 2026-03-02 11:06:13
 - Command: `swift test --filter MultiDirectoryWatcherTests`
 - Status: PASS
@@ -10,7 +64,7 @@
   MultiDirectoryWatcherTests using MultiDirectoryWatcher API (creation,
   deletion, rename, subdirectory change, unwatch, unwatchAll, rewatch).
 
-## Previous Run
+## Archived Run 20260225-171027
 
 - Started: 2026-02-25 17:10:27
 - Command: `swift test --filter '(ActivityToolbarButtonTests|FileOperationQueueTests)'`

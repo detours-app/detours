@@ -306,11 +306,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         // Cancel any in-flight load and icon tasks
         cancelCurrentLoad()
 
-        // Preserve expansion state if reloading the same directory
-        let previousExpanded = preserveExpansion ? expandedFolders : []
-
-        // Suppress collapse notifications during reload to preserve expansion state
-        suppressCollapseNotifications = preserveExpansion
+        // NOTE: suppressCollapseNotifications is set only around reloadData() inside the async
+        // task, NOT here. Setting it before the await would suppress user-initiated collapses
+        // during the entire network load (which can take seconds on slow volumes).
 
         // Clear filter cache on reload
         _cachedFilteredItems = nil
@@ -337,7 +335,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 self.items = FileItem.sorted(fileItems, by: self.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
                 self.currentDirectoryForGit = shouldFetchGitStatus ? normalizedURL : nil
                 self.gitStatuses = [:]
-                self.expandedFolders = previousExpanded
+                if !preserveExpansion { self.expandedFolders = [] }
+                // Suppress only for the synchronous reloadData() call, not the entire async wait.
+                // This ensures user-initiated collapses during slow network loads are NOT discarded.
+                self.suppressCollapseNotifications = true
                 self.outlineView?.reloadData()
                 self.outlineView?.needsLayout = true
                 self.suppressCollapseNotifications = false
@@ -362,7 +363,8 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                     self.items = []
                 }
                 self.currentDirectoryForGit = shouldFetchGitStatus ? normalizedURL : nil
-                self.expandedFolders = previousExpanded
+                if !preserveExpansion { self.expandedFolders = [] }
+                self.suppressCollapseNotifications = true
                 self.outlineView?.reloadData()
                 self.outlineView?.needsLayout = true
                 self.suppressCollapseNotifications = false
@@ -374,7 +376,8 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 self.items = []
                 self.currentDirectoryForGit = nil
                 self.gitStatuses = [:]
-                self.expandedFolders = previousExpanded
+                if !preserveExpansion { self.expandedFolders = [] }
+                self.suppressCollapseNotifications = true
                 self.outlineView?.reloadData()
                 self.outlineView?.needsLayout = true
                 self.suppressCollapseNotifications = false
@@ -1233,6 +1236,77 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         return true
     }
 
+    @MainActor
+    func ensureChildrenLoadedForExpansion(
+        of item: FileItem,
+        in outlineView: NSOutlineView,
+        preferAsyncLoad: Bool = false
+    ) async -> Bool {
+        if let children = item.children {
+            updateGitStatus(for: children, statuses: gitStatuses)
+            return true
+        }
+
+        if item.isVirtualSharedFolder {
+            let showHidden = showHiddenFiles
+            let sort = sortDescriptor
+            let foldersTop = SettingsManager.shared.foldersOnTop
+            let cloudDocsURL = item.url.standardizedFileURL
+
+            do {
+                let sources = try await loadICloudSharedSources(cloudDocsURL: cloudDocsURL, showHidden: showHidden)
+                let sharedItems = composeICloudSharedTopLevelItems(
+                    from: sources,
+                    cloudDocsURL: cloudDocsURL,
+                    showHidden: showHidden
+                )
+                let sortedChildren = FileItem.sorted(sharedItems, by: sort, foldersOnTop: foldersTop)
+                for child in sortedChildren {
+                    child.parent = item
+                }
+                item.children = sortedChildren
+                updateGitStatus(for: sortedChildren, statuses: gitStatuses)
+                outlineView.reloadItem(item, reloadChildren: true)
+                return true
+            } catch {
+                item.children = []
+                outlineView.reloadItem(item, reloadChildren: true)
+                return false
+            }
+        }
+
+        let shouldUseAsyncLoad = preferAsyncLoad || VolumeMonitor.isNetworkVolume(item.url)
+        if shouldUseAsyncLoad {
+            do {
+                _ = try await item.loadChildrenAsync(
+                    showHidden: showHiddenFiles,
+                    sortDescriptor: sortDescriptor,
+                    foldersOnTop: SettingsManager.shared.foldersOnTop
+                )
+                if let children = item.children {
+                    updateGitStatus(for: children, statuses: gitStatuses)
+                    loadIconsAsync(for: children, isNetwork: VolumeMonitor.isNetworkVolume(item.url))
+                }
+                outlineView.reloadItem(item, reloadChildren: true)
+                return true
+            } catch {
+                item.children = []
+                outlineView.reloadItem(item, reloadChildren: true)
+                return false
+            }
+        }
+
+        _ = item.loadChildren(
+            showHidden: showHiddenFiles,
+            sortDescriptor: sortDescriptor,
+            foldersOnTop: SettingsManager.shared.foldersOnTop
+        )
+        if let children = item.children {
+            updateGitStatus(for: children, statuses: gitStatuses)
+        }
+        return true
+    }
+
     /// Load children asynchronously for a folder (used on network volumes)
     private func loadChildrenAsync(for item: FileItem, in outlineView: NSOutlineView) {
         // Show a spinner in the row while loading
@@ -1249,61 +1323,25 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             spinner = indicator
         }
 
-        let showHidden = showHiddenFiles
-        let statuses = gitStatuses
-        let sort = sortDescriptor
-        let foldersTop = SettingsManager.shared.foldersOnTop
-
         Task { @MainActor [weak self] in
             defer {
                 spinner?.stopAnimation(nil)
                 spinner?.removeFromSuperview()
             }
 
-            do {
-                _ = try await item.loadChildrenAsync(showHidden: showHidden, sortDescriptor: sort, foldersOnTop: foldersTop)
-                guard let self else { return }
-
-                if let children = item.children {
-                    self.updateGitStatus(for: children, statuses: statuses)
-                }
-                outlineView.reloadItem(item, reloadChildren: true)
-                outlineView.expandItem(item)
-            } catch {
-                // Expansion failed - set empty children so folder shows as empty
-                item.children = []
-                outlineView.reloadItem(item, reloadChildren: true)
-            }
+            guard let self else { return }
+            let didLoadChildren = await self.ensureChildrenLoadedForExpansion(of: item, in: outlineView)
+            guard didLoadChildren else { return }
+            outlineView.expandItem(item)
         }
     }
 
     private func loadVirtualSharedChildrenAsync(for item: FileItem, in outlineView: NSOutlineView) {
-        let showHidden = showHiddenFiles
-        let sort = sortDescriptor
-        let foldersTop = SettingsManager.shared.foldersOnTop
-        let cloudDocsURL = item.url.standardizedFileURL
-
         Task { @MainActor [weak self] in
             guard let self else { return }
-            do {
-                let sources = try await self.loadICloudSharedSources(cloudDocsURL: cloudDocsURL, showHidden: showHidden)
-                let sharedItems = self.composeICloudSharedTopLevelItems(
-                    from: sources,
-                    cloudDocsURL: cloudDocsURL,
-                    showHidden: showHidden
-                )
-                let sortedChildren = FileItem.sorted(sharedItems, by: sort, foldersOnTop: foldersTop)
-                for child in sortedChildren {
-                    child.parent = item
-                }
-                item.children = sortedChildren
-                self.updateGitStatus(for: sortedChildren, statuses: self.gitStatuses)
-                outlineView.reloadItem(item, reloadChildren: true)
-                outlineView.expandItem(item)
-            } catch {
-                item.children = []
-                outlineView.reloadItem(item, reloadChildren: true)
-            }
+            let didLoadChildren = await self.ensureChildrenLoadedForExpansion(of: item, in: outlineView)
+            guard didLoadChildren else { return }
+            outlineView.expandItem(item)
         }
     }
 
