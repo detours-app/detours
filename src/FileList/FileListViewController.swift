@@ -50,8 +50,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var selectionBeforeNewItem: URL?
     /// Expansion state to restore after async directory load completes
     var pendingExpansionRestore: Set<URL>?
-    /// Monotonic token used to ignore stale async post-load work.
-    private var currentLoadSequence = 0
 
     private var isSharedTopLevelView: Bool {
         currentICloudListingMode == .sharedTopLevel &&
@@ -510,13 +508,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             return
         }
 
-        currentLoadSequence += 1
-        let loadSequence = currentLoadSequence
-
         // Capture state needed for post-load work
-        let previousSelection: (urls: [URL], row: Int) = preserveExpansion
-            ? (selectedItems.map(\.url), tableView.selectedRow)
-            : ([], -1)
+        let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
+        let previousSelectedURLs = preserveExpansion ? selectedItems.map(\.url) : []
+        let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
         let pendingItemToSelect = itemToSelect
         let shouldPreserveExpansion = preserveExpansion
 
@@ -528,16 +523,40 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
             switch result {
             case .success:
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    await self.handleSuccessfulLoad(
-                        directory: normalizedURL,
-                        loadSequence: loadSequence,
-                        shouldPreserveExpansion: shouldPreserveExpansion,
-                        previousSelection: previousSelection,
-                        pendingItemToSelect: pendingItemToSelect
-                    )
+                self.hideErrorOverlay()
+
+                if shouldPreserveExpansion {
+                    self.restoreExpansion(previousExpanded)
                 }
+
+                // Apply deferred expansion from session restore
+                if let pending = self.pendingExpansionRestore {
+                    self.pendingExpansionRestore = nil
+                    self.restoreExpansion(pending)
+                }
+
+                if let targetURL = pendingItemToSelect {
+                    // Select specific item
+                    self.selectItem(at: targetURL)
+                } else if shouldPreserveExpansion && !previousSelectedURLs.isEmpty {
+                    // Restore previous selection by URL
+                    self.restoreSelection(previousSelectedURLs)
+                    // If URL-based restore didn't find items, fall back to nearby row
+                    if self.tableView.selectedRow < 0 && previousSelectedRow >= 0 && self.tableView.numberOfRows > 0 {
+                        let newIndex = min(previousSelectedRow, self.tableView.numberOfRows - 1)
+                        self.tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                    }
+                } else if !self.dataSource.items.isEmpty {
+                    // Default: select first item
+                    self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                }
+
+                self.navigationDelegate?.fileListDidLoadDirectory()
+
+                // Run one-shot post-load action (e.g. select + rename newly created item)
+                let action = self.pendingPostLoadAction
+                self.pendingPostLoadAction = nil
+                action?()
 
             case .failure(let error):
                 self.showErrorOverlay(for: error)
@@ -843,118 +862,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     for child in children {
                         urlToItem[child.url.standardizedFileURL] = child
                     }
-                }
-            }
-        }
-    }
-
-    private func isCurrentLoad(_ loadSequence: Int, directory: URL) -> Bool {
-        currentLoadSequence == loadSequence && currentDirectory?.standardizedFileURL == directory
-    }
-
-    private func handleSuccessfulLoad(
-        directory: URL,
-        loadSequence: Int,
-        shouldPreserveExpansion: Bool,
-        previousSelection: (urls: [URL], row: Int),
-        pendingItemToSelect: URL?
-    ) async {
-        guard isCurrentLoad(loadSequence, directory: directory) else { return }
-        hideErrorOverlay()
-
-        if shouldPreserveExpansion {
-            // Restore from current expandedFolders, which already reflects any
-            // user collapses/expands that happened during the async load.
-            await restoreExpansionAfterLoad(
-                dataSource.expandedFolders,
-                loadSequence: loadSequence,
-                directory: directory
-            )
-        }
-        guard isCurrentLoad(loadSequence, directory: directory) else { return }
-
-        if let pending = pendingExpansionRestore {
-            pendingExpansionRestore = nil
-            await restoreExpansionAfterLoad(
-                pending,
-                loadSequence: loadSequence,
-                directory: directory
-            )
-        }
-        guard isCurrentLoad(loadSequence, directory: directory) else { return }
-
-        if let targetURL = pendingItemToSelect {
-            // Select specific item
-            selectItem(at: targetURL)
-        } else if shouldPreserveExpansion && !previousSelection.urls.isEmpty {
-            // Restore previous selection by URL
-            restoreSelection(previousSelection.urls)
-            // If URL-based restore didn't find items, fall back to nearby row
-            if tableView.selectedRow < 0 && previousSelection.row >= 0 && tableView.numberOfRows > 0 {
-                let newIndex = min(previousSelection.row, tableView.numberOfRows - 1)
-                tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
-            }
-        } else if !dataSource.items.isEmpty {
-            // Default: select first item
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-        }
-
-        navigationDelegate?.fileListDidLoadDirectory()
-
-        // Run one-shot post-load action (e.g. select + rename newly created item)
-        let action = pendingPostLoadAction
-        pendingPostLoadAction = nil
-        action?()
-    }
-
-    /// Restores expansion state after an async directory load, using async child loading when needed.
-    func restoreExpansionAfterLoad(_ expandedURLs: Set<URL>, preferAsyncChildLoads: Bool = false) async {
-        guard let currentDirectory else { return }
-        await restoreExpansionAfterLoad(
-            expandedURLs,
-            loadSequence: currentLoadSequence,
-            directory: currentDirectory.standardizedFileURL,
-            preferAsyncChildLoads: preferAsyncChildLoads
-        )
-    }
-
-    private func restoreExpansionAfterLoad(
-        _ expandedURLs: Set<URL>,
-        loadSequence: Int,
-        directory: URL,
-        preferAsyncChildLoads: Bool = false
-    ) async {
-        guard !expandedURLs.isEmpty, SettingsManager.shared.folderExpansionEnabled else { return }
-
-        // Build a map from URL to item for quick lookup
-        var urlToItem: [URL: FileItem] = [:]
-        for item in dataSource.items {
-            urlToItem[item.url.standardizedFileURL] = item
-        }
-
-        // Sort URLs by path depth (shortest first) to expand parents before children
-        let sortedURLs = expandedURLs.sorted { $0.pathComponents.count < $1.pathComponents.count }
-
-        for url in sortedURLs {
-            guard isCurrentLoad(loadSequence, directory: directory) else { return }
-
-            let normalized = url.standardizedFileURL
-            guard let item = urlToItem[normalized], item.isNavigableFolder else { continue }
-
-            let didLoadChildren = await dataSource.ensureChildrenLoadedForExpansion(
-                of: item,
-                in: tableView,
-                preferAsyncLoad: preferAsyncChildLoads
-            )
-            guard isCurrentLoad(loadSequence, directory: directory) else { return }
-            guard didLoadChildren else { continue }
-
-            tableView.expandItem(item)
-
-            // Add children to the map for nested expansion
-            if let children = item.children {
-                for child in children {
-                    urlToItem[child.url.standardizedFileURL] = child
                 }
             }
         }
