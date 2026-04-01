@@ -25,13 +25,21 @@ private final class OnceFlag: @unchecked Sendable {
     }
 }
 
-/// Sendable cancel flag that reads isCancelled from the FileOperationQueue via DispatchQueue.main.sync.
-/// Safe because runFileIO dispatches to a detached task (main thread is suspended via await, not blocked).
+/// Thread-safe cancel flag for copyfile progress callbacks.
+/// Uses NSLock instead of DispatchQueue.main.sync to avoid deadlocking
+/// when the main actor is suspended at `await task.value` in runFileIO.
 final class CancelFlag: @unchecked Sendable {
-    private weak var queue: FileOperationQueue?
-    init(queue: FileOperationQueue) { self.queue = queue }
+    private let lock = NSLock()
+    private var _cancelled = false
     var isCancelled: Bool {
-        DispatchQueue.main.sync { [weak queue] in queue?.isCancelled ?? true }
+        lock.lock()
+        defer { lock.unlock() }
+        return _cancelled
+    }
+    func cancel() {
+        lock.lock()
+        _cancelled = true
+        lock.unlock()
     }
 }
 
@@ -55,6 +63,7 @@ final class FileOperationQueue {
     private var isRunning = false
     private(set) var isCancelled = false
     private var currentIOCancellable: AnyCancellableTask?
+    private var currentCancelFlag: CancelFlag?
     private var currentProcess: Process?
     private var lastProgressTime: CFAbsoluteTime = 0
     private var pendingProgress: FileOperationProgress?
@@ -144,6 +153,7 @@ final class FileOperationQueue {
 
     func cancelCurrentOperation() {
         isCancelled = true
+        currentCancelFlag?.cancel()
         currentProcess?.terminate()
         currentIOCancellable?.cancel()
     }
@@ -314,7 +324,8 @@ final class FileOperationQueue {
                 if !skipped {
                     let previousBytes = bytesCopied
                     let itemCount = items.count
-                    let cancelFlag = CancelFlag(queue: self)
+                    let cancelFlag = CancelFlag()
+                    self.currentCancelFlag = cancelFlag
                     try await runFileIO {
                         try CopyfileHelper.copy(from: source, to: destinationURL) { copiedBytes in
                             DispatchQueue.main.async { [weak self] in
@@ -659,7 +670,8 @@ final class FileOperationQueue {
                 let destination = uniqueDuplicateDestination(for: source)
                 let previousBytes = bytesCopied
                 let itemCount = items.count
-                let cancelFlag = CancelFlag(queue: self)
+                let cancelFlag = CancelFlag()
+                self.currentCancelFlag = cancelFlag
                 try await runFileIO {
                     try CopyfileHelper.copy(from: source, to: destination) { copiedBytes in
                         DispatchQueue.main.async { [weak self] in
@@ -1860,6 +1872,7 @@ final class FileOperationQueue {
         lastFinishedOperation = currentOperation
         currentOperation = nil
         currentProcess = nil
+        currentCancelFlag = nil
         lastReceivedProgress = nil
         progressThrottleWorkItem?.cancel()
         progressThrottleWorkItem = nil
