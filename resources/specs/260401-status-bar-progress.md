@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Draft
+- Status: Reviewed
 - Branch: feature/status-bar-progress
 
 ---
@@ -32,8 +32,9 @@ Move file operation progress into both panes' status bars with a horizontal prog
 - A horizontal determinate progress bar appears inline next to the text
 - Transfer speed is calculated from bytes transferred over a rolling 2-second window (smoothed, not instantaneous)
 - Speed is hidden during indeterminate phase and only shown once byte-level progress is available
-- For indeterminate operations (scanning phase): indeterminate progress bar + "Scanning..."
-- Clicking anywhere on the status bar during an operation opens the detail popover (reuses existing `OperationDetailPopover` with full path, Cancel button)
+- For indeterminate operations (scanning phase): indeterminate progress bar + "Scanning..." — applies when progress has no countable work yet, e.g. `FileOperation.deleteImmediately` while the tree is being enumerated (`totalCount == 0` in `FileOperationQueue`). Copy and move usually skip this phase in the UI because total byte size is computed before `startOperation` runs.
+- Clicking the status bar opens the detail popover when: (1) a file operation is in progress (`FileOperationQueue.shared.currentOperation != nil`) — full path, Cancel, live progress; or (2) the status bar is in **error** mode after a failed operation — popover shows the same detail as today’s flow (`lastFinishedOperation` / last progress snapshot), so a truncated bar line is not the only place the full message appears. Clicks during the 3-second **completion** flash do nothing (no active operation, not an error state).
+- Removing the toolbar activity ring restores full trailing width for the path control (drop the `-36` trailing inset that made room for the ring).
 
 **On completion:**
 
@@ -84,25 +85,26 @@ Move file operation progress into both panes' status bars with a horizontal prog
 
 ### Approach Validation
 
-The ForkLift pattern (inline status bar progress with text) is the established standard for dual-pane file managers. It was specifically praised in the UI architect assessment for being glanceable, requiring zero interaction, and using existing screen real estate. The key insight is that the status bar is always in the user's peripheral vision at the bottom of each pane, while a toolbar ring requires active attention to notice.
+The ForkLift pattern (inline status bar progress with text) is the established standard for dual-pane file managers. It was specifically praised in the UI architect assessment for being glanceable, requiring zero interaction, and using existing screen real estate. The key insight is that the status bar is always in the user's peripheral vision at the bottom of each pane, while a toolbar ring requires active attention to notice. ForkLift documents activity/progress in the toolbar and Activities UI ([ForkLift 4.3 activity tracking](https://blog.binarynights.com/2025/04/01/forklift-4-3-is-available/)); Detours intentionally concentrates progress in the pane status bar instead of a corner control.
 
 The "both panes show progress" approach matches the dual-pane mental model: users watch source and destination simultaneously. ForkLift does this. Marta does not (spinner in one corner only), which is commonly cited as insufficient for large operations.
 
 Standard `NSProgressIndicator` with `.bar` style was chosen over a custom view because it is screen-reader-native, visually familiar to macOS users, and requires no custom drawing or animation code.
 
-The copy buffer optimization is based on benchmarks from Apple Developer Forums and the Bvckup2 developer: the default 64 KB buffer in `copyfile(3)` leaves significant throughput on the table for modern storage. 1 MB buffers showed meaningful improvement on USB 3.0 and SSD-to-SSD copies. Research confirmed that parallel I/O actively hurts removable media performance (15% slower with 4 threads on USB 2.0 per Bvckup2 benchmarks) because SD cards have single-channel controllers — the bottleneck is bandwidth, not latency. The right optimization is larger sequential buffers, not concurrency.
+The copy buffer optimization is supported by practitioner discussion of `COPYFILE_STATE_BSIZE`: larger buffers than the default routinely improve throughput on fast storage ([Apple Developer Forums: file copy block size](https://developer.apple.com/forums/thread/743561), [Stack Overflow: copyfile faster by changing block size](https://stackoverflow.com/questions/77703218/making-copyfile-faster-by-changing-block-size)). This spec caps the buffer at **1 MB** as a conservative step up from the default; further tuning can be benchmarked later. Parallel copy workers are explicitly out of scope (see Business → Out of scope): they can help many small files on fast local disks but are a poor default for removable media and SD-class controllers where sequential bandwidth is the limiter.
 
 ### Risks
 
 | Risk | Mitigation |
 | ------ | ------------ |
-| Status bar at 20pt height may be tight for progress bar + text | NSProgressIndicator small control size is 10pt tall; combined with 11pt text fits in 20pt with proper vertical centering |
+| Status bar at 20pt height may be tight for progress bar + text after the font bump to `fontSize - 1` (12pt default) | Prefer `NSProgressIndicator` small control size (~10pt) with vertical centering; if the bar or text clips in visual review, raise `statusBar.heightAnchor` in `PaneViewController.setupConstraints` (currently 20pt) to 22–24pt |
 | Status bar hidden in preferences — user sees no progress | Auto-show status bar during operations; restore hidden state after |
 | Error message in status bar could be truncated on narrow panes | Use `lineBreakMode: .byTruncatingMiddle` on the error label; full error is in the detail popover |
 | Rapid progress updates flooding status bar text | Existing 16Hz throttle on `onProgressUpdate` callback is sufficient |
 | Transfer speed jittery on small files | Rolling 2-second window smooths out spikes; nil returned until enough samples collected |
 | Removing the ring changes a shipped interaction pattern | The ring was identified as "hard to see" by the user; the status bar is strictly more visible |
-| Direct `copyfile(3)` instead of `FileManager.copyItem` may miss edge cases | `copyfile` is what `FileManager.copyItem` wraps internally; use `COPYFILE_ALL` flag to preserve identical behavior (metadata, xattrs, ACLs) |
+| Direct `copyfile(3)` instead of `FileManager.copyItem` may miss edge cases | On macOS, `FileManager.copyItem` is built on `copyfile`; use `COPYFILE_ALL` for metadata, xattrs, and ACLs. Directory copies must use the same recursive semantics as today (include `COPYFILE_RECURSIVE` in flags when the source is a directory, matching `man copyfile`). Run `CopyfileHelperTests` directory and metadata tests against current `FileManager.copyItem` behavior. |
+| Move operations still use `FileManager.moveItem` + destination size polling | **Do not delete `startBytePollTask` entirely** — `performMove` in `FileOperationQueue.swift` still depends on it (~lines 407–416). Only remove polling from paths that switch to `CopyfileHelper` (copy + duplicate). |
 | 1 MB buffer increases memory usage during copies | 1 MB is negligible; only one copy runs at a time (serial queue) |
 
 ### Implementation Plan
@@ -118,8 +120,8 @@ The copy buffer optimization is based on benchmarks from Apple Developer Forums 
 - [ ] Add `showCompletion(message: String)` method — shows accent-colored message for 3 seconds, then reverts to normal via `showNormal()`
 - [ ] Add `showError(message: String)` method — shows red error text, persists until cleared
 - [ ] Add `showNormal()` method — restores normal stats display, clears error/completion state
-- [ ] Add click gesture recognizer active only during progress mode, with `onProgressClick` closure
-- [ ] Format progress text: "Copying 3 items · 47% · 2.1 GB of 4.5 GB · 42.3 MB/s" for byte-level, "Moving 3 items · 2 of 5" for item-count, "Scanning..." for indeterminate
+- [ ] Add status bar click handler (`onProgressClick` closure); `PaneViewController` enables it during active operations and during status-bar error mode, and disables it in normal/completion-flash modes
+- [ ] Format progress text using the operation verb from `FileOperation` (reuse or adapt strings from `FileOperation.description` in `FileOperation.swift` so wording stays consistent): byte-level example "Copying 3 items · 47% · 2.1 GB of 4.5 GB · 42.3 MB/s"; item-count-only example "Moving 3 items · 2 of 5"; duplicate mirrors copy once byte totals exist; indeterminate + "Scanning..." when `totalCount == 0` and there is no byte total (see Behaviors)
 - [ ] Add `TransferSpeedCalculator` helper to StatusBarView — tracks bytes over a rolling 2-second window, returns smoothed MB/s. Reset on each new operation. Returns nil when insufficient samples (first ~1 second)
 - [ ] Wire to `ThemeManager.themeDidChange` for accent/error colors
 
@@ -129,43 +131,44 @@ The copy buffer optimization is based on benchmarks from Apple Developer Forums 
 - [ ] Add `updateOperationProgress(_ progress: FileOperationProgress)` method that delegates to `statusBar.updateProgress`
 - [ ] Add `hideOperationProgress(completion: String?, error: String?)` method that shows completion/error or reverts to normal, and re-hides status bar if it was force-shown
 - [ ] Add `operationStatusBarForceShown` flag to track auto-show state
-- [ ] Wire status bar click during progress to open `OperationDetailPopover` anchored to status bar
+- [ ] Wire status bar click to open `OperationDetailPopover` anchored to `statusBar.bounds` when `currentOperation != nil` **or** when the status bar is showing a post-operation error (reuse the same operation/progress resolution logic as `showDetailPopover()` today: `currentOperation ?? lastFinishedOperation` with `lastReceivedProgress` fallback)
+- [ ] Clear status bar error state when the user navigates to a different directory: call into `StatusBarView.showNormal()` (or equivalent) from `PaneViewController.navigate(to:)` so the "persists until navigation" behavior is guaranteed
 - [ ] Remove `ActivityToolbarButton` property and all setup/show/hide/layout code
 - [ ] Remove `pathControlTrailingConstraint` adjustment that made room for the ring
 - [ ] Remove `showActivityButton`, `hideActivityButton`, `handleActivityButtonClick` methods
 
 **Phase 3: MainSplitViewController routing**
 
-- [ ] Change `onOperationStart` callback to call `showOperationProgress` on both `leftPane` and `rightPane`
+- [ ] Change `onOperationStart` callback to call `showOperationProgress` on both `leftPane` and `rightPane` (replacing `activePane.showActivityButton`)
 - [ ] Change `onProgressUpdate` callback to call `updateOperationProgress` on both panes
-- [ ] Change `onOperationFinish` callback to call `hideOperationProgress` on both panes with appropriate completion/error message
+- [ ] Change `onOperationFinish` callback to call `hideOperationProgress` on both panes: pass `nil` completion string on cancel; pass formatted "Done — …" on success; pass formatted error line on failure
 - [ ] Format completion message from operation: "Done — Copied 3 items (4.5 GB)" using final progress values
-- [ ] Format error message: extract user-facing description from the error
-- [ ] Remove `hideActivityWorkItem` and related auto-dismiss timer code
-- [ ] Remove `isIndeterminateOperation` helper (indeterminate state is now determined by progress values, not operation type)
+- [ ] Format error message: use the same user-facing mapping as today (`FileOperationError` / `mapError` / localized description paths used elsewhere when presenting operation failures)
+- [ ] Remove `hideActivityWorkItem` and related auto-dismiss timer code (error no longer auto-dismisses; completion timing moves to `StatusBarView` 3-second flash)
+- [ ] Remove `isIndeterminateOperation` helper — activity button indeterminate vs determinate is obsolete; status bar derives mode from `FileOperationProgress` (`bytesTotal`, `totalCount`, operation type) per Behaviors
 
 **Phase 4: Cleanup**
 
 - [ ] Delete `ActivityToolbarButton.swift`
-- [ ] Remove `ActivityToolbarButton` import/references from any other files
+- [ ] Delete `Tests/ActivityToolbarButtonTests.swift`
+- [ ] Remove `ActivityToolbarButton` references from any other files (there is no separate import; search the target)
 - [ ] Update `OperationDetailPopover` anchoring in PaneViewController to use status bar bounds
-- [ ] Verify `showDoneFlash()` is no longer called anywhere; remove it from StatusBarView if unused
+- [ ] Remove `PaneViewController.showDoneFlash()` and `StatusBarView.showDoneFlash()` once completion messaging uses `showCompletion`; verify no remaining call sites (today `MainSplitViewController` calls `pane.showDoneFlash()` on success)
 
 **Phase 5: Optimized copy with copyfile(3)**
 
-- [ ] Create a `CopyfileHelper` utility in `src/Operations/` that wraps `copyfile(3)` with 1 MB buffer via `copyfile_state_set(COPYFILE_STATE_BSIZE)`
-- [ ] Use `COPYFILE_ALL` flag to preserve metadata, extended attributes, and ACLs (matching `FileManager.copyItem` behavior)
-- [ ] Implement `copyfile` progress callback (`COPYFILE_STATE_STATUS_CB`) that reports bytes copied — replaces the current destination-size polling approach (`startBytePollTask`)
-- [ ] Replace `FileManager.default.copyItem(at:to:)` in the copy operation loop (line ~314) with `CopyfileHelper`
-- [ ] Replace `FileManager.default.copyItem(at:to:)` in the duplicate operation loop (line ~635) with `CopyfileHelper`
-- [ ] Wire `copyfile` progress callback to `updateProgress` for real-time byte-level reporting
-- [ ] Remove `startBytePollTask` and related destination-polling code (no longer needed with native progress callback)
-- [ ] Handle cancellation: check `isCancelled` inside the `copyfile` progress callback and return `COPYFILE_QUIT` to abort
+- [ ] Create a `CopyfileHelper` utility in `src/Operations/` that wraps `copyfile(3)` with 1 MB buffer via `copyfile_state_set(COPYFILE_STATE_BSIZE, ...)`
+- [ ] Use `COPYFILE_ALL` plus `COPYFILE_RECURSIVE` when the source URL is a directory so behavior matches recursive `FileManager.copyItem`
+- [ ] Implement `copyfile` progress callback (`COPYFILE_STATE_STATUS_CB`) that reports bytes copied per file; feed aggregates into `FileOperationQueue.updateProgress` for real-time byte-level reporting
+- [ ] In `performCopy`, replace `FileManager.default.copyItem(at:to:)` (line ~314) with `CopyfileHelper` and **stop starting** `startBytePollTask` for the copy path (that poll exists only to infer byte progress during copy/move)
+- [ ] In `performDuplicate`, precompute per-item byte sizes (same pattern as `performCopy`) and replace `copyItem` (line ~635) with `CopyfileHelper` so duplicate gets byte-level progress and speed in the status bar
+- [ ] **Keep** `startBytePollTask` and its use in `performMove` (~lines 407–416) until move is redesigned to report bytes another way
+- [ ] Handle cancellation: check `isCancelled` inside the `copyfile` progress callback and return `COPYFILE_QUIT` per `copyfile(3)`; ensure partial destinations match today’s failure semantics for `copyItem`
 
 **Phase 6: Accessibility**
 
 - [ ] Set `NSAccessibilityProgressIndicatorRole` on the NSProgressIndicator (automatic with standard control)
-- [ ] Post `NSAccessibilityAnnouncement` when operation completes and when error occurs (move from deleted ActivityToolbarButton)
+- [ ] Post `NSAccessibilityAnnouncement` when operation completes and when error occurs, using the same strings as today’s `ActivityToolbarButton`: "Operation complete" on success, "Operation failed" on error (post from `MainSplitViewController` / `PaneViewController` / `StatusBarView` — pick a single `@MainActor` site to avoid duplicates)
 - [ ] Ensure progress label is readable by VoiceOver
 
 ---
@@ -174,6 +177,10 @@ The copy buffer optimization is based on benchmarks from Apple Developer Forums 
 
 Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 
+### Integration / E2E
+
+- None required for this spec: behavior is covered by new unit tests plus Marco’s manual verification. Add a focused XCUITest later only if flakiness appears in production.
+
 ### Unit Tests (`Tests/StatusBarProgressTests.swift`)
 
 - [ ] `testNormalModeShowsStatsLabel` - Stats label visible, progress views hidden in normal mode
@@ -181,7 +188,7 @@ Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 - [ ] `testProgressUpdatesSetsBarValue` - Bar fraction matches progress.fractionCompleted
 - [ ] `testProgressTextFormatBytes` - Label shows "Copying 3 items · 47% · 2.1 GB of 4.5 GB" for byte-level progress
 - [ ] `testProgressTextFormatItemCount` - Label shows "Moving 3 items · 2 of 5" for item-count progress
-- [ ] `testProgressTextFormatIndeterminate` - Label shows "Scanning..." when totalCount and bytesTotal are both 0
+- [ ] `testProgressTextFormatIndeterminate` - Label shows "Scanning..." for progress matching the delete-immediately enumerate phase (`totalCount == 0`, `bytesTotal == 0`, operation `.deleteImmediately`)
 - [ ] `testCompletionRevertsToNormal` - After showCompletion, mode reverts to normal after delay
 - [ ] `testErrorPersistsUntilCleared` - Error mode stays until showNormal is called
 - [ ] `testTransferSpeedCalculatorRollingWindow` - Speed calculated from bytes over 2-second rolling window
@@ -204,6 +211,7 @@ Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 - [ ] Cancel via popover — status bar immediately reverts to normal content
 - [ ] Let a copy complete — "Done" message appears in accent color, reverts after 3 seconds
 - [ ] Trigger an error (copy to read-only location) — red error message persists in status bar
+- [ ] Click the status bar while the error is showing — detail popover opens with the full failure context (same idea as the old activity control)
 - [ ] Navigate to a different folder after error — error clears
-- [ ] Hide status bar in preferences, then start a copy — status bar appears for the operation, hides again after
+- [ ] Hide the status bar (View menu → Hide Status Bar), then start a copy — status bar appears for the operation, hides again after it finishes
 - [ ] Verify in all four themes — accent colors correct on progress bar and completion text
