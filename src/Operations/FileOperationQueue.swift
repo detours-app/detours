@@ -827,6 +827,7 @@ final class FileOperationQueue {
     /// Recursively calculate total file size of given items.
     nonisolated private static func calculateTotalSize(of items: [URL]) -> Int64 {
         let fm = FileManager.default
+        let isRemovable = items.first.map { DirectoryLoader.isRemovableVolume($0) } ?? false
         var total: Int64 = 0
         for item in items {
             var isDir: ObjCBool = false
@@ -834,14 +835,18 @@ final class FileOperationQueue {
             if isDir.boolValue {
                 if let enumerator = fm.enumerator(at: item, includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]) {
                     for case let fileURL as URL in enumerator {
-                        if let values = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]),
+                        var url = fileURL
+                        if isRemovable { url.removeAllCachedResourceValues() }
+                        if let values = try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]),
                            values.isRegularFile == true {
                             total += Int64(values.totalFileAllocatedSize ?? 0)
                         }
                     }
                 }
             } else {
-                if let values = try? item.resourceValues(forKeys: [.totalFileAllocatedSizeKey]) {
+                var url = item
+                if isRemovable { url.removeAllCachedResourceValues() }
+                if let values = try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]) {
                     total += Int64(values.totalFileAllocatedSize ?? 0)
                 }
             }
@@ -1673,12 +1678,15 @@ final class FileOperationQueue {
     /// Calculate total size of a directory by summing all files recursively.
     nonisolated private static func directorySize(at url: URL) -> Int64 {
         let fm = FileManager.default
+        let isRemovable = DirectoryLoader.isRemovableVolume(url)
         guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]) else {
             return 0
         }
         var total: Int64 = 0
         for case let fileURL as URL in enumerator {
-            if let values = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]),
+            var url = fileURL
+            if isRemovable { url.removeAllCachedResourceValues() }
+            if let values = try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey]),
                values.isRegularFile == true {
                 total += Int64(values.totalFileAllocatedSize ?? 0)
             }

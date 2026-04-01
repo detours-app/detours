@@ -246,7 +246,16 @@ final class FileItem {
                 options: options
             )
 
-            let items = FileItem.sorted(contents.map { FileItem(url: $0) }, by: sortDescriptor, foldersOnTop: foldersOnTop)
+            // Clear stale NSURL resource value cache on removable volumes
+            // so sizes from a previously-mounted volume aren't shown.
+            let isRemovable = DirectoryLoader.isRemovableVolume(url)
+            let items = FileItem.sorted(contents.map { childURL -> FileItem in
+                var fileURL = childURL
+                if isRemovable {
+                    fileURL.removeAllCachedResourceValues()
+                }
+                return FileItem(url: fileURL)
+            }, by: sortDescriptor, foldersOnTop: foldersOnTop)
             // Set parent reference on all children
             for item in items {
                 item.parent = self
@@ -262,6 +271,7 @@ final class FileItem {
 
     /// Async version of loadChildren for network volumes.
     /// Loads children on a background thread via DirectoryLoader.
+    @MainActor
     func loadChildrenAsync(showHidden: Bool, sortDescriptor: SortDescriptor = .defaultSort, foldersOnTop: Bool = true) async throws -> [FileItem]? {
         guard isNavigableFolder else { return nil }
 

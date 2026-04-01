@@ -46,15 +46,37 @@ final class VolumeMonitor {
 
     @objc private func handleVolumeMount(_ notification: Notification) {
         DispatchQueue.main.async { [weak self] in
-            logger.info("Volume mounted")
+            if let volumeURL = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL {
+                logger.info("Volume mounted: \(volumeURL.path)")
+                Self.invalidateCaches(for: volumeURL)
+            } else {
+                logger.info("Volume mounted")
+            }
             self?.refreshVolumes()
         }
     }
 
     @objc private func handleVolumeUnmount(_ notification: Notification) {
         DispatchQueue.main.async { [weak self] in
-            logger.info("Volume unmounted")
+            if let volumeURL = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL {
+                logger.info("Volume unmounted: \(volumeURL.path)")
+                Self.invalidateCaches(for: volumeURL)
+            } else {
+                logger.info("Volume unmounted")
+            }
             self?.refreshVolumes()
+        }
+    }
+
+    /// Invalidate all size caches for a volume so stale data from a
+    /// previously-mounted volume at the same mount point is never shown.
+    private static func invalidateCaches(for volumeURL: URL) {
+        let volumePath = volumeURL.path
+        let cache = FolderSizeCache.shared
+        for url in cache.allURLs() {
+            if url.path.hasPrefix(volumePath) {
+                cache.invalidate(url: url)
+            }
         }
     }
 

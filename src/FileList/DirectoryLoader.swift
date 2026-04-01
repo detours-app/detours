@@ -265,6 +265,11 @@ actor DirectoryLoader {
                         options.insert(.skipsHiddenFiles)
                     }
 
+                    // Clear stale NSURL resource value cache for removable
+                    // volumes (e.g. SD cards) where a different volume may have
+                    // previously been mounted at the same path.
+                    let isRemovable = Self.isRemovableVolume(url)
+
                     let contents = try FileManager.default.contentsOfDirectory(
                         at: url,
                         includingPropertiesForKeys: keys,
@@ -272,8 +277,12 @@ actor DirectoryLoader {
                     )
 
                     let entries = contents.map { fileURL -> LoadedFileEntry in
-                        let values = try? fileURL.resourceValues(forKeys: Set(keys))
-                        return LoadedFileEntry(url: fileURL, resourceValues: values)
+                        var url = fileURL
+                        if isRemovable {
+                            url.removeAllCachedResourceValues()
+                        }
+                        let values = try? url.resourceValues(forKeys: Set(keys))
+                        return LoadedFileEntry(url: url, resourceValues: values)
                     }
 
                     continuation.resume(returning: entries)
@@ -304,6 +313,28 @@ actor DirectoryLoader {
                     }
                 }
             }
+        }
+    }
+
+    /// Returns true if the URL resides on a removable/external volume
+    /// (e.g. SD card, USB drive). Used to decide whether to clear the
+    /// NSURL resource value cache before reading file metadata.
+    nonisolated static func isRemovableVolume(_ url: URL) -> Bool {
+        do {
+            let values = try url.resourceValues(forKeys: [
+                .volumeIsRemovableKey,
+                .volumeIsEjectableKey,
+                .volumeIsInternalKey,
+            ])
+            if values.volumeIsRemovable == true || values.volumeIsEjectable == true {
+                return true
+            }
+            if values.volumeIsInternal == false {
+                return true
+            }
+            return false
+        } catch {
+            return false
         }
     }
 }
