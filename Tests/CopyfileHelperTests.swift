@@ -7,6 +7,7 @@ final class CopyfileHelperTests: XCTestCase {
     override func setUp() {
         super.setUp()
         tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("CopyfileHelperTests-\(UUID().uuidString)")
+        // swiftlint:disable:next force_try
         try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
     }
 
@@ -132,6 +133,81 @@ final class CopyfileHelperTests: XCTestCase {
         XCTAssertEqual(copiedData.count, size, "Copied file should have same size")
         XCTAssertEqual(copiedData[0], 0xAB, "Copied file should have same content")
         XCTAssertEqual(copiedData[size - 1], 0xAB, "Copied file should have same content at end")
+    }
+
+    func testCopyDirectoryProgressNeverResets() throws {
+        // Regression: COPYFILE_STATE_COPIED resets per inner file in recursive copies
+        // (e.g. AVCHD folders). CopyfileHelper must track cumulative bytes across files.
+        let sourceDir = tempDir.appendingPathComponent("multi_dir")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+
+        // Multiple 2MB files — large enough to trigger progress callbacks per file
+        let fileSize = 2_000_000
+        let fileCount = 5
+        for i in 0..<fileCount {
+            try Data(repeating: UInt8(i), count: fileSize).write(to: sourceDir.appendingPathComponent("file\(i).bin"))
+        }
+        let totalSize = Int64(fileSize * fileCount) // 10 MB
+
+        let destDir = tempDir.appendingPathComponent("multi_dest")
+        let collector = ByteCollector()
+
+        try CopyfileHelper.copy(from: sourceDir, to: destDir) { bytesCopied in
+            collector.append(bytesCopied)
+            return true
+        }
+
+        let values = collector.values
+        guard !values.isEmpty else {
+            XCTFail("Should receive at least one progress callback for 10 MB directory")
+            return
+        }
+
+        // Progress must NEVER go backward
+        for i in 1..<values.count {
+            XCTAssertGreaterThanOrEqual(values[i], values[i - 1],
+                "Progress went backward at index \(i): \(values[i]) < \(values[i - 1])")
+        }
+
+        // Final value must be at least 50% of total (allows for small files not triggering callbacks)
+        if let lastValue = values.last {
+            XCTAssertGreaterThanOrEqual(lastValue, totalSize / 2,
+                "Final cumulative \(lastValue) should be at least half of total \(totalSize)")
+        }
+    }
+
+    func testCopyDirectoryWithMixedSizesProgressNeverResets() throws {
+        // Simulates AVCHD structure: small metadata files interspersed with large video files
+        let sourceDir = tempDir.appendingPathComponent("avchd_like")
+        let streamDir = sourceDir.appendingPathComponent("STREAM")
+        try FileManager.default.createDirectory(at: streamDir, withIntermediateDirectories: true)
+
+        // Small metadata files
+        try "metadata".write(to: sourceDir.appendingPathComponent("index.txt"), atomically: true, encoding: .utf8)
+        try "playlist".write(to: sourceDir.appendingPathComponent("playlist.txt"), atomically: true, encoding: .utf8)
+
+        // Large "video" files — 3MB each, enough to get progress callbacks
+        var totalSize: Int64 = 0
+        for i in 0..<3 {
+            let size = 3_000_000
+            try Data(repeating: UInt8(i), count: size).write(to: streamDir.appendingPathComponent("clip\(i).bin"))
+            totalSize += Int64(size)
+        }
+
+        let destDir = tempDir.appendingPathComponent("avchd_dest")
+        let collector = ByteCollector()
+
+        try CopyfileHelper.copy(from: sourceDir, to: destDir) { bytesCopied in
+            collector.append(bytesCopied)
+            return true
+        }
+
+        let values = collector.values
+        // Monotonically non-decreasing — the critical invariant
+        for i in 1..<values.count {
+            XCTAssertGreaterThanOrEqual(values[i], values[i - 1],
+                "Progress went backward at index \(i): \(values[i]) < \(values[i - 1])")
+        }
     }
 
     func testCopyFileDirectory() throws {

@@ -18,6 +18,8 @@
   `copyfile(3)` with a 1 MB buffer (up from the default 64 KB), improving
   throughput on fast storage. Real-time byte-level progress via copyfile callback
   replaces the old destination-polling approach.
+- **Source/destination context** — Source pane shows "Copying" while the
+  destination pane shows "Receiving" for copy and move operations.
 - **Status bar font size** — Increased from `fontSize - 2` to `fontSize - 1`
   (12pt default) for better readability across all modes.
 

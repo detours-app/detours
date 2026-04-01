@@ -118,9 +118,9 @@
 
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| StatusBarProgressTests (12 tests) | PASS | 6.75s | 2026-04-01 12:21:00 |
-| CopyfileHelperTests (5 tests) | PASS | 0.03s | 2026-04-01 12:19:16 |
-| FileOperationQueueTests (38 tests) | PASS | 5.0s | 2026-04-01 13:39:00 |
+| StatusBarProgressTests (17 tests) | PASS | 7.8s | 2026-04-01 14:25:55 |
+| CopyfileHelperTests (7 tests) | PASS | 0.07s | 2026-04-01 14:04:47 |
+| FileOperationQueueTests (41 tests) | PASS | 5.0s | 2026-04-01 14:04:47 |
 
 ## Run 20260225
 

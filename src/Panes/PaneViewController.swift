@@ -490,7 +490,7 @@ final class PaneViewController: NSViewController {
 
     // MARK: - Operation Progress
 
-    func showOperationProgress(_ progress: FileOperationProgress) {
+    func showOperationProgress(_ progress: FileOperationProgress, isDestination: Bool = false) {
         // Auto-show status bar if hidden
         if statusBar.isHidden {
             operationStatusBarForceShown = true
@@ -503,7 +503,7 @@ final class PaneViewController: NSViewController {
             statusBarBottomConstraint?.isActive = true
         }
 
-        statusBar.showProgress(progress)
+        statusBar.showProgress(progress, isDestination: isDestination)
         statusBar.onProgressClick = { [weak self] in
             self?.showDetailPopover()
         }

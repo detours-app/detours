@@ -108,8 +108,11 @@ final class MainSplitViewController: NSSplitViewController {
                 bytesCompleted: 0,
                 bytesTotal: 0
             )
-            self.leftPane.showOperationProgress(progress)
-            self.rightPane.showOperationProgress(progress)
+            let destURL = operation.destinationURL
+            let leftIsDestination = destURL != nil && self.leftPane.selectedTab?.currentDirectory == destURL
+            let rightIsDestination = destURL != nil && self.rightPane.selectedTab?.currentDirectory == destURL
+            self.leftPane.showOperationProgress(progress, isDestination: leftIsDestination)
+            self.rightPane.showOperationProgress(progress, isDestination: rightIsDestination)
         }
 
         queue.onProgressUpdate = { [weak self] progress in

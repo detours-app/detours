@@ -44,6 +44,15 @@ enum FileOperation {
         }
     }
 
+    /// Destination directory for copy/move operations, nil for others
+    var destinationURL: URL? {
+        switch self {
+        case let .copy(_, destination): return destination
+        case let .move(_, destination): return destination
+        default: return nil
+        }
+    }
+
     var description: String {
         switch self {
         case let .copy(sources, _):

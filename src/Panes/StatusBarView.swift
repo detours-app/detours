@@ -29,6 +29,7 @@ final class StatusBarView: NSView {
     private var completionWorkItem: DispatchWorkItem?
     let speedCalculator = TransferSpeedCalculator()
 
+    private var isDestination = false
     var onProgressClick: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
@@ -147,10 +148,11 @@ final class StatusBarView: NSView {
 
     // MARK: - Public API
 
-    func showProgress(_ progress: FileOperationProgress) {
+    func showProgress(_ progress: FileOperationProgress, isDestination: Bool = false) {
         completionWorkItem?.cancel()
         completionWorkItem = nil
         mode = .progress
+        self.isDestination = isDestination
 
         speedCalculator.reset()
 
@@ -285,7 +287,12 @@ final class StatusBarView: NSView {
     }
 
     func formatProgressText(_ progress: FileOperationProgress) -> String {
-        let verb = progress.operation.verb
+        let verb: String
+        if isDestination, progress.operation.destinationURL != nil {
+            verb = "Receiving"
+        } else {
+            verb = progress.operation.verb
+        }
         let count = progress.operation.itemCount
         let itemWord = count == 1 ? "item" : "items"
 
@@ -294,15 +301,20 @@ final class StatusBarView: NSView {
             return "Scanning..."
         }
 
-        // Byte-level progress: "Copying 3 items · 47% · 2.1 GB of 4.5 GB · 42.3 MB/s"
+        // Byte-level progress: "Copying 1 item · 47% · 2.1 GB of 4.5 GB · 16 MB/s · ~3 min left"
         if progress.bytesTotal > 0 {
             let percent = Int(progress.fractionCompleted * 100)
             let completed = formatSize(progress.bytesCompleted)
             let total = formatSize(progress.bytesTotal)
             var text = "\(verb) \(count) \(itemWord) · \(percent)% · \(completed) of \(total)"
 
-            if let speed = speedCalculator.currentSpeed {
+            if let speed = speedCalculator.currentSpeed, speed > 0 {
                 text += " · \(formatSpeed(speed))"
+                let remaining = Double(progress.bytesTotal - progress.bytesCompleted)
+                let seconds = remaining / speed
+                if seconds >= 1 {
+                    text += " · ~\(formatETA(seconds))"
+                }
             }
 
             return text
@@ -347,10 +359,10 @@ final class StatusBarView: NSView {
             return "\(size) B"
         } else if size < 1_000_000 {
             let kb = Double(size) / 1000
-            return String(format: "%.1f KB", kb)
+            return String(format: "%.0f KB", kb)
         } else if size < 1_000_000_000 {
             let mb = Double(size) / 1_000_000
-            return String(format: "%.1f MB", mb)
+            return String(format: "%.0f MB", mb)
         } else if size < 1_000_000_000_000 {
             let gb = Double(size) / 1_000_000_000
             return String(format: "%.1f GB", gb)
@@ -360,11 +372,24 @@ final class StatusBarView: NSView {
         }
     }
 
+    private func formatETA(_ seconds: Double) -> String {
+        if seconds < 60 {
+            return "\(Int(seconds)) sec left"
+        } else if seconds < 3600 {
+            let min = Int(seconds / 60)
+            return "\(min) min left"
+        } else {
+            let hr = Int(seconds / 3600)
+            let min = Int((seconds.truncatingRemainder(dividingBy: 3600)) / 60)
+            return min > 0 ? "\(hr) hr \(min) min left" : "\(hr) hr left"
+        }
+    }
+
     private func formatSpeed(_ bytesPerSecond: Double) -> String {
         if bytesPerSecond < 1_000_000 {
             return String(format: "%.0f KB/s", bytesPerSecond / 1000)
         } else if bytesPerSecond < 1_000_000_000 {
-            return String(format: "%.1f MB/s", bytesPerSecond / 1_000_000)
+            return String(format: "%.0f MB/s", bytesPerSecond / 1_000_000)
         } else {
             return String(format: "%.1f GB/s", bytesPerSecond / 1_000_000_000)
         }

@@ -158,6 +158,72 @@ final class StatusBarProgressTests: XCTestCase {
         wait(for: [expectation], timeout: 3.0)
     }
 
+    func testProgressTextDestinationShowsReceiving() {
+        let statusBar = StatusBarView(frame: NSRect(x: 0, y: 0, width: 400, height: 20))
+        let progress = makeProgress(.copy(sources: [testURL()], destination: testURL()), completed: 1, total: 3, bytesCompleted: 100, bytesTotal: 300)
+        statusBar.showProgress(progress, isDestination: true)
+
+        let text = statusBar.formatProgressText(progress)
+        XCTAssertTrue(text.contains("Receiving"), "Destination pane should show 'Receiving', got: \(text)")
+        XCTAssertFalse(text.contains("Copying"), "Destination pane should NOT show 'Copying', got: \(text)")
+    }
+
+    func testProgressTextSourceShowsVerb() {
+        let statusBar = StatusBarView(frame: NSRect(x: 0, y: 0, width: 400, height: 20))
+        let progress = makeProgress(.copy(sources: [testURL()], destination: testURL()), completed: 1, total: 3, bytesCompleted: 100, bytesTotal: 300)
+        statusBar.showProgress(progress, isDestination: false)
+
+        let text = statusBar.formatProgressText(progress)
+        XCTAssertTrue(text.contains("Copying"), "Source pane should show 'Copying', got: \(text)")
+    }
+
+    func testProgressTextNoDestinationOperationIgnoresFlag() {
+        let statusBar = StatusBarView(frame: NSRect(x: 0, y: 0, width: 400, height: 20))
+        // Delete has no destination — isDestination flag should be ignored
+        let progress = makeProgress(.delete(items: [testURL()]), completed: 1, total: 3)
+        statusBar.showProgress(progress, isDestination: true)
+
+        let text = statusBar.formatProgressText(progress)
+        XCTAssertTrue(text.contains("Trashing"), "Delete should show 'Trashing' even with isDestination=true, got: \(text)")
+        XCTAssertFalse(text.contains("Receiving"), "Delete should NOT show 'Receiving', got: \(text)")
+    }
+
+    func testFormatSizeNoDecimalsForMB() {
+        let statusBar = StatusBarView(frame: NSRect(x: 0, y: 0, width: 400, height: 20))
+        let sources = [testURL()]
+        // 42.7 MB completed of 100 MB
+        let progress = makeProgress(.copy(sources: sources, destination: testURL()), completed: 0, total: 1, bytesCompleted: 42_700_000, bytesTotal: 100_000_000)
+        statusBar.showProgress(progress)
+
+        let text = statusBar.formatProgressText(progress)
+        // Should show "43 MB" not "42.7 MB"
+        XCTAssertTrue(text.contains("43 MB"), "MB should have no decimals, got: \(text)")
+        XCTAssertFalse(text.contains("42.7"), "Should not have decimals for MB, got: \(text)")
+    }
+
+    func testProgressTextShowsETA() {
+        // Use updateProgress which feeds the speed calculator, then check text
+        let statusBar = StatusBarView(frame: NSRect(x: 0, y: 0, width: 600, height: 20))
+        let sources = [testURL()]
+        let dest = testURL()
+        let initial = makeProgress(.copy(sources: sources, destination: dest), completed: 0, total: 1, bytesCompleted: 0, bytesTotal: 5_000_000_000)
+        statusBar.showProgress(initial)
+
+        // Feed real progress updates with time gap for speed calculation
+        let update1 = makeProgress(.copy(sources: sources, destination: dest), completed: 0, total: 1, bytesCompleted: 500_000_000, bytesTotal: 5_000_000_000)
+        statusBar.updateProgress(update1)
+
+        let expectation = expectation(description: "ETA appears")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            let update2 = self.makeProgress(.copy(sources: sources, destination: dest), completed: 0, total: 1, bytesCompleted: 1_000_000_000, bytesTotal: 5_000_000_000)
+            statusBar.updateProgress(update2)
+            let text = statusBar.formatProgressText(update2)
+            XCTAssertTrue(text.contains("left"), "Should show ETA when speed is available, got: \(text)")
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 3.0)
+    }
+
     func testThemeChangeUpdatesColors() {
         let statusBar = StatusBarView(frame: NSRect(x: 0, y: 0, width: 400, height: 20))
 
