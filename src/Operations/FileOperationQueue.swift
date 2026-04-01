@@ -432,7 +432,7 @@ final class FileOperationQueue {
                 }
 
                 if !skipped {
-                    let pollTask = startBytePollTask(
+                    let pollTask = startBytePollTask(BytePollContext(
                         destination: destinationURL,
                         operation: operation,
                         currentItem: source,
@@ -440,7 +440,7 @@ final class FileOperationQueue {
                         itemCount: items.count,
                         bytesCopiedBefore: bytesMoved,
                         totalSize: totalSize
-                    )
+                    ))
                     try await runFileIO { try FileManager.default.moveItem(at: source, to: destinationURL) }
                     pollTask.cancel()
                     successes.append((source: source, destination: destinationURL))
@@ -1769,30 +1769,32 @@ final class FileOperationQueue {
 
     // MARK: - Byte-Level Progress Polling
 
+    private struct BytePollContext {
+        let destination: URL
+        let operation: FileOperation
+        let currentItem: URL
+        let itemIndex: Int
+        let itemCount: Int
+        let bytesCopiedBefore: Int64
+        let totalSize: Int64
+    }
+
     /// Poll the destination file/folder size during a copy or move to report byte-level progress.
     /// Returns a cancellable task — cancel it when the I/O operation completes.
-    private func startBytePollTask(
-        destination: URL,
-        operation: FileOperation,
-        currentItem: URL,
-        itemIndex: Int,
-        itemCount: Int,
-        bytesCopiedBefore: Int64,
-        totalSize: Int64
-    ) -> Task<Void, Never> {
+    private func startBytePollTask(_ ctx: BytePollContext) -> Task<Void, Never> {
         Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
                 guard !Task.isCancelled else { break }
-                let currentDestSize = Self.calculateTotalSize(of: [destination])
+                let currentDestSize = Self.calculateTotalSize(of: [ctx.destination])
                 await MainActor.run { [weak self] in
                     self?.updateProgress(
-                        operation: operation,
-                        currentItem: currentItem,
-                        completed: itemIndex,
-                        total: itemCount,
-                        bytesCompleted: bytesCopiedBefore + currentDestSize,
-                        bytesTotal: totalSize
+                        operation: ctx.operation,
+                        currentItem: ctx.currentItem,
+                        completed: ctx.itemIndex,
+                        total: ctx.itemCount,
+                        bytesCompleted: ctx.bytesCopiedBefore + currentDestSize,
+                        bytesTotal: ctx.totalSize
                     )
                 }
             }

@@ -265,22 +265,19 @@ actor DirectoryLoader {
                         options.insert(.skipsHiddenFiles)
                     }
 
-                    // Clear stale NSURL resource value cache for removable
-                    // volumes (e.g. SD cards) where a different volume may have
-                    // previously been mounted at the same path.
-                    let isRemovable = Self.isRemovableVolume(url)
-
                     let contents = try FileManager.default.contentsOfDirectory(
                         at: url,
                         includingPropertiesForKeys: keys,
                         options: options
                     )
 
+                    // Always clear the NSURL resource value cache before reading.
+                    // The process-level cache can hold stale sizes when files are
+                    // modified between directory loads (e.g. a copy that finishes
+                    // after the first FSEvents-triggered reload).
                     let entries = contents.map { fileURL -> LoadedFileEntry in
                         var url = fileURL
-                        if isRemovable {
-                            url.removeAllCachedResourceValues()
-                        }
+                        url.removeAllCachedResourceValues()
                         let values = try? url.resourceValues(forKeys: Set(keys))
                         return LoadedFileEntry(url: url, resourceValues: values)
                     }

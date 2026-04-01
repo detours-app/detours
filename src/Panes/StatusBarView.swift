@@ -301,7 +301,7 @@ final class StatusBarView: NSView {
             return "Scanning..."
         }
 
-        // Byte-level progress: "Copying 1 item · 47% · 2.1 GB of 4.5 GB · 16 MB/s · ~3 min left"
+        // Byte-level progress: "Copying 1 item · 47% · 2.1 GB of 4.5 GB · 16 MB/s · 3 min left"
         if progress.bytesTotal > 0 {
             let percent = Int(progress.fractionCompleted * 100)
             let completed = formatSize(progress.bytesCompleted)
@@ -313,7 +313,7 @@ final class StatusBarView: NSView {
                 let remaining = Double(progress.bytesTotal - progress.bytesCompleted)
                 let seconds = remaining / speed
                 if seconds >= 1 {
-                    text += " · ~\(formatETA(seconds))"
+                    text += " · \(formatETA(seconds))"
                 }
             }
 

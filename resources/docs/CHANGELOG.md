@@ -23,8 +23,14 @@
 - **Status bar font size** — Increased from `fontSize - 2` to `fontSize - 1`
   (12pt default) for better readability across all modes.
 
+- **ETA display** — Removed distracting tilde prefix from time-remaining
+  estimates (now "3 min left" instead of "~3 min left").
+
 ### Bug Fixes
 
+- **Stale file sizes after copy** — Fixed files showing incorrect sizes after
+  copy operations complete. The NSURL resource value cache was not being cleared
+  on local volumes, causing stale metadata to persist across refreshes.
 - **Archive/extract operations** — Fixed operations that could hang permanently
   (stuck spinner, unresponsive cancel) due to a race condition in subprocess
   management. Cancel now reliably terminates the compression process. Extraction
