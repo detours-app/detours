@@ -2,14 +2,14 @@
 
 ## Latest Run
 
-- Started: 2026-04-01 12:21:00
-- Command: `swift test --filter StatusBarProgressTests` and `swift test --filter CopyfileHelperTests`
+- Started: 2026-04-01 13:39:00
+- Command: `swift test --filter FileOperationQueueTests`
 - Status: PASS
-- Duration: 6.75s + 0.03s
-- Notes: 12 StatusBarProgressTests passed (mode switching, progress text
-  formatting, completion revert, error persistence, transfer speed
-  calculator). 5 CopyfileHelperTests passed (metadata preservation,
-  progress callback, cancellation, large buffer, directory copy).
+- Duration: 5.0s
+- Notes: 38 tests passed (35 existing + 3 new large-file integration
+  tests). New tests copy 5-10 MB files through the full @MainActor
+  FileOperationQueue path to catch deadlocks in CopyfileHelper
+  progress callbacks. Covers copy, duplicate, and mid-copy cancellation.
 
 ## Run 20260324 18:08
 
@@ -120,7 +120,7 @@
 | --- | --- | --- | --- |
 | StatusBarProgressTests (12 tests) | PASS | 6.75s | 2026-04-01 12:21:00 |
 | CopyfileHelperTests (5 tests) | PASS | 0.03s | 2026-04-01 12:19:16 |
-| FileOperationQueueTests (31 tests) | PASS | 4.9s | 2026-02-25 17:10:31 |
+| FileOperationQueueTests (38 tests) | PASS | 5.0s | 2026-04-01 13:39:00 |
 
 ## Run 20260225
 

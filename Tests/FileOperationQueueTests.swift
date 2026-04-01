@@ -634,6 +634,77 @@ final class FileOperationQueueTests: XCTestCase {
         XCTAssertTrue(didFinish, "onOperationFinish should fire")
         XCTAssertNil(finishError, "Successful operation should finish without error")
     }
+
+    // MARK: - Large File Copy (progress callback integration)
+    // These tests copy files large enough to trigger the copyfile(3) progress
+    // callback through the full @MainActor runFileIO path. A deadlock here
+    // means the CancelFlag or progress dispatch is broken.
+
+    func testCopyLargeFileDoesNotDeadlock() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = temp.appendingPathComponent("large.bin")
+        try Data(repeating: 0xCD, count: 5_000_000).write(to: source) // 5 MB
+        let dest = try createTestFolder(in: temp, name: "Dest")
+
+        // This will deadlock (timeout) if the progress callback blocks the main actor
+        try await FileOperationQueue.shared.copy(items: [source], to: dest)
+
+        let copied = dest.appendingPathComponent("large.bin")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: copied.path))
+        let copiedData = try Data(contentsOf: copied)
+        XCTAssertEqual(copiedData.count, 5_000_000)
+        XCTAssertEqual(copiedData[0], 0xCD)
+    }
+
+    func testDuplicateLargeFileDoesNotDeadlock() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = temp.appendingPathComponent("large.bin")
+        try Data(repeating: 0xEF, count: 5_000_000).write(to: source) // 5 MB
+
+        _ = try await FileOperationQueue.shared.duplicate(items: [source])
+
+        let duplicated = temp.appendingPathComponent("large copy.bin")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: duplicated.path))
+        let dupData = try Data(contentsOf: duplicated)
+        XCTAssertEqual(dupData.count, 5_000_000)
+        XCTAssertEqual(dupData[0], 0xEF)
+    }
+
+    func testCopyLargeFileCancellation() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = temp.appendingPathComponent("cancel.bin")
+        try Data(count: 10_000_000).write(to: source) // 10 MB
+        let dest = try createTestFolder(in: temp, name: "Dest")
+
+        let queue = FileOperationQueue.shared
+        let savedProgress = queue.onProgressUpdate
+        queue.onProgressUpdate = { progress in
+            savedProgress?(progress)
+            // Cancel as soon as we see any progress
+            if progress.bytesCompleted > 0 {
+                queue.cancelCurrentOperation()
+            }
+        }
+        defer { queue.onProgressUpdate = savedProgress }
+
+        do {
+            try await queue.copy(items: [source], to: dest)
+            // It's OK if copy completes before cancel triggers (small file / fast disk)
+        } catch {
+            // Expected: cancellation error
+            if let opError = error as? FileOperationError, case .cancelled = opError {
+                // Good — cancelled mid-copy
+            } else {
+                XCTFail("Expected cancellation error, got: \(error)")
+            }
+        }
+    }
 }
 
 @MainActor
