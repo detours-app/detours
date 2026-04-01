@@ -98,9 +98,16 @@ final class MainSplitViewController: NSSplitViewController {
     private func setupActivityCallbacks() {
         let queue = FileOperationQueue.shared
 
-        queue.onOperationStart = { [weak self] _, _ in
+        queue.onOperationStart = { [weak self] operation, totalCount in
             guard let self else { return }
-            guard let progress = queue.lastReceivedProgress else { return }
+            let progress = FileOperationProgress(
+                operation: operation,
+                currentItem: nil,
+                completedCount: 0,
+                totalCount: totalCount,
+                bytesCompleted: 0,
+                bytesTotal: 0
+            )
             self.leftPane.showOperationProgress(progress)
             self.rightPane.showOperationProgress(progress)
         }

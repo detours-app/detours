@@ -635,6 +635,59 @@ final class FileOperationQueueTests: XCTestCase {
         XCTAssertNil(finishError, "Successful operation should finish without error")
     }
 
+    func testOnOperationStartReceivesValidProgress() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let queue = FileOperationQueue.shared
+        var startOperation: FileOperation?
+        var startCount: Int?
+
+        let savedStart = queue.onOperationStart
+        queue.onOperationStart = { operation, count in
+            startOperation = operation
+            startCount = count
+        }
+        defer { queue.onOperationStart = savedStart }
+
+        let file = try createTestFile(in: temp, name: "a.txt")
+        let dest = try createTestFolder(in: temp, name: "Dest")
+        try await queue.copy(items: [file], to: dest)
+
+        XCTAssertNotNil(startOperation, "onOperationStart should provide the operation")
+        XCTAssertEqual(startCount, 1, "onOperationStart should provide the item count")
+    }
+
+    func testOnOperationStartFiresBeforeProgress() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let queue = FileOperationQueue.shared
+        var startFiredFirst = false
+        var progressFired = false
+
+        let savedStart = queue.onOperationStart
+        let savedProgress = queue.onProgressUpdate
+        queue.onOperationStart = { _, _ in
+            if !progressFired {
+                startFiredFirst = true
+            }
+        }
+        queue.onProgressUpdate = { _ in
+            progressFired = true
+        }
+        defer {
+            queue.onOperationStart = savedStart
+            queue.onProgressUpdate = savedProgress
+        }
+
+        let file = try createTestFile(in: temp, name: "a.txt")
+        let dest = try createTestFolder(in: temp, name: "Dest")
+        try await queue.copy(items: [file], to: dest)
+
+        XCTAssertTrue(startFiredFirst, "onOperationStart must fire before onProgressUpdate so the UI can switch to progress mode first")
+    }
+
     // MARK: - Large File Copy (progress callback integration)
     // These tests copy files large enough to trigger the copyfile(3) progress
     // callback through the full @MainActor runFileIO path. A deadlock here

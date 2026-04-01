@@ -1806,6 +1806,10 @@ final class FileOperationQueue {
         isCancelled = false
         lastProgressTime = 0
 
+        // Fire onOperationStart FIRST so the UI switches to progress mode
+        // before any progress updates arrive
+        onOperationStart?(operation, totalCount)
+
         let progress = FileOperationProgress(
             operation: operation,
             currentItem: nil,
@@ -1814,8 +1818,7 @@ final class FileOperationQueue {
             bytesCompleted: 0,
             bytesTotal: 0
         )
-        onProgressUpdate?(progress)
-        onOperationStart?(operation, totalCount)
+        deliverProgress(progress)
     }
 
     private func updateProgress(
