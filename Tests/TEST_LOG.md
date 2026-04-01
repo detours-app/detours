@@ -2,6 +2,17 @@
 
 ## Latest Run
 
+- Started: 2026-04-01 12:21:00
+- Command: `swift test --filter StatusBarProgressTests` and `swift test --filter CopyfileHelperTests`
+- Status: PASS
+- Duration: 6.75s + 0.03s
+- Notes: 12 StatusBarProgressTests passed (mode switching, progress text
+  formatting, completion revert, error persistence, transfer speed
+  calculator). 5 CopyfileHelperTests passed (metadata preservation,
+  progress callback, cancellation, large buffer, directory copy).
+
+## Run 20260324 18:08
+
 - Started: 2026-03-24 18:08:13
 - Command: `swift test --filter FileListResponderTests`
 - Status: PASS
@@ -32,7 +43,7 @@
 | --- | --- | --- | --- |
 | FileListResponderTests (29 passed, 1 failed: `testHandleKeyDownHandlesF7NewFolderInCurrentDirectoryWithSelectedFolder` expected wrong destination) | FAIL | 2.855s | 2026-03-24 18:07:11 |
 
-## Run 20260324
+## Run 20260324 17:56
 
 - Started: 2026-03-24 17:56:00
 - Command: `swift test --filter FileListResponderTests/testHandleKeyDownHandlesCmdDDuplicate`
@@ -107,7 +118,8 @@
 
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| ActivityToolbarButtonTests (8 tests) | PASS | 0.047s | 2026-02-25 17:10:27 |
+| StatusBarProgressTests (12 tests) | PASS | 6.75s | 2026-04-01 12:21:00 |
+| CopyfileHelperTests (5 tests) | PASS | 0.03s | 2026-04-01 12:19:16 |
 | FileOperationQueueTests (31 tests) | PASS | 4.9s | 2026-02-25 17:10:31 |
 
 ## Run 20260225

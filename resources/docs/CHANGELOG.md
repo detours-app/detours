@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Status Bar Progress Indicator
+
+- **Inline progress in status bar** — File operation progress now appears directly
+  in both panes' status bars with a horizontal progress bar, operation text
+  (verb, item count, percentage, bytes, transfer speed), replacing the small
+  toolbar ring indicator that was hard to see.
+- **Completion and error states** — Success shows "Done — Copied 3 items (4.5 GB)"
+  in accent color for 3 seconds. Errors show in red and persist until the next
+  directory navigation. Clicking the status bar during operations or errors opens
+  the detail popover.
+- **Auto-show status bar** — If the status bar is hidden in preferences, it
+  temporarily appears during operations and hides again on completion.
+- **Optimized copy with copyfile(3)** — Copy and duplicate operations now use
+  `copyfile(3)` with a 1 MB buffer (up from the default 64 KB), improving
+  throughput on fast storage. Real-time byte-level progress via copyfile callback
+  replaces the old destination-polling approach.
+- **Status bar font size** — Increased from `fontSize - 2` to `fontSize - 1`
+  (12pt default) for better readability across all modes.
+
 ### Bug Fixes
 
 - **Archive/extract operations** — Fixed operations that could hang permanently

@@ -25,6 +25,16 @@ private final class OnceFlag: @unchecked Sendable {
     }
 }
 
+/// Sendable cancel flag that reads isCancelled from the FileOperationQueue via DispatchQueue.main.sync.
+/// Safe because runFileIO dispatches to a detached task (main thread is suspended via await, not blocked).
+final class CancelFlag: @unchecked Sendable {
+    private weak var queue: FileOperationQueue?
+    init(queue: FileOperationQueue) { self.queue = queue }
+    var isCancelled: Bool {
+        DispatchQueue.main.sync { [weak queue] in queue?.isCancelled ?? true }
+    }
+}
+
 @MainActor
 final class FileOperationQueue {
     static let shared = FileOperationQueue()
@@ -43,7 +53,7 @@ final class FileOperationQueue {
 
     private var pending: [() async -> Void] = []
     private var isRunning = false
-    private var isCancelled = false
+    private(set) var isCancelled = false
     private var currentIOCancellable: AnyCancellableTask?
     private var currentProcess: Process?
     private var lastProgressTime: CFAbsoluteTime = 0
@@ -302,17 +312,24 @@ final class FileOperationQueue {
                 }
 
                 if !skipped {
-                    let pollTask = startBytePollTask(
-                        destination: destinationURL,
-                        operation: operation,
-                        currentItem: source,
-                        itemIndex: index,
-                        itemCount: items.count,
-                        bytesCopiedBefore: bytesCopied,
-                        totalSize: totalSize
-                    )
-                    try await runFileIO { try FileManager.default.copyItem(at: source, to: destinationURL) }
-                    pollTask.cancel()
+                    let previousBytes = bytesCopied
+                    let itemCount = items.count
+                    let cancelFlag = CancelFlag(queue: self)
+                    try await runFileIO {
+                        try CopyfileHelper.copy(from: source, to: destinationURL) { copiedBytes in
+                            DispatchQueue.main.async { [weak self] in
+                                self?.updateProgress(
+                                    operation: operation,
+                                    currentItem: source,
+                                    completed: index,
+                                    total: itemCount,
+                                    bytesCompleted: previousBytes + copiedBytes,
+                                    bytesTotal: totalSize
+                                )
+                            }
+                            return !cancelFlag.isCancelled
+                        }
+                    }
                     successes.append(destinationURL)
                 }
             } catch {
@@ -614,11 +631,17 @@ final class FileOperationQueue {
 
     private func performDuplicate(items: [URL], undoManager: UndoManager? = nil) async throws -> [URL] {
         let operation = FileOperation.duplicate(items: items)
+
+        // Pre-calculate per-item sizes for byte-level progress
+        let itemSizes = await Task.detached { items.map { Self.calculateTotalSize(of: [$0]) } }.value
+        let totalSize = itemSizes.reduce(0, +)
+
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
 
         var failures: [(URL, Error)] = []
         var successes: [URL] = []
+        var bytesCopied: Int64 = 0
 
         for (index, source) in items.enumerated() {
             try checkCancelled()
@@ -627,22 +650,44 @@ final class FileOperationQueue {
                 operation: operation,
                 currentItem: source,
                 completed: index,
-                total: items.count
+                total: items.count,
+                bytesCompleted: bytesCopied,
+                bytesTotal: totalSize
             )
 
             do {
                 let destination = uniqueDuplicateDestination(for: source)
-                try await runFileIO { try FileManager.default.copyItem(at: source, to: destination) }
+                let previousBytes = bytesCopied
+                let itemCount = items.count
+                let cancelFlag = CancelFlag(queue: self)
+                try await runFileIO {
+                    try CopyfileHelper.copy(from: source, to: destination) { copiedBytes in
+                        DispatchQueue.main.async { [weak self] in
+                            self?.updateProgress(
+                                operation: operation,
+                                currentItem: source,
+                                completed: index,
+                                total: itemCount,
+                                bytesCompleted: previousBytes + copiedBytes,
+                                bytesTotal: totalSize
+                            )
+                        }
+                        return !cancelFlag.isCancelled
+                    }
+                }
                 successes.append(destination)
             } catch {
                 failures.append((source, mapError(error, url: source)))
             }
 
+            bytesCopied += itemSizes[index]
             updateProgress(
                 operation: operation,
                 currentItem: source,
                 completed: index + 1,
-                total: items.count
+                total: items.count,
+                bytesCompleted: bytesCopied,
+                bytesTotal: totalSize
             )
         }
 
