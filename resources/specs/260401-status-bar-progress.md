@@ -206,10 +206,10 @@ Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 
 ### Manual Verification (Marco)
 
-- [ ] Copy a large folder from an SD card — progress bar fills smoothly in both panes' status bars, percentage, bytes, and transfer speed update
+- [x] Copy a large folder from an SD card — progress bar fills smoothly in both panes' status bars, percentage, bytes, and transfer speed update
 - [ ] Click the status bar during a copy — detail popover opens with full path and Cancel button
 - [ ] Cancel via popover — status bar immediately reverts to normal content
-- [ ] Let a copy complete — "Done" message appears in accent color, reverts after 3 seconds
+- [x] Let a copy complete — "Done" message appears in accent color, reverts after 3 seconds
 - [ ] Trigger an error (copy to read-only location) — red error message persists in status bar
 - [ ] Click the status bar while the error is showing — detail popover opens with the full failure context (same idea as the old activity control)
 - [ ] Navigate to a different folder after error — error clears
