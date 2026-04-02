@@ -343,6 +343,17 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 self.currentDirectoryForGit = shouldFetchGitStatus ? normalizedURL : nil
                 self.gitStatuses = [:]
                 self.expandedFolders = previousExpanded
+
+                // On reload, invalidate cached folder sizes so they're
+                // recalculated from current disk state. Without this,
+                // folders keep stale sizes (e.g. 0 B) cached during a
+                // long copy that only updates after the operation ends.
+                if preserveExpansion {
+                    for item in self.items where item.isDirectory {
+                        FolderSizeCache.shared.invalidate(url: item.url)
+                    }
+                }
+
                 self.outlineView?.reloadData()
                 self.outlineView?.needsLayout = true
                 self.suppressCollapseNotifications = false

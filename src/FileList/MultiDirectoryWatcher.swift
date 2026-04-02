@@ -155,6 +155,7 @@ private final class SingleDirectoryWatcher: @unchecked Sendable {
 struct DirectorySnapshotEntry: Equatable, Sendable {
     let name: String
     let modificationDate: Date?
+    let fileSize: Int64?
 }
 
 /// Snapshot of directory contents for change detection
@@ -230,17 +231,24 @@ final class NetworkDirectoryPoller: @unchecked Sendable {
 
     private func takeSnapshot() -> DirectorySnapshot {
         do {
+            let snapshotKeys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey]
             let contents = try FileManager.default.contentsOfDirectory(
                 at: url,
-                includingPropertiesForKeys: [.contentModificationDateKey],
+                includingPropertiesForKeys: snapshotKeys,
                 options: []
             )
 
+            let keySet: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
             let entries = contents.map { fileURL -> DirectorySnapshotEntry in
-                let modDate = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                // Clear the NSURL cache so resourceValues re-reads from
+                // the VFS instead of returning a stale process-level
+                // cached size (e.g. 0 during an in-progress copy).
+                (fileURL as NSURL).removeAllCachedResourceValues()
+                let values = try? fileURL.resourceValues(forKeys: keySet)
                 return DirectorySnapshotEntry(
                     name: fileURL.lastPathComponent,
-                    modificationDate: modDate
+                    modificationDate: values?.contentModificationDate,
+                    fileSize: values?.fileSize.map { Int64($0) }
                 )
             }.sorted { $0.name < $1.name }
 
