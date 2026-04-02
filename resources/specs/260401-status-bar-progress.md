@@ -28,7 +28,7 @@ Move file operation progress into both panes' status bars with a horizontal prog
 
 - Both panes' status bars switch from normal content (item count, disk space) to progress mode
 - Source pane shows: "Copying 3 items · 47% · 2.1 GB of 4.5 GB · 42.3 MB/s"
-- Destination pane shows "Receiving" instead of the operation verb (e.g. "Receiving 1 item · 47% · 2.1 GB of 4.5 GB") for copy/move operations; other operations show the same text in both panes
+- Destination pane shows "Receiving" instead of the operation verb (e.g. "Receiving 1 item · 47% · 2.1 GB of 4.5 GB") for copy/move operations; other operations show the same text in both panes. Destination detection uses path-prefix matching (not strict URL equality) so it works even when the target is a subfolder within the destination pane's directory
 - A horizontal determinate progress bar appears inline next to the text
 - Transfer speed is calculated from bytes transferred over a rolling 2-second window (smoothed, not instantaneous)
 - Speed is hidden during indeterminate phase and only shown once byte-level progress is available

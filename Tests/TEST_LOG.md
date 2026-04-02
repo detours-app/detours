@@ -335,7 +335,7 @@
 | --- | --- | --- | --- |
 | IconLoader invalidateAll clears entire cache | PASS | 0.006s | 2026-02-07 21:45:00 |
 | DirectoryLoader loadChildren is equivalent to loadDirectory | PASS | 0.009s | 2026-02-07 21:45:00 |
-| DirectoryLoader handles nonexistent directory | PASS | 0.007s | 2026-02-07 21:45:00 |
+| DirectoryLoader handles nonexistent directory | PASS | 0.013s | 2026-04-02 07:42:00 |
 
 ### NetworkUITests (XCUITest)
 

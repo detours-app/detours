@@ -275,11 +275,12 @@ actor DirectoryLoader {
                     // The process-level cache can hold stale sizes when files are
                     // modified between directory loads (e.g. a copy that finishes
                     // after the first FSEvents-triggered reload).
+                    // Use NSURL directly to ensure cache is cleared at the
+                    // reference level, not just on a Swift URL struct copy.
                     let entries = contents.map { fileURL -> LoadedFileEntry in
-                        var url = fileURL
-                        url.removeAllCachedResourceValues()
-                        let values = try? url.resourceValues(forKeys: Set(keys))
-                        return LoadedFileEntry(url: url, resourceValues: values)
+                        (fileURL as NSURL).removeAllCachedResourceValues()
+                        let values = try? fileURL.resourceValues(forKeys: Set(keys))
+                        return LoadedFileEntry(url: fileURL, resourceValues: values)
                     }
 
                     continuation.resume(returning: entries)

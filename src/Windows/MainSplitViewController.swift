@@ -108,11 +108,17 @@ final class MainSplitViewController: NSSplitViewController {
                 bytesCompleted: 0,
                 bytesTotal: 0
             )
-            let destURL = operation.destinationURL
-            let leftIsDestination = destURL != nil && self.leftPane.selectedTab?.currentDirectory == destURL
-            let rightIsDestination = destURL != nil && self.rightPane.selectedTab?.currentDirectory == destURL
-            self.leftPane.showOperationProgress(progress, isDestination: leftIsDestination)
-            self.rightPane.showOperationProgress(progress, isDestination: rightIsDestination)
+            if let destPath = operation.destinationURL?.standardizedFileURL.path {
+                let leftPath = self.leftPane.selectedTab?.currentDirectory.standardizedFileURL.path ?? ""
+                let rightPath = self.rightPane.selectedTab?.currentDirectory.standardizedFileURL.path ?? ""
+                let leftIsDestination = destPath == leftPath || destPath.hasPrefix(leftPath + "/")
+                let rightIsDestination = destPath == rightPath || destPath.hasPrefix(rightPath + "/")
+                self.leftPane.showOperationProgress(progress, isDestination: leftIsDestination)
+                self.rightPane.showOperationProgress(progress, isDestination: rightIsDestination)
+            } else {
+                self.leftPane.showOperationProgress(progress, isDestination: false)
+                self.rightPane.showOperationProgress(progress, isDestination: false)
+            }
         }
 
         queue.onProgressUpdate = { [weak self] progress in
