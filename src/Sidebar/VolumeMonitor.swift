@@ -47,10 +47,10 @@ final class VolumeMonitor {
     @objc private func handleVolumeMount(_ notification: Notification) {
         DispatchQueue.main.async { [weak self] in
             if let volumeURL = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL {
-                logger.info("Volume mounted: \(volumeURL.path)")
+                logger.info("Volume mounted: \(volumeURL.path, privacy: .public)")
                 Self.invalidateCaches(for: volumeURL)
             } else {
-                logger.info("Volume mounted")
+                logger.info("Volume mounted (unknown path)")
             }
             self?.refreshVolumes()
         }
@@ -59,10 +59,10 @@ final class VolumeMonitor {
     @objc private func handleVolumeUnmount(_ notification: Notification) {
         DispatchQueue.main.async { [weak self] in
             if let volumeURL = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL {
-                logger.info("Volume unmounted: \(volumeURL.path)")
+                logger.info("Volume unmounted: \(volumeURL.path, privacy: .public)")
                 Self.invalidateCaches(for: volumeURL)
             } else {
-                logger.info("Volume unmounted")
+                logger.info("Volume unmounted (unknown path)")
             }
             self?.refreshVolumes()
         }
@@ -98,7 +98,8 @@ final class VolumeMonitor {
             .volumeIsLocalKey,
             .volumeIsReadOnlyKey,
             .isVolumeKey,
-            .volumeURLForRemountingKey
+            .volumeURLForRemountingKey,
+            .volumeUUIDStringKey
         ]
 
         guard let volumeURLs = FileManager.default.mountedVolumeURLs(
@@ -112,6 +113,9 @@ final class VolumeMonitor {
         }
 
         var newVolumes: [VolumeInfo] = []
+        // Track volume UUIDs to detect zombie mounts — stale network mount
+        // points that mirror another volume's identity after disconnection
+        var seenUUIDs: [String: Int] = [:]  // UUID -> index in newVolumes
 
         for url in volumeURLs {
             // Skip hidden system volumes
@@ -126,11 +130,15 @@ final class VolumeMonitor {
                 let icon = values.effectiveIcon as? NSImage ?? NSWorkspace.shared.icon(forFile: url.path)
                 let capacity = values.volumeTotalCapacity.map { Int64($0) }
                 let available = values.volumeAvailableCapacity.map { Int64($0) }
+                // The root volume is always local and never ejectable
+                let isRootVolume = url.path == "/"
+
                 // A volume can be ejected if it's ejectable, removable, or external (not internal)
-                let isEjectable = (values.volumeIsEjectable ?? false) || (values.volumeIsRemovable ?? false) || !(values.volumeIsInternal ?? true)
+                let isEjectable = !isRootVolume && ((values.volumeIsEjectable ?? false) || (values.volumeIsRemovable ?? false) || !(values.volumeIsInternal ?? true))
 
                 // Network detection: volumeIsLocal = false means network volume
-                let isLocal = values.volumeIsLocal ?? true
+                // Root volume is always local regardless of what the system reports
+                let isLocal = isRootVolume || (values.volumeIsLocal ?? true)
                 let isNetwork = !isLocal
 
                 // Extract server host from remounting URL for network volumes
@@ -149,9 +157,32 @@ final class VolumeMonitor {
                     isNetwork: isNetwork,
                     serverHost: serverHost
                 )
+
+                // Deduplicate by volume UUID: when a network share disconnects
+                // unexpectedly, its stale mount point can report the root volume's
+                // identity (same UUID, name, capacity) while keeping network metadata.
+                if let uuid = values.volumeUUIDString, let existingIdx = seenUUIDs[uuid] {
+                    let existing = newVolumes[existingIdx]
+                    if volume.isNetwork && !existing.isNetwork {
+                        // Zombie network mount mirrors a local volume — skip it
+                        logger.warning("Skipping zombie mount '\(name, privacy: .public)' at \(url.path, privacy: .public) (same UUID as \(existing.url.path, privacy: .public))")
+                        continue
+                    } else if !volume.isNetwork && existing.isNetwork {
+                        // Local volume found after a zombie was added — replace the zombie
+                        logger.warning("Replacing zombie mount at \(existing.url.path, privacy: .public) with local volume at \(url.path, privacy: .public)")
+                        newVolumes[existingIdx] = volume
+                        continue
+                    }
+                }
+
                 newVolumes.append(volume)
+                if let uuid = values.volumeUUIDString {
+                    seenUUIDs[uuid] = newVolumes.count - 1
+                }
+
+                logger.debug("Volume: '\(name, privacy: .public)' at \(url.path, privacy: .public) local=\(isLocal) network=\(isNetwork) ejectable=\(isEjectable)")
             } catch {
-                logger.warning("Failed to get volume info for \(url.path): \(error.localizedDescription)")
+                logger.warning("Failed to get volume info for \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
 
