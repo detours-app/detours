@@ -2,8 +2,35 @@
 
 ## Unreleased
 
+### Status Bar Progress Indicator
+
+- **Inline progress in status bar** — File operation progress now appears directly
+  in both panes' status bars with a horizontal progress bar, operation text
+  (verb, item count, percentage, bytes, transfer speed), replacing the small
+  toolbar ring indicator that was hard to see.
+- **Completion and error states** — Success shows "Done — Copied 3 items (4.5 GB)"
+  in accent color for 3 seconds. Errors show in red and persist until the next
+  directory navigation. Clicking the status bar during operations or errors opens
+  the detail popover.
+- **Auto-show status bar** — If the status bar is hidden in preferences, it
+  temporarily appears during operations and hides again on completion.
+- **Optimized copy with copyfile(3)** — Copy and duplicate operations now use
+  `copyfile(3)` with a 1 MB buffer (up from the default 64 KB), improving
+  throughput on fast storage. Real-time byte-level progress via copyfile callback
+  replaces the old destination-polling approach.
+- **Source/destination context** — Source pane shows "Copying" while the
+  destination pane shows "Receiving" for copy and move operations.
+- **Status bar font size** — Increased from `fontSize - 2` to `fontSize - 1`
+  (12pt default) for better readability across all modes.
+
+- **ETA display** — Removed distracting tilde prefix from time-remaining
+  estimates (now "3 min left" instead of "~3 min left").
+
 ### Bug Fixes
 
+- **Stale file sizes after copy** — Fixed files showing incorrect sizes after
+  copy operations complete. The NSURL resource value cache was not being cleared
+  on local volumes, causing stale metadata to persist across refreshes.
 - **Archive/extract operations** — Fixed operations that could hang permanently
   (stuck spinner, unresponsive cancel) due to a race condition in subprocess
   management. Cancel now reliably terminates the compression process. Extraction

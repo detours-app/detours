@@ -15,7 +15,6 @@ final class MainSplitViewController: NSSplitViewController {
     private var lastMediaKeyTimestamp: TimeInterval = 0
     private var quickNavController: QuickNavController?
     private var saveSessionWorkItem: DispatchWorkItem?
-    private var hideActivityWorkItem: DispatchWorkItem?
 
     private enum SessionKeys {
         static let leftTabs = "Detours.LeftPaneTabs"
@@ -99,61 +98,87 @@ final class MainSplitViewController: NSSplitViewController {
     private func setupActivityCallbacks() {
         let queue = FileOperationQueue.shared
 
-        queue.onOperationStart = { [weak self] operation, _ in
+        queue.onOperationStart = { [weak self] operation, totalCount in
             guard let self else { return }
-            let isIndeterminate = Self.isIndeterminateOperation(operation)
-            self.activePane.showActivityButton(indeterminate: isIndeterminate)
+            let progress = FileOperationProgress(
+                operation: operation,
+                currentItem: nil,
+                completedCount: 0,
+                totalCount: totalCount,
+                bytesCompleted: 0,
+                bytesTotal: 0
+            )
+            if let destPath = operation.destinationURL?.standardizedFileURL.path {
+                let leftPath = self.leftPane.selectedTab?.currentDirectory.standardizedFileURL.path ?? ""
+                let rightPath = self.rightPane.selectedTab?.currentDirectory.standardizedFileURL.path ?? ""
+                let leftIsDestination = destPath == leftPath || destPath.hasPrefix(leftPath + "/")
+                let rightIsDestination = destPath == rightPath || destPath.hasPrefix(rightPath + "/")
+                self.leftPane.showOperationProgress(progress, isDestination: leftIsDestination)
+                self.rightPane.showOperationProgress(progress, isDestination: rightIsDestination)
+            } else {
+                self.leftPane.showOperationProgress(progress, isDestination: false)
+                self.rightPane.showOperationProgress(progress, isDestination: false)
+            }
         }
 
         queue.onProgressUpdate = { [weak self] progress in
             guard let self else { return }
-            let pane = self.activePane
-            let fraction = progress.fractionCompleted
-            if fraction > 0, progress.totalCount > 0 || progress.bytesTotal > 0 {
-                pane.activityButton.updateProgress(fraction)
-            }
-            pane.updateDetailPopover(progress)
+            self.leftPane.updateOperationProgress(progress)
+            self.rightPane.updateOperationProgress(progress)
         }
 
-        queue.onOperationFinish = { [weak self] _, error in
+        queue.onOperationFinish = { [weak self] operation, error in
             guard let self else { return }
-            let pane = self.activePane
-            pane.closeDetailPopover()
 
             if let error {
                 if let opError = error as? FileOperationError, case .cancelled = opError {
-                    pane.hideActivityButton()
+                    // Cancelled — revert immediately
+                    self.leftPane.hideOperationProgress(completion: nil, error: nil)
+                    self.rightPane.hideOperationProgress(completion: nil, error: nil)
                 } else {
-                    pane.activityButton.showError()
-
-                    // Auto-dismiss error triangle after 3 seconds
-                    self.hideActivityWorkItem?.cancel()
-                    let workItem = DispatchWorkItem { [weak pane] in
-                        pane?.hideActivityButton()
-                    }
-                    self.hideActivityWorkItem = workItem
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: workItem)
+                    // Error — show in red, persists until navigation
+                    let verb = operation?.verb ?? "Operation"
+                    let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                    let errorMessage = "\(verb) failed — \(reason)"
+                    self.leftPane.hideOperationProgress(completion: nil, error: errorMessage)
+                    self.rightPane.hideOperationProgress(completion: nil, error: errorMessage)
                 }
             } else {
-                pane.activityButton.showCompleting()
-                pane.showDoneFlash()
-
-                let workItem = DispatchWorkItem { [weak pane] in
-                    pane?.hideActivityButton()
-                }
-                self.hideActivityWorkItem = workItem
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: workItem)
+                // Success — show completion flash
+                let completionMessage = Self.formatCompletionMessage(operation: operation, progress: queue.lastReceivedProgress)
+                self.leftPane.hideOperationProgress(completion: completionMessage, error: nil)
+                self.rightPane.hideOperationProgress(completion: completionMessage, error: nil)
             }
         }
     }
 
-    private static func isIndeterminateOperation(_ operation: FileOperation) -> Bool {
+    private static func formatCompletionMessage(operation: FileOperation?, progress: FileOperationProgress?) -> String {
+        guard let operation else { return "Done" }
+        let pastVerb: String
         switch operation {
-        case .copy, .move: return true
-        case .deleteImmediately: return true
-        case .delete(let items): return items.count <= 1
-        default: return false
+        case .copy: pastVerb = "Copied"
+        case .move: pastVerb = "Moved"
+        case .delete: pastVerb = "Trashed"
+        case .deleteImmediately: pastVerb = "Deleted"
+        case .rename: pastVerb = "Renamed"
+        case .duplicate: pastVerb = "Duplicated"
+        case .createFolder: pastVerb = "Created"
+        case .createFile: pastVerb = "Created"
+        case .archive: pastVerb = "Archived"
+        case .extract: pastVerb = "Extracted"
         }
+
+        let count = operation.itemCount
+        let itemWord = count == 1 ? "item" : "items"
+        var message = "Done — \(pastVerb) \(count) \(itemWord)"
+
+        if let progress, progress.bytesTotal > 0 {
+            let formatter = ByteCountFormatter()
+            formatter.countStyle = .file
+            message += " (\(formatter.string(fromByteCount: progress.bytesTotal)))"
+        }
+
+        return message
     }
 
     private var hasSetInitialFirstResponder = false

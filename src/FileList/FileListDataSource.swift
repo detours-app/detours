@@ -41,7 +41,6 @@ final class FolderSizeCache {
             DispatchQueue.global(qos: .utility).async {
                 let fileManager = FileManager.default
                 var totalSize: Int64 = 0
-                let isRemovable = DirectoryLoader.isRemovableVolume(url)
 
                 guard let enumerator = fileManager.enumerator(
                     at: url,
@@ -54,11 +53,8 @@ final class FolderSizeCache {
 
                 for case let fileURL as URL in enumerator {
                     do {
-                        var url = fileURL
-                        if isRemovable {
-                            url.removeAllCachedResourceValues()
-                        }
-                        let values = try url.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey])
+                        (fileURL as NSURL).removeAllCachedResourceValues()
+                        let values = try fileURL.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey])
                         if values.isDirectory != true {
                             totalSize += Int64(values.fileSize ?? 0)
                         }

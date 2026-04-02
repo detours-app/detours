@@ -2,6 +2,17 @@
 
 ## Latest Run
 
+- Started: 2026-04-01 13:39:00
+- Command: `swift test --filter FileOperationQueueTests`
+- Status: PASS
+- Duration: 5.0s
+- Notes: 38 tests passed (35 existing + 3 new large-file integration
+  tests). New tests copy 5-10 MB files through the full @MainActor
+  FileOperationQueue path to catch deadlocks in CopyfileHelper
+  progress callbacks. Covers copy, duplicate, and mid-copy cancellation.
+
+## Run 20260324 18:08
+
 - Started: 2026-03-24 18:08:13
 - Command: `swift test --filter FileListResponderTests`
 - Status: PASS
@@ -32,7 +43,7 @@
 | --- | --- | --- | --- |
 | FileListResponderTests (29 passed, 1 failed: `testHandleKeyDownHandlesF7NewFolderInCurrentDirectoryWithSelectedFolder` expected wrong destination) | FAIL | 2.855s | 2026-03-24 18:07:11 |
 
-## Run 20260324
+## Run 20260324 17:56
 
 - Started: 2026-03-24 17:56:00
 - Command: `swift test --filter FileListResponderTests/testHandleKeyDownHandlesCmdDDuplicate`
@@ -107,8 +118,9 @@
 
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| ActivityToolbarButtonTests (8 tests) | PASS | 0.047s | 2026-02-25 17:10:27 |
-| FileOperationQueueTests (31 tests) | PASS | 4.9s | 2026-02-25 17:10:31 |
+| StatusBarProgressTests (17 tests) | PASS | 7.8s | 2026-04-01 14:25:55 |
+| CopyfileHelperTests (7 tests) | PASS | 0.07s | 2026-04-01 14:04:47 |
+| FileOperationQueueTests (41 tests) | PASS | 5.0s | 2026-04-01 14:04:47 |
 
 ## Run 20260225
 
@@ -323,7 +335,7 @@
 | --- | --- | --- | --- |
 | IconLoader invalidateAll clears entire cache | PASS | 0.006s | 2026-02-07 21:45:00 |
 | DirectoryLoader loadChildren is equivalent to loadDirectory | PASS | 0.009s | 2026-02-07 21:45:00 |
-| DirectoryLoader handles nonexistent directory | PASS | 0.007s | 2026-02-07 21:45:00 |
+| DirectoryLoader handles nonexistent directory | PASS | 0.013s | 2026-04-02 07:42:00 |
 
 ### NetworkUITests (XCUITest)
 

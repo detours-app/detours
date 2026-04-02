@@ -12,6 +12,47 @@ enum FileOperation {
     case archive(items: [URL], format: ArchiveFormat)
     case extract(archive: URL, format: ArchiveFormat)
 
+    /// Present-participle verb for status bar progress text (e.g. "Copying", "Moving")
+    var verb: String {
+        switch self {
+        case .copy: return "Copying"
+        case .move: return "Moving"
+        case .delete: return "Trashing"
+        case .deleteImmediately: return "Deleting"
+        case .rename: return "Renaming"
+        case .duplicate: return "Duplicating"
+        case .createFolder: return "Creating"
+        case .createFile: return "Creating"
+        case .archive: return "Archiving"
+        case .extract: return "Extracting"
+        }
+    }
+
+    /// Number of source items in the operation
+    var itemCount: Int {
+        switch self {
+        case let .copy(sources, _): return sources.count
+        case let .move(sources, _): return sources.count
+        case let .delete(items): return items.count
+        case let .deleteImmediately(items): return items.count
+        case .rename: return 1
+        case let .duplicate(items): return items.count
+        case .createFolder: return 1
+        case .createFile: return 1
+        case let .archive(items, _): return items.count
+        case .extract: return 1
+        }
+    }
+
+    /// Destination directory for copy/move operations, nil for others
+    var destinationURL: URL? {
+        switch self {
+        case let .copy(_, destination): return destination
+        case let .move(_, destination): return destination
+        default: return nil
+        }
+    }
+
     var description: String {
         switch self {
         case let .copy(sources, _):

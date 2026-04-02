@@ -634,6 +634,189 @@ final class FileOperationQueueTests: XCTestCase {
         XCTAssertTrue(didFinish, "onOperationFinish should fire")
         XCTAssertNil(finishError, "Successful operation should finish without error")
     }
+
+    func testOnOperationStartReceivesValidProgress() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let queue = FileOperationQueue.shared
+        var startOperation: FileOperation?
+        var startCount: Int?
+
+        let savedStart = queue.onOperationStart
+        queue.onOperationStart = { operation, count in
+            startOperation = operation
+            startCount = count
+        }
+        defer { queue.onOperationStart = savedStart }
+
+        let file = try createTestFile(in: temp, name: "a.txt")
+        let dest = try createTestFolder(in: temp, name: "Dest")
+        try await queue.copy(items: [file], to: dest)
+
+        XCTAssertNotNil(startOperation, "onOperationStart should provide the operation")
+        XCTAssertEqual(startCount, 1, "onOperationStart should provide the item count")
+    }
+
+    func testOnOperationStartFiresBeforeProgress() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let queue = FileOperationQueue.shared
+        var startFiredFirst = false
+        var progressFired = false
+
+        let savedStart = queue.onOperationStart
+        let savedProgress = queue.onProgressUpdate
+        queue.onOperationStart = { _, _ in
+            if !progressFired {
+                startFiredFirst = true
+            }
+        }
+        queue.onProgressUpdate = { _ in
+            progressFired = true
+        }
+        defer {
+            queue.onOperationStart = savedStart
+            queue.onProgressUpdate = savedProgress
+        }
+
+        let file = try createTestFile(in: temp, name: "a.txt")
+        let dest = try createTestFolder(in: temp, name: "Dest")
+        try await queue.copy(items: [file], to: dest)
+
+        XCTAssertTrue(startFiredFirst, "onOperationStart must fire before onProgressUpdate so the UI can switch to progress mode first")
+    }
+
+    // MARK: - Large File Copy (progress callback integration)
+    // These tests copy files large enough to trigger the copyfile(3) progress
+    // callback through the full @MainActor runFileIO path. A deadlock here
+    // means the CancelFlag or progress dispatch is broken.
+
+    func testCopyLargeFileDoesNotDeadlock() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = temp.appendingPathComponent("large.bin")
+        try Data(repeating: 0xCD, count: 5_000_000).write(to: source) // 5 MB
+        let dest = try createTestFolder(in: temp, name: "Dest")
+
+        // This will deadlock (timeout) if the progress callback blocks the main actor
+        try await FileOperationQueue.shared.copy(items: [source], to: dest)
+
+        let copied = dest.appendingPathComponent("large.bin")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: copied.path))
+        let copiedData = try Data(contentsOf: copied)
+        XCTAssertEqual(copiedData.count, 5_000_000)
+        XCTAssertEqual(copiedData[0], 0xCD)
+    }
+
+    func testDuplicateLargeFileDoesNotDeadlock() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = temp.appendingPathComponent("large.bin")
+        try Data(repeating: 0xEF, count: 5_000_000).write(to: source) // 5 MB
+
+        _ = try await FileOperationQueue.shared.duplicate(items: [source])
+
+        let duplicated = temp.appendingPathComponent("large copy.bin")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: duplicated.path))
+        let dupData = try Data(contentsOf: duplicated)
+        XCTAssertEqual(dupData.count, 5_000_000)
+        XCTAssertEqual(dupData[0], 0xEF)
+    }
+
+    func testCopyDirectoryProgressNeverResetsFullPath() async throws {
+        // Regression: copies a directory through the full @MainActor FileOperationQueue
+        // path. COPYFILE_STATE_COPIED resets per inner file — progress must never go backward.
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let sourceDir = try createTestFolder(in: temp, name: "VideoFolder")
+        // 3 files at 3MB each — enough to trigger copyfile progress callbacks
+        for i in 0..<3 {
+            let file = sourceDir.appendingPathComponent("clip\(i).bin")
+            try Data(repeating: UInt8(i), count: 3_000_000).write(to: file)
+        }
+        let dest = try createTestFolder(in: temp, name: "Dest")
+
+        let queue = FileOperationQueue.shared
+        let collector = ProgressCollector()
+        let savedProgress = queue.onProgressUpdate
+        queue.onProgressUpdate = { progress in
+            savedProgress?(progress)
+            collector.record(progress.bytesCompleted)
+        }
+        defer { queue.onProgressUpdate = savedProgress }
+
+        try await queue.copy(items: [sourceDir], to: dest)
+
+        // Drain async dispatches from copyfile callback
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        let values = collector.values
+        // Progress must never go backward through the full path
+        for i in 1..<values.count {
+            XCTAssertGreaterThanOrEqual(values[i], values[i - 1],
+                "Progress went backward at index \(i): \(values[i]) < \(values[i - 1])")
+        }
+
+        // Verify the copy actually worked
+        let copied = dest.appendingPathComponent("VideoFolder")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: copied.path))
+        for i in 0..<3 {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: copied.appendingPathComponent("clip\(i).bin").path))
+        }
+    }
+
+    func testCopyLargeFileCancellation() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = temp.appendingPathComponent("cancel.bin")
+        try Data(count: 10_000_000).write(to: source) // 10 MB
+        let dest = try createTestFolder(in: temp, name: "Dest")
+
+        let queue = FileOperationQueue.shared
+        let savedProgress = queue.onProgressUpdate
+        queue.onProgressUpdate = { progress in
+            savedProgress?(progress)
+            // Cancel as soon as we see any progress
+            if progress.bytesCompleted > 0 {
+                queue.cancelCurrentOperation()
+            }
+        }
+        defer { queue.onProgressUpdate = savedProgress }
+
+        do {
+            try await queue.copy(items: [source], to: dest)
+            // It's OK if copy completes before cancel triggers (small file / fast disk)
+        } catch {
+            // Expected: cancellation error
+            if let opError = error as? FileOperationError, case .cancelled = opError {
+                // Good — cancelled mid-copy
+            } else {
+                XCTFail("Expected cancellation error, got: \(error)")
+            }
+        }
+    }
+}
+
+/// Thread-safe progress value collector for integration tests
+private final class ProgressCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _values: [Int64] = []
+    var values: [Int64] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _values
+    }
+    func record(_ value: Int64) {
+        lock.lock()
+        _values.append(value)
+        lock.unlock()
+    }
 }
 
 @MainActor

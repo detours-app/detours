@@ -104,6 +104,7 @@ final class FileItem {
             .ubiquitousItemIsDownloadingKey,
         ]
 
+        (url as NSURL).removeAllCachedResourceValues()
         let values = try? url.resourceValues(forKeys: resourceKeys)
 
         let isDirectory: Bool = {

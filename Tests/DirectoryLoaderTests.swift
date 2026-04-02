@@ -722,8 +722,8 @@ struct IconLoadLifecycleTests {
             _ = try await loader.loadDirectory(fakeURL, showHidden: false, timeout: .seconds(5))
             Issue.record("Expected error for nonexistent directory")
         } catch let error as DirectoryLoadError {
-            // Should get disconnected (ENOENT) error
-            #expect(error == .disconnected)
+            // Local nonexistent directory returns .notFound (ENOENT)
+            #expect(error == .notFound)
         }
     }
 }
