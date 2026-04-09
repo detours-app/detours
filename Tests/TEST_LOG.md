@@ -2,14 +2,28 @@
 
 ## Latest Run
 
-- Started: 2026-04-01 13:39:00
-- Command: `swift test --filter FileOperationQueueTests`
+- Started: 2026-04-09 18:09:06
+- Command: `swift test --filter FileOperationQueueTests` and
+  `swift test --filter CopyfileHelperTests`
 - Status: PASS
-- Duration: 5.0s
-- Notes: 38 tests passed (35 existing + 3 new large-file integration
-  tests). New tests copy 5-10 MB files through the full @MainActor
-  FileOperationQueue path to catch deadlocks in CopyfileHelper
-  progress callbacks. Covers copy, duplicate, and mid-copy cancellation.
+- Duration: 5.7s + 0.1s
+- Notes: Fast-lane operations feature. 57 FileOperationQueueTests pass
+  (16 new fast-lane tests + existing regression-updated tests) plus 7
+  CopyfileHelperTests. New tests cover fast-lane routing during an
+  unrelated bulk copy (rename, create folder, delete, small copy), the
+  protected-path overlap guard, classifier thresholds (directory, 10 MiB
+  size, 20 item count), reservation prevention of name races and
+  release on success/error, callback isolation, heavy-lane invariants,
+  and heavy-only opcodes (deleteImmediately, archive). Threshold-
+  sensitive existing tests updated to use directory sources or >10 MiB
+  payloads.
+
+### Fast-Lane 2026-04-09 18:09
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileOperationQueueTests (57 tests) | PASS | 5.667s | 2026-04-09 18:09:06 |
+| CopyfileHelperTests (7 tests) | PASS | 0.046s | 2026-04-09 18:09:11 |
 
 ## Run 20260324 18:08
 
