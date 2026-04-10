@@ -885,6 +885,31 @@ final class FileOperationQueueTests: XCTestCase {
         XCTAssertEqual(startedOps.count, 1, "Create folder must stay on fast lane")
     }
 
+    func testFastLaneCreateFolderInParentDirectoryOfProtectedPath() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let heavySrc = try makeHeavySource(in: temp)
+        let heavyDst = try createTestFolder(in: temp, name: "HeavyDst")
+
+        let queue = FileOperationQueue.shared
+        var startedOps: [FileOperation] = []
+        let savedStart = queue.onOperationStart
+        queue.onOperationStart = { op, _ in startedOps.append(op) }
+        defer { queue.onOperationStart = savedStart }
+
+        let heavyTask = Task { try? await queue.copy(items: [heavySrc], to: heavyDst) }
+        await waitForHeavyOperationActive()
+        XCTAssertNotNil(queue.currentOperation)
+
+        let created = try await queue.createFolder(in: temp, name: "SiblingFolder")
+        XCTAssertEqual(created.lastPathComponent, "SiblingFolder")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: created.path))
+
+        _ = await heavyTask.value
+        XCTAssertEqual(startedOps.count, 1, "Parent-directory sibling work should stay on fast lane")
+    }
+
     func testFastLaneDeleteDuringUnrelatedBulkCopy() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -1058,6 +1083,32 @@ final class FileOperationQueueTests: XCTestCase {
         XCTAssertNotEqual(result1[0].path, result2[0].path, "Concurrent duplicates must produce distinct names")
         XCTAssertTrue(FileManager.default.fileExists(atPath: result1[0].path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: result2[0].path))
+    }
+
+    func testFastLaneConcurrentCopyKeepsUniqueNameForInFlightDestination() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let sourceDir = try createTestFolder(in: temp, name: "Source")
+        let source = sourceDir.appendingPathComponent("payload.bin")
+        try Data(count: 9 * 1024 * 1024).write(to: source)
+        let destination = try createTestFolder(in: temp, name: "Dest")
+
+        let queue = FileOperationQueue.shared
+        var startedOps: [FileOperation] = []
+        let savedStart = queue.onOperationStart
+        queue.onOperationStart = { op, _ in startedOps.append(op) }
+        defer { queue.onOperationStart = savedStart }
+
+        async let first = queue.copy(items: [source], to: destination)
+        async let second = queue.copy(items: [source], to: destination)
+        let (firstResult, secondResult) = try await (first, second)
+
+        XCTAssertEqual(startedOps.count, 0, "Concurrent small copies should stay on the fast lane")
+        let names = Set([firstResult[0].lastPathComponent, secondResult[0].lastPathComponent])
+        XCTAssertEqual(names, Set(["payload.bin", "payload copy.bin"]))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.appendingPathComponent("payload.bin").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.appendingPathComponent("payload copy.bin").path))
     }
 
     func testFastLaneReservationReleasedOnSuccess() async throws {

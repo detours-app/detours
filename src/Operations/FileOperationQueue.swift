@@ -307,14 +307,14 @@ final class FileOperationQueue {
         }
     }
 
-    /// Returns true if `a` and `b` refer to the same path or one is an ancestor
-    /// of the other. Uses standardized URLs so path components like `.` and `..`
-    /// do not defeat the check.
-    private func pathsOverlap(_ a: URL, _ b: URL) -> Bool {
-        let aPath = a.standardizedFileURL.path
-        let bPath = b.standardizedFileURL.path
-        if aPath == bPath { return true }
-        return aPath.hasPrefix(bPath + "/") || bPath.hasPrefix(aPath + "/")
+    /// Returns true when `candidate` is the same path as `protected` or is
+    /// nested inside it. Ancestors of the protected path do not conflict, so
+    /// sibling work in a shared parent directory can still use the fast lane.
+    private func candidateTouchesProtectedPath(_ candidate: URL, protected: URL) -> Bool {
+        let candidatePath = candidate.standardizedFileURL.path
+        let protectedPath = protected.standardizedFileURL.path
+        if candidatePath == protectedPath { return true }
+        return candidatePath.hasPrefix(protectedPath + "/")
     }
 
     /// Returns true if any source, destination, or rename target overlaps an
@@ -326,7 +326,7 @@ final class FileOperationQueue {
             candidates.append(destination)
         }
         for candidate in candidates {
-            for protected in activeProtectedPaths where pathsOverlap(candidate, protected) {
+            for protected in activeProtectedPaths where candidateTouchesProtectedPath(candidate, protected: protected) {
                 return true
             }
         }
@@ -440,7 +440,10 @@ final class FileOperationQueue {
             var skipped = false
 
             do {
-                if fileManager.fileExists(atPath: initialDestination.path) {
+                let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
+                let destinationReserved = isReserved(initialDestination)
+
+                if destinationExists {
                     let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
                     if resolution.applyToAll {
                         conflictChoice = resolution.choice
@@ -456,6 +459,12 @@ final class FileOperationQueue {
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
                     }
+                } else if destinationReserved {
+                    // A reserved path is an in-flight internal collision, not a
+                    // user-visible on-disk conflict. Pick a unique name instead
+                    // of surfacing a replace/skip dialog for a file that is not
+                    // there yet.
+                    destinationURL = uniqueCopyDestination(for: source, in: targetDir)
                 } else {
                     destinationURL = initialDestination
                 }
@@ -561,7 +570,10 @@ final class FileOperationQueue {
             var skipped = false
 
             do {
-                if fileManager.fileExists(atPath: initialDestination.path) {
+                let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
+                let destinationReserved = isReserved(initialDestination)
+
+                if destinationExists {
                     let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
                     if resolution.applyToAll {
                         conflictChoice = resolution.choice
@@ -577,6 +589,8 @@ final class FileOperationQueue {
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
                     }
+                } else if destinationReserved {
+                    destinationURL = uniqueCopyDestination(for: source, in: targetDir)
                 } else {
                     destinationURL = initialDestination
                 }
@@ -1011,7 +1025,10 @@ final class FileOperationQueue {
             var skipped = false
 
             do {
-                if fileManager.fileExists(atPath: initialDestination.path) || isReserved(initialDestination) {
+                let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
+                let destinationReserved = isReserved(initialDestination)
+
+                if destinationExists {
                     let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
                     if resolution.applyToAll {
                         conflictChoice = resolution.choice
@@ -1025,6 +1042,8 @@ final class FileOperationQueue {
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: destination)
                     }
+                } else if destinationReserved {
+                    destinationURL = uniqueCopyDestination(for: source, in: destination)
                 }
 
                 if !skipped {
@@ -1075,7 +1094,10 @@ final class FileOperationQueue {
             var skipped = false
 
             do {
-                if fileManager.fileExists(atPath: initialDestination.path) || isReserved(initialDestination) {
+                let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
+                let destinationReserved = isReserved(initialDestination)
+
+                if destinationExists {
                     let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
                     if resolution.applyToAll {
                         conflictChoice = resolution.choice
@@ -1089,6 +1111,8 @@ final class FileOperationQueue {
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: destination)
                     }
+                } else if destinationReserved {
+                    destinationURL = uniqueCopyDestination(for: source, in: destination)
                 }
 
                 if !skipped {
