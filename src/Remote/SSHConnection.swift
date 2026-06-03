@@ -21,6 +21,8 @@ struct SSHConnectionConfiguration: Equatable, Sendable {
 actor SSHConnection {
     private let configuration: SSHConnectionConfiguration
     private let controlDirectory: URL
+    private let hostTrust: SSHHostTrust
+    private let askPassBridge: SSHAskPassBridge
     private let processFactory: @Sendable () -> Process
 
     private var process: Process?
@@ -38,10 +40,14 @@ actor SSHConnection {
         configuration: SSHConnectionConfiguration,
         controlDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".detours/ssh", isDirectory: true),
+        hostTrust: SSHHostTrust = SSHHostTrust(),
+        askPassBridge: SSHAskPassBridge = SSHAskPassBridge(),
         processFactory: @escaping @Sendable () -> Process = { Process() }
     ) {
         self.configuration = configuration
         self.controlDirectory = controlDirectory
+        self.hostTrust = hostTrust
+        self.askPassBridge = askPassBridge
         self.processFactory = processFactory
     }
 
@@ -50,6 +56,7 @@ actor SSHConnection {
 
         transition(to: .connecting)
         try prepareControlDirectory()
+        try hostTrust.prepareKnownHostsFile()
 
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
@@ -60,6 +67,9 @@ actor SSHConnection {
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
+        if !askPassBridge.environment().isEmpty {
+            process.environment = ProcessInfo.processInfo.environment.merging(askPassBridge.environment()) { _, new in new }
+        }
         process.terminationHandler = { [weak self] process in
             guard let self else { return }
             Task {
@@ -189,6 +199,7 @@ actor SSHConnection {
             "-o", "ServerAliveCountMax=3",
             "-o", "ControlMaster=auto",
             "-o", "ControlPath=\(controlDirectory.path)/%C",
+        ] + hostTrust.sshArguments + [
             configuration.sshTarget,
             configuration.remoteCommand,
         ]

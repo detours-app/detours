@@ -167,7 +167,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T20** Update `resources/scripts/build.sh` to hash `Server/` and the server-target lines of `Package.swift`, compare to `Resources/Servers/.cache-hash`, and invoke `build-server-linux.sh` only on mismatch. Refuse to ship if the binary is missing. Codesign step picks up the resource automatically. Plain-language error when dockerhost is unreachable but a rebuild is needed.
 - [x] **T21** Add `src/Remote/ServerDeployer.swift`: detect `uname -sm` on remote, refuse with a typed `UnsupportedArchitectureError` for anything other than x86_64 Linux, hash-compare against the bundled binary, atomically copy to `~/.detours-server/detours-server.tmp` then rename to `~/.detours-server/detours-server`, owner-and-permission check before every exec. On hash mismatch with an already-installed binary, silently redeploy.
 - [x] **T22** Add `src/Remote/RemoteHost.swift` (model: `id: UUID`, `displayName`, `sshTarget`, `knownHostKeyFingerprint`, `lastConnected`) and `src/Remote/RemoteHostStore.swift` persisting hosts in `UserDefaults`. No Keychain item: authentication is delegated to ssh-agent.
-- [ ] **T23** Add `src/Remote/SSHHostTrust.swift` and `src/Remote/SSHAskPassBridge.swift` to use app-scoped `~/.detours/known_hosts`, show only host-key prompts inside Detours, reject password, keyboard-interactive, and private-key passphrase prompts, and record trusted fingerprints after the user confirms.
+- [x] **T23** Add `src/Remote/SSHHostTrust.swift` and `src/Remote/SSHAskPassBridge.swift` to use app-scoped `~/.detours/known_hosts`, show only host-key prompts inside Detours, reject password, keyboard-interactive, and private-key passphrase prompts, and record trusted fingerprints after the user confirms.
 
 **Phase 3: Remote FileProvider, sidebar, connect UX**
 
@@ -248,8 +248,8 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [x] **T73** `RemoteTransferChannelTests.testThresholdRoutesSmallToRPC` - transfers under one megabyte route through the RPC channel, not the helper transfer channel.
 - [x] **T74** `RemoteTransferChannelTests.testNonUTF8PathTransfersWithRawBytes` - a large file whose remote name contains invalid UTF-8 transfers through length-prefixed bytes without converting the path to a shell string.
 - [ ] **T75** `SSHConnectionTests.testControlPathDirectoryMode0700` - first connection creates `~/.detours/ssh/` with mode `0700` before creating the ControlMaster socket.
-- [ ] **T76** `SSHHostTrustTests.testHostKeyPromptRecordsFingerprint` - a first-connect host-key prompt records the confirmed fingerprint in `~/.detours/known_hosts` before any directory listing request is sent.
-- [ ] **T77** `SSHHostTrustTests.testPassphrasePromptRejected` - a private-key passphrase prompt is rejected and surfaced as an SSH-agent setup error, not answered by Detours.
+- [x] **T76** `SSHHostTrustTests.testHostKeyPromptRecordsFingerprint` - a first-connect host-key prompt records the confirmed fingerprint in `~/.detours/known_hosts` before any directory listing request is sent.
+- [x] **T77** `SSHHostTrustTests.testPassphrasePromptRejected` - a private-key passphrase prompt is rejected and surfaced as an SSH-agent setup error, not answered by Detours.
 - [x] **T78** `ServerDeployerTests.testHashCompareSkipsRedeploy` - deploy is skipped when the remote binary's hash matches the bundled binary.
 - [x] **T79** `ServerDeployerTests.testSilentRedeployOnHashMismatch` - hash mismatch with an existing remote binary triggers an automatic redeploy with no user prompt.
 - [x] **T80** `ServerDeployerTests.testRefusesNonX86_64` - `uname -sm` returning an ARM or non-Linux architecture surfaces a typed `UnsupportedArchitectureError` before any deploy.
