@@ -180,7 +180,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T30** Add `src/Sidebar/AddRemoteHostView.swift` (SwiftUI sheet) with fields for display name and SSH target, autocomplete suggestions from `~/.ssh/config` top-level `Host` blocks (ignoring `Match` and conditional includes), a Test Connection button, and the first-connect host-key fingerprint confirmation step.
 - [x] **T31** Add the host-key-change blocking dialog: on connect, if the server's host key fingerprint differs from the stored `knownHostKeyFingerprint`, show old and new fingerprints with two choices: Trust New Key (updates the stored fingerprint) or Disconnect.
 - [x] **T32** Add the first-connect deploy sheet in `src/Sidebar/DeploySheetView.swift`: modal, titled with the host name, with checkmark-able steps (Connecting, Checking host architecture, Installing helper, Starting helper, Done) and a Cancel button.
-- [ ] **T33** Add `src/Sidebar/ConnectionErrorSheet.swift`: plain-language summary, "Show Details" disclosure with raw ssh stderr and last fifty lines of daemon stderr, "Copy to Clipboard" button.
+- [x] **T33** Add `src/Sidebar/ConnectionErrorSheet.swift`: plain-language summary, "Show Details" disclosure with raw ssh stderr and last fifty lines of daemon stderr, "Copy to Clipboard" button.
 - [ ] **T34** Add the remote-pane breadcrumb host badge in `src/Panes/BreadcrumbView.swift` (or equivalent): coloured pill with the host display name as the leftmost element of the breadcrumb. File rows are not modified.
 
 **Phase 4: Remote operations, trash, watching, navigation, edges**
