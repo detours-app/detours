@@ -262,5 +262,3 @@ final class StatusBarProgressTests: XCTestCase {
         )
     }
 }
-
-extension StatusBarView.Mode: Equatable {}

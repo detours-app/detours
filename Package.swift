@@ -16,7 +16,7 @@ let package = Package(
             name: "DetoursTests",
             dependencies: ["Detours"],
             path: "Tests",
-            exclude: ["TEST_LOG.md"]
+            exclude: ["TEST_LOG.md", "UITests"]
         ),
     ]
 )

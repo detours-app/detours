@@ -188,21 +188,20 @@ final class NetworkDirectoryPoller: @unchecked Sendable {
     func start() {
         stop()
 
-        // Take initial snapshot on background queue to avoid blocking main thread
         let timer = DispatchSource.makeTimerSource(queue: pollQueue)
-        pollQueue.async { [weak self] in
-            guard let self else { return }
-            self.lastSnapshot = self.takeSnapshot()
+        timer.schedule(
+            deadline: .now() + Self.pollingInterval,
+            repeating: Self.pollingInterval
+        )
+        timer.setEventHandler { [weak self] in
+            self?.poll()
+        }
+        timer.resume()
+        self.timer = timer
 
-            timer.schedule(
-                deadline: .now() + Self.pollingInterval,
-                repeating: Self.pollingInterval
-            )
-            timer.setEventHandler { [weak self] in
-                self?.poll()
-            }
-            self.timer = timer
-            timer.resume()
+        // Take initial snapshot on background queue to avoid blocking main thread.
+        pollQueue.async { [weak self] in
+            self?.lastSnapshot = self?.takeSnapshot()
         }
         logger.debug("Started polling network directory: \(self.url.path)")
     }

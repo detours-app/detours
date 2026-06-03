@@ -13,6 +13,17 @@ final class SystemIntegrationTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempDir)
     }
 
+    @MainActor
+    private func loadDirectoryAndWait(_ vc: FileListViewController, at url: URL) async {
+        await withCheckedContinuation { continuation in
+            vc.dataSource.onLoadCompleted = { _ in
+                vc.dataSource.onLoadCompleted = nil
+                continuation.resume()
+            }
+            vc.dataSource.loadDirectory(url)
+        }
+    }
+
     // MARK: - Context Menu Tests
 
     @MainActor
@@ -24,7 +35,7 @@ final class SystemIntegrationTests: XCTestCase {
         let vc = FileListViewController()
         vc.loadView()
         vc.viewDidLoad()
-        vc.loadDirectory(tempDir)
+        await loadDirectoryAndWait(vc, at: tempDir)
 
         // Select the file
         vc.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -58,7 +69,7 @@ final class SystemIntegrationTests: XCTestCase {
         let vc = FileListViewController()
         vc.loadView()
         vc.viewDidLoad()
-        vc.loadDirectory(tempDir)
+        await loadDirectoryAndWait(vc, at: tempDir)
 
         // Select the folder
         vc.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -85,7 +96,7 @@ final class SystemIntegrationTests: XCTestCase {
         let vc = FileListViewController()
         vc.loadView()
         vc.viewDidLoad()
-        vc.loadDirectory(tempDir)
+        await loadDirectoryAndWait(vc, at: tempDir)
 
         // Select both files
         let selection = IndexSet([0, 1])
@@ -157,7 +168,7 @@ final class SystemIntegrationTests: XCTestCase {
         let vc = FileListViewController()
         vc.loadView()
         vc.viewDidLoad()
-        vc.loadDirectory(tempDir)
+        await loadDirectoryAndWait(vc, at: tempDir)
 
         // Get items
         let items = vc.dataSource.items

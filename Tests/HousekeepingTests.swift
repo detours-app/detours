@@ -21,7 +21,18 @@ final class HousekeepingTests: XCTestCase {
     }
 
     @MainActor
-    func testLoadDirectorySkipsHiddenFilesWhenFalse() throws {
+    private func loadDirectoryAndWait(_ dataSource: FileListDataSource, at url: URL) async {
+        await withCheckedContinuation { continuation in
+            dataSource.onLoadCompleted = { _ in
+                dataSource.onLoadCompleted = nil
+                continuation.resume()
+            }
+            dataSource.loadDirectory(url)
+        }
+    }
+
+    @MainActor
+    func testLoadDirectorySkipsHiddenFilesWhenFalse() async throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
@@ -32,14 +43,14 @@ final class HousekeepingTests: XCTestCase {
 
         let dataSource = FileListDataSource()
         dataSource.showHiddenFiles = false
-        dataSource.loadDirectory(tempDir)
+        await loadDirectoryAndWait(dataSource, at: tempDir)
 
         XCTAssertEqual(dataSource.items.count, 1)
         XCTAssertEqual(dataSource.items.first?.name, "visible.txt")
     }
 
     @MainActor
-    func testLoadDirectoryIncludesHiddenFilesWhenTrue() throws {
+    func testLoadDirectoryIncludesHiddenFilesWhenTrue() async throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
@@ -50,7 +61,7 @@ final class HousekeepingTests: XCTestCase {
 
         let dataSource = FileListDataSource()
         dataSource.showHiddenFiles = true
-        dataSource.loadDirectory(tempDir)
+        await loadDirectoryAndWait(dataSource, at: tempDir)
 
         XCTAssertEqual(dataSource.items.count, 2)
         let names = dataSource.items.map { $0.name }.sorted()

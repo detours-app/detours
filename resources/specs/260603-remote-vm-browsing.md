@@ -233,7 +233,7 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. UI tests live i
 - [x] **T58** `FileItemTests.testIdentityAcrossReloads` - `FileItem` identity hash is stable across reloads for both local and remote `Location`s.
 - [x] **T59** `LocalFileProviderTests.testListReturnsExpectedEntries` - `LocalFileProvider.list` returns the same entries as the pre-refactor `FileManager` enumeration for a temp directory tree.
 - [x] **T60** `LocalFileProviderTests.testCopyAndMoveBehaviour` - copy and move through the provider behave identically to the pre-refactor implementation.
-- [ ] **T61** `FeatureFlagTests.testExistingSuiteGreenWithFlagOff` - run the existing unit-test target with `DETOURS_FILE_PROVIDER=off`; assert zero new failures or skips.
+- [x] **T61** `FeatureFlagTests.testExistingSuiteGreenWithFlagOff` - run the existing unit-test target with `DETOURS_FILE_PROVIDER=off`; assert zero new failures or skips.
 - [ ] **T62** `FeatureFlagTests.testExistingSuiteGreenWithFlagOn` - run the existing unit-test target with `DETOURS_FILE_PROVIDER=on`; assert zero new failures or skips.
 - [x] **T63** `FileOperationQueueTests.testFastLaneRefusesRemoteSource` - any operation with a `Location.remote` source is routed to the queued path, never the fast lane.
 - [x] **T64** `FileOperationQueueTests.testFastLaneRefusesRemoteDestination` - any operation with a `Location.remote` destination is routed to the queued path, never the fast lane.

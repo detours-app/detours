@@ -31,12 +31,22 @@ final class FilterTests: XCTestCase {
         try "".write(to: folder.appendingPathComponent("nested.txt"), atomically: true, encoding: .utf8)
 
         dataSource = FileListDataSource()
-        dataSource.loadDirectory(tempDir)
+        await loadDirectoryAndWait(tempDir)
     }
 
     override func tearDown() async throws {
         try? FileManager.default.removeItem(at: tempDir)
         try await super.tearDown()
+    }
+
+    private func loadDirectoryAndWait(_ url: URL) async {
+        await withCheckedContinuation { continuation in
+            dataSource.onLoadCompleted = { [weak self] _ in
+                self?.dataSource.onLoadCompleted = nil
+                continuation.resume()
+            }
+            dataSource.loadDirectory(url)
+        }
     }
 
     func testFilterMatchesSubstring() {
@@ -114,7 +124,7 @@ final class FilterTests: XCTestCase {
         XCTAssertLessThan(dataSource.visibleItems.count, totalBefore)
     }
 
-    func testFilterMatchesNestedFileRecursively() throws {
+    func testFilterMatchesNestedFileRecursively() async throws {
         // Create nested structure: Grandparent/Parent/darnuzer_target.txt
         let grandparent = tempDir.appendingPathComponent("Grandparent")
         let parent = grandparent.appendingPathComponent("Parent")
@@ -124,7 +134,7 @@ final class FilterTests: XCTestCase {
         try "".write(to: grandparent.appendingPathComponent("sibling.txt"), atomically: true, encoding: .utf8)
 
         // Reload to pick up new structure
-        dataSource.loadDirectory(tempDir)
+        await loadDirectoryAndWait(tempDir)
 
         // Find and expand Grandparent folder
         let grandparentItem = dataSource.visibleItems.first { $0.name == "Grandparent" }
