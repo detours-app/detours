@@ -73,11 +73,7 @@ actor LocalFileProvider: FileProvider {
     }
 
     func gitStatus(for directory: Location) async -> [Location: GitStatus] {
-        guard let url = try? localURL(from: directory) else {
-            return [:]
-        }
-        let statuses = await GitStatusProvider.shared.status(for: url)
-        return Dictionary(uniqueKeysWithValues: statuses.map { (.local($0.key), $0.value) })
+        await GitStatusProvider.shared.status(for: directory)
     }
 
     func folderSize(for location: Location) async throws -> Int64 {
