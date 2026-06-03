@@ -65,6 +65,7 @@ final class FileOperationQueue {
     private var currentIOCancellable: AnyCancellableTask?
     private var currentCancelFlag: CancelFlag?
     private var currentProcess: Process?
+    private var remoteFileProviders: [UUID: any FileProvider] = [:]
     private var lastProgressTime: CFAbsoluteTime = 0
     private var pendingProgress: FileOperationProgress?
     private var progressThrottleWorkItem: DispatchWorkItem?
@@ -88,6 +89,14 @@ final class FileOperationQueue {
     private static let fastLaneMaxItems = 20
 
     // MARK: - Public API
+
+    func registerRemoteFileProvider(_ provider: any FileProvider, for hostID: UUID) {
+        remoteFileProviders[hostID] = provider
+    }
+
+    func unregisterRemoteFileProvider(for hostID: UUID) {
+        remoteFileProviders.removeValue(forKey: hostID)
+    }
 
     @discardableResult
     func copy(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
@@ -150,7 +159,7 @@ final class FileOperationQueue {
 
         guard let urls = localURLs(from: items) else {
             try await enqueue {
-                throw FileProviderError.unsupportedOperation("Remote delete is not implemented yet")
+                try await self.performRemoteDelete(items: items, undoManager: undoManager)
             }
             return
         }
@@ -466,6 +475,24 @@ final class FileOperationQueue {
             urls.append(url)
         }
         return urls
+    }
+
+    private func remoteGroups(from locations: [Location]) -> [UUID: [Location]]? {
+        var groups: [UUID: [Location]] = [:]
+        for location in locations {
+            guard case .remote(let hostID, _) = location else {
+                return nil
+            }
+            groups[hostID, default: []].append(location)
+        }
+        return groups
+    }
+
+    private func remoteProvider(for hostID: UUID) throws -> any FileProvider {
+        guard let provider = remoteFileProviders[hostID] else {
+            throw FileProviderError.unsupportedRemote(.remote(hostID: hostID, path: "/"))
+        }
+        return provider
     }
 
     // MARK: - Queue
@@ -828,6 +855,70 @@ final class FileOperationQueue {
         }
 
         try handleFailures(successes: successes.map { $0.original }, failures: failures)
+    }
+
+    private func performRemoteDelete(items: [Location], undoManager: UndoManager? = nil) async throws {
+        guard let groups = remoteGroups(from: items) else {
+            throw FileProviderError.unsupportedOperation("Mixed local and remote delete is not implemented yet")
+        }
+
+        let operation = FileOperation.delete(items: items.map { URL(fileURLWithPath: $0.path) })
+        startOperation(operation, totalCount: items.count)
+        defer { finishOperation() }
+
+        var trashedItems: [TrashedItem] = []
+        var completed = 0
+
+        for (hostID, hostItems) in groups {
+            try checkCancelled()
+            if let current = hostItems.first {
+                updateProgress(
+                    operation: operation,
+                    currentItem: URL(fileURLWithPath: current.path),
+                    completed: completed,
+                    total: items.count
+                )
+            }
+
+            let provider = try remoteProvider(for: hostID)
+            let trashed = try await provider.trash(hostItems)
+            trashedItems.append(contentsOf: trashed)
+            completed += hostItems.count
+
+            if let current = hostItems.last {
+                updateProgress(
+                    operation: operation,
+                    currentItem: URL(fileURLWithPath: current.path),
+                    completed: completed,
+                    total: items.count
+                )
+            }
+        }
+
+        guard !trashedItems.isEmpty, let undoManager else { return }
+
+        undoManager.registerUndo(withTarget: self) { target in
+            Task { @MainActor in
+                do {
+                    let restored = try await target.restoreRemoteTrashedItems(trashedItems)
+                    undoManager.registerUndo(withTarget: target) { redoTarget in
+                        Task { @MainActor in
+                            do {
+                                try await redoTarget.performRemoteDelete(items: restored, undoManager: nil)
+                            } catch {
+                                redoTarget.presentError(error)
+                            }
+                        }
+                    }
+                } catch {
+                    target.presentError(error)
+                }
+            }
+        }
+
+        let firstName = trashedItems.first?.originalLocation.lastPathComponent ?? ""
+        let actionName = trashedItems.count == 1 ? "Delete \"\(firstName)\"" : "Delete \(trashedItems.count) Items"
+        undoManager.setActionName(actionName)
     }
 
     private func performDeleteImmediately(items: [URL]) async throws {
@@ -2593,6 +2684,28 @@ final class FileOperationQueue {
 
     private func restoreFromTrash(items: [(original: URL, trash: URL)]) async throws {
         try restoreFromTrashSync(items: items)
+    }
+
+    private func restoreRemoteTrashedItems(_ items: [TrashedItem]) async throws -> [Location] {
+        var groups: [UUID: [TrashedItem]] = [:]
+        for item in items {
+            let hostID: UUID
+            if case .remote(let trashHostID, _) = item.trashLocation {
+                hostID = trashHostID
+            } else if case .remote(let originalHostID, _) = item.originalLocation {
+                hostID = originalHostID
+            } else {
+                throw FileProviderError.unsupportedOperation("Local trash restore must use the local restore path")
+            }
+            groups[hostID, default: []].append(item)
+        }
+
+        var restored: [Location] = []
+        for (hostID, hostItems) in groups {
+            let provider = try remoteProvider(for: hostID)
+            restored.append(contentsOf: try await provider.restoreFromTrash(hostItems))
+        }
+        return restored
     }
 
     private func restoreFromTrashSync(items: [(original: URL, trash: URL)]) throws {
