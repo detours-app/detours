@@ -514,6 +514,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
         let pendingItemToSelect = itemToSelect
         let shouldPreserveExpansion = preserveExpansion
+        // Pin scroll position across same-directory reloads (FSEvent debounce,
+        // file operations, undo) so background churn doesn't yank the viewport.
+        let preservedScrollOrigin: NSPoint? = preserveExpansion
+            ? scrollView.contentView.bounds.origin
+            : nil
 
         // Set the completion callback BEFORE calling loadDirectory
         // so we do post-load work (expansion, selection, watching) after async load finishes
@@ -539,8 +544,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     // Select specific item
                     self.selectItem(at: targetURL)
                 } else if shouldPreserveExpansion && !previousSelectedURLs.isEmpty {
-                    // Restore previous selection by URL
-                    self.restoreSelection(previousSelectedURLs)
+                    // Restore previous selection by URL without scrolling — the
+                    // selection didn't change from the user's perspective, so
+                    // we must not move the viewport.
+                    self.restoreSelection(previousSelectedURLs, scrollToVisible: false)
                     // If URL-based restore didn't find items, fall back to nearby row
                     if self.tableView.selectedRow < 0 && previousSelectedRow >= 0 && self.tableView.numberOfRows > 0 {
                         let newIndex = min(previousSelectedRow, self.tableView.numberOfRows - 1)
@@ -549,6 +556,13 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 } else if !self.dataSource.items.isEmpty {
                     // Default: select first item
                     self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                }
+
+                // Restore scroll position for same-directory reloads so
+                // background filesystem activity can't yank the viewport.
+                if let origin = preservedScrollOrigin {
+                    self.scrollView.contentView.scroll(to: origin)
+                    self.scrollView.reflectScrolledClipView(self.scrollView.contentView)
                 }
 
                 self.navigationDelegate?.fileListDidLoadDirectory()
@@ -771,6 +785,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func handleDirectoryChange(at changedURL: URL) {
+        // Invalidate the cached size for the folder whose contents actually
+        // changed (and any expanded ancestor up to currentDirectory). Sibling
+        // folders are unaffected, so their sizes must not blink.
+        invalidateFolderSizesAlongPath(to: changedURL)
+
         // Debounce rapid changes (e.g., deleting multiple files)
         directoryChangeDebounce?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
@@ -778,6 +797,26 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
         directoryChangeDebounce = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
+    }
+
+    private func invalidateFolderSizesAlongPath(to changedURL: URL) {
+        guard let currentDirectory else { return }
+        let basePath = currentDirectory.standardizedFileURL.path
+        let changedPath = changedURL.standardizedFileURL.path
+        guard changedPath.hasPrefix(basePath) else { return }
+
+        // Walk every ancestor between currentDirectory and changedURL (inclusive)
+        // and mark their cached folder sizes stale. A change deep inside an
+        // expanded subtree means every enclosing folder's recursive size is
+        // now stale, but we keep the previous value visible until the
+        // recalculation finishes so the cell doesn't blink to "—".
+        var path = changedURL.standardizedFileURL
+        while path.path.hasPrefix(basePath) && path.path != basePath {
+            FolderSizeCache.shared.markStale(url: path)
+            let parent = path.deletingLastPathComponent().standardizedFileURL
+            if parent.path == path.path { break }
+            path = parent
+        }
     }
 
     private func performDirectoryReload() {
@@ -817,7 +856,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         return currentDirectory
     }
 
-    func restoreSelection(_ urls: [URL]) {
+    func restoreSelection(_ urls: [URL], scrollToVisible: Bool = true) {
         guard !urls.isEmpty else { return }
         var newSelection = IndexSet()
         // Find items anywhere in tree (including inside expanded folders)
@@ -831,7 +870,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
         if !newSelection.isEmpty {
             tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
-            if let first = newSelection.first {
+            if scrollToVisible, let first = newSelection.first {
                 tableView.scrollRowToVisible(first)
             }
         }

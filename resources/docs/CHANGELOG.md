@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### File List Stability Under Background Activity
+
+- **Scroll position held during background reloads** — When another process
+  modifies the current directory (git, builds, sync), the file list no longer
+  snaps back to the top. The viewport stays where you left it.
+- **Folder sizes no longer blink** — Sibling folder sizes are no longer
+  recomputed when an unrelated folder changes. The folder whose contents
+  actually changed keeps its previous size value visible while the new size
+  is recalculated in the background, eliminating the "—" placeholder flash.
+
 ### Fast Lane for Trivial File Operations
 
 - **Responsive UI during bulk transfers** — Trivial file operations (rename,

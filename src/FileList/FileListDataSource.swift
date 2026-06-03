@@ -8,20 +8,39 @@ final class FolderSizeCache {
     static let shared = FolderSizeCache()
 
     private var cache: [URL: Int64] = [:]
+    private var stale: Set<URL> = []
     private var pending: Set<URL> = []
 
     func size(for url: URL) -> Int64? {
         cache[url]
     }
 
+    func isStale(url: URL) -> Bool {
+        stale.contains(url)
+    }
+
+    /// Mark the cached size dirty without dropping it. The previous value
+    /// stays visible until a fresh recalculation replaces it, avoiding the
+    /// "—" placeholder blink during background activity.
+    func markStale(url: URL) {
+        if cache[url] != nil {
+            stale.insert(url)
+        } else {
+            // Nothing cached yet — nothing to keep visible.
+            cache.removeValue(forKey: url)
+        }
+    }
+
     func calculateAsync(for url: URL, onComplete: @escaping @Sendable (Int64) -> Void) {
-        // Already cached
-        if let cached = cache[url] {
+        let isStale = stale.contains(url)
+
+        // Fresh cache hit — return immediately.
+        if let cached = cache[url], !isStale {
             onComplete(cached)
             return
         }
 
-        // Already calculating
+        // Already calculating — caller will be refreshed via the in-flight task's callback.
         if pending.contains(url) {
             return
         }
@@ -31,6 +50,7 @@ final class FolderSizeCache {
         Task {
             let size = await Self.calculateFolderSize(at: url)
             cache[url] = size
+            stale.remove(url)
             pending.remove(url)
             onComplete(size)
         }
@@ -74,10 +94,12 @@ final class FolderSizeCache {
 
     func invalidate(url: URL) {
         cache.removeValue(forKey: url)
+        stale.remove(url)
     }
 
     func invalidateAll() {
         cache.removeAll()
+        stale.removeAll()
     }
 }
 
@@ -343,16 +365,6 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 self.currentDirectoryForGit = shouldFetchGitStatus ? normalizedURL : nil
                 self.gitStatuses = [:]
                 self.expandedFolders = previousExpanded
-
-                // On reload, invalidate cached folder sizes so they're
-                // recalculated from current disk state. Without this,
-                // folders keep stale sizes (e.g. 0 B) cached during a
-                // long copy that only updates after the operation ends.
-                if preserveExpansion {
-                    for item in self.items where item.isDirectory {
-                        FolderSizeCache.shared.invalidate(url: item.url)
-                    }
-                }
 
                 self.outlineView?.reloadData()
                 self.outlineView?.needsLayout = true
@@ -1429,23 +1441,22 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             return makeTextCell(text: item.formattedSize, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
         }
 
-        // For folders, check cache or calculate async
         let url = item.url
-        if let cachedSize = FolderSizeCache.shared.size(for: url) {
-            let formatted = formatSize(cachedSize)
-            return makeTextCell(text: formatted, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
-        }
+        let cachedSize = FolderSizeCache.shared.size(for: url)
+        let needsRefresh = cachedSize == nil || FolderSizeCache.shared.isStale(url: url)
 
-        // Show placeholder and calculate async
-        let cell = makeTextCell(text: "—", outlineView: outlineView, identifier: "SizeCell", alignment: .right)
+        let cellText = cachedSize.map(formatSize) ?? "—"
+        let cell = makeTextCell(text: cellText, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
 
-        FolderSizeCache.shared.calculateAsync(for: url) { [weak outlineView] _ in
-            Task { @MainActor in
-                guard let outlineView else { return }
-                // Reload the entire Size column since we can't track the item across threads
-                let rowCount = outlineView.numberOfRows
-                if rowCount > 0 {
-                    outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))
+        if needsRefresh {
+            FolderSizeCache.shared.calculateAsync(for: url) { [weak outlineView] _ in
+                Task { @MainActor in
+                    guard let outlineView else { return }
+                    // Reload the entire Size column since we can't track the item across threads
+                    let rowCount = outlineView.numberOfRows
+                    if rowCount > 0 {
+                        outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))
+                    }
                 }
             }
         }
