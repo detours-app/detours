@@ -315,6 +315,7 @@ final class PaneViewController: NSViewController {
     private let tabBar = PaneTabBar()
     private let homeButton = NSButton()
     private let iCloudButton = NSButton()
+    private let remoteHostBadge = NSTextField(labelWithString: "")
     private let pathControl = DroppablePathControl()
     private let tabContainer = NSView()
     private let statusBar = StatusBarView()
@@ -328,7 +329,10 @@ final class PaneViewController: NSViewController {
     private var pathItemURLs: [URL?] = []  // URLs for each path item (nil for ellipsis)
     private var statusBarBottomConstraint: NSLayoutConstraint?
     private var tabContainerBottomConstraint: NSLayoutConstraint?
+    private var pathControlLeadingToICloudConstraint: NSLayoutConstraint?
+    private var pathControlLeadingToRemoteBadgeConstraint: NSLayoutConstraint?
     private var pathControlTrailingConstraint: NSLayoutConstraint?
+    private var remoteBreadcrumbHostsByTabID: [UUID: RemoteHost] = [:]
 
     var selectedTab: PaneTab? {
         guard selectedTabIndex >= 0 && selectedTabIndex < tabs.count else { return nil }
@@ -346,6 +350,7 @@ final class PaneViewController: NSViewController {
         setupTabBar()
         setupHomeButton()
         setupICloudButton()
+        setupRemoteHostBadge()
         setupPathControl()
         setupTabContainer()
         setupStatusBar()
@@ -378,6 +383,7 @@ final class PaneViewController: NSViewController {
     @objc private func handleThemeChange() {
         view.needsDisplay = true
         updatePathControlColors()
+        updateRemoteHostBadge()
         updateButtonColors()
     }
 
@@ -425,6 +431,61 @@ final class PaneViewController: NSViewController {
             .withSymbolConfiguration(config) {
             iCloudButton.image = iCloudImage
         }
+    }
+
+    private func setupRemoteHostBadge() {
+        remoteHostBadge.isHidden = true
+        remoteHostBadge.isSelectable = false
+        remoteHostBadge.lineBreakMode = .byTruncatingTail
+        remoteHostBadge.maximumNumberOfLines = 1
+        remoteHostBadge.alignment = .center
+        remoteHostBadge.setContentCompressionResistancePriority(.required, for: .horizontal)
+        remoteHostBadge.setContentHuggingPriority(.required, for: .horizontal)
+        remoteHostBadge.setAccessibilityIdentifier("remoteHostBreadcrumbBadge")
+        remoteHostBadge.wantsLayer = true
+        remoteHostBadge.layer?.cornerRadius = 9
+        remoteHostBadge.layer?.masksToBounds = true
+        view.addSubview(remoteHostBadge)
+        updateRemoteHostBadge()
+    }
+
+    func setRemoteBreadcrumbHost(_ host: RemoteHost?) {
+        guard let tab = selectedTab else { return }
+        if let host {
+            remoteBreadcrumbHostsByTabID[tab.id] = host
+        } else {
+            remoteBreadcrumbHostsByTabID.removeValue(forKey: tab.id)
+        }
+        updateRemoteHostBadge()
+        updatePathControl()
+    }
+
+    private func clearRemoteBreadcrumbHostForSelectedTab() {
+        guard let tab = selectedTab else { return }
+        remoteBreadcrumbHostsByTabID.removeValue(forKey: tab.id)
+        updateRemoteHostBadge()
+        updatePathControl()
+    }
+
+    private func updateRemoteHostBadge() {
+        let host = selectedTab.flatMap { remoteBreadcrumbHostsByTabID[$0.id] }
+        let shouldShow = host != nil
+        remoteHostBadge.isHidden = !shouldShow
+        pathControlLeadingToRemoteBadgeConstraint?.isActive = shouldShow
+        pathControlLeadingToICloudConstraint?.isActive = !shouldShow
+
+        guard let host else {
+            remoteHostBadge.stringValue = ""
+            remoteHostBadge.toolTip = nil
+            return
+        }
+
+        let theme = ThemeManager.shared.currentTheme
+        remoteHostBadge.stringValue = host.displayName
+        remoteHostBadge.toolTip = host.sshTarget
+        remoteHostBadge.font = theme.uiFont(size: 11, weight: .medium)
+        remoteHostBadge.textColor = theme.accentText
+        remoteHostBadge.layer?.backgroundColor = theme.accent.cgColor
     }
 
     private func setupPathControl() {
@@ -579,10 +640,13 @@ final class PaneViewController: NSViewController {
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         homeButton.translatesAutoresizingMaskIntoConstraints = false
         iCloudButton.translatesAutoresizingMaskIntoConstraints = false
+        remoteHostBadge.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
         tabContainer.translatesAutoresizingMaskIntoConstraints = false
         statusBar.translatesAutoresizingMaskIntoConstraints = false
 
+        pathControlLeadingToICloudConstraint = pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 6)
+        pathControlLeadingToRemoteBadgeConstraint = pathControl.leadingAnchor.constraint(equalTo: remoteHostBadge.trailingAnchor, constant: 6)
         pathControlTrailingConstraint = pathControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8)
 
         NSLayoutConstraint.activate([
@@ -604,7 +668,11 @@ final class PaneViewController: NSViewController {
             iCloudButton.widthAnchor.constraint(equalToConstant: 24),
             iCloudButton.heightAnchor.constraint(equalToConstant: 24),
 
-            pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 6),
+            remoteHostBadge.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 6),
+            remoteHostBadge.centerYAnchor.constraint(equalTo: pathControl.centerYAnchor),
+            remoteHostBadge.heightAnchor.constraint(equalToConstant: 18),
+            remoteHostBadge.widthAnchor.constraint(lessThanOrEqualToConstant: 160),
+            pathControlLeadingToICloudConstraint!,
             pathControlTrailingConstraint!,
             pathControl.heightAnchor.constraint(equalToConstant: 24),
 
@@ -618,6 +686,7 @@ final class PaneViewController: NSViewController {
             statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             statusBar.heightAnchor.constraint(equalToConstant: 20),
         ])
+        pathControlLeadingToRemoteBadgeConstraint?.isActive = false
 
         // Set up dynamic bottom constraints based on status bar visibility
         updateStatusBarVisibility()
@@ -674,6 +743,7 @@ final class PaneViewController: NSViewController {
 
             tabs.removeAll()
             selectedTabIndex = 0
+            remoteBreadcrumbHostsByTabID.removeAll()
 
             createTab(at: homeDir, select: true)
             return
@@ -686,6 +756,7 @@ final class PaneViewController: NSViewController {
         tab.fileListViewController.removeFromParent()
 
         tabs.remove(at: index)
+        remoteBreadcrumbHostsByTabID.removeValue(forKey: tab.id)
 
         // Adjust selection
         if selectedTabIndex >= tabs.count {
@@ -712,12 +783,13 @@ final class PaneViewController: NSViewController {
         if index == selectedTabIndex {
             let tab = tabs[index]
             if tab.fileListViewController.view.isHidden {
-                tab.fileListViewController.view.isHidden = false
-                tabBar.updateSelectedIndex(index)
-                updateNavigationControls()
-                updatePathControl()
-                tab.fileListViewController.ensureLoaded()
-                applyPendingRestore(for: tab)
+            tab.fileListViewController.view.isHidden = false
+            tabBar.updateSelectedIndex(index)
+            updateNavigationControls()
+            updateRemoteHostBadge()
+            updatePathControl()
+            tab.fileListViewController.ensureLoaded()
+            applyPendingRestore(for: tab)
             }
 
             if isActive {
@@ -741,6 +813,7 @@ final class PaneViewController: NSViewController {
 
         tabBar.updateSelectedIndex(index)
         updateNavigationControls()
+        updateRemoteHostBadge()
         updatePathControl()
 
         // Make first responder if this pane is active
@@ -859,6 +932,8 @@ final class PaneViewController: NSViewController {
     // MARK: - Navigation (delegate to selected tab)
 
     func navigate(to url: URL, iCloudListingMode: ICloudListingMode = .normal) {
+        clearRemoteBreadcrumbHostForSelectedTab()
+
         // Clear status bar error on navigation
         if case .error = statusBar.mode {
             statusBar.showNormal()
@@ -873,6 +948,7 @@ final class PaneViewController: NSViewController {
 
     func goBack() {
         selectedTab?.goBack()
+        clearRemoteBreadcrumbHostForSelectedTab()
         reloadTabBar()
         scheduleSessionSave()
     }
@@ -883,6 +959,7 @@ final class PaneViewController: NSViewController {
 
     func goForward() {
         selectedTab?.goForward()
+        clearRemoteBreadcrumbHostForSelectedTab()
         reloadTabBar()
         scheduleSessionSave()
     }
@@ -893,6 +970,7 @@ final class PaneViewController: NSViewController {
 
     func goUp() {
         selectedTab?.goUp()
+        clearRemoteBreadcrumbHostForSelectedTab()
         reloadTabBar()
         scheduleSessionSave()
     }
@@ -971,6 +1049,7 @@ final class PaneViewController: NSViewController {
 
         tabs.removeAll()
         selectedTabIndex = 0
+        remoteBreadcrumbHostsByTabID.removeAll()
 
         let clampedIndex = min(max(0, selectedIndex), urls.count - 1)
 

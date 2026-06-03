@@ -12,6 +12,19 @@ final class PaneViewControllerTests: XCTestCase {
         XCTFail("Timed out waiting for condition")
     }
 
+    private func remoteHostBreadcrumbBadge(in view: NSView) -> NSTextField? {
+        if let textField = view as? NSTextField,
+           textField.accessibilityIdentifier() == "remoteHostBreadcrumbBadge" {
+            return textField
+        }
+        for subview in view.subviews {
+            if let badge = remoteHostBreadcrumbBadge(in: subview) {
+                return badge
+            }
+        }
+        return nil
+    }
+
     func testCreateTabAddsToArray() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()
@@ -149,6 +162,54 @@ final class PaneViewControllerTests: XCTestCase {
 
         XCTAssertEqual(pane.selectedTab?.currentDirectory.standardizedFileURL, cloudDocs.standardizedFileURL)
         XCTAssertEqual(pane.selectedTab?.iCloudListingMode, .sharedTopLevel)
+    }
+
+    func testRemoteBreadcrumbBadgeShowsHostName() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+        pane.setRemoteBreadcrumbHost(host)
+
+        let badge = remoteHostBreadcrumbBadge(in: pane.view)
+        XCTAssertEqual(badge?.stringValue, "Dev VM")
+        XCTAssertEqual(badge?.toolTip, "devtest")
+        XCTAssertEqual(badge?.isHidden, false)
+    }
+
+    func testRemoteBreadcrumbBadgeIsPerTab() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let temp = try createTempDirectory()
+        let other = try createTestFolder(in: temp, name: "Other")
+        defer { cleanupTempDirectory(temp) }
+
+        _ = pane.createTab(at: temp, select: true)
+        pane.setRemoteBreadcrumbHost(RemoteHost(displayName: "Dev VM", sshTarget: "devtest"))
+        _ = pane.createTab(at: other, select: true)
+
+        let badge = remoteHostBreadcrumbBadge(in: pane.view)
+        XCTAssertEqual(badge?.isHidden, true)
+
+        pane.selectTab(at: 1)
+        XCTAssertEqual(badge?.stringValue, "Dev VM")
+        XCTAssertEqual(badge?.isHidden, false)
+    }
+
+    func testLocalNavigationClearsRemoteBreadcrumbBadge() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        pane.setRemoteBreadcrumbHost(RemoteHost(displayName: "Dev VM", sshTarget: "devtest"))
+        pane.navigate(to: temp)
+
+        let badge = remoteHostBreadcrumbBadge(in: pane.view)
+        XCTAssertEqual(badge?.isHidden, true)
+        XCTAssertEqual(badge?.stringValue, "")
     }
 
     // MARK: - Bug Fix Verification Tests
