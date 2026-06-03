@@ -154,6 +154,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ])
     }
 
+    @objc func showRemoteTrashInfo(_ sender: Any?) {
+        RemoteTrashExplainer.showFromHelp()
+    }
+
     // MARK: - Preferences
 
     @objc func showPreferences(_ sender: Any?) {

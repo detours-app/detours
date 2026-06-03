@@ -3,6 +3,11 @@ import XCTest
 
 @MainActor
 final class RemoteTrashUndoTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        RemoteTrashExplainer.markDismissed()
+    }
+
     private actor RecordingRemoteFileProvider: FileProvider {
         private let hostID: UUID
         private var trashCalls: [[Location]] = []

@@ -314,6 +314,8 @@ func setupMainMenu(target: AppDelegate) {
     helpMenuItem.submenu = helpMenu
     mainMenu.addItem(helpMenuItem)
 
+    helpMenu.addItem(makeRemoteTrashHelpMenuItem(target: target))
+
     NSApp.helpMenu = helpMenu
 
     NSApp.mainMenu = mainMenu
@@ -331,6 +333,14 @@ func setupMainMenu(target: AppDelegate) {
 }
 
 // MARK: - Dynamic Menu Items
+
+@MainActor
+func makeRemoteTrashHelpMenuItem(target: AppDelegate) -> NSMenuItem {
+    let item = NSMenuItem(title: "About Remote Trash", action: #selector(AppDelegate.showRemoteTrashInfo(_:)), keyEquivalent: "")
+    item.target = target
+    item.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+    return item
+}
 
 @MainActor
 private func createDynamicMenuItem(

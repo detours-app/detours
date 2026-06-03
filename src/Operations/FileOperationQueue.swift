@@ -862,6 +862,8 @@ final class FileOperationQueue {
             throw FileProviderError.unsupportedOperation("Mixed local and remote delete is not implemented yet")
         }
 
+        RemoteTrashExplainer.showIfNeeded()
+
         let operation = FileOperation.delete(items: items.map { URL(fileURLWithPath: $0.path) })
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
