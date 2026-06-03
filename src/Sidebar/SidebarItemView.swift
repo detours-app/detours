@@ -107,7 +107,14 @@ final class SidebarItemView: NSTableCellView {
         ])
     }
 
-    func configure(with item: SidebarItem, theme: Theme, indented: Bool = false, isOffline: Bool = false, hasVolumes: Bool = false) {
+    func configure(
+        with item: SidebarItem,
+        theme: Theme,
+        indented: Bool = false,
+        isOffline: Bool = false,
+        hasVolumes: Bool = false,
+        remoteConnectionState: SSHConnectionState? = nil
+    ) {
         statusDot.isHidden = true
         subtitleLabel.isHidden = true
         alphaValue = 1.0
@@ -118,7 +125,7 @@ final class SidebarItemView: NSTableCellView {
         case .device(let volume):
             configureAsDevice(volume, theme: theme)
         case .remoteHost(let host):
-            configureAsRemoteHost(host, theme: theme)
+            configureAsRemoteHost(host, theme: theme, state: remoteConnectionState ?? .disconnected)
         case .server(let server):
             configureAsServer(server, theme: theme, isOffline: isOffline, hasVolumes: hasVolumes)
         case .syntheticServer(let synthetic):
@@ -231,10 +238,11 @@ final class SidebarItemView: NSTableCellView {
         resetNameLeading()
     }
 
-    private func configureAsRemoteHost(_ host: RemoteHost, theme: Theme) {
+    private func configureAsRemoteHost(_ host: RemoteHost, theme: Theme, state: SSHConnectionState) {
         iconView.isHidden = true
         statusDot.isHidden = false
-        statusDot.layer?.backgroundColor = theme.textTertiary.cgColor
+        statusDot.layer?.backgroundColor = statusDotColor(for: state, theme: theme).cgColor
+        toolTip = statusTooltip(for: state)
 
         nameLabel.stringValue = host.displayName
         nameLabel.font = theme.uiFont(size: 13)
@@ -254,6 +262,26 @@ final class SidebarItemView: NSTableCellView {
             constraint.isActive = false
         }
         nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -5).isActive = true
+    }
+
+    private func statusDotColor(for state: SSHConnectionState, theme: Theme) -> NSColor {
+        switch state {
+        case .connected:
+            return NSColor.systemGreen
+        case .connecting, .reconnecting:
+            return NSColor.systemYellow
+        case .disconnected:
+            return theme.textTertiary
+        case .failed:
+            return NSColor.systemRed
+        }
+    }
+
+    private func statusTooltip(for state: SSHConnectionState) -> String? {
+        if case .failed(let reason) = state {
+            return reason.displayMessage
+        }
+        return nil
     }
 
     private func configureAsSyntheticServer(_ server: SyntheticServer, theme: Theme, hasVolumes: Bool = false) {
@@ -385,6 +413,7 @@ final class SidebarItemView: NSTableCellView {
         iconView.contentTintColor = nil
         statusDot.isHidden = true
         statusDot.layer?.backgroundColor = nil
+        toolTip = nil
         nameLabel.stringValue = ""
         subtitleLabel.stringValue = ""
         subtitleLabel.isHidden = true

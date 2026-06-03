@@ -18,6 +18,7 @@ final class SidebarViewController: NSViewController {
     static let width: CGFloat = 180
 
     private var sections: [SidebarSection] = SidebarSection.allCases
+    private var remoteConnectionStates: [UUID: SSHConnectionState] = [:]
 
     /// Themes that support vibrancy (system default / light / dark)
     private var isVibrancyTheme: Bool {
@@ -149,6 +150,13 @@ final class SidebarViewController: NSViewController {
             name: RemoteHostStore.remoteHostsDidChange,
             object: nil
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSSHConnectionStateChange(_:)),
+            name: .sshConnectionStateDidChange,
+            object: nil
+        )
     }
 
     @objc private func handleVolumesChange() {
@@ -173,6 +181,12 @@ final class SidebarViewController: NSViewController {
     }
 
     @objc private func handleRemoteHostsChange() {
+        outlineView.reloadData()
+    }
+
+    @objc private func handleSSHConnectionStateChange(_ notification: Notification) {
+        guard let change = notification.object as? SSHConnectionStateChange else { return }
+        remoteConnectionStates[change.hostID] = change.newState
         outlineView.reloadData()
     }
 
@@ -574,7 +588,11 @@ extension SidebarViewController: NSOutlineViewDelegate {
         } else if let placeholder = item as? NetworkPlaceholder {
             cellView.configureAsPlaceholder(placeholder, theme: theme)
         } else if let remoteHost = item as? RemoteHost {
-            cellView.configure(with: .remoteHost(remoteHost), theme: theme)
+            cellView.configure(
+                with: .remoteHost(remoteHost),
+                theme: theme,
+                remoteConnectionState: remoteConnectionStates[remoteHost.id]
+            )
         } else if let url = item as? URL {
             cellView.configure(with: .favorite(url), theme: theme)
         }

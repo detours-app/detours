@@ -8,6 +8,23 @@ enum SSHConnectionFailureReason: Equatable, Sendable {
     case transport(String)
 }
 
+extension SSHConnectionFailureReason {
+    var displayMessage: String {
+        switch self {
+        case .authentication(let message):
+            return message.isEmpty ? "Authentication failed" : message
+        case .hostKeyChanged:
+            return "Host key changed"
+        case .processExited(let status):
+            return "SSH process exited with status \(status)"
+        case .timedOut:
+            return "Connection timed out"
+        case .transport(let message):
+            return message.isEmpty ? "Transport error" : message
+        }
+    }
+}
+
 enum SSHConnectionState: Equatable, Sendable {
     case disconnected
     case connecting
