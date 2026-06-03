@@ -166,7 +166,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T19** Add `resources/scripts/build-server-linux.sh` that cross-compiles the `detours-server` target inside a reproducible Swift Linux Docker container on `dockerhost`. Output: `Resources/Servers/detours-server-x86_64-linux`. Writes the source-tree hash to `Resources/Servers/.cache-hash`.
 - [x] **T20** Update `resources/scripts/build.sh` to hash `Server/` and the server-target lines of `Package.swift`, compare to `Resources/Servers/.cache-hash`, and invoke `build-server-linux.sh` only on mismatch. Refuse to ship if the binary is missing. Codesign step picks up the resource automatically. Plain-language error when dockerhost is unreachable but a rebuild is needed.
 - [x] **T21** Add `src/Remote/ServerDeployer.swift`: detect `uname -sm` on remote, refuse with a typed `UnsupportedArchitectureError` for anything other than x86_64 Linux, hash-compare against the bundled binary, atomically copy to `~/.detours-server/detours-server.tmp` then rename to `~/.detours-server/detours-server`, owner-and-permission check before every exec. On hash mismatch with an already-installed binary, silently redeploy.
-- [ ] **T22** Add `src/Remote/RemoteHost.swift` (model: `id: UUID`, `displayName`, `sshTarget`, `knownHostKeyFingerprint`, `lastConnected`) and `src/Remote/RemoteHostStore.swift` persisting hosts in `UserDefaults`. No Keychain item: authentication is delegated to ssh-agent.
+- [x] **T22** Add `src/Remote/RemoteHost.swift` (model: `id: UUID`, `displayName`, `sshTarget`, `knownHostKeyFingerprint`, `lastConnected`) and `src/Remote/RemoteHostStore.swift` persisting hosts in `UserDefaults`. No Keychain item: authentication is delegated to ssh-agent.
 - [ ] **T23** Add `src/Remote/SSHHostTrust.swift` and `src/Remote/SSHAskPassBridge.swift` to use app-scoped `~/.detours/known_hosts`, show only host-key prompts inside Detours, reject password, keyboard-interactive, and private-key passphrase prompts, and record trusted fingerprints after the user confirms.
 
 **Phase 3: Remote FileProvider, sidebar, connect UX**
@@ -205,7 +205,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [ ] **T49** Add the reconnect banner UI in `src/Panes/PaneViewController.swift`: a non-blocking strip above the file list naming the host and a Reconnect button. Banner appears when the connection state transitions to `failed` after the backoff window.
 - [ ] **T50** Update `src/Operations/FileOperationQueue.swift` so queued remote operations pause when the connection drops (queue surface: "Paused — waiting for [host]") and resume automatically on reconnect. In-progress transfers at the drop have their partial deleted and requeue from the start.
 - [ ] **T51** Update `src/Sidebar/SidebarViewController.swift` so removing a host while a pane is viewing it navigates that pane back to its previous local location, falling back to the home directory if no previous local location exists.
-- [ ] **T52** Add cache directory sanitisation helpers in `src/Remote/RemoteHost.swift` (hash-based directory naming) and use them everywhere a local cache directory is created from a host or path.
+- [ ] **T52** Use the cache directory sanitisation helpers in `src/Remote/RemoteHost.swift` everywhere a local cache directory is created from a host or path.
 - [ ] **T53** Add `resources/docs/remote-vm-browsing.md` documenting supported `~/.ssh/config` directives, the remote trash location, the helper binary install location, how to manually remove the helper from a host, and how to manually empty the remote trash.
 - [ ] **T54** Remove the `DETOURS_FILE_PROVIDER` feature flag and the legacy direct-`FileManager` code path. Verify the full test suite passes with the flag removed.
 
@@ -261,8 +261,8 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [ ] **T86** `SSHConnectionStateTests.testFailedStateOnAuthError` - auth failure transitions directly to `failed(reason: .authentication)` and does not retry.
 - [ ] **T87** `SSHConnectionStateTests.testWatchTokensReregisterOnReconnect` - watches established before a drop re-register on successful reconnect with no caller intervention.
 - [ ] **T88** `SSHConnectionStateTests.testIdleDisconnectAfterFiveMinutes` - with no active pane, no in-flight op, and no active watch, the connection closes after five minutes and reconnects on next interaction.
-- [ ] **T89** `RemoteHostStoreTests.testPersistAcrossRelaunch` - hosts added to the store survive an `UserDefaults` reset round-trip.
-- [ ] **T90** `RemoteHostTests.testCacheDirSanitisation` - a host display name or SSH target containing shell metacharacters produces a cache directory name that never contains the raw characters.
+- [x] **T89** `RemoteHostStoreTests.testPersistAcrossRelaunch` - hosts added to the store survive an `UserDefaults` reset round-trip.
+- [x] **T90** `RemoteHostTests.testCacheDirSanitisation` - a host display name or SSH target containing shell metacharacters produces a cache directory name that never contains the raw characters.
 - [ ] **T91** `RemoteHostTests.testFrecencyAnchorsOnHostID` - renaming a host display name preserves the existing Cmd-P frecency entries and re-renders them with the new label.
 - [ ] **T92** `SSHConfigParserTests.testSuggestsTopLevelHosts` - parser returns top-level `Host` blocks from a fixture `~/.ssh/config` and ignores `Match` blocks and conditional `Include` directives.
 - [ ] **T93** `BuildCacheTests.testHashTriggersRebuildWhenSourceChanges` - `build.sh` hashes `Server/` and the server-target lines of `Package.swift`; modifying `Server/` invalidates the cache and triggers a rebuild; modifying unrelated Mac code does not.
