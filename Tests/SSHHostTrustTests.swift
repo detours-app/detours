@@ -52,6 +52,23 @@ final class SSHHostTrustTests: XCTestCase {
         }
     }
 
+    func testHostKeyChangeBlocksUntilTrusted() throws {
+        let defaults = try makeDefaults()
+        let store = RemoteHostStore(defaults: defaults)
+        let host = store.add(displayName: "Dev VM", sshTarget: "devtest")
+        store.updateFingerprint(id: host.id, fingerprint: "SHA256:old")
+        let trust = SSHHostTrust()
+
+        let evaluation = trust.evaluateFingerprint("SHA256:new", for: host.id, in: store)
+
+        XCTAssertEqual(evaluation, .changed(old: "SHA256:old", new: "SHA256:new"))
+        XCTAssertEqual(store.host(id: host.id)?.knownHostKeyFingerprint, "SHA256:old")
+
+        try trust.recordTrustedFingerprint("SHA256:new", for: host.id, in: store)
+
+        XCTAssertEqual(store.host(id: host.id)?.knownHostKeyFingerprint, "SHA256:new")
+    }
+
     private func makeDefaults() throws -> UserDefaults {
         let suiteName = "SSHHostTrustTests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

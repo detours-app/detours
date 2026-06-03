@@ -37,6 +37,21 @@ struct SSHHostTrust: Sendable {
     }
 
     @MainActor
+    func evaluateFingerprint(_ fingerprint: String, for hostID: UUID, in store: RemoteHostStore) -> SSHHostKeyEvaluation {
+        guard let host = store.host(id: hostID),
+              let known = host.knownHostKeyFingerprint,
+              !known.isEmpty else {
+            return .firstUse(fingerprint: fingerprint)
+        }
+
+        if known == fingerprint {
+            return .trusted
+        }
+
+        return .changed(old: known, new: fingerprint)
+    }
+
+    @MainActor
     func recordTrustedFingerprint(_ fingerprint: String, for hostID: UUID, in store: RemoteHostStore) throws {
         try prepareKnownHostsFile()
         let marker = "# detours-fingerprint \(hostID.uuidString) \(fingerprint)\n"
@@ -46,4 +61,10 @@ struct SSHHostTrust: Sendable {
         try handle.write(contentsOf: Data(marker.utf8))
         store.updateFingerprint(id: hostID, fingerprint: fingerprint)
     }
+}
+
+enum SSHHostKeyEvaluation: Equatable, Sendable {
+    case trusted
+    case firstUse(fingerprint: String)
+    case changed(old: String, new: String)
 }
