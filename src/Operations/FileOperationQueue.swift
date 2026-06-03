@@ -91,34 +91,71 @@ final class FileOperationQueue {
 
     @discardableResult
     func copy(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
-        if !conflictsWithActiveHeavyOperation(sources: items, destination: destination),
-           await isSmallTransferCandidate(items: items) {
-            return try await performFastCopy(items: items, to: destination, undoManager: undoManager)
+        let copied = try await copy(items: items.map(Location.local), to: .local(destination), undoManager: undoManager)
+        return copied.map(\.url)
+    }
+
+    @discardableResult
+    func copy(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+        if await isFastLaneCandidate(sources: items, destination: destination),
+           let sourceURLs = localURLs(from: items),
+           case .local(let destinationURL) = destination {
+            return try await performFastCopy(items: sourceURLs, to: destinationURL, undoManager: undoManager).map(Location.local)
+        }
+
+        guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
+            return try await enqueue {
+                throw FileProviderError.unsupportedOperation("Remote copy is not implemented yet")
+            }
         }
         return try await enqueue {
-            try await self.performCopy(items: items, to: destination, undoManager: undoManager)
+            try await self.performCopy(items: sourceURLs, to: destinationURL, undoManager: undoManager).map(Location.local)
         }
     }
 
     @discardableResult
     func move(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
-        if !conflictsWithActiveHeavyOperation(sources: items, destination: destination),
-           await isSmallTransferCandidate(items: items) {
-            return try await performFastMove(items: items, to: destination, undoManager: undoManager)
+        let moved = try await move(items: items.map(Location.local), to: .local(destination), undoManager: undoManager)
+        return moved.map(\.url)
+    }
+
+    @discardableResult
+    func move(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+        if await isFastLaneCandidate(sources: items, destination: destination),
+           let sourceURLs = localURLs(from: items),
+           case .local(let destinationURL) = destination {
+            return try await performFastMove(items: sourceURLs, to: destinationURL, undoManager: undoManager).map(Location.local)
+        }
+
+        guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
+            return try await enqueue {
+                throw FileProviderError.unsupportedOperation("Remote move is not implemented yet")
+            }
         }
         return try await enqueue {
-            try await self.performMove(items: items, to: destination, undoManager: undoManager)
+            try await self.performMove(items: sourceURLs, to: destinationURL, undoManager: undoManager).map(Location.local)
         }
     }
 
     func delete(items: [URL], undoManager: UndoManager? = nil) async throws {
-        if items.count <= Self.fastLaneMaxItems,
-           !conflictsWithActiveHeavyOperation(sources: items, destination: nil) {
-            try await performFastDelete(items: items, undoManager: undoManager)
+        try await delete(items: items.map(Location.local), undoManager: undoManager)
+    }
+
+    func delete(items: [Location], undoManager: UndoManager? = nil) async throws {
+        if await isFastLaneDeleteCandidate(items),
+           let urls = localURLs(from: items) {
+            try await performFastDelete(items: urls, undoManager: undoManager)
+            return
+        }
+
+        guard let urls = localURLs(from: items) else {
+            try await enqueue {
+                throw FileProviderError.unsupportedOperation("Remote delete is not implemented yet")
+            }
             return
         }
         try await enqueue {
-            try await self.performDelete(items: items, undoManager: undoManager)
+            try await self.performDelete(items: urls, undoManager: undoManager)
         }
     }
 
@@ -359,6 +396,42 @@ final class FileOperationQueue {
             }
             return true
         }.value
+    }
+
+    func isFastLaneCandidateForTesting(sources: [Location], destination: Location?) async -> Bool {
+        if let destination {
+            return await isFastLaneCandidate(sources: sources, destination: destination)
+        }
+        return await isFastLaneDeleteCandidate(sources)
+    }
+
+    private func isFastLaneCandidate(sources: [Location], destination: Location) async -> Bool {
+        guard let sourceURLs = localURLs(from: sources), case .local(let destinationURL) = destination else {
+            return false
+        }
+        guard !conflictsWithActiveHeavyOperation(sources: sourceURLs, destination: destinationURL) else {
+            return false
+        }
+        return await isSmallTransferCandidate(items: sourceURLs)
+    }
+
+    private func isFastLaneDeleteCandidate(_ items: [Location]) async -> Bool {
+        guard let urls = localURLs(from: items) else {
+            return false
+        }
+        return urls.count <= Self.fastLaneMaxItems && !conflictsWithActiveHeavyOperation(sources: urls, destination: nil)
+    }
+
+    private func localURLs(from locations: [Location]) -> [URL]? {
+        var urls: [URL] = []
+        urls.reserveCapacity(locations.count)
+        for location in locations {
+            guard case .local(let url) = location else {
+                return nil
+            }
+            urls.append(url)
+        }
+        return urls
     }
 
     // MARK: - Queue

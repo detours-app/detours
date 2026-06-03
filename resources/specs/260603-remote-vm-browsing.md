@@ -150,7 +150,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T6** Route `src/FileList/FileListDataSource.swift` through `FileProvider` when the flag is on: `loadDirectory`, folder size lookups, git status overlay, sort. Preserve NSOutlineView identity across reloads by hashing on `Location` rather than `URL`.
 - [x] **T7** Route `src/FileList/FileListViewController.swift` through `FileProvider`. Replace the `MultiDirectoryWatcher` call sites with `provider.watch(location:onChange:)`.
 - [x] **T8** Update `src/FileList/MultiDirectoryWatcher.swift` to be the local-only implementation behind `LocalFileProvider.watch`. The remote implementation lands in Phase 3.
-- [ ] **T9** Route `src/Operations/FileOperationQueue.swift` through `FileProvider`. Gate the fast lane to operations where both source and destination are `Location.local`, regardless of size or count. Add explicit refusal for any `Location.remote` operation in the fast-lane classifier.
+- [x] **T9** Route `src/Operations/FileOperationQueue.swift` through `FileProvider`. Gate the fast lane to operations where both source and destination are `Location.local`, regardless of size or count. Add explicit refusal for any `Location.remote` operation in the fast-lane classifier.
 - [ ] **T10** Route `src/Operations/RenameController.swift`, archive create, archive extract, and trash service through `FileProvider`.
 - [ ] **T11** Route `src/Services/GitStatusProvider.swift` through `FileProvider`. The local path still runs `git status` via `Process`; the remote path will delegate to the remote helper in Phase 3.
 - [ ] **T12** Verify the full existing test suite (unit, integration, UI) passes both with `DETOURS_FILE_PROVIDER=off` and `DETOURS_FILE_PROVIDER=on`. No new failures, no new skips.
@@ -235,8 +235,8 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. UI tests live i
 - [x] **T60** `LocalFileProviderTests.testCopyAndMoveBehaviour` - copy and move through the provider behave identically to the pre-refactor implementation.
 - [ ] **T61** `FeatureFlagTests.testExistingSuiteGreenWithFlagOff` - run the existing unit-test target with `DETOURS_FILE_PROVIDER=off`; assert zero new failures or skips.
 - [ ] **T62** `FeatureFlagTests.testExistingSuiteGreenWithFlagOn` - run the existing unit-test target with `DETOURS_FILE_PROVIDER=on`; assert zero new failures or skips.
-- [ ] **T63** `FileOperationQueueTests.testFastLaneRefusesRemoteSource` - any operation with a `Location.remote` source is routed to the queued path, never the fast lane.
-- [ ] **T64** `FileOperationQueueTests.testFastLaneRefusesRemoteDestination` - any operation with a `Location.remote` destination is routed to the queued path, never the fast lane.
+- [x] **T63** `FileOperationQueueTests.testFastLaneRefusesRemoteSource` - any operation with a `Location.remote` source is routed to the queued path, never the fast lane.
+- [x] **T64** `FileOperationQueueTests.testFastLaneRefusesRemoteDestination` - any operation with a `Location.remote` destination is routed to the queued path, never the fast lane.
 - [ ] **T65** `RPCStreamHandlerTests.testLengthPrefixEncoding` - frames encode and decode round-trip for empty, small, and 1MB payloads.
 - [ ] **T66** `RPCStreamHandlerTests.testPartialReadReassembly` - frames delivered in arbitrary byte-chunk sizes reassemble correctly.
 - [ ] **T67** `RPCStreamHandlerTests.testOversizedFrameRejected` - a frame above the configured maximum is rejected with a typed error and the connection is marked failed.
