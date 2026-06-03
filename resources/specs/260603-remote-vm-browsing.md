@@ -185,7 +185,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 
 **Phase 4: Remote operations, trash, watching, navigation, edges**
 
-- [ ] **T35** Add `Server/TrashOperations.swift` implementing FreeDesktop trash at `~/.local/share/Trash` with mode `0700`. Each trashed item writes a `.trashinfo` companion file before moving the file into `files/`, and restore reads the original location from `.trashinfo` rather than from the trash filename. Restore RPC canonicalises the destination path and refuses to restore outside `$HOME`.
+- [x] **T35** Add `Server/TrashOperations.swift` implementing FreeDesktop trash at `~/.local/share/Trash` with mode `0700`. Each trashed item writes a `.trashinfo` companion file before moving the file into `files/`, and restore reads the original location from `.trashinfo` rather than from the trash filename. Restore RPC canonicalises the destination path and refuses to restore outside `$HOME`.
 - [ ] **T36** Add `Server/ArchiveOperations.swift` that creates and extracts ZIP, TAR, and 7Z archives using the remote host tools `zip`, `unzip`, `tar`, `xz`, and `7z`. Mirror the local archive operations' progress reporting through streamed RPC frames. Missing tools surface a plain-language error naming the tool and leave source files unchanged.
 - [ ] **T37** Wire Undo through the trash and restore RPCs in `src/Operations/`: a remote delete records the trash entry path and the original location; Cmd-Z restores via `RestoreFromTrash`.
 - [ ] **T38** Add the one-time remote-trash explainer in `src/Operations/`. Dismissed via a checkbox. Retrievable from the Help menu via a new "About Remote Trash" item in `src/App/MainMenu.swift`.

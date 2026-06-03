@@ -22,7 +22,7 @@ let package = Package(
         ),
         .testTarget(
             name: "DetoursTests",
-            dependencies: ["Detours"],
+            dependencies: ["Detours", "detours-server"],
             path: "Tests",
             exclude: ["TEST_LOG.md", "UITests"]
         ),
