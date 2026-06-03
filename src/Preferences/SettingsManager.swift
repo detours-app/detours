@@ -139,6 +139,11 @@ final class SettingsManager {
         set { settings.gitStatusEnabled = newValue }
     }
 
+    var fileProviderEnabled: Bool {
+        get { settings.fileProviderEnabled }
+        set { settings.fileProviderEnabled = newValue }
+    }
+
     // MARK: - Sidebar Settings
 
     var sidebarVisible: Bool {

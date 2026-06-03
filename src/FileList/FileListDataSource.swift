@@ -56,6 +56,12 @@ final class FolderSizeCache {
         }
     }
 
+    func store(size: Int64, for url: URL) {
+        cache[url] = size
+        stale.remove(url)
+        pending.remove(url)
+    }
+
     static func calculateFolderSizeForProvider(at url: URL) async -> Int64 {
         await calculateFolderSize(at: url)
     }
@@ -430,6 +436,13 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         mode == .normal && !Self.isMobileDocuments(directory)
     }
 
+    private func loadDirectoryEntries(_ url: URL, showHidden: Bool) async throws -> [LoadedFileEntry] {
+        if SettingsManager.shared.fileProviderEnabled {
+            return try await LocalFileProvider.shared.list(.local(url), showHidden: showHidden)
+        }
+        return try await DirectoryLoader.shared.loadDirectory(url, showHidden: showHidden)
+    }
+
     private func loadItems(for directory: URL, showHidden: Bool, mode: ICloudListingMode) async throws -> [FileItem] {
         switch mode {
         case .normal:
@@ -437,13 +450,13 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 return try await loadICloudRootItems(mobileDocsURL: directory, showHidden: showHidden)
             }
 
-            let entries = try await DirectoryLoader.shared.loadDirectory(directory, showHidden: showHidden)
+            let entries = try await loadDirectoryEntries(directory, showHidden: showHidden)
             return baseFileItems(for: entries)
         case .sharedTopLevel:
             if Self.isMobileDocuments(directory) || Self.isCloudDocs(directory) {
                 return try await loadICloudSharedTopLevelItems(baseURL: directory, showHidden: showHidden)
             }
-            let entries = try await DirectoryLoader.shared.loadDirectory(directory, showHidden: showHidden)
+            let entries = try await loadDirectoryEntries(directory, showHidden: showHidden)
             return baseFileItems(for: entries)
         }
     }
@@ -465,14 +478,14 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     }
 
     private func loadICloudRootItems(mobileDocsURL: URL, showHidden: Bool) async throws -> [FileItem] {
-        let rootEntries = try await DirectoryLoader.shared.loadDirectory(mobileDocsURL, showHidden: showHidden)
+        let rootEntries = try await loadDirectoryEntries(mobileDocsURL, showHidden: showHidden)
         guard let cloudDocsEntry = rootEntries.first(where: { Self.isCloudDocs($0.url) }) else {
             return baseFileItems(for: dedupeEntries(rootEntries))
         }
 
         // CloudDocs can contain Finder-visible entries that are flagged hidden (Desktop/Documents links).
         // Load all entries and apply Finder-like visibility rules in composition.
-        let cloudDocsChildren = try await DirectoryLoader.shared.loadDirectory(cloudDocsEntry.url, showHidden: true)
+        let cloudDocsChildren = try await loadDirectoryEntries(cloudDocsEntry.url, showHidden: true)
         return composeICloudRootItems(
             rootEntries: rootEntries,
             cloudDocsChildren: cloudDocsChildren,
@@ -502,7 +515,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     }
 
     private func loadICloudSharedSources(cloudDocsURL: URL, showHidden: Bool) async throws -> ICloudSharedSources {
-        async let cloudDocsChildren = DirectoryLoader.shared.loadDirectory(cloudDocsURL, showHidden: true)
+        async let cloudDocsChildren = loadDirectoryEntries(cloudDocsURL, showHidden: true)
         async let sharedRootRecords = Self.loadICloudSharedRootRecords()
         async let spotlightEntries = Self.loadICloudSharedSpotlightEntries(showHidden: showHidden)
         return ICloudSharedSources(
@@ -944,7 +957,19 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     private func fetchGitStatus(for directory: URL) {
         Task {
-            let statuses = await GitStatusProvider.shared.status(for: directory)
+            let useFileProvider = await MainActor.run {
+                SettingsManager.shared.fileProviderEnabled
+            }
+            let statuses: [URL: GitStatus]
+            if useFileProvider {
+                let providerStatuses = await LocalFileProvider.shared.gitStatus(for: .local(directory))
+                statuses = Dictionary(uniqueKeysWithValues: providerStatuses.compactMap { location, status in
+                    guard case .local(let url) = location else { return nil }
+                    return (url, status)
+                })
+            } else {
+                statuses = await GitStatusProvider.shared.status(for: directory)
+            }
 
             // Update on main thread
             await MainActor.run {
@@ -1453,13 +1478,28 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         let cell = makeTextCell(text: cellText, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
 
         if needsRefresh {
-            FolderSizeCache.shared.calculateAsync(for: url) { [weak outlineView] _ in
-                Task { @MainActor in
-                    guard let outlineView else { return }
-                    // Reload the entire Size column since we can't track the item across threads
-                    let rowCount = outlineView.numberOfRows
-                    if rowCount > 0 {
-                        outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))
+            if SettingsManager.shared.fileProviderEnabled {
+                Task { [weak outlineView] in
+                    if let size = try? await LocalFileProvider.shared.folderSize(for: .local(url)) {
+                        FolderSizeCache.shared.store(size: size, for: url)
+                    }
+                    await MainActor.run {
+                        guard let outlineView else { return }
+                        let rowCount = outlineView.numberOfRows
+                        if rowCount > 0 {
+                            outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))
+                        }
+                    }
+                }
+            } else {
+                FolderSizeCache.shared.calculateAsync(for: url) { [weak outlineView] _ in
+                    Task { @MainActor in
+                        guard let outlineView else { return }
+                        // Reload the entire Size column since we can't track the item across threads
+                        let rowCount = outlineView.numberOfRows
+                        if rowCount > 0 {
+                            outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))
+                        }
                     }
                 }
             }
