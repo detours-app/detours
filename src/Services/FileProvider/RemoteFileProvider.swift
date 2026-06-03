@@ -102,16 +102,19 @@ actor RemoteFileProvider: FileProvider {
 
     private let rpcClient: RemoteRPCClient
     private let transferChannel: RemoteTransferChannel
+    private let watcherClient: RemoteWatcherClient?
     private var watchers: [FileProviderWatch: UUID] = [:]
 
     init(
         hostID: UUID,
         rpcClient: RemoteRPCClient,
-        transferChannel: RemoteTransferChannel
+        transferChannel: RemoteTransferChannel,
+        watcherClient: RemoteWatcherClient? = nil
     ) {
         self.hostID = hostID
         self.rpcClient = rpcClient
         self.transferChannel = transferChannel
+        self.watcherClient = watcherClient
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
@@ -219,6 +222,10 @@ actor RemoteFileProvider: FileProvider {
     }
 
     func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        if let watcherClient {
+            return try await watcherClient.watch(location, onChange: onChange)
+        }
+
         let watch = FileProviderWatch(id: UUID(), location: location)
         let remoteToken = UUID()
         _ = try await rpcClient.send(.watch(path: remotePath(from: location), token: remoteToken))
@@ -227,6 +234,11 @@ actor RemoteFileProvider: FileProvider {
     }
 
     func unwatch(_ watch: FileProviderWatch) async {
+        if let watcherClient {
+            await watcherClient.unwatch(watch)
+            return
+        }
+
         guard let remoteToken = watchers.removeValue(forKey: watch) else { return }
         _ = try? await rpcClient.send(.unwatch(token: remoteToken))
     }
