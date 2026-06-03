@@ -36,7 +36,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var currentICloudListingMode: ICloudListingMode = .normal
     private var hasLoadedDirectory = false
     let renameController = RenameController()
-    private var directoryWatcher: MultiDirectoryWatcher?
+    private var providerWatches: [URL: FileProviderWatch] = [:]
+    private var directoryWatchTask: Task<Void, Never>?
     private var directoryChangeDebounce: DispatchWorkItem?
     /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
     private var pendingPostLoadAction: (() -> Void)?
@@ -581,9 +582,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Only reset the watcher when navigating to a different directory.
         // Same-directory reloads (watcher-triggered, file operations, undo)
         // skip this to preserve expanded subdirectory watches.
-        // Always start watching on first load (directoryWatcher is nil) since
+        // Always start watching on first load (providerWatches is empty) since
         // PaneTab's lazy init pre-sets currentDirectory, making previousDirectory == normalizedURL.
-        if previousDirectory != normalizedURL || directoryWatcher == nil {
+        if previousDirectory != normalizedURL || providerWatches.isEmpty {
             startWatching(normalizedURL)
         }
 
@@ -762,26 +763,56 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func startWatching(_ url: URL) {
-        if directoryWatcher == nil {
-            directoryWatcher = MultiDirectoryWatcher { [weak self] changedURL in
-                DispatchQueue.main.async {
-                    self?.handleDirectoryChange(at: changedURL)
-                }
+        directoryWatchTask?.cancel()
+        let existingWatches = Array(providerWatches.values)
+        providerWatches.removeAll()
+
+        directoryWatchTask = Task { [weak self] in
+            for watch in existingWatches {
+                await LocalFileProvider.shared.unwatch(watch)
             }
-        } else {
-            directoryWatcher?.unwatchAll()
+            guard !Task.isCancelled else { return }
+            await self?.watchDirectoryThroughProvider(url)
         }
-        directoryWatcher?.watch(url)
     }
 
     /// Called when a folder is expanded - start watching it
     func watchExpandedDirectory(_ url: URL) {
-        directoryWatcher?.watch(url)
+        let normalized = url.standardizedFileURL
+        guard providerWatches[normalized] == nil else { return }
+        Task { [weak self] in
+            await self?.watchDirectoryThroughProvider(normalized)
+        }
     }
 
     /// Called when a folder is collapsed - stop watching it and its children
     func unwatchCollapsedDirectory(_ url: URL) {
-        directoryWatcher?.unwatch(url)
+        let normalized = url.standardizedFileURL
+        guard let watch = providerWatches.removeValue(forKey: normalized) else { return }
+        Task {
+            await LocalFileProvider.shared.unwatch(watch)
+        }
+    }
+
+    private func watchDirectoryThroughProvider(_ url: URL) async {
+        let normalized = url.standardizedFileURL
+        guard providerWatches[normalized] == nil else { return }
+
+        do {
+            let watch = try await LocalFileProvider.shared.watch(.local(normalized)) { [weak self] location in
+                guard case .local(let changedURL) = location else { return }
+                DispatchQueue.main.async {
+                    self?.handleDirectoryChange(at: changedURL)
+                }
+            }
+            guard !Task.isCancelled else {
+                await LocalFileProvider.shared.unwatch(watch)
+                return
+            }
+            providerWatches[normalized] = watch
+        } catch {
+            logger.warning("Failed to watch directory through FileProvider: \(normalized.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func handleDirectoryChange(at changedURL: URL) {

@@ -3,7 +3,7 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "multiwatcher")
 
-/// Monitors multiple directories for filesystem changes.
+/// Local FileProvider implementation detail that monitors local directories for filesystem changes.
 /// Uses DispatchSource for local volumes and polling for network volumes.
 final class MultiDirectoryWatcher: @unchecked Sendable {
     private let onChange: @Sendable (URL) -> Void
