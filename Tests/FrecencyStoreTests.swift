@@ -68,6 +68,69 @@ final class FrecencyStoreTests: XCTestCase {
         XCTAssertGreaterThan(secondVisit!, firstVisit!)
     }
 
+    func testRecordRemoteVisitAnchorsToHostID() {
+        let hostID = UUID()
+        let otherHostID = UUID()
+        let location = Location.remote(hostID: hostID, path: "/work/detours")
+
+        FrecencyStore.shared.recordVisit(location)
+        FrecencyStore.shared.recordVisit(location)
+
+        XCTAssertEqual(FrecencyStore.shared.entry(for: location)?.visitCount, 2)
+        XCTAssertNil(FrecencyStore.shared.entry(for: .remote(hostID: otherHostID, path: "/work/detours")))
+    }
+
+    func testRemoteFrecencyUsesCurrentHostDisplayName() throws {
+        let hostID = UUID()
+        let location = Location.remote(hostID: hostID, path: "/work/detours")
+        let initialHost = RemoteHost(id: hostID, displayName: "Dev VM", sshTarget: "dev")
+        let renamedHost = RemoteHost(id: hostID, displayName: "Build VM", sshTarget: "dev")
+
+        FrecencyStore.shared.recordVisit(location)
+
+        var result = try XCTUnwrap(
+            FrecencyStore.shared.frecencyLocationMatches(
+                for: "Dev",
+                remoteHosts: [initialHost],
+                connectedHostIDs: [hostID]
+            ).first
+        )
+        XCTAssertEqual(result.location, location)
+        XCTAssertEqual(result.hostLabel, "Dev VM")
+        XCTAssertTrue(result.isConnected)
+        XCTAssertFalse(result.isDimmed)
+
+        result = try XCTUnwrap(
+            FrecencyStore.shared.frecencyLocationMatches(
+                for: "Build",
+                remoteHosts: [renamedHost],
+                connectedHostIDs: [hostID]
+            ).first
+        )
+        XCTAssertEqual(result.location, location)
+        XCTAssertEqual(result.hostLabel, "Build VM")
+    }
+
+    func testDisconnectedRemoteEntriesAreDimmed() throws {
+        let hostID = UUID()
+        let location = Location.remote(hostID: hostID, path: "/srv/project")
+        let host = RemoteHost(id: hostID, displayName: "Prod VM", sshTarget: "prod")
+
+        FrecencyStore.shared.recordVisit(location)
+
+        let result = try XCTUnwrap(
+            FrecencyStore.shared.frecencyLocationMatches(
+                for: "project",
+                remoteHosts: [host],
+                connectedHostIDs: []
+            ).first
+        )
+        XCTAssertEqual(result.location, location)
+        XCTAssertEqual(result.hostLabel, "Prod VM")
+        XCTAssertFalse(result.isConnected)
+        XCTAssertTrue(result.isDimmed)
+    }
+
     // MARK: - Frecency scoring tests
 
     func testFrecencyScoreDecaysOverTime() {

@@ -8,8 +8,10 @@ SERVER_HASH_FILE="Resources/Servers/.cache-hash"
 HASH="$(resources/scripts/server-cache-hash.sh)"
 DOCKER_IMAGE="${DETOURS_SERVER_DOCKER_IMAGE:-swift:6.2-noble}"
 REMOTE_HOST="${DETOURS_DOCKER_HOST:-dockerhost}"
-REMOTE_DIR="detours-server-build-$HASH"
+REMOTE_DIR="detours-server-build-$HASH-$(date +%s)-$$"
 REMOTE_TMP="/tmp/$REMOTE_DIR"
+REMOTE_TMP_Q="$(printf '%q' "$REMOTE_TMP")"
+DOCKER_IMAGE_Q="$(printf '%q' "$DOCKER_IMAGE")"
 
 mkdir -p Resources/Servers
 
@@ -19,17 +21,34 @@ if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_HOST" true >/dev/null 2>&
     exit 1
 fi
 
-# These values are intentionally expanded locally before being passed as
-# positional parameters to the remote shell.
 # shellcheck disable=SC2029
-ssh "$REMOTE_HOST" 'rm -rf "$1" && mkdir -p "$1"' sh "$REMOTE_TMP"
+ssh "$REMOTE_HOST" "rm -rf $REMOTE_TMP_Q && mkdir -p $REMOTE_TMP_Q"
 # shellcheck disable=SC2029
-tar -czf - Package.swift Server | ssh "$REMOTE_HOST" 'tar -xzf - -C "$1"' sh "$REMOTE_TMP"
+COPYFILE_DISABLE=1 tar --no-xattrs -czf - Server | ssh "$REMOTE_HOST" "tar -xzf - -C $REMOTE_TMP_Q"
 # shellcheck disable=SC2029
-ssh "$REMOTE_HOST" 'cd "$1" && docker run --rm -v "$PWD:/workspace" -w /workspace "$2" swift build -c release --product detours-server' sh "$REMOTE_TMP" "$DOCKER_IMAGE"
+ssh "$REMOTE_HOST" "cat > $REMOTE_TMP_Q/Package.swift" <<'EOF'
+// swift-tools-version: 6.2
+
+import PackageDescription
+
+let package = Package(
+    name: "DetoursServer",
+    products: [
+        .executable(name: "detours-server", targets: ["detours-server"]),
+    ],
+    targets: [
+        .executableTarget(
+            name: "detours-server",
+            path: "Server"
+        ),
+    ]
+)
+EOF
+# shellcheck disable=SC2029
+ssh "$REMOTE_HOST" "cd $REMOTE_TMP_Q && docker run --rm --user \"\$(id -u):\$(id -g)\" -e HOME=/tmp -v \"\$PWD:/workspace\" -w /workspace $DOCKER_IMAGE_Q swift build -c release --product detours-server"
 scp "$REMOTE_HOST:$REMOTE_TMP/.build/release/detours-server" "$SERVER_BINARY"
 # shellcheck disable=SC2029
-ssh "$REMOTE_HOST" 'rm -rf "$1"' sh "$REMOTE_TMP"
+ssh "$REMOTE_HOST" "rm -rf $REMOTE_TMP_Q"
 chmod 0755 "$SERVER_BINARY"
 echo "$HASH" > "$SERVER_HASH_FILE"
 

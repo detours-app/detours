@@ -93,7 +93,8 @@ struct SystemInotifyBackend: InotifyBackend {
 
         init() throws {
             #if os(Linux)
-            rawValue = inotify_init1(IN_CLOEXEC | IN_NONBLOCK)
+            let flags = Int32(IN_CLOEXEC | IN_NONBLOCK)
+            rawValue = inotify_init1(flags)
             guard rawValue >= 0 else {
                 throw ServerWatcherError.systemCallFailed("inotify_init1", errno: errno)
             }
