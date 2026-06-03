@@ -103,7 +103,7 @@ final class FileItem {
     }
 
     init(entry: LoadedFileEntry, icon: NSImage) {
-        self.location = .local(entry.url)
+        self.location = entry.location
         self.name = entry.name
         self.isDirectory = entry.isDirectory
         self.isPackage = entry.isPackage

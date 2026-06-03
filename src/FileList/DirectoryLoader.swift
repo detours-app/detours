@@ -17,6 +17,7 @@ enum DirectoryLoadError: Error, Equatable {
 // MARK: - LoadedFileEntry
 
 struct LoadedFileEntry: Sendable {
+    let location: Location
     let url: URL
     let name: String
     let isDirectory: Bool
@@ -48,6 +49,7 @@ struct LoadedFileEntry: Sendable {
             return false
         }()
 
+        self.location = .local(url)
         self.url = url
         self.name = values?.localizedName ?? url.lastPathComponent
         self.isDirectory = isDirectory
@@ -65,6 +67,7 @@ struct LoadedFileEntry: Sendable {
     }
 
     init(
+        location: Location? = nil,
         url: URL,
         name: String,
         isDirectory: Bool,
@@ -80,6 +83,7 @@ struct LoadedFileEntry: Sendable {
         ubiquitousItemDownloadingStatus: URLUbiquitousItemDownloadingStatus? = nil,
         ubiquitousItemIsDownloading: Bool = false
     ) {
+        self.location = location ?? .local(url)
         self.url = url
         self.name = name
         self.isDirectory = isDirectory

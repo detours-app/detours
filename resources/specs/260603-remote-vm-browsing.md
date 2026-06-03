@@ -171,7 +171,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 
 **Phase 3: Remote FileProvider, sidebar, connect UX**
 
-- [ ] **T24** Add `src/Services/FileProvider/RemoteFileProvider.swift` implementing `FileProvider` over RPC. `list` returns an `AsyncSequence` of directory chunks so the data source can render the first entries immediately. Transfers route through `RemoteTransferChannel` for sizes above one megabyte.
+- [x] **T24** Add `src/Services/FileProvider/RemoteFileProvider.swift` implementing `FileProvider` over RPC. `list` returns an `AsyncSequence` of directory chunks so the data source can render the first entries immediately. Transfers route through `RemoteTransferChannel` for sizes above one megabyte.
 - [ ] **T25** Add `Server/Watcher.swift` using Linux inotify. Register watches only for currently-visible directories. Surface `ENOSPC` as a typed RPC error. On `ENOSPC`, the client falls back to ten-second polling for the affected pane.
 - [ ] **T26** Add `Server/GitOperations.swift` shelling to `git status --porcelain` and parsing the result into the same `GitStatus` model the local path uses.
 - [ ] **T27** Add `Server/FolderSizeOperations.swift` computing folder sizes via `du -sb`, with the same stale-while-revalidate cache semantics as the local path. Initial calculation renders `—` in the cell; cached values stay visible while a recalculation runs.
