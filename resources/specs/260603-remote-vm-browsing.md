@@ -173,7 +173,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 
 - [x] **T24** Add `src/Services/FileProvider/RemoteFileProvider.swift` implementing `FileProvider` over RPC. `list` returns an `AsyncSequence` of directory chunks so the data source can render the first entries immediately. Transfers route through `RemoteTransferChannel` for sizes above one megabyte.
 - [x] **T25** Add `Server/Watcher.swift` using Linux inotify. Register watches only for currently-visible directories. Surface `ENOSPC` as a typed server error for the client polling fallback in T40.
-- [ ] **T26** Add `Server/GitOperations.swift` shelling to `git status --porcelain` and parsing the result into the same `GitStatus` model the local path uses.
+- [x] **T26** Add `Server/GitOperations.swift` shelling to `git status --porcelain` and parsing the result into the same `GitStatus` model the local path uses.
 - [ ] **T27** Add `Server/FolderSizeOperations.swift` computing folder sizes via `du -sb`, with the same stale-while-revalidate cache semantics as the local path. Initial calculation renders `—` in the cell; cached values stay visible while a recalculation runs.
 - [ ] **T28** Add `src/Sidebar/RemoteHostsSection.swift` and update `src/Sidebar/SidebarViewController.swift` and `src/Sidebar/SidebarItem.swift` with a new Remote Hosts section placed above the Network section. Each host row shows display name, SSH target as a subtitle, and a status dot.
 - [ ] **T29** Update `src/Sidebar/SidebarItemView.swift` to render the status dot in four colours: green (connected), yellow (connecting or reconnecting), grey (disconnected), red (error). Tooltip shows the last error message when red.
