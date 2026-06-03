@@ -71,23 +71,52 @@ final class FileOperationQueue {
     private(set) var lastFinishedOperation: FileOperation?
     private(set) var lastReceivedProgress: FileOperationProgress?
 
+    // MARK: - Fast-lane coordination
+
+    /// Destination URLs reserved by an in-flight operation (heavy or fast lane).
+    /// Every `uniqueXxxDestination` helper skips reserved URLs to prevent name races.
+    private var reservedDestinations: Set<URL> = []
+
+    /// Filesystem paths (standardized) that an active heavy operation is mutating.
+    /// Fast-lane classification routes overlapping requests to the heavy lane.
+    private var activeProtectedPaths: Set<URL> = []
+
+    /// Upper size limit (bytes) for a fast-lane copy/move/duplicate selection.
+    private static let fastLaneMaxBytes: Int64 = 10 * 1024 * 1024
+
+    /// Upper item-count limit for a fast-lane operation.
+    private static let fastLaneMaxItems = 20
+
     // MARK: - Public API
 
     @discardableResult
     func copy(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
-        try await enqueue {
+        if !conflictsWithActiveHeavyOperation(sources: items, destination: destination),
+           await isSmallTransferCandidate(items: items) {
+            return try await performFastCopy(items: items, to: destination, undoManager: undoManager)
+        }
+        return try await enqueue {
             try await self.performCopy(items: items, to: destination, undoManager: undoManager)
         }
     }
 
     @discardableResult
     func move(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
-        try await enqueue {
+        if !conflictsWithActiveHeavyOperation(sources: items, destination: destination),
+           await isSmallTransferCandidate(items: items) {
+            return try await performFastMove(items: items, to: destination, undoManager: undoManager)
+        }
+        return try await enqueue {
             try await self.performMove(items: items, to: destination, undoManager: undoManager)
         }
     }
 
     func delete(items: [URL], undoManager: UndoManager? = nil) async throws {
+        if items.count <= Self.fastLaneMaxItems,
+           !conflictsWithActiveHeavyOperation(sources: items, destination: nil) {
+            try await performFastDelete(items: items, undoManager: undoManager)
+            return
+        }
         try await enqueue {
             try await self.performDelete(items: items, undoManager: undoManager)
         }
@@ -108,25 +137,39 @@ final class FileOperationQueue {
     }
 
     func rename(item: URL, to newName: String) async throws -> URL {
-        try await enqueue {
+        let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
+        if !conflictsWithActiveHeavyOperation(sources: [item], destination: destination) {
+            return try await performFastRename(item: item, to: newName)
+        }
+        return try await enqueue {
             try await self.performRename(item: item, to: newName)
         }
     }
 
     func duplicate(items: [URL], undoManager: UndoManager? = nil) async throws -> [URL] {
-        try await enqueue {
+        if !conflictsWithActiveHeavyOperation(sources: items, destination: nil),
+           await isSmallTransferCandidate(items: items) {
+            return try await performFastDuplicate(items: items, undoManager: undoManager)
+        }
+        return try await enqueue {
             try await self.performDuplicate(items: items, undoManager: undoManager)
         }
     }
 
     func createFolder(in directory: URL, name: String, undoManager: UndoManager? = nil) async throws -> URL {
-        try await enqueue {
+        if !conflictsWithActiveHeavyOperation(sources: [directory], destination: nil) {
+            return try await performFastCreateFolder(in: directory, name: name, undoManager: undoManager)
+        }
+        return try await enqueue {
             try await self.performCreateFolder(in: directory, name: name, undoManager: undoManager)
         }
     }
 
     func createFile(in directory: URL, name: String, content: Data = Data(), undoManager: UndoManager? = nil) async throws -> URL {
-        try await enqueue {
+        if !conflictsWithActiveHeavyOperation(sources: [directory], destination: nil) {
+            return try await performFastCreateFile(in: directory, name: name, content: content, undoManager: undoManager)
+        }
+        return try await enqueue {
             try await self.performCreateFile(in: directory, name: name, content: content, undoManager: undoManager)
         }
     }
@@ -226,6 +269,98 @@ final class FileOperationQueue {
         return try await task.value
     }
 
+    /// Run a blocking file operation off the main thread WITHOUT touching
+    /// `currentIOCancellable`. Used by the fast lane so `⌘.` cancels only the
+    /// heavy operation, not concurrent fast-lane work.
+    private func runUntrackedFileIO<T: Sendable>(_ operation: @Sendable @escaping () throws -> T) async throws -> T {
+        let task = Task.detached(priority: .userInitiated) {
+            try operation()
+        }
+        return try await task.value
+    }
+
+    // MARK: - Destination reservations
+
+    private func reserveDestination(_ url: URL) {
+        reservedDestinations.insert(url.standardizedFileURL)
+    }
+
+    private func releaseDestination(_ url: URL) {
+        reservedDestinations.remove(url.standardizedFileURL)
+    }
+
+    private func isReserved(_ url: URL) -> Bool {
+        reservedDestinations.contains(url.standardizedFileURL)
+    }
+
+    // MARK: - Protected-path scoping
+
+    private func enterProtectedPaths(_ urls: [URL]) {
+        for url in urls {
+            activeProtectedPaths.insert(url.standardizedFileURL)
+        }
+    }
+
+    private func leaveProtectedPaths(_ urls: [URL]) {
+        for url in urls {
+            activeProtectedPaths.remove(url.standardizedFileURL)
+        }
+    }
+
+    /// Returns true when `candidate` is the same path as `protected` or is
+    /// nested inside it. Ancestors of the protected path do not conflict, so
+    /// sibling work in a shared parent directory can still use the fast lane.
+    private func candidateTouchesProtectedPath(_ candidate: URL, protected: URL) -> Bool {
+        let candidatePath = candidate.standardizedFileURL.path
+        let protectedPath = protected.standardizedFileURL.path
+        if candidatePath == protectedPath { return true }
+        return candidatePath.hasPrefix(protectedPath + "/")
+    }
+
+    /// Returns true if any source, destination, or rename target overlaps an
+    /// active heavy operation's protected paths.
+    private func conflictsWithActiveHeavyOperation(sources: [URL], destination: URL?) -> Bool {
+        guard !activeProtectedPaths.isEmpty else { return false }
+        var candidates = sources
+        if let destination {
+            candidates.append(destination)
+        }
+        for candidate in candidates {
+            for protected in activeProtectedPaths where candidateTouchesProtectedPath(candidate, protected: protected) {
+                return true
+            }
+        }
+        return false
+    }
+
+    // MARK: - Fast-lane classifier
+
+    /// Returns true when a copy/move/duplicate request is small enough for the
+    /// fast lane: every source is a non-directory, count is ≤ 20, and the sum
+    /// of top-level file sizes is ≤ 10 MiB. Any metadata lookup failure returns
+    /// false so the request falls back to the heavy lane.
+    private func isSmallTransferCandidate(items: [URL]) async -> Bool {
+        guard !items.isEmpty, items.count <= Self.fastLaneMaxItems else { return false }
+        let maxBytes = Self.fastLaneMaxBytes
+        let sources = items
+        return await Task.detached(priority: .userInitiated) {
+            var total: Int64 = 0
+            for url in sources {
+                guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey]) else {
+                    return false
+                }
+                if values.isDirectory == true {
+                    return false
+                }
+                total += Int64(values.fileSize ?? 0)
+                if total > maxBytes {
+                    return false
+                }
+            }
+            return true
+        }.value
+    }
+
     // MARK: - Queue
 
     private func enqueue<T>(_ work: @escaping () async throws -> T) async throws -> T {
@@ -277,6 +412,10 @@ final class FileOperationQueue {
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
 
+        let protectedScope = items + [destination]
+        enterProtectedPaths(protectedScope)
+        defer { leaveProtectedPaths(protectedScope) }
+
         let fileManager = FileManager.default
         var failures: [(URL, Error)] = []
         var successes: [URL] = []
@@ -301,7 +440,10 @@ final class FileOperationQueue {
             var skipped = false
 
             do {
-                if fileManager.fileExists(atPath: initialDestination.path) {
+                let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
+                let destinationReserved = isReserved(initialDestination)
+
+                if destinationExists {
                     let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
                     if resolution.applyToAll {
                         conflictChoice = resolution.choice
@@ -317,31 +459,44 @@ final class FileOperationQueue {
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
                     }
+                } else if destinationReserved {
+                    // A reserved path is an in-flight internal collision, not a
+                    // user-visible on-disk conflict. Pick a unique name instead
+                    // of surfacing a replace/skip dialog for a file that is not
+                    // there yet.
+                    destinationURL = uniqueCopyDestination(for: source, in: targetDir)
                 } else {
                     destinationURL = initialDestination
                 }
 
                 if !skipped {
-                    let previousBytes = bytesCopied
-                    let itemCount = items.count
-                    let cancelFlag = CancelFlag()
-                    self.currentCancelFlag = cancelFlag
-                    try await runFileIO {
-                        try CopyfileHelper.copy(from: source, to: destinationURL) { copiedBytes in
-                            DispatchQueue.main.async { [weak self] in
-                                self?.updateProgress(
-                                    operation: operation,
-                                    currentItem: source,
-                                    completed: index,
-                                    total: itemCount,
-                                    bytesCompleted: previousBytes + copiedBytes,
-                                    bytesTotal: totalSize
-                                )
+                    reserveDestination(destinationURL)
+                    do {
+                        let previousBytes = bytesCopied
+                        let itemCount = items.count
+                        let cancelFlag = CancelFlag()
+                        self.currentCancelFlag = cancelFlag
+                        try await runFileIO {
+                            try CopyfileHelper.copy(from: source, to: destinationURL) { copiedBytes in
+                                DispatchQueue.main.async { [weak self] in
+                                    self?.updateProgress(
+                                        operation: operation,
+                                        currentItem: source,
+                                        completed: index,
+                                        total: itemCount,
+                                        bytesCompleted: previousBytes + copiedBytes,
+                                        bytesTotal: totalSize
+                                    )
+                                }
+                                return !cancelFlag.isCancelled
                             }
-                            return !cancelFlag.isCancelled
                         }
+                        releaseDestination(destinationURL)
+                        successes.append(destinationURL)
+                    } catch {
+                        releaseDestination(destinationURL)
+                        throw error
                     }
-                    successes.append(destinationURL)
                 }
             } catch {
                 failures.append((source, mapError(error, url: source)))
@@ -387,6 +542,10 @@ final class FileOperationQueue {
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
 
+        let protectedScope = items + [destination]
+        enterProtectedPaths(protectedScope)
+        defer { leaveProtectedPaths(protectedScope) }
+
         let fileManager = FileManager.default
         var failures: [(URL, Error)] = []
         var successes: [(source: URL, destination: URL)] = []
@@ -411,7 +570,10 @@ final class FileOperationQueue {
             var skipped = false
 
             do {
-                if fileManager.fileExists(atPath: initialDestination.path) {
+                let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
+                let destinationReserved = isReserved(initialDestination)
+
+                if destinationExists {
                     let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
                     if resolution.applyToAll {
                         conflictChoice = resolution.choice
@@ -427,23 +589,32 @@ final class FileOperationQueue {
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
                     }
+                } else if destinationReserved {
+                    destinationURL = uniqueCopyDestination(for: source, in: targetDir)
                 } else {
                     destinationURL = initialDestination
                 }
 
                 if !skipped {
-                    let pollTask = startBytePollTask(BytePollContext(
-                        destination: destinationURL,
-                        operation: operation,
-                        currentItem: source,
-                        itemIndex: index,
-                        itemCount: items.count,
-                        bytesCopiedBefore: bytesMoved,
-                        totalSize: totalSize
-                    ))
-                    try await runFileIO { try FileManager.default.moveItem(at: source, to: destinationURL) }
-                    pollTask.cancel()
-                    successes.append((source: source, destination: destinationURL))
+                    reserveDestination(destinationURL)
+                    do {
+                        let pollTask = startBytePollTask(BytePollContext(
+                            destination: destinationURL,
+                            operation: operation,
+                            currentItem: source,
+                            itemIndex: index,
+                            itemCount: items.count,
+                            bytesCopiedBefore: bytesMoved,
+                            totalSize: totalSize
+                        ))
+                        try await runFileIO { try FileManager.default.moveItem(at: source, to: destinationURL) }
+                        pollTask.cancel()
+                        releaseDestination(destinationURL)
+                        successes.append((source: source, destination: destinationURL))
+                    } catch {
+                        releaseDestination(destinationURL)
+                        throw error
+                    }
                 }
             } catch {
                 failures.append((source, mapError(error, url: source)))
@@ -485,6 +656,9 @@ final class FileOperationQueue {
         let operation = FileOperation.delete(items: items)
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
+
+        enterProtectedPaths(items)
+        defer { leaveProtectedPaths(items) }
 
         var failures: [(URL, Error)] = []
         var successes: [(original: URL, trash: URL)] = []
@@ -555,6 +729,9 @@ final class FileOperationQueue {
         // Show spinning indicator immediately while we scan the directory tree
         startOperation(operation, totalCount: 0)
         defer { finishOperation() }
+
+        enterProtectedPaths(items)
+        defer { leaveProtectedPaths(items) }
 
         // Show which item is being scanned
         updateProgress(operation: operation, currentItem: items.first, completed: 0, total: 0)
@@ -627,9 +804,15 @@ final class FileOperationQueue {
         }
 
         let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
-        if FileManager.default.fileExists(atPath: destination.path) {
+        if FileManager.default.fileExists(atPath: destination.path) || isReserved(destination) {
             throw FileOperationError.destinationExists(destination)
         }
+
+        enterProtectedPaths([item, destination])
+        defer { leaveProtectedPaths([item, destination]) }
+
+        reserveDestination(destination)
+        defer { releaseDestination(destination) }
 
         do {
             try await runFileIO { try FileManager.default.moveItem(at: item, to: destination) }
@@ -650,6 +833,9 @@ final class FileOperationQueue {
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
 
+        enterProtectedPaths(items)
+        defer { leaveProtectedPaths(items) }
+
         var failures: [(URL, Error)] = []
         var successes: [URL] = []
         var bytesCopied: Int64 = 0
@@ -668,26 +854,33 @@ final class FileOperationQueue {
 
             do {
                 let destination = uniqueDuplicateDestination(for: source)
-                let previousBytes = bytesCopied
-                let itemCount = items.count
-                let cancelFlag = CancelFlag()
-                self.currentCancelFlag = cancelFlag
-                try await runFileIO {
-                    try CopyfileHelper.copy(from: source, to: destination) { copiedBytes in
-                        DispatchQueue.main.async { [weak self] in
-                            self?.updateProgress(
-                                operation: operation,
-                                currentItem: source,
-                                completed: index,
-                                total: itemCount,
-                                bytesCompleted: previousBytes + copiedBytes,
-                                bytesTotal: totalSize
-                            )
+                reserveDestination(destination)
+                do {
+                    let previousBytes = bytesCopied
+                    let itemCount = items.count
+                    let cancelFlag = CancelFlag()
+                    self.currentCancelFlag = cancelFlag
+                    try await runFileIO {
+                        try CopyfileHelper.copy(from: source, to: destination) { copiedBytes in
+                            DispatchQueue.main.async { [weak self] in
+                                self?.updateProgress(
+                                    operation: operation,
+                                    currentItem: source,
+                                    completed: index,
+                                    total: itemCount,
+                                    bytesCompleted: previousBytes + copiedBytes,
+                                    bytesTotal: totalSize
+                                )
+                            }
+                            return !cancelFlag.isCancelled
                         }
-                        return !cancelFlag.isCancelled
                     }
+                    releaseDestination(destination)
+                    successes.append(destination)
+                } catch {
+                    releaseDestination(destination)
+                    throw error
                 }
-                successes.append(destination)
             } catch {
                 failures.append((source, mapError(error, url: source)))
             }
@@ -727,7 +920,12 @@ final class FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
+        enterProtectedPaths([directory])
+        defer { leaveProtectedPaths([directory]) }
+
         let destination = uniqueFolderDestination(in: directory, baseName: name)
+        reserveDestination(destination)
+        defer { releaseDestination(destination) }
 
         do {
             try await runFileIO { try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false, attributes: nil) }
@@ -757,7 +955,12 @@ final class FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
+        enterProtectedPaths([directory])
+        defer { leaveProtectedPaths([directory]) }
+
         let destination = uniqueFileDestination(in: directory, baseName: name)
+        reserveDestination(destination)
+        defer { releaseDestination(destination) }
 
         do {
             try await runFileIO { try content.write(to: destination) }
@@ -782,8 +985,336 @@ final class FileOperationQueue {
         }
     }
 
+    // MARK: - Fast-lane Operations
+
+    private func performFastRename(item: URL, to newName: String) async throws -> URL {
+        let invalidChars = CharacterSet(charactersIn: ":/")
+        if newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw FileOperationError.unknown(NSError(domain: "Detours", code: 1, userInfo: [NSLocalizedDescriptionKey: "Name cannot be empty."]))
+        }
+
+        if newName.rangeOfCharacter(from: invalidChars) != nil {
+            throw FileOperationError.unknown(NSError(domain: "Detours", code: 1, userInfo: [NSLocalizedDescriptionKey: "Name contains invalid characters."]))
+        }
+
+        let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
+        if FileManager.default.fileExists(atPath: destination.path) || isReserved(destination) {
+            throw FileOperationError.destinationExists(destination)
+        }
+
+        reserveDestination(destination)
+        defer { releaseDestination(destination) }
+
+        do {
+            try await runUntrackedFileIO { try FileManager.default.moveItem(at: item, to: destination) }
+            return destination
+        } catch {
+            throw mapError(error, url: item)
+        }
+    }
+
+    private func performFastCopy(items: [URL], to destination: URL, undoManager: UndoManager?) async throws -> [URL] {
+        let fileManager = FileManager.default
+        var successes: [URL] = []
+        var failures: [(URL, Error)] = []
+        var conflictChoice: ConflictChoice?
+
+        for source in items {
+            let initialDestination = destination.appendingPathComponent(source.lastPathComponent)
+            var destinationURL = initialDestination
+            var skipped = false
+
+            do {
+                let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
+                let destinationReserved = isReserved(initialDestination)
+
+                if destinationExists {
+                    let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
+                    if resolution.applyToAll {
+                        conflictChoice = resolution.choice
+                    }
+                    switch resolution.choice {
+                    case .skip:
+                        skipped = true
+                    case .replace:
+                        try await runUntrackedFileIO { try FileManager.default.removeItem(at: initialDestination) }
+                        destinationURL = initialDestination
+                    case .keepBoth:
+                        destinationURL = uniqueCopyDestination(for: source, in: destination)
+                    }
+                } else if destinationReserved {
+                    destinationURL = uniqueCopyDestination(for: source, in: destination)
+                }
+
+                if !skipped {
+                    reserveDestination(destinationURL)
+                    do {
+                        let destForTask = destinationURL
+                        try await runUntrackedFileIO {
+                            try CopyfileHelper.copy(from: source, to: destForTask, progress: nil)
+                        }
+                        releaseDestination(destinationURL)
+                        successes.append(destinationURL)
+                    } catch {
+                        releaseDestination(destinationURL)
+                        throw error
+                    }
+                }
+            } catch {
+                failures.append((source, mapError(error, url: source)))
+            }
+        }
+
+        if failures.isEmpty, !successes.isEmpty, let undoManager {
+            let copiedFiles = successes
+            undoManager.registerUndo(withTarget: self) { target in
+                do {
+                    try target.recycleSync(items: copiedFiles)
+                } catch {
+                    target.presentError(error)
+                }
+            }
+            let actionName = successes.count == 1 ? "Copy \"\(successes[0].lastPathComponent)\"" : "Copy \(successes.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
+        try handleFailures(successes: successes, failures: failures)
+        return successes
+    }
+
+    private func performFastMove(items: [URL], to destination: URL, undoManager: UndoManager?) async throws -> [URL] {
+        let fileManager = FileManager.default
+        var successes: [(source: URL, destination: URL)] = []
+        var failures: [(URL, Error)] = []
+        var conflictChoice: ConflictChoice?
+
+        for source in items {
+            let initialDestination = destination.appendingPathComponent(source.lastPathComponent)
+            var destinationURL = initialDestination
+            var skipped = false
+
+            do {
+                let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
+                let destinationReserved = isReserved(initialDestination)
+
+                if destinationExists {
+                    let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
+                    if resolution.applyToAll {
+                        conflictChoice = resolution.choice
+                    }
+                    switch resolution.choice {
+                    case .skip:
+                        skipped = true
+                    case .replace:
+                        try await runUntrackedFileIO { try FileManager.default.removeItem(at: initialDestination) }
+                        destinationURL = initialDestination
+                    case .keepBoth:
+                        destinationURL = uniqueCopyDestination(for: source, in: destination)
+                    }
+                } else if destinationReserved {
+                    destinationURL = uniqueCopyDestination(for: source, in: destination)
+                }
+
+                if !skipped {
+                    reserveDestination(destinationURL)
+                    do {
+                        let sourceForTask = source
+                        let destForTask = destinationURL
+                        try await runUntrackedFileIO {
+                            try FileManager.default.moveItem(at: sourceForTask, to: destForTask)
+                        }
+                        releaseDestination(destinationURL)
+                        successes.append((source: source, destination: destinationURL))
+                    } catch {
+                        releaseDestination(destinationURL)
+                        throw error
+                    }
+                }
+            } catch {
+                failures.append((source, mapError(error, url: source)))
+            }
+        }
+
+        if failures.isEmpty, !successes.isEmpty, let undoManager {
+            let movedItems = successes
+            undoManager.registerUndo(withTarget: self) { target in
+                do {
+                    for item in movedItems {
+                        try target.moveSync(from: item.destination, to: item.source)
+                    }
+                } catch {
+                    target.presentError(error)
+                }
+            }
+            let actionName = successes.count == 1 ? "Move \"\(successes[0].destination.lastPathComponent)\"" : "Move \(successes.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
+        try handleFailures(successes: successes.map { $0.destination }, failures: failures)
+        return successes.map { $0.destination }
+    }
+
+    private func performFastDuplicate(items: [URL], undoManager: UndoManager?) async throws -> [URL] {
+        var successes: [URL] = []
+        var failures: [(URL, Error)] = []
+
+        for source in items {
+            do {
+                let destinationURL = uniqueDuplicateDestination(for: source)
+                reserveDestination(destinationURL)
+                do {
+                    let sourceForTask = source
+                    let destForTask = destinationURL
+                    try await runUntrackedFileIO {
+                        try CopyfileHelper.copy(from: sourceForTask, to: destForTask, progress: nil)
+                    }
+                    releaseDestination(destinationURL)
+                    successes.append(destinationURL)
+                } catch {
+                    releaseDestination(destinationURL)
+                    throw error
+                }
+            } catch {
+                failures.append((source, mapError(error, url: source)))
+            }
+        }
+
+        if failures.isEmpty, !successes.isEmpty, let undoManager {
+            let duplicatedFiles = successes
+            undoManager.registerUndo(withTarget: self) { target in
+                do {
+                    try target.recycleSync(items: duplicatedFiles)
+                } catch {
+                    target.presentError(error)
+                }
+            }
+            let actionName = successes.count == 1 ? "Duplicate \"\(successes[0].lastPathComponent)\"" : "Duplicate \(successes.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
+        try handleFailures(successes: successes, failures: failures)
+        return successes
+    }
+
+    private func performFastDelete(items: [URL], undoManager: UndoManager?) async throws {
+        var successes: [(original: URL, trash: URL)] = []
+        var failures: [(URL, Error)] = []
+
+        for item in items {
+            do {
+                let itemForTask = item
+                let trashURL: URL = try await runUntrackedFileIO {
+                    var resultingURL: NSURL?
+                    try FileManager.default.trashItem(at: itemForTask, resultingItemURL: &resultingURL)
+                    guard let url = resultingURL as URL? else {
+                        throw FileOperationError.unknown(NSError(
+                            domain: "Detours", code: 1,
+                            userInfo: [NSLocalizedDescriptionKey: "Failed to get trash URL"]
+                        ))
+                    }
+                    return url
+                }
+                successes.append((original: item, trash: trashURL))
+            } catch {
+                failures.append((item, mapError(error, url: item)))
+            }
+        }
+
+        if failures.isEmpty, !successes.isEmpty, let undoManager {
+            let itemsToRestore = successes
+            let originalURLs = successes.map { $0.original }
+            undoManager.registerUndo(withTarget: self) { target in
+                do {
+                    try target.restoreFromTrashSync(items: itemsToRestore)
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(
+                            name: FileOperationQueue.filesRestoredNotification,
+                            object: nil,
+                            userInfo: ["urls": originalURLs]
+                        )
+                    }
+                    undoManager.registerUndo(withTarget: target) { target2 in
+                        do {
+                            try target2.recycleSync(items: originalURLs)
+                        } catch {
+                            target2.presentError(error)
+                        }
+                    }
+                } catch {
+                    target.presentError(error)
+                }
+            }
+            let actionName = successes.count == 1 ? "Delete \"\(successes[0].original.lastPathComponent)\"" : "Delete \(successes.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
+        try handleFailures(successes: successes.map { $0.original }, failures: failures)
+    }
+
+    private func performFastCreateFolder(in directory: URL, name: String, undoManager: UndoManager?) async throws -> URL {
+        let destination = uniqueFolderDestination(in: directory, baseName: name)
+        reserveDestination(destination)
+        defer { releaseDestination(destination) }
+
+        do {
+            let destForTask = destination
+            try await runUntrackedFileIO {
+                try FileManager.default.createDirectory(at: destForTask, withIntermediateDirectories: false, attributes: nil)
+            }
+        } catch {
+            throw mapError(error, url: destination)
+        }
+
+        if let undoManager {
+            let createdFolder = destination
+            undoManager.registerUndo(withTarget: self) { target in
+                do {
+                    try target.recycleSync(items: [createdFolder])
+                } catch {
+                    target.presentError(error)
+                }
+            }
+            undoManager.setActionName("New Folder")
+        }
+
+        return destination
+    }
+
+    private func performFastCreateFile(in directory: URL, name: String, content: Data, undoManager: UndoManager?) async throws -> URL {
+        let destination = uniqueFileDestination(in: directory, baseName: name)
+        reserveDestination(destination)
+        defer { releaseDestination(destination) }
+
+        do {
+            let destForTask = destination
+            let dataForTask = content
+            try await runUntrackedFileIO { try dataForTask.write(to: destForTask) }
+        } catch {
+            throw mapError(error, url: destination)
+        }
+
+        if let undoManager {
+            let createdFile = destination
+            undoManager.registerUndo(withTarget: self) { target in
+                do {
+                    try target.recycleSync(items: [createdFile])
+                } catch {
+                    target.presentError(error)
+                }
+            }
+            undoManager.setActionName("New File")
+        }
+
+        return destination
+    }
+
+    // MARK: - Heavy-lane Operations (continued)
+
     private func performDuplicateStructure(source: URL, destination: URL, yearSubstitution: (String, String)?) async throws -> URL {
         let fileManager = FileManager.default
+
+        enterProtectedPaths([source, destination])
+        defer { leaveProtectedPaths([source, destination]) }
 
         // Check if destination already exists
         if fileManager.fileExists(atPath: destination.path) {
@@ -857,6 +1388,13 @@ final class FileOperationQueue {
         // Determine destination path
         let parentDir = items[0].deletingLastPathComponent()
         let archiveURL = uniqueArchiveDestination(in: parentDir, baseName: archiveName, format: format)
+
+        let protectedScope = items + [archiveURL]
+        enterProtectedPaths(protectedScope)
+        defer { leaveProtectedPaths(protectedScope) }
+
+        reserveDestination(archiveURL)
+        defer { releaseDestination(archiveURL) }
 
         try checkCancelled()
 
@@ -1117,7 +1655,7 @@ final class FileOperationQueue {
                 name = "\(baseName) \(attempt).\(ext)"
             }
             let candidate = directory.appendingPathComponent(name)
-            if !fileManager.fileExists(atPath: candidate.path) {
+            if !fileManager.fileExists(atPath: candidate.path), !isReserved(candidate) {
                 return candidate
             }
             attempt += 1
@@ -1152,6 +1690,9 @@ final class FileOperationQueue {
 
         let parentDir = archive.deletingLastPathComponent()
         let fileManager = FileManager.default
+
+        enterProtectedPaths([archive, parentDir])
+        defer { leaveProtectedPaths([archive, parentDir]) }
 
         // Create temp dir for extraction
         let tempDir = parentDir.appendingPathComponent(".detours-extract-\(UUID().uuidString)")
@@ -1308,6 +1849,9 @@ final class FileOperationQueue {
 
         let parentDir = archive.deletingLastPathComponent()
         let fileManager = FileManager.default
+
+        enterProtectedPaths([archive, parentDir])
+        defer { leaveProtectedPaths([archive, parentDir]) }
 
         let topLevelEntries = await listArchiveTopLevelEntries(
             archive: archive, format: format, password: password
@@ -1961,11 +2505,19 @@ final class FileOperationQueue {
 
                 // Handle conflict if something now exists at original location
                 var destination = item.original
-                if fileManager.fileExists(atPath: destination.path) {
+                if fileManager.fileExists(atPath: destination.path) || isReserved(destination) {
                     destination = uniqueRestoreDestination(for: item.original)
                 }
 
-                try fileManager.moveItem(at: item.trash, to: destination)
+                // Reserve so a concurrent fast-lane pick cannot race this move
+                reserveDestination(destination)
+                do {
+                    try fileManager.moveItem(at: item.trash, to: destination)
+                    releaseDestination(destination)
+                } catch {
+                    releaseDestination(destination)
+                    throw error
+                }
             } catch {
                 failures.append((item.original, mapError(error, url: item.original)))
             }
@@ -1992,7 +2544,7 @@ final class FileOperationQueue {
                 name += ".\(ext)"
             }
             let candidate = directory.appendingPathComponent(name)
-            if !fileManager.fileExists(atPath: candidate.path) {
+            if !fileManager.fileExists(atPath: candidate.path), !isReserved(candidate) {
                 return candidate
             }
             attempt += 1
@@ -2104,7 +2656,7 @@ final class FileOperationQueue {
             }
 
             let candidate = directory.appendingPathComponent(name)
-            if !fileManager.fileExists(atPath: candidate.path) {
+            if !fileManager.fileExists(atPath: candidate.path), !isReserved(candidate) {
                 return candidate
             }
 
@@ -2135,7 +2687,7 @@ final class FileOperationQueue {
                 name += ".\(ext)"
             }
             let candidate = directory.appendingPathComponent(name)
-            if !fileManager.fileExists(atPath: candidate.path) {
+            if !fileManager.fileExists(atPath: candidate.path), !isReserved(candidate) {
                 return candidate
             }
             attempt += 1
@@ -2149,7 +2701,7 @@ final class FileOperationQueue {
         while true {
             let name = attempt == 1 ? baseName : "\(baseName) \(attempt)"
             let candidate = directory.appendingPathComponent(name)
-            if !fileManager.fileExists(atPath: candidate.path) {
+            if !fileManager.fileExists(atPath: candidate.path), !isReserved(candidate) {
                 return candidate
             }
             attempt += 1
@@ -2172,7 +2724,7 @@ final class FileOperationQueue {
                 name = "\(nameWithoutExt) \(attempt).\(ext)"
             }
             let candidate = directory.appendingPathComponent(name)
-            if !fileManager.fileExists(atPath: candidate.path) {
+            if !fileManager.fileExists(atPath: candidate.path), !isReserved(candidate) {
                 return candidate
             }
             attempt += 1

@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/fast-lane-operations
 
 ---
@@ -135,60 +135,60 @@ Result: keep one serial heavy lane, add a fast lane for unrelated trivial operat
 
 **Phase 1: Shared concurrency state**
 
-- [ ] Add `reservedDestinations: Set<URL>` to `FileOperationQueue`.
-- [ ] Add `activeProtectedPaths: Set<URL>` as main-actor-owned state for currently protected heavy-operation paths.
-- [ ] Add helpers to reserve and release one or more destination URLs with `defer`-safe cleanup.
-- [ ] Add helpers to enter and leave a heavy-operation protected-path scope, usable even by heavy operations that do not emit progress callbacks (`duplicateStructure`).
-- [ ] Add `runUntrackedFileIO<T>` so fast-lane code can hop off-main without touching `currentIOCancellable`.
+- [x] Add `reservedDestinations: Set<URL>` to `FileOperationQueue`.
+- [x] Add `activeProtectedPaths: Set<URL>` as main-actor-owned state for currently protected heavy-operation paths.
+- [x] Add helpers to reserve and release one or more destination URLs with `defer`-safe cleanup.
+- [x] Add helpers to enter and leave a heavy-operation protected-path scope, usable even by heavy operations that do not emit progress callbacks (`duplicateStructure`).
+- [x] Add `runUntrackedFileIO<T>` so fast-lane code can hop off-main without touching `currentIOCancellable`.
 
 **Phase 2: Naming and overlap helpers**
 
-- [ ] Update `uniqueCopyDestination(for:in:)` to skip reserved URLs.
-- [ ] Update `uniqueDuplicateDestination(for:)` and `uniqueYearIncrementedDuplicateDestination(for:in:)` to skip reserved URLs.
-- [ ] Update `uniqueFolderDestination(in:baseName:)` to skip reserved URLs.
-- [ ] Update `uniqueFileDestination(in:baseName:)` to skip reserved URLs.
-- [ ] Update `uniqueArchiveDestination(in:baseName:format:)` to skip reserved URLs.
-- [ ] Update `uniqueRestoreDestination(for:)` to skip reserved URLs.
-- [ ] Add `pathsOverlap(_:_:)` and `conflictsWithActiveHeavyOperation(sources:destination:)` using standardized URLs and ancestor or descendant checks.
+- [x] Update `uniqueCopyDestination(for:in:)` to skip reserved URLs.
+- [x] Update `uniqueDuplicateDestination(for:)` and `uniqueYearIncrementedDuplicateDestination(for:in:)` to skip reserved URLs.
+- [x] Update `uniqueFolderDestination(in:baseName:)` to skip reserved URLs.
+- [x] Update `uniqueFileDestination(in:baseName:)` to skip reserved URLs.
+- [x] Update `uniqueArchiveDestination(in:baseName:format:)` to skip reserved URLs.
+- [x] Update `uniqueRestoreDestination(for:)` to skip reserved URLs.
+- [x] Add `pathsOverlap(_:_:)` and `conflictsWithActiveHeavyOperation(sources:destination:)` using standardized URLs and ancestor or descendant checks.
 
 **Phase 3: Fast-lane classifier**
 
-- [ ] Add `isSmallTransferCandidate(items: [URL]) async -> Bool`.
-- [ ] Perform metadata reads off-main using one top-level lookup per source (`.isDirectoryKey` plus `.fileSizeKey`).
-- [ ] Return `false` for any directory, any selection over 20 items, any total size over 10 MiB, or any metadata read failure.
-- [ ] Define the threshold precisely: `<= 10 MiB` is fast-lane eligible, `> 10 MiB` is heavy-lane.
-- [ ] Route any request that overlaps `activeProtectedPaths` to the heavy lane before evaluating size and count rules.
+- [x] Add `isSmallTransferCandidate(items: [URL]) async -> Bool`.
+- [x] Perform metadata reads off-main using one top-level lookup per source (`.isDirectoryKey` plus `.fileSizeKey`).
+- [x] Return `false` for any directory, any selection over 20 items, any total size over 10 MiB, or any metadata read failure.
+- [x] Define the threshold precisely: `<= 10 MiB` is fast-lane eligible, `> 10 MiB` is heavy-lane.
+- [x] Route any request that overlaps `activeProtectedPaths` to the heavy lane before evaluating size and count rules.
 
 **Phase 4: Wire public API methods**
 
-- [ ] `rename(item:to:)` uses the fast lane when source and destination do not overlap the active heavy operation; otherwise heavy lane.
-- [ ] `delete(items:undoManager:)` uses the fast lane only when `items.count <= 20` and all items are outside the active heavy operation's protected paths.
-- [ ] `createFolder(in:name:undoManager:)` uses the fast lane only when the target directory is outside the active heavy operation's protected paths.
-- [ ] `createFile(in:name:content:undoManager:)` uses the fast lane only when the target directory is outside the active heavy operation's protected paths.
-- [ ] `copy(items:to:undoManager:)`, `move(items:to:undoManager:)`, and `duplicate(items:undoManager:)` use the fast lane only when both the overlap guard and small-transfer classifier pass.
-- [ ] `deleteImmediately(items:)`, `archive(items:format:archiveName:password:)`, `extract(archive:password:)`, and `duplicateStructure(source:destination:yearSubstitution:)` remain heavy-lane only.
+- [x] `rename(item:to:)` uses the fast lane when source and destination do not overlap the active heavy operation; otherwise heavy lane.
+- [x] `delete(items:undoManager:)` uses the fast lane only when `items.count <= 20` and all items are outside the active heavy operation's protected paths.
+- [x] `createFolder(in:name:undoManager:)` uses the fast lane only when the target directory is outside the active heavy operation's protected paths.
+- [x] `createFile(in:name:content:undoManager:)` uses the fast lane only when the target directory is outside the active heavy operation's protected paths.
+- [x] `copy(items:to:undoManager:)`, `move(items:to:undoManager:)`, and `duplicate(items:undoManager:)` use the fast lane only when both the overlap guard and small-transfer classifier pass.
+- [x] `deleteImmediately(items:)`, `archive(items:format:archiveName:password:)`, `extract(archive:password:)`, and `duplicateStructure(source:destination:yearSubstitution:)` remain heavy-lane only.
 
 **Phase 5: Fast-lane bodies and heavy-lane reservations**
 
-- [ ] Add `performFastCopy`, `performFastMove`, `performFastDuplicate`, `performFastRename`, `performFastDelete`, `performFastCreateFolder`, and `performFastCreateFile`.
-- [ ] Fast-lane bodies must not call `startOperation`, `finishOperation`, `updateProgress`, `onOperationStart`, `onOperationFinish`, or `onProgressUpdate`.
-- [ ] Fast-lane copy, move, and duplicate must use untracked I/O helpers and `CopyfileHelper.copy(progress: nil)`.
-- [ ] Fast-lane rename, create, copy, move, and duplicate must reserve chosen destination URLs before filesystem work begins and release them in `defer`.
-- [ ] Heavy-lane copy, move, duplicate, archive, extract, and restore paths must also reserve chosen destinations before filesystem work begins.
-- [ ] `restoreFromTrashSync` must reserve the chosen restore destination before `moveItem` so undo restore cannot race a concurrent lane.
+- [x] Add `performFastCopy`, `performFastMove`, `performFastDuplicate`, `performFastRename`, `performFastDelete`, `performFastCreateFolder`, and `performFastCreateFile`.
+- [x] Fast-lane bodies must not call `startOperation`, `finishOperation`, `updateProgress`, `onOperationStart`, `onOperationFinish`, or `onProgressUpdate`.
+- [x] Fast-lane copy, move, and duplicate must use untracked I/O helpers and `CopyfileHelper.copy(progress: nil)`.
+- [x] Fast-lane rename, create, copy, move, and duplicate must reserve chosen destination URLs before filesystem work begins and release them in `defer`.
+- [x] Heavy-lane copy, move, duplicate, archive, extract, and restore paths must also reserve chosen destinations before filesystem work begins.
+- [x] `restoreFromTrashSync` must reserve the chosen restore destination before `moveItem` so undo restore cannot race a concurrent lane.
 
 **Phase 6: Error presentation and rollback path**
 
-- [ ] Keep fast-lane methods throwing through the existing public APIs. Do not call `presentError` inside the fast-lane operation bodies.
-- [ ] Verify every direct queue caller that awaits these APIs still presents errors (`FileListViewController`, `FileListViewController+DragDrop`, `MainSplitViewController`, `PaneViewController`, `RenameController`). `ClipboardManager` continues to propagate errors to its callers.
-- [ ] Keep the fast-lane code isolated so rollback is one code change: route all public APIs back through `enqueue` and remove fast-lane classifier calls.
+- [x] Keep fast-lane methods throwing through the existing public APIs. Do not call `presentError` inside the fast-lane operation bodies.
+- [x] Verify every direct queue caller that awaits these APIs still presents errors (`FileListViewController`, `FileListViewController+DragDrop`, `MainSplitViewController`, `PaneViewController`, `RenameController`). `ClipboardManager` continues to propagate errors to its callers.
+- [x] Keep the fast-lane code isolated so rollback is one code change: route all public APIs back through `enqueue` and remove fast-lane classifier calls.
 
 **Phase 7: Build and verification**
 
-- [ ] Run `resources/scripts/build.sh`.
-- [ ] Run `swiftlint lint --quiet`.
-- [ ] Run focused tests: `swift test --filter FileOperationQueueTests` and `swift test --filter CopyfileHelperTests`.
-- [ ] Update `Tests/TEST_LOG.md` with every test command and result immediately after the run.
+- [x] Run `resources/scripts/build.sh`.
+- [x] Run `swiftlint lint --quiet`.
+- [x] Run focused tests: `swift test --filter FileOperationQueueTests` and `swift test --filter CopyfileHelperTests`.
+- [x] Update `Tests/TEST_LOG.md` with every test command and result immediately after the run.
 
 ---
 
@@ -198,29 +198,29 @@ Primary coverage lives in `Tests/FileOperationQueueTests.swift`. Log implementat
 
 ### Unit Tests (`Tests/FileOperationQueueTests.swift`)
 
-- [ ] `testFastLaneRenameDuringUnrelatedBulkCopy` — start a heavy copy over `10 MiB`, then rename an unrelated file in a different directory. The rename completes before the heavy copy finishes.
-- [ ] `testFastLaneCreateFolderDuringUnrelatedBulkCopy` — start a heavy copy, then create a folder in a different directory. The folder exists before the heavy copy finishes.
-- [ ] `testFastLaneDeleteDuringUnrelatedBulkCopy` — start a heavy copy, then trash a small unrelated selection (`<= 20` items). The files disappear before the heavy copy finishes, and undo restores them.
-- [ ] `testFastLaneSmallCopyDuringUnrelatedBulkCopy` — start a heavy copy, then copy a small unrelated file. The small copy completes before the heavy copy finishes.
-- [ ] `testOverlapGuardKeepsSameTreeRenameOnHeavyLane` — start a heavy copy and attempt to rename an item inside the copied source or destination tree. The rename is routed to the heavy lane instead of running concurrently.
-- [ ] `testFastLaneClassifierDirectory` — a directory source always routes to the heavy lane. Verify with heavy-lane callbacks, not by sampling `pendingCount`.
-- [ ] `testFastLaneClassifierSizeThreshold` — a single `11 MiB` file routes to the heavy lane; a single `9 MiB` file routes to the fast lane.
-- [ ] `testFastLaneClassifierItemCountThreshold` — `21` tiny files route to the heavy lane; `20` tiny files route to the fast lane.
-- [ ] `testFastLaneReservationPreventsNameRace` — two concurrent `duplicate` calls on the same source produce distinct unique names.
-- [ ] `testFastLaneReservationReleasedOnSuccess` — two sequential `createFolder` calls with the same requested name produce `folder` and `folder 2`.
-- [ ] `testFastLaneReservationReleasedOnError` — a failed fast-lane `createFolder` in a non-writable directory releases its reservation so a later successful call can reuse the original candidate name.
-- [ ] `testFastLaneDoesNotFireHeavyCallbacks` — install `onOperationStart`, `onProgressUpdate`, and `onOperationFinish`, perform a fast-lane rename, and assert none of those callbacks fire.
-- [ ] `testCancelCurrentOperationDoesNotCancelConcurrentFastLaneOp` — while a heavy copy is running, start a fast-lane rename and then call `cancelCurrentOperation()`. The heavy operation cancels or partially fails, and the fast-lane rename still succeeds.
-- [ ] `testHeavyLaneUnchangedByFastLane` — run a heavy copy while several fast-lane operations execute in unrelated directories. Heavy-lane callbacks, `currentOperation`, and completion semantics remain unchanged.
-- [ ] `testDeleteImmediatelyAlwaysHeavyLane` — even a single-item permanent delete stays on the heavy lane.
-- [ ] `testArchiveAlwaysHeavyLane` — archive creation still fires heavy-lane callbacks.
+- [x] `testFastLaneRenameDuringUnrelatedBulkCopy` — start a heavy copy over `10 MiB`, then rename an unrelated file in a different directory. The rename completes before the heavy copy finishes.
+- [x] `testFastLaneCreateFolderDuringUnrelatedBulkCopy` — start a heavy copy, then create a folder in a different directory. The folder exists before the heavy copy finishes.
+- [x] `testFastLaneDeleteDuringUnrelatedBulkCopy` — start a heavy copy, then trash a small unrelated selection (`<= 20` items). The files disappear before the heavy copy finishes, and undo restores them.
+- [x] `testFastLaneSmallCopyDuringUnrelatedBulkCopy` — start a heavy copy, then copy a small unrelated file. The small copy completes before the heavy copy finishes.
+- [x] `testOverlapGuardKeepsSameTreeRenameOnHeavyLane` — start a heavy copy and attempt to rename an item inside the copied source or destination tree. The rename is routed to the heavy lane instead of running concurrently.
+- [x] `testFastLaneClassifierDirectory` — a directory source always routes to the heavy lane. Verify with heavy-lane callbacks, not by sampling `pendingCount`.
+- [x] `testFastLaneClassifierSizeThreshold` — a single `11 MiB` file routes to the heavy lane; a single `9 MiB` file routes to the fast lane.
+- [x] `testFastLaneClassifierItemCountThreshold` — `21` tiny files route to the heavy lane; `20` tiny files route to the fast lane.
+- [x] `testFastLaneReservationPreventsNameRace` — two concurrent `duplicate` calls on the same source produce distinct unique names.
+- [x] `testFastLaneReservationReleasedOnSuccess` — two sequential `createFolder` calls with the same requested name produce `folder` and `folder 2`.
+- [x] `testFastLaneReservationReleasedOnError` — a failed fast-lane `createFolder` in a non-writable directory releases its reservation so a later successful call can reuse the original candidate name.
+- [x] `testFastLaneDoesNotFireHeavyCallbacks` — install `onOperationStart`, `onProgressUpdate`, and `onOperationFinish`, perform a fast-lane rename, and assert none of those callbacks fire.
+- [x] `testCancelCurrentOperationDoesNotCancelConcurrentFastLaneOp` — while a heavy copy is running, start a fast-lane rename and then call `cancelCurrentOperation()`. The heavy operation cancels or partially fails, and the fast-lane rename still succeeds.
+- [x] `testHeavyLaneUnchangedByFastLane` — run a heavy copy while several fast-lane operations execute in unrelated directories. Heavy-lane callbacks, `currentOperation`, and completion semantics remain unchanged.
+- [x] `testDeleteImmediatelyAlwaysHeavyLane` — even a single-item permanent delete stays on the heavy lane.
+- [x] `testArchiveAlwaysHeavyLane` — archive creation still fires heavy-lane callbacks.
 
 ### Existing Tests — Regression Updates
 
-- [ ] Update `testOperationCallbacks`, `testOnOperationStartReceivesValidProgress`, and `testOnOperationStartFiresBeforeProgress` to use inputs that are guaranteed heavy-lane.
-- [ ] Update `testRunProcessDoesNotBlockMainThread`, `testCancellationWithAsyncProcess`, `testCopyLargeFileDoesNotDeadlock`, `testDuplicateLargeFileDoesNotDeadlock`, and `testCopyLargeFileCancellation` to use payloads above `10 MiB` when they expect heavy-lane progress or cancellation behavior.
-- [ ] Review `testProgressThrottle16Hz` and `testCopyDirectoryProgressNeverResetsFullPath` to confirm they still stay on the heavy lane because they use directory copies.
-- [ ] Re-run the full `FileOperationQueueTests` suite and confirm no test still depends on the old "all copies fire heavy-lane callbacks" behavior.
+- [x] Update `testOperationCallbacks`, `testOnOperationStartReceivesValidProgress`, and `testOnOperationStartFiresBeforeProgress` to use inputs that are guaranteed heavy-lane.
+- [x] Update `testRunProcessDoesNotBlockMainThread`, `testCancellationWithAsyncProcess`, `testCopyLargeFileDoesNotDeadlock`, `testDuplicateLargeFileDoesNotDeadlock`, and `testCopyLargeFileCancellation` to use payloads above `10 MiB` when they expect heavy-lane progress or cancellation behavior.
+- [x] Review `testProgressThrottle16Hz` and `testCopyDirectoryProgressNeverResetsFullPath` to confirm they still stay on the heavy lane because they use directory copies.
+- [x] Re-run the full `FileOperationQueueTests` suite and confirm no test still depends on the old "all copies fire heavy-lane callbacks" behavior.
 
 ### Manual Verification (Marco)
 

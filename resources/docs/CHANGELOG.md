@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Fast Lane for Trivial File Operations
+
+- **Responsive UI during bulk transfers** — Trivial file operations (rename,
+  move to Trash, new folder, new file, small copies) no longer wait behind
+  large copies, archives, or extractions. They run instantly as long as they
+  touch files outside the active bulk operation's source and destination tree.
+- **Protected-path overlap guard** — Operations that touch the same folder
+  tree as the active bulk operation continue to serialize behind it, matching
+  the current safety behavior.
+- **Concurrency-safe unique naming** — Concurrent duplicates and fast-lane
+  creates produce distinct names by reserving chosen destination URLs before
+  filesystem work begins.
+
 ### Status Bar Progress Indicator
 
 - **Inline progress in status bar** — File operation progress now appears directly

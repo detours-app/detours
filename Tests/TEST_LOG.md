@@ -2,14 +2,22 @@
 
 ## Latest Run
 
-- Started: 2026-04-01 13:39:00
+- Started: 2026-04-09 21:45:44
 - Command: `swift test --filter FileOperationQueueTests`
 - Status: PASS
-- Duration: 5.0s
-- Notes: 38 tests passed (35 existing + 3 new large-file integration
-  tests). New tests copy 5-10 MB files through the full @MainActor
-  FileOperationQueue path to catch deadlocks in CopyfileHelper
-  progress callbacks. Covers copy, duplicate, and mid-copy cancellation.
+- Duration: 5.6s
+- Notes: Regression pass after narrowing the protected-path overlap
+  check and fixing reserved-destination handling for concurrent fast
+  copies/moves. 59 FileOperationQueueTests passed, including two new
+  tests that cover parent-directory sibling work staying on the fast
+  lane and concurrent small copies producing unique names without
+  promoting to the heavy lane.
+
+### Fast-Lane Fixes 2026-04-09 21:45
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileOperationQueueTests (59 tests) | PASS | 5.603s | 2026-04-09 21:45:44 |
 
 ## Run 20260324 18:08
 
