@@ -9,6 +9,8 @@ VERSION=$(cat VERSION)
 APP_NAME="Detours"
 APP_BUNDLE_ID="com.detours.app"
 APP_DIR="build/Detours.app"
+SERVER_BINARY="Resources/Servers/detours-server-x86_64-linux"
+SERVER_HASH_FILE="Resources/Servers/.cache-hash"
 
 # Colors
 RED='\033[0;31m'
@@ -34,11 +36,34 @@ done
 echo "DETOURS BUILD" >&2
 echo "-------------" >&2
 
+# Build Linux helper when server sources changed.
+if [ -d Server ]; then
+    log_info "Check Linux helper cache"
+    SERVER_HASH="$(resources/scripts/server-cache-hash.sh)"
+    CACHED_SERVER_HASH=""
+    if [ -f "$SERVER_HASH_FILE" ]; then
+        CACHED_SERVER_HASH="$(cat "$SERVER_HASH_FILE")"
+    fi
+
+    if [ "$SERVER_HASH" != "$CACHED_SERVER_HASH" ] || [ ! -f "$SERVER_BINARY" ]; then
+        log_info "Rebuild Linux helper"
+        if ! resources/scripts/build-server-linux.sh; then
+            log_error "dockerhost is unreachable or the Linux helper rebuild failed"
+            log_error "Cannot ship without $SERVER_BINARY"
+            exit 1
+        fi
+    fi
+
+    if [ ! -f "$SERVER_BINARY" ]; then
+        log_error "Missing $SERVER_BINARY"
+        exit 1
+    fi
+    log_ok "Linux helper ready"
+fi
+
 # Check if running
-WAS_RUNNING=false
 log_info "Check if Detours is running"
 if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
-    WAS_RUNNING=true
     log_info "Quit running instance"
     osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
     for _ in {1..50}; do
@@ -68,6 +93,9 @@ mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 cp ".build/arm64-apple-macosx/$BUILD_CONFIG/Detours" "$APP_DIR/Contents/MacOS/Detours"
 cp resources/icons/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
+if [ -f "$SERVER_BINARY" ]; then
+    cp "$SERVER_BINARY" "$APP_DIR/Contents/Resources/detours-server-x86_64-linux"
+fi
 echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
 cat > "$APP_DIR/Contents/Info.plist" << EOF
