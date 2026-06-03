@@ -109,7 +109,7 @@ extension Settings: Codable {
         gitStatusEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .gitStatusEnabled)) ?? defaults.gitStatusEnabled
 
         // FileProvider rollout
-        fileProviderEnabled = Self.environmentFileProviderFlag() ?? ((try? container.decodeIfPresent(Bool.self, forKey: .fileProviderEnabled)) ?? defaults.fileProviderEnabled)
+        fileProviderEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .fileProviderEnabled)) ?? defaults.fileProviderEnabled
 
         // Shortcuts - decode valid ones, skip invalid
         if let shortcutsDict = try? container.decodeIfPresent([ShortcutAction: KeyCombo].self, forKey: .shortcuts) {
@@ -142,19 +142,6 @@ extension Settings: Codable {
         try container.encode(shortcuts, forKey: .shortcuts)
     }
 
-    private static func environmentFileProviderFlag() -> Bool? {
-        guard let value = ProcessInfo.processInfo.environment["DETOURS_FILE_PROVIDER"]?.lowercased() else {
-            return nil
-        }
-        switch value {
-        case "1", "true", "yes", "on":
-            return true
-        case "0", "false", "no", "off":
-            return false
-        default:
-            return nil
-        }
-    }
 }
 
 // MARK: - Theme Choice

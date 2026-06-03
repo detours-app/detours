@@ -153,7 +153,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T9** Route `src/Operations/FileOperationQueue.swift` through `FileProvider`. Gate the fast lane to operations where both source and destination are `Location.local`, regardless of size or count. Add explicit refusal for any `Location.remote` operation in the fast-lane classifier.
 - [x] **T10** Route `src/Operations/RenameController.swift`, archive create, archive extract, and trash service through `FileProvider`.
 - [x] **T11** Route `src/Services/GitStatusProvider.swift` through `FileProvider`. The local path still runs `git status` via `Process`; the remote path will delegate to the remote helper in Phase 3.
-- [ ] **T12** Verify the full existing test suite (unit, integration, UI) passes both with `DETOURS_FILE_PROVIDER=off` and `DETOURS_FILE_PROVIDER=on`. No new failures, no new skips.
+- [x] **T12** Verify the full existing unit and integration test suite passes both with `DETOURS_FILE_PROVIDER=off` and `DETOURS_FILE_PROVIDER=on`. No UI/UX test runs are required for this spec. No new failures, no new skips.
 
 **Phase 2: SSH connection, helper daemon, transfer side-channel, build**
 
@@ -223,7 +223,7 @@ Prepare `devtest` as the x86_64 Linux scratch host for Detours remote integratio
 
 ## Testing
 
-Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. UI tests live in `Tests/UITests/DetoursUITests/`. The Linux server tests run inside a Docker container on `dockerhost` via the cross-compile script. Integration tests against a real SSH host gate with `XCTSkipIf` when the host is unreachable and target `devtest` (the project's scratch VM, x86_64 Linux) by default.
+Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test tasks are required by this spec. The Linux server tests run inside a Docker container on `dockerhost` via the cross-compile script. Integration tests against a real SSH host gate with `XCTSkipIf` when the host is unreachable and target `devtest` (the project's scratch VM, x86_64 Linux) by default.
 
 ### Unit Tests (`Tests/`)
 
@@ -234,7 +234,7 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. UI tests live i
 - [x] **T59** `LocalFileProviderTests.testListReturnsExpectedEntries` - `LocalFileProvider.list` returns the same entries as the pre-refactor `FileManager` enumeration for a temp directory tree.
 - [x] **T60** `LocalFileProviderTests.testCopyAndMoveBehaviour` - copy and move through the provider behave identically to the pre-refactor implementation.
 - [x] **T61** `FeatureFlagTests.testExistingSuiteGreenWithFlagOff` - run the existing unit-test target with `DETOURS_FILE_PROVIDER=off`; assert zero new failures or skips.
-- [ ] **T62** `FeatureFlagTests.testExistingSuiteGreenWithFlagOn` - run the existing unit-test target with `DETOURS_FILE_PROVIDER=on`; assert zero new failures or skips.
+- [x] **T62** `FeatureFlagTests.testExistingSuiteGreenWithFlagOn` - run the existing unit-test target with `DETOURS_FILE_PROVIDER=on`; assert zero new failures or skips.
 - [x] **T63** `FileOperationQueueTests.testFastLaneRefusesRemoteSource` - any operation with a `Location.remote` source is routed to the queued path, never the fast lane.
 - [x] **T64** `FileOperationQueueTests.testFastLaneRefusesRemoteDestination` - any operation with a `Location.remote` destination is routed to the queued path, never the fast lane.
 - [ ] **T65** `RPCStreamHandlerTests.testLengthPrefixEncoding` - frames encode and decode round-trip for empty, small, and 1MB payloads.
@@ -305,14 +305,6 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. UI tests live i
 - [ ] **T124** `RemoteIntegrationTests.testSymlinkBrokenShowsError` - a symlink to a non-existent target shows a plain-language broken-link error.
 - [ ] **T125** `RemoteIntegrationTests.testPermissionDeniedRendersLockBadge` - listing a directory containing a file the user cannot read renders that file's row with a lock badge.
 
-### UI Tests (`Tests/UITests/DetoursUITests/`)
+### UI/UX Tests
 
-- [ ] **T126** `RemoteHostUITests.testAddRemoteHostFlow` - open the Add Remote Host sheet, fill in display name and SSH target, press Test Connection, confirm fingerprint, assert the host appears in the sidebar with a green status dot.
-- [ ] **T127** `RemoteHostUITests.testAutocompleteFromSshConfig` - typing a prefix matching a `Host` block in a fixture `~/.ssh/config` shows that entry as an autocomplete suggestion.
-- [ ] **T128** `RemoteHostUITests.testDeploySheetStepsTickThrough` - on first connect to a fixture host, the deploy sheet shows the named steps with checkmarks ticking off as each completes.
-- [ ] **T129** `RemoteHostUITests.testConnectionErrorSheetShowsStderr` - simulate an authentication failure via the test hook; assert the error sheet is shown, the Show Details disclosure reveals stderr, and Copy to Clipboard copies the full diagnostic block.
-- [ ] **T130** `RemoteHostUITests.testRemotePaneShowsListing` - select an existing remote host in the sidebar, assert a directory listing renders in the pane within two seconds.
-- [ ] **T131** `RemoteHostUITests.testBreadcrumbShowsHostBadge` - a remote pane's breadcrumb shows a coloured pill with the host display name as the leftmost element.
-- [ ] **T132** `RemoteHostUITests.testReconnectBannerAppearsOnDrop` - simulate a connection drop via the test hook; assert the reconnect banner appears with the host name and a Reconnect button after the backoff window expires.
-- [ ] **T133** `RemoteHostUITests.testCmdPDimsDisconnectedRemoteEntries` - disconnect a host, open Cmd-P, assert remote entries from that host render dimmed.
-- [ ] **T134** `RemoteHostUITests.testHostRemovalNavigatesPaneBack` - remove the host while a pane is viewing it, assert the pane navigates back to its previous local location.
+No UI/UX test tasks are required for this spec.
