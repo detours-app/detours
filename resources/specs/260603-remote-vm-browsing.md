@@ -151,7 +151,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T7** Route `src/FileList/FileListViewController.swift` through `FileProvider`. Replace the `MultiDirectoryWatcher` call sites with `provider.watch(location:onChange:)`.
 - [x] **T8** Update `src/FileList/MultiDirectoryWatcher.swift` to be the local-only implementation behind `LocalFileProvider.watch`. The remote implementation lands in Phase 3.
 - [x] **T9** Route `src/Operations/FileOperationQueue.swift` through `FileProvider`. Gate the fast lane to operations where both source and destination are `Location.local`, regardless of size or count. Add explicit refusal for any `Location.remote` operation in the fast-lane classifier.
-- [ ] **T10** Route `src/Operations/RenameController.swift`, archive create, archive extract, and trash service through `FileProvider`.
+- [x] **T10** Route `src/Operations/RenameController.swift`, archive create, archive extract, and trash service through `FileProvider`.
 - [ ] **T11** Route `src/Services/GitStatusProvider.swift` through `FileProvider`. The local path still runs `git status` via `Process`; the remote path will delegate to the remote helper in Phase 3.
 - [ ] **T12** Verify the full existing test suite (unit, integration, UI) passes both with `DETOURS_FILE_PROVIDER=off` and `DETOURS_FILE_PROVIDER=on`. No new failures, no new skips.
 

@@ -174,12 +174,24 @@ final class FileOperationQueue {
     }
 
     func rename(item: URL, to newName: String) async throws -> URL {
-        let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
-        if !conflictsWithActiveHeavyOperation(sources: [item], destination: destination) {
-            return try await performFastRename(item: item, to: newName)
+        try await rename(item: .local(item), to: newName).url
+    }
+
+    func rename(item: Location, to newName: String) async throws -> Location {
+        guard case .local(let itemURL) = item else {
+            return try await enqueue {
+                throw FileProviderError.unsupportedOperation("Remote rename is not implemented yet")
+            }
+        }
+
+        let destination = itemURL.deletingLastPathComponent().appendingPathComponent(newName)
+        if !conflictsWithActiveHeavyOperation(sources: [itemURL], destination: destination) {
+            let renamed = try await performFastRename(item: itemURL, to: newName)
+            return .local(renamed)
         }
         return try await enqueue {
-            try await self.performRename(item: item, to: newName)
+            let renamed = try await self.performRename(item: itemURL, to: newName)
+            return .local(renamed)
         }
     }
 
@@ -219,15 +231,37 @@ final class FileOperationQueue {
 
     @discardableResult
     func archive(items: [URL], format: ArchiveFormat, archiveName: String, password: String?) async throws -> URL {
-        try await enqueue {
-            try await self.performArchive(items: items, format: format, archiveName: archiveName, password: password)
+        try await archive(items: items.map(Location.local), format: format, archiveName: archiveName, password: password).url
+    }
+
+    @discardableResult
+    func archive(items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location {
+        guard let itemURLs = localURLs(from: items) else {
+            return try await enqueue {
+                throw FileProviderError.unsupportedOperation("Remote archive creation is not implemented yet")
+            }
+        }
+        return try await enqueue { () async throws -> Location in
+            let archive = try await self.performArchive(items: itemURLs, format: format, archiveName: archiveName, password: password)
+            return .local(archive)
         }
     }
 
     @discardableResult
     func extract(archive: URL, password: String? = nil) async throws -> URL {
-        try await enqueue {
-            try await self.performExtract(archive: archive, password: password)
+        try await extract(archive: .local(archive), password: password).url
+    }
+
+    @discardableResult
+    func extract(archive: Location, password: String? = nil) async throws -> Location {
+        guard case .local(let archiveURL) = archive else {
+            return try await enqueue {
+                throw FileProviderError.unsupportedOperation("Remote archive extraction is not implemented yet")
+            }
+        }
+        return try await enqueue { () async throws -> Location in
+            let extracted = try await self.performExtract(archive: archiveURL, password: password)
+            return .local(extracted)
         }
     }
 
