@@ -14,7 +14,8 @@ enum SharedItemRole: Equatable {
 
 final class FileItem {
     let name: String
-    let url: URL
+    let location: Location
+    var url: URL { location.url }
     let isDirectory: Bool
     let isPackage: Bool
     let isAliasFile: Bool
@@ -31,9 +32,63 @@ final class FileItem {
     var children: [FileItem]?  // nil = not loaded, empty = loaded but empty
     weak var parent: FileItem?
 
+    convenience init(name: String, location: Location, isDirectory: Bool, isPackage: Bool = false, isAliasFile: Bool = false, size: Int64?, dateModified: Date, icon: NSImage, sharedRole: SharedItemRole? = nil, isVirtualSharedFolder: Bool = false, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
+        switch location {
+        case .local(let url):
+            self.init(
+                name: name,
+                url: url,
+                isDirectory: isDirectory,
+                isPackage: isPackage,
+                isAliasFile: isAliasFile,
+                size: size,
+                dateModified: dateModified,
+                icon: icon,
+                sharedRole: sharedRole,
+                isVirtualSharedFolder: isVirtualSharedFolder,
+                iCloudStatus: iCloudStatus,
+                isHiddenFile: isHiddenFile,
+                gitStatus: gitStatus
+            )
+        case .remote:
+            self.init(
+                name: name,
+                location: location,
+                isDirectory: isDirectory,
+                isPackage: isPackage,
+                isAliasFile: isAliasFile,
+                size: size,
+                dateModified: dateModified,
+                icon: icon,
+                sharedRole: sharedRole,
+                isVirtualSharedFolder: isVirtualSharedFolder,
+                iCloudStatus: iCloudStatus,
+                isHiddenFile: isHiddenFile,
+                gitStatus: gitStatus,
+                remoteToken: ()
+            )
+        }
+    }
+
     init(name: String, url: URL, isDirectory: Bool, isPackage: Bool = false, isAliasFile: Bool = false, size: Int64?, dateModified: Date, icon: NSImage, sharedRole: SharedItemRole? = nil, isVirtualSharedFolder: Bool = false, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
         self.name = name
-        self.url = url
+        self.location = .local(url)
+        self.isDirectory = isDirectory
+        self.isPackage = isPackage
+        self.isAliasFile = isAliasFile
+        self.isHiddenFile = isHiddenFile
+        self.size = size
+        self.dateModified = dateModified
+        self.icon = icon
+        self.sharedRole = sharedRole
+        self.isVirtualSharedFolder = isVirtualSharedFolder
+        self.iCloudStatus = iCloudStatus
+        self.gitStatus = gitStatus
+    }
+
+    private init(name: String, location: Location, isDirectory: Bool, isPackage: Bool, isAliasFile: Bool, size: Int64?, dateModified: Date, icon: NSImage, sharedRole: SharedItemRole?, isVirtualSharedFolder: Bool, iCloudStatus: ICloudStatus, isHiddenFile: Bool, gitStatus: GitStatus?, remoteToken: Void) {
+        self.name = name
+        self.location = location
         self.isDirectory = isDirectory
         self.isPackage = isPackage
         self.isAliasFile = isAliasFile
@@ -48,7 +103,7 @@ final class FileItem {
     }
 
     init(entry: LoadedFileEntry, icon: NSImage) {
-        self.url = entry.url
+        self.location = .local(entry.url)
         self.name = entry.name
         self.isDirectory = entry.isDirectory
         self.isPackage = entry.isPackage
@@ -87,7 +142,7 @@ final class FileItem {
     /// Synchronous init that reads resource values from the file system directly.
     /// Blocks the calling thread — prefer init(entry:icon:) for async paths.
     init(url: URL) {
-        self.url = url
+        self.location = .local(url)
 
         let resourceKeys: Set<URLResourceKey> = [
             .isDirectoryKey,
@@ -393,11 +448,11 @@ extension FileItem {
 
 extension FileItem: Hashable {
     static func == (lhs: FileItem, rhs: FileItem) -> Bool {
-        lhs.url == rhs.url
+        lhs.location == rhs.location
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(url)
+        hasher.combine(location)
     }
 }
 

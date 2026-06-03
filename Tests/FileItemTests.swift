@@ -51,6 +51,21 @@ final class FileItemTests: XCTestCase {
         XCTAssertEqual(item.sharedLabelText, "Shared by me")
     }
 
+    func testIdentityAcrossReloads() {
+        let localURL = URL(fileURLWithPath: "/tmp/detours-local")
+        let localA = FileItem(name: "detours-local", url: localURL, isDirectory: true, size: nil, dateModified: Date(), icon: NSImage())
+        let localB = FileItem(name: "detours-local", url: localURL, isDirectory: true, size: nil, dateModified: Date(), icon: NSImage())
+        XCTAssertEqual(localA, localB)
+        XCTAssertEqual(localA.hashValue, localB.hashValue)
+
+        let hostID = UUID()
+        let remoteLocation = Location.remote(hostID: hostID, path: "/home/marco/project")
+        let remoteA = FileItem(name: "project", location: remoteLocation, isDirectory: true, size: nil, dateModified: Date(), icon: NSImage())
+        let remoteB = FileItem(name: "project", location: remoteLocation, isDirectory: true, size: nil, dateModified: Date(), icon: NSImage())
+        XCTAssertEqual(remoteA, remoteB)
+        XCTAssertEqual(remoteA.hashValue, remoteB.hashValue)
+    }
+
     func testCloudDocsNotRenamedToShared() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

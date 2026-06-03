@@ -142,11 +142,11 @@ Phase headers are organisational. The phases land in order on the feature branch
 
 **Phase 1: FileProvider refactor (no remote code yet)**
 
-- [ ] **T1** Create `src/Services/FileProvider/FileProvider.swift` defining the protocol with async methods: `list`, `stat`, `copy`, `move`, `delete`, `trash`, `restoreFromTrash`, `rename`, `archiveCreate`, `archiveExtract`, `watch`, `unwatch`, `gitStatus`, `folderSize`, `readSymlink`, `openForQuickLook`.
-- [ ] **T2** Create `src/Services/FileProvider/Location.swift` defining `enum Location { case local(URL); case remote(hostID: UUID, path: String) }` with helpers for path manipulation that work for both cases. Add a `url` computed property that traps on the remote case so callers must update intentionally.
-- [ ] **T3** Add a `DETOURS_FILE_PROVIDER` runtime flag in `src/Preferences/Settings.swift` (default off). When off, callers use the existing direct `FileManager` path; when on, they go through `LocalFileProvider`. The dual path code is removed at the end of Phase 5.
-- [ ] **T4** Create `src/Services/FileProvider/LocalFileProvider.swift` that wraps every existing `FileManager` call site behind the protocol. Method-for-method mapping, no behaviour change.
-- [ ] **T5** Migrate `src/FileList/FileItem.swift` so the bare `url: URL` field becomes `location: Location`. Add a `url` convenience for the local case to ease the migration. Update both initialisers and the iCloud / shared-folder paths.
+- [x] **T1** Create `src/Services/FileProvider/FileProvider.swift` defining the protocol with async methods: `list`, `stat`, `copy`, `move`, `delete`, `trash`, `restoreFromTrash`, `rename`, `archiveCreate`, `archiveExtract`, `watch`, `unwatch`, `gitStatus`, `folderSize`, `readSymlink`, `openForQuickLook`.
+- [x] **T2** Create `src/Services/FileProvider/Location.swift` defining `enum Location { case local(URL); case remote(hostID: UUID, path: String) }` with helpers for path manipulation that work for both cases. Add a `url` computed property that traps on the remote case so callers must update intentionally.
+- [x] **T3** Add a `DETOURS_FILE_PROVIDER` runtime flag in `src/Preferences/Settings.swift` (default off). When off, callers use the existing direct `FileManager` path; when on, they go through `LocalFileProvider`. The dual path code is removed at the end of Phase 5.
+- [x] **T4** Create `src/Services/FileProvider/LocalFileProvider.swift` that wraps every existing `FileManager` call site behind the protocol. Method-for-method mapping, no behaviour change.
+- [x] **T5** Migrate `src/FileList/FileItem.swift` so the bare `url: URL` field becomes `location: Location`. Add a `url` convenience for the local case to ease the migration. Update both initialisers and the iCloud / shared-folder paths.
 - [ ] **T6** Route `src/FileList/FileListDataSource.swift` through `FileProvider` when the flag is on: `loadDirectory`, folder size lookups, git status overlay, sort. Preserve NSOutlineView identity across reloads by hashing on `Location` rather than `URL`.
 - [ ] **T7** Route `src/FileList/FileListViewController.swift` through `FileProvider`. Replace the `MultiDirectoryWatcher` call sites with `provider.watch(location:onChange:)`.
 - [ ] **T8** Update `src/FileList/MultiDirectoryWatcher.swift` to be the local-only implementation behind `LocalFileProvider.watch`. The remote implementation lands in Phase 3.
@@ -227,12 +227,12 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. UI tests live i
 
 ### Unit Tests (`Tests/`)
 
-- [ ] **T55** `LocationTests.testLocalRoundTrip` - `Location.local(URL)` round-trips through `Codable` and equality.
-- [ ] **T56** `LocationTests.testRemoteRoundTrip` - `Location.remote(hostID, path)` round-trips through `Codable` and equality.
-- [ ] **T57** `LocationTests.testPathManipulation` - `appendingPathComponent`, `deletingLastPathComponent`, and `parent` work identically for both cases.
-- [ ] **T58** `FileItemTests.testIdentityAcrossReloads` - `FileItem` identity hash is stable across reloads for both local and remote `Location`s.
-- [ ] **T59** `LocalFileProviderTests.testListReturnsExpectedEntries` - `LocalFileProvider.list` returns the same entries as the pre-refactor `FileManager` enumeration for a temp directory tree.
-- [ ] **T60** `LocalFileProviderTests.testCopyAndMoveBehaviour` - copy and move through the provider behave identically to the pre-refactor implementation.
+- [x] **T55** `LocationTests.testLocalRoundTrip` - `Location.local(URL)` round-trips through `Codable` and equality.
+- [x] **T56** `LocationTests.testRemoteRoundTrip` - `Location.remote(hostID, path)` round-trips through `Codable` and equality.
+- [x] **T57** `LocationTests.testPathManipulation` - `appendingPathComponent`, `deletingLastPathComponent`, and `parent` work identically for both cases.
+- [x] **T58** `FileItemTests.testIdentityAcrossReloads` - `FileItem` identity hash is stable across reloads for both local and remote `Location`s.
+- [x] **T59** `LocalFileProviderTests.testListReturnsExpectedEntries` - `LocalFileProvider.list` returns the same entries as the pre-refactor `FileManager` enumeration for a temp directory tree.
+- [x] **T60** `LocalFileProviderTests.testCopyAndMoveBehaviour` - copy and move through the provider behave identically to the pre-refactor implementation.
 - [ ] **T61** `FeatureFlagTests.testExistingSuiteGreenWithFlagOff` - run the existing unit-test target with `DETOURS_FILE_PROVIDER=off`; assert zero new failures or skips.
 - [ ] **T62** `FeatureFlagTests.testExistingSuiteGreenWithFlagOn` - run the existing unit-test target with `DETOURS_FILE_PROVIDER=on`; assert zero new failures or skips.
 - [ ] **T63** `FileOperationQueueTests.testFastLaneRefusesRemoteSource` - any operation with a `Location.remote` source is routed to the queued path, never the fast lane.

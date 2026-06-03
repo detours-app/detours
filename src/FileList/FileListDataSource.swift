@@ -56,6 +56,10 @@ final class FolderSizeCache {
         }
     }
 
+    static func calculateFolderSizeForProvider(at url: URL) async -> Int64 {
+        await calculateFolderSize(at: url)
+    }
+
     private static func calculateFolderSize(at url: URL) async -> Int64 {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
