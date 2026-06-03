@@ -2,7 +2,9 @@ import AppKit
 
 final class SidebarItemView: NSTableCellView {
     private let iconView = NSImageView()
+    private let statusDot = NSView()
     private let nameLabel = NSTextField(labelWithString: "")
+    private let subtitleLabel = NSTextField(labelWithString: "")
     private let capacityLabel = NSTextField(labelWithString: "")
     private let protocolBadge = NSTextField(labelWithString: "")
     private let ejectButton = NSButton()
@@ -25,10 +27,21 @@ final class SidebarItemView: NSTableCellView {
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconView.imageScaling = .scaleProportionallyDown
 
+        statusDot.translatesAutoresizingMaskIntoConstraints = false
+        statusDot.wantsLayer = true
+        statusDot.layer?.cornerRadius = 4
+        statusDot.isHidden = true
+
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.font = .systemFont(ofSize: 12)
         nameLabel.lineBreakMode = .byTruncatingTail
         nameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        subtitleLabel.font = .systemFont(ofSize: 10)
+        subtitleLabel.lineBreakMode = .byTruncatingTail
+        subtitleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        subtitleLabel.isHidden = true
 
         capacityLabel.translatesAutoresizingMaskIntoConstraints = false
         capacityLabel.font = .systemFont(ofSize: 10)
@@ -55,7 +68,9 @@ final class SidebarItemView: NSTableCellView {
         ejectButton.isHidden = true
 
         addSubview(iconView)
+        addSubview(statusDot)
         addSubview(nameLabel)
+        addSubview(subtitleLabel)
         addSubview(capacityLabel)
         addSubview(protocolBadge)
         addSubview(ejectButton)
@@ -66,9 +81,18 @@ final class SidebarItemView: NSTableCellView {
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
 
+            statusDot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            statusDot.centerYAnchor.constraint(equalTo: centerYAnchor),
+            statusDot.widthAnchor.constraint(equalToConstant: 8),
+            statusDot.heightAnchor.constraint(equalToConstant: 8),
+
             nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: capacityLabel.leadingAnchor, constant: -4),
+
+            subtitleLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+            subtitleLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 0),
+            subtitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
 
             capacityLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             capacityLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 50),
@@ -84,11 +108,17 @@ final class SidebarItemView: NSTableCellView {
     }
 
     func configure(with item: SidebarItem, theme: Theme, indented: Bool = false, isOffline: Bool = false, hasVolumes: Bool = false) {
+        statusDot.isHidden = true
+        subtitleLabel.isHidden = true
+        alphaValue = 1.0
+
         switch item {
         case .section(let section):
             configureAsSection(section, theme: theme)
         case .device(let volume):
             configureAsDevice(volume, theme: theme)
+        case .remoteHost(let host):
+            configureAsRemoteHost(host, theme: theme)
         case .server(let server):
             configureAsServer(server, theme: theme, isOffline: isOffline, hasVolumes: hasVolumes)
         case .syntheticServer(let synthetic):
@@ -199,6 +229,31 @@ final class SidebarItemView: NSTableCellView {
         protocolBadgeTrailingConstraint?.isActive = true
 
         resetNameLeading()
+    }
+
+    private func configureAsRemoteHost(_ host: RemoteHost, theme: Theme) {
+        iconView.isHidden = true
+        statusDot.isHidden = false
+        statusDot.layer?.backgroundColor = theme.textTertiary.cgColor
+
+        nameLabel.stringValue = host.displayName
+        nameLabel.font = theme.uiFont(size: 13)
+        nameLabel.textColor = theme.textPrimary
+
+        subtitleLabel.isHidden = false
+        subtitleLabel.stringValue = host.sshTarget
+        subtitleLabel.font = theme.uiFont(size: 10)
+        subtitleLabel.textColor = theme.textTertiary
+
+        capacityLabel.isHidden = true
+        protocolBadge.isHidden = true
+        ejectButton.isHidden = true
+        resetNameLeadingToStatusDot()
+
+        for constraint in constraints where constraint.firstAnchor == nameLabel.centerYAnchor {
+            constraint.isActive = false
+        }
+        nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -5).isActive = true
     }
 
     private func configureAsSyntheticServer(_ server: SyntheticServer, theme: Theme, hasVolumes: Bool = false) {
@@ -316,12 +371,23 @@ final class SidebarItemView: NSTableCellView {
         nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8).isActive = true
     }
 
+    private func resetNameLeadingToStatusDot() {
+        for constraint in constraints where constraint.firstAnchor == nameLabel.leadingAnchor {
+            constraint.isActive = false
+        }
+        nameLabel.leadingAnchor.constraint(equalTo: statusDot.trailingAnchor, constant: 8).isActive = true
+    }
+
     override func prepareForReuse() {
         super.prepareForReuse()
         iconView.image = nil
         iconView.isHidden = false
         iconView.contentTintColor = nil
+        statusDot.isHidden = true
+        statusDot.layer?.backgroundColor = nil
         nameLabel.stringValue = ""
+        subtitleLabel.stringValue = ""
+        subtitleLabel.isHidden = true
         capacityLabel.stringValue = ""
         capacityLabel.isHidden = true
         protocolBadge.stringValue = ""

@@ -4,12 +4,14 @@ import AppKit
 
 enum SidebarSection: CaseIterable {
     case devices
+    case remoteHosts
     case network
     case favorites
 
     var title: String {
         switch self {
         case .devices: return "DEVICES"
+        case .remoteHosts: return "REMOTE HOSTS"
         case .network: return "NETWORK"
         case .favorites: return "FAVORITES"
         }
@@ -21,6 +23,7 @@ enum SidebarSection: CaseIterable {
 enum SidebarItem: Equatable {
     case section(SidebarSection)
     case device(VolumeInfo)
+    case remoteHost(RemoteHost)
     case server(NetworkServer)
     case syntheticServer(SyntheticServer)
     case networkVolume(VolumeInfo)  // Volume displayed under a server in NETWORK section
@@ -32,6 +35,8 @@ enum SidebarItem: Equatable {
             return nil
         case .device(let volume):
             return volume.url
+        case .remoteHost:
+            return nil
         case .server(let server):
             return server.url
         case .syntheticServer:
@@ -49,6 +54,8 @@ enum SidebarItem: Equatable {
             return a == b
         case (.device(let a), .device(let b)):
             return a.url == b.url
+        case (.remoteHost(let a), .remoteHost(let b)):
+            return a.id == b.id
         case (.server(let a), .server(let b)):
             return a == b
         case (.syntheticServer(let a), .syntheticServer(let b)):
