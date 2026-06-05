@@ -24,14 +24,27 @@ log_error() { echo -e "${RED}ERROR $1${NC}" >&2; }
 
 # Parse arguments
 BUILD_CONFIG="release"
+UNIVERSAL=false
+NO_INSTALL=false
 for arg in "$@"; do
     case $arg in
         --debug)
             BUILD_CONFIG="debug"
-            shift
+            ;;
+        --universal)
+            UNIVERSAL=true
+            ;;
+        --no-install)
+            NO_INSTALL=true
             ;;
     esac
 done
+
+# SwiftPM uses a capitalized config name in the multi-arch product path
+case "$BUILD_CONFIG" in
+    release) CONFIG_CAP="Release" ;;
+    debug)   CONFIG_CAP="Debug" ;;
+esac
 
 echo "DETOURS BUILD" >&2
 echo "-------------" >&2
@@ -61,9 +74,10 @@ if [ -d Server ]; then
     log_ok "Linux helper ready"
 fi
 
-# Check if running
-log_info "Check if Detours is running"
-if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+# Check if running (only relevant when we will overwrite the installed app)
+if [ "$UNIVERSAL" = true ] || [ "$NO_INSTALL" = true ]; then
+    log_info "Distribution build: leaving any running instance untouched"
+elif pgrep -x "$APP_NAME" >/dev/null 2>&1; then
     log_info "Quit running instance"
     osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
     for _ in {1..50}; do
@@ -82,8 +96,15 @@ else
 fi
 
 # Build
-log_info "Swift build ($BUILD_CONFIG)"
-swift build -c "$BUILD_CONFIG"
+if [ "$UNIVERSAL" = true ]; then
+    log_info "Swift build ($BUILD_CONFIG, universal arm64+x86_64)"
+    swift build -c "$BUILD_CONFIG" --arch arm64 --arch x86_64
+    BUILT_BINARY=".build/apple/Products/$CONFIG_CAP/Detours"
+else
+    log_info "Swift build ($BUILD_CONFIG)"
+    swift build -c "$BUILD_CONFIG"
+    BUILT_BINARY=".build/arm64-apple-macosx/$BUILD_CONFIG/Detours"
+fi
 log_ok "Build complete"
 
 # Create app bundle
@@ -91,7 +112,7 @@ log_info "Create app bundle"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
-cp ".build/arm64-apple-macosx/$BUILD_CONFIG/Detours" "$APP_DIR/Contents/MacOS/Detours"
+cp "$BUILT_BINARY" "$APP_DIR/Contents/MacOS/Detours"
 cp resources/icons/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 if [ -f "$SERVER_BINARY" ]; then
     cp "$SERVER_BINARY" "$APP_DIR/Contents/Resources/detours-server-x86_64-linux"
@@ -145,8 +166,13 @@ ENTITLEMENTS="Detours.entitlements"
 /usr/bin/codesign --force --timestamp --options runtime --entitlements "$ENTITLEMENTS" -s "$CODESIGN_IDENTITY" "$APP_DIR" 2>&1
 log_ok "Codesigned"
 
-if [ "$1" = "--no-install" ]; then
-    log_ok "Done (app bundle at build/Detours.app)"
+if [ "$UNIVERSAL" = true ] || [ "$NO_INSTALL" = true ]; then
+    if [ "$UNIVERSAL" = true ]; then
+        log_ok "Universal bundle ready ($(lipo -archs "$APP_DIR/Contents/MacOS/Detours"))"
+        log_info "Copy build/Detours.app to wraith, e.g.: scp -r build/Detours.app wraith:/Applications/"
+    else
+        log_ok "Done (app bundle at build/Detours.app)"
+    fi
     exit 0
 fi
 
