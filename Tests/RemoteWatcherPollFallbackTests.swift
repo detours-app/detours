@@ -67,10 +67,11 @@ final class RemoteWatcherPollFallbackTests: XCTestCase {
         await fallback.start(
             watch: watch,
             inotifyLimitCommand: "sudo sysctl fs.inotify.max_user_watches=524288",
-            loadSnapshot: { await source.load() }
-        ) { changedLocation in
-            Task { await recorder.append(changedLocation) }
-        }
+            loadSnapshot: { await source.load() },
+            onChange: { changedLocation in
+                Task { await recorder.append(changedLocation) }
+            }
+        )
 
         await waitUntil {
             await recorder.values() == [location]

@@ -204,18 +204,29 @@ final class SystemInotifyBackend: InotifyBackend {
 
     init() {}
     #else
-    private let descriptor: FileDescriptor
+    private let descriptorLock = NSLock()
+    private var createdDescriptor: FileDescriptor?
 
-    init() {
-        descriptor = try! FileDescriptor()
+    init() {}
+
+    private func inotifyDescriptor() throws -> FileDescriptor {
+        descriptorLock.lock()
+        defer { descriptorLock.unlock() }
+        if let createdDescriptor {
+            return createdDescriptor
+        }
+        let descriptor = try FileDescriptor()
+        createdDescriptor = descriptor
+        return descriptor
     }
     #endif
 
     func addWatch(path: String) throws -> Int32 {
         #if os(Linux)
         let mask = UInt32(IN_CREATE | IN_MODIFY | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_ATTRIB)
+        let inotifyFD = try inotifyDescriptor().rawValue
         let watchDescriptor = path.withCString { pathPointer in
-            inotify_add_watch(descriptor.rawValue, pathPointer, mask)
+            inotify_add_watch(inotifyFD, pathPointer, mask)
         }
         guard watchDescriptor >= 0 else {
             throw ServerWatcherError.systemCallFailed("inotify_add_watch", errno: errno)
@@ -272,7 +283,7 @@ final class SystemInotifyBackend: InotifyBackend {
 
     func removeWatch(_ descriptorToRemove: Int32) throws {
         #if os(Linux)
-        let result = inotify_rm_watch(descriptor.rawValue, descriptorToRemove)
+        let result = inotify_rm_watch(try inotifyDescriptor().rawValue, descriptorToRemove)
         guard result == 0 else {
             throw ServerWatcherError.systemCallFailed("inotify_rm_watch", errno: errno)
         }
@@ -290,7 +301,7 @@ final class SystemInotifyBackend: InotifyBackend {
     func readEvents() throws -> [InotifyDescriptorEvent] {
         #if os(Linux)
         var buffer = [UInt8](repeating: 0, count: 16 * 1024)
-        let byteCount = Glibc.read(descriptor.rawValue, &buffer, buffer.count)
+        let byteCount = Glibc.read(try inotifyDescriptor().rawValue, &buffer, buffer.count)
         if byteCount < 0 {
             if errno == EAGAIN || errno == EWOULDBLOCK {
                 return []
@@ -308,6 +319,8 @@ final class SystemInotifyBackend: InotifyBackend {
             let nameStart = offset + 16
             let nameEnd = min(nameStart + nameLength, byteCount)
             let nameBytes = buffer[nameStart..<nameEnd].prefix { $0 != 0 }
+            // Filenames are raw bytes on Linux; lossy decoding is intentional for event paths.
+            // swiftlint:disable:next optional_data_string_conversion
             let name = String(decoding: nameBytes, as: UTF8.self)
 
             if let kind = ServerWatchEventKind(mask: mask) {

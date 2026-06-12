@@ -23,7 +23,7 @@ The actual connection is still made by OpenSSH, so the SSH target may use the di
 - `ControlMaster`
 - `ControlPath`
 
-Host-key trust is app-scoped. Detours stores trusted fingerprints in `~/.detours/known_hosts` and asks before trusting a new or changed host key.
+Host-key trust follows the user's existing OpenSSH setup. If `ssh <target>` works in Terminal through the user's SSH config, known-hosts files, and agent, Detours does not show a separate fingerprint prompt.
 
 ## Helper Binary
 

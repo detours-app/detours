@@ -6,8 +6,8 @@ import XCTest
 final class ClipboardManagerTests: XCTestCase {
     private var previousItems: [NSPasteboardItem] = []
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         previousItems = (NSPasteboard.general.pasteboardItems ?? []).map { item in
             let clone = NSPasteboardItem()
             for type in item.types {
@@ -20,12 +20,12 @@ final class ClipboardManagerTests: XCTestCase {
         ClipboardManager.shared.clear()
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         NSPasteboard.general.clearContents()
         if !previousItems.isEmpty {
             NSPasteboard.general.writeObjects(previousItems)
         }
-        super.tearDown()
+        try await super.tearDown()
     }
 
     func testCopyWritesToPasteboard() throws {

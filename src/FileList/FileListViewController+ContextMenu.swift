@@ -360,11 +360,6 @@ extension FileListViewController: FileListContextMenuDelegate {
 }
 
 private extension FileItem {
-    var isLocal: Bool {
-        if case .local = location { return true }
-        return false
-    }
-
     var openWithLookupURL: URL {
         switch location {
         case .local(let url):

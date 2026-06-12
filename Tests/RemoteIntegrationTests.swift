@@ -235,6 +235,46 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertFalse(entries.isEmpty)
     }
 
+    func testIntelMacPersistentSSHConnectionListsHome() async throws {
+        try await RemoteIntegrationSession.deployIntelMacHelper()
+        let temp = URL(fileURLWithPath: "/tmp").appendingPathComponent("dtssh-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { cleanupTempDirectory(temp) }
+        let hostID = UUID()
+        let knownHostsURL = temp.appendingPathComponent("known_hosts")
+        let controlDirectory = temp.appendingPathComponent("ssh", isDirectory: true)
+        let trust = SSHHostTrust(knownHostsURL: knownHostsURL)
+        let hostKey = try await trust.scanHostKey(for: "wraith")
+        try trust.recordTrustedHostKey(hostKey, hostID: hostID)
+        let connection = SSHConnection(
+            configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: "wraith"),
+            controlDirectory: controlDirectory,
+            hostTrust: trust
+        )
+        let rpcClient = SSHRemoteRPCClient(connection: connection)
+        let provider = RemoteFileProvider(
+            hostID: hostID,
+            rpcClient: rpcClient,
+            transferChannel: RemoteTransferChannel(sshTarget: "wraith", controlDirectory: controlDirectory)
+        )
+        let home = try Self.remoteHome(target: "wraith")
+
+        try await connection.connect()
+        let response: [Data]
+        let entries: [LoadedFileEntry]
+        do {
+            response = try await rpcClient.send(.protocolVersion(1))
+            entries = try await provider.list(.remote(hostID: hostID, path: home), showHidden: false)
+        } catch {
+            await connection.disconnect()
+            throw error
+        }
+        await connection.disconnect()
+
+        XCTAssertEqual(response.count, 1)
+        XCTAssertFalse(entries.isEmpty)
+    }
+
     func testIntelMacCopyRemoteToLocal() async throws {
         let session = try await RemoteIntegrationSession.makeIntelMac()
         let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
@@ -456,13 +496,17 @@ private struct RemoteIntegrationSession {
     }
 
     static func makeIntelMac() async throws -> RemoteIntegrationSession {
+        try await deployIntelMacHelper()
+        return make(sshTarget: "wraith")
+    }
+
+    static func deployIntelMacHelper() async throws {
         try RemoteIntegrationTests.requireIntelMacHost("wraith")
         let deployer = ServerDeployer(
             client: SSHServerDeploymentClient(sshTarget: "wraith"),
             bundledBinaryDirectoryURL: URL(fileURLWithPath: "resources/Servers")
         )
         _ = try await deployer.deployIfNeeded()
-        return make(sshTarget: "wraith")
     }
 }
 

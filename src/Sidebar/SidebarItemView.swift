@@ -3,6 +3,7 @@ import AppKit
 final class SidebarItemView: NSTableCellView {
     private let iconView = NSImageView()
     private let statusDot = NSView()
+    private let statusSpinner = NSProgressIndicator()
     private let nameLabel = NSTextField(labelWithString: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let capacityLabel = NSTextField(labelWithString: "")
@@ -31,6 +32,12 @@ final class SidebarItemView: NSTableCellView {
         statusDot.wantsLayer = true
         statusDot.layer?.cornerRadius = 4
         statusDot.isHidden = true
+
+        statusSpinner.translatesAutoresizingMaskIntoConstraints = false
+        statusSpinner.style = .spinning
+        statusSpinner.controlSize = .mini
+        statusSpinner.isDisplayedWhenStopped = false
+        statusSpinner.isHidden = true
 
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.font = .systemFont(ofSize: 12)
@@ -69,6 +76,7 @@ final class SidebarItemView: NSTableCellView {
 
         addSubview(iconView)
         addSubview(statusDot)
+        addSubview(statusSpinner)
         addSubview(nameLabel)
         addSubview(subtitleLabel)
         addSubview(capacityLabel)
@@ -85,6 +93,11 @@ final class SidebarItemView: NSTableCellView {
             statusDot.centerYAnchor.constraint(equalTo: centerYAnchor),
             statusDot.widthAnchor.constraint(equalToConstant: 8),
             statusDot.heightAnchor.constraint(equalToConstant: 8),
+
+            statusSpinner.centerXAnchor.constraint(equalTo: statusDot.centerXAnchor),
+            statusSpinner.centerYAnchor.constraint(equalTo: statusDot.centerYAnchor),
+            statusSpinner.widthAnchor.constraint(equalToConstant: 12),
+            statusSpinner.heightAnchor.constraint(equalToConstant: 12),
 
             nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -116,6 +129,8 @@ final class SidebarItemView: NSTableCellView {
         remoteConnectionState: SSHConnectionState? = nil
     ) {
         statusDot.isHidden = true
+        statusSpinner.stopAnimation(nil)
+        statusSpinner.isHidden = true
         subtitleLabel.isHidden = true
         alphaValue = 1.0
 
@@ -240,8 +255,19 @@ final class SidebarItemView: NSTableCellView {
 
     private func configureAsRemoteHost(_ host: RemoteHost, theme: Theme, state: SSHConnectionState) {
         iconView.isHidden = true
-        statusDot.isHidden = false
+        let isInProgress: Bool
+        switch state {
+        case .connecting, .reconnecting:
+            isInProgress = true
+        default:
+            isInProgress = false
+        }
+        statusDot.isHidden = isInProgress
         statusDot.layer?.backgroundColor = statusDotColor(for: state, theme: theme).cgColor
+        statusSpinner.isHidden = !isInProgress
+        if isInProgress {
+            statusSpinner.startAnimation(nil)
+        }
         toolTip = statusTooltip(for: state)
 
         nameLabel.stringValue = host.displayName

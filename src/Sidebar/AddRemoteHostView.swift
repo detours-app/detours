@@ -2,14 +2,12 @@ import SwiftUI
 
 enum AddRemoteHostTestResult: Equatable {
     case trusted
-    case needsHostKeyConfirmation(fingerprint: String)
 }
 
 @Observable
 final class AddRemoteHostModel {
     var sshTarget: String = ""
     var suggestions: [String]
-    var pendingFingerprint: String?
     var errorMessage: String?
     var isTestingConnection = false
 
@@ -24,8 +22,7 @@ final class AddRemoteHostModel {
     }
 
     var canAdd: Bool {
-        !effectiveSSHTarget.isEmpty &&
-            pendingFingerprint == nil
+        !effectiveSSHTarget.isEmpty
     }
 
     private var suggestionQuery: String {
@@ -42,11 +39,10 @@ final class AddRemoteHostModel {
         sshTarget = suggestion
     }
 
-    func makeHost(fingerprint: String? = nil) -> RemoteHost {
+    func makeHost() -> RemoteHost {
         RemoteHost(
             displayName: effectiveSSHTarget,
-            sshTarget: effectiveSSHTarget,
-            knownHostKeyFingerprint: fingerprint
+            sshTarget: effectiveSSHTarget
         )
     }
 }
@@ -117,27 +113,6 @@ struct AddRemoteHostView: View {
                 }
             }
 
-            if let fingerprint = model.pendingFingerprint {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Confirm Host Fingerprint")
-                        .font(.subheadline)
-                    Text(fingerprint)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                    HStack {
-                        Button("Trust Fingerprint") {
-                            onAdd(model.makeHost(fingerprint: fingerprint))
-                        }
-                        Button("Cancel") {
-                            model.pendingFingerprint = nil
-                        }
-                    }
-                }
-                .padding(10)
-                .background(Color(ThemeManager.shared.currentTheme.surface))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-            }
-
             if let errorMessage = model.errorMessage {
                 Text(errorMessage)
                     .font(.caption)
@@ -160,7 +135,7 @@ struct AddRemoteHostView: View {
                 .keyboardShortcut(.cancelAction)
 
                 Button("Add") {
-                    onAdd(model.makeHost())
+                    Task { await addHost() }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.canAdd)
@@ -182,9 +157,24 @@ struct AddRemoteHostView: View {
         do {
             switch try await onTestConnection(model.effectiveSSHTarget) {
             case .trusted:
-                model.pendingFingerprint = nil
-            case .needsHostKeyConfirmation(let fingerprint):
-                model.pendingFingerprint = fingerprint
+                break
+            }
+        } catch {
+            model.errorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func addHost() async {
+        guard !model.effectiveSSHTarget.isEmpty else { return }
+        model.isTestingConnection = true
+        model.errorMessage = nil
+        defer { model.isTestingConnection = false }
+
+        do {
+            switch try await onTestConnection(model.effectiveSSHTarget) {
+            case .trusted:
+                onAdd(model.makeHost())
             }
         } catch {
             model.errorMessage = error.localizedDescription

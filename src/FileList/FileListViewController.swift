@@ -169,7 +169,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     @objc private func outlineViewItemDidExpand(_ notification: Notification) {
         dataSource.outlineViewItemDidExpand(notification)
         // Start watching the expanded folder
-        if let item = notification.userInfo?["NSObject"] as? FileItem {
+        if let item = notification.userInfo?["NSObject"] as? FileItem, item.isLocal {
             watchExpandedDirectory(item.url)
         }
         navigationDelegate?.fileListDidChangeSelection()
@@ -178,7 +178,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     @objc private func outlineViewItemDidCollapse(_ notification: Notification) {
         dataSource.outlineViewItemDidCollapse(notification)
         // Stop watching the collapsed folder
-        if let item = notification.userInfo?["NSObject"] as? FileItem {
+        if let item = notification.userInfo?["NSObject"] as? FileItem, item.isLocal {
             unwatchCollapsedDirectory(item.url)
         }
         navigationDelegate?.fileListDidChangeSelection()

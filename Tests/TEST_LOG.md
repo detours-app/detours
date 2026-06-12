@@ -2,6 +2,31 @@
 
 ## Latest Run
 
+- Started: 2026-06-12 16:05:41
+- Command: `swift test --filter <suite>` (suites below, run individually)
+- Status: PASS
+- Notes: Session covered three changes. (1) Remote folder expansion crash fix (Location.url trap) with two new regression tests in FileListDataSourceTests. (2) Server/ lint fixes (failable UTF-8 decode for rename/archive names, lazy inotify descriptor instead of force-try). (3) Sidebar connect spinner + remote tab session restore: new RemoteTabSessionTargetTests for the persistence round-trip, plus reruns of the suites covering PaneViewController, SidebarItemView, and MainSplitViewController. ClipboardManagerTests setUp/tearDown moved to async overrides to clear main-actor isolation warnings.
+
+### Remote Browsing Fixes 2026-06-12
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileListDataSourceTests (23 tests, 2 new regression tests) | PASS | 0.064s | 2026-06-12 15:49:43 |
+| RemoteTabSessionTargetTests (4 tests, new) | PASS | 0.004s | 2026-06-12 16:04:26 |
+| ClipboardManagerTests (8 tests) | PASS | 0.018s | 2026-06-12 16:05:41 |
+| PaneViewControllerTests (19 tests, badge tests rewritten for host-as-breadcrumb-segment) | PASS | 0.630s | 2026-06-12 16:14:47 |
+| RemoteUISurfaceTests (5 tests, rerun after badge removal) | PASS | 0.048s | 2026-06-12 16:14:55 |
+| SidebarTests (8 tests) | PASS | 0.028s | 2026-06-12 16:05:57 |
+| RemoteUISurfaceTests (5 tests) | PASS | 0.043s | 2026-06-12 16:05:58 |
+| SplitPositionTests (10 tests) | PASS | 0.006s | 2026-06-12 16:05:58 |
+| FileOperationsServerTests (2 tests) | PASS | 0.010s | 2026-06-12 15:47:20 |
+| TrashOperationsServerTests (3 tests) | PASS | 0.011s | 2026-06-12 15:47:37 |
+| WatcherServerTests + DarwinWatcherServerTests (5 tests) | PASS | 0.049s | 2026-06-12 15:47:51 |
+| RemoteWatcherPollFallbackTests (3 tests) | PASS | 0.187s | 2026-06-12 15:48:05 |
+| DarwinServerSmokeTests (2 tests, exercises rename/trash/restore decode changes) | PASS | 1.092s | 2026-06-12 15:48:22 |
+
+## Run 20260409 21:45
+
 - Started: 2026-04-09 21:45:44
 - Command: `swift test --filter FileOperationQueueTests`
 - Status: PASS

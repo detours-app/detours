@@ -211,7 +211,7 @@ final class DarwinServerSmokeTests: XCTestCase {
         var renamedReader = ServerRPCBinaryReader(data: renamedPayload)
         XCTAssertEqual(try renamedReader.readUInt32(), 1)
         XCTAssertEqual(
-            String(decoding: try renamedReader.readData(), as: UTF8.self),
+            String(bytes: try renamedReader.readData(), encoding: .utf8),
             temp.appendingPathComponent("renamed.txt").path
         )
 
@@ -219,13 +219,13 @@ final class DarwinServerSmokeTests: XCTestCase {
         var trashReader = ServerRPCBinaryReader(data: trashPayload)
         let trashCount = try trashReader.readUInt32()
         XCTAssertEqual(trashCount, 1)
-        let trashInfoPath = String(decoding: try trashReader.readData(), as: UTF8.self)
+        let trashInfoPath = try XCTUnwrap(String(bytes: trashReader.readData(), encoding: .utf8))
 
         let restoredPayload = try operations.restoreFromTrash(items: [ServerRemotePath(trashInfoPath)])
         var restoredReader = ServerRPCBinaryReader(data: restoredPayload)
         XCTAssertEqual(try restoredReader.readUInt32(), 1)
         XCTAssertEqual(
-            String(decoding: try restoredReader.readData(), as: UTF8.self),
+            String(bytes: try restoredReader.readData(), encoding: .utf8),
             temp.appendingPathComponent("renamed.txt").path
         )
     }
@@ -329,8 +329,10 @@ private func decodeServerFileEntries(_ payload: Data) throws -> [DecodedServerFi
     let count = try reader.readUInt32()
     var entries: [DecodedServerFileEntry] = []
     for _ in 0..<count {
-        let path = String(decoding: try reader.readData(), as: UTF8.self)
-        let name = String(decoding: try reader.readData(), as: UTF8.self)
+        guard let path = String(bytes: try reader.readData(), encoding: .utf8),
+              let name = String(bytes: try reader.readData(), encoding: .utf8) else {
+            throw ServerRPCProtocolError.invalidFrame
+        }
         let isDirectory = try reader.readBool()
         _ = try reader.readBool()
         _ = try reader.readBool()

@@ -12,6 +12,8 @@ struct RemotePath: Equatable, Hashable, Sendable {
     }
 
     var lossyDisplayString: String {
+        // Remote paths are byte-exact on the wire; decoding for display is intentionally lossy.
+        // swiftlint:disable:next optional_data_string_conversion
         String(decoding: bytes, as: UTF8.self)
     }
 }

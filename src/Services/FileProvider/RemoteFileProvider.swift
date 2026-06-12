@@ -93,6 +93,8 @@ struct RemoteFileEntry: Equatable, Sendable {
         return LoadedFileEntry(
             location: .remote(hostID: hostID, path: pathString),
             url: URL(fileURLWithPath: pathString),
+            // Remote names are byte-exact on the wire; decoding for display is intentionally lossy.
+            // swiftlint:disable:next optional_data_string_conversion
             name: String(decoding: name, as: UTF8.self),
             isDirectory: isDirectory,
             isPackage: isPackage,

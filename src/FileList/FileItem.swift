@@ -16,6 +16,14 @@ final class FileItem {
     let name: String
     let location: Location
     var url: URL { location.url }
+    var isLocal: Bool {
+        if case .local = location { return true }
+        return false
+    }
+    var isRemote: Bool {
+        if case .remote = location { return true }
+        return false
+    }
     let isDirectory: Bool
     let isPackage: Bool
     let isAliasFile: Bool

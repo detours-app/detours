@@ -603,7 +603,7 @@ final class FileOperationQueue {
                 return try await work()
             } catch {
                 let interruptedHosts = currentRemoteOperationInterruptedHosts.intersection(hostIDs)
-                if !interruptedHosts.isEmpty || !pausedRemoteHosts.intersection(hostIDs).isEmpty {
+                if !interruptedHosts.isEmpty || !pausedRemoteHosts.isDisjoint(with: hostIDs) {
                     try await waitForRemoteHosts(hostIDs)
                     continue
                 }

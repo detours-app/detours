@@ -78,7 +78,9 @@ struct FileOperations {
 
     func rename(item: ServerRemotePath, newName: Data) throws -> Data {
         let sourceURL = URL(fileURLWithPath: item.string)
-        let name = String(decoding: newName, as: UTF8.self)
+        guard let name = String(bytes: newName, encoding: .utf8) else {
+            throw ServerRPCProtocolError.invalidFrame
+        }
         let destinationURL = sourceURL.deletingLastPathComponent().appendingPathComponent(name)
         try fileManager.moveItem(at: sourceURL, to: destinationURL)
         return encodePathList([ServerRemotePath(destinationURL.path)])
@@ -164,7 +166,9 @@ struct FileOperations {
     }
 
     func archiveCreate(items: [ServerRemotePath], format: String, archiveName: Data, password: String?) throws -> Data {
-        let archiveNameString = String(decoding: archiveName, as: UTF8.self)
+        guard let archiveNameString = String(bytes: archiveName, encoding: .utf8) else {
+            throw ServerRPCProtocolError.invalidFrame
+        }
         let archivePath = try archiveOperations.createArchive(
             items: items.map(\.string),
             format: format,

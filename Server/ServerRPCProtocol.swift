@@ -20,6 +20,8 @@ struct ServerRemotePath: Equatable, Hashable {
     }
 
     var string: String {
+        // Remote paths are byte-exact on the wire; decoding for filesystem APIs is intentionally lossy.
+        // swiftlint:disable:next optional_data_string_conversion
         String(decoding: bytes, as: UTF8.self)
     }
 }
@@ -281,7 +283,10 @@ struct ServerRPCBinaryReader {
     }
 
     mutating func readString() throws -> String {
-        String(decoding: try readData(), as: UTF8.self)
+        guard let string = String(bytes: try readData(), encoding: .utf8) else {
+            throw ServerRPCProtocolError.invalidFrame
+        }
+        return string
     }
 
     mutating func readUUID() throws -> UUID {
