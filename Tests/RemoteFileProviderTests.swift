@@ -83,6 +83,23 @@ final class RemoteFileProviderTests: XCTestCase {
         XCTAssertEqual(largeRoute, .transferChannel)
     }
 
+    func testReadSymlinkDecodesRemoteTarget() async throws {
+        let hostID = UUID()
+        let response = RemoteFileProvider.encodePathList([RemotePath("/home/marco/target")])
+        let client = FakeRemoteRPCClient(responses: [[response]])
+        let provider = RemoteFileProvider(
+            hostID: hostID,
+            rpcClient: client,
+            transferChannel: RemoteTransferChannel(sshTarget: "devtest")
+        )
+
+        let target = try await provider.readSymlink(.remote(hostID: hostID, path: "/home/marco/link"))
+
+        XCTAssertEqual(target, .remote(hostID: hostID, path: "/home/marco/target"))
+        let messages = await client.sentMessages()
+        XCTAssertEqual(messages, [.readSymlink(path: RemotePath("/home/marco/link"))])
+    }
+
     func testQuickLookRejectsFilesAboveMaximumBeforeDownload() async throws {
         let hostID = UUID()
         let stat = RemoteFileProvider.encodeFileEntries([

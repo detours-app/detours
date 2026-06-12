@@ -371,13 +371,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     let entry = try await provider.stat(destination)
                     if entry.isDirectory {
                         self.loadRemoteDirectory(destination, provider: provider, preserveExpansion: false)
+                    } else if case .remote(let hostID, _) = destination {
+                        RemoteOpenWithCoordinator.shared.open(location: destination, provider: provider, hostID: hostID)
                     } else {
                         FileOperationQueue.shared.presentError(
-                            FileProviderError.unsupportedOperation("Remote symbolic link target is not a folder")
+                            FileProviderError.unsupportedOperation("Remote symbolic link target is not reachable")
                         )
                     }
                 } catch {
-                    FileOperationQueue.shared.presentError(error)
+                    FileOperationQueue.shared.presentError(
+                        FileProviderError.unsupportedOperation("Remote symbolic link \"\(item.name)\" is broken or unreachable")
+                    )
                 }
             }
         } else {
