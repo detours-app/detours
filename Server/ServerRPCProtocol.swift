@@ -37,6 +37,8 @@ enum ServerRPCMessage {
     case mkDir(path: ServerRemotePath)
     case archiveCreate(items: [ServerRemotePath], format: String, archiveName: Data, password: String?)
     case archiveExtract(archive: ServerRemotePath, password: String?)
+    case watch(path: ServerRemotePath, token: UUID)
+    case unwatch(token: UUID)
     case download(path: ServerRemotePath, maximumRPCBytes: Int64)
     case upload(path: ServerRemotePath, contents: Data, expectedByteCount: Int64, maximumRPCBytes: Int64)
     case fileVersion(path: ServerRemotePath)
@@ -88,6 +90,10 @@ enum ServerRPCMessage {
             )
         case 15:
             self = .archiveExtract(archive: try reader.readRemotePath(), password: try reader.readOptionalString())
+        case 16:
+            self = .watch(path: try reader.readRemotePath(), token: try reader.readUUID())
+        case 17:
+            self = .unwatch(token: try reader.readUUID())
         case 19:
             self = .fileVersion(path: try reader.readRemotePath())
         case 20:
@@ -276,6 +282,13 @@ struct ServerRPCBinaryReader {
 
     mutating func readString() throws -> String {
         String(decoding: try readData(), as: UTF8.self)
+    }
+
+    mutating func readUUID() throws -> UUID {
+        guard let uuid = UUID(uuidString: try readString()) else {
+            throw ServerRPCProtocolError.invalidFrame
+        }
+        return uuid
     }
 
     mutating func readOptionalString() throws -> String? {

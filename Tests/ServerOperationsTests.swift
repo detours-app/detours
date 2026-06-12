@@ -14,6 +14,21 @@ final class FileOperationsServerTests: XCTestCase {
         XCTAssertEqual(entries.map(\.name), ["a.txt", "folder"])
         XCTAssertTrue(entries.first { $0.name == "folder" }?.isDirectory == true)
     }
+
+    func testStreamedListChunks() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        for index in 0..<5 {
+            _ = try createTestFile(in: temp, name: "file-\(index).txt", content: "\(index)")
+        }
+        let operations = FileOperations(listChunkSize: 2)
+
+        let chunks = try operations.listChunks(path: ServerRemotePath(temp.path), showHidden: false)
+
+        XCTAssertEqual(chunks.count, 3)
+        XCTAssertEqual(try decodeServerFileEntries(chunks[0]).map(\.name), ["file-0.txt", "file-1.txt"])
+        XCTAssertEqual(try decodeServerFileEntries(chunks[2]).map(\.name), ["file-4.txt"])
+    }
 }
 
 final class TrashOperationsServerTests: XCTestCase {
@@ -91,6 +106,27 @@ final class WatcherServerTests: XCTestCase {
             XCTAssertEqual(error as? ServerWatcherError, .inotifyLimitExceeded(command: Watcher.inotifyLimitCommand))
         }
     }
+
+    func testInotifyEventForCreate() throws {
+        let token = UUID()
+        let watcher = Watcher(backend: RecordingInotifyBackend(descriptor: 42))
+
+        try watcher.watchVisibleDirectory("/home/maf/work", token: token)
+        let event = try XCTUnwrap(watcher.event(forDescriptor: 42, kind: .created, name: "new.txt"))
+
+        XCTAssertEqual(event, ServerWatchEvent(token: token, kind: .created, path: "/home/maf/work/new.txt"))
+    }
+
+    func testSurviveDirectoryRename() throws {
+        let token = UUID()
+        let watcher = Watcher(backend: RecordingInotifyBackend(descriptor: 7))
+
+        try watcher.watchVisibleDirectory("/home/maf/old", token: token)
+        let event = try watcher.reemitWatchAfterDirectoryRename(token: token, newPath: "/home/maf/new")
+
+        XCTAssertEqual(event, ServerWatchEvent(token: token, kind: .renamed, path: "/home/maf/new"))
+        XCTAssertEqual(watcher.registration(for: token)?.path, "/home/maf/new")
+    }
 }
 
 final class GitOperationsServerTests: XCTestCase {
@@ -161,6 +197,16 @@ private struct FailingInotifyBackend: InotifyBackend {
 
     func addWatch(path: String) throws -> Int32 {
         throw error
+    }
+
+    func removeWatch(_ descriptor: Int32) throws {}
+}
+
+private struct RecordingInotifyBackend: InotifyBackend {
+    let descriptor: Int32
+
+    func addWatch(path: String) throws -> Int32 {
+        descriptor
     }
 
     func removeWatch(_ descriptor: Int32) throws {}

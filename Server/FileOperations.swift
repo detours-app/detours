@@ -1,30 +1,48 @@
 import Foundation
 
 struct FileOperations {
+    static let defaultListChunkSize = 1_000
+
     private let fileManager: FileManager
     private let trashOperations: TrashOperations
     private let archiveOperations: ArchiveOperations
+    private let listChunkSize: Int
 
     init(
         fileManager: FileManager = .default,
         trashOperations: TrashOperations = TrashOperations(),
-        archiveOperations: ArchiveOperations = ArchiveOperations()
+        archiveOperations: ArchiveOperations = ArchiveOperations(),
+        listChunkSize: Int = Self.defaultListChunkSize
     ) {
         self.fileManager = fileManager
         self.trashOperations = trashOperations
         self.archiveOperations = archiveOperations
+        self.listChunkSize = max(1, listChunkSize)
     }
 
     func list(path: ServerRemotePath, showHidden: Bool) throws -> Data {
+        try encodeFileEntries(listEntries(path: path, showHidden: showHidden))
+    }
+
+    func listChunks(path: ServerRemotePath, showHidden: Bool) throws -> [Data] {
+        let entries = try listEntries(path: path, showHidden: showHidden)
+        guard !entries.isEmpty else { return [encodeFileEntries([])] }
+
+        return stride(from: 0, to: entries.count, by: listChunkSize).map { start in
+            let end = min(start + listChunkSize, entries.count)
+            return encodeFileEntries(Array(entries[start..<end]))
+        }
+    }
+
+    private func listEntries(path: ServerRemotePath, showHidden: Bool) throws -> [ServerFileEntry] {
         let directory = path.string
-        let contents = try FileManager.default.contentsOfDirectory(atPath: directory)
+        let contents = try fileManager.contentsOfDirectory(atPath: directory)
             .filter { showHidden || !$0.hasPrefix(".") }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
 
-        let entries = try contents.map { name in
+        return try contents.map { name in
             try fileEntry(path: URL(fileURLWithPath: directory).appendingPathComponent(name).path)
         }
-        return encodeFileEntries(entries)
     }
 
     func stat(path: ServerRemotePath) throws -> Data {

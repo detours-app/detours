@@ -79,11 +79,36 @@ final class Watcher {
     func token(for descriptor: Int32) -> UUID? {
         tokenByDescriptor[descriptor]
     }
+
+    func event(forDescriptor descriptor: Int32, kind: ServerWatchEventKind, name: String) -> ServerWatchEvent? {
+        guard let token = tokenByDescriptor[descriptor],
+              let registration = watchesByToken[token] else {
+            return nil
+        }
+
+        let eventPath: String
+        if name.isEmpty {
+            eventPath = registration.path
+        } else {
+            eventPath = URL(fileURLWithPath: registration.path).appendingPathComponent(name).path
+        }
+
+        return ServerWatchEvent(token: token, kind: kind, path: eventPath)
+    }
+
+    func reemitWatchAfterDirectoryRename(token: UUID, newPath: String) throws -> ServerWatchEvent {
+        guard var registration = watchesByToken[token] else {
+            throw ServerWatcherError.unknownWatch(token)
+        }
+        registration.path = newPath
+        watchesByToken[token] = registration
+        return ServerWatchEvent(token: token, kind: .renamed, path: newPath)
+    }
 }
 
 struct WatchRegistration: Equatable, Sendable {
     let token: UUID
-    let path: String
+    var path: String
     let descriptor: Int32
 }
 

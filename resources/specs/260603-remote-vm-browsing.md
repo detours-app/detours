@@ -286,12 +286,12 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 ### Linux Server Tests (`Server/Tests/`, run via Docker on dockerhost)
 
 - [x] **T102** `FileOperationsServerTests.testListReturnsExpectedEntries` - server `List` returns the same entries as `ls -la` for a fixture directory.
-- [ ] **T103** `FileOperationsServerTests.testStreamedListChunks` - a 50,000-entry directory produces multiple chunks; the first chunk arrives before the last.
+- [x] **T103** `FileOperationsServerTests.testStreamedListChunks` - a 50,000-entry directory produces multiple chunks; the first chunk arrives before the last.
 - [x] **T104** `TrashOperationsServerTests.testTrashCreatesCorrectTrashInfo` - trashing a file creates `~/.local/share/Trash/files/<name>` and `~/.local/share/Trash/info/<name>.trashinfo` with the correct original path.
 - [x] **T105** `TrashOperationsServerTests.testRestoreRefusesPathOutsideHome` - a restore RPC with a target outside `$HOME` returns a typed error and does not move the file.
 - [x] **T106** `TrashOperationsServerTests.testRestoreToOriginalLocation` - restore puts the file back at the original path recorded in `.trashinfo`.
-- [ ] **T107** `WatcherServerTests.testInotifyEventForCreate` - creating a file inside a watched directory produces a `WatchEvent` frame.
-- [ ] **T108** `WatcherServerTests.testSurviveDirectoryRename` - renaming a watched directory does not crash the daemon and re-emits the watch on the new path.
+- [x] **T107** `WatcherServerTests.testInotifyEventForCreate` - creating a file inside a watched directory produces a `WatchEvent` frame.
+- [x] **T108** `WatcherServerTests.testSurviveDirectoryRename` - renaming a watched directory does not crash the daemon and re-emits the watch on the new path.
 - [x] **T109** `WatcherServerTests.testInotifyCeilingSurfacesTypedError` - simulating an `ENOSPC` from `inotify_add_watch` surfaces a typed RPC error to the client.
 - [x] **T110** `GitOperationsServerTests.testGitStatusOverlay` - `git status` against a fixture repo returns the same set of marked paths the local implementation does.
 - [x] **T111** `FolderSizeServerTests.testStaleWhileRevalidate` - the cached size is returned immediately on a list while a background recompute runs; the cache updates without a placeholder flash.
@@ -299,19 +299,19 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 
 ### Integration Tests (`Tests/Integration/`, gated on devtest reachability)
 
-- [ ] **T113** `RemoteIntegrationTests.testListDirectoryReturnsExpectedEntries` - connect to `devtest`, list `/etc`, assert at least one expected file is present.
-- [ ] **T114** `RemoteIntegrationTests.testCopyRemoteToLocal` - copy a remote fixture file into a local temp directory; assert byte-equality.
-- [ ] **T115** `RemoteIntegrationTests.testCopyLocalToRemote` - copy a local fixture file into a remote temp directory; assert byte-equality via the daemon's `Stat`.
+- [x] **T113** `RemoteIntegrationTests.testListDirectoryReturnsExpectedEntries` - connect to `devtest`, list `/etc`, assert at least one expected file is present.
+- [x] **T114** `RemoteIntegrationTests.testCopyRemoteToLocal` - copy a remote fixture file into a local temp directory; assert byte-equality.
+- [x] **T115** `RemoteIntegrationTests.testCopyLocalToRemote` - copy a local fixture file into a remote temp directory; assert byte-equality via the daemon's `Stat`.
 - [ ] **T116** `RemoteIntegrationTests.testLargeTransferUsesRemoteTransferChannel` - a 100 MB copy completes via the helper transfer channel without blocking a concurrent directory listing on the same host.
 - [ ] **T117** `RemoteIntegrationTests.testWatchDirectoryReceivesInotifyEvent` - watch a remote directory, touch a file inside it via the daemon, assert a `WatchEvent` arrives within two seconds.
-- [ ] **T118** `RemoteIntegrationTests.testTrashAndRestore` - trash a remote file, assert it is no longer at the original path, run Undo, assert it is restored.
-- [ ] **T119** `RemoteIntegrationTests.testGitStatusOverlay` - clone a fixture repo into a remote temp directory, modify a file, list the directory, assert the modified file carries a `modified` git status marker.
+- [x] **T118** `RemoteIntegrationTests.testTrashAndRestore` - trash a remote file, assert it is no longer at the original path, run Undo, assert it is restored.
+- [x] **T119** `RemoteIntegrationTests.testGitStatusOverlay` - clone a fixture repo into a remote temp directory, modify a file, list the directory, assert the modified file carries a `modified` git status marker.
 - [ ] **T120** `RemoteIntegrationTests.testReconnectAfterIdle` - establish a connection, force idle past `ServerAliveInterval * ServerAliveCountMax`, then perform a list; assert the reconnect state machine recovers and the list succeeds.
 - [ ] **T121** `RemoteIntegrationTests.testHostKeyChangeBlocks` - connect once and record the fingerprint, swap the host's host key fixture, attempt to reconnect, assert the connection is blocked and the host-key-change dialog event is fired.
 - [ ] **T122** `RemoteIntegrationTests.testUnsupportedArchitectureError` - connect to a fixture host reporting `uname -sm` as `aarch64`, assert a typed error naming the architecture and no deploy attempt.
-- [ ] **T123** `RemoteIntegrationTests.testSymlinkFollowsResolvable` - a directory listing includes a symlink with the link badge; double-click resolves and navigates into the target.
+- [x] **T123** `RemoteIntegrationTests.testSymlinkFollowsResolvable` - a directory listing includes a symlink with the link badge; double-click resolves and navigates into the target.
 - [ ] **T124** `RemoteIntegrationTests.testSymlinkBrokenShowsError` - a symlink to a non-existent target shows a plain-language broken-link error.
-- [ ] **T125** `RemoteIntegrationTests.testPermissionDeniedRendersLockBadge` - listing a directory containing a file the user cannot read renders that file's row with a lock badge.
+- [x] **T125** `RemoteIntegrationTests.testPermissionDeniedRendersLockBadge` - listing a directory containing a file the user cannot read renders that file's row with a lock badge.
 
 ### UI/UX Tests
 
