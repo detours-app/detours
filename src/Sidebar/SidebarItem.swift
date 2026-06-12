@@ -12,7 +12,7 @@ enum SidebarSection: CaseIterable {
         switch self {
         case .devices: return "DEVICES"
         case .remoteHosts: return "REMOTE HOSTS"
-        case .network: return "NETWORK"
+        case .network: return "FILE SERVERS"
         case .favorites: return "FAVORITES"
         }
     }

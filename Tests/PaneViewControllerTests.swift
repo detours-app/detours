@@ -260,6 +260,28 @@ final class PaneViewControllerTests: XCTestCase {
         )
     }
 
+    func testRemoteTabTitleReflectsRemoteFolder() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider(), path: "/home/marco/projects")
+
+        waitUntil(pane.selectedTab?.title == "projects")
+        XCTAssertEqual(pane.selectedTab?.title, "projects")
+    }
+
+    func testRemoteTabTitleAtRootShowsHostName() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider(), path: "/")
+
+        waitUntil(pane.selectedTab?.title == "Dev VM")
+        XCTAssertEqual(pane.selectedTab?.title, "Dev VM")
+    }
+
     func testReconnectBannerAppearsForFailedRemoteHost() {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()

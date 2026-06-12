@@ -23,17 +23,35 @@ final class PaneTab {
     private(set) var pendingExpansions: Set<URL>?
     private(set) var pendingSelections: [URL]?
 
-    /// Lazily created file list view controller for this tab
+    /// Tab title for remote tabs, set by the pane on remote navigation.
+    /// `currentDirectory` is a local URL and is not meaningful for remote tabs.
+    var remoteTitle: String?
+
+    /// Created on first access for this tab.
     /// Note: Does NOT load directory on creation - caller must call loadDirectory or ensureLoaded
-    lazy var fileListViewController: FileListViewController = {
+    private var _fileListViewController: FileListViewController?
+    var fileListViewController: FileListViewController {
+        if let existing = _fileListViewController {
+            return existing
+        }
         let vc = FileListViewController()
         vc.currentDirectory = currentDirectory
         vc.currentICloudListingMode = iCloudListingMode
+        _fileListViewController = vc
         return vc
-    }()
+    }
+
+    /// The view controller only if it has already been created, so callers can
+    /// inspect loaded tabs without forcing every tab's controller into existence.
+    var fileListViewControllerIfLoaded: FileListViewController? {
+        _fileListViewController
+    }
 
     /// Directory name for tab title
     var title: String {
+        if let remoteTitle {
+            return remoteTitle
+        }
         let name = currentDirectory.lastPathComponent
         switch name {
         case "com~apple~CloudDocs":
@@ -82,6 +100,7 @@ final class PaneTab {
 
     /// Navigate to a directory, optionally adding current to history
     func navigate(to url: URL, iCloudListingMode listingMode: ICloudListingMode = .normal, addToHistory: Bool = true, skipContainerResolution: Bool = false) {
+        remoteTitle = nil
         let previousDirectory = currentDirectory
         let previousMode = iCloudListingMode
         let previousSharedRoot = sharedNavigationRootURL

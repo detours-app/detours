@@ -822,7 +822,7 @@ private final class NavigationDelegateSpy: FileListNavigationDelegate {
 
     func fileListDidChangeSelection() {}
 
-    func fileListDidLoadDirectory() {
+    func fileListDidLoadDirectory(_ controller: FileListViewController) {
         directoryLoadCount += 1
         onDidLoadDirectory?()
     }

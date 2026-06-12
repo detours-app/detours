@@ -18,7 +18,7 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestCopyToOtherPane(items: [URL])
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>)
     func fileListDidChangeSelection()
-    func fileListDidLoadDirectory()
+    func fileListDidLoadDirectory(_ controller: FileListViewController)
 }
 
 final class FileListViewController: NSViewController, FileListKeyHandling, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
@@ -628,7 +628,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     self.scrollView.reflectScrolledClipView(self.scrollView.contentView)
                 }
 
-                self.navigationDelegate?.fileListDidLoadDirectory()
+                self.navigationDelegate?.fileListDidLoadDirectory(self)
 
                 // Run one-shot post-load action (e.g. select + rename newly created item)
                 let action = self.pendingPostLoadAction
@@ -637,7 +637,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
             case .failure(let error):
                 self.showErrorOverlay(for: error)
-                self.navigationDelegate?.fileListDidLoadDirectory()
+                self.navigationDelegate?.fileListDidLoadDirectory(self)
             }
         }
 
@@ -705,10 +705,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 if !self.dataSource.items.isEmpty {
                     self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
                 }
-                self.navigationDelegate?.fileListDidLoadDirectory()
+                self.navigationDelegate?.fileListDidLoadDirectory(self)
             case .failure(let error):
                 self.showErrorOverlay(for: error)
-                self.navigationDelegate?.fileListDidLoadDirectory()
+                self.navigationDelegate?.fileListDidLoadDirectory(self)
             }
         }
 

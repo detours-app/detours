@@ -6,7 +6,7 @@ final class NetworkUITests: BaseUITest {
 
     // MARK: - Sidebar Network Section
 
-    /// Test that NETWORK section header appears in sidebar between DEVICES and FAVORITES
+    /// Test that FILE SERVERS section header appears in sidebar between DEVICES and FAVORITES
     func testNetworkSectionExists() throws {
         // Navigate to home to ensure sidebar is populated
         let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
@@ -20,19 +20,19 @@ final class NetworkUITests: BaseUITest {
 
         // Look for section headers
         let devicesText = sidebar.staticTexts["DEVICES"]
-        let networkText = sidebar.staticTexts["NETWORK"]
+        let fileServersText = sidebar.staticTexts["FILE SERVERS"]
         let favoritesText = sidebar.staticTexts["FAVORITES"]
 
         XCTAssertTrue(devicesText.waitForExistence(timeout: 2), "DEVICES section should exist")
-        XCTAssertTrue(networkText.waitForExistence(timeout: 2), "NETWORK section should exist")
+        XCTAssertTrue(fileServersText.waitForExistence(timeout: 2), "FILE SERVERS section should exist")
         XCTAssertTrue(favoritesText.waitForExistence(timeout: 2), "FAVORITES section should exist")
 
-        // Verify order: NETWORK should be between DEVICES and FAVORITES
+        // Verify order: FILE SERVERS should be between DEVICES and FAVORITES
         // Note: frame.minY increases downward
-        XCTAssertLessThan(devicesText.frame.minY, networkText.frame.minY,
-                         "DEVICES should appear above NETWORK")
-        XCTAssertLessThan(networkText.frame.minY, favoritesText.frame.minY,
-                         "NETWORK should appear above FAVORITES")
+        XCTAssertLessThan(devicesText.frame.minY, fileServersText.frame.minY,
+                         "DEVICES should appear above FILE SERVERS")
+        XCTAssertLessThan(fileServersText.frame.minY, favoritesText.frame.minY,
+                         "FILE SERVERS should appear above FAVORITES")
     }
 
     /// Test that "No servers found" placeholder appears when no servers discovered

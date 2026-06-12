@@ -1374,9 +1374,7 @@ final class PaneViewController: NSViewController {
             let item = NSPathControlItem()
             item.title = titles[index]
             if index == 0, breadcrumbHost != nil {
-                let tint = NSImage.SymbolConfiguration(paletteColors: [ThemeManager.shared.currentTheme.textSecondary])
-                item.image = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "Remote host")?
-                    .withSymbolConfiguration(tint)
+                item.image = Self.remoteHostBreadcrumbIcon()
             }
             return item
         }
@@ -1439,6 +1437,29 @@ final class PaneViewController: NSViewController {
         // Build URL mapping: first item URL, nil for ellipsis, then trailing URLs
         pathItemURLs = [itemURLs[0], nil] + trailingItems.map { $0.1 }
         updatePathControlColors()
+    }
+
+    /// Builds the remote-host breadcrumb glyph as a square canvas with the
+    /// monitor symbol centred at its true aspect ratio. NSPathControl forces
+    /// item images into a tall icon box and would otherwise stretch the wide
+    /// monitor into a vertical sliver; a square image scales uniformly instead.
+    private static func remoteHostBreadcrumbIcon(side: CGFloat = 15) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: side, weight: .regular)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [ThemeManager.shared.currentTheme.textSecondary]))
+        guard let symbol = NSImage(systemSymbolName: "network", accessibilityDescription: "Remote host")?
+            .withSymbolConfiguration(config) else {
+            return nil
+        }
+        let natural = symbol.size
+        guard natural.width > 0, natural.height > 0 else { return symbol }
+        let scale = min(side / natural.width, side / natural.height)
+        let drawSize = NSSize(width: natural.width * scale, height: natural.height * scale)
+        let origin = NSPoint(x: (side - drawSize.width) / 2, y: (side - drawSize.height) / 2)
+        let canvas = NSImage(size: NSSize(width: side, height: side))
+        canvas.lockFocus()
+        symbol.draw(in: NSRect(origin: origin, size: drawSize))
+        canvas.unlockFocus()
+        return canvas
     }
 
     private func remoteBreadcrumbComponents(for path: String) -> [(String, URL)] {
@@ -1813,9 +1834,30 @@ extension PaneViewController: FileListNavigationDelegate {
         updateStatusBar()
     }
 
-    func fileListDidLoadDirectory() {
+    func fileListDidLoadDirectory(_ controller: FileListViewController) {
+        // A remote tab's title comes from the remote path, which only changes
+        // when the directory actually loads; rebuild the tab bar only when it does.
+        if let tab = tabs.first(where: { $0.fileListViewControllerIfLoaded === controller }) {
+            let newRemoteTitle = remoteTabTitle(for: tab, controller: controller)
+            if newRemoteTitle != tab.remoteTitle {
+                tab.remoteTitle = newRemoteTitle
+                reloadTabBar()
+                updateStatusBar()
+                return
+            }
+        }
         updatePathControl()
         updateStatusBar()
+    }
+
+    /// The folder name to show in the tab for a remote location, or nil when the
+    /// tab is local. At the remote root the host name stands in for the folder.
+    private func remoteTabTitle(for tab: PaneTab, controller: FileListViewController) -> String? {
+        guard case .remote(_, let path)? = controller.currentRemoteLocation else { return nil }
+        if let last = path.split(separator: "/").map(String.init).last {
+            return last
+        }
+        return remoteBreadcrumbHostsByTabID[tab.id]?.displayName
     }
 }
 

@@ -363,7 +363,7 @@ extension SidebarViewController: NSOutlineViewDataSource {
         items.append(SidebarSection.remoteHosts)
         items.append(contentsOf: remoteHostItems())
 
-        // NETWORK section header + servers (discovered + synthetic)
+        // FILE SERVERS section header + servers (discovered + synthetic)
         items.append(SidebarSection.network)
         let networkHierarchy = buildNetworkHierarchy()
         if networkHierarchy.isEmpty && networkVolumes().isEmpty {
