@@ -201,7 +201,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 
 **Phase 5: Lifecycle, polish, flag removal**
 
-- [ ] **T48** Add idle disconnect in `SSHConnection`: closes the connection after five minutes with no active pane on the host, no in-flight operation, and no active watch. Reconnects automatically on next interaction.
+- [x] **T48** Add idle disconnect in `SSHConnection`: closes the connection after five minutes with no active pane on the host, no in-flight operation, and no active watch. Reconnects automatically on next interaction.
 - [ ] **T49** Add the reconnect banner UI in `src/Panes/PaneViewController.swift`: a non-blocking strip above the file list naming the host and a Reconnect button. Banner appears when the connection state transitions to `failed` after the backoff window.
 - [ ] **T50** Update `src/Operations/FileOperationQueue.swift` so queued remote operations pause when the connection drops (queue surface: "Paused — waiting for [host]") and resume automatically on reconnect. In-progress transfers at the drop have their partial deleted and requeue from the start.
 - [ ] **T51** Update `src/Sidebar/SidebarViewController.swift` so removing a host while a pane is viewing it navigates that pane back to its previous local location, falling back to the home directory if no previous local location exists.
@@ -260,7 +260,7 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [ ] **T85** `SSHConnectionStateTests.testFailedStateAfterMaxBackoff` - after the backoff window expires without success the state transitions to `failed(reason)` and the Reconnect banner is shown.
 - [ ] **T86** `SSHConnectionStateTests.testFailedStateOnAuthError` - auth failure transitions directly to `failed(reason: .authentication)` and does not retry.
 - [ ] **T87** `SSHConnectionStateTests.testWatchTokensReregisterOnReconnect` - watches established before a drop re-register on successful reconnect with no caller intervention.
-- [ ] **T88** `SSHConnectionStateTests.testIdleDisconnectAfterFiveMinutes` - with no active pane, no in-flight op, and no active watch, the connection closes after five minutes and reconnects on next interaction.
+- [x] **T88** `SSHConnectionStateTests.testIdleDisconnectAfterFiveMinutes` - with no active pane, no in-flight op, and no active watch, the connection closes after five minutes and reconnects on next interaction.
 - [x] **T89** `RemoteHostStoreTests.testPersistAcrossRelaunch` - hosts added to the store survive an `UserDefaults` reset round-trip.
 - [x] **T90** `RemoteHostTests.testCacheDirSanitisation` - a host display name or SSH target containing shell metacharacters produces a cache directory name that never contains the raw characters.
 - [ ] **T91** `RemoteHostTests.testFrecencyAnchorsOnHostID` - renaming a host display name preserves the existing Cmd-P frecency entries and re-renders them with the new label.

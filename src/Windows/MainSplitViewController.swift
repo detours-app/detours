@@ -1048,6 +1048,7 @@ extension MainSplitViewController: SidebarDelegate {
                     transferChannel: transferChannel
                 )
 
+                await RemoteConnectionRegistry.shared.register(connection, for: host.id)
                 FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
                 RemoteHostStore.shared.markConnected(id: host.id)
                 activePane.loadRemoteHost(host, provider: provider)

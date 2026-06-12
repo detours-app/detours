@@ -530,6 +530,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         hideErrorOverlay()
 
         let normalizedURL = url.standardizedFileURL
+        if let previousRemoteHost = currentRemoteHost {
+            Task {
+                await RemoteConnectionRegistry.shared.paneStoppedViewing(hostID: previousRemoteHost.id)
+            }
+        }
         currentRemoteHost = nil
         currentRemoteLocation = nil
         currentRemoteProvider = nil
@@ -651,9 +656,18 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         provider: any FileProvider,
         preserveExpansion: Bool = false
     ) {
+        let previousRemoteHost = currentRemoteHost
         loadRemoteDirectory(.remote(hostID: host.id, path: path), provider: provider, preserveExpansion: preserveExpansion)
         currentRemoteHost = host
         currentRemoteProvider = provider
+        if previousRemoteHost?.id != host.id {
+            Task {
+                if let previousRemoteHost {
+                    await RemoteConnectionRegistry.shared.paneStoppedViewing(hostID: previousRemoteHost.id)
+                }
+                await RemoteConnectionRegistry.shared.paneStartedViewing(hostID: host.id)
+            }
+        }
     }
 
     private func loadRemoteDirectory(_ location: Location, provider: any FileProvider, preserveExpansion: Bool) {

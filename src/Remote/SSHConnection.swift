@@ -24,11 +24,17 @@ actor SSHConnection {
     private let hostTrust: SSHHostTrust
     private let askPassBridge: SSHAskPassBridge
     private let processFactory: @Sendable () -> Process
+    private let idleTimeout: TimeInterval
 
     private var process: Process?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
     private var frameReader = RPCStreamHandler()
+    private var activePaneCount = 0
+    private var inFlightOperationCount = 0
+    private var activeWatchCount = 0
+    private var disconnectedForIdle = false
+    private var idleDisconnectTask: Task<Void, Never>?
 
     private(set) var state: SSHConnectionState = .disconnected {
         didSet {
@@ -42,17 +48,21 @@ actor SSHConnection {
             .appendingPathComponent(".detours/ssh", isDirectory: true),
         hostTrust: SSHHostTrust = SSHHostTrust(),
         askPassBridge: SSHAskPassBridge = SSHAskPassBridge(),
+        idleTimeout: TimeInterval = 5 * 60,
         processFactory: @escaping @Sendable () -> Process = { Process() }
     ) {
         self.configuration = configuration
         self.controlDirectory = controlDirectory
         self.hostTrust = hostTrust
         self.askPassBridge = askPassBridge
+        self.idleTimeout = idleTimeout
         self.processFactory = processFactory
     }
 
     func connect() async throws {
         guard process == nil else { return }
+        cancelIdleDisconnect()
+        disconnectedForIdle = false
 
         transition(to: .connecting)
         try prepareControlDirectory()
@@ -83,9 +93,12 @@ actor SSHConnection {
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
         transition(to: .connected)
+        scheduleIdleDisconnectIfNeeded()
     }
 
     func disconnect() {
+        cancelIdleDisconnect()
+        disconnectedForIdle = false
         process?.terminationHandler = nil
         process?.terminate()
         process = nil
@@ -96,12 +109,41 @@ actor SSHConnection {
     }
 
     func send(_ envelope: RPCEnvelope) async throws {
+        if disconnectedForIdle {
+            try await connect()
+        }
+
         guard let stdinPipe else {
             throw SSHConnectionError.notConnected
         }
 
         let frame = try RPCStreamHandler.encodeFrame(envelope.encodedPayload())
         stdinPipe.fileHandleForWriting.write(frame)
+    }
+
+    func setActivePaneCount(_ count: Int) {
+        activePaneCount = max(0, count)
+        scheduleIdleDisconnectIfNeeded()
+    }
+
+    func beginInFlightOperation() {
+        inFlightOperationCount += 1
+        scheduleIdleDisconnectIfNeeded()
+    }
+
+    func endInFlightOperation() {
+        inFlightOperationCount = max(0, inFlightOperationCount - 1)
+        scheduleIdleDisconnectIfNeeded()
+    }
+
+    func registerActiveWatch() {
+        activeWatchCount += 1
+        scheduleIdleDisconnectIfNeeded()
+    }
+
+    func unregisterActiveWatch() {
+        activeWatchCount = max(0, activeWatchCount - 1)
+        scheduleIdleDisconnectIfNeeded()
     }
 
     func receive() async throws -> RPCEnvelope {
@@ -146,6 +188,7 @@ actor SSHConnection {
     }
 
     private func processExited(_ status: Int32) {
+        cancelIdleDisconnect()
         process = nil
         stdinPipe = nil
         stdoutPipe = nil
@@ -155,6 +198,8 @@ actor SSHConnection {
     }
 
     private func disconnectAfterFailure(_ reason: SSHConnectionFailureReason) {
+        cancelIdleDisconnect()
+        disconnectedForIdle = false
         process?.terminationHandler = nil
         process?.terminate()
         process = nil
@@ -168,6 +213,54 @@ actor SSHConnection {
         guard state != newState else { return }
         state = newState
     }
+
+    private var hasIdleBlockers: Bool {
+        activePaneCount > 0 || inFlightOperationCount > 0 || activeWatchCount > 0
+    }
+
+    private func scheduleIdleDisconnectIfNeeded() {
+        cancelIdleDisconnect()
+        guard state == .connected, !hasIdleBlockers else { return }
+
+        let timeout = idleTimeout
+        idleDisconnectTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            } catch {
+                return
+            }
+            await self?.disconnectForIdleIfStillInactive()
+        }
+    }
+
+    private func cancelIdleDisconnect() {
+        idleDisconnectTask?.cancel()
+        idleDisconnectTask = nil
+    }
+
+    private func disconnectForIdleIfStillInactive() {
+        guard state == .connected, !hasIdleBlockers else { return }
+        idleDisconnectTask = nil
+        process?.terminationHandler = nil
+        process?.terminate()
+        process = nil
+        stdinPipe = nil
+        stdoutPipe = nil
+        frameReader = RPCStreamHandler()
+        disconnectedForIdle = true
+        transition(to: .disconnected)
+    }
+
+    #if DEBUG
+    func simulateConnectedForTesting() {
+        transition(to: .connected)
+        scheduleIdleDisconnectIfNeeded()
+    }
+
+    func isDisconnectedForIdleForTesting() -> Bool {
+        disconnectedForIdle
+    }
+    #endif
 
     private func publishStateChange(from oldState: SSHConnectionState, to newState: SSHConnectionState) {
         let change = SSHConnectionStateChange(
