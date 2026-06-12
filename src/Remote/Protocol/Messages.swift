@@ -39,6 +39,9 @@ enum RPCMessage: Equatable, Sendable {
     case gitStatus(directory: RemotePath)
     case archiveCreate(items: [RemotePath], format: String, archiveName: Data, password: String?)
     case archiveExtract(archive: RemotePath, password: String?)
+    case fileVersion(path: RemotePath)
+    case download(path: RemotePath, maximumRPCBytes: Int64)
+    case upload(path: RemotePath, contents: Data, expectedByteCount: Int64, maximumRPCBytes: Int64)
     case watch(path: RemotePath, token: UUID)
     case unwatch(token: UUID)
     case watchEvent(watch: UUID, kind: RemoteWatchEventKind, path: RemotePath)
@@ -101,6 +104,19 @@ enum RPCMessage: Equatable, Sendable {
             writer.writeUInt8(15)
             writer.writeRemotePath(archive)
             writer.writeOptionalString(password)
+        case .fileVersion(let path):
+            writer.writeUInt8(19)
+            writer.writeRemotePath(path)
+        case .download(let path, let maximumRPCBytes):
+            writer.writeUInt8(20)
+            writer.writeRemotePath(path)
+            writer.writeInt64(maximumRPCBytes)
+        case .upload(let path, let contents, let expectedByteCount, let maximumRPCBytes):
+            writer.writeUInt8(21)
+            writer.writeRemotePath(path)
+            writer.writeData(contents)
+            writer.writeInt64(expectedByteCount)
+            writer.writeInt64(maximumRPCBytes)
         case .watch(let path, let token):
             writer.writeUInt8(16)
             writer.writeRemotePath(path)
@@ -162,6 +178,17 @@ enum RPCMessage: Equatable, Sendable {
             )
         case 15:
             self = .archiveExtract(archive: try reader.readRemotePath(), password: try reader.readOptionalString())
+        case 19:
+            self = .fileVersion(path: try reader.readRemotePath())
+        case 20:
+            self = .download(path: try reader.readRemotePath(), maximumRPCBytes: try reader.readInt64())
+        case 21:
+            self = .upload(
+                path: try reader.readRemotePath(),
+                contents: try reader.readData(),
+                expectedByteCount: try reader.readInt64(),
+                maximumRPCBytes: try reader.readInt64()
+            )
         case 16:
             self = .watch(path: try reader.readRemotePath(), token: try reader.readUUID())
         case 17:

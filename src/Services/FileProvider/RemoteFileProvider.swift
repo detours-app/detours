@@ -50,6 +50,7 @@ struct RemoteFileEntry: Equatable, Sendable {
     let isPackage: Bool
     let isAliasFile: Bool
     let isSymbolicLink: Bool
+    let isReadable: Bool
     let isHidden: Bool
     let fileSize: Int64?
     let contentModificationDate: Date
@@ -61,6 +62,7 @@ struct RemoteFileEntry: Equatable, Sendable {
         isPackage: Bool = false,
         isAliasFile: Bool = false,
         isSymbolicLink: Bool = false,
+        isReadable: Bool = true,
         isHidden: Bool = false,
         fileSize: Int64? = nil,
         contentModificationDate: Date = Date()
@@ -71,6 +73,7 @@ struct RemoteFileEntry: Equatable, Sendable {
         self.isPackage = isPackage
         self.isAliasFile = isAliasFile
         self.isSymbolicLink = isSymbolicLink
+        self.isReadable = isReadable
         self.isHidden = isHidden
         self.fileSize = fileSize
         self.contentModificationDate = contentModificationDate
@@ -86,6 +89,7 @@ struct RemoteFileEntry: Equatable, Sendable {
             isPackage: isPackage,
             isAliasFile: isAliasFile,
             isSymbolicLink: isSymbolicLink,
+            isReadable: isReadable,
             isHidden: isHidden,
             fileSize: fileSize,
             contentModificationDate: contentModificationDate
@@ -272,7 +276,62 @@ actor RemoteFileProvider: FileProvider {
     }
 
     func openForQuickLook(_ location: Location) async throws -> URL {
-        throw FileProviderError.unsupportedOperation("remote quick look")
+        let entry = try await stat(location)
+        guard let size = entry.fileSize else {
+            throw FileProviderError.unsupportedOperation("quick look directory")
+        }
+        guard size <= RemoteFileCache.quickLookMaximumBytes else {
+            throw FileProviderError.unsupportedOperation("Remote Quick Look supports files up to 100 MB")
+        }
+        let destination = try RemoteFileCache.makeSessionFile(hostID: hostID, remotePath: remotePath(from: location).lossyDisplayString)
+        try await download(location, to: destination)
+        return destination
+    }
+
+    func download(_ location: Location, to localURL: URL) async throws {
+        let path = try remotePath(from: location)
+        let chunks = try await rpcClient.send(.download(path: path, maximumRPCBytes: RemoteTransferChannel.rpcThresholdBytes))
+        guard chunks.count == 1 else {
+            throw RemoteFileProviderError.invalidResponse("download")
+        }
+        try FileManager.default.createDirectory(at: localURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let partial = RemoteTransferChannel.partialURL(for: localURL)
+        try? FileManager.default.removeItem(at: partial)
+        try? FileManager.default.removeItem(at: localURL)
+        do {
+            try chunks[0].write(to: partial, options: .atomic)
+            try FileManager.default.moveItem(at: partial, to: localURL)
+        } catch {
+            try? FileManager.default.removeItem(at: partial)
+            throw error
+        }
+    }
+
+    func upload(_ localURL: URL, to location: Location) async throws {
+        let data = try Data(contentsOf: localURL)
+        _ = try await rpcClient.send(
+            .upload(
+                path: remotePath(from: location),
+                contents: data,
+                expectedByteCount: Int64(data.count),
+                maximumRPCBytes: RemoteTransferChannel.rpcThresholdBytes
+            )
+        )
+    }
+
+    func version(of location: Location) async throws -> RemoteFileVersion {
+        let chunks = try await rpcClient.send(.fileVersion(path: remotePath(from: location)))
+        guard chunks.count == 1 else {
+            throw RemoteFileProviderError.invalidResponse("fileVersion")
+        }
+        var reader = RPCBinaryReader(data: chunks[0])
+        let sha256 = try reader.readString()
+        let mtimeMilliseconds = try reader.readInt64()
+        try reader.requireComplete()
+        return RemoteFileVersion(
+            sha256: sha256,
+            modificationDate: Date(timeIntervalSince1970: TimeInterval(mtimeMilliseconds) / 1_000)
+        )
     }
 
     func transferRoute(forByteCount byteCount: Int64) -> RemoteTransferRoute {
@@ -289,6 +348,7 @@ actor RemoteFileProvider: FileProvider {
             writer.writeBool(entry.isPackage)
             writer.writeBool(entry.isAliasFile)
             writer.writeBool(entry.isSymbolicLink)
+            writer.writeBool(entry.isReadable)
             writer.writeBool(entry.isHidden)
             writer.writeBool(entry.fileSize != nil)
             if let fileSize = entry.fileSize {
@@ -345,6 +405,7 @@ actor RemoteFileProvider: FileProvider {
             let isPackage = try reader.readBool()
             let isAliasFile = try reader.readBool()
             let isSymbolicLink = try reader.readBool()
+            let isReadable = try reader.readBool()
             let isHidden = try reader.readBool()
             let hasFileSize = try reader.readBool()
             let fileSize = hasFileSize ? try reader.readInt64() : nil
@@ -357,6 +418,7 @@ actor RemoteFileProvider: FileProvider {
                     isPackage: isPackage,
                     isAliasFile: isAliasFile,
                     isSymbolicLink: isSymbolicLink,
+                    isReadable: isReadable,
                     isHidden: isHidden,
                     fileSize: fileSize,
                     contentModificationDate: Date(timeIntervalSince1970: TimeInterval(mtimeMilliseconds) / 1_000)
@@ -413,6 +475,9 @@ extension RPCMessage {
         case .gitStatus: return "GitStatus"
         case .archiveCreate: return "ArchiveCreate"
         case .archiveExtract: return "ArchiveExtract"
+        case .fileVersion: return "FileVersion"
+        case .download: return "Download"
+        case .upload: return "Upload"
         case .watch: return "Watch"
         case .unwatch: return "Unwatch"
         case .watchEvent: return "WatchEvent"

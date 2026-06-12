@@ -790,6 +790,11 @@ final class MainSplitViewController: NSSplitViewController {
 
 extension MainSplitViewController: SidebarDelegate {
     func sidebarDidSelectItem(_ item: SidebarItem) {
+        if case .remoteHost(let host) = item {
+            connectRemoteHost(host)
+            return
+        }
+
         guard let url = item.url else { return }
         navigateActivePane(to: url)
         // Restore focus to the active pane's file list
@@ -1011,6 +1016,64 @@ extension MainSplitViewController: SidebarDelegate {
                 await self.mountNetworkURL(url)
             }
         }
+    }
+
+    func showAddRemoteHost() {
+        guard let window = view.window else { return }
+
+        let controller = AddRemoteHostWindowController()
+        controller.present(over: window) { host in
+            RemoteHostStore.shared.upsert(host)
+        }
+    }
+
+    private func connectRemoteHost(_ host: RemoteHost) {
+        Task { @MainActor in
+            do {
+                let bundledBinary = Self.detoursServerBinaryURL()
+                let deploymentClient = SSHServerDeploymentClient(sshTarget: host.sshTarget)
+                let deployer = ServerDeployer(client: deploymentClient, bundledBinaryURL: bundledBinary)
+                _ = try await deployer.deployIfNeeded()
+
+                let connection = SSHConnection(
+                    configuration: SSHConnectionConfiguration(hostID: host.id, sshTarget: host.sshTarget)
+                )
+                try await connection.connect()
+
+                let rpcClient = SSHRemoteRPCClient(connection: connection)
+                let transferChannel = RemoteTransferChannel(sshTarget: host.sshTarget)
+                let provider = RemoteFileProvider(
+                    hostID: host.id,
+                    rpcClient: rpcClient,
+                    transferChannel: transferChannel
+                )
+
+                FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
+                RemoteHostStore.shared.markConnected(id: host.id)
+                activePane.loadRemoteHost(host, provider: provider)
+                view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
+            } catch {
+                showRemoteConnectionError(error, host: host)
+            }
+        }
+    }
+
+    private static func detoursServerBinaryURL() -> URL {
+        if let resourceURL = Bundle.main.resourceURL?
+            .appendingPathComponent("Servers/detours-server-x86_64-linux"),
+           FileManager.default.fileExists(atPath: resourceURL.path) {
+            return resourceURL
+        }
+        return URL(fileURLWithPath: "Resources/Servers/detours-server-x86_64-linux")
+    }
+
+    private func showRemoteConnectionError(_ error: Error, host: RemoteHost) {
+        let alert = NSAlert()
+        alert.messageText = "Could not connect to \"\(host.displayName)\""
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     func mountNetworkURL(_ url: URL) async {

@@ -69,6 +69,28 @@ func setupMainMenu(target: AppDelegate) {
     newFileMenuItem.image = NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: nil)
     fileMenu.addItem(newFileMenuItem)
 
+    fileMenu.addItem(NSMenuItem.separator())
+
+    let addRemoteHostItem = createDynamicMenuItem(
+        title: "Add Remote Host...",
+        action: #selector(AppDelegate.addRemoteHost(_:)),
+        shortcutAction: .connectToServer,
+        target: target
+    )
+    addRemoteHostItem.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: nil)
+    fileMenu.addItem(addRemoteHostItem)
+
+    let connectToNetworkShareItem = NSMenuItem(
+        title: "Connect to Network Share...",
+        action: #selector(AppDelegate.connectToNetworkShare(_:)),
+        keyEquivalent: ""
+    )
+    connectToNetworkShareItem.target = target
+    connectToNetworkShareItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
+    fileMenu.addItem(connectToNetworkShareItem)
+
+    fileMenu.addItem(NSMenuItem.separator())
+
     let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(FileListViewController.duplicate(_:)), keyEquivalent: "d")
     duplicateItem.image = NSImage(systemSymbolName: "plus.square.on.square", accessibilityDescription: nil)
     fileMenu.addItem(duplicateItem)
@@ -278,15 +300,6 @@ func setupMainMenu(target: AppDelegate) {
     goMenu.addItem(prevTabItem)
 
     goMenu.addItem(NSMenuItem.separator())
-
-    let connectToServerItem = createDynamicMenuItem(
-        title: "Connect to Server...",
-        action: #selector(AppDelegate.connectToServer(_:)),
-        shortcutAction: .connectToServer,
-        target: target
-    )
-    connectToServerItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
-    goMenu.addItem(connectToServerItem)
 
     // Window menu
     let windowMenu = NSMenu(title: "Window")

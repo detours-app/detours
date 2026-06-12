@@ -53,21 +53,23 @@ final class NetworkUITests: BaseUITest {
         _ = placeholderText.exists
     }
 
-    // MARK: - Connect to Server Dialog
+    // MARK: - Connect to Network Share Dialog
 
-    /// Test that Cmd+K opens the Connect to Server dialog
-    func testConnectToServerOpensWithKeyboardShortcut() throws {
-        // Press Cmd+K
-        app.typeKey("k", modifierFlags: .command)
-        sleep(1)
+    /// Test that the File menu opens the Connect to Network Share dialog
+    func testConnectToNetworkShareOpensFromFileMenu() throws {
+        let menuBar = app.menuBars.firstMatch
+        let fileMenu = menuBar.menuBarItems["File"]
+        XCTAssertTrue(fileMenu.exists, "File menu should exist")
+        fileMenu.click()
+        fileMenu.menuItems["Connect to Network Share..."].click()
 
         // Look for the dialog
         let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 3), "Connect to Server sheet should appear")
+        XCTAssertTrue(sheet.waitForExistence(timeout: 3), "Connect to Network Share sheet should appear")
 
         // Verify dialog title
-        let title = sheet.staticTexts["Connect to Server"]
-        XCTAssertTrue(title.exists, "Dialog should have 'Connect to Server' title")
+        let title = sheet.staticTexts["Connect to Network Share"]
+        XCTAssertTrue(title.exists, "Dialog should have 'Connect to Network Share' title")
 
         // Close dialog
         let cancelButton = sheet.buttons["Cancel"]
@@ -78,11 +80,12 @@ final class NetworkUITests: BaseUITest {
         }
     }
 
-    /// Test Connect to Server dialog has all expected elements
-    func testConnectToServerDialogElements() throws {
+    /// Test Connect to Network Share dialog has all expected elements
+    func testConnectToNetworkShareDialogElements() throws {
         // Open dialog
-        app.typeKey("k", modifierFlags: .command)
-        sleep(1)
+        let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
+        fileMenu.click()
+        fileMenu.menuItems["Connect to Network Share..."].click()
 
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 3))
@@ -103,11 +106,12 @@ final class NetworkUITests: BaseUITest {
         cancelButton.click()
     }
 
-    /// Test Cancel button dismisses Connect to Server dialog
-    func testConnectToServerCancelCloses() throws {
+    /// Test Cancel button dismisses Connect to Network Share dialog
+    func testConnectToNetworkShareCancelCloses() throws {
         // Open dialog
-        app.typeKey("k", modifierFlags: .command)
-        sleep(1)
+        let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
+        fileMenu.click()
+        fileMenu.menuItems["Connect to Network Share..."].click()
 
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 3))
@@ -123,10 +127,11 @@ final class NetworkUITests: BaseUITest {
     }
 
     /// Test Connect button is disabled for empty URL
-    func testConnectToServerValidatesURL() throws {
+    func testConnectToNetworkShareValidatesURL() throws {
         // Open dialog
-        app.typeKey("k", modifierFlags: .command)
-        sleep(1)
+        let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
+        fileMenu.click()
+        fileMenu.menuItems["Connect to Network Share..."].click()
 
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 3))
@@ -143,17 +148,18 @@ final class NetworkUITests: BaseUITest {
 
     // MARK: - Menu Item
 
-    /// Test Go menu has "Connect to Server..." item
-    func testGoMenuHasConnectToServer() throws {
-        // Click Go menu
+    /// Test File menu has remote-host and network-share actions
+    func testFileMenuHasRemoteAndNetworkShareActions() throws {
         let menuBar = app.menuBars.firstMatch
-        let goMenu = menuBar.menuBarItems["Go"]
-        XCTAssertTrue(goMenu.exists, "Go menu should exist")
-        goMenu.click()
+        let fileMenu = menuBar.menuBarItems["File"]
+        XCTAssertTrue(fileMenu.exists, "File menu should exist")
+        fileMenu.click()
 
-        // Look for Connect to Server item
-        let connectItem = goMenu.menuItems["Connect to Server..."]
-        XCTAssertTrue(connectItem.waitForExistence(timeout: 2), "Connect to Server menu item should exist")
+        let remoteItem = fileMenu.menuItems["Add Remote Host..."]
+        XCTAssertTrue(remoteItem.waitForExistence(timeout: 2), "Add Remote Host menu item should exist")
+
+        let shareItem = fileMenu.menuItems["Connect to Network Share..."]
+        XCTAssertTrue(shareItem.exists, "Connect to Network Share menu item should exist")
 
         // Press Escape to close menu
         app.typeKey(.escape, modifierFlags: [])

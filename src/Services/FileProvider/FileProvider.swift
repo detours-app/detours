@@ -10,6 +10,11 @@ struct TrashedItem: Hashable, Sendable {
     let trashLocation: Location
 }
 
+struct RemoteFileVersion: Equatable, Sendable {
+    let sha256: String
+    let modificationDate: Date
+}
+
 protocol FileProvider: Sendable {
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry]
     func stat(_ location: Location) async throws -> LoadedFileEntry
@@ -27,10 +32,27 @@ protocol FileProvider: Sendable {
     func folderSize(for location: Location) async throws -> Int64
     func readSymlink(_ location: Location) async throws -> Location
     func openForQuickLook(_ location: Location) async throws -> URL
+    func download(_ location: Location, to localURL: URL) async throws
+    func upload(_ localURL: URL, to location: Location) async throws
+    func version(of location: Location) async throws -> RemoteFileVersion
 }
 
 enum FileProviderError: Error, Equatable {
     case expectedLocal(Location)
     case unsupportedRemote(Location)
     case unsupportedOperation(String)
+}
+
+extension FileProvider {
+    func download(_ location: Location, to localURL: URL) async throws {
+        throw FileProviderError.unsupportedOperation("download")
+    }
+
+    func upload(_ localURL: URL, to location: Location) async throws {
+        throw FileProviderError.unsupportedOperation("upload")
+    }
+
+    func version(of location: Location) async throws -> RemoteFileVersion {
+        throw FileProviderError.unsupportedOperation("version")
+    }
 }

@@ -16,7 +16,7 @@ final class ConnectToServerWindowController: NSWindowController {
             defer: false
         )
         window.isReleasedWhenClosed = false
-        window.title = "Connect to Server"
+        window.title = "Connect to Network Share"
 
         super.init(window: window)
 

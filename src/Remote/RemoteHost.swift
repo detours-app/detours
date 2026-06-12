@@ -26,6 +26,10 @@ struct RemoteHost: Codable, Equatable, Hashable, Identifiable, Sendable {
         Self.cacheDirectoryName(hostID: id, sshTarget: sshTarget)
     }
 
+    static func cacheDirectoryName(hostID: UUID) -> String {
+        "remote-\(hostID.uuidString.lowercased())"
+    }
+
     static func cacheDirectoryName(hostID: UUID, sshTarget: String) -> String {
         let digest = SHA256.hash(data: Data(sshTarget.utf8))
             .prefix(8)

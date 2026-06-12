@@ -460,6 +460,16 @@ final class PaneViewController: NSViewController {
         updatePathControl()
     }
 
+    func loadRemoteHost(_ host: RemoteHost, provider: any FileProvider, path: String = "/") {
+        setRemoteBreadcrumbHost(host)
+        selectedTab?.fileListViewController.loadRemoteDirectory(
+            host: host,
+            path: path,
+            provider: provider
+        )
+        updateStatusBar()
+    }
+
     private func clearRemoteBreadcrumbHostForSelectedTab() {
         guard let tab = selectedTab else { return }
         remoteBreadcrumbHostsByTabID.removeValue(forKey: tab.id)

@@ -422,6 +422,68 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         }
     }
 
+    func loadRemoteDirectory(
+        _ location: Location,
+        provider: any FileProvider,
+        preserveExpansion: Bool = false
+    ) {
+        cancelCurrentLoad()
+
+        let previousExpanded = preserveExpansion ? expandedFolders : []
+        suppressCollapseNotifications = preserveExpansion
+        _cachedFilteredItems = nil
+        onLoadStarted?()
+
+        let showHidden = showHiddenFiles
+
+        currentLoadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            do {
+                let entries = try await provider.list(location, showHidden: showHidden)
+                let statuses = await provider.gitStatus(for: location)
+
+                guard !Task.isCancelled else { return }
+
+                let fileItems = self.baseFileItems(for: entries)
+                for item in fileItems {
+                    item.gitStatus = statuses[item.location]
+                }
+
+                self.items = FileItem.sorted(fileItems, by: self.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
+                self.currentDirectoryForGit = nil
+                self.gitStatuses = [:]
+                self.expandedFolders = previousExpanded
+                self.outlineView?.reloadData()
+                self.outlineView?.needsLayout = true
+                self.suppressCollapseNotifications = false
+                self.onLoadCompleted?(.success(()))
+            } catch is CancellationError {
+                return
+            } catch let error as DirectoryLoadError {
+                guard !Task.isCancelled else { return }
+                self.items = []
+                self.currentDirectoryForGit = nil
+                self.gitStatuses = [:]
+                self.expandedFolders = previousExpanded
+                self.outlineView?.reloadData()
+                self.outlineView?.needsLayout = true
+                self.suppressCollapseNotifications = false
+                self.onLoadCompleted?(.failure(error))
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.items = []
+                self.currentDirectoryForGit = nil
+                self.gitStatuses = [:]
+                self.expandedFolders = previousExpanded
+                self.outlineView?.reloadData()
+                self.outlineView?.needsLayout = true
+                self.suppressCollapseNotifications = false
+                self.onLoadCompleted?(.failure(.other(error.localizedDescription)))
+            }
+        }
+    }
+
     /// Cancel the current directory load and all icon load tasks
     func cancelCurrentLoad() {
         currentLoadTask?.cancel()

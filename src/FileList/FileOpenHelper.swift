@@ -3,6 +3,24 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "fileopen")
 
+enum RemoteOpenConflictKind: Equatable, Sendable {
+    case content
+    case timestamp
+    case contentAndTimestamp
+}
+
+enum RemoteOpenConflictChoice: Equatable, Sendable {
+    case keepMine
+    case keepRemote
+    case cancel
+}
+
+struct RemoteOpenWithSession: Sendable {
+    let remoteLocation: Location
+    let localURL: URL
+    let originalVersion: RemoteFileVersion
+}
+
 /// Helper for opening files with the appropriate method.
 /// Handles disk image files (DMG, ISO, sparsebundle) specially due to macOS Sequoia bug.
 enum FileOpenHelper {
@@ -34,6 +52,59 @@ enum FileOpenHelper {
             return nil
         }
         return await mountDiskImageAndGetPath(url)
+    }
+
+    static func prepareRemoteOpenWith(
+        location: Location,
+        provider: any FileProvider,
+        hostID: UUID,
+        opener: @MainActor (URL) -> Void = { NSWorkspace.shared.open($0) }
+    ) async throws -> RemoteOpenWithSession {
+        let localURL = try RemoteFileCache.makeSessionFile(hostID: hostID, remotePath: location.path)
+        try await provider.download(location, to: localURL)
+        let version = try await provider.version(of: location)
+        await MainActor.run {
+            opener(localURL)
+        }
+        return RemoteOpenWithSession(remoteLocation: location, localURL: localURL, originalVersion: version)
+    }
+
+    static func finishRemoteOpenWith(
+        _ session: RemoteOpenWithSession,
+        provider: any FileProvider,
+        conflictResolver: @MainActor (RemoteOpenConflictKind) async -> RemoteOpenConflictChoice
+    ) async throws -> RemoteOpenConflictChoice? {
+        let currentVersion = try await provider.version(of: session.remoteLocation)
+        let conflict = conflictKind(original: session.originalVersion, current: currentVersion)
+        if let conflict {
+            let choice = await conflictResolver(conflict)
+            switch choice {
+            case .keepMine:
+                try await provider.upload(session.localURL, to: session.remoteLocation)
+            case .keepRemote, .cancel:
+                break
+            }
+            return choice
+        }
+
+        try await provider.upload(session.localURL, to: session.remoteLocation)
+        return nil
+    }
+
+    static func conflictKind(original: RemoteFileVersion, current: RemoteFileVersion) -> RemoteOpenConflictKind? {
+        let contentChanged = original.sha256 != current.sha256
+        let timestampChanged = original.modificationDate != current.modificationDate
+
+        switch (contentChanged, timestampChanged) {
+        case (true, true):
+            return .contentAndTimestamp
+        case (true, false):
+            return .content
+        case (false, true):
+            return .timestamp
+        case (false, false):
+            return nil
+        }
     }
 
     /// Mounts a disk image using hdiutil (fire-and-forget, no navigation)

@@ -303,7 +303,7 @@ enum ShortcutAction: String, Codable, CaseIterable {
         case .refresh: return "Refresh"
         case .toggleSidebar: return "Toggle Sidebar"
         case .filter: return "Filter"
-        case .connectToServer: return "Connect to Server"
+        case .connectToServer: return "Add Remote Host"
         }
     }
 }

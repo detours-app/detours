@@ -37,6 +37,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var hasLoadedDirectory = false
     let renameController = RenameController()
     private var providerWatches: [URL: FileProviderWatch] = [:]
+    private var currentRemoteHost: RemoteHost?
+    private var currentRemoteLocation: Location?
+    private var currentRemoteProvider: (any FileProvider)?
     private var directoryWatchTask: Task<Void, Never>?
     private var directoryChangeDebounce: DispatchWorkItem?
     /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
@@ -334,7 +337,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func handleDoubleClick(row: Int) {
         guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        if item.isVirtualSharedFolder {
+        if case .remote = item.location {
+            openRemoteItem(item)
+        } else if item.isVirtualSharedFolder {
             navigationDelegate?.fileListDidRequestICloudSharedNavigation(cloudDocsURL: item.url)
         } else if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
@@ -348,6 +353,38 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             }
         } else {
             FileOpenHelper.open(item.url)
+        }
+    }
+
+    private func openRemoteItem(_ item: FileItem) {
+        guard let provider = currentRemoteProvider else { return }
+        if item.isNavigableFolder {
+            loadRemoteDirectory(item.location, provider: provider, preserveExpansion: false)
+        } else if item.isSymbolicLink {
+            Task { @MainActor in
+                do {
+                    let destination = try await provider.readSymlink(item.location)
+                    let entry = try await provider.stat(destination)
+                    if entry.isDirectory {
+                        self.loadRemoteDirectory(destination, provider: provider, preserveExpansion: false)
+                    } else {
+                        FileOperationQueue.shared.presentError(
+                            FileProviderError.unsupportedOperation("Remote symbolic link target is not a folder")
+                        )
+                    }
+                } catch {
+                    FileOperationQueue.shared.presentError(error)
+                }
+            }
+        } else {
+            Task { @MainActor in
+                do {
+                    let localURL = try await provider.openForQuickLook(item.location)
+                    FileOpenHelper.open(localURL)
+                } catch {
+                    FileOperationQueue.shared.presentError(error)
+                }
+            }
         }
     }
 
@@ -484,6 +521,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         hideErrorOverlay()
 
         let normalizedURL = url.standardizedFileURL
+        currentRemoteHost = nil
+        currentRemoteLocation = nil
+        currentRemoteProvider = nil
         let previousDirectory = currentDirectory?.standardizedFileURL
         let effectiveListingMode: ICloudListingMode
         if let requestedListingMode {
@@ -594,6 +634,56 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         // Track directory visit for frecency (this is instant, no I/O)
         FrecencyStore.shared.recordVisit(normalizedURL)
+    }
+
+    func loadRemoteDirectory(
+        host: RemoteHost,
+        path: String = "/",
+        provider: any FileProvider,
+        preserveExpansion: Bool = false
+    ) {
+        loadRemoteDirectory(.remote(hostID: host.id, path: path), provider: provider, preserveExpansion: preserveExpansion)
+        currentRemoteHost = host
+        currentRemoteProvider = provider
+    }
+
+    private func loadRemoteDirectory(_ location: Location, provider: any FileProvider, preserveExpansion: Bool) {
+        dataSource.cancelCurrentLoad()
+        hideLoadingIndicator()
+        hideErrorOverlay()
+        currentRemoteLocation = location
+        currentRemoteProvider = provider
+        currentDirectory = nil
+        currentICloudListingMode = .normal
+
+        if isFilterBarVisible {
+            hideFilterBar()
+        }
+
+        guard isViewLoaded else {
+            hasLoadedDirectory = false
+            return
+        }
+
+        dataSource.onLoadCompleted = { [weak self] result in
+            guard let self else { return }
+            self.hideLoadingIndicator()
+            switch result {
+            case .success:
+                self.hideErrorOverlay()
+                if !self.dataSource.items.isEmpty {
+                    self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                }
+                self.navigationDelegate?.fileListDidLoadDirectory()
+            case .failure(let error):
+                self.showErrorOverlay(for: error)
+                self.navigationDelegate?.fileListDidLoadDirectory()
+            }
+        }
+
+        dataSource.loadRemoteDirectory(location, provider: provider, preserveExpansion: preserveExpansion)
+        hasLoadedDirectory = true
+        FrecencyStore.shared.recordVisit(location)
     }
 
     // MARK: - Loading & Error States
@@ -869,7 +959,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     var selectedURLs: [URL] {
-        selectedItems.map { $0.url }
+        selectedItems.compactMap {
+            guard case .local(let url) = $0.location else { return nil }
+            return url
+        }
     }
 
     /// Returns the effective destination for file operations based on current selection.

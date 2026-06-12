@@ -24,6 +24,7 @@ struct LoadedFileEntry: Sendable {
     let isPackage: Bool
     let isAliasFile: Bool
     let isSymbolicLink: Bool
+    let isReadable: Bool
     let isHidden: Bool
     let fileSize: Int64?
     let contentModificationDate: Date
@@ -56,6 +57,7 @@ struct LoadedFileEntry: Sendable {
         self.isPackage = values?.isPackage ?? false
         self.isAliasFile = isAliasFile
         self.isSymbolicLink = isSymbolicLink
+        self.isReadable = values?.isReadable ?? true
         self.isHidden = values?.isHidden ?? url.lastPathComponent.hasPrefix(".")
         self.fileSize = isDirectory ? nil : values?.fileSize.map { Int64($0) }
         self.contentModificationDate = values?.contentModificationDate ?? Date()
@@ -74,6 +76,7 @@ struct LoadedFileEntry: Sendable {
         isPackage: Bool = false,
         isAliasFile: Bool = false,
         isSymbolicLink: Bool = false,
+        isReadable: Bool = true,
         isHidden: Bool = false,
         fileSize: Int64? = nil,
         contentModificationDate: Date = Date(),
@@ -90,6 +93,7 @@ struct LoadedFileEntry: Sendable {
         self.isPackage = isPackage
         self.isAliasFile = isAliasFile
         self.isSymbolicLink = isSymbolicLink
+        self.isReadable = isReadable
         self.isHidden = isHidden
         self.fileSize = fileSize
         self.contentModificationDate = contentModificationDate

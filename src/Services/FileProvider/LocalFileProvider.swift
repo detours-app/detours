@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 actor LocalFileProvider: FileProvider {
@@ -93,10 +94,36 @@ actor LocalFileProvider: FileProvider {
         try localURL(from: location)
     }
 
+    func download(_ location: Location, to destinationURL: URL) async throws {
+        try FileManager.default.copyItem(at: localURL(from: location), to: destinationURL)
+    }
+
+    func upload(_ localURL: URL, to location: Location) async throws {
+        let destination = try self.localURL(from: location)
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.copyItem(at: localURL, to: destination)
+    }
+
+    func version(of location: Location) async throws -> RemoteFileVersion {
+        let url = try localURL(from: location)
+        return RemoteFileVersion(
+            sha256: try Self.sha256Hex(of: url),
+            modificationDate: (try url.resourceValues(forKeys: [.contentModificationDateKey])).contentModificationDate ?? .distantPast
+        )
+    }
+
     private func localURL(from location: Location) throws -> URL {
         guard case .local(let url) = location else {
             throw FileProviderError.expectedLocal(location)
         }
         return url
+    }
+
+    private static func sha256Hex(of url: URL) throws -> String {
+        let data = try Data(contentsOf: url)
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }
