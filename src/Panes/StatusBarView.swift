@@ -7,6 +7,7 @@ final class StatusBarView: NSView {
     enum Mode {
         case normal
         case progress
+        case paused
         case completion
         case error
     }
@@ -122,6 +123,8 @@ final class StatusBarView: NSView {
         case .progress:
             progressLabel.font = theme.uiFont(size: ThemeManager.shared.fontSize - 1)
             progressLabel.textColor = theme.textSecondary
+        case .paused:
+            label.textColor = theme.textSecondary
         case .completion:
             label.textColor = theme.accent
         case .error:
@@ -166,6 +169,23 @@ final class StatusBarView: NSView {
     func updateProgress(_ progress: FileOperationProgress) {
         guard case .progress = mode else { return }
         updateProgressViews(progress)
+    }
+
+    func showPaused(message: String) {
+        completionWorkItem?.cancel()
+        completionWorkItem = nil
+        mode = .paused
+
+        progressBar.isHidden = true
+        progressLabel.isHidden = true
+        label.isHidden = false
+
+        label.stringValue = message
+        label.textColor = ThemeManager.shared.currentTheme.textSecondary
+        label.lineBreakMode = .byTruncatingMiddle
+        needsDisplay = true
+
+        postAccessibilityAnnouncement(message)
     }
 
     func showCompletion(message: String) {
@@ -252,7 +272,7 @@ final class StatusBarView: NSView {
 
     @objc private func handleClick(_ sender: Any?) {
         switch mode {
-        case .progress, .error:
+        case .progress, .paused, .error:
             onProgressClick?()
         case .normal, .completion:
             break

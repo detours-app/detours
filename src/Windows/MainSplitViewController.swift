@@ -127,6 +127,12 @@ final class MainSplitViewController: NSSplitViewController {
             self.rightPane.updateOperationProgress(progress)
         }
 
+        queue.onOperationPaused = { [weak self] message in
+            guard let self else { return }
+            self.leftPane.showOperationPaused(message)
+            self.rightPane.showOperationPaused(message)
+        }
+
         queue.onOperationFinish = { [weak self] operation, error in
             guard let self else { return }
 

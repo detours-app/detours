@@ -652,6 +652,24 @@ final class PaneViewController: NSViewController {
         updateDetailPopover(progress)
     }
 
+    func showOperationPaused(_ message: String) {
+        if statusBar.isHidden {
+            operationStatusBarForceShown = true
+            statusBar.isHidden = false
+            statusBarBottomConstraint?.isActive = false
+            tabContainerBottomConstraint?.isActive = false
+            tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: statusBar.topAnchor)
+            statusBarBottomConstraint = statusBar.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            tabContainerBottomConstraint?.isActive = true
+            statusBarBottomConstraint?.isActive = true
+        }
+
+        statusBar.showPaused(message: message)
+        statusBar.onProgressClick = { [weak self] in
+            self?.showDetailPopover()
+        }
+    }
+
     func hideOperationProgress(completion: String?, error: String?) {
         closeDetailPopover()
 
