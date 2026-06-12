@@ -82,6 +82,68 @@ final class RemoteFileProviderTests: XCTestCase {
         XCTAssertEqual(smallRoute, .rpc)
         XCTAssertEqual(largeRoute, .transferChannel)
     }
+
+    func testQuickLookRejectsFilesAboveMaximumBeforeDownload() async throws {
+        let hostID = UUID()
+        let stat = RemoteFileProvider.encodeFileEntries([
+            RemoteFileEntry(
+                path: RemotePath("/home/marco/huge.mov"),
+                name: Data("huge.mov".utf8),
+                isDirectory: false,
+                fileSize: RemoteFileCache.quickLookMaximumBytes + 1
+            ),
+        ])
+        let client = FakeRemoteRPCClient(responses: [[stat]])
+        let provider = RemoteFileProvider(
+            hostID: hostID,
+            rpcClient: client,
+            transferChannel: RemoteTransferChannel(sshTarget: "devtest")
+        )
+
+        do {
+            _ = try await provider.openForQuickLook(.remote(hostID: hostID, path: "/home/marco/huge.mov"))
+            XCTFail("Expected remote Quick Look size rejection")
+        } catch FileProviderError.unsupportedOperation(let message) {
+            XCTAssertTrue(message.contains("100 MB"))
+        }
+
+        let messages = await client.sentMessages()
+        XCTAssertEqual(messages, [.stat(path: RemotePath("/home/marco/huge.mov"))])
+    }
+
+    func testQuickLookDownloadsOnDemand() async throws {
+        let hostID = UUID()
+        let stat = RemoteFileProvider.encodeFileEntries([
+            RemoteFileEntry(
+                path: RemotePath("/home/marco/note.txt"),
+                name: Data("note.txt".utf8),
+                isDirectory: false,
+                fileSize: 12
+            ),
+        ])
+        let body = Data("remote note".utf8)
+        let client = FakeRemoteRPCClient(responses: [[stat], [body]])
+        let provider = RemoteFileProvider(
+            hostID: hostID,
+            rpcClient: client,
+            transferChannel: RemoteTransferChannel(sshTarget: "devtest")
+        )
+
+        let localURL = try await provider.openForQuickLook(.remote(hostID: hostID, path: "/home/marco/note.txt"))
+        defer {
+            try? FileManager.default.removeItem(at: localURL.deletingLastPathComponent())
+        }
+
+        XCTAssertEqual(try Data(contentsOf: localURL), body)
+        let messages = await client.sentMessages()
+        XCTAssertEqual(
+            messages,
+            [
+                .stat(path: RemotePath("/home/marco/note.txt")),
+                .download(path: RemotePath("/home/marco/note.txt"), maximumRPCBytes: RemoteTransferChannel.rpcThresholdBytes),
+            ]
+        )
+    }
 }
 
 private actor FakeRemoteRPCClient: RemoteRPCClient {
