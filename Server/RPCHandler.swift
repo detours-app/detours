@@ -51,6 +51,30 @@ struct RPCHandler {
             return try fileOperations.list(path: path, showHidden: showHidden)
         case .stat(let path):
             return try fileOperations.stat(path: path)
+        case .copy(let sources, let destination, let maximumRPCBytes):
+            return try fileOperations.copy(sources: sources, destination: destination, maximumRPCBytes: maximumRPCBytes)
+        case .move(let sources, let destination):
+            return try fileOperations.move(sources: sources, destination: destination)
+        case .rename(let item, let newName):
+            return try fileOperations.rename(item: item, newName: newName)
+        case .delete(let items):
+            _ = try fileOperations.trash(items: items)
+            return Data()
+        case .trash(let items):
+            return try fileOperations.trash(items: items)
+        case .restoreFromTrash(let items):
+            return try fileOperations.restoreFromTrash(items: items)
+        case .mkDir(let path):
+            return try fileOperations.mkDir(path: path)
+        case .archiveCreate(let items, let format, let archiveName, let password):
+            return try fileOperations.archiveCreate(
+                items: items,
+                format: format,
+                archiveName: archiveName,
+                password: password
+            )
+        case .archiveExtract(let archive, let password):
+            return try fileOperations.archiveExtract(archive: archive, password: password)
         case .download(let path, let maximumRPCBytes):
             return try fileOperations.download(path: path, maximumRPCBytes: maximumRPCBytes)
         case .upload(let path, let contents, let expectedByteCount, let maximumRPCBytes):

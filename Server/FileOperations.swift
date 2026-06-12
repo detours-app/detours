@@ -1,13 +1,16 @@
 import Foundation
 
 struct FileOperations {
+    private let fileManager: FileManager
     private let trashOperations: TrashOperations
     private let archiveOperations: ArchiveOperations
 
     init(
+        fileManager: FileManager = .default,
         trashOperations: TrashOperations = TrashOperations(),
         archiveOperations: ArchiveOperations = ArchiveOperations()
     ) {
+        self.fileManager = fileManager
         self.trashOperations = trashOperations
         self.archiveOperations = archiveOperations
     }
@@ -26,6 +29,57 @@ struct FileOperations {
 
     func stat(path: ServerRemotePath) throws -> Data {
         try encodeFileEntries([fileEntry(path: path.string)])
+    }
+
+    func copy(sources: [ServerRemotePath], destination: ServerRemotePath, maximumRPCBytes: Int64) throws -> Data {
+        let destinationURL = URL(fileURLWithPath: destination.string)
+        let copied = try sources.map { source in
+            let sourceURL = URL(fileURLWithPath: source.string)
+            if try byteCount(at: sourceURL) > maximumRPCBytes {
+                throw ServerRPCError.unsupportedCommand("copy over rpc threshold")
+            }
+            let finalURL = destinationURL.appendingPathComponent(sourceURL.lastPathComponent)
+            try? fileManager.removeItem(at: finalURL)
+            try fileManager.copyItem(at: sourceURL, to: finalURL)
+            return ServerRemotePath(finalURL.path)
+        }
+        return encodePathList(copied)
+    }
+
+    func move(sources: [ServerRemotePath], destination: ServerRemotePath) throws -> Data {
+        let destinationURL = URL(fileURLWithPath: destination.string)
+        let moved = try sources.map { source in
+            let sourceURL = URL(fileURLWithPath: source.string)
+            let finalURL = destinationURL.appendingPathComponent(sourceURL.lastPathComponent)
+            try? fileManager.removeItem(at: finalURL)
+            try fileManager.moveItem(at: sourceURL, to: finalURL)
+            return ServerRemotePath(finalURL.path)
+        }
+        return encodePathList(moved)
+    }
+
+    func rename(item: ServerRemotePath, newName: Data) throws -> Data {
+        let sourceURL = URL(fileURLWithPath: item.string)
+        let name = String(decoding: newName, as: UTF8.self)
+        let destinationURL = sourceURL.deletingLastPathComponent().appendingPathComponent(name)
+        try fileManager.moveItem(at: sourceURL, to: destinationURL)
+        return encodePathList([ServerRemotePath(destinationURL.path)])
+    }
+
+    func trash(items: [ServerRemotePath]) throws -> Data {
+        let infoPaths = try trashOperations.trash(paths: items.map(\.string)).map(ServerRemotePath.init)
+        return encodePathList(infoPaths)
+    }
+
+    func restoreFromTrash(items: [ServerRemotePath]) throws -> Data {
+        let restored = try trashOperations.restore(trashInfoPaths: items.map(\.string)).map(ServerRemotePath.init)
+        return encodePathList(restored)
+    }
+
+    func mkDir(path: ServerRemotePath) throws -> Data {
+        let url = URL(fileURLWithPath: path.string)
+        try fileManager.createDirectory(at: url, withIntermediateDirectories: false)
+        return encodePathList([path])
     }
 
     func download(path: ServerRemotePath, maximumRPCBytes: Int64) throws -> Data {
@@ -105,25 +159,20 @@ struct FileOperations {
         return writer.data
     }
 
-    func trash(paths: [String]) throws -> [String] {
-        try trashOperations.trash(paths: paths)
-    }
-
-    func restoreFromTrash(trashInfoPaths: [String]) throws -> [String] {
-        try trashOperations.restore(trashInfoPaths: trashInfoPaths)
-    }
-
-    func archiveCreate(items: [String], format: String, archiveName: String, password: String?) throws -> String {
-        try archiveOperations.createArchive(
-            items: items,
+    func archiveCreate(items: [ServerRemotePath], format: String, archiveName: Data, password: String?) throws -> Data {
+        let archiveNameString = String(decoding: archiveName, as: UTF8.self)
+        let archivePath = try archiveOperations.createArchive(
+            items: items.map(\.string),
             format: format,
-            archiveName: archiveName,
+            archiveName: archiveNameString,
             password: password
         )
+        return encodePathList([ServerRemotePath(archivePath)])
     }
 
-    func archiveExtract(archive: String, password: String?) throws -> String {
-        try archiveOperations.extractArchive(archive: archive, password: password)
+    func archiveExtract(archive: ServerRemotePath, password: String?) throws -> Data {
+        let extracted = try archiveOperations.extractArchive(archive: archive.string, password: password)
+        return encodePathList([ServerRemotePath(extracted)])
     }
 
     private struct ServerFileEntry {
@@ -202,6 +251,14 @@ struct FileOperations {
             writer.writeData(path.bytes)
         }
         return writer.data
+    }
+
+    private func byteCount(at url: URL) throws -> Int64 {
+        let values = try url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+        guard values.isDirectory != true else {
+            throw ServerRPCError.unsupportedCommand("copy directory over rpc")
+        }
+        return Int64(values.fileSize ?? 0)
     }
 
     private func sha256Hex(path: String) throws -> String {

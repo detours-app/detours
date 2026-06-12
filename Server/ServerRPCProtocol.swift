@@ -28,6 +28,15 @@ enum ServerRPCMessage {
     case protocolVersion(Int)
     case list(path: ServerRemotePath, showHidden: Bool)
     case stat(path: ServerRemotePath)
+    case copy(sources: [ServerRemotePath], destination: ServerRemotePath, maximumRPCBytes: Int64)
+    case move(sources: [ServerRemotePath], destination: ServerRemotePath)
+    case rename(item: ServerRemotePath, newName: Data)
+    case delete(items: [ServerRemotePath])
+    case trash(items: [ServerRemotePath])
+    case restoreFromTrash(items: [ServerRemotePath])
+    case mkDir(path: ServerRemotePath)
+    case archiveCreate(items: [ServerRemotePath], format: String, archiveName: Data, password: String?)
+    case archiveExtract(archive: ServerRemotePath, password: String?)
     case download(path: ServerRemotePath, maximumRPCBytes: Int64)
     case upload(path: ServerRemotePath, contents: Data, expectedByteCount: Int64, maximumRPCBytes: Int64)
     case fileVersion(path: ServerRemotePath)
@@ -46,12 +55,39 @@ enum ServerRPCMessage {
             self = .list(path: try reader.readRemotePath(), showHidden: try reader.readBool())
         case 3:
             self = .stat(path: try reader.readRemotePath())
+        case 4:
+            self = .copy(
+                sources: try reader.readRemotePaths(),
+                destination: try reader.readRemotePath(),
+                maximumRPCBytes: try reader.readInt64()
+            )
+        case 5:
+            self = .move(sources: try reader.readRemotePaths(), destination: try reader.readRemotePath())
+        case 6:
+            self = .rename(item: try reader.readRemotePath(), newName: try reader.readData())
+        case 7:
+            self = .delete(items: try reader.readRemotePaths())
+        case 8:
+            self = .trash(items: try reader.readRemotePaths())
+        case 9:
+            self = .restoreFromTrash(items: try reader.readRemotePaths())
+        case 10:
+            self = .mkDir(path: try reader.readRemotePath())
         case 11:
             self = .readSymlink(path: try reader.readRemotePath())
         case 12:
             self = .folderSize(path: try reader.readRemotePath())
         case 13:
             self = .gitStatus(directory: try reader.readRemotePath())
+        case 14:
+            self = .archiveCreate(
+                items: try reader.readRemotePaths(),
+                format: try reader.readString(),
+                archiveName: try reader.readData(),
+                password: try reader.readOptionalString()
+            )
+        case 15:
+            self = .archiveExtract(archive: try reader.readRemotePath(), password: try reader.readOptionalString())
         case 19:
             self = .fileVersion(path: try reader.readRemotePath())
         case 20:
@@ -242,8 +278,22 @@ struct ServerRPCBinaryReader {
         String(decoding: try readData(), as: UTF8.self)
     }
 
+    mutating func readOptionalString() throws -> String? {
+        try readBool() ? try readString() : nil
+    }
+
     mutating func readRemotePath() throws -> ServerRemotePath {
         ServerRemotePath(bytes: try readData())
+    }
+
+    mutating func readRemotePaths() throws -> [ServerRemotePath] {
+        let count = Int(try readUInt32())
+        var paths: [ServerRemotePath] = []
+        paths.reserveCapacity(count)
+        for _ in 0..<count {
+            paths.append(try readRemotePath())
+        }
+        return paths
     }
 
     mutating func requireComplete() throws {
