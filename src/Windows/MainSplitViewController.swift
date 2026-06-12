@@ -1038,8 +1038,9 @@ extension MainSplitViewController: SidebarDelegate {
         guard let window = view.window else { return }
 
         let controller = AddRemoteHostWindowController()
-        controller.present(over: window) { host in
+        controller.present(over: window) { [weak self] host in
             RemoteHostStore.shared.upsert(host)
+            self?.connectRemoteHost(host)
         }
     }
 

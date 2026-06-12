@@ -6,6 +6,31 @@ final class SSHConnectionStateTests: XCTestCase {
         case failed
     }
 
+    func testStateChangeNotificationPostsOnMainThread() async throws {
+        let hostID = UUID()
+        let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: "devtest"))
+        let expectation = expectation(description: "state change posted on main thread")
+        let observer = NotificationCenter.default.addObserver(
+            forName: .sshConnectionStateDidChange,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard let change = notification.object as? SSHConnectionStateChange,
+                  change.hostID == hostID else {
+                return
+            }
+            XCTAssertTrue(Thread.isMainThread)
+            expectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        await Task.detached {
+            await connection.simulateConnectedForTesting()
+        }.value
+
+        await fulfillment(of: [expectation], timeout: 1)
+    }
+
     func testControlPathDirectoryMode0700() async throws {
         let tempDir = try createTempDirectory()
         defer { cleanupTempDirectory(tempDir) }

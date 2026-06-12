@@ -313,7 +313,9 @@ actor SSHConnection {
             oldState: oldState,
             newState: newState
         )
-        NotificationCenter.default.post(name: .sshConnectionStateDidChange, object: change)
+        Task { @MainActor in
+            NotificationCenter.default.post(name: .sshConnectionStateDidChange, object: change)
+        }
     }
 
     private func prepareControlDirectory() throws {

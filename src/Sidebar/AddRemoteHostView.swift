@@ -7,7 +7,6 @@ enum AddRemoteHostTestResult: Equatable {
 
 @Observable
 final class AddRemoteHostModel {
-    var displayName: String = ""
     var sshTarget: String = ""
     var suggestions: [String]
     var pendingFingerprint: String?
@@ -20,27 +19,17 @@ final class AddRemoteHostModel {
         return suggestions.filter { $0.localizedCaseInsensitiveContains(query) }
     }
 
-    var effectiveDisplayName: String {
-        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? effectiveSSHTarget : name
-    }
-
     var effectiveSSHTarget: String {
-        let target = sshTarget.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !target.isEmpty { return target }
-        return displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        sshTarget.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var canAdd: Bool {
-        !effectiveDisplayName.isEmpty &&
-            !effectiveSSHTarget.isEmpty &&
+        !effectiveSSHTarget.isEmpty &&
             pendingFingerprint == nil
     }
 
     private var suggestionQuery: String {
-        let target = sshTarget.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !target.isEmpty { return target }
-        return displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        effectiveSSHTarget
     }
 
     init(suggestions: [String] = SSHConfigParser().hostSuggestions(
@@ -51,14 +40,11 @@ final class AddRemoteHostModel {
 
     func selectSuggestion(_ suggestion: String) {
         sshTarget = suggestion
-        if displayName.isEmpty {
-            displayName = suggestion
-        }
     }
 
     func makeHost(fingerprint: String? = nil) -> RemoteHost {
         RemoteHost(
-            displayName: effectiveDisplayName,
+            displayName: effectiveSSHTarget,
             sshTarget: effectiveSSHTarget,
             knownHostKeyFingerprint: fingerprint
         )
@@ -129,14 +115,6 @@ struct AddRemoteHostView: View {
                     }
                     .frame(maxHeight: 110)
                 }
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Display Name")
-                    .font(.subheadline)
-                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
-                TextField(model.effectiveSSHTarget.isEmpty ? "Wraith" : model.effectiveSSHTarget, text: $model.displayName)
-                    .textFieldStyle(.roundedBorder)
             }
 
             if let fingerprint = model.pendingFingerprint {

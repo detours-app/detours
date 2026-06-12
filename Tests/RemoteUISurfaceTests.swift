@@ -3,14 +3,13 @@ import XCTest
 
 @MainActor
 final class RemoteUISurfaceTests: XCTestCase {
-    func testAddRemoteHostModelUsesDisplayNameAndSSHTargetOnly() {
+    func testAddRemoteHostModelUsesSSHTargetOnly() {
         let model = AddRemoteHostModel(suggestions: ["devtest", "prod-vm"])
 
         model.sshTarget = "dev"
         XCTAssertEqual(model.filteredSuggestions, ["devtest"])
 
         model.selectSuggestion("devtest")
-        XCTAssertEqual(model.displayName, "devtest")
         XCTAssertEqual(model.sshTarget, "devtest")
         XCTAssertTrue(model.canAdd)
 
@@ -19,24 +18,12 @@ final class RemoteUISurfaceTests: XCTestCase {
         XCTAssertEqual(host.sshTarget, "devtest")
     }
 
-    func testAddRemoteHostInfersTargetFromDisplayNameWhenTargetIsBlank() {
+    func testAddRemoteHostRequiresOnlyTarget() {
         let model = AddRemoteHostModel(suggestions: ["devtest", "wraith"])
-
-        model.displayName = "wraith"
-
-        XCTAssertEqual(model.filteredSuggestions, ["wraith"])
-        XCTAssertTrue(model.canAdd)
-
-        let host = model.makeHost()
-        XCTAssertEqual(host.displayName, "wraith")
-        XCTAssertEqual(host.sshTarget, "wraith")
-    }
-
-    func testAddRemoteHostCanUseTargetAsDefaultDisplayName() {
-        let model = AddRemoteHostModel(suggestions: ["wraith"])
 
         model.sshTarget = "wraith"
 
+        XCTAssertEqual(model.filteredSuggestions, ["wraith"])
         XCTAssertTrue(model.canAdd)
 
         let host = model.makeHost()
