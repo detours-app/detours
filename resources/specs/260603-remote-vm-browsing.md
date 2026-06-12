@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Implemented
+- Status: Reviewed
 - Branch: feature/remote-vm-browsing
 
 ---
@@ -11,7 +11,7 @@
 
 ### Goal
 
-Detours users can browse and operate on files on their remote Linux machines (development VMs, lab hosts, servers reached over SSH) from inside Detours with the same feel and the same features as a local pane. Connecting uses the SSH keys and configuration the user already has on their Mac, with no new passwords to manage and no SMB, NFS, AFP, Finder mount, or network-share setup for VM browsing. Once connected, the remote machine supports the file management features Detours already provides for local panes: file listings, Quick Look, Open With, folder sizes, git status markers, updates when files change, copy and move with progress, rename, archive create and extract, and safe deletion that can be undone. The feature is built for the case Marco uses every day: dev VMs on a fast local network, reached through the SSH agent and SSH config already on his Mac.
+Detours users can browse and operate on files on their remote machines (development VMs, lab hosts, servers, and Intel Macs reached over SSH) from inside Detours with the same feel and the same features as a local pane. Connecting uses the SSH keys and configuration the user already has on their Mac, with no new passwords to manage and no SMB, NFS, AFP, Finder mount, or network-share setup for VM browsing. Once connected, the remote machine supports the file management features Detours already provides for local panes: file listings, Quick Look, Open With, folder sizes, git status markers, updates when files change, copy and move with progress, rename, archive create and extract, and safe deletion that can be undone. The feature is built for the case Marco uses every day: dev VMs and remote Macs on a fast local network, reached through the SSH agent and SSH config already on his Mac.
 
 ### Proposal
 
@@ -28,7 +28,7 @@ Add a Remote Hosts section to the sidebar where the user lists their SSH hosts. 
 - After the user confirms the host on the first connect, Detours installs a small helper program on the remote host and starts it. The install runs inside a modal sheet titled with the host name and shows named steps with checkmarks (Connecting, Checking host architecture, Installing helper, Starting helper, Done) plus a Cancel button. Subsequent connects start the helper directly with no install step.
 - When the helper binary bundled inside Detours is newer than the one already installed on the host, the install step runs silently on the next connect to bring the host up to date. The user does not see a separate update prompt.
 - Browsing a remote folder feels like browsing a local folder. File listings appear within a moment on a fast local network. Folder sizes, git status markers, file icons, sort order, hidden file toggling, and folder expansion all work.
-- When a file is added, changed, or removed on the remote host (for example by a terminal session or a build script), the Detours pane updates within a moment, the same way it updates for local changes. If the host has reached its inotify watch limit, a one-time per-session banner explains the limit and gives the exact sysctl command to raise it; the pane falls back to refreshing visible directories every ten seconds until the user dismisses the banner or raises the limit.
+- When a file is added, changed, or removed on the remote host (for example by a terminal session or a build script), the Detours pane updates within a moment, the same way it updates for local changes. Linux hosts use inotify; Intel macOS hosts use the Darwin watcher path matching Redmargin. If a Linux host has reached its inotify watch limit, a one-time per-session banner explains the limit and gives the exact sysctl command to raise it; the pane falls back to refreshing visible directories every ten seconds until the user dismisses the banner or raises the limit.
 - The pane's breadcrumb shows a coloured pill with the host display name as its leftmost element so the user always knows which host a pane is showing. File rows themselves look identical to local rows; there is no per-row remote badge.
 - Symbolic links render with the macOS link badge and show their own size (the length of the link target string) rather than the size of the target. A single click selects the link; a double-click follows the link to its target if reachable and shows a clear error if the link is broken.
 - Files the user cannot read render greyed with a lock badge. Attempting to open, copy, or read them surfaces a plain-language permission-denied error naming the file.
@@ -54,13 +54,13 @@ Add a Remote Hosts section to the sidebar where the user lists their SSH hosts. 
 - [x] **A1** The user can add a dev VM in the sidebar in under thirty seconds by typing a display name and an SSH alias, with autocomplete suggestions drawn from the user's `~/.ssh/config`, and can connect successfully without entering a password or a key path, using their existing SSH agent and SSH configuration.
 - [x] **A2** On a fast local network, a remote folder listing appears in the pane within one second of clicking the host or navigating into a folder.
 - [x] **A3** Git status markers, folder sizes, file icons, sort, filter, and folder expansion all work in a remote pane and behave the same way they do in a local pane.
-- [x] **A4** When a file is added, modified, or removed on the remote host by another process, the Detours pane reflects the change within two seconds without the user having to refresh. When the host's inotify watch limit is exceeded, a one-time per-session banner names the limit with the exact sysctl command to raise it, and the pane updates within ten seconds via fallback polling.
+- [x] **A4** When a file is added, modified, or removed on a Linux remote host by another process, the Detours pane reflects the change within two seconds without the user having to refresh. When the Linux host's inotify watch limit is exceeded, a one-time per-session banner names the limit with the exact sysctl command to raise it, and the pane updates within ten seconds via fallback polling.
 - [x] **A5** Deleting a file from a remote pane moves it to a trash directory on the same host and can be undone with Cmd-Z, restoring the file to its original location.
 - [x] **A6** The user is shown the SSH fingerprint on the first connect to a new host and is asked to confirm it before any directory listing is shown. A fingerprint change on a later connect blocks access until the user explicitly accepts the new key or disconnects.
 - [x] **A7** A network drop, laptop sleep, or idle disconnect triggers automatic retry for up to one minute. If that fails, a non-blocking banner appears naming the host with a Reconnect button. Operations queued for the affected host pause and resume cleanly when the connection is restored, with no partial files left at any destination.
 - [x] **A8** Cmd-P quick navigation returns recently visited remote folders, shows the host's current display name as a label, retains history when the display name is renamed, and dims entries from hosts that are not currently connected.
 - [x] **A9** Detours never reads the contents of an SSH private key file and never prompts the user for an SSH key passphrase inside the app. An encrypted key without a running SSH agent produces a clear error telling the user to start their agent.
-- [x] **A10** Connecting to an Intel Linux host (x86_64) works on the first try. Connecting to a host running an unsupported architecture (for example ARM Linux) produces a clear, plain-language error naming the architecture and stating that only x86_64 Linux is supported in this release.
+- [x] **A10** Connecting to an Intel Linux host (x86_64) works on the first try. Connecting to a Linux host running an unsupported architecture (for example ARM Linux) produces a clear, plain-language error naming the architecture and stating that only x86_64 Linux is supported for Linux remotes in this release.
 - [x] **A11** Local file management continues to work exactly as it did before this feature shipped. Every existing test for local browsing, operations, folder watching, and git status passes unchanged, both with the FileProvider feature flag on and with it off.
 - [x] **A12** The first connect to a new host opens a modal sheet titled with the host name and shows named steps (Connecting, Checking host architecture, Installing helper, Starting helper, Done), each with a checkmark when complete. The sheet is cancellable at any step.
 - [x] **A13** A connection failure (authentication, ProxyJump misconfigured, unreachable host, helper failed to start) shows an error sheet with a plain-language summary, a "Show Details" disclosure containing the raw stderr from the spawned ssh process and the daemon, and a "Copy to Clipboard" button that copies the full diagnostic block.
@@ -71,6 +71,10 @@ Add a Remote Hosts section to the sidebar where the user lists their SSH hosts. 
 - [x] **A18** Open With round-trip detects remote-side modifications between download and save by comparing both the file's hash and its modification time. A mismatch on either surfaces a conflict dialog with Keep Mine, Keep Remote, and Cancel options.
 - [x] **A19** Quick Look on a remote file fetches the file only when the user presses Space. Files between one and one hundred megabytes show a determinate progress indicator in the Quick Look panel. Files above one hundred megabytes show a plain-language too-large message and do not initiate a download.
 - [x] **A20** A remote pane's breadcrumb shows a coloured pill with the host display name as the leftmost element. No per-row visual indicator is added to file rows.
+- [ ] **A21** Connecting to an Intel macOS host (`Darwin x86_64`, for example `ssh wraith`) works on the first try using the same Remote Hosts flow as Linux: Detours selects the bundled `detours-server-x86_64-darwin` helper, deploys it to `~/.detours-server/`, starts it over SSH, and opens a browsable pane without asking for SMB/NFS/AFP details.
+- [ ] **A22** Unsupported macOS architectures are refused clearly: an Apple Silicon macOS host (`Darwin arm64`) produces a plain-language unsupported-architecture error naming `Darwin arm64` and stating that this release supports `x86_64 Linux` and `x86_64 macOS` remote helpers only.
+- [ ] **A23** Remote file changes on an Intel macOS host update the Detours pane within two seconds through the Darwin watcher path. No inotify-limit banner or Linux sysctl text is shown for macOS hosts.
+- [ ] **A24** Build output contains both generated helper binaries, `detours-server-x86_64-linux` and `detours-server-x86_64-darwin`, as ignored local artifacts bundled into `Detours.app/Contents/Resources/Servers/`; neither helper binary nor cache hash is tracked in Git.
 
 ### Out of scope
 
@@ -79,8 +83,8 @@ Add a Remote Hosts section to the sidebar where the user lists their SSH hosts. 
 - Mounting the remote host as a Finder-visible volume (File Provider extension or FUSE-T). Detours' remote panes are visible only inside Detours.
 - Replacing the existing NAS/network-volume workflow. In-app SMB/NFS/AFP discovery and mounting remain a separate feature for NAS shares, not a VM-browsing mechanism.
 - Remote git operations beyond the status overlay. No remote commit, push, pull, or stage from inside Detours.
-- Connecting to non-Linux remotes (BSD, macOS, embedded sshd). The helper binary is Linux-only for this release.
-- Connecting to ARM Linux hosts. Only x86_64 Linux is supported in this release.
+- Connecting to BSD or embedded sshd remotes. This release supports only x86_64 Linux and x86_64 macOS helpers.
+- Connecting to ARM Linux hosts or Apple Silicon macOS hosts. Only x86_64 Linux and x86_64 macOS remotes are supported in this release.
 - Password authentication. Key-based auth only, delegated to the SSH agent. The app never prompts for an SSH key passphrase.
 - Quick Look on files larger than one hundred megabytes on remote hosts.
 - Spotlight indexing of remote files.
@@ -95,15 +99,15 @@ Add a Remote Hosts section to the sidebar where the user lists their SSH hosts. 
 
 The core change is introducing a `FileProvider` protocol that abstracts the filesystem behind every read and every write in Detours. Today every call site reaches directly for `FileManager` and the `file://` URLs on `FileItem`. After this spec, `FileItem.url` becomes a `Location` (either `local(URL)` or `remote(hostID, posixPath)`) and the data source, the operations queue, the rename controller, the archive and extract operations, and the git status provider all route through whichever `FileProvider` implements the current `Location`. The refactor is feature-flagged behind `DETOURS_FILE_PROVIDER` so the new code path can be flipped off at runtime if a regression surfaces; the flag is removed once the full feature has shipped without regression.
 
-The remote `FileProvider` talks RPC to a small Swift program running on the remote host. Two SSH channels are used: a long-lived multiplexed RPC channel for metadata, small operations, and watch events, and a short-lived helper transfer channel for individual file transfers above one megabyte. The connection is established by spawning the system `/usr/bin/ssh` as a child process, which gives Detours the user's `~/.ssh/config`, ssh-agent, ed25519, ProxyJump, and known host handling through OpenSSH. `ControlMaster=auto` with `ControlPath=~/.detours/ssh/%C` lets the transfer channel reuse the master connection. Detours creates `~/.detours/ssh/` with mode `0700` before connecting so no other local user can create or read the control socket. A `ServerDeployer` runs on first connect: it runs `uname -sm` over SSH, refuses non-x86_64-Linux with a typed error, compares the hash of the bundled helper binary to the one already on the host, and atomically copies the bundled binary to `~/.detours-server/` if it is missing, out of date, or fails the owner-and-permission check. Subsequent connects to the same host start the helper directly. Version skew between client and daemon is handled by silent redeploy on connect when hashes differ.
+The remote `FileProvider` talks RPC to a small Swift program running on the remote host. Two SSH channels are used: a long-lived multiplexed RPC channel for metadata, small operations, and watch events, and a short-lived helper transfer channel for individual file transfers above one megabyte. The connection is established by spawning the system `/usr/bin/ssh` as a child process, which gives Detours the user's `~/.ssh/config`, ssh-agent, ed25519, ProxyJump, and known host handling through OpenSSH. `ControlMaster=auto` with `ControlPath=~/.detours/ssh/%C` lets the transfer channel reuse the master connection. Detours creates `~/.detours/ssh/` with mode `0700` before connecting so no other local user can create or read the control socket. A `ServerDeployer` runs on first connect: it runs `uname -sm` over SSH, maps `Linux x86_64` to `detours-server-x86_64-linux` and `Darwin x86_64` to `detours-server-x86_64-darwin`, refuses every other OS/architecture pair with a typed error, compares the hash of the selected bundled helper binary to the one already on the host, and atomically copies the bundled binary to `~/.detours-server/` if it is missing, out of date, or fails the owner-and-permission check. Subsequent connects to the same host start the helper directly. Version skew between client and daemon is handled by silent redeploy on connect when hashes differ.
 
 Host trust is app-scoped rather than silently inheriting a terminal prompt. Detours stores trusted host fingerprints in `~/.detours/known_hosts`, starts OpenSSH with that file as the user known-hosts file, and bridges OpenSSH's host-key prompt into a Detours sheet. Host-key prompts are the only interactive SSH prompt Detours answers. Password, keyboard-interactive, and private-key passphrase prompts are rejected and surfaced as plain-language errors that tell the user to fix their SSH agent or SSH config outside Detours.
 
-The helper program lives in a new top-level `Server/` directory and is built for Linux x86_64 via Swift Package Manager cross-compiled in a reproducible Docker container on `dockerhost`. `resources/scripts/build.sh` hashes `Server/` and `Package.swift`'s server-target lines and only triggers the cross-compile when the hash differs from the local cached binary's hash, so day-to-day Mac-only commits skip dockerhost entirely. The generated binary and `.cache-hash` are local build artifacts ignored by Git. The binary is bundled inside `Detours.app/Contents/Resources/Servers/` from the local build output so it inherits the app's code signature; the build script refuses to ship if the binary is missing. On the remote, the helper handles file listings (streamed in chunks for large directories), file stat, copy, move, rename, archive create and extract, folder size, git status, FreeDesktop-spec trash with restore, inotify-based file watching, and raw-byte transfer mode.
+The helper program lives in a new top-level `Server/` directory and is built for Linux x86_64 via Swift Package Manager cross-compiled in a reproducible Docker container on `dockerhost`, and for Intel macOS locally with `swift build -c release --arch x86_64 --product detours-server`. `resources/scripts/build.sh` hashes `Server/` and `Package.swift`'s server-target lines and only rebuilds the helper binaries when the hash differs from the local cached artifacts. The generated binaries and `.cache-hash` are local build artifacts ignored by Git. The binaries are bundled inside `Detours.app/Contents/Resources/Servers/` from the local build output so they inherit the app's code signature; the build script refuses to ship if either supported helper binary is missing. On the remote, the helper handles file listings (streamed in chunks for large directories), file stat, copy, move, rename, archive create and extract, folder size, git status, Detours-managed remote trash with restore, platform file watching, and raw-byte transfer mode.
 
 The connection lifecycle is per Detours instance, per host: the SSH process stays alive while at least one pane is viewing the host, an operation is queued or running, or a watch is active, and it closes after five minutes of inactivity. Transient drops trigger automatic retry with exponential backoff (1, 2, 4, 8, 16 seconds) for up to sixty seconds; success resumes paused operations and re-registers watches, failure surfaces a non-blocking Reconnect banner in the affected pane.
 
-The reference architecture is Redmargin (`~/dev/redmargin/`), which has shipped the helper-daemon pattern in production for over a year. Redmargin's `SSHConnection`, `ServerDeployer`, RPC framing, and inotify watcher are directly portable to Detours, adapted to Detours' larger RPC surface (full file management vs Redmargin's read/write/watch).
+The reference architecture is Redmargin (`~/dev/redmargin/`), which has shipped the helper-daemon pattern in production for over a year. Redmargin's `SSHConnection`, `ServerDeployer`, RPC framing, Linux inotify watcher, Darwin watcher, and Darwin/Linux helper binary selection are directly portable to Detours, adapted to Detours' larger RPC surface (full file management vs Redmargin's read/write/watch). Redmargin maps `uname -sm` to helper names such as `redmargin-server-x86_64-darwin` and `redmargin-server-x86_64-linux`; Detours follows the same pattern with `detours-server-x86_64-darwin` and `detours-server-x86_64-linux`.
 
 Phase 1 must land with every existing test green and zero behaviour change for local browsing before any remote code begins. The feature flag exists explicitly to make that verifiable: the same test suite must pass with the flag on and the flag off.
 
@@ -213,6 +217,19 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T54** Remove the `DETOURS_FILE_PROVIDER` feature flag and the legacy direct-`FileManager` code path. Verify the full test suite passes with the flag removed.
 - [x] **T54A** Keep the VM-browsing and NAS/image-mounting workflows distinct in UI and tests: `Add Remote Host...` opens an SSH helper-backed VM pane; `Connect to Network Share...` remains the SMB/NFS/AFP NAS workflow; already-mounted encrypted images remain visible under Devices. No remote-host path may require or suggest an SMB/NFS/AFP share URL.
 
+**Phase 6: Intel macOS remote helper support**
+
+- [ ] **T54B** Update `Package.swift` and server source conditionals so the `detours-server` product builds and runs on both Linux and macOS. Keep Linux inotify behavior unchanged; add Darwin imports and platform shims only where the server currently assumes Glibc/Linux.
+- [ ] **T54C** Add a Darwin watcher path in `Server/Watcher.swift`, following Redmargin's pattern: use a macOS file-event watcher for visible directories, emit the same `WatchEvent` RPC payloads as Linux, and never surface Linux inotify-limit errors for Darwin hosts.
+- [ ] **T54D** Add `resources/scripts/build-server-darwin.sh` that builds the Intel macOS helper locally with `swift build -c release --arch x86_64 --product detours-server` and writes `resources/Servers/detours-server-x86_64-darwin` as an ignored local artifact.
+- [ ] **T54E** Update `resources/scripts/build.sh` and `resources/scripts/server-cache-hash.sh` so the helper cache covers both supported outputs, `resources/Servers/detours-server-x86_64-linux` and `resources/Servers/detours-server-x86_64-darwin`. The app build refuses to ship if either supported helper is missing, and bundles both under `Detours.app/Contents/Resources/Servers/`.
+- [ ] **T54F** Update `.gitignore` and build documentation so all generated helper binaries and cache files under `resources/Servers/` remain untracked. Keep the source tree free of committed helper blobs.
+- [ ] **T54G** Update `src/Remote/ServerDeployer.swift` to select the bundled helper by `uname -sm`: `Linux x86_64 -> detours-server-x86_64-linux`, `Darwin x86_64 -> detours-server-x86_64-darwin`. Refuse `Darwin arm64`, ARM Linux, BSD, and unknown outputs with a typed `UnsupportedArchitectureError` that names the reported OS/architecture and the supported set.
+- [ ] **T54H** Update `src/Windows/MainSplitViewController.swift` or the current bundled-helper lookup so app runtime and development fallback paths can locate both supported helper binaries. Do not hard-code the Linux helper for every host.
+- [ ] **T54I** Update `resources/docs/remote-vm-browsing.md` to document Intel macOS remote support, the Darwin helper name, the same `~/.detours-server/` install location, and the unsupported Apple Silicon macOS limitation for this release.
+- [ ] **T54J** Verify trash and restore operations work on Darwin using the same Detours-managed remote trash semantics as Linux. Do not route remote Mac deletes to the local Mac's Trash, Finder, or a mounted volume path.
+- [ ] **T54K** Verify `ssh wraith 'uname -sm'` reports `Darwin x86_64`, deploy the Darwin helper to `wraith`, and smoke-test `ProtocolVersion`, directory listing, upload, large transfer, trash/restore, and watch event delivery over SSH. If `wraith` is not `Darwin x86_64`, leave this task unchecked and update the spec with the actual available Intel macOS test host.
+
 ## ANSIBLE GUY
 
 ### Work required on dockerhost
@@ -231,7 +248,7 @@ Completed 2026-06-12: the Ansible repo now manages `devtest` as `maf@10.10.8.126
 
 ## Testing
 
-Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test tasks are required by this spec. The Linux server tests run inside a Docker container on `dockerhost` via the cross-compile script. Integration tests against a real SSH host gate with `XCTSkipIf` when the host is unreachable and target `devtest` (the project's scratch VM, x86_64 Linux) by default.
+Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test tasks are required by this spec. The Linux server tests run inside a Docker container on `dockerhost` via the cross-compile script. Darwin server tests run on macOS using the locally built x86_64 helper. Integration tests against real SSH hosts gate with `XCTSkipIf` when the host is unreachable: Linux coverage targets `devtest` (the project's scratch VM, x86_64 Linux) by default, and Intel macOS coverage targets `wraith` when it reports `Darwin x86_64`.
 
 ### Unit Tests (`Tests/`)
 
@@ -264,6 +281,11 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [x] **T81** `ServerDeployerTests.testRefusesWrongOwner` - exec is refused when the binary on the remote is owned by a user other than the current SSH user.
 - [x] **T82** `ServerDeployerTests.testRefusesGroupOrWorldWritable` - exec is refused when permissions on the binary are group- or world-writable.
 - [x] **T83** `ServerDeployerTests.testAtomicRenameDeploy` - deploy writes to a temp name and renames into place; a deploy interrupted before the rename leaves no stale partial binary visible to a subsequent connect.
+- [ ] **T126** `ServerDeployerTests.testSelectsLinuxX86Helper` - `uname -sm` returning `Linux x86_64` selects `detours-server-x86_64-linux`.
+- [ ] **T127** `ServerDeployerTests.testSelectsDarwinX86Helper` - `uname -sm` returning `Darwin x86_64` selects `detours-server-x86_64-darwin`.
+- [ ] **T128** `ServerDeployerTests.testRefusesDarwinArm64ForThisRelease` - `uname -sm` returning `Darwin arm64` surfaces a typed unsupported-architecture error naming `Darwin arm64` and the supported helper set.
+- [ ] **T129** `BuildCacheTests.testBuildRequiresLinuxAndDarwinHelpers` - `resources/scripts/build.sh` refuses to ship when either supported helper binary is missing and bundles both when present.
+- [ ] **T130** `BuildCacheTests.testGeneratedHelpersIgnored` - generated helper binaries and cache files under `resources/Servers/` are ignored by Git.
 - [x] **T84** `SSHConnectionStateTests.testExponentialBackoffSequence` - simulated drops trigger reconnect attempts at 1, 2, 4, 8, 16 seconds; total backoff capped at sixty seconds.
 - [x] **T85** `SSHConnectionStateTests.testFailedStateAfterMaxBackoff` - after the backoff window expires without success the state transitions to `failed(reason)` and the Reconnect banner is shown.
 - [x] **T86** `SSHConnectionStateTests.testFailedStateOnAuthError` - auth failure transitions directly to `failed(reason: .authentication)` and does not retry.
@@ -297,7 +319,14 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [x] **T111** `FolderSizeServerTests.testStaleWhileRevalidate` - the cached size is returned immediately on a list while a background recompute runs; the cache updates without a placeholder flash.
 - [x] **T112** `ArchiveOperationsServerTests.testMissingArchiveToolSurfacesError` - when `7z` is unavailable on the remote host, a 7Z archive request returns a typed missing-tool error naming `7z` and leaves source files unchanged.
 
-### Integration Tests (`Tests/Integration/`, gated on devtest reachability)
+### Darwin Server Tests (`Server/Tests/`, run locally on macOS)
+
+- [ ] **T131** `DarwinWatcherServerTests.testDarwinEventForCreate` - creating a file inside a watched directory produces a `WatchEvent` frame using the Darwin watcher path.
+- [ ] **T132** `DarwinWatcherServerTests.testDarwinWatcherDoesNotSurfaceInotifyLimit` - Darwin watcher failures never produce Linux `fs.inotify.max_user_watches` guidance.
+- [ ] **T133** `DarwinServerSmokeTests.testProtocolVersionFromDarwinHelper` - the locally built `detours-server-x86_64-darwin` starts in RPC mode and returns `ProtocolVersion`.
+- [ ] **T134** `DarwinServerSmokeTests.testDarwinFileOperationsRoundTrip` - the Darwin helper can list, stat, upload, download, rename, trash, and restore files in a temporary directory.
+
+### Linux Integration Tests (`Tests/Integration/`, gated on devtest reachability)
 
 - [x] **T113** `RemoteIntegrationTests.testListDirectoryReturnsExpectedEntries` - connect to `devtest`, list `/etc`, assert at least one expected file is present.
 - [x] **T114** `RemoteIntegrationTests.testCopyRemoteToLocal` - copy a remote fixture file into a local temp directory; assert byte-equality.
@@ -312,6 +341,15 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [x] **T123** `RemoteIntegrationTests.testSymlinkFollowsResolvable` - a directory listing includes a symlink with the link badge; double-click resolves and navigates into the target.
 - [x] **T124** `RemoteIntegrationTests.testSymlinkBrokenShowsError` - a symlink to a non-existent target shows a plain-language broken-link error.
 - [x] **T125** `RemoteIntegrationTests.testPermissionDeniedRendersLockBadge` - listing a directory containing a file the user cannot read renders that file's row with a lock badge.
+
+### Intel macOS Integration Tests (`Tests/Integration/`, gated on wraith reachability)
+
+- [ ] **T135** `RemoteIntegrationTests.testIntelMacListDirectoryReturnsExpectedEntries` - connect to `wraith`, require `uname -sm == Darwin x86_64`, list `/Users` or the user's home directory, and assert at least one expected entry is present.
+- [ ] **T136** `RemoteIntegrationTests.testIntelMacCopyRemoteToLocal` - copy a fixture file from `wraith` into a local temp directory and assert byte-equality.
+- [ ] **T137** `RemoteIntegrationTests.testIntelMacCopyLocalToRemote` - copy a local fixture file into a temp directory on `wraith` and assert byte-equality via the daemon's `Stat`.
+- [ ] **T138** `RemoteIntegrationTests.testIntelMacLargeTransferUsesRemoteTransferChannel` - a 100 MB copy on `wraith` completes via the Darwin helper transfer channel without blocking a concurrent directory listing on the same host.
+- [ ] **T139** `RemoteIntegrationTests.testIntelMacWatchDirectoryReceivesDarwinEvent` - watch a directory on `wraith`, touch a file inside it over SSH, and assert a `WatchEvent` arrives within two seconds with no inotify banner.
+- [ ] **T140** `RemoteIntegrationTests.testIntelMacUnsupportedArmFixture` - a fixture host reporting `Darwin arm64` is refused before deploy and the error states that Intel macOS is supported but Apple Silicon macOS is not in this release.
 
 ### UI/UX Tests
 
