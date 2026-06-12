@@ -307,10 +307,10 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [x] **T118** `RemoteIntegrationTests.testTrashAndRestore` - trash a remote file, assert it is no longer at the original path, run Undo, assert it is restored.
 - [x] **T119** `RemoteIntegrationTests.testGitStatusOverlay` - clone a fixture repo into a remote temp directory, modify a file, list the directory, assert the modified file carries a `modified` git status marker.
 - [ ] **T120** `RemoteIntegrationTests.testReconnectAfterIdle` - establish a connection, force idle past `ServerAliveInterval * ServerAliveCountMax`, then perform a list; assert the reconnect state machine recovers and the list succeeds.
-- [ ] **T121** `RemoteIntegrationTests.testHostKeyChangeBlocks` - connect once and record the fingerprint, swap the host's host key fixture, attempt to reconnect, assert the connection is blocked and the host-key-change dialog event is fired.
-- [ ] **T122** `RemoteIntegrationTests.testUnsupportedArchitectureError` - connect to a fixture host reporting `uname -sm` as `aarch64`, assert a typed error naming the architecture and no deploy attempt.
+- [x] **T121** `RemoteIntegrationTests.testHostKeyChangeBlocks` - connect once and record the fingerprint, swap the host's host key fixture, attempt to reconnect, assert the connection is blocked and the host-key-change dialog event is fired.
+- [x] **T122** `RemoteIntegrationTests.testUnsupportedArchitectureError` - connect to a fixture host reporting `uname -sm` as `aarch64`, assert a typed error naming the architecture and no deploy attempt.
 - [x] **T123** `RemoteIntegrationTests.testSymlinkFollowsResolvable` - a directory listing includes a symlink with the link badge; double-click resolves and navigates into the target.
-- [ ] **T124** `RemoteIntegrationTests.testSymlinkBrokenShowsError` - a symlink to a non-existent target shows a plain-language broken-link error.
+- [x] **T124** `RemoteIntegrationTests.testSymlinkBrokenShowsError` - a symlink to a non-existent target shows a plain-language broken-link error.
 - [x] **T125** `RemoteIntegrationTests.testPermissionDeniedRendersLockBadge` - listing a directory containing a file the user cannot read renders that file's row with a lock badge.
 
 ### UI/UX Tests

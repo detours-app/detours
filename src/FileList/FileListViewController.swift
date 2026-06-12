@@ -386,7 +386,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     }
                 } catch {
                     FileOperationQueue.shared.presentError(
-                        FileProviderError.unsupportedOperation("Remote symbolic link \"\(item.name)\" is broken or unreachable")
+                        FileProviderError.unsupportedOperation(Self.remoteBrokenSymlinkMessage(fileName: item.name))
                     )
                 }
             }
@@ -395,6 +395,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 RemoteOpenWithCoordinator.shared.open(location: item.location, provider: provider, hostID: hostID, applicationURL: applicationURL)
             }
         }
+    }
+
+    nonisolated static func remoteBrokenSymlinkMessage(fileName: String) -> String {
+        "Remote symbolic link \"\(fileName)\" is broken or unreachable"
     }
 
     private func setupColumns() {

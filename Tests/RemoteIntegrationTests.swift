@@ -102,6 +102,44 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertFalse(secret.isReadable)
     }
 
+    @MainActor
+    func testHostKeyChangeBlocks() throws {
+        let defaults = try Self.makeDefaults()
+        let store = RemoteHostStore(defaults: defaults)
+        let host = store.add(displayName: "Dev VM", sshTarget: "devtest")
+        store.updateFingerprint(id: host.id, fingerprint: "SHA256:old")
+
+        let evaluation = SSHHostTrust().evaluateFingerprint("SHA256:new", for: host.id, in: store)
+
+        XCTAssertEqual(evaluation, .changed(old: "SHA256:old", new: "SHA256:new"))
+        XCTAssertEqual(store.host(id: host.id)?.knownHostKeyFingerprint, "SHA256:old")
+    }
+
+    func testUnsupportedArchitectureError() async throws {
+        let bundleRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(bundleRoot) }
+        let bundle = try createTestFile(in: bundleRoot, name: "detours-server", content: "server")
+        let client = IntegrationDeploymentClient(
+            architecture: RemoteArchitecture(system: "Linux", machine: "aarch64")
+        )
+        let deployer = ServerDeployer(client: client, bundledBinaryURL: bundle)
+
+        do {
+            _ = try await deployer.deployIfNeeded()
+            XCTFail("Expected unsupported architecture")
+        } catch let error as UnsupportedArchitectureError {
+            XCTAssertEqual(error, UnsupportedArchitectureError(system: "Linux", machine: "aarch64"))
+            let didUpload = await client.didUpload
+            XCTAssertFalse(didUpload)
+        }
+    }
+
+    func testSymlinkBrokenShowsError() {
+        let message = FileListViewController.remoteBrokenSymlinkMessage(fileName: "missing-link")
+
+        XCTAssertEqual(message, "Remote symbolic link \"missing-link\" is broken or unreachable")
+    }
+
     private static func makeRemoteFixtureRoot() throws -> String {
         let root = try runSSH("printf %s \"$HOME/.detours-test/\(UUID().uuidString)\"")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -154,6 +192,13 @@ final class RemoteIntegrationTests: XCTestCase {
 
     fileprivate static func shellQuote(_ value: String) -> String {
         "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+    }
+
+    private static func makeDefaults() throws -> UserDefaults {
+        let suiteName = "RemoteIntegrationTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
     }
 }
 
@@ -238,6 +283,41 @@ private struct ProcessRemoteRPCClient: RemoteRPCClient {
         }
         return envelopes.map { $0.payload }
     }
+}
+
+private actor IntegrationDeploymentClient: ServerDeploymentClient {
+    let architecture: RemoteArchitecture
+    var didUpload = false
+
+    init(architecture: RemoteArchitecture) {
+        self.architecture = architecture
+    }
+
+    func architecture() async throws -> RemoteArchitecture {
+        architecture
+    }
+
+    func currentUsername() async throws -> String {
+        "maf"
+    }
+
+    func installedBinaryInfo(at path: String) async throws -> RemoteBinaryInfo? {
+        nil
+    }
+
+    func installedBinaryHash(at path: String) async throws -> String? {
+        nil
+    }
+
+    func prepareInstallDirectory(_ path: String) async throws {}
+
+    func removePartialBinary(at path: String) async throws {}
+
+    func uploadBinary(localFile: URL, remotePath: String) async throws {
+        didUpload = true
+    }
+
+    func finalizeBinary(tempPath: String, finalPath: String) async throws {}
 }
 
 private extension Process {
