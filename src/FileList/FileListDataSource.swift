@@ -201,6 +201,7 @@ final class InactiveHidingRowView: NSTableRowView {
 @MainActor
 protocol FileListDropDelegate: AnyObject {
     func handleDrop(urls: [URL], to destination: URL, isCopy: Bool)
+    func pasteboardWriter(for item: FileItem) -> (any NSPasteboardWriting)?
     var currentDirectoryURL: URL? { get }
 }
 
@@ -1171,7 +1172,12 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
         guard let fileItem = item as? FileItem else { return nil }
-        return fileItem.url as NSURL
+        switch fileItem.location {
+        case .local(let url):
+            return url as NSURL
+        case .remote:
+            return dropDelegate?.pasteboardWriter(for: fileItem)
+        }
     }
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
