@@ -19,6 +19,31 @@ final class RemoteUISurfaceTests: XCTestCase {
         XCTAssertEqual(host.sshTarget, "devtest")
     }
 
+    func testAddRemoteHostInfersTargetFromDisplayNameWhenTargetIsBlank() {
+        let model = AddRemoteHostModel(suggestions: ["devtest", "wraith"])
+
+        model.displayName = "wraith"
+
+        XCTAssertEqual(model.filteredSuggestions, ["wraith"])
+        XCTAssertTrue(model.canAdd)
+
+        let host = model.makeHost()
+        XCTAssertEqual(host.displayName, "wraith")
+        XCTAssertEqual(host.sshTarget, "wraith")
+    }
+
+    func testAddRemoteHostCanUseTargetAsDefaultDisplayName() {
+        let model = AddRemoteHostModel(suggestions: ["wraith"])
+
+        model.sshTarget = "wraith"
+
+        XCTAssertTrue(model.canAdd)
+
+        let host = model.makeHost()
+        XCTAssertEqual(host.displayName, "wraith")
+        XCTAssertEqual(host.sshTarget, "wraith")
+    }
+
     func testDeploySheetModelContainsRequiredSteps() {
         XCTAssertEqual(
             RemoteDeployStep.allCases.map(\.rawValue),

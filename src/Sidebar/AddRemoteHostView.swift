@@ -15,14 +15,32 @@ final class AddRemoteHostModel {
     var isTestingConnection = false
 
     var filteredSuggestions: [String] {
-        guard !sshTarget.isEmpty else { return suggestions }
-        return suggestions.filter { $0.localizedCaseInsensitiveContains(sshTarget) }
+        let query = suggestionQuery
+        guard !query.isEmpty else { return suggestions }
+        return suggestions.filter { $0.localizedCaseInsensitiveContains(query) }
+    }
+
+    var effectiveDisplayName: String {
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? effectiveSSHTarget : name
+    }
+
+    var effectiveSSHTarget: String {
+        let target = sshTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !target.isEmpty { return target }
+        return displayName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var canAdd: Bool {
-        !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !sshTarget.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !effectiveDisplayName.isEmpty &&
+            !effectiveSSHTarget.isEmpty &&
             pendingFingerprint == nil
+    }
+
+    private var suggestionQuery: String {
+        let target = sshTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !target.isEmpty { return target }
+        return displayName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     init(suggestions: [String] = SSHConfigParser().hostSuggestions(
@@ -40,8 +58,8 @@ final class AddRemoteHostModel {
 
     func makeHost(fingerprint: String? = nil) -> RemoteHost {
         RemoteHost(
-            displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-            sshTarget: sshTarget.trimmingCharacters(in: .whitespacesAndNewlines),
+            displayName: effectiveDisplayName,
+            sshTarget: effectiveSSHTarget,
             knownHostKeyFingerprint: fingerprint
         )
     }
@@ -52,6 +70,12 @@ struct AddRemoteHostView: View {
     var onTestConnection: (String) async throws -> AddRemoteHostTestResult
     var onAdd: (RemoteHost) -> Void
     var onCancel: () -> Void
+
+    @FocusState private var focusedField: Field?
+
+    private enum Field {
+        case sshTarget
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -74,19 +98,12 @@ struct AddRemoteHostView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Display Name")
-                    .font(.subheadline)
-                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
-                TextField("Dev VM", text: $model.displayName)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
                 Text("SSH Target")
                     .font(.subheadline)
                     .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
-                TextField("devtest", text: $model.sshTarget)
+                TextField("wraith or marco@host", text: $model.sshTarget)
                     .textFieldStyle(.roundedBorder)
+                    .focused($focusedField, equals: .sshTarget)
 
                 if !model.filteredSuggestions.isEmpty {
                     ScrollView {
@@ -112,6 +129,14 @@ struct AddRemoteHostView: View {
                     }
                     .frame(maxHeight: 110)
                 }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Display Name")
+                    .font(.subheadline)
+                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
+                TextField(model.effectiveSSHTarget.isEmpty ? "Wraith" : model.effectiveSSHTarget, text: $model.displayName)
+                    .textFieldStyle(.roundedBorder)
             }
 
             if let fingerprint = model.pendingFingerprint {
@@ -147,7 +172,7 @@ struct AddRemoteHostView: View {
                 Button("Test Connection") {
                     Task { await testConnection() }
                 }
-                .disabled(model.sshTarget.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isTestingConnection)
+                .disabled(model.effectiveSSHTarget.isEmpty || model.isTestingConnection)
 
                 Spacer()
 
@@ -165,6 +190,9 @@ struct AddRemoteHostView: View {
         }
         .padding(20)
         .frame(width: 430, height: 460)
+        .onAppear {
+            focusedField = .sshTarget
+        }
     }
 
     @MainActor
@@ -174,7 +202,7 @@ struct AddRemoteHostView: View {
         defer { model.isTestingConnection = false }
 
         do {
-            switch try await onTestConnection(model.sshTarget.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            switch try await onTestConnection(model.effectiveSSHTarget) {
             case .trusted:
                 model.pendingFingerprint = nil
             case .needsHostKeyConfirmation(let fingerprint):
