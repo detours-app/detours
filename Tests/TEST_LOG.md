@@ -2,10 +2,23 @@
 
 ## Latest Run
 
-- Started: 2026-06-12 16:05:41
-- Command: `swift test --filter <suite>` (suites below, run individually)
+- Started: 2026-06-12 19:02:15
+- Command: `swift test --filter <suite>` (suites below, run in batches)
 - Status: PASS
-- Notes: Session covered three changes. (1) Remote folder expansion crash fix (Location.url trap) with two new regression tests in FileListDataSourceTests. (2) Server/ lint fixes (failable UTF-8 decode for rename/archive names, lazy inotify descriptor instead of force-try). (3) Sidebar connect spinner + remote tab session restore: new RemoteTabSessionTargetTests for the persistence round-trip, plus reruns of the suites covering PaneViewController, SidebarItemView, and MainSplitViewController. ClipboardManagerTests setUp/tearDown moved to async overrides to clear main-actor isolation warnings.
+- Notes: Regression pass after the code-audit fixes (Critical + Important). Server-side overwrite deletes (copy/move/upload) now route through Trash instead of removeItem; RPCHandler returns a per-request error envelope instead of crashing on filesystem errors and treats unwatch of an unknown token as a no-op; readRemotePaths caps its capacity reservation; GitOperations preserves the inherited environment and decodes git C-quoted filenames; symlink fileSize now reports the target size. Client side: SSHRemoteRPCClient throws on an error envelope instead of hanging, SSHConnection.readFrame caps the frame size, LocalFileProvider.upload trashes the prior file, SSHHostTrust pins UserKnownHostsFile + StrictHostKeyChecking, AddRemoteHost now scans/records the host key, and the local Replace conflict path plus the remote-move undo were corrected. No new tests added; existing suites cover the changed code.
+
+### Code Audit Fixes 2026-06-12
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| GitOperationsServerTests (1 test) | PASS | 0.544s | 2026-06-12 19:02:16 |
+| FileOperationsServerTests (2 tests) | PASS | 0.004s | 2026-06-12 19:02:42 |
+| TrashOperationsServerTests (3 tests) | PASS | 0.008s | 2026-06-12 19:02:42 |
+| DarwinServerSmokeTests (2 tests, upload/copy/move round-trip via helper) | PASS | 1.220s | 2026-06-12 19:02:42 |
+| LocalFileProviderTests + RemoteFileProviderTests (7+ tests) | PASS | 0.103s | 2026-06-12 19:02:49 |
+| SSHConnectionStateTests (6 tests) | PASS | 0.136s | 2026-06-12 19:02:50 |
+| SSHHostTrustTests (3 tests) | PASS | 0.012s | 2026-06-12 19:02:50 |
+| FileOperationQueueTests + MessagesTests + RPCStreamHandlerTests + RemoteTrashUndoTests (69 tests) | PASS | 5.713s | 2026-06-12 19:03:02 |
 
 ### Remote Browsing Fixes 2026-06-12
 

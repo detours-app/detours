@@ -47,7 +47,8 @@ struct GitOperations {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["-c", "core.fsmonitor=false"] + arguments
-        process.environment = ["GIT_CONFIG_NOSYSTEM": "1"]
+        process.environment = ProcessInfo.processInfo.environment
+            .merging(["GIT_CONFIG_NOSYSTEM": "1"]) { _, new in new }
         process.currentDirectoryURL = URL(fileURLWithPath: directory, isDirectory: true)
 
         let outputPipe = Pipe()
@@ -73,10 +74,56 @@ struct GitOperations {
             renamed = filename
         }
 
-        if renamed.hasPrefix("\""), renamed.hasSuffix("\"") {
-            return String(renamed.dropFirst().dropLast())
+        guard renamed.hasPrefix("\""), renamed.hasSuffix("\""), renamed.count >= 2 else {
+            return renamed
         }
-        return renamed
+        return Self.unquoteCQuoted(String(renamed.dropFirst().dropLast()))
+    }
+
+    /// Decodes git's C-style quoting (octal \nnn escapes plus \\, \", \t, \n, \r) back into the real bytes.
+    /// git --porcelain quotes any filename with non-ASCII or special characters when core.quotepath is on
+    /// (the default), so stripping the surrounding quotes alone leaves literal escape sequences in the path.
+    private static func unquoteCQuoted(_ value: String) -> String {
+        let scalars = Array(value.utf8)
+        var bytes: [UInt8] = []
+        var index = 0
+        while index < scalars.count {
+            let byte = scalars[index]
+            guard byte == UInt8(ascii: "\\") else {
+                bytes.append(byte)
+                index += 1
+                continue
+            }
+            index += 1
+            guard index < scalars.count else {
+                bytes.append(byte)
+                break
+            }
+            let escape = scalars[index]
+            index += 1
+            switch escape {
+            case UInt8(ascii: "n"): bytes.append(0x0A)
+            case UInt8(ascii: "t"): bytes.append(0x09)
+            case UInt8(ascii: "r"): bytes.append(0x0D)
+            case UInt8(ascii: "\\"): bytes.append(0x5C)
+            case UInt8(ascii: "\""): bytes.append(0x22)
+            case UInt8(ascii: "0")...UInt8(ascii: "7"):
+                var octal = Int(escape - UInt8(ascii: "0"))
+                var consumed = 0
+                while consumed < 2, index < scalars.count,
+                      scalars[index] >= UInt8(ascii: "0"), scalars[index] <= UInt8(ascii: "7") {
+                    octal = octal * 8 + Int(scalars[index] - UInt8(ascii: "0"))
+                    index += 1
+                    consumed += 1
+                }
+                bytes.append(UInt8(octal & 0xFF))
+            default:
+                bytes.append(escape)
+            }
+        }
+        // Git encodes quoted filenames as UTF-8 byte sequences; decode them byte-exact.
+        // swiftlint:disable:next optional_data_string_conversion
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     private func determineStatus(index: Character, workTree: Character) -> ServerGitStatus {

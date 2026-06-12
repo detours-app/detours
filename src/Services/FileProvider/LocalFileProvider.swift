@@ -101,7 +101,8 @@ actor LocalFileProvider: FileProvider {
     func upload(_ localURL: URL, to location: Location) async throws {
         let destination = try self.localURL(from: location)
         if FileManager.default.fileExists(atPath: destination.path) {
-            try FileManager.default.removeItem(at: destination)
+            // Never permanently delete the existing user file: move it to the Trash before overwriting.
+            try FileManager.default.trashItem(at: destination, resultingItemURL: nil)
         }
         try FileManager.default.copyItem(at: localURL, to: destination)
     }

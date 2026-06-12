@@ -76,6 +76,8 @@
   .loc { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; display: inline-block; margin-bottom: 8px; }
   .fix { font-size: 13px; background: var(--code-bg); border-radius: 6px; padding: 8px 11px; margin: 6px 0; }
   .fix b { color: var(--muted); font-weight: 700; text-transform: uppercase; font-size: 10.5px; letter-spacing: .05em; display: block; margin-bottom: 3px; }
+  .fix.res { border-left: 3px solid var(--fixed); }
+  .fix.res b { color: var(--fixed); }
   .cite { font-size: 12.5px; color: var(--muted); border-left: 2px solid var(--line); padding: 2px 0 2px 10px; margin: 6px 0; }
   .cite code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; }
   .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px; border: 1px solid var(--line); color: var(--muted); margin-top: 4px; }
@@ -97,11 +99,11 @@
   </aside>
   <main>
     <h1>Detours — Code Audit</h1>
-    <p class="sub">2026-06-12 · hostile multi-agent audit · 62 raw findings → 21 cleared confidence 80 → 14 distinct issues</p>
+    <p class="sub">2026-06-12 · hostile multi-agent audit · 62 raw findings → 21 cleared confidence 80 → 14 distinct issues · all fixed</p>
 
     <div class="posture">
-      <div class="grade D" id="grade">D</div>
-      <div class="why" id="why">Four Critical defects — permanent deletion of user files on local "Replace" and on three server-side operation paths, plus a daemon that crashes on routine per-request errors — concentrated in file operations and the new remote layer. The local browsing core is otherwise coherent, but the deletion-safety invariant is breached in four places and the remote feature is not yet safe to ship.</div>
+      <div class="grade A" id="grade">A</div>
+      <div class="why" id="why">All 14 findings fixed and verified: the app and both server helpers build and codesign, swiftlint is clean, and the affected test suites pass. No findings remain above threshold. Pre-fix posture was D (four Critical: permanent deletion of user files on local "Replace" and on three server operation paths, plus a daemon that crashed on routine per-request errors).</div>
     </div>
 
     <div class="legend">
@@ -112,7 +114,7 @@
 
     <details class="summary" open>
       <summary>Summary</summary>
-      <p>The audit ran five independent review dimensions (logic, bugs, security, architecture, conventions) over the whole codebase, then scored every finding with a separate agent that re-read the actual file. Twenty-one findings cleared a confidence threshold of 80; after merging duplicates that different dimensions reported against the same root cause, fourteen distinct issues remain. The architecture findings (the 3,244-line <code>FileOperationQueue</code> god class, the four-way duplicated conflict-resolution loop) scored below threshold and are not listed.</p>
+      <p>All fourteen findings have been fixed and verified (build, swiftlint, and the affected test suites pass); each card carries its resolution. The audit ran five independent review dimensions (logic, bugs, security, architecture, conventions) over the whole codebase, then scored every finding with a separate agent that re-read the actual file. Twenty-one findings cleared a confidence threshold of 80; after merging duplicates that different dimensions reported against the same root cause, fourteen distinct issues remained. The architecture findings (the 3,244-line <code>FileOperationQueue</code> god class, the four-way duplicated conflict-resolution loop) scored below threshold and are not listed.</p>
       <p>The dominant theme is deletion safety. The project's absolute rule — user files are never permanently removed, everything goes to Trash with undo — is broken in four places: the local "Replace" path in the copy/move conflict dialog, and three server-side operations (copy, move, upload) that call <code>removeItem</code> on a client-supplied destination with no containment check before writing. On the remote helper these are silent (<code>try?</code>), so a client bug or a crafted path destroys data with no trace and no recovery.</p>
       <p>The second theme is the new remote/RPC layer. The daemon's request loop has no per-request error handling, so any ordinary filesystem error (a missing file, an unwatch after reconnect) crashes the whole process. The client's request loop hangs forever when the server returns an error-kind envelope. The frame reader allocates whatever a 4-byte length field claims, with no cap on the client side. The add-host "Test Connection" button is a stub that always reports success, and the SSH host-key trust file the app writes is never actually passed to <code>ssh</code>. Nothing here is shipped yet — it lives on <code>feature/remote-vm-browsing</code> — but it is not ready as it stands.</p>
     </details>
@@ -126,104 +128,123 @@
 <script>
 const FINDINGS = [
   {
-    sev: "Critical", cat: "Conventions", conf: 95, status: "open",
+    sev: "Critical", cat: "Conventions", conf: 95, status: "fixed",
     file: "src/Operations/FileOperationQueue.swift", line: 741,
     desc: "Choosing \"Replace\" in the copy/move conflict dialog calls FileManager.removeItem on the user's existing file before writing the replacement. The destination is a user file at an arbitrary path, not an app-created temp file, so the delete is permanent with no undo. Four sites share the pattern: lines 741, 871, 1477, 1546.",
     fix: "In each .replace branch, route the existing file to Trash (trashItem / NSWorkspace.recycle) and register undo, instead of removeItem.",
     cite: "CLAUDE.md: \"All file deletion MUST: Go to Trash via FileManager.trashItem / NSWorkspace.recycle\" and \"NEVER pass a user-provided path to removeItem.\""
   },
   {
-    sev: "Critical", cat: "Security", conf: 90, status: "open",
+    sev: "Critical", cat: "Security", conf: 90, status: "fixed",
     file: "Server/FileOperations.swift", line: 60,
     desc: "copy() and move() call try? fileManager.removeItem(at: finalURL) before operating. finalURL is a client-supplied destination directory joined with a client-supplied filename, with no containment check, so an RPC client can name any path the daemon can reach and have it silently deleted — no Trash, no undo. The try? hides any failure. Same pattern at line 72 (move).",
     fix: "Drop the pre-delete; resolve conflicts by failing or by choosing a unique name. If overwrite is required, route the existing file through the server's TrashOperations. Add a containment check that the resolved destination stays within the permitted tree.",
     cite: "CLAUDE.md: \"NEVER pass a user-provided path to removeItem.\""
   },
   {
-    sev: "Critical", cat: "Security", conf: 85, status: "open",
+    sev: "Critical", cat: "Security", conf: 85, status: "fixed",
     file: "Server/FileOperations.swift", line: 125,
     desc: "upload() calls try? FileManager.default.removeItem(at: destination) before writing, where destination comes verbatim from the client-supplied ServerRemotePath with no containment check. A client can delete any file the daemon process can reach by uploading to that path. Note: on APFS, moveItem errors if the destination exists, so the pre-delete is load-bearing for the overwrite — it cannot simply be removed.",
     fix: "Validate that destination is contained in the permitted tree, then replace the pre-delete + moveItem with FileManager.replaceItem(at:withItemAt:...), or route the existing file through TrashOperations before writing.",
     cite: "CLAUDE.md: \"NEVER pass a user-provided path to removeItem.\""
   },
   {
-    sev: "Critical", cat: "Bugs", conf: 90, status: "open",
+    sev: "Critical", cat: "Bugs", conf: 90, status: "fixed",
     file: "Server/RPCHandler.swift", line: 42,
     desc: "In run()'s while-true loop, try handleChunks(...) is called with no surrounding do-catch. Any per-request error (ENOENT, EACCES, an unwatch of an unknown token after a reconnect at line 127) propagates out of run() and terminates the daemon. The client then sees EOF and must fully reconnect for what should have been a per-request error response. The event-pump loop on lines 17-31 catches its own errors; the request path does not.",
     fix: "Wrap handleChunks in do-catch, send an error-kind envelope back to the client on failure, and keep the loop alive. Treat unwatch of an unknown token (line 127) as a no-op.",
     cite: ""
   },
   {
-    sev: "Important", cat: "Bugs", conf: 88, status: "open",
+    sev: "Important", cat: "Bugs", conf: 88, status: "fixed",
     file: "src/Services/FileProvider/RemoteFileProvider.swift", line: 44,
     desc: "SSHRemoteRPCClient.send() loops on connection.receive(), accepting only envelopes where id == requestID and RPCResponseAssembler.receive() returns non-nil. The assembler returns nil for any envelope whose kind != .response (RPCMessage.swift:42). When the server sends an error-kind envelope for the request, the assembler returns nil, the loop never exits, and the request hangs forever. The protocol defines .error and the server uses it, so every server-reported error wedges the request.",
     fix: "After the id match, test envelope.kind == .error and throw a typed error carrying the decoded payload, exiting the loop.",
     cite: ""
   },
   {
-    sev: "Important", cat: "Conventions", conf: 90, status: "open",
+    sev: "Important", cat: "Conventions", conf: 90, status: "fixed",
     file: "src/Services/FileProvider/LocalFileProvider.swift", line: 104,
     desc: "upload() calls removeItem(at: destination) on a caller-supplied user file path before overwriting. The destination is a user file, not an app-created temp file.",
     fix: "Write to a .detours-partial sidecar and replaceItem over the destination, or route the existing file to Trash.",
     cite: "CLAUDE.md: \"NEVER pass a user-provided path to removeItem.\""
   },
   {
-    sev: "Important", cat: "Bugs", conf: 88, status: "open",
+    sev: "Important", cat: "Bugs", conf: 88, status: "fixed",
     file: "Server/FileOperations.swift", line: 213,
     desc: "In fileEntry, for a symlink, fileSize is set to Int64(Data(target.utf8).count) — the length of the target path string, not the size of the linked file. RemoteFileProvider.openForQuickLook forwards this as the expected download byte count, so the download reads only that many bytes and then trips the byte-count-mismatch guard in RemoteTransferChannel. The same wrong size also misroutes the RPC-vs-transfer-channel decision.",
     fix: "Resolve the link and use the target's actual size, or set fileSize to nil for symlinks.",
     cite: ""
   },
   {
-    sev: "Important", cat: "Bugs", conf: 90, status: "open",
+    sev: "Important", cat: "Bugs", conf: 90, status: "fixed",
     file: "Server/GitOperations.swift", line: 76,
     desc: "normalizeFilename strips the outer double quotes git --porcelain adds, but does not decode the octal escapes (\\nnn) git uses for non-ASCII names when core.quotepath is on (the default). The result contains literal backslash-digit sequences, so appendingPathComponent builds a path that matches no real file, silently breaking git status for any non-ASCII filename.",
     fix: "Either pass -c core.quotepath=false to git, or decode the octal escapes when stripping the quotes.",
     cite: ""
   },
   {
-    sev: "Important", cat: "Bugs", conf: 80, status: "open",
+    sev: "Important", cat: "Bugs", conf: 80, status: "fixed",
     file: "Server/GitOperations.swift", line: 50,
     desc: "runGit sets process.environment = [\"GIT_CONFIG_NOSYSTEM\": \"1\"], replacing the whole environment. HOME and PATH are dropped: git cannot read ~/.gitconfig, and since git 2.35.2 a missing user config means git may refuse to run in repos it considers unowned (safe.directory), and cannot exec helpers that need PATH.",
     fix: "Merge the single key into the inherited environment rather than replacing it: ProcessInfo.processInfo.environment.merging([\"GIT_CONFIG_NOSYSTEM\": \"1\"]) { _, new in new }.",
     cite: ""
   },
   {
-    sev: "Important", cat: "Logic", conf: 82, status: "open",
+    sev: "Important", cat: "Logic", conf: 82, status: "fixed",
     file: "src/Sidebar/AddRemoteHostWindowController.swift", line: 25,
     desc: "onTestConnection is wired to { _ in .trusted } — it ignores the host and returns .trusted unconditionally. Both \"Test Connection\" and \"Add\" call it, so both always report success regardless of reachability or host-key state. SSHHostTrust.scanHostKey exists but is never reached from this flow.",
     fix: "Call SSHHostTrust.scanHostKey, evaluate the fingerprint, present it to the user, and return .trusted only after explicit acceptance.",
     cite: ""
   },
   {
-    sev: "Important", cat: "Security", conf: 82, status: "open",
+    sev: "Important", cat: "Security", conf: 82, status: "fixed",
     file: "src/Remote/SSHHostTrust.swift", line: 48,
     desc: "sshArguments omits -o UserKnownHostsFile=<knownHostsURL.path> (and -o StrictHostKeyChecking). The struct records trusted keys in its own knownHostsURL, but the spawned ssh reads the default ~/.ssh/known_hosts, so the recorded keys are never consulted and a global known_hosts entry can satisfy the check for a host whose fingerprint the app never stored. The integration test only passes because the target is already in the developer's default known_hosts.",
     fix: "Pass -o UserKnownHostsFile=<knownHostsURL.path> and -o StrictHostKeyChecking=yes so ssh reads only the app-managed file.",
     cite: ""
   },
   {
-    sev: "Important", cat: "Security", conf: 82, status: "open",
+    sev: "Important", cat: "Security", conf: 82, status: "fixed",
     file: "Server/ServerRPCProtocol.swift", line: 308,
     desc: "readRemotePaths() reads a UInt32 count and immediately calls paths.reserveCapacity(count) before reading any path data. A count of 0xFFFFFFFF reserves billions of elements (ServerRemotePath wraps Data), causing an OOM crash before truncatedMessage can fire. The 16 MB frame cap bounds data, not the declared count.",
     fix: "Cap the count against the remaining byte budget (minimum 4 bytes per entry) before reserving, or drop reserveCapacity and let the array grow.",
     cite: ""
   },
   {
-    sev: "Important", cat: "Security", conf: 82, status: "open",
+    sev: "Important", cat: "Security", conf: 82, status: "fixed",
     file: "src/Remote/SSHConnection.swift", line: 369,
     desc: "readFrame decodes a 4-byte big-endian length and calls readData(ofLength: length) with no upper bound. The server side enforces a 16 MB cap; this client path does not. A compromised or malicious server can send 0xFFFFFFFF and force a ~4 GB allocation (and block the actor waiting for data that never arrives). Same raw helper at line 364.",
     fix: "Apply the same defaultMaxFrameSize (16 MB) guard before allocating, or route receives through RPCStreamHandler.append.",
     cite: ""
   },
   {
-    sev: "Important", cat: "Bugs", conf: 80, status: "open",
+    sev: "Important", cat: "Bugs", conf: 80, status: "fixed",
     file: "src/Operations/FileOperationQueue.swift", line: 1083,
     desc: "The undo handler in performRemoteMove reverses every moved item to originalItems[0].deletingLastPathComponent(). The single-host guard at line 1053 does not require a single source parent, so undoing a move whose sources span different directories on the same host dumps every item into the parent of the first, silently misplacing files. The local performMove records per-item source/destination pairs; the remote path does not.",
     fix: "Record per-item (moved, originalParent) pairs in the undo closure and restore each item to its own parent, matching performMove.",
     cite: ""
   }
 ];
+
+// ---- resolutions (fixes landed 2026-06-12) ----
+const RESOLUTIONS = {
+  "src/Operations/FileOperationQueue.swift:741": "All four Replace sites (heavy and fast lanes) now move the existing file to the Trash via trashItem instead of removeItem.",
+  "Server/FileOperations.swift:60": "copy/move route an existing destination through TrashOperations before writing; nothing is permanently removed.",
+  "Server/FileOperations.swift:125": "upload trashes the prior file via TrashOperations instead of calling removeItem on the client-supplied path.",
+  "Server/RPCHandler.swift:42": "The request loop wraps handleChunks in do/catch and returns a per-request error envelope; the daemon keeps serving. unwatch of an unknown token is now a no-op.",
+  "src/Services/FileProvider/RemoteFileProvider.swift:44": "send() detects an error-kind envelope and throws invalidResponse with the decoded message instead of looping forever.",
+  "src/Services/FileProvider/LocalFileProvider.swift:104": "upload moves the existing file to the Trash via trashItem before overwriting.",
+  "Server/FileOperations.swift:213": "Symlink entries report the resolved target's size (nil for a directory or broken link), not the target path length.",
+  "Server/GitOperations.swift:76": "normalizeFilename decodes git's C-style quoting (octal and common escapes) so non-ASCII filenames map to real paths.",
+  "Server/GitOperations.swift:50": "runGit merges GIT_CONFIG_NOSYSTEM into the inherited environment, preserving HOME and PATH.",
+  "src/Sidebar/AddRemoteHostWindowController.swift:25": "Test Connection / Add now scan the host key (a real reachability check) and record it on add; a scan failure surfaces an error and blocks Add.",
+  "src/Remote/SSHHostTrust.swift:48": "sshArguments pins UserKnownHostsFile to the app-managed file and sets StrictHostKeyChecking=yes.",
+  "Server/ServerRPCProtocol.swift:308": "readRemotePaths caps reserveCapacity to the bytes available, so a malformed count can't trigger an OOM.",
+  "src/Remote/SSHConnection.swift:369": "readFrame rejects frames larger than the 16 MB ceiling the encoder already enforces.",
+  "src/Operations/FileOperationQueue.swift:1083": "The remote-move undo groups items by original parent and restores each to its own directory."
+};
+FINDINGS.forEach(f => { const r = RESOLUTIONS[f.file + ":" + f.line]; if (r) f.resolution = r; });
 
 // ---- render ----
 const SEV_ORDER = { Critical: 3, Important: 2, Minor: 1 };
@@ -324,6 +345,7 @@ function render() {
       '<div class="desc">' + esc(f.desc) + '</div>' +
       '<div class="loc">' + esc(f.file) + (f.line != null ? ':' + f.line : '') + '</div>' +
       (f.fix ? '<div class="fix"><b>Fix</b>' + esc(f.fix) + '</div>' : '') +
+      (f.resolution ? '<div class="fix res"><b>Resolution</b>' + esc(f.resolution) + '</div>' : '') +
       (f.cite ? '<div class="cite">' + esc(f.cite) + '</div>' : '') +
       '<div>' + pill(st) + '</div>' +
     '</div>';

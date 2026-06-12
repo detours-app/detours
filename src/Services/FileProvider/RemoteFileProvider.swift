@@ -45,10 +45,21 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
         while true {
             let envelope = try await connection.receive()
             guard envelope.id == requestID else { continue }
+            if envelope.kind == .error {
+                throw RemoteFileProviderError.invalidResponse(Self.decodeError(envelope.payload))
+            }
             if let assembled = assembler.receive(envelope) {
                 return assembled.chunks
             }
         }
+    }
+
+    private static func decodeError(_ payload: Data) -> String {
+        var reader = RPCBinaryReader(data: payload)
+        if let message = try? reader.readString(), !message.isEmpty {
+            return message
+        }
+        return "The remote server reported an error."
     }
 }
 

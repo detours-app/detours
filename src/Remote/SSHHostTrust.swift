@@ -51,6 +51,10 @@ struct SSHHostTrust: Sendable {
             "-o", "PreferredAuthentications=publickey",
             "-o", "PubkeyAuthentication=yes",
             "-o", "NumberOfPasswordPrompts=0",
+            // Verify against the same file the app records fingerprints into, and fail closed on an
+            // unknown or changed key instead of falling back to the user's global ssh defaults.
+            "-o", "StrictHostKeyChecking=yes",
+            "-o", "UserKnownHostsFile=\(knownHostsURL.path)",
         ]
     }
 

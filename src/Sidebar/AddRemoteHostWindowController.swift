@@ -4,10 +4,13 @@ import SwiftUI
 @MainActor
 final class AddRemoteHostWindowController: NSWindowController {
     private let model: AddRemoteHostModel
+    private let hostTrust: SSHHostTrust
+    private var scannedHostKey: SSHScannedHostKey?
     private var onComplete: ((RemoteHost) -> Void)?
 
-    init(model: AddRemoteHostModel = AddRemoteHostModel()) {
+    init(model: AddRemoteHostModel = AddRemoteHostModel(), hostTrust: SSHHostTrust = SSHHostTrust()) {
         self.model = model
+        self.hostTrust = hostTrust
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 430, height: 460),
@@ -22,7 +25,10 @@ final class AddRemoteHostWindowController: NSWindowController {
 
         window.contentView = NSHostingView(rootView: AddRemoteHostView(
             model: model,
-            onTestConnection: { _ in .trusted },
+            onTestConnection: { [weak self] target in
+                guard let self else { return .trusted }
+                return try await self.verifyConnection(to: target)
+            },
             onAdd: { [weak self] host in
                 self?.handleAdd(host)
             },
@@ -50,7 +56,19 @@ final class AddRemoteHostWindowController: NSWindowController {
         }
     }
 
+    /// Reaches the host and retrieves its key instead of blindly reporting success. Throwing here
+    /// surfaces an error in the dialog and stops "Add" from proceeding for an unreachable host.
+    private func verifyConnection(to target: String) async throws -> AddRemoteHostTestResult {
+        scannedHostKey = try await hostTrust.scanHostKey(for: target)
+        return .trusted
+    }
+
     private func handleAdd(_ host: RemoteHost) {
+        // Trust the key scanned during the connection test so the first real connection succeeds.
+        if let scannedHostKey {
+            try? hostTrust.recordTrustedHostKey(scannedHostKey, hostID: host.id)
+        }
+        scannedHostKey = nil
         let callback = onComplete
         onComplete = nil
         dismissSheet()

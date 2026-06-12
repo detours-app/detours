@@ -367,6 +367,11 @@ actor SSHConnection {
             throw SSHConnectionError.unexpectedEOF
         }
         let length = Int(lengthBytes.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) })
+        // A malicious or malfunctioning server could declare a multi-gigabyte frame; cap it at the
+        // same 16 MB ceiling the encoder enforces so a bad length field can't force a huge allocation.
+        guard length <= RPCStreamHandler.defaultMaxFrameSize else {
+            throw RPCProtocolError.frameTooLarge(length)
+        }
         let payload = output.readData(ofLength: length)
         guard payload.count == length else {
             throw SSHConnectionError.unexpectedEOF

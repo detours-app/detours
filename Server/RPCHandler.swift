@@ -39,15 +39,29 @@ struct RPCHandler {
             let request = try ServerRPCEnvelope(encodedPayload: frame)
             guard request.kind == .request else { continue }
 
-            let payloads = try handleChunks(message: ServerRPCMessage(binaryEncoded: request.payload))
-            for (index, payload) in payloads.enumerated() {
+            do {
+                let payloads = try handleChunks(message: ServerRPCMessage(binaryEncoded: request.payload))
+                for (index, payload) in payloads.enumerated() {
+                    let response = ServerRPCEnvelope(
+                        id: request.id,
+                        kind: .response,
+                        messageType: request.messageType,
+                        sequence: UInt32(index),
+                        isFinal: index == payloads.count - 1,
+                        payload: payload
+                    )
+                    try Self.write(envelope: response, outputLock: outputLock)
+                }
+            } catch {
+                // A single request failing must not bring down the daemon: report it to the client
+                // as a per-request error envelope and keep serving the connection.
                 let response = ServerRPCEnvelope(
                     id: request.id,
-                    kind: .response,
+                    kind: .error,
                     messageType: request.messageType,
-                    sequence: UInt32(index),
-                    isFinal: index == payloads.count - 1,
-                    payload: payload
+                    sequence: 0,
+                    isFinal: true,
+                    payload: Self.encodeError(error)
                 )
                 try Self.write(envelope: response, outputLock: outputLock)
             }
@@ -124,9 +138,19 @@ struct RPCHandler {
             try watcher.watchVisibleDirectory(path.string, token: token)
             return [Data()]
         case .unwatch(let token):
-            try watcher.unwatch(token)
+            do {
+                try watcher.unwatch(token)
+            } catch ServerWatcherError.unknownWatch {
+                // Releasing an already-unwatched token (e.g. after a reconnect) is a no-op, not an error.
+            }
             return [Data()]
         }
+    }
+
+    private static func encodeError(_ error: Error) -> Data {
+        var writer = ServerRPCBinaryWriter()
+        writer.writeString(String(describing: error))
+        return writer.data
     }
 
     private static func write(envelope: ServerRPCEnvelope, outputLock: NSLock) throws {

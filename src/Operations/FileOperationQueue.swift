@@ -738,7 +738,8 @@ final class FileOperationQueue {
                         skipped = true
                         destinationURL = initialDestination
                     case .replace:
-                        try await runFileIO { try FileManager.default.removeItem(at: initialDestination) }
+                        // Replacing must not permanently destroy the existing file: move it to the Trash.
+                        try await runFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
                         destinationURL = initialDestination
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
@@ -868,7 +869,8 @@ final class FileOperationQueue {
                         skipped = true
                         destinationURL = initialDestination
                     case .replace:
-                        try await runFileIO { try FileManager.default.removeItem(at: initialDestination) }
+                        // Replacing must not permanently destroy the existing file: move it to the Trash.
+                        try await runFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
                         destinationURL = initialDestination
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
@@ -1077,10 +1079,22 @@ final class FileOperationQueue {
 
         if moved.count == items.count, let undoManager {
             let originalItems = items
+            let movedItems = moved
             undoManager.registerUndo(withTarget: self) { target in
                 Task { @MainActor in
                     do {
-                        _ = try await target.performRemoteMove(items: moved, to: originalItems[0].deletingLastPathComponent(), undoManager: nil)
+                        // Restore each item to its own original parent, not just the first item's:
+                        // a move can span several source directories on the same host.
+                        let pairs = Array(zip(movedItems, originalItems))
+                        var handledParents: Set<String> = []
+                        for (_, original) in pairs {
+                            let parent = original.deletingLastPathComponent()
+                            guard handledParents.insert(parent.path).inserted else { continue }
+                            let itemsForParent = pairs
+                                .filter { $0.1.deletingLastPathComponent().path == parent.path }
+                                .map(\.0)
+                            _ = try await target.performRemoteMove(items: itemsForParent, to: parent, undoManager: nil)
+                        }
                     } catch {
                         target.presentError(error)
                     }
@@ -1474,7 +1488,8 @@ final class FileOperationQueue {
                     case .skip:
                         skipped = true
                     case .replace:
-                        try await runUntrackedFileIO { try FileManager.default.removeItem(at: initialDestination) }
+                        // Replacing must not permanently destroy the existing file: move it to the Trash.
+                        try await runUntrackedFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
                         destinationURL = initialDestination
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: destination)
@@ -1543,7 +1558,8 @@ final class FileOperationQueue {
                     case .skip:
                         skipped = true
                     case .replace:
-                        try await runUntrackedFileIO { try FileManager.default.removeItem(at: initialDestination) }
+                        // Replacing must not permanently destroy the existing file: move it to the Trash.
+                        try await runUntrackedFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
                         destinationURL = initialDestination
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: destination)

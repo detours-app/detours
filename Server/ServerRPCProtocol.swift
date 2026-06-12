@@ -306,8 +306,12 @@ struct ServerRPCBinaryReader {
 
     mutating func readRemotePaths() throws -> [ServerRemotePath] {
         let count = Int(try readUInt32())
+        // Each path carries at least a 4-byte length prefix, so the declared count cannot exceed
+        // the remaining bytes / 4. Cap the reservation to avoid an OOM crash from a malformed count;
+        // an over-large count still fails fast in readRemotePath when the bytes run out.
+        let maxPossible = max(0, (data.count - offset) / 4)
         var paths: [ServerRemotePath] = []
-        paths.reserveCapacity(count)
+        paths.reserveCapacity(min(count, maxPossible))
         for _ in 0..<count {
             paths.append(try readRemotePath())
         }

@@ -57,7 +57,7 @@ struct FileOperations {
                 throw ServerRPCError.unsupportedCommand("copy over rpc threshold")
             }
             let finalURL = destinationURL.appendingPathComponent(sourceURL.lastPathComponent)
-            try? fileManager.removeItem(at: finalURL)
+            try trashExistingItem(at: finalURL)
             try fileManager.copyItem(at: sourceURL, to: finalURL)
             return ServerRemotePath(finalURL.path)
         }
@@ -69,7 +69,7 @@ struct FileOperations {
         let moved = try sources.map { source in
             let sourceURL = URL(fileURLWithPath: source.string)
             let finalURL = destinationURL.appendingPathComponent(sourceURL.lastPathComponent)
-            try? fileManager.removeItem(at: finalURL)
+            try trashExistingItem(at: finalURL)
             try fileManager.moveItem(at: sourceURL, to: finalURL)
             return ServerRemotePath(finalURL.path)
         }
@@ -121,10 +121,10 @@ struct FileOperations {
         let destination = URL(fileURLWithPath: path.string)
         let partial = destination.deletingLastPathComponent()
             .appendingPathComponent(destination.lastPathComponent + ".detours-partial")
-        try? FileManager.default.removeItem(at: partial)
-        try? FileManager.default.removeItem(at: destination)
+        try? fileManager.removeItem(at: partial)
+        try trashExistingItem(at: destination)
         try contents.write(to: partial, options: .atomic)
-        try FileManager.default.moveItem(at: partial, to: destination)
+        try fileManager.moveItem(at: partial, to: destination)
     }
 
     func fileVersion(path: ServerRemotePath) throws -> Data {
@@ -208,9 +208,15 @@ struct FileOperations {
         ])
         let isSymbolicLink = values.isSymbolicLink ?? false
         let fileSize: Int64?
-        if isSymbolicLink,
-           let target = try? FileManager.default.destinationOfSymbolicLink(atPath: path) {
-            fileSize = Int64(Data(target.utf8).count)
+        if isSymbolicLink {
+            // Report the size of the file the link points at, not the byte length of the target path string.
+            let targetValues = try? url.resolvingSymlinksInPath()
+                .resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+            if targetValues?.isDirectory == true {
+                fileSize = nil
+            } else {
+                fileSize = targetValues?.fileSize.map(Int64.init)
+            }
         } else if values.isDirectory == true {
             fileSize = nil
         } else {
@@ -259,6 +265,13 @@ struct FileOperations {
             writer.writeData(path.bytes)
         }
         return writer.data
+    }
+
+    /// Moves an existing item at `url` to the remote Trash before it is overwritten.
+    /// User files are never permanently removed; per the project rule, deletion routes through TrashOperations.
+    private func trashExistingItem(at url: URL) throws {
+        guard fileManager.fileExists(atPath: url.path) else { return }
+        _ = try trashOperations.trash(paths: [url.path])
     }
 
     private func byteCount(at url: URL) throws -> Int64 {
