@@ -108,6 +108,7 @@ actor RemoteFileProvider: FileProvider {
     private let transferChannel: RemoteTransferChannel
     private let watcherClient: RemoteWatcherClient?
     private var watchers: [FileProviderWatch: UUID] = [:]
+    private var rawPaths: [Location: RemotePath] = [:]
 
     init(
         hostID: UUID,
@@ -135,7 +136,9 @@ actor RemoteFileProvider: FileProvider {
                 do {
                     let chunks = try await rpcClient.send(.list(path: remotePath(from: location), showHidden: showHidden))
                     for chunk in chunks {
-                        let entries = try Self.decodeFileEntries(chunk).map { $0.loadedEntry(hostID: hostID) }
+                        let entries = try Self.decodeFileEntries(chunk).map { entry in
+                            self.loadedEntry(entry)
+                        }
                         continuation.yield(entries)
                     }
                     continuation.finish()
@@ -151,7 +154,7 @@ actor RemoteFileProvider: FileProvider {
         guard chunks.count == 1, let entry = try Self.decodeFileEntries(chunks[0]).first else {
             throw RemoteFileProviderError.invalidResponse("stat")
         }
-        return entry.loadedEntry(hostID: hostID)
+        return loadedEntry(entry)
     }
 
     func copy(_ sources: [Location], to destination: Location) async throws -> [Location] {
@@ -372,7 +375,7 @@ actor RemoteFileProvider: FileProvider {
         guard case .remote(let locationHostID, let path) = location, locationHostID == hostID else {
             throw RemoteFileProviderError.expectedRemote(location)
         }
-        return RemotePath(path)
+        return rawPaths[location] ?? RemotePath(path)
     }
 
     private func remotePath(fromTrash item: TrashedItem) -> RemotePath {
@@ -383,7 +386,11 @@ actor RemoteFileProvider: FileProvider {
     }
 
     private func decodeLocations(from response: [Data]) throws -> [Location] {
-        try decodePathList(from: response).map { .remote(hostID: hostID, path: $0.lossyDisplayString) }
+        try decodePathList(from: response).map { path in
+            let location = Location.remote(hostID: hostID, path: path.lossyDisplayString)
+            rawPaths[location] = path
+            return location
+        }
     }
 
     private func decodePathList(from response: [Data]) throws -> [RemotePath] {
@@ -427,6 +434,12 @@ actor RemoteFileProvider: FileProvider {
         }
         try reader.requireComplete()
         return entries
+    }
+
+    private func loadedEntry(_ entry: RemoteFileEntry) -> LoadedFileEntry {
+        let loaded = entry.loadedEntry(hostID: hostID)
+        rawPaths[loaded.location] = entry.path
+        return loaded
     }
 
     private static func decodePathList(_ data: Data) throws -> RemotePathListResponse {

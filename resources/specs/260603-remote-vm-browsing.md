@@ -197,7 +197,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T44** Implement Quick Look on remote in `src/FileList/FileOpenHelper.swift`: download on Space key press only. Files under one megabyte download silently. Files between one and one hundred megabytes show a determinate progress indicator inside the Quick Look panel. Files over one hundred megabytes show a plain-language too-large message and do not initiate a download.
 - [x] **T45** Add symlink handling on remote: server-side `ReadSymlink` RPC, client renders link badge in `src/FileList/FileListCell.swift`, double-click follows resolved targets, broken-link error shown in plain language.
 - [x] **T46** Add permission-denied rendering: server-side `Stat` surfaces a permission flag; client renders the row greyed with a lock badge in `src/FileList/FileListCell.swift`. Attempting operations surfaces a plain-language permission-denied error naming the file.
-- [ ] **T47** Add non-UTF-8 filename rendering: client converts length-prefixed byte arrays to display strings using a lossy decode that substitutes U+FFFD for invalid sequences; operations on those files use the original raw bytes through to the daemon.
+- [x] **T47** Add non-UTF-8 filename rendering: client converts length-prefixed byte arrays to display strings using a lossy decode that substitutes U+FFFD for invalid sequences; operations on those files use the original raw bytes through to the daemon.
 
 **Phase 5: Lifecycle, polish, flag removal**
 
@@ -269,8 +269,8 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [x] **T94** `OpenWithConflictTests.testHashMismatchSurfacesConflict` - changing the remote file's contents between download and save triggers the conflict dialog.
 - [x] **T95** `OpenWithConflictTests.testMtimeMismatchSurfacesConflict` - touching the remote file (mtime change without content change) between download and save triggers the conflict dialog.
 - [x] **T96** `OpenWithConflictTests.testCleanRoundtripUploads` - unchanged remote between download and save uploads without prompting.
-- [ ] **T97** `NonUTF8FilenameTests.testRenderUsesReplacementGlyph` - invalid byte sequences in remote filenames render with U+FFFD in the UI.
-- [ ] **T98** `NonUTF8FilenameTests.testOperationsActOnRawBytes` - copy and rename on a file with invalid-UTF-8 name complete using the original raw bytes.
+- [x] **T97** `NonUTF8FilenameTests.testRenderUsesReplacementGlyph` - invalid byte sequences in remote filenames render with U+FFFD in the UI.
+- [x] **T98** `NonUTF8FilenameTests.testOperationsActOnRawBytes` - copy and rename on a file with invalid-UTF-8 name complete using the original raw bytes.
 - [ ] **T99** `DisconnectedQueueTests.testQueuePausesOnDrop` - a queued copy targeting a host whose connection drops transitions to paused state in the queue UI.
 - [ ] **T100** `DisconnectedQueueTests.testQueueResumesOnReconnect` - a paused operation auto-resumes once the connection is restored.
 - [ ] **T101** `DisconnectedQueueTests.testInProgressOpRequeues` - an in-progress transfer at the moment of a drop has its partial file deleted and the operation requeues from the start.
