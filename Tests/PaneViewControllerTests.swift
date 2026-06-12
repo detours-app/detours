@@ -282,6 +282,29 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertEqual(pane.selectedTab?.title, "Dev VM")
     }
 
+    func testRemoteTabUsesPlainFolderIcon() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider(), path: "/home/marco/projects")
+        waitUntil(pane.selectedTab?.title == "projects")
+
+        let tab = try XCTUnwrap(pane.selectedTab)
+        XCTAssertEqual(PaneTabBar.tabSymbolName(for: tab), "folder")
+    }
+
+    func testLocalTabKeepsContextualIcon() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        _ = pane.createTab(at: home, select: true)
+        let tab = try XCTUnwrap(pane.selectedTab)
+
+        XCTAssertEqual(PaneTabBar.tabSymbolName(for: tab), "house")
+    }
+
     func testReconnectBannerAppearsForFailedRemoteHost() {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()
