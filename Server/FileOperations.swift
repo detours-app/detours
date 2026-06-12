@@ -147,22 +147,8 @@ struct FileOperations {
     }
 
     func folderSize(path: ServerRemotePath) throws -> Data {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
-        process.arguments = ["-sb", path.string]
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = FileHandle.nullDevice
-        try process.run()
-        process.waitUntilExit()
-
-        let output = String(
-            data: outputPipe.fileHandleForReading.readDataToEndOfFile(),
-            encoding: .utf8
-        ) ?? ""
-        let size = output.split(whereSeparator: \.isWhitespace).first.flatMap { Int64($0) } ?? 0
         var writer = ServerRPCBinaryWriter()
-        writer.writeInt64(size)
+        writer.writeInt64(try Self.calculateFolderSize(at: path.string))
         return writer.data
     }
 
@@ -281,17 +267,49 @@ struct FileOperations {
 
     private func sha256Hex(path: String) throws -> String {
         let process = Process()
+        #if os(macOS)
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/shasum")
+        process.arguments = ["-a", "256", path]
+        #else
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sha256sum")
         process.arguments = [path]
+        #endif
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
         process.standardError = FileHandle.nullDevice
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            throw ServerRPCError.unsupportedCommand("sha256sum")
+            throw ServerRPCError.unsupportedCommand("sha256")
         }
         let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         return String(output.split(whereSeparator: \.isWhitespace).first ?? "")
+    }
+
+    static func calculateFolderSize(at path: String) throws -> Int64 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
+        #if os(macOS)
+        process.arguments = ["-sk", path]
+        #else
+        process.arguments = ["-sb", path]
+        #endif
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else { return 0 }
+        let output = String(
+            data: outputPipe.fileHandleForReading.readDataToEndOfFile(),
+            encoding: .utf8
+        ) ?? ""
+        let value = output.split(whereSeparator: \.isWhitespace).first.flatMap { Int64($0) } ?? 0
+        #if os(macOS)
+        return value * 1_024
+        #else
+        return value
+        #endif
     }
 }

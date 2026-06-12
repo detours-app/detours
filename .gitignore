@@ -8,8 +8,7 @@ resources/docs/scratch.md
 /.build
 /build
 /Packages
-/resources/Servers/.cache-hash
-/resources/Servers/detours-server-x86_64-linux
+/resources/Servers/*
 xcuserdata/
 DerivedData/
 .swiftpm/configuration/registries.json

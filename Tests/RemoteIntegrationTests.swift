@@ -226,6 +226,128 @@ final class RemoteIntegrationTests: XCTestCase {
         }
     }
 
+    func testIntelMacListDirectoryReturnsExpectedEntries() async throws {
+        let session = try await RemoteIntegrationSession.makeIntelMac()
+        let home = try Self.remoteHome(target: "wraith")
+
+        let entries = try await session.provider.list(.remote(hostID: session.hostID, path: home), showHidden: false)
+
+        XCTAssertFalse(entries.isEmpty)
+    }
+
+    func testIntelMacCopyRemoteToLocal() async throws {
+        let session = try await RemoteIntegrationSession.makeIntelMac()
+        let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
+        defer { Self.cleanupRemote(remoteRoot, target: "wraith") }
+        try Self.runSSH("printf remote-body > \(Self.shellQuote(remoteRoot + "/remote.txt"))", target: "wraith")
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let destination = localRoot.appendingPathComponent("remote.txt")
+
+        try await session.provider.download(.remote(hostID: session.hostID, path: remoteRoot + "/remote.txt"), to: destination)
+
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "remote-body")
+    }
+
+    func testIntelMacCopyLocalToRemote() async throws {
+        let session = try await RemoteIntegrationSession.makeIntelMac()
+        let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
+        defer { Self.cleanupRemote(remoteRoot, target: "wraith") }
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let source = try createTestFile(in: localRoot, name: "upload.txt", content: "local-body")
+
+        try await session.provider.upload(source, to: .remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
+        let entry = try await session.provider.stat(.remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
+
+        XCTAssertEqual(entry.fileSize, 10)
+        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(remoteRoot + "/upload.txt"))", target: "wraith"), "local-body")
+    }
+
+    func testIntelMacLargeTransferUsesRemoteTransferChannel() async throws {
+        let session = try await RemoteIntegrationSession.makeIntelMac()
+        let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
+        defer { Self.cleanupRemote(remoteRoot, target: "wraith") }
+        try Self.runSSH("dd if=/dev/zero of=\(Self.shellQuote(remoteRoot + "/large.bin")) bs=1m count=100 2>/dev/null", target: "wraith")
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let destination = localRoot.appendingPathComponent("large.bin")
+        let home = try Self.remoteHome(target: "wraith")
+
+        let download = Task {
+            try await session.provider.download(.remote(hostID: session.hostID, path: remoteRoot + "/large.bin"), to: destination)
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let entries = try await session.provider.list(.remote(hostID: session.hostID, path: home), showHidden: false)
+
+        try await download.value
+        let size = try XCTUnwrap(destination.resourceValues(forKeys: [.fileSizeKey]).fileSize)
+        XCTAssertEqual(size, 100 * 1_024 * 1_024)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: RemoteTransferChannel.partialURL(for: destination).path))
+        XCTAssertFalse(entries.isEmpty)
+    }
+
+    func testIntelMacWatchDirectoryReceivesDarwinEvent() async throws {
+        _ = try await RemoteIntegrationSession.makeIntelMac()
+        let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
+        defer { Self.cleanupRemote(remoteRoot, target: "wraith") }
+        let session = try PersistentRemoteRPCSession.start(sshTarget: "wraith")
+        defer { session.close() }
+        let token = UUID()
+
+        try session.send(.watch(path: RemotePath(remoteRoot), token: token), id: 1)
+        _ = try session.waitForEnvelope(timeout: 2) { envelope in
+            envelope.id == 1 && envelope.kind == .response
+        }
+
+        try Self.runSSH("printf watched > \(Self.shellQuote(remoteRoot + "/watched.txt"))", target: "wraith")
+        let envelope = try session.waitForEnvelope(timeout: 2) { envelope in
+            envelope.kind == .event && envelope.messageType == "WatchEvent"
+        }
+        let message = try RPCMessage(binaryEncoded: envelope.payload)
+
+        guard case .watchEvent(let watch, _, _) = message else {
+            XCTFail("Expected WatchEvent")
+            return
+        }
+        XCTAssertEqual(watch, token)
+    }
+
+    func testIntelMacTrashAndRestore() async throws {
+        let session = try await RemoteIntegrationSession.makeIntelMac()
+        let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
+        defer { Self.cleanupRemote(remoteRoot, target: "wraith") }
+        try Self.runSSH("printf trash > \(Self.shellQuote(remoteRoot + "/trash.txt"))", target: "wraith")
+        let location = Location.remote(hostID: session.hostID, path: remoteRoot + "/trash.txt")
+
+        let trashed = try await session.provider.trash([location])
+        XCTAssertFalse(try Self.remotePathExists(remoteRoot + "/trash.txt", target: "wraith"))
+        let restored = try await session.provider.restoreFromTrash(trashed)
+
+        XCTAssertEqual(restored, [location])
+        XCTAssertTrue(try Self.remotePathExists(remoteRoot + "/trash.txt", target: "wraith"))
+    }
+
+    func testIntelMacUnsupportedArmFixture() async throws {
+        let bundleRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(bundleRoot) }
+        let bundle = try createTestFile(in: bundleRoot, name: "detours-server", content: "server")
+        let client = IntegrationDeploymentClient(
+            architecture: RemoteArchitecture(system: "Darwin", machine: "arm64")
+        )
+        let deployer = ServerDeployer(client: client, bundledBinaryURL: bundle)
+
+        do {
+            _ = try await deployer.deployIfNeeded()
+            XCTFail("Expected unsupported architecture")
+        } catch let error as UnsupportedArchitectureError {
+            XCTAssertEqual(error, UnsupportedArchitectureError(system: "Darwin", machine: "arm64"))
+            XCTAssertTrue(error.localizedDescription.contains("x86_64 macOS"))
+            let didUpload = await client.didUpload
+            XCTAssertFalse(didUpload)
+        }
+    }
+
     func testSymlinkBrokenShowsError() {
         let message = FileListViewController.remoteBrokenSymlinkMessage(fileName: "missing-link")
 
@@ -233,31 +355,39 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     private static func makeRemoteFixtureRoot() throws -> String {
-        let root = try runSSH("printf %s \"$HOME/.detours-test/\(UUID().uuidString)\"")
+        try makeRemoteFixtureRoot(target: "devtest")
+    }
+
+    private static func makeRemoteFixtureRoot(target: String) throws -> String {
+        let root = try runSSH("printf %s \"$HOME/.detours-test/\(UUID().uuidString)\"", target: target)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        try runSSH("mkdir -p \(shellQuote(root))")
+        try runSSH("mkdir -p \(shellQuote(root))", target: target)
         return root
     }
 
     private static func cleanupRemote(_ path: String) {
-        _ = try? runSSH("rm -rf \(shellQuote(path))")
+        cleanupRemote(path, target: "devtest")
     }
 
-    private static func remotePathExists(_ path: String) throws -> Bool {
-        let process = try configuredSSHProcess(command: "test -e \(shellQuote(path))")
+    private static func cleanupRemote(_ path: String, target: String) {
+        _ = try? runSSH("rm -rf \(shellQuote(path))", target: target)
+    }
+
+    private static func remotePathExists(_ path: String, target: String = "devtest") throws -> Bool {
+        let process = try configuredSSHProcess(command: "test -e \(shellQuote(path))", target: target)
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
         guard process.waitUntilExit(timeout: 5) else {
             process.terminate()
-            throw XCTSkip("devtest timed out")
+            throw XCTSkip("\(target) timed out")
         }
         return process.terminationStatus == 0
     }
 
     @discardableResult
-    fileprivate static func runSSH(_ command: String) throws -> String {
-        let process = try configuredSSHProcess(command: command)
+    fileprivate static func runSSH(_ command: String, target: String = "devtest") throws -> String {
+        let process = try configuredSSHProcess(command: command, target: target)
         let output = Pipe()
         let error = Pipe()
         process.standardOutput = output
@@ -265,21 +395,32 @@ final class RemoteIntegrationTests: XCTestCase {
         try process.run()
         guard process.waitUntilExit(timeout: 15) else {
             process.terminate()
-            throw XCTSkip("devtest timed out")
+            throw XCTSkip("\(target) timed out")
         }
         let stdout = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         let stderr = String(data: error.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         guard process.terminationStatus == 0 else {
-            throw XCTSkip("devtest unavailable: \(stderr)")
+            throw XCTSkip("\(target) unavailable: \(stderr)")
         }
         return stdout
     }
 
-    fileprivate static func configuredSSHProcess(command: String) throws -> Process {
+    fileprivate static func configuredSSHProcess(command: String, target: String = "devtest") throws -> Process {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = ["-o", "BatchMode=yes", "devtest", command]
+        process.arguments = ["-o", "BatchMode=yes", target, command]
         return process
+    }
+
+    fileprivate static func requireIntelMacHost(_ target: String) throws {
+        let architecture = try runSSH("uname -sm", target: target).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard architecture == "Darwin x86_64" else {
+            throw XCTSkip("\(target) reported \(architecture), expected Darwin x86_64")
+        }
+    }
+
+    fileprivate static func remoteHome(target: String) throws -> String {
+        try runSSH("printf %s \"$HOME\"", target: target).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     fileprivate static func shellQuote(_ value: String) -> String {
@@ -300,18 +441,38 @@ private struct RemoteIntegrationSession {
 
     static func make() throws -> RemoteIntegrationSession {
         try RemoteIntegrationTests.runSSH("test -x ~/.detours-server/detours-server")
+        return make(sshTarget: "devtest")
+    }
+
+    static func make(sshTarget: String) -> RemoteIntegrationSession {
         let hostID = UUID()
-        let client = ProcessRemoteRPCClient()
+        let client = ProcessRemoteRPCClient(sshTarget: sshTarget)
         let provider = RemoteFileProvider(
             hostID: hostID,
             rpcClient: client,
-            transferChannel: RemoteTransferChannel(sshTarget: "devtest")
+            transferChannel: RemoteTransferChannel(sshTarget: sshTarget)
         )
         return RemoteIntegrationSession(hostID: hostID, provider: provider)
+    }
+
+    static func makeIntelMac() async throws -> RemoteIntegrationSession {
+        try RemoteIntegrationTests.requireIntelMacHost("wraith")
+        let deployer = ServerDeployer(
+            client: SSHServerDeploymentClient(sshTarget: "wraith"),
+            bundledBinaryDirectoryURL: URL(fileURLWithPath: "resources/Servers")
+        )
+        _ = try await deployer.deployIfNeeded()
+        return make(sshTarget: "wraith")
     }
 }
 
 private struct ProcessRemoteRPCClient: RemoteRPCClient {
+    let sshTarget: String
+
+    init(sshTarget: String = "devtest") {
+        self.sshTarget = sshTarget
+    }
+
     func send(_ message: RPCMessage) async throws -> [Data] {
         let process = Process()
         let stdin = Pipe()
@@ -329,7 +490,7 @@ private struct ProcessRemoteRPCClient: RemoteRPCClient {
             "-o", "PreferredAuthentications=publickey",
             "-o", "PubkeyAuthentication=yes",
             "-o", "NumberOfPasswordPrompts=0",
-            "devtest",
+            sshTarget,
             "~/.detours-server/detours-server",
         ]
         process.standardInput = stdin
@@ -352,11 +513,11 @@ private struct ProcessRemoteRPCClient: RemoteRPCClient {
 
         guard process.waitUntilExit(timeout: 15) else {
             process.terminate()
-            throw RemoteFileProviderError.invalidResponse("devtest RPC timed out")
+            throw RemoteFileProviderError.invalidResponse("\(sshTarget) RPC timed out")
         }
         let stderrText = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         guard process.terminationStatus == 0 else {
-            throw RemoteFileProviderError.invalidResponse("devtest RPC failed: \(stderrText)")
+            throw RemoteFileProviderError.invalidResponse("\(sshTarget) RPC failed: \(stderrText)")
         }
 
         var stream = RPCStreamHandler()
@@ -427,7 +588,7 @@ private final class PersistentRemoteRPCSession: @unchecked Sendable {
         self.stderr = stderr
     }
 
-    static func start() throws -> PersistentRemoteRPCSession {
+    static func start(sshTarget: String = "devtest") throws -> PersistentRemoteRPCSession {
         let process = Process()
         let stdin = Pipe()
         let stdout = Pipe()
@@ -444,7 +605,7 @@ private final class PersistentRemoteRPCSession: @unchecked Sendable {
             "-o", "PreferredAuthentications=publickey",
             "-o", "PubkeyAuthentication=yes",
             "-o", "NumberOfPasswordPrompts=0",
-            "devtest",
+            sshTarget,
             "~/.detours-server/detours-server",
         ]
         process.standardInput = stdin

@@ -2,6 +2,8 @@ import Foundation
 
 #if os(Linux)
 import Glibc
+#elseif os(macOS)
+import Darwin
 #endif
 
 enum ServerWatchEventKind: UInt8, Equatable, Sendable {
@@ -44,7 +46,7 @@ final class Watcher: @unchecked Sendable {
     private var watchesByToken: [UUID: WatchRegistration] = [:]
     private var tokenByDescriptor: [Int32: UUID] = [:]
 
-    #if os(Linux)
+    #if os(Linux) || os(macOS)
     init(backend: InotifyBackend = SystemInotifyBackend()) {
         self.backend = backend
     }
@@ -153,7 +155,25 @@ struct WatchRegistration: Equatable, Sendable {
     let descriptor: Int32
 }
 
-struct SystemInotifyBackend: InotifyBackend {
+final class SystemInotifyBackend: InotifyBackend {
+    #if os(macOS)
+    private final class DarwinWatch: @unchecked Sendable {
+        let descriptor: Int32
+        let fileDescriptor: Int32
+        let source: DispatchSourceFileSystemObject
+
+        init(descriptor: Int32, fileDescriptor: Int32, source: DispatchSourceFileSystemObject) {
+            self.descriptor = descriptor
+            self.fileDescriptor = fileDescriptor
+            self.source = source
+        }
+
+        deinit {
+            source.cancel()
+        }
+    }
+    #endif
+
     private final class FileDescriptor {
         let rawValue: Int32
 
@@ -176,11 +196,20 @@ struct SystemInotifyBackend: InotifyBackend {
         }
     }
 
+    #if os(macOS)
+    private let lock = NSLock()
+    private var nextDescriptor: Int32 = 1
+    private var watches: [Int32: DarwinWatch] = [:]
+    private var pending: [InotifyDescriptorEvent] = []
+
+    init() {}
+    #else
     private let descriptor: FileDescriptor
 
     init() {
         descriptor = try! FileDescriptor()
     }
+    #endif
 
     func addWatch(path: String) throws -> Int32 {
         #if os(Linux)
@@ -191,6 +220,50 @@ struct SystemInotifyBackend: InotifyBackend {
         guard watchDescriptor >= 0 else {
             throw ServerWatcherError.systemCallFailed("inotify_add_watch", errno: errno)
         }
+        return watchDescriptor
+        #elseif os(macOS)
+        let fileDescriptor = Darwin.open(path, O_EVTONLY)
+        guard fileDescriptor >= 0 else {
+            throw ServerWatcherError.systemCallFailed("open", errno: errno)
+        }
+
+        lock.lock()
+        let watchDescriptor = nextDescriptor
+        nextDescriptor += 1
+        lock.unlock()
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fileDescriptor,
+            eventMask: [.write, .delete, .rename, .extend, .attrib],
+            queue: .global(qos: .utility)
+        )
+        source.setEventHandler { [weak self] in
+            guard let self else { return }
+            let data = source.data
+            let kind: ServerWatchEventKind
+            if data.contains(.rename) {
+                kind = .renamed
+            } else if data.contains(.delete) {
+                kind = .deleted
+            } else if data.contains(.write) {
+                kind = .created
+            } else {
+                kind = .modified
+            }
+
+            lock.lock()
+            pending.append(InotifyDescriptorEvent(descriptor: watchDescriptor, kind: kind, name: ""))
+            lock.unlock()
+        }
+        source.setCancelHandler {
+            Darwin.close(fileDescriptor)
+        }
+
+        let watch = DarwinWatch(descriptor: watchDescriptor, fileDescriptor: fileDescriptor, source: source)
+        lock.lock()
+        watches[watchDescriptor] = watch
+        lock.unlock()
+        source.resume()
         return watchDescriptor
         #else
         throw ServerWatcherError.unsupportedPlatform
@@ -203,6 +276,12 @@ struct SystemInotifyBackend: InotifyBackend {
         guard result == 0 else {
             throw ServerWatcherError.systemCallFailed("inotify_rm_watch", errno: errno)
         }
+        #elseif os(macOS)
+        lock.lock()
+        let watch = watches.removeValue(forKey: descriptorToRemove)
+        pending.removeAll { $0.descriptor == descriptorToRemove }
+        lock.unlock()
+        watch?.source.cancel()
         #else
         throw ServerWatcherError.unsupportedPlatform
         #endif
@@ -236,6 +315,12 @@ struct SystemInotifyBackend: InotifyBackend {
             }
             offset = nameStart + nameLength
         }
+        return events
+        #elseif os(macOS)
+        lock.lock()
+        defer { lock.unlock() }
+        let events = pending
+        pending.removeAll()
         return events
         #else
         throw ServerWatcherError.unsupportedPlatform

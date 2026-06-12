@@ -1046,9 +1046,9 @@ extension MainSplitViewController: SidebarDelegate {
     private func connectRemoteHost(_ host: RemoteHost) {
         Task { @MainActor in
             do {
-                let bundledBinary = Self.detoursServerBinaryURL()
+                let bundledBinaryDirectory = Self.detoursServerBinaryDirectoryURL()
                 let deploymentClient = SSHServerDeploymentClient(sshTarget: host.sshTarget)
-                let deployer = ServerDeployer(client: deploymentClient, bundledBinaryURL: bundledBinary)
+                let deployer = ServerDeployer(client: deploymentClient, bundledBinaryDirectoryURL: bundledBinaryDirectory)
                 _ = try await deployer.deployIfNeeded()
 
                 let connection = SSHConnection(
@@ -1075,13 +1075,12 @@ extension MainSplitViewController: SidebarDelegate {
         }
     }
 
-    private static func detoursServerBinaryURL() -> URL {
-        if let resourceURL = Bundle.main.resourceURL?
-            .appendingPathComponent("Servers/detours-server-x86_64-linux"),
+    private static func detoursServerBinaryDirectoryURL() -> URL {
+        if let resourceURL = Bundle.main.resourceURL?.appendingPathComponent("Servers"),
            FileManager.default.fileExists(atPath: resourceURL.path) {
             return resourceURL
         }
-        return URL(fileURLWithPath: "Resources/Servers/detours-server-x86_64-linux")
+        return URL(fileURLWithPath: "resources/Servers")
     }
 
     private func showRemoteConnectionError(_ error: Error, host: RemoteHost) {

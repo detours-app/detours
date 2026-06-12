@@ -6,7 +6,18 @@ struct RemoteArchitecture: Equatable, Sendable {
     let machine: String
 
     var isSupported: Bool {
-        system == "Linux" && machine == "x86_64"
+        helperBinaryName != nil
+    }
+
+    var helperBinaryName: String? {
+        switch (system, machine) {
+        case ("Linux", "x86_64"):
+            return "detours-server-x86_64-linux"
+        case ("Darwin", "x86_64"):
+            return "detours-server-x86_64-darwin"
+        default:
+            return nil
+        }
     }
 }
 
@@ -15,7 +26,7 @@ struct UnsupportedArchitectureError: Error, Equatable, LocalizedError, Sendable 
     let machine: String
 
     var errorDescription: String? {
-        "Remote helper supports x86_64 Linux only. This host reported \(system) \(machine)."
+        "Remote helper supports x86_64 Linux and x86_64 macOS only. This host reported \(system) \(machine)."
     }
 }
 
@@ -80,7 +91,14 @@ struct SSHServerDeploymentClient: ServerDeploymentClient {
 
     func installedBinaryInfo(at path: String) async throws -> RemoteBinaryInfo? {
         let output = try await run(
-            "if [ -e \(path) ]; then stat -c '%U\\t%a\\t%F' \(path); else printf 'missing\\n'; fi"
+            """
+            if [ -e \(path) ]; then \
+            owner="$(ls -ld \(path) | awk '{print $3}')"; \
+            mode="$(if [ "$(uname -s)" = Darwin ]; then stat -f '%Lp' \(path); else stat -c '%a' \(path); fi)"; \
+            type="$(if [ -f \(path) ]; then printf 'regular file'; else printf 'other'; fi)"; \
+            printf '%s\\t%s\\t%s\\n' "$owner" "$mode" "$type"; \
+            else printf 'missing\\n'; fi
+            """
         ).trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard output != "missing" else { return nil }
@@ -99,7 +117,12 @@ struct SSHServerDeploymentClient: ServerDeploymentClient {
 
     func installedBinaryHash(at path: String) async throws -> String? {
         let output = try await run(
-            "if [ -e \(path) ]; then sha256sum \(path) | awk '{print $1}'; fi"
+            """
+            if [ -e \(path) ]; then \
+            if command -v sha256sum >/dev/null 2>&1; then sha256sum \(path) | awk '{print $1}'; \
+            else shasum -a 256 \(path) | awk '{print $1}'; fi; \
+            fi
+            """
         ).trimmingCharacters(in: .whitespacesAndNewlines)
         return output.isEmpty ? nil : output
     }
@@ -166,7 +189,7 @@ struct ServerDeployer {
     static let binaryName = "detours-server"
 
     let client: ServerDeploymentClient
-    let bundledBinaryURL: URL
+    private let bundledBinaryURLProvider: @Sendable (RemoteArchitecture) -> URL
     let installDirectory: String
 
     var remoteBinaryPath: String {
@@ -183,7 +206,20 @@ struct ServerDeployer {
         installDirectory: String = Self.defaultInstallDirectory
     ) {
         self.client = client
-        self.bundledBinaryURL = bundledBinaryURL
+        self.bundledBinaryURLProvider = { _ in bundledBinaryURL }
+        self.installDirectory = installDirectory
+    }
+
+    init(
+        client: ServerDeploymentClient,
+        bundledBinaryDirectoryURL: URL,
+        installDirectory: String = Self.defaultInstallDirectory
+    ) {
+        self.client = client
+        self.bundledBinaryURLProvider = { architecture in
+            let binaryName = architecture.helperBinaryName ?? Self.binaryName
+            return bundledBinaryDirectoryURL.appendingPathComponent(binaryName)
+        }
         self.installDirectory = installDirectory
     }
 
@@ -192,6 +228,7 @@ struct ServerDeployer {
         guard architecture.isSupported else {
             throw UnsupportedArchitectureError(system: architecture.system, machine: architecture.machine)
         }
+        let bundledBinaryURL = bundledBinaryURLProvider(architecture)
 
         guard FileManager.default.fileExists(atPath: bundledBinaryURL.path) else {
             throw ServerDeployerError.bundledBinaryMissing(bundledBinaryURL)
@@ -212,10 +249,20 @@ struct ServerDeployer {
                 return ServerDeploymentResult(deployed: false, reason: .alreadyCurrent)
             }
 
-            return try await deploy(expectedHash: expectedHash, expectedOwner: username, reason: .hashMismatch)
+            return try await deploy(
+                bundledBinaryURL: bundledBinaryURL,
+                expectedHash: expectedHash,
+                expectedOwner: username,
+                reason: .hashMismatch
+            )
         }
 
-        return try await deploy(expectedHash: expectedHash, expectedOwner: username, reason: .missing)
+        return try await deploy(
+            bundledBinaryURL: bundledBinaryURL,
+            expectedHash: expectedHash,
+            expectedOwner: username,
+            reason: .missing
+        )
     }
 
     static func sha256Hex(of fileURL: URL) throws -> String {
@@ -226,6 +273,7 @@ struct ServerDeployer {
     }
 
     private func deploy(
+        bundledBinaryURL: URL,
         expectedHash: String,
         expectedOwner: String,
         reason: ServerDeploymentReason

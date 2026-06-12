@@ -30,6 +30,24 @@ final class BuildCacheTests: XCTestCase {
         XCTAssertEqual(initialHash, unrelatedHash)
     }
 
+    func testBuildRequiresLinuxAndDarwinHelpers() throws {
+        let script = try String(contentsOfFile: "resources/scripts/build.sh", encoding: .utf8)
+
+        XCTAssertTrue(script.contains("detours-server-x86_64-linux"))
+        XCTAssertTrue(script.contains("detours-server-x86_64-darwin"))
+        XCTAssertTrue(script.contains("build-server-linux.sh"))
+        XCTAssertTrue(script.contains("build-server-darwin.sh"))
+        XCTAssertTrue(script.contains("Contents/Resources/Servers"))
+    }
+
+    func testGeneratedHelpersIgnored() throws {
+        XCTAssertTrue(try isIgnored("resources/Servers/detours-server-x86_64-linux"))
+        XCTAssertTrue(try isIgnored("resources/Servers/detours-server-x86_64-darwin"))
+        XCTAssertTrue(try isIgnored("resources/Servers/.cache-hash"))
+        XCTAssertTrue(try isIgnored("resources/Servers/.cache-hash-linux"))
+        XCTAssertTrue(try isIgnored("resources/Servers/.cache-hash-darwin"))
+    }
+
     private func serverCacheHash() throws -> String {
         let process = Process()
         let output = Pipe()
@@ -46,5 +64,14 @@ final class BuildCacheTests: XCTestCase {
         XCTAssertEqual(process.terminationStatus, 0, stderr)
         return String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private func isIgnored(_ path: String) throws -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["check-ignore", "-q", path]
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus == 0
     }
 }

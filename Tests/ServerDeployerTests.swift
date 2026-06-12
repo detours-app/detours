@@ -56,6 +56,60 @@ final class ServerDeployerTests: XCTestCase {
         }
     }
 
+    func testSelectsLinuxX86Helper() async throws {
+        let directory = try makeBundledBinaryDirectory()
+        defer { cleanupTempDirectory(directory) }
+        let client = FakeServerDeploymentClient(
+            architecture: RemoteArchitecture(system: "Linux", machine: "x86_64"),
+            binaryInfo: nil,
+            remoteHash: nil
+        )
+        let deployer = ServerDeployer(client: client, bundledBinaryDirectoryURL: directory)
+
+        _ = try await deployer.deployIfNeeded()
+        let snapshot = await client.snapshot()
+
+        XCTAssertEqual(snapshot.uploadedLocalFileName, "detours-server-x86_64-linux")
+    }
+
+    func testSelectsDarwinX86Helper() async throws {
+        let directory = try makeBundledBinaryDirectory()
+        defer { cleanupTempDirectory(directory) }
+        let client = FakeServerDeploymentClient(
+            architecture: RemoteArchitecture(system: "Darwin", machine: "x86_64"),
+            binaryInfo: nil,
+            remoteHash: nil
+        )
+        let deployer = ServerDeployer(client: client, bundledBinaryDirectoryURL: directory)
+
+        _ = try await deployer.deployIfNeeded()
+        let snapshot = await client.snapshot()
+
+        XCTAssertEqual(snapshot.uploadedLocalFileName, "detours-server-x86_64-darwin")
+    }
+
+    func testRefusesDarwinArm64ForThisRelease() async throws {
+        let directory = try makeBundledBinaryDirectory()
+        defer { cleanupTempDirectory(directory) }
+        let client = FakeServerDeploymentClient(
+            architecture: RemoteArchitecture(system: "Darwin", machine: "arm64"),
+            binaryInfo: nil,
+            remoteHash: nil
+        )
+        let deployer = ServerDeployer(client: client, bundledBinaryDirectoryURL: directory)
+
+        do {
+            _ = try await deployer.deployIfNeeded()
+            XCTFail("Expected unsupported architecture")
+        } catch let error as UnsupportedArchitectureError {
+            let snapshot = await client.snapshot()
+
+            XCTAssertEqual(error, UnsupportedArchitectureError(system: "Darwin", machine: "arm64"))
+            XCTAssertTrue(error.localizedDescription.contains("x86_64 macOS"))
+            XCTAssertFalse(snapshot.didUpload)
+        }
+    }
+
     func testRefusesWrongOwner() async throws {
         let bundle = try makeBundledBinary()
         defer { cleanupTempDirectory(bundle.deletingLastPathComponent()) }
@@ -156,6 +210,13 @@ final class ServerDeployerTests: XCTestCase {
         let temp = try createTempDirectory()
         return try createTestFile(in: temp, name: "detours-server", content: content)
     }
+
+    private func makeBundledBinaryDirectory() throws -> URL {
+        let temp = try createTempDirectory()
+        _ = try createTestFile(in: temp, name: "detours-server-x86_64-linux", content: "linux")
+        _ = try createTestFile(in: temp, name: "detours-server-x86_64-darwin", content: "darwin")
+        return temp
+    }
 }
 
 private actor FakeServerDeploymentClient: ServerDeploymentClient {
@@ -171,6 +232,7 @@ private actor FakeServerDeploymentClient: ServerDeploymentClient {
     var partialExists = false
     var didUpload = false
     var didFinalize = false
+    var uploadedLocalFileName: String?
     var calls: [String] = []
 
     struct Snapshot {
@@ -178,6 +240,7 @@ private actor FakeServerDeploymentClient: ServerDeploymentClient {
         let partialExists: Bool
         let didUpload: Bool
         let didFinalize: Bool
+        let uploadedLocalFileName: String?
         let calls: [String]
     }
 
@@ -229,6 +292,7 @@ private actor FakeServerDeploymentClient: ServerDeploymentClient {
         remoteHash = try ServerDeployer.sha256Hex(of: localFile)
         partialExists = true
         didUpload = true
+        uploadedLocalFileName = localFile.lastPathComponent
     }
 
     func finalizeBinary(tempPath: String, finalPath: String) async throws {
@@ -251,6 +315,7 @@ private actor FakeServerDeploymentClient: ServerDeploymentClient {
             partialExists: partialExists,
             didUpload: didUpload,
             didFinalize: didFinalize,
+            uploadedLocalFileName: uploadedLocalFileName,
             calls: calls
         )
     }

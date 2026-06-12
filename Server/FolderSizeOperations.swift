@@ -46,27 +46,8 @@ actor FolderSizeOperations {
     private static func calculateFolderSize(at path: String) async -> Int64 {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
-                process.arguments = ["-sb", path]
-
-                let outputPipe = Pipe()
-                process.standardOutput = outputPipe
-                process.standardError = FileHandle.nullDevice
-
                 do {
-                    try process.run()
-                    process.waitUntilExit()
-
-                    guard process.terminationStatus == 0 else {
-                        continuation.resume(returning: 0)
-                        return
-                    }
-
-                    let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                    let output = String(data: data, encoding: .utf8) ?? ""
-                    let size = output.split(whereSeparator: \.isWhitespace).first.flatMap { Int64($0) } ?? 0
-                    continuation.resume(returning: size)
+                    continuation.resume(returning: try FileOperations.calculateFolderSize(at: path))
                 } catch {
                     continuation.resume(returning: 0)
                 }

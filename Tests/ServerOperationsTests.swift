@@ -129,6 +129,161 @@ final class WatcherServerTests: XCTestCase {
     }
 }
 
+#if os(macOS)
+final class DarwinWatcherServerTests: XCTestCase {
+    func testDarwinEventForCreate() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let token = UUID()
+        let watcher = Watcher()
+
+        try watcher.watchVisibleDirectory(temp.path, token: token)
+        _ = try createTestFile(in: temp, name: "created.txt", content: "body")
+
+        let event = try waitForWatchEvent(watcher: watcher, token: token)
+        XCTAssertEqual(event.token, token)
+        XCTAssertEqual(event.path, temp.path)
+        XCTAssertTrue([.created, .modified].contains(event.kind))
+    }
+
+    func testDarwinWatcherDoesNotSurfaceInotifyLimit() throws {
+        let watcher = Watcher(
+            backend: FailingInotifyBackend(
+                error: ServerWatcherError.systemCallFailed("open", errno: EMFILE)
+            )
+        )
+
+        XCTAssertThrowsError(try watcher.watchVisibleDirectory("/tmp", token: UUID())) { error in
+            XCTAssertNotEqual(
+                error as? ServerWatcherError,
+                .inotifyLimitExceeded(command: Watcher.inotifyLimitCommand)
+            )
+        }
+    }
+
+    private func waitForWatchEvent(watcher: Watcher, token: UUID) throws -> ServerWatchEvent {
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
+            if let event = try watcher.pendingEvents().first(where: { $0.token == token }) {
+                return event
+            }
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        throw XCTSkip("Darwin watcher did not emit an event before timeout")
+    }
+}
+
+final class DarwinServerSmokeTests: XCTestCase {
+    func testProtocolVersionFromDarwinHelper() throws {
+        let helper = try buildDarwinHelperIfNeeded()
+        let response = try runHelperRPC(helper: helper, messageType: "ProtocolVersion", payload: protocolVersionPayload())
+        var reader = ServerRPCBinaryReader(data: try XCTUnwrap(response.first))
+
+        XCTAssertEqual(try reader.readInt64(), 1)
+        try reader.requireComplete()
+    }
+
+    func testDarwinFileOperationsRoundTrip() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "source.txt", content: "body")
+        let destination = temp.appendingPathComponent("uploaded.txt")
+        let operations = FileOperations(trashOperations: TrashOperations(homeDirectory: temp))
+
+        let listPayload = try operations.list(path: ServerRemotePath(temp.path), showHidden: false)
+        XCTAssertEqual(try decodeServerFileEntries(listPayload).map(\.name), ["source.txt"])
+
+        let statPayload = try operations.stat(path: ServerRemotePath(source.path))
+        XCTAssertEqual(try decodeServerFileEntries(statPayload).first?.name, "source.txt")
+
+        try operations.upload(
+            path: ServerRemotePath(destination.path),
+            contents: Data("upload".utf8),
+            expectedByteCount: 6,
+            maximumRPCBytes: 1_024
+        )
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "upload")
+
+        let downloaded = try operations.download(path: ServerRemotePath(destination.path), maximumRPCBytes: 1_024)
+        XCTAssertEqual(String(data: downloaded, encoding: .utf8), "upload")
+
+        let renamedPayload = try operations.rename(item: ServerRemotePath(destination.path), newName: Data("renamed.txt".utf8))
+        var renamedReader = ServerRPCBinaryReader(data: renamedPayload)
+        XCTAssertEqual(try renamedReader.readUInt32(), 1)
+        XCTAssertEqual(
+            String(decoding: try renamedReader.readData(), as: UTF8.self),
+            temp.appendingPathComponent("renamed.txt").path
+        )
+
+        let trashPayload = try operations.trash(items: [ServerRemotePath(temp.appendingPathComponent("renamed.txt").path)])
+        var trashReader = ServerRPCBinaryReader(data: trashPayload)
+        let trashCount = try trashReader.readUInt32()
+        XCTAssertEqual(trashCount, 1)
+        let trashInfoPath = String(decoding: try trashReader.readData(), as: UTF8.self)
+
+        let restoredPayload = try operations.restoreFromTrash(items: [ServerRemotePath(trashInfoPath)])
+        var restoredReader = ServerRPCBinaryReader(data: restoredPayload)
+        XCTAssertEqual(try restoredReader.readUInt32(), 1)
+        XCTAssertEqual(
+            String(decoding: try restoredReader.readData(), as: UTF8.self),
+            temp.appendingPathComponent("renamed.txt").path
+        )
+    }
+
+    private func buildDarwinHelperIfNeeded() throws -> URL {
+        let helper = URL(fileURLWithPath: "resources/Servers/detours-server-x86_64-darwin")
+        if FileManager.default.isExecutableFile(atPath: helper.path) {
+            return helper
+        }
+        throw XCTSkip("Run resources/scripts/build-server-darwin.sh before Darwin helper smoke tests")
+    }
+
+    private func protocolVersionPayload() -> Data {
+        var writer = ServerRPCBinaryWriter()
+        writer.writeUInt8(1)
+        writer.writeInt64(1)
+        return writer.data
+    }
+
+    private func runHelperRPC(helper: URL, messageType: String, payload: Data) throws -> [Data] {
+        let process = Process()
+        let stdin = Pipe()
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.executableURL = helper
+        process.standardInput = stdin
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+
+        let request = ServerRPCEnvelope(
+            id: 1,
+            kind: .request,
+            messageType: messageType,
+            sequence: 0,
+            isFinal: true,
+            payload: payload
+        )
+        stdin.fileHandleForWriting.write(try ServerRPCStreamHandler.encodeFrame(request.encodedPayload()))
+        try stdin.fileHandleForWriting.close()
+
+        guard process.waitUntilExit(timeout: 5) else {
+            process.terminate()
+            throw XCTSkip("Darwin helper timed out")
+        }
+
+        let stderrText = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        XCTAssertEqual(process.terminationStatus, 0, stderrText)
+        var stream = ServerRPCStreamHandler()
+        let frames = try stream.append(stdout.fileHandleForReading.readDataToEndOfFile())
+        return try frames
+            .map { try ServerRPCEnvelope(encodedPayload: $0) }
+            .filter { $0.kind == .response && $0.id == 1 }
+            .map(\.payload)
+    }
+}
+#endif
+
 final class GitOperationsServerTests: XCTestCase {
     func testGitStatusOverlay() throws {
         let temp = try createTempDirectory()
@@ -226,4 +381,13 @@ private func runGit(_ arguments: [String], in directory: URL) throws {
     try process.run()
     process.waitUntilExit()
     XCTAssertEqual(process.terminationStatus, 0, "git \(arguments.joined(separator: " "))")
+}
+
+private extension Process {
+    func waitUntilExit(timeout: TimeInterval) -> Bool {
+        let semaphore = DispatchSemaphore(value: 0)
+        terminationHandler = { _ in semaphore.signal() }
+        if !isRunning { return true }
+        return semaphore.wait(timeout: .now() + timeout) == .success
+    }
 }

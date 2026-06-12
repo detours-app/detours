@@ -9,8 +9,11 @@ VERSION=$(cat VERSION)
 APP_NAME="Detours"
 APP_BUNDLE_ID="com.detours.app"
 APP_DIR="build/Detours.app"
-SERVER_BINARY="Resources/Servers/detours-server-x86_64-linux"
-SERVER_HASH_FILE="Resources/Servers/.cache-hash"
+SERVER_DIR="resources/Servers"
+LINUX_SERVER_HASH_FILE="$SERVER_DIR/.cache-hash-linux"
+DARWIN_SERVER_HASH_FILE="$SERVER_DIR/.cache-hash-darwin"
+LINUX_SERVER_BINARY="$SERVER_DIR/detours-server-x86_64-linux"
+DARWIN_SERVER_BINARY="$SERVER_DIR/detours-server-x86_64-darwin"
 
 # Colors
 RED='\033[0;31m'
@@ -49,29 +52,59 @@ esac
 echo "DETOURS BUILD" >&2
 echo "-------------" >&2
 
-# Build Linux helper when server sources changed.
+# Build helper binaries when server sources changed.
 if [ -d Server ]; then
-    log_info "Check Linux helper cache"
+    log_info "Check remote helper cache"
     SERVER_HASH="$(resources/scripts/server-cache-hash.sh)"
-    CACHED_SERVER_HASH=""
-    if [ -f "$SERVER_HASH_FILE" ]; then
-        CACHED_SERVER_HASH="$(cat "$SERVER_HASH_FILE")"
+    CACHED_LINUX_SERVER_HASH=""
+    CACHED_DARWIN_SERVER_HASH=""
+    if [ -f "$LINUX_SERVER_HASH_FILE" ]; then
+        CACHED_LINUX_SERVER_HASH="$(cat "$LINUX_SERVER_HASH_FILE")"
+    fi
+    if [ -f "$DARWIN_SERVER_HASH_FILE" ]; then
+        CACHED_DARWIN_SERVER_HASH="$(cat "$DARWIN_SERVER_HASH_FILE")"
     fi
 
-    if [ "$SERVER_HASH" != "$CACHED_SERVER_HASH" ] || [ ! -f "$SERVER_BINARY" ]; then
+    if [ "$SERVER_HASH" != "$CACHED_LINUX_SERVER_HASH" ] || [ ! -f "$LINUX_SERVER_BINARY" ]; then
         log_info "Rebuild Linux helper"
         if ! resources/scripts/build-server-linux.sh; then
             log_error "dockerhost is unreachable or the Linux helper rebuild failed"
-            log_error "Cannot ship without $SERVER_BINARY"
+            log_error "Cannot ship without $LINUX_SERVER_BINARY"
             exit 1
         fi
     fi
 
-    if [ ! -f "$SERVER_BINARY" ]; then
-        log_error "Missing $SERVER_BINARY"
-        exit 1
+    if [ "$SERVER_HASH" != "$CACHED_DARWIN_SERVER_HASH" ] || [ ! -f "$DARWIN_SERVER_BINARY" ]; then
+        log_info "Rebuild Intel macOS helper"
+        if ! resources/scripts/build-server-darwin.sh; then
+            log_error "Intel macOS helper rebuild failed"
+            log_error "Cannot ship without $DARWIN_SERVER_BINARY"
+            exit 1
+        fi
     fi
-    log_ok "Linux helper ready"
+
+    for helper in "$LINUX_SERVER_BINARY" "$DARWIN_SERVER_BINARY"; do
+        if [ ! -f "$helper" ]; then
+            log_error "Missing $helper"
+            exit 1
+        fi
+    done
+    log_ok "Remote helpers ready"
+fi
+
+if [ -d Server ]; then
+    for helper in "$LINUX_SERVER_BINARY" "$DARWIN_SERVER_BINARY"; do
+        if [ ! -f "$helper" ]; then
+            log_error "Missing $helper"
+            exit 1
+        fi
+    done
+    for hash_file in "$LINUX_SERVER_HASH_FILE" "$DARWIN_SERVER_HASH_FILE"; do
+        if [ ! -f "$hash_file" ]; then
+            log_error "Missing $hash_file"
+            exit 1
+        fi
+    done
 fi
 
 # Check if running (only relevant when we will overwrite the installed app)
@@ -112,11 +145,11 @@ log_info "Create app bundle"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
+mkdir -p "$APP_DIR/Contents/Resources/Servers"
 cp "$BUILT_BINARY" "$APP_DIR/Contents/MacOS/Detours"
 cp resources/icons/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
-if [ -f "$SERVER_BINARY" ]; then
-    cp "$SERVER_BINARY" "$APP_DIR/Contents/Resources/detours-server-x86_64-linux"
-fi
+cp "$LINUX_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
+cp "$DARWIN_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
 echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
 cat > "$APP_DIR/Contents/Info.plist" << EOF

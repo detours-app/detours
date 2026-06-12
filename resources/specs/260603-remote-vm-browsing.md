@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/remote-vm-browsing
 
 ---
@@ -71,10 +71,10 @@ Add a Remote Hosts section to the sidebar where the user lists their SSH hosts. 
 - [x] **A18** Open With round-trip detects remote-side modifications between download and save by comparing both the file's hash and its modification time. A mismatch on either surfaces a conflict dialog with Keep Mine, Keep Remote, and Cancel options.
 - [x] **A19** Quick Look on a remote file fetches the file only when the user presses Space. Files between one and one hundred megabytes show a determinate progress indicator in the Quick Look panel. Files above one hundred megabytes show a plain-language too-large message and do not initiate a download.
 - [x] **A20** A remote pane's breadcrumb shows a coloured pill with the host display name as the leftmost element. No per-row visual indicator is added to file rows.
-- [ ] **A21** Connecting to an Intel macOS host (`Darwin x86_64`, for example `ssh wraith`) works on the first try using the same Remote Hosts flow as Linux: Detours selects the bundled `detours-server-x86_64-darwin` helper, deploys it to `~/.detours-server/`, starts it over SSH, and opens a browsable pane without asking for SMB/NFS/AFP details.
-- [ ] **A22** Unsupported macOS architectures are refused clearly: an Apple Silicon macOS host (`Darwin arm64`) produces a plain-language unsupported-architecture error naming `Darwin arm64` and stating that this release supports `x86_64 Linux` and `x86_64 macOS` remote helpers only.
-- [ ] **A23** Remote file changes on an Intel macOS host update the Detours pane within two seconds through the Darwin watcher path. No inotify-limit banner or Linux sysctl text is shown for macOS hosts.
-- [ ] **A24** Build output contains both generated helper binaries, `detours-server-x86_64-linux` and `detours-server-x86_64-darwin`, as ignored local artifacts bundled into `Detours.app/Contents/Resources/Servers/`; neither helper binary nor cache hash is tracked in Git.
+- [x] **A21** Connecting to an Intel macOS host (`Darwin x86_64`, for example `ssh wraith`) works on the first try using the same Remote Hosts flow as Linux: Detours selects the bundled `detours-server-x86_64-darwin` helper, deploys it to `~/.detours-server/`, starts it over SSH, and opens a browsable pane without asking for SMB/NFS/AFP details.
+- [x] **A22** Unsupported macOS architectures are refused clearly: an Apple Silicon macOS host (`Darwin arm64`) produces a plain-language unsupported-architecture error naming `Darwin arm64` and stating that this release supports `x86_64 Linux` and `x86_64 macOS` remote helpers only.
+- [x] **A23** Remote file changes on an Intel macOS host update the Detours pane within two seconds through the Darwin watcher path. No inotify-limit banner or Linux sysctl text is shown for macOS hosts.
+- [x] **A24** Build output contains both generated helper binaries, `detours-server-x86_64-linux` and `detours-server-x86_64-darwin`, as ignored local artifacts bundled into `Detours.app/Contents/Resources/Servers/`; neither helper binary nor cache hash is tracked in Git.
 
 ### Out of scope
 
@@ -219,16 +219,16 @@ Phase headers are organisational. The phases land in order on the feature branch
 
 **Phase 6: Intel macOS remote helper support**
 
-- [ ] **T54B** Update `Package.swift` and server source conditionals so the `detours-server` product builds and runs on both Linux and macOS. Keep Linux inotify behavior unchanged; add Darwin imports and platform shims only where the server currently assumes Glibc/Linux.
-- [ ] **T54C** Add a Darwin watcher path in `Server/Watcher.swift`, following Redmargin's pattern: use a macOS file-event watcher for visible directories, emit the same `WatchEvent` RPC payloads as Linux, and never surface Linux inotify-limit errors for Darwin hosts.
-- [ ] **T54D** Add `resources/scripts/build-server-darwin.sh` that builds the Intel macOS helper locally with `swift build -c release --arch x86_64 --product detours-server` and writes `resources/Servers/detours-server-x86_64-darwin` as an ignored local artifact.
-- [ ] **T54E** Update `resources/scripts/build.sh` and `resources/scripts/server-cache-hash.sh` so the helper cache covers both supported outputs, `resources/Servers/detours-server-x86_64-linux` and `resources/Servers/detours-server-x86_64-darwin`. The app build refuses to ship if either supported helper is missing, and bundles both under `Detours.app/Contents/Resources/Servers/`.
-- [ ] **T54F** Update `.gitignore` and build documentation so all generated helper binaries and cache files under `resources/Servers/` remain untracked. Keep the source tree free of committed helper blobs.
-- [ ] **T54G** Update `src/Remote/ServerDeployer.swift` to select the bundled helper by `uname -sm`: `Linux x86_64 -> detours-server-x86_64-linux`, `Darwin x86_64 -> detours-server-x86_64-darwin`. Refuse `Darwin arm64`, ARM Linux, BSD, and unknown outputs with a typed `UnsupportedArchitectureError` that names the reported OS/architecture and the supported set.
-- [ ] **T54H** Update `src/Windows/MainSplitViewController.swift` or the current bundled-helper lookup so app runtime and development fallback paths can locate both supported helper binaries. Do not hard-code the Linux helper for every host.
-- [ ] **T54I** Update `resources/docs/remote-vm-browsing.md` to document Intel macOS remote support, the Darwin helper name, the same `~/.detours-server/` install location, and the unsupported Apple Silicon macOS limitation for this release.
-- [ ] **T54J** Verify trash and restore operations work on Darwin using the same Detours-managed remote trash semantics as Linux. Do not route remote Mac deletes to the local Mac's Trash, Finder, or a mounted volume path.
-- [ ] **T54K** Verify `ssh wraith 'uname -sm'` reports `Darwin x86_64`, deploy the Darwin helper to `wraith`, and smoke-test `ProtocolVersion`, directory listing, upload, large transfer, trash/restore, and watch event delivery over SSH. If `wraith` is not `Darwin x86_64`, leave this task unchecked and update the spec with the actual available Intel macOS test host.
+- [x] **T54B** Update `Package.swift` and server source conditionals so the `detours-server` product builds and runs on both Linux and macOS. Keep Linux inotify behavior unchanged; add Darwin imports and platform shims only where the server currently assumes Glibc/Linux.
+- [x] **T54C** Add a Darwin watcher path in `Server/Watcher.swift`, following Redmargin's pattern: use a macOS file-event watcher for visible directories, emit the same `WatchEvent` RPC payloads as Linux, and never surface Linux inotify-limit errors for Darwin hosts.
+- [x] **T54D** Add `resources/scripts/build-server-darwin.sh` that builds the Intel macOS helper locally with `swift build -c release --arch x86_64 --product detours-server` and writes `resources/Servers/detours-server-x86_64-darwin` as an ignored local artifact.
+- [x] **T54E** Update `resources/scripts/build.sh` and `resources/scripts/server-cache-hash.sh` so the helper cache covers both supported outputs, `resources/Servers/detours-server-x86_64-linux` and `resources/Servers/detours-server-x86_64-darwin`. The app build refuses to ship if either supported helper is missing, and bundles both under `Detours.app/Contents/Resources/Servers/`.
+- [x] **T54F** Update `.gitignore` and build documentation so all generated helper binaries and cache files under `resources/Servers/` remain untracked. Keep the source tree free of committed helper blobs.
+- [x] **T54G** Update `src/Remote/ServerDeployer.swift` to select the bundled helper by `uname -sm`: `Linux x86_64 -> detours-server-x86_64-linux`, `Darwin x86_64 -> detours-server-x86_64-darwin`. Refuse `Darwin arm64`, ARM Linux, BSD, and unknown outputs with a typed `UnsupportedArchitectureError` that names the reported OS/architecture and the supported set.
+- [x] **T54H** Update `src/Windows/MainSplitViewController.swift` or the current bundled-helper lookup so app runtime and development fallback paths can locate both supported helper binaries. Do not hard-code the Linux helper for every host.
+- [x] **T54I** Update `resources/docs/remote-vm-browsing.md` to document Intel macOS remote support, the Darwin helper name, the same `~/.detours-server/` install location, and the unsupported Apple Silicon macOS limitation for this release.
+- [x] **T54J** Verify trash and restore operations work on Darwin using the same Detours-managed remote trash semantics as Linux. Do not route remote Mac deletes to the local Mac's Trash, Finder, or a mounted volume path.
+- [x] **T54K** Verify `ssh wraith 'uname -sm'` reports `Darwin x86_64`, deploy the Darwin helper to `wraith`, and smoke-test `ProtocolVersion`, directory listing, upload, large transfer, trash/restore, and watch event delivery over SSH. If `wraith` is not `Darwin x86_64`, leave this task unchecked and update the spec with the actual available Intel macOS test host.
 
 ## ANSIBLE GUY
 
@@ -281,11 +281,11 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [x] **T81** `ServerDeployerTests.testRefusesWrongOwner` - exec is refused when the binary on the remote is owned by a user other than the current SSH user.
 - [x] **T82** `ServerDeployerTests.testRefusesGroupOrWorldWritable` - exec is refused when permissions on the binary are group- or world-writable.
 - [x] **T83** `ServerDeployerTests.testAtomicRenameDeploy` - deploy writes to a temp name and renames into place; a deploy interrupted before the rename leaves no stale partial binary visible to a subsequent connect.
-- [ ] **T126** `ServerDeployerTests.testSelectsLinuxX86Helper` - `uname -sm` returning `Linux x86_64` selects `detours-server-x86_64-linux`.
-- [ ] **T127** `ServerDeployerTests.testSelectsDarwinX86Helper` - `uname -sm` returning `Darwin x86_64` selects `detours-server-x86_64-darwin`.
-- [ ] **T128** `ServerDeployerTests.testRefusesDarwinArm64ForThisRelease` - `uname -sm` returning `Darwin arm64` surfaces a typed unsupported-architecture error naming `Darwin arm64` and the supported helper set.
-- [ ] **T129** `BuildCacheTests.testBuildRequiresLinuxAndDarwinHelpers` - `resources/scripts/build.sh` refuses to ship when either supported helper binary is missing and bundles both when present.
-- [ ] **T130** `BuildCacheTests.testGeneratedHelpersIgnored` - generated helper binaries and cache files under `resources/Servers/` are ignored by Git.
+- [x] **T126** `ServerDeployerTests.testSelectsLinuxX86Helper` - `uname -sm` returning `Linux x86_64` selects `detours-server-x86_64-linux`.
+- [x] **T127** `ServerDeployerTests.testSelectsDarwinX86Helper` - `uname -sm` returning `Darwin x86_64` selects `detours-server-x86_64-darwin`.
+- [x] **T128** `ServerDeployerTests.testRefusesDarwinArm64ForThisRelease` - `uname -sm` returning `Darwin arm64` surfaces a typed unsupported-architecture error naming `Darwin arm64` and the supported helper set.
+- [x] **T129** `BuildCacheTests.testBuildRequiresLinuxAndDarwinHelpers` - `resources/scripts/build.sh` refuses to ship when either supported helper binary is missing and bundles both when present.
+- [x] **T130** `BuildCacheTests.testGeneratedHelpersIgnored` - generated helper binaries and cache files under `resources/Servers/` are ignored by Git.
 - [x] **T84** `SSHConnectionStateTests.testExponentialBackoffSequence` - simulated drops trigger reconnect attempts at 1, 2, 4, 8, 16 seconds; total backoff capped at sixty seconds.
 - [x] **T85** `SSHConnectionStateTests.testFailedStateAfterMaxBackoff` - after the backoff window expires without success the state transitions to `failed(reason)` and the Reconnect banner is shown.
 - [x] **T86** `SSHConnectionStateTests.testFailedStateOnAuthError` - auth failure transitions directly to `failed(reason: .authentication)` and does not retry.
@@ -321,10 +321,10 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 
 ### Darwin Server Tests (`Server/Tests/`, run locally on macOS)
 
-- [ ] **T131** `DarwinWatcherServerTests.testDarwinEventForCreate` - creating a file inside a watched directory produces a `WatchEvent` frame using the Darwin watcher path.
-- [ ] **T132** `DarwinWatcherServerTests.testDarwinWatcherDoesNotSurfaceInotifyLimit` - Darwin watcher failures never produce Linux `fs.inotify.max_user_watches` guidance.
-- [ ] **T133** `DarwinServerSmokeTests.testProtocolVersionFromDarwinHelper` - the locally built `detours-server-x86_64-darwin` starts in RPC mode and returns `ProtocolVersion`.
-- [ ] **T134** `DarwinServerSmokeTests.testDarwinFileOperationsRoundTrip` - the Darwin helper can list, stat, upload, download, rename, trash, and restore files in a temporary directory.
+- [x] **T131** `DarwinWatcherServerTests.testDarwinEventForCreate` - creating a file inside a watched directory produces a `WatchEvent` frame using the Darwin watcher path.
+- [x] **T132** `DarwinWatcherServerTests.testDarwinWatcherDoesNotSurfaceInotifyLimit` - Darwin watcher failures never produce Linux `fs.inotify.max_user_watches` guidance.
+- [x] **T133** `DarwinServerSmokeTests.testProtocolVersionFromDarwinHelper` - the locally built `detours-server-x86_64-darwin` starts in RPC mode and returns `ProtocolVersion`.
+- [x] **T134** `DarwinServerSmokeTests.testDarwinFileOperationsRoundTrip` - the Darwin helper can list, stat, upload, download, rename, trash, and restore files in a temporary directory.
 
 ### Linux Integration Tests (`Tests/Integration/`, gated on devtest reachability)
 
@@ -344,12 +344,12 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 
 ### Intel macOS Integration Tests (`Tests/Integration/`, gated on wraith reachability)
 
-- [ ] **T135** `RemoteIntegrationTests.testIntelMacListDirectoryReturnsExpectedEntries` - connect to `wraith`, require `uname -sm == Darwin x86_64`, list `/Users` or the user's home directory, and assert at least one expected entry is present.
-- [ ] **T136** `RemoteIntegrationTests.testIntelMacCopyRemoteToLocal` - copy a fixture file from `wraith` into a local temp directory and assert byte-equality.
-- [ ] **T137** `RemoteIntegrationTests.testIntelMacCopyLocalToRemote` - copy a local fixture file into a temp directory on `wraith` and assert byte-equality via the daemon's `Stat`.
-- [ ] **T138** `RemoteIntegrationTests.testIntelMacLargeTransferUsesRemoteTransferChannel` - a 100 MB copy on `wraith` completes via the Darwin helper transfer channel without blocking a concurrent directory listing on the same host.
-- [ ] **T139** `RemoteIntegrationTests.testIntelMacWatchDirectoryReceivesDarwinEvent` - watch a directory on `wraith`, touch a file inside it over SSH, and assert a `WatchEvent` arrives within two seconds with no inotify banner.
-- [ ] **T140** `RemoteIntegrationTests.testIntelMacUnsupportedArmFixture` - a fixture host reporting `Darwin arm64` is refused before deploy and the error states that Intel macOS is supported but Apple Silicon macOS is not in this release.
+- [x] **T135** `RemoteIntegrationTests.testIntelMacListDirectoryReturnsExpectedEntries` - connect to `wraith`, require `uname -sm == Darwin x86_64`, list `/Users` or the user's home directory, and assert at least one expected entry is present.
+- [x] **T136** `RemoteIntegrationTests.testIntelMacCopyRemoteToLocal` - copy a fixture file from `wraith` into a local temp directory and assert byte-equality.
+- [x] **T137** `RemoteIntegrationTests.testIntelMacCopyLocalToRemote` - copy a local fixture file into a temp directory on `wraith` and assert byte-equality via the daemon's `Stat`.
+- [x] **T138** `RemoteIntegrationTests.testIntelMacLargeTransferUsesRemoteTransferChannel` - a 100 MB copy on `wraith` completes via the Darwin helper transfer channel without blocking a concurrent directory listing on the same host.
+- [x] **T139** `RemoteIntegrationTests.testIntelMacWatchDirectoryReceivesDarwinEvent` - watch a directory on `wraith`, touch a file inside it over SSH, and assert a `WatchEvent` arrives within two seconds with no inotify banner.
+- [x] **T140** `RemoteIntegrationTests.testIntelMacUnsupportedArmFixture` - a fixture host reporting `Darwin arm64` is refused before deploy and the error states that Intel macOS is supported but Apple Silicon macOS is not in this release.
 
 ### UI/UX Tests
 
