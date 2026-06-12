@@ -9,28 +9,47 @@ struct RPCHandler {
     private let watcher = Watcher()
 
     func run() throws {
-        var stream = ServerRPCStreamHandler()
+        let outputLock = NSLock()
+        let eventPump = EventPump()
+        let watcher = self.watcher
+        DispatchQueue.global(qos: .utility).async {
+            while eventPump.isRunning {
+                do {
+                    for event in try watcher.pendingEvents() {
+                        let envelope = ServerRPCEnvelope(
+                            id: 0,
+                            kind: .event,
+                            messageType: "WatchEvent",
+                            sequence: 0,
+                            isFinal: true,
+                            payload: Self.encodeWatchEvent(event)
+                        )
+                        try Self.write(envelope: envelope, outputLock: outputLock)
+                    }
+                } catch {
+                    // Watch delivery is best-effort; RPC watch setup reports typed setup failures.
+                }
+                Thread.sleep(forTimeInterval: 0.02)
+            }
+        }
+        defer { eventPump.stop() }
 
         while true {
-            let chunk = FileHandle.standardInput.readData(ofLength: 4096)
-            guard !chunk.isEmpty else { return }
+            guard let frame = try Self.readFrame(from: .standardInput) else { return }
+            let request = try ServerRPCEnvelope(encodedPayload: frame)
+            guard request.kind == .request else { continue }
 
-            for frame in try stream.append(chunk) {
-                let request = try ServerRPCEnvelope(encodedPayload: frame)
-                guard request.kind == .request else { continue }
-
-                let payloads = try handleChunks(message: ServerRPCMessage(binaryEncoded: request.payload))
-                for (index, payload) in payloads.enumerated() {
-                    let response = ServerRPCEnvelope(
-                        id: request.id,
-                        kind: .response,
-                        messageType: request.messageType,
-                        sequence: UInt32(index),
-                        isFinal: index == payloads.count - 1,
-                        payload: payload
-                    )
-                    FileHandle.standardOutput.write(try ServerRPCStreamHandler.encodeFrame(response.encodedPayload()))
-                }
+            let payloads = try handleChunks(message: ServerRPCMessage(binaryEncoded: request.payload))
+            for (index, payload) in payloads.enumerated() {
+                let response = ServerRPCEnvelope(
+                    id: request.id,
+                    kind: .response,
+                    messageType: request.messageType,
+                    sequence: UInt32(index),
+                    isFinal: index == payloads.count - 1,
+                    payload: payload
+                )
+                try Self.write(envelope: response, outputLock: outputLock)
             }
         }
     }
@@ -108,5 +127,55 @@ struct RPCHandler {
             try watcher.unwatch(token)
             return [Data()]
         }
+    }
+
+    private static func write(envelope: ServerRPCEnvelope, outputLock: NSLock) throws {
+        let frame = try ServerRPCStreamHandler.encodeFrame(envelope.encodedPayload())
+        outputLock.lock()
+        defer { outputLock.unlock() }
+        FileHandle.standardOutput.write(frame)
+    }
+
+    private static func readFrame(from input: FileHandle) throws -> Data? {
+        let lengthBytes = input.readData(ofLength: 4)
+        guard !lengthBytes.isEmpty else { return nil }
+        guard lengthBytes.count == 4 else {
+            throw ServerRPCProtocolError.truncatedMessage
+        }
+        let length = Int(lengthBytes.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) })
+        guard length <= ServerRPCStreamHandler.defaultMaxFrameSize else {
+            throw ServerRPCProtocolError.frameTooLarge(length)
+        }
+        let payload = input.readData(ofLength: length)
+        guard payload.count == length else {
+            throw ServerRPCProtocolError.truncatedMessage
+        }
+        return payload
+    }
+
+    private static func encodeWatchEvent(_ event: ServerWatchEvent) -> Data {
+        var writer = ServerRPCBinaryWriter()
+        writer.writeUInt8(18)
+        writer.writeString(event.token.uuidString)
+        writer.writeUInt8(event.kind.rawValue)
+        writer.writeData(Data(event.path.utf8))
+        return writer.data
+    }
+}
+
+private final class EventPump: @unchecked Sendable {
+    private let lock = NSLock()
+    private var running = true
+
+    var isRunning: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return running
+    }
+
+    func stop() {
+        lock.lock()
+        running = false
+        lock.unlock()
     }
 }

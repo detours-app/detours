@@ -17,6 +17,12 @@ struct ServerWatchEvent: Equatable, Sendable {
     let path: String
 }
 
+struct InotifyDescriptorEvent: Equatable, Sendable {
+    let descriptor: Int32
+    let kind: ServerWatchEventKind
+    let name: String
+}
+
 enum ServerWatcherError: Error, Equatable, Sendable {
     case unsupportedPlatform
     case inotifyLimitExceeded(command: String)
@@ -27,12 +33,14 @@ enum ServerWatcherError: Error, Equatable, Sendable {
 protocol InotifyBackend {
     func addWatch(path: String) throws -> Int32
     func removeWatch(_ descriptor: Int32) throws
+    func readEvents() throws -> [InotifyDescriptorEvent]
 }
 
-final class Watcher {
+final class Watcher: @unchecked Sendable {
     static let inotifyLimitCommand = "sudo sysctl fs.inotify.max_user_watches=524288"
 
     private let backend: InotifyBackend
+    private let lock = NSLock()
     private var watchesByToken: [UUID: WatchRegistration] = [:]
     private var tokenByDescriptor: [Int32: UUID] = [:]
 
@@ -47,12 +55,21 @@ final class Watcher {
     #endif
 
     var visibleWatchCount: Int {
-        watchesByToken.count
+        lock.lock()
+        defer { lock.unlock() }
+        return watchesByToken.count
     }
 
     func watchVisibleDirectory(_ path: String, token: UUID) throws {
+        lock.lock()
+        defer { lock.unlock() }
+
         if watchesByToken[token] != nil {
-            try unwatch(token)
+            let registration = watchesByToken.removeValue(forKey: token)
+            if let registration {
+                tokenByDescriptor.removeValue(forKey: registration.descriptor)
+                try backend.removeWatch(registration.descriptor)
+            }
         }
 
         do {
@@ -65,6 +82,9 @@ final class Watcher {
     }
 
     func unwatch(_ token: UUID) throws {
+        lock.lock()
+        defer { lock.unlock() }
+
         guard let registration = watchesByToken.removeValue(forKey: token) else {
             throw ServerWatcherError.unknownWatch(token)
         }
@@ -73,14 +93,33 @@ final class Watcher {
     }
 
     func registration(for token: UUID) -> WatchRegistration? {
-        watchesByToken[token]
+        lock.lock()
+        defer { lock.unlock() }
+        return watchesByToken[token]
     }
 
     func token(for descriptor: Int32) -> UUID? {
-        tokenByDescriptor[descriptor]
+        lock.lock()
+        defer { lock.unlock() }
+        return tokenByDescriptor[descriptor]
     }
 
     func event(forDescriptor descriptor: Int32, kind: ServerWatchEventKind, name: String) -> ServerWatchEvent? {
+        lock.lock()
+        defer { lock.unlock() }
+        return eventLocked(forDescriptor: descriptor, kind: kind, name: name)
+    }
+
+    func pendingEvents() throws -> [ServerWatchEvent] {
+        let descriptorEvents = try backend.readEvents()
+        lock.lock()
+        defer { lock.unlock() }
+        return descriptorEvents.compactMap { event in
+            eventLocked(forDescriptor: event.descriptor, kind: event.kind, name: event.name)
+        }
+    }
+
+    private func eventLocked(forDescriptor descriptor: Int32, kind: ServerWatchEventKind, name: String) -> ServerWatchEvent? {
         guard let token = tokenByDescriptor[descriptor],
               let registration = watchesByToken[token] else {
             return nil
@@ -97,6 +136,8 @@ final class Watcher {
     }
 
     func reemitWatchAfterDirectoryRename(token: UUID, newPath: String) throws -> ServerWatchEvent {
+        lock.lock()
+        defer { lock.unlock() }
         guard var registration = watchesByToken[token] else {
             throw ServerWatcherError.unknownWatch(token)
         }
@@ -166,6 +207,40 @@ struct SystemInotifyBackend: InotifyBackend {
         throw ServerWatcherError.unsupportedPlatform
         #endif
     }
+
+    func readEvents() throws -> [InotifyDescriptorEvent] {
+        #if os(Linux)
+        var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+        let byteCount = Glibc.read(descriptor.rawValue, &buffer, buffer.count)
+        if byteCount < 0 {
+            if errno == EAGAIN || errno == EWOULDBLOCK {
+                return []
+            }
+            throw ServerWatcherError.systemCallFailed("read", errno: errno)
+        }
+        guard byteCount > 0 else { return [] }
+
+        var events: [InotifyDescriptorEvent] = []
+        var offset = 0
+        while offset + 16 <= byteCount {
+            let watchDescriptor = Int32(bitPattern: UInt32(littleEndianBytes: buffer, offset: offset))
+            let mask = UInt32(littleEndianBytes: buffer, offset: offset + 4)
+            let nameLength = Int(UInt32(littleEndianBytes: buffer, offset: offset + 12))
+            let nameStart = offset + 16
+            let nameEnd = min(nameStart + nameLength, byteCount)
+            let nameBytes = buffer[nameStart..<nameEnd].prefix { $0 != 0 }
+            let name = String(decoding: nameBytes, as: UTF8.self)
+
+            if let kind = ServerWatchEventKind(mask: mask) {
+                events.append(InotifyDescriptorEvent(descriptor: watchDescriptor, kind: kind, name: name))
+            }
+            offset = nameStart + nameLength
+        }
+        return events
+        #else
+        throw ServerWatcherError.unsupportedPlatform
+        #endif
+    }
 }
 
 struct UnsupportedInotifyBackend: InotifyBackend {
@@ -175,5 +250,36 @@ struct UnsupportedInotifyBackend: InotifyBackend {
 
     func removeWatch(_ descriptor: Int32) throws {
         throw ServerWatcherError.unsupportedPlatform
+    }
+
+    func readEvents() throws -> [InotifyDescriptorEvent] {
+        throw ServerWatcherError.unsupportedPlatform
+    }
+}
+
+private extension ServerWatchEventKind {
+    #if os(Linux)
+    init?(mask: UInt32) {
+        if mask & UInt32(IN_CREATE | IN_MOVED_TO) != 0 {
+            self = .created
+        } else if mask & UInt32(IN_DELETE | IN_MOVED_FROM | IN_DELETE_SELF) != 0 {
+            self = .deleted
+        } else if mask & UInt32(IN_MOVE_SELF) != 0 {
+            self = .renamed
+        } else if mask & UInt32(IN_MODIFY | IN_ATTRIB) != 0 {
+            self = .modified
+        } else {
+            return nil
+        }
+    }
+    #endif
+}
+
+private extension UInt32 {
+    init(littleEndianBytes bytes: [UInt8], offset: Int) {
+        self = UInt32(bytes[offset])
+            | (UInt32(bytes[offset + 1]) << 8)
+            | (UInt32(bytes[offset + 2]) << 16)
+            | (UInt32(bytes[offset + 3]) << 24)
     }
 }

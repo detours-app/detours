@@ -29,6 +29,8 @@ actor SSHConnection {
     private var process: Process?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
+    private var stderrPipe: Pipe?
+    private var lastStderr = ""
     private var frameReader = RPCStreamHandler()
     private var activePaneCount = 0
     private var inFlightOperationCount = 0
@@ -83,7 +85,7 @@ actor SSHConnection {
         process.terminationHandler = { [weak self] process in
             guard let self else { return }
             Task {
-                await self.processExited(process.terminationStatus)
+                await self.processExited(process, status: process.terminationStatus)
             }
         }
 
@@ -92,6 +94,7 @@ actor SSHConnection {
         self.process = process
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
+        self.stderrPipe = stderrPipe
         transition(to: .connected)
         scheduleIdleDisconnectIfNeeded()
     }
@@ -104,12 +107,13 @@ actor SSHConnection {
         process = nil
         stdinPipe = nil
         stdoutPipe = nil
+        stderrPipe = nil
         frameReader = RPCStreamHandler()
         transition(to: .disconnected)
     }
 
     func send(_ envelope: RPCEnvelope) async throws {
-        if disconnectedForIdle {
+        if disconnectedForIdle || state == .disconnected {
             try await connect()
         }
 
@@ -151,17 +155,8 @@ actor SSHConnection {
             throw SSHConnectionError.notConnected
         }
 
-        while true {
-            let chunk = stdoutPipe.fileHandleForReading.readData(ofLength: 4096)
-            guard !chunk.isEmpty else {
-                throw SSHConnectionError.unexpectedEOF
-            }
-
-            let frames = try frameReader.append(chunk)
-            if let frame = frames.first {
-                return try RPCEnvelope(encodedPayload: frame)
-            }
-        }
+        let frame = try readFrame(from: stdoutPipe.fileHandleForReading)
+        return try RPCEnvelope(encodedPayload: frame)
     }
 
     func reconnect(afterFailure reason: SSHConnectionFailureReason) async {
@@ -188,11 +183,16 @@ actor SSHConnection {
         transition(to: .failed(reason: reason))
     }
 
-    private func processExited(_ status: Int32) {
+    private func processExited(_ exitedProcess: Process, status: Int32) {
+        guard process === exitedProcess else { return }
         cancelIdleDisconnect()
+        lastStderr = stderrPipe.flatMap {
+            String(data: $0.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+        } ?? ""
         process = nil
         stdinPipe = nil
         stdoutPipe = nil
+        stderrPipe = nil
 
         guard state != .disconnected else { return }
         transition(to: .failed(reason: .processExited(status)))
@@ -206,6 +206,7 @@ actor SSHConnection {
         process = nil
         stdinPipe = nil
         stdoutPipe = nil
+        stderrPipe = nil
         frameReader = RPCStreamHandler()
         transition(to: .failed(reason: reason))
     }
@@ -242,14 +243,15 @@ actor SSHConnection {
     private func disconnectForIdleIfStillInactive() {
         guard state == .connected, !hasIdleBlockers else { return }
         idleDisconnectTask = nil
+        disconnectedForIdle = true
+        transition(to: .disconnected)
         process?.terminationHandler = nil
         process?.terminate()
         process = nil
         stdinPipe = nil
         stdoutPipe = nil
+        stderrPipe = nil
         frameReader = RPCStreamHandler()
-        disconnectedForIdle = true
-        transition(to: .disconnected)
     }
 
     #if DEBUG
@@ -260,6 +262,10 @@ actor SSHConnection {
 
     func isDisconnectedForIdleForTesting() -> Bool {
         disconnectedForIdle
+    }
+
+    func lastStderrForTesting() -> String {
+        lastStderr
     }
 
     func prepareControlDirectoryForTesting() throws {
@@ -335,5 +341,18 @@ actor SSHConnection {
             configuration.sshTarget,
             configuration.remoteCommand,
         ]
+    }
+
+    private func readFrame(from output: FileHandle) throws -> Data {
+        let lengthBytes = output.readData(ofLength: 4)
+        guard lengthBytes.count == 4 else {
+            throw SSHConnectionError.unexpectedEOF
+        }
+        let length = Int(lengthBytes.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) })
+        let payload = output.readData(ofLength: length)
+        guard payload.count == length else {
+            throw SSHConnectionError.unexpectedEOF
+        }
+        return payload
     }
 }

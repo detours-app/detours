@@ -200,6 +200,8 @@ private struct FailingInotifyBackend: InotifyBackend {
     }
 
     func removeWatch(_ descriptor: Int32) throws {}
+
+    func readEvents() throws -> [InotifyDescriptorEvent] { [] }
 }
 
 private struct RecordingInotifyBackend: InotifyBackend {
@@ -210,6 +212,8 @@ private struct RecordingInotifyBackend: InotifyBackend {
     }
 
     func removeWatch(_ descriptor: Int32) throws {}
+
+    func readEvents() throws -> [InotifyDescriptorEvent] { [] }
 }
 
 private func runGit(_ arguments: [String], in directory: URL) throws {

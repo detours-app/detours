@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/remote-vm-browsing
 
 ---
@@ -51,26 +51,26 @@ Add a Remote Hosts section to the sidebar where the user lists their SSH hosts. 
 
 ### Acceptance Criteria
 
-- [ ] **A1** The user can add a dev VM in the sidebar in under thirty seconds by typing a display name and an SSH alias, with autocomplete suggestions drawn from the user's `~/.ssh/config`, and can connect successfully without entering a password or a key path, using their existing SSH agent and SSH configuration.
-- [ ] **A2** On a fast local network, a remote folder listing appears in the pane within one second of clicking the host or navigating into a folder.
-- [ ] **A3** Git status markers, folder sizes, file icons, sort, filter, and folder expansion all work in a remote pane and behave the same way they do in a local pane.
-- [ ] **A4** When a file is added, modified, or removed on the remote host by another process, the Detours pane reflects the change within two seconds without the user having to refresh. When the host's inotify watch limit is exceeded, a one-time per-session banner names the limit with the exact sysctl command to raise it, and the pane updates within ten seconds via fallback polling.
-- [ ] **A5** Deleting a file from a remote pane moves it to a trash directory on the same host and can be undone with Cmd-Z, restoring the file to its original location.
-- [ ] **A6** The user is shown the SSH fingerprint on the first connect to a new host and is asked to confirm it before any directory listing is shown. A fingerprint change on a later connect blocks access until the user explicitly accepts the new key or disconnects.
-- [ ] **A7** A network drop, laptop sleep, or idle disconnect triggers automatic retry for up to one minute. If that fails, a non-blocking banner appears naming the host with a Reconnect button. Operations queued for the affected host pause and resume cleanly when the connection is restored, with no partial files left at any destination.
+- [x] **A1** The user can add a dev VM in the sidebar in under thirty seconds by typing a display name and an SSH alias, with autocomplete suggestions drawn from the user's `~/.ssh/config`, and can connect successfully without entering a password or a key path, using their existing SSH agent and SSH configuration.
+- [x] **A2** On a fast local network, a remote folder listing appears in the pane within one second of clicking the host or navigating into a folder.
+- [x] **A3** Git status markers, folder sizes, file icons, sort, filter, and folder expansion all work in a remote pane and behave the same way they do in a local pane.
+- [x] **A4** When a file is added, modified, or removed on the remote host by another process, the Detours pane reflects the change within two seconds without the user having to refresh. When the host's inotify watch limit is exceeded, a one-time per-session banner names the limit with the exact sysctl command to raise it, and the pane updates within ten seconds via fallback polling.
+- [x] **A5** Deleting a file from a remote pane moves it to a trash directory on the same host and can be undone with Cmd-Z, restoring the file to its original location.
+- [x] **A6** The user is shown the SSH fingerprint on the first connect to a new host and is asked to confirm it before any directory listing is shown. A fingerprint change on a later connect blocks access until the user explicitly accepts the new key or disconnects.
+- [x] **A7** A network drop, laptop sleep, or idle disconnect triggers automatic retry for up to one minute. If that fails, a non-blocking banner appears naming the host with a Reconnect button. Operations queued for the affected host pause and resume cleanly when the connection is restored, with no partial files left at any destination.
 - [x] **A8** Cmd-P quick navigation returns recently visited remote folders, shows the host's current display name as a label, retains history when the display name is renamed, and dims entries from hosts that are not currently connected.
-- [ ] **A9** Detours never reads the contents of an SSH private key file and never prompts the user for an SSH key passphrase inside the app. An encrypted key without a running SSH agent produces a clear error telling the user to start their agent.
-- [ ] **A10** Connecting to an Intel Linux host (x86_64) works on the first try. Connecting to a host running an unsupported architecture (for example ARM Linux) produces a clear, plain-language error naming the architecture and stating that only x86_64 Linux is supported in this release.
+- [x] **A9** Detours never reads the contents of an SSH private key file and never prompts the user for an SSH key passphrase inside the app. An encrypted key without a running SSH agent produces a clear error telling the user to start their agent.
+- [x] **A10** Connecting to an Intel Linux host (x86_64) works on the first try. Connecting to a host running an unsupported architecture (for example ARM Linux) produces a clear, plain-language error naming the architecture and stating that only x86_64 Linux is supported in this release.
 - [x] **A11** Local file management continues to work exactly as it did before this feature shipped. Every existing test for local browsing, operations, folder watching, and git status passes unchanged, both with the FileProvider feature flag on and with it off.
-- [ ] **A12** The first connect to a new host opens a modal sheet titled with the host name and shows named steps (Connecting, Checking host architecture, Installing helper, Starting helper, Done), each with a checkmark when complete. The sheet is cancellable at any step.
-- [ ] **A13** A connection failure (authentication, ProxyJump misconfigured, unreachable host, helper failed to start) shows an error sheet with a plain-language summary, a "Show Details" disclosure containing the raw stderr from the spawned ssh process and the daemon, and a "Copy to Clipboard" button that copies the full diagnostic block.
+- [x] **A12** The first connect to a new host opens a modal sheet titled with the host name and shows named steps (Connecting, Checking host architecture, Installing helper, Starting helper, Done), each with a checkmark when complete. The sheet is cancellable at any step.
+- [x] **A13** A connection failure (authentication, ProxyJump misconfigured, unreachable host, helper failed to start) shows an error sheet with a plain-language summary, a "Show Details" disclosure containing the raw stderr from the spawned ssh process and the daemon, and a "Copy to Clipboard" button that copies the full diagnostic block.
 - [x] **A14** Removing a host from the sidebar while a pane is currently viewing it navigates that pane back to its previous local location, falling back to the user's home if no previous local location exists.
-- [ ] **A15** A large transfer (over one megabyte) that is cancelled by the user or interrupted by a dropped connection leaves no file at the destination under the target name. The temporary partial file is removed.
+- [x] **A15** A large transfer (over one megabyte) that is cancelled by the user or interrupted by a dropped connection leaves no file at the destination under the target name. The temporary partial file is removed.
 - [x] **A16** Symbolic links on remote panes render with the macOS link badge and the link's own size. A click selects, a double-click follows reachable links and shows a plain-language error for broken links.
 - [x] **A17** Files the user cannot read on the remote host render greyed with a lock badge in the file list. Attempting to open, copy, or read them surfaces a plain-language permission-denied error naming the file.
 - [x] **A18** Open With round-trip detects remote-side modifications between download and save by comparing both the file's hash and its modification time. A mismatch on either surfaces a conflict dialog with Keep Mine, Keep Remote, and Cancel options.
 - [x] **A19** Quick Look on a remote file fetches the file only when the user presses Space. Files between one and one hundred megabytes show a determinate progress indicator in the Quick Look panel. Files above one hundred megabytes show a plain-language too-large message and do not initiate a download.
-- [ ] **A20** A remote pane's breadcrumb shows a coloured pill with the host display name as the leftmost element. No per-row visual indicator is added to file rows.
+- [x] **A20** A remote pane's breadcrumb shows a coloured pill with the host display name as the leftmost element. No per-row visual indicator is added to file rows.
 
 ### Out of scope
 
@@ -302,11 +302,11 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [x] **T113** `RemoteIntegrationTests.testListDirectoryReturnsExpectedEntries` - connect to `devtest`, list `/etc`, assert at least one expected file is present.
 - [x] **T114** `RemoteIntegrationTests.testCopyRemoteToLocal` - copy a remote fixture file into a local temp directory; assert byte-equality.
 - [x] **T115** `RemoteIntegrationTests.testCopyLocalToRemote` - copy a local fixture file into a remote temp directory; assert byte-equality via the daemon's `Stat`.
-- [ ] **T116** `RemoteIntegrationTests.testLargeTransferUsesRemoteTransferChannel` - a 100 MB copy completes via the helper transfer channel without blocking a concurrent directory listing on the same host.
-- [ ] **T117** `RemoteIntegrationTests.testWatchDirectoryReceivesInotifyEvent` - watch a remote directory, touch a file inside it via the daemon, assert a `WatchEvent` arrives within two seconds.
+- [x] **T116** `RemoteIntegrationTests.testLargeTransferUsesRemoteTransferChannel` - a 100 MB copy completes via the helper transfer channel without blocking a concurrent directory listing on the same host.
+- [x] **T117** `RemoteIntegrationTests.testWatchDirectoryReceivesInotifyEvent` - watch a remote directory, touch a file inside it via the daemon, assert a `WatchEvent` arrives within two seconds.
 - [x] **T118** `RemoteIntegrationTests.testTrashAndRestore` - trash a remote file, assert it is no longer at the original path, run Undo, assert it is restored.
 - [x] **T119** `RemoteIntegrationTests.testGitStatusOverlay` - clone a fixture repo into a remote temp directory, modify a file, list the directory, assert the modified file carries a `modified` git status marker.
-- [ ] **T120** `RemoteIntegrationTests.testReconnectAfterIdle` - establish a connection, force idle past `ServerAliveInterval * ServerAliveCountMax`, then perform a list; assert the reconnect state machine recovers and the list succeeds.
+- [x] **T120** `RemoteIntegrationTests.testReconnectAfterIdle` - establish a connection, force idle past `ServerAliveInterval * ServerAliveCountMax`, then perform a list; assert the reconnect state machine recovers and the list succeeds.
 - [x] **T121** `RemoteIntegrationTests.testHostKeyChangeBlocks` - connect once and record the fingerprint, swap the host's host key fixture, attempt to reconnect, assert the connection is blocked and the host-key-change dialog event is fired.
 - [x] **T122** `RemoteIntegrationTests.testUnsupportedArchitectureError` - connect to a fixture host reporting `uname -sm` as `aarch64`, assert a typed error naming the architecture and no deploy attempt.
 - [x] **T123** `RemoteIntegrationTests.testSymlinkFollowsResolvable` - a directory listing includes a symlink with the link badge; double-click resolves and navigates into the target.

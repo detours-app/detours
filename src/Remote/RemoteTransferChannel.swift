@@ -3,6 +3,7 @@ import Foundation
 enum RemoteTransferError: Error, Equatable {
     case byteCountMismatch(expected: Int64, actual: Int64)
     case invalidHandshake
+    case processFailed(String)
 }
 
 enum RemoteTransferDirection: UInt8, Equatable, Sendable {
@@ -105,6 +106,89 @@ actor RemoteTransferChannel {
         return process
     }
 
+    func download(source: RemotePath, expectedByteCount: Int64, to destination: URL) async throws {
+        let stdin = Pipe()
+        let stdout = Pipe()
+        let stderr = Pipe()
+        let process = try configuredTransferProcess(stdin: stdin, stdout: stdout, stderr: stderr)
+        try process.run()
+
+        let handshake = makeHandshake(
+            direction: .download,
+            source: source,
+            destination: RemotePath(destination.path),
+            byteCount: expectedByteCount
+        )
+        stdin.fileHandleForWriting.write(try RPCStreamHandler.encodeFrame(handshake.binaryEncoded()))
+        try stdin.fileHandleForWriting.close()
+
+        let partial = Self.partialURL(for: destination)
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: partial)
+        try? FileManager.default.removeItem(at: destination)
+
+        var written: Int64 = 0
+        do {
+            FileManager.default.createFile(atPath: partial.path, contents: nil)
+            let output = stdout.fileHandleForReading
+            let handle = try FileHandle(forWritingTo: partial)
+            defer { try? handle.close() }
+
+            while written < expectedByteCount {
+                let remaining = min(64 * 1024, Int(expectedByteCount - written))
+                let chunk = output.readData(ofLength: remaining)
+                guard !chunk.isEmpty else { break }
+                try handle.write(contentsOf: chunk)
+                written += Int64(chunk.count)
+            }
+
+            process.waitUntilExit()
+            if process.terminationStatus != 0 {
+                throw RemoteTransferError.processFailed(Self.stderrText(from: stderr))
+            }
+            guard written == expectedByteCount else {
+                throw RemoteTransferError.byteCountMismatch(expected: expectedByteCount, actual: written)
+            }
+
+            try FileManager.default.moveItem(at: partial, to: destination)
+        } catch {
+            try? FileManager.default.removeItem(at: partial)
+            throw error
+        }
+    }
+
+    func upload(source localURL: URL, destination: RemotePath, byteCount: Int64) async throws {
+        let stdin = Pipe()
+        let stdout = Pipe()
+        let stderr = Pipe()
+        let process = try configuredTransferProcess(stdin: stdin, stdout: stdout, stderr: stderr)
+        try process.run()
+
+        let handshake = makeHandshake(
+            direction: .upload,
+            source: RemotePath(localURL.path),
+            destination: destination,
+            byteCount: byteCount
+        )
+        let input = stdin.fileHandleForWriting
+        input.write(try RPCStreamHandler.encodeFrame(handshake.binaryEncoded()))
+
+        let handle = try FileHandle(forReadingFrom: localURL)
+        defer { try? handle.close() }
+        while true {
+            let chunk = handle.readData(ofLength: 64 * 1024)
+            guard !chunk.isEmpty else { break }
+            input.write(chunk)
+        }
+        try input.close()
+
+        _ = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw RemoteTransferError.processFailed(Self.stderrText(from: stderr))
+        }
+    }
+
     func receiveDownloadForTesting(
         chunks: [Data],
         expectedByteCount: Int64,
@@ -153,5 +237,25 @@ actor RemoteTransferChannel {
     static func partialURL(for destination: URL) -> URL {
         destination.deletingLastPathComponent()
             .appendingPathComponent(destination.lastPathComponent + ".detours-partial")
+    }
+
+    private func configuredTransferProcess(stdin: Pipe, stdout: Pipe, stderr: Pipe) throws -> Process {
+        let process = processFactory()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = [
+            "-o", "ControlMaster=auto",
+            "-o", "ControlPath=\(controlDirectory.path)/%C",
+            sshTarget,
+            remoteCommand,
+            "--transfer",
+        ]
+        process.standardInput = stdin
+        process.standardOutput = stdout
+        process.standardError = stderr
+        return process
+    }
+
+    private static func stderrText(from pipe: Pipe) -> String {
+        String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
     }
 }

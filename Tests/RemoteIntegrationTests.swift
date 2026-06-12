@@ -5,8 +5,10 @@ final class RemoteIntegrationTests: XCTestCase {
     func testListDirectoryReturnsExpectedEntries() async throws {
         let session = try RemoteIntegrationSession.make()
 
+        let started = Date()
         let entries = try await session.provider.list(.remote(hostID: session.hostID, path: "/etc"), showHidden: false)
 
+        XCTAssertLessThan(Date().timeIntervalSince(started), 1)
         XCTAssertTrue(entries.contains { $0.name == "hosts" })
     }
 
@@ -37,6 +39,54 @@ final class RemoteIntegrationTests: XCTestCase {
 
         XCTAssertEqual(entry.fileSize, 10)
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(remoteRoot + "/upload.txt"))"), "local-body")
+    }
+
+    func testLargeTransferUsesRemoteTransferChannel() async throws {
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH("dd if=/dev/zero of=\(Self.shellQuote(remoteRoot + "/large.bin")) bs=1M count=100 status=none")
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let destination = localRoot.appendingPathComponent("large.bin")
+
+        let download = Task {
+            try await session.provider.download(.remote(hostID: session.hostID, path: remoteRoot + "/large.bin"), to: destination)
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let entries = try await session.provider.list(.remote(hostID: session.hostID, path: "/etc"), showHidden: false)
+
+        try await download.value
+        let size = try XCTUnwrap(destination.resourceValues(forKeys: [.fileSizeKey]).fileSize)
+        XCTAssertEqual(size, 100 * 1_024 * 1_024)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: RemoteTransferChannel.partialURL(for: destination).path))
+        XCTAssertTrue(entries.contains { $0.name == "hosts" })
+    }
+
+    func testWatchDirectoryReceivesInotifyEvent() async throws {
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        let session = try PersistentRemoteRPCSession.start()
+        defer { session.close() }
+        let token = UUID()
+
+        try session.send(.watch(path: RemotePath(remoteRoot), token: token), id: 1)
+        _ = try session.waitForEnvelope(timeout: 2) { envelope in
+            envelope.id == 1 && envelope.kind == .response
+        }
+
+        try Self.runSSH("printf watched > \(Self.shellQuote(remoteRoot + "/watched.txt"))")
+        let envelope = try session.waitForEnvelope(timeout: 2) { envelope in
+            envelope.kind == .event && envelope.messageType == "WatchEvent"
+        }
+        let message = try RPCMessage(binaryEncoded: envelope.payload)
+
+        guard case .watchEvent(let watch, _, let path) = message else {
+            XCTFail("Expected WatchEvent")
+            return
+        }
+        XCTAssertEqual(watch, token)
+        XCTAssertEqual(path, RemotePath(remoteRoot + "/watched.txt"))
     }
 
     func testTrashAndRestore() async throws {
@@ -100,6 +150,48 @@ final class RemoteIntegrationTests: XCTestCase {
 
         let secret = try XCTUnwrap(entries.first { $0.name == "secret.txt" })
         XCTAssertFalse(secret.isReadable)
+    }
+
+    func testReconnectAfterIdle() async throws {
+        try Self.runSSH("test -x ~/.detours-server/detours-server")
+        let hostID = UUID()
+        let controlRoot = URL(fileURLWithPath: "/tmp").appendingPathComponent("dtssh-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        let controlDirectory = controlRoot.appendingPathComponent("ssh", isDirectory: true)
+        defer { cleanupTempDirectory(controlRoot) }
+        let userKnownHosts = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".ssh/known_hosts")
+        let connection = SSHConnection(
+            configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: "devtest"),
+            controlDirectory: controlDirectory,
+            hostTrust: SSHHostTrust(knownHostsURL: userKnownHosts),
+            idleTimeout: 0.05
+        )
+        let provider = RemoteFileProvider(
+            hostID: hostID,
+            rpcClient: SSHRemoteRPCClient(connection: connection),
+            transferChannel: RemoteTransferChannel(sshTarget: "devtest", controlDirectory: controlDirectory)
+        )
+
+        try await connection.connect()
+        await connection.setActivePaneCount(0)
+        try await Task.sleep(nanoseconds: 150_000_000)
+        let disconnectedForIdle = await connection.isDisconnectedForIdleForTesting()
+        await connection.setActivePaneCount(1)
+        let entries: [LoadedFileEntry]
+        do {
+            entries = try await provider.list(.remote(hostID: hostID, path: "/etc"), showHidden: false)
+        } catch {
+            let state = await connection.state
+            let idle = await connection.isDisconnectedForIdleForTesting()
+            let stderr = await connection.lastStderrForTesting()
+            XCTFail("list after idle failed with \(error), state: \(state), disconnectedForIdle: \(idle), stderr: \(stderr)")
+            await connection.disconnect()
+            return
+        }
+        await connection.disconnect()
+
+        XCTAssertTrue(disconnectedForIdle)
+        XCTAssertTrue(entries.contains { $0.name == "hosts" })
     }
 
     @MainActor
@@ -318,6 +410,125 @@ private actor IntegrationDeploymentClient: ServerDeploymentClient {
     }
 
     func finalizeBinary(tempPath: String, finalPath: String) async throws {}
+}
+
+private final class PersistentRemoteRPCSession: @unchecked Sendable {
+    private let process: Process
+    private let stdin: Pipe
+    private let stdout: Pipe
+    private let stderr: Pipe
+    private let queue = DispatchQueue(label: "PersistentRemoteRPCSession")
+    private var envelopes: [RPCEnvelope] = []
+
+    private init(process: Process, stdin: Pipe, stdout: Pipe, stderr: Pipe) {
+        self.process = process
+        self.stdin = stdin
+        self.stdout = stdout
+        self.stderr = stderr
+    }
+
+    static func start() throws -> PersistentRemoteRPCSession {
+        let process = Process()
+        let stdin = Pipe()
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = [
+            "-o", "ServerAliveInterval=30",
+            "-o", "ServerAliveCountMax=3",
+            "-o", "ControlMaster=auto",
+            "-o", "ControlPath=\(FileManager.default.homeDirectoryForCurrentUser.path)/.detours/ssh/%C",
+            "-o", "UserKnownHostsFile=\(FileManager.default.homeDirectoryForCurrentUser.path)/.ssh/known_hosts",
+            "-o", "GlobalKnownHostsFile=/dev/null",
+            "-o", "StrictHostKeyChecking=ask",
+            "-o", "PreferredAuthentications=publickey",
+            "-o", "PubkeyAuthentication=yes",
+            "-o", "NumberOfPasswordPrompts=0",
+            "devtest",
+            "~/.detours-server/detours-server",
+        ]
+        process.standardInput = stdin
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        let session = PersistentRemoteRPCSession(process: process, stdin: stdin, stdout: stdout, stderr: stderr)
+        try process.run()
+        return session
+    }
+
+    func send(_ message: RPCMessage, id: UInt64) throws {
+        let request = RPCEnvelope(
+            id: id,
+            kind: .request,
+            messageType: message.messageType,
+            sequence: 0,
+            isFinal: true,
+            payload: try message.binaryEncoded()
+        )
+        stdin.fileHandleForWriting.write(try RPCStreamHandler.encodeFrame(request.encodedPayload()))
+    }
+
+    func waitForEnvelope(timeout: TimeInterval, matching predicate: (RPCEnvelope) -> Bool) throws -> RPCEnvelope {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let envelope = popBufferedEnvelope(matching: predicate) {
+                return envelope
+            }
+            let remaining = max(0, deadline.timeIntervalSinceNow)
+            let semaphore = DispatchSemaphore(value: 0)
+            final class ResultBox: @unchecked Sendable {
+                var result: Result<RPCEnvelope, Error>?
+            }
+            let box = ResultBox()
+            DispatchQueue.global(qos: .utility).async {
+                box.result = Result { try self.readNextEnvelope() }
+                semaphore.signal()
+            }
+            if semaphore.wait(timeout: .now() + remaining) != .success {
+                break
+            }
+            let envelope = try box.result!.get()
+            if predicate(envelope) {
+                return envelope
+            }
+            buffer(envelope)
+        }
+        throw RemoteFileProviderError.invalidResponse("Timed out waiting for RPC envelope")
+    }
+
+    func close() {
+        try? stdin.fileHandleForWriting.close()
+        if process.isRunning {
+            process.terminate()
+            process.waitUntilExit()
+        }
+    }
+
+    private func readNextEnvelope() throws -> RPCEnvelope {
+        let lengthBytes = stdout.fileHandleForReading.readData(ofLength: 4)
+        guard lengthBytes.count == 4 else {
+            throw RemoteFileProviderError.invalidResponse("RPC stream closed")
+        }
+        let length = Int(lengthBytes.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) })
+        let payload = stdout.fileHandleForReading.readData(ofLength: length)
+        guard payload.count == length else {
+            throw RemoteFileProviderError.invalidResponse("RPC frame truncated")
+        }
+        return try RPCEnvelope(encodedPayload: payload)
+    }
+
+    private func popBufferedEnvelope(matching predicate: (RPCEnvelope) -> Bool) -> RPCEnvelope? {
+        queue.sync {
+            guard let index = envelopes.firstIndex(where: predicate) else { return nil }
+            return envelopes.remove(at: index)
+        }
+    }
+
+    private func buffer(_ envelope: RPCEnvelope) {
+        queue.sync {
+            envelopes.append(envelope)
+        }
+    }
 }
 
 private extension Process {

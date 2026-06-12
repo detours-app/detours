@@ -287,12 +287,28 @@ actor RemoteFileProvider: FileProvider {
             throw FileProviderError.unsupportedOperation("Remote Quick Look supports files up to 100 MB")
         }
         let destination = try RemoteFileCache.makeSessionFile(hostID: hostID, remotePath: remotePath(from: location).lossyDisplayString)
-        try await download(location, to: destination)
+        try await download(location, to: destination, knownByteCount: size)
         return destination
     }
 
     func download(_ location: Location, to localURL: URL) async throws {
+        try await download(location, to: localURL, knownByteCount: nil)
+    }
+
+    private func download(_ location: Location, to localURL: URL, knownByteCount: Int64?) async throws {
         let path = try remotePath(from: location)
+        let byteCount: Int64
+        if let knownByteCount {
+            byteCount = knownByteCount
+        } else {
+            let entry = try await stat(location)
+            byteCount = entry.fileSize ?? 0
+        }
+        if transferRoute(forByteCount: byteCount) == .transferChannel {
+            try await transferChannel.download(source: path, expectedByteCount: byteCount, to: localURL)
+            return
+        }
+
         let chunks = try await rpcClient.send(.download(path: path, maximumRPCBytes: RemoteTransferChannel.rpcThresholdBytes))
         guard chunks.count == 1 else {
             throw RemoteFileProviderError.invalidResponse("download")
@@ -311,12 +327,19 @@ actor RemoteFileProvider: FileProvider {
     }
 
     func upload(_ localURL: URL, to location: Location) async throws {
+        let values = try localURL.resourceValues(forKeys: [.fileSizeKey])
+        let byteCount = Int64(values.fileSize ?? 0)
+        if transferRoute(forByteCount: byteCount) == .transferChannel {
+            try await transferChannel.upload(source: localURL, destination: remotePath(from: location), byteCount: byteCount)
+            return
+        }
+
         let data = try Data(contentsOf: localURL)
         _ = try await rpcClient.send(
             .upload(
                 path: remotePath(from: location),
                 contents: data,
-                expectedByteCount: Int64(data.count),
+                expectedByteCount: byteCount,
                 maximumRPCBytes: RemoteTransferChannel.rpcThresholdBytes
             )
         )
