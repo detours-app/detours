@@ -206,7 +206,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T50** Update `src/Operations/FileOperationQueue.swift` so queued remote operations pause when the connection drops (queue surface: "Paused — waiting for [host]") and resume automatically on reconnect. In-progress transfers at the drop have their partial deleted and requeue from the start.
 - [x] **T51** Update `src/Sidebar/SidebarViewController.swift` so removing a host while a pane is viewing it navigates that pane back to its previous local location, falling back to the home directory if no previous local location exists.
 - [x] **T52** Use the cache directory sanitisation helpers in `src/Remote/RemoteHost.swift` everywhere a local cache directory is created from a host or path.
-- [ ] **T53** Add `resources/docs/remote-vm-browsing.md` documenting supported `~/.ssh/config` directives, the remote trash location, the helper binary install location, how to manually remove the helper from a host, and how to manually empty the remote trash.
+- [x] **T53** Add `resources/docs/remote-vm-browsing.md` documenting supported `~/.ssh/config` directives, the remote trash location, the helper binary install location, how to manually remove the helper from a host, and how to manually empty the remote trash.
 - [ ] **T54** Remove the `DETOURS_FILE_PROVIDER` feature flag and the legacy direct-`FileManager` code path. Verify the full test suite passes with the flag removed.
 
 ## ANSIBLE GUY
