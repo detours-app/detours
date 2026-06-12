@@ -19,6 +19,7 @@
 | SSHConnectionStateTests (6 tests) | PASS | 0.136s | 2026-06-12 19:02:50 |
 | SSHHostTrustTests (3 tests) | PASS | 0.012s | 2026-06-12 19:02:50 |
 | FileOperationQueueTests + MessagesTests + RPCStreamHandlerTests + RemoteTrashUndoTests (69 tests) | PASS | 5.713s | 2026-06-12 19:03:02 |
+| RemoteIntegrationTests live vs wraith: testIntelMacPersistentSSHConnectionListsHome (host-key trust flow), testIntelMacCopyLocalToRemote (upload), testIntelMacTrashAndRestore | PASS | 6.505s | 2026-06-12 19:08:28 |
 
 ### Remote Browsing Fixes 2026-06-12
 
