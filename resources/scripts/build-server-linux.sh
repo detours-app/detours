@@ -45,7 +45,7 @@ let package = Package(
 )
 EOF
 # shellcheck disable=SC2029
-ssh "$REMOTE_HOST" "cd $REMOTE_TMP_Q && docker run --rm --user \"\$(id -u):\$(id -g)\" -e HOME=/tmp -v \"\$PWD:/workspace\" -w /workspace $DOCKER_IMAGE_Q swift build -c release --product detours-server"
+ssh "$REMOTE_HOST" "cd $REMOTE_TMP_Q && docker run --rm --user \"\$(id -u):\$(id -g)\" -e HOME=/tmp -v \"\$PWD:/workspace\" -w /workspace $DOCKER_IMAGE_Q swift build -c release --product detours-server -Xswiftc -static-stdlib"
 scp "$REMOTE_HOST:$REMOTE_TMP/.build/release/detours-server" "$SERVER_BINARY"
 # shellcheck disable=SC2029
 ssh "$REMOTE_HOST" "rm -rf $REMOTE_TMP_Q"

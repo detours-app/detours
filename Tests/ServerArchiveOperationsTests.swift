@@ -88,6 +88,23 @@ final class ServerArchiveOperationsTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent("bundle.zip").path))
     }
 
+    func testMissing7zToolSurfacesErrorAndLeavesSourcesUnchanged() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = try createTestFile(in: temp, name: "hello.txt", content: "Hello")
+        let operations = ArchiveOperations(resolveTool: { tool in tool == "7z" ? nil : "/usr/bin/\(tool)" })
+
+        XCTAssertThrowsError(
+            try operations.createArchive(items: [source.path], format: "sevenZ", archiveName: "bundle", password: nil)
+        ) { error in
+            XCTAssertEqual(error as? ArchiveOperationsError, .missingTool("7z"))
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent("bundle.7z").path))
+    }
+
     func testProcessFailureLeavesSourcesUnchangedAndRemovesPartialArchive() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

@@ -114,6 +114,21 @@ final class RemoteWatcherClientTests: XCTestCase {
         }
     }
 
+    func testWatchTokensReregisterOnReconnect() async throws {
+        let hostID = UUID()
+        let rpcClient = RecordingRPCClient()
+        let watcherClient = RemoteWatcherClient(hostID: hostID, rpcClient: rpcClient)
+
+        _ = try await watcherClient.watch(.remote(hostID: hostID, path: "/home/marco")) { _ in }
+        let token = try await remoteWatchToken(from: rpcClient)
+
+        await watcherClient.reregisterWatchesAfterReconnect()
+
+        let messages = await rpcClient.sentMessages()
+        XCTAssertEqual(messages.count, 2)
+        XCTAssertEqual(messages[1], .watch(path: RemotePath("/home/marco"), token: token))
+    }
+
     private func remoteWatchToken(from client: RecordingRPCClient) async throws -> UUID {
         let messages = await client.sentMessages()
         guard case .watch(path: _, token: let token) = messages.first else {

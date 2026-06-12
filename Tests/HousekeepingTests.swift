@@ -87,6 +87,24 @@ final class HousekeepingTests: XCTestCase {
         // This is validated by successful compilation of MainMenu.swift
     }
 
+    @MainActor
+    func testRemoteHostAndNetworkShareActionsStayInFileMenuOnly() {
+        let appDelegate = AppDelegate()
+        setupMainMenu(target: appDelegate)
+
+        guard let mainMenu = NSApp.mainMenu,
+              let fileMenu = mainMenu.item(withTitle: "File")?.submenu,
+              let goMenu = mainMenu.item(withTitle: "Go")?.submenu else {
+            XCTFail("Main menu should include File and Go menus")
+            return
+        }
+
+        XCTAssertNotNil(fileMenu.item(withTitle: "Add Remote Host..."))
+        XCTAssertNotNil(fileMenu.item(withTitle: "Connect to Network Share..."))
+        XCTAssertNil(goMenu.item(withTitle: "Add Remote Host..."))
+        XCTAssertNil(goMenu.item(withTitle: "Connect to Network Share..."))
+    }
+
     // MARK: - About Panel
 
     func testAboutPanelVersion() {

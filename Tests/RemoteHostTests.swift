@@ -1,7 +1,13 @@
 import XCTest
 @testable import Detours
 
+@MainActor
 final class RemoteHostTests: XCTestCase {
+    override func tearDown() async throws {
+        FrecencyStore.shared.clearAll()
+        try await super.tearDown()
+    }
+
     func testCacheDirSanitisation() {
         let host = RemoteHost(
             displayName: "prod; rm -rf /",
@@ -27,5 +33,34 @@ final class RemoteHostTests: XCTestCase {
         XCTAssertFalse(cacheName.contains("&"))
         XCTAssertFalse(cacheName.contains("/"))
         XCTAssertTrue(cacheName.hasSuffix("-evil-touch-nope.txt"))
+    }
+
+    func testFrecencyAnchorsOnHostID() throws {
+        let hostID = UUID()
+        let remoteLocation = Location.remote(hostID: hostID, path: "/work/detours")
+        let originalHost = RemoteHost(id: hostID, displayName: "Dev VM", sshTarget: "devtest")
+        let renamedHost = RemoteHost(id: hostID, displayName: "Scratch VM", sshTarget: "devtest")
+
+        FrecencyStore.shared.recordVisit(remoteLocation)
+
+        var result = try XCTUnwrap(
+            FrecencyStore.shared.frecencyLocationMatches(
+                for: "Dev",
+                remoteHosts: [originalHost],
+                connectedHostIDs: [hostID]
+            ).first
+        )
+        XCTAssertEqual(result.location, remoteLocation)
+        XCTAssertEqual(result.hostLabel, "Dev VM")
+
+        result = try XCTUnwrap(
+            FrecencyStore.shared.frecencyLocationMatches(
+                for: "Scratch",
+                remoteHosts: [renamedHost],
+                connectedHostIDs: [hostID]
+            ).first
+        )
+        XCTAssertEqual(result.location, remoteLocation)
+        XCTAssertEqual(result.hostLabel, "Scratch VM")
     }
 }

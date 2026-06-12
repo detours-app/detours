@@ -52,7 +52,16 @@ enum SSHReconnectPolicy {
         return delays[min(attempt - 1, delays.count - 1)]
     }
 
-    static func shouldContinue(afterElapsed elapsed: TimeInterval) -> Bool {
-        elapsed < maximumTotalDelay
+    static func shouldContinue(afterElapsed elapsed: TimeInterval, nextDelay delay: TimeInterval) -> Bool {
+        elapsed + delay <= maximumTotalDelay
+    }
+
+    static func isRetryable(_ reason: SSHConnectionFailureReason) -> Bool {
+        switch reason {
+        case .authentication, .hostKeyChanged:
+            return false
+        case .processExited, .timedOut, .transport:
+            return true
+        }
     }
 }

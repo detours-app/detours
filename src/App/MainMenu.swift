@@ -14,6 +14,7 @@ private var windowMenuDelegate: WindowMenuDelegate?
 
 @MainActor
 func setupMainMenu(target: AppDelegate) {
+    let application = NSApplication.shared
     let mainMenu = NSMenu()
 
     // Detours menu
@@ -315,7 +316,7 @@ func setupMainMenu(target: AppDelegate) {
     zoomItem.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: nil)
     windowMenu.addItem(zoomItem)
 
-    NSApp.windowsMenu = windowMenu
+    application.windowsMenu = windowMenu
 
     // Remove "Enter Full Screen" that macOS adds automatically
     windowMenuDelegate = WindowMenuDelegate()
@@ -329,9 +330,9 @@ func setupMainMenu(target: AppDelegate) {
 
     helpMenu.addItem(makeRemoteTrashHelpMenuItem(target: target))
 
-    NSApp.helpMenu = helpMenu
+    application.helpMenu = helpMenu
 
-    NSApp.mainMenu = mainMenu
+    application.mainMenu = mainMenu
 
     // Observe shortcut changes to update menu key equivalents
     NotificationCenter.default.addObserver(

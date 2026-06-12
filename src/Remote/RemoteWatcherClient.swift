@@ -83,6 +83,13 @@ actor RemoteWatcherClient {
         _ = try? await rpcClient.send(.unwatch(token: registration.remoteToken))
     }
 
+    func reregisterWatchesAfterReconnect() async {
+        for registration in registrationsByWatch.values {
+            guard case .remote(_, let path) = registration.watch.location else { continue }
+            _ = try? await rpcClient.send(.watch(path: RemotePath(path), token: registration.remoteToken))
+        }
+    }
+
     func receive(_ envelope: RPCEnvelope) {
         guard envelope.kind == .event,
               envelope.messageType == "WatchEvent",

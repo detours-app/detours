@@ -166,12 +166,13 @@ actor SSHConnection {
 
     func reconnect(afterFailure reason: SSHConnectionFailureReason) async {
         disconnectAfterFailure(reason)
+        guard SSHReconnectPolicy.isRetryable(reason) else { return }
 
         var elapsed: TimeInterval = 0
         var attempt = 1
 
-        while SSHReconnectPolicy.shouldContinue(afterElapsed: elapsed),
-              let delay = SSHReconnectPolicy.delay(forAttempt: attempt) {
+        while let delay = SSHReconnectPolicy.delay(forAttempt: attempt),
+              SSHReconnectPolicy.shouldContinue(afterElapsed: elapsed, nextDelay: delay) {
             transition(to: .reconnecting(attempt: attempt, nextDelay: delay))
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             elapsed += delay
@@ -259,6 +260,44 @@ actor SSHConnection {
 
     func isDisconnectedForIdleForTesting() -> Bool {
         disconnectedForIdle
+    }
+
+    func prepareControlDirectoryForTesting() throws {
+        try prepareControlDirectory()
+    }
+
+    func simulateReconnectForTesting(
+        afterFailure reason: SSHConnectionFailureReason,
+        maximumTotalDelay: TimeInterval = SSHReconnectPolicy.maximumTotalDelay,
+        connectAttempt: @Sendable (Int) async throws -> Void
+    ) async -> [SSHConnectionState] {
+        var observed: [SSHConnectionState] = []
+        func record(_ state: SSHConnectionState) {
+            transition(to: state)
+            observed.append(state)
+        }
+
+        disconnectAfterFailure(reason)
+        observed.append(state)
+        guard SSHReconnectPolicy.isRetryable(reason) else { return observed }
+
+        var elapsed: TimeInterval = 0
+        var attempt = 1
+        while let delay = SSHReconnectPolicy.delay(forAttempt: attempt),
+              elapsed + delay <= maximumTotalDelay {
+            record(.reconnecting(attempt: attempt, nextDelay: delay))
+            elapsed += delay
+            do {
+                try await connectAttempt(attempt)
+                record(.connected)
+                return observed
+            } catch {
+                attempt += 1
+            }
+        }
+
+        record(.failed(reason: reason))
+        return observed
     }
     #endif
 

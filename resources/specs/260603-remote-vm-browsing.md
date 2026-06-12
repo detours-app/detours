@@ -11,15 +11,17 @@
 
 ### Goal
 
-Detours users can browse and operate on files on their remote Linux machines (development VMs, lab hosts, servers reached over SSH) from inside Detours with the same feel and the same features as a local pane. Connecting uses the SSH keys and configuration the user already has on their Mac, with no new passwords to manage. Once connected, the remote machine supports the file management features Detours already provides for local panes: file listings, folder sizes, git status markers, updates when files change, copy and move with progress, rename, archive create and extract, and safe deletion that can be undone. The feature is built for the case Marco uses every day: dev VMs on a fast local network, reached through the SSH agent and SSH config already on his Mac.
+Detours users can browse and operate on files on their remote Linux machines (development VMs, lab hosts, servers reached over SSH) from inside Detours with the same feel and the same features as a local pane. Connecting uses the SSH keys and configuration the user already has on their Mac, with no new passwords to manage and no SMB, NFS, AFP, Finder mount, or network-share setup for VM browsing. Once connected, the remote machine supports the file management features Detours already provides for local panes: file listings, Quick Look, Open With, folder sizes, git status markers, updates when files change, copy and move with progress, rename, archive create and extract, and safe deletion that can be undone. The feature is built for the case Marco uses every day: dev VMs on a fast local network, reached through the SSH agent and SSH config already on his Mac.
 
 ### Proposal
 
-Add a Remote section to the sidebar where the user lists their SSH hosts. Selecting a host opens that host in a Detours pane with the same look, the same shortcuts, and the same features as the local panes, including safe delete, undo, and git status markers. The remote feel is achieved by deploying a small helper program onto the host the first time the user connects, which Detours then talks to over the existing SSH connection.
+Add a Remote Hosts section to the sidebar where the user lists their SSH hosts. Selecting a host opens that host in a Detours pane with the same look, the same shortcuts, and the same features as the local panes, including Quick Look, Open With, copy, move, safe delete, undo, archive/extract, and git status markers. The remote feel is achieved by deploying a small helper program onto the host the first time the user connects, which Detours then talks to over the existing SSH connection, matching Redmargin's helper-over-SSH pattern.
 
 ### Behaviors
 
 - Adding a remote host asks only for a display name and the SSH target (for example `my-dev-vm` or `marco@cognel-dev`). It does not ask for a password or a key path; it uses the user's SSH agent and SSH configuration the same way the terminal does.
+- Add Remote Host is a File menu action. The Go menu remains navigation-only and contains no remote-host connection command.
+- Remote VM browsing is always SSH-backed and helper-backed; it never requires the user to specify an SMB/NFS/AFP share URL. The separate NAS/network-volume workflow remains available for actual NAS shares, and already-mounted encrypted images remain ordinary Devices.
 - The SSH target field suggests entries from the user's `~/.ssh/config` as the user types. Only top-level `Host` blocks with literal aliases or wildcard patterns are suggested; `Match` blocks and conditional includes are ignored to keep the suggestion path safe.
 - The sidebar shows each remote host with a coloured status dot: green for connected, yellow for connecting or reconnecting, grey for not connected, red for an error such as authentication failure or unreachable host. A red dot exposes the last error message in its tooltip.
 - On the first connect to a host not yet trusted by Detours, Detours shows the SSH fingerprint of the host and asks the user to confirm it before continuing. There is no "connect once" path. If the fingerprint changes on a later connect, the connection is blocked and the user is shown the old and new fingerprint with two choices: Trust New Key or Disconnect.
@@ -75,6 +77,7 @@ Add a Remote section to the sidebar where the user lists their SSH hosts. Select
 - Remote-to-remote copy between two different hosts. This release supports remote-to-local and local-to-remote streamed transfers only.
 - Mac App Store distribution. The auto-deployed helper binary is incompatible with App Store sandboxing; distribution remains direct download only.
 - Mounting the remote host as a Finder-visible volume (File Provider extension or FUSE-T). Detours' remote panes are visible only inside Detours.
+- Replacing the existing NAS/network-volume workflow. In-app SMB/NFS/AFP discovery and mounting remain a separate feature for NAS shares, not a VM-browsing mechanism.
 - Remote git operations beyond the status overlay. No remote commit, push, pull, or stage from inside Detours.
 - Connecting to non-Linux remotes (BSD, macOS, embedded sshd). The helper binary is Linux-only for this release.
 - Connecting to ARM Linux hosts. Only x86_64 Linux is supported in this release.
@@ -208,6 +211,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T52** Use the cache directory sanitisation helpers in `src/Remote/RemoteHost.swift` everywhere a local cache directory is created from a host or path.
 - [x] **T53** Add `resources/docs/remote-vm-browsing.md` documenting supported `~/.ssh/config` directives, the remote trash location, the helper binary install location, how to manually remove the helper from a host, and how to manually empty the remote trash.
 - [x] **T54** Remove the `DETOURS_FILE_PROVIDER` feature flag and the legacy direct-`FileManager` code path. Verify the full test suite passes with the flag removed.
+- [x] **T54A** Keep the VM-browsing and NAS/image-mounting workflows distinct in UI and tests: `Add Remote Host...` opens an SSH helper-backed VM pane; `Connect to Network Share...` remains the SMB/NFS/AFP NAS workflow; already-mounted encrypted images remain visible under Devices. No remote-host path may require or suggest an SMB/NFS/AFP share URL.
 
 ## ANSIBLE GUY
 
@@ -215,9 +219,13 @@ Phase headers are organisational. The phases land in order on the feature branch
 
 Prepare `dockerhost` for Detours server builds and Linux server tests. The host has Docker running for the deploy user, a current Detours checkout available to the build script, enough free disk for the Swift Linux image and build cache, and network access from Marco's Mac. Apply the host changes through the Ansible repo, restart Docker after daemon or package changes, and confirm the server build and Linux server test environment can run against the service code.
 
+Completed 2026-06-12: `dockerhost` resolves through SSH as `maf@10.10.8.161`, reports Linux x86_64, Docker 29.1.3 is available to the deploy user, and `/` and `/tmp` have 63G free. No Docker restart was needed.
+
 ### Work required on devtest
 
 Prepare `devtest` as the x86_64 Linux scratch host for Detours remote integration tests. The host accepts Marco's SSH-agent-backed key auth through the `devtest` SSH target, has a writable per-user Detours test directory, has `git`, `zip`, `unzip`, `tar`, `xz`, and `7z` available for helper operations, and leaves `~/.detours-server/` writable only by the connecting user. Apply the host changes through the Ansible repo, restart sshd after SSH auth changes, and confirm A1, A2, A4, A5, A10, and A15 hold against `devtest`.
+
+Completed 2026-06-12: the Ansible repo now manages `devtest` as `maf@10.10.8.126` with key `/Users/marco/.ssh/id_ed25519_devtest`. `ansible devtest -m ping` passed, `ansible-playbook playbooks/system/linux-base.yml --limit devtest --tags packages` installed the missing archive tools, and direct verification shows `git`, `zip`, `unzip`, `tar`, `xz`, and `7z` on PATH. `~/.detours-server` is owned by `maf` with mode `700`. The rebuilt helper was deployed to `devtest`; an SSH byte-stream smoke test returned `ProtocolVersion` version `1` and listed `/tmp` with no stderr.
 
 ---
 
@@ -247,7 +255,7 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [x] **T72** `RemoteTransferChannelTests.testAtomicRenameOnSuccess` - a completed transfer renames `<dest>.detours-partial` to the final name only after the byte count matches.
 - [x] **T73** `RemoteTransferChannelTests.testThresholdRoutesSmallToRPC` - transfers under one megabyte route through the RPC channel, not the helper transfer channel.
 - [x] **T74** `RemoteTransferChannelTests.testNonUTF8PathTransfersWithRawBytes` - a large file whose remote name contains invalid UTF-8 transfers through length-prefixed bytes without converting the path to a shell string.
-- [ ] **T75** `SSHConnectionTests.testControlPathDirectoryMode0700` - first connection creates `~/.detours/ssh/` with mode `0700` before creating the ControlMaster socket.
+- [x] **T75** `SSHConnectionTests.testControlPathDirectoryMode0700` - first connection creates `~/.detours/ssh/` with mode `0700` before creating the ControlMaster socket.
 - [x] **T76** `SSHHostTrustTests.testHostKeyPromptRecordsFingerprint` - a first-connect host-key prompt records the confirmed fingerprint in `~/.detours/known_hosts` before any directory listing request is sent.
 - [x] **T77** `SSHHostTrustTests.testPassphrasePromptRejected` - a private-key passphrase prompt is rejected and surfaced as an SSH-agent setup error, not answered by Detours.
 - [x] **T78** `ServerDeployerTests.testHashCompareSkipsRedeploy` - deploy is skipped when the remote binary's hash matches the bundled binary.
@@ -256,16 +264,16 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 - [x] **T81** `ServerDeployerTests.testRefusesWrongOwner` - exec is refused when the binary on the remote is owned by a user other than the current SSH user.
 - [x] **T82** `ServerDeployerTests.testRefusesGroupOrWorldWritable` - exec is refused when permissions on the binary are group- or world-writable.
 - [x] **T83** `ServerDeployerTests.testAtomicRenameDeploy` - deploy writes to a temp name and renames into place; a deploy interrupted before the rename leaves no stale partial binary visible to a subsequent connect.
-- [ ] **T84** `SSHConnectionStateTests.testExponentialBackoffSequence` - simulated drops trigger reconnect attempts at 1, 2, 4, 8, 16 seconds; total backoff capped at sixty seconds.
-- [ ] **T85** `SSHConnectionStateTests.testFailedStateAfterMaxBackoff` - after the backoff window expires without success the state transitions to `failed(reason)` and the Reconnect banner is shown.
-- [ ] **T86** `SSHConnectionStateTests.testFailedStateOnAuthError` - auth failure transitions directly to `failed(reason: .authentication)` and does not retry.
-- [ ] **T87** `SSHConnectionStateTests.testWatchTokensReregisterOnReconnect` - watches established before a drop re-register on successful reconnect with no caller intervention.
+- [x] **T84** `SSHConnectionStateTests.testExponentialBackoffSequence` - simulated drops trigger reconnect attempts at 1, 2, 4, 8, 16 seconds; total backoff capped at sixty seconds.
+- [x] **T85** `SSHConnectionStateTests.testFailedStateAfterMaxBackoff` - after the backoff window expires without success the state transitions to `failed(reason)` and the Reconnect banner is shown.
+- [x] **T86** `SSHConnectionStateTests.testFailedStateOnAuthError` - auth failure transitions directly to `failed(reason: .authentication)` and does not retry.
+- [x] **T87** `SSHConnectionStateTests.testWatchTokensReregisterOnReconnect` - watches established before a drop re-register on successful reconnect with no caller intervention.
 - [x] **T88** `SSHConnectionStateTests.testIdleDisconnectAfterFiveMinutes` - with no active pane, no in-flight op, and no active watch, the connection closes after five minutes and reconnects on next interaction.
 - [x] **T89** `RemoteHostStoreTests.testPersistAcrossRelaunch` - hosts added to the store survive an `UserDefaults` reset round-trip.
 - [x] **T90** `RemoteHostTests.testCacheDirSanitisation` - a host display name or SSH target containing shell metacharacters produces a cache directory name that never contains the raw characters.
-- [ ] **T91** `RemoteHostTests.testFrecencyAnchorsOnHostID` - renaming a host display name preserves the existing Cmd-P frecency entries and re-renders them with the new label.
+- [x] **T91** `RemoteHostTests.testFrecencyAnchorsOnHostID` - renaming a host display name preserves the existing Cmd-P frecency entries and re-renders them with the new label.
 - [x] **T92** `SSHConfigParserTests.testSuggestsTopLevelHosts` - parser returns top-level `Host` blocks from a fixture `~/.ssh/config` and ignores `Match` blocks and conditional `Include` directives.
-- [ ] **T93** `BuildCacheTests.testHashTriggersRebuildWhenSourceChanges` - `build.sh` hashes `Server/` and the server-target lines of `Package.swift`; modifying `Server/` invalidates the cache and triggers a rebuild; modifying unrelated Mac code does not.
+- [x] **T93** `BuildCacheTests.testHashTriggersRebuildWhenSourceChanges` - `build.sh` hashes `Server/` and the server-target lines of `Package.swift`; modifying `Server/` invalidates the cache and triggers a rebuild; modifying unrelated Mac code does not.
 - [x] **T94** `OpenWithConflictTests.testHashMismatchSurfacesConflict` - changing the remote file's contents between download and save triggers the conflict dialog.
 - [x] **T95** `OpenWithConflictTests.testMtimeMismatchSurfacesConflict` - touching the remote file (mtime change without content change) between download and save triggers the conflict dialog.
 - [x] **T96** `OpenWithConflictTests.testCleanRoundtripUploads` - unchanged remote between download and save uploads without prompting.
@@ -277,17 +285,17 @@ Tests continue the `T<n>` sequence. Unit tests live in `Tests/`. No UI/UX test t
 
 ### Linux Server Tests (`Server/Tests/`, run via Docker on dockerhost)
 
-- [ ] **T102** `FileOperationsServerTests.testListReturnsExpectedEntries` - server `List` returns the same entries as `ls -la` for a fixture directory.
+- [x] **T102** `FileOperationsServerTests.testListReturnsExpectedEntries` - server `List` returns the same entries as `ls -la` for a fixture directory.
 - [ ] **T103** `FileOperationsServerTests.testStreamedListChunks` - a 50,000-entry directory produces multiple chunks; the first chunk arrives before the last.
-- [ ] **T104** `TrashOperationsServerTests.testTrashCreatesCorrectTrashInfo` - trashing a file creates `~/.local/share/Trash/files/<name>` and `~/.local/share/Trash/info/<name>.trashinfo` with the correct original path.
-- [ ] **T105** `TrashOperationsServerTests.testRestoreRefusesPathOutsideHome` - a restore RPC with a target outside `$HOME` returns a typed error and does not move the file.
-- [ ] **T106** `TrashOperationsServerTests.testRestoreToOriginalLocation` - restore puts the file back at the original path recorded in `.trashinfo`.
+- [x] **T104** `TrashOperationsServerTests.testTrashCreatesCorrectTrashInfo` - trashing a file creates `~/.local/share/Trash/files/<name>` and `~/.local/share/Trash/info/<name>.trashinfo` with the correct original path.
+- [x] **T105** `TrashOperationsServerTests.testRestoreRefusesPathOutsideHome` - a restore RPC with a target outside `$HOME` returns a typed error and does not move the file.
+- [x] **T106** `TrashOperationsServerTests.testRestoreToOriginalLocation` - restore puts the file back at the original path recorded in `.trashinfo`.
 - [ ] **T107** `WatcherServerTests.testInotifyEventForCreate` - creating a file inside a watched directory produces a `WatchEvent` frame.
 - [ ] **T108** `WatcherServerTests.testSurviveDirectoryRename` - renaming a watched directory does not crash the daemon and re-emits the watch on the new path.
-- [ ] **T109** `WatcherServerTests.testInotifyCeilingSurfacesTypedError` - simulating an `ENOSPC` from `inotify_add_watch` surfaces a typed RPC error to the client.
-- [ ] **T110** `GitOperationsServerTests.testGitStatusOverlay` - `git status` against a fixture repo returns the same set of marked paths the local implementation does.
-- [ ] **T111** `FolderSizeServerTests.testStaleWhileRevalidate` - the cached size is returned immediately on a list while a background recompute runs; the cache updates without a placeholder flash.
-- [ ] **T112** `ArchiveOperationsServerTests.testMissingArchiveToolSurfacesError` - when `7z` is unavailable on the remote host, a 7Z archive request returns a typed missing-tool error naming `7z` and leaves source files unchanged.
+- [x] **T109** `WatcherServerTests.testInotifyCeilingSurfacesTypedError` - simulating an `ENOSPC` from `inotify_add_watch` surfaces a typed RPC error to the client.
+- [x] **T110** `GitOperationsServerTests.testGitStatusOverlay` - `git status` against a fixture repo returns the same set of marked paths the local implementation does.
+- [x] **T111** `FolderSizeServerTests.testStaleWhileRevalidate` - the cached size is returned immediately on a list while a background recompute runs; the cache updates without a placeholder flash.
+- [x] **T112** `ArchiveOperationsServerTests.testMissingArchiveToolSurfacesError` - when `7z` is unavailable on the remote host, a 7Z archive request returns a typed missing-tool error naming `7z` and leaves source files unchanged.
 
 ### Integration Tests (`Tests/Integration/`, gated on devtest reachability)
 
