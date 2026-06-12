@@ -21,6 +21,80 @@ struct RemoteOpenWithSession: Sendable {
     let originalVersion: RemoteFileVersion
 }
 
+@MainActor
+final class RemoteOpenWithCoordinator {
+    static let shared = RemoteOpenWithCoordinator()
+
+    private struct ActiveSession {
+        let session: RemoteOpenWithSession
+        let provider: any FileProvider
+        let watcher: MultiDirectoryWatcher
+    }
+
+    private var activeSessions: [URL: ActiveSession] = [:]
+
+    func open(location: Location, provider: any FileProvider, hostID: UUID, applicationURL: URL? = nil) {
+        Task { @MainActor in
+            do {
+                let session = try await FileOpenHelper.prepareRemoteOpenWith(
+                    location: location,
+                    provider: provider,
+                    hostID: hostID,
+                    opener: { localURL in
+                        if let applicationURL {
+                            NSWorkspace.shared.open(
+                                [localURL],
+                                withApplicationAt: applicationURL,
+                                configuration: NSWorkspace.OpenConfiguration()
+                            ) { _, _ in }
+                        } else {
+                            NSWorkspace.shared.open(localURL)
+                        }
+                    }
+                )
+                watch(session: session, provider: provider)
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    private func watch(session: RemoteOpenWithSession, provider: any FileProvider) {
+        let watchedDirectory = session.localURL.deletingLastPathComponent()
+        let watcher = MultiDirectoryWatcher { [weak self] changedURL in
+            guard changedURL.standardizedFileURL == session.localURL.standardizedFileURL ||
+                  changedURL.deletingLastPathComponent().standardizedFileURL == watchedDirectory.standardizedFileURL else {
+                return
+            }
+            Task { @MainActor in
+                await self?.uploadIfNeeded(localURL: session.localURL)
+            }
+        }
+        watcher.watch(watchedDirectory)
+        activeSessions[session.localURL.standardizedFileURL] = ActiveSession(
+            session: session,
+            provider: provider,
+            watcher: watcher
+        )
+    }
+
+    private func uploadIfNeeded(localURL: URL) async {
+        let key = localURL.standardizedFileURL
+        guard let active = activeSessions.removeValue(forKey: key) else { return }
+        active.watcher.unwatchAll()
+
+        do {
+            _ = try await FileOpenHelper.finishRemoteOpenWith(
+                active.session,
+                provider: active.provider,
+                conflictResolver: { await FileOpenHelper.presentRemoteOpenConflict($0, fileName: localURL.lastPathComponent) }
+            )
+        } catch {
+            FileOperationQueue.shared.presentError(error)
+        }
+    }
+}
+
 /// Helper for opening files with the appropriate method.
 /// Handles disk image files (DMG, ISO, sparsebundle) specially due to macOS Sequoia bug.
 enum FileOpenHelper {
@@ -107,6 +181,26 @@ enum FileOpenHelper {
         }
     }
 
+    @MainActor
+    static func presentRemoteOpenConflict(_ kind: RemoteOpenConflictKind, fileName: String) async -> RemoteOpenConflictChoice {
+        let alert = NSAlert()
+        alert.messageText = "Remote file changed"
+        alert.informativeText = "The remote copy of \"\(fileName)\" changed while it was open. The mismatch is \(kind.description)."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Keep Mine")
+        alert.addButton(withTitle: "Keep Remote")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return .keepMine
+        case .alertSecondButtonReturn:
+            return .keepRemote
+        default:
+            return .cancel
+        }
+    }
+
     /// Mounts a disk image using hdiutil (fire-and-forget, no navigation)
     @MainActor
     static func mountDiskImage(_ url: URL) {
@@ -161,5 +255,18 @@ enum FileOpenHelper {
             }
         }
         return nil
+    }
+}
+
+private extension RemoteOpenConflictKind {
+    var description: String {
+        switch self {
+        case .content:
+            return "content"
+        case .timestamp:
+            return "timestamp"
+        case .contentAndTimestamp:
+            return "content and timestamp"
+        }
     }
 }

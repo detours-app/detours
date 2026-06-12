@@ -7,6 +7,10 @@ extension FileListViewController: FileListContextMenuDelegate {
         let items = dataSource.items(at: selection)
         let hasSelection = !items.isEmpty
         let singleItem = items.count == 1 ? items.first : nil
+        let hasRemoteSelection = items.contains { item in
+            if case .remote = item.location { return true }
+            return false
+        }
 
         // Open
         if hasSelection {
@@ -16,7 +20,7 @@ extension FileListViewController: FileListContextMenuDelegate {
             menu.addItem(openItem)
 
             // Show Package Contents (only for single package selection)
-            if let singleFile = singleItem, singleFile.isPackage {
+            if let singleFile = singleItem, singleFile.isPackage, singleFile.isLocal {
                 let showContentsItem = NSMenuItem(title: "Show Package Contents", action: #selector(showPackageContentsFromContextMenu(_:)), keyEquivalent: "")
                 showContentsItem.target = self
                 showContentsItem.image = NSImage(systemSymbolName: "shippingbox", accessibilityDescription: nil)
@@ -24,8 +28,8 @@ extension FileListViewController: FileListContextMenuDelegate {
             }
 
             // Open With submenu (for files and packages, not folders)
-            if let singleFile = singleItem, !singleFile.isNavigableFolder {
-                let openWithMenu = buildOpenWithMenu(for: singleFile.url)
+            if let singleFile = singleItem, !singleFile.isNavigableFolder, !singleFile.isSymbolicLink {
+                let openWithMenu = buildOpenWithMenu(for: singleFile)
                 let openWithItem = NSMenuItem(title: "Open With", action: nil, keyEquivalent: "")
                 openWithItem.submenu = openWithMenu
                 openWithItem.image = NSImage(systemSymbolName: "arrow.up.forward.app", accessibilityDescription: nil)
@@ -33,21 +37,25 @@ extension FileListViewController: FileListContextMenuDelegate {
             }
 
             // Reveal in Finder
-            let showInFinderItem = NSMenuItem(title: "Reveal in Finder", action: #selector(showInFinder(_:)), keyEquivalent: "")
-            showInFinderItem.target = self
-            showInFinderItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
-            menu.addItem(showInFinderItem)
+            if !hasRemoteSelection {
+                let showInFinderItem = NSMenuItem(title: "Reveal in Finder", action: #selector(showInFinder(_:)), keyEquivalent: "")
+                showInFinderItem.target = self
+                showInFinderItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+                menu.addItem(showInFinderItem)
+            }
 
             // Share submenu
-            let shareMenu = NSMenu(title: "Share")
-            let shareDelegate = ShareMenuDelegate(fileListViewController: self)
-            shareMenu.delegate = shareDelegate
-            let shareItem = NSMenuItem(title: "Share", action: nil, keyEquivalent: "")
-            shareItem.submenu = shareMenu
-            shareItem.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: nil)
-            // Store delegate to prevent deallocation
-            shareItem.representedObject = shareDelegate
-            menu.addItem(shareItem)
+            if !hasRemoteSelection {
+                let shareMenu = NSMenu(title: "Share")
+                let shareDelegate = ShareMenuDelegate(fileListViewController: self)
+                shareMenu.delegate = shareDelegate
+                let shareItem = NSMenuItem(title: "Share", action: nil, keyEquivalent: "")
+                shareItem.submenu = shareMenu
+                shareItem.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: nil)
+                // Store delegate to prevent deallocation
+                shareItem.representedObject = shareDelegate
+                menu.addItem(shareItem)
+            }
         }
 
         menu.addItem(NSMenuItem.separator())
@@ -95,7 +103,7 @@ extension FileListViewController: FileListContextMenuDelegate {
             menu.addItem(archiveItem)
 
             // Extract (only for single archive file)
-            if let singleFile = singleItem, CompressionTools.isExtractable(singleFile.url) {
+            if let singleFile = singleItem, singleFile.isLocal, CompressionTools.isExtractable(singleFile.url) {
                 let extractItem = NSMenuItem(title: "Extract Here", action: #selector(extractArchive(_:)), keyEquivalent: "E")
                 extractItem.keyEquivalentModifierMask = [.command, .shift]
                 extractItem.target = self
@@ -194,10 +202,11 @@ extension FileListViewController: FileListContextMenuDelegate {
         return menu
     }
 
-    private func buildOpenWithMenu(for url: URL) -> NSMenu {
+    private func buildOpenWithMenu(for item: FileItem) -> NSMenu {
         let menu = NSMenu()
+        let lookupURL = item.openWithLookupURL
 
-        let apps = NSWorkspace.shared.urlsForApplications(toOpen: url)
+        let apps = NSWorkspace.shared.urlsForApplications(toOpen: lookupURL)
         guard !apps.isEmpty else {
             let noAppsItem = NSMenuItem(title: "No Applications", action: nil, keyEquivalent: "")
             noAppsItem.isEnabled = false
@@ -206,7 +215,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         }
 
         // Get the default app
-        let defaultApp = NSWorkspace.shared.urlForApplication(toOpen: url)
+        let defaultApp = NSWorkspace.shared.urlForApplication(toOpen: lookupURL)
 
         // Sort apps alphabetically by name
         let sortedApps = apps.sorted { app1, app2 in
@@ -241,7 +250,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         menu.addItem(NSMenuItem.separator())
         let otherItem = NSMenuItem(title: "Other...", action: #selector(openWithOtherApp(_:)), keyEquivalent: "")
         otherItem.target = self
-        otherItem.representedObject = url
+        otherItem.representedObject = item.openWithRepresentedObject
         otherItem.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: nil)
         menu.addItem(otherItem)
 
@@ -254,7 +263,9 @@ extension FileListViewController: FileListContextMenuDelegate {
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        if item.isNavigableFolder {
+        if case .remote = item.location {
+            openRemoteItem(item)
+        } else if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
         } else if CompressionTools.isExtractable(item.url) {
             extractSelectedArchive()
@@ -269,6 +280,10 @@ extension FileListViewController: FileListContextMenuDelegate {
 
     @objc private func openWithApp(_ sender: NSMenuItem) {
         guard let appURL = sender.representedObject as? URL else { return }
+        if openSelectedRemoteFile(applicationURL: appURL) {
+            return
+        }
+
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
 
@@ -280,7 +295,15 @@ extension FileListViewController: FileListContextMenuDelegate {
     }
 
     @objc private func openWithOtherApp(_ sender: NSMenuItem) {
-        guard let fileURL = sender.representedObject as? URL else { return }
+        let selectedRemoteItem = selectedSingleRemoteFile()
+        let fileURL: URL
+        if let representedURL = sender.representedObject as? URL {
+            fileURL = representedURL
+        } else if let representedLocation = sender.representedObject as? Location {
+            fileURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(representedLocation.lastPathComponent)
+        } else {
+            return
+        }
 
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
@@ -293,11 +316,15 @@ extension FileListViewController: FileListContextMenuDelegate {
 
         panel.begin { response in
             guard response == .OK, let appURL = panel.url else { return }
-            NSWorkspace.shared.open(
-                [fileURL],
-                withApplicationAt: appURL,
-                configuration: NSWorkspace.OpenConfiguration()
-            ) { _, _ in }
+            if let selectedRemoteItem {
+                self.openRemoteItem(selectedRemoteItem, applicationURL: appURL)
+            } else {
+                NSWorkspace.shared.open(
+                    [fileURL],
+                    withApplicationAt: appURL,
+                    configuration: NSWorkspace.OpenConfiguration()
+                ) { _, _ in }
+            }
         }
     }
 
@@ -311,8 +338,49 @@ extension FileListViewController: FileListContextMenuDelegate {
     @objc func duplicateStructureFromContextMenu(_ sender: Any?) {
         guard tableView.selectedRowIndexes.count == 1 else { return }
         let row = tableView.selectedRow
-        guard row >= 0, let item = dataSource.item(at: row), item.isNavigableFolder else { return }
+        guard row >= 0, let item = dataSource.item(at: row), item.isLocal, item.isNavigableFolder else { return }
         showDuplicateStructureDialog(for: item.url)
+    }
+
+    private func selectedSingleRemoteFile() -> FileItem? {
+        let items = dataSource.items(at: tableView.selectedRowIndexes)
+        guard items.count == 1, let item = items.first, !item.isNavigableFolder, !item.isSymbolicLink else {
+            return nil
+        }
+        guard case .remote = item.location else { return nil }
+        return item
+    }
+
+    @discardableResult
+    private func openSelectedRemoteFile(applicationURL: URL?) -> Bool {
+        guard let item = selectedSingleRemoteFile() else { return false }
+        openRemoteItem(item, applicationURL: applicationURL)
+        return true
+    }
+}
+
+private extension FileItem {
+    var isLocal: Bool {
+        if case .local = location { return true }
+        return false
+    }
+
+    var openWithLookupURL: URL {
+        switch location {
+        case .local(let url):
+            return url
+        case .remote:
+            return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(name)
+        }
+    }
+
+    var openWithRepresentedObject: Any {
+        switch location {
+        case .local(let url):
+            return url
+        case .remote:
+            return location
+        }
     }
 }
 

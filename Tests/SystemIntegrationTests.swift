@@ -117,6 +117,34 @@ final class SystemIntegrationTests: XCTestCase {
         XCTAssertFalse(titles.contains("Open With"), "Menu should NOT have Open With item for multi-selection")
     }
 
+    @MainActor
+    func testContextMenuBuildsRemoteOpenWithWithoutLocalURLAssumptions() {
+        let hostID = UUID()
+        let item = FileItem(
+            name: "remote.txt",
+            location: .remote(hostID: hostID, path: "/home/marco/remote.txt"),
+            isDirectory: false,
+            size: 5,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+
+        let vc = FileListViewController()
+        vc.loadView()
+        vc.viewDidLoad()
+        vc.dataSource.items = [item]
+        vc.tableView.reloadData()
+        vc.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        let menu = vc.buildContextMenu(for: IndexSet(integer: 0), clickedRow: 0)
+
+        let titles = menu?.items.map { $0.title } ?? []
+        XCTAssertTrue(titles.contains("Open"), "Remote file menu should have Open")
+        XCTAssertTrue(titles.contains("Open With"), "Remote file menu should have Open With")
+        XCTAssertFalse(titles.contains("Reveal in Finder"), "Remote file menu should not expose Finder-only actions")
+        XCTAssertFalse(titles.contains("Share"), "Remote file menu should not expose local sharing actions before materialising")
+    }
+
     // MARK: - Open With Tests
 
     @MainActor

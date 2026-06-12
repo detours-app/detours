@@ -37,9 +37,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var hasLoadedDirectory = false
     let renameController = RenameController()
     private var providerWatches: [URL: FileProviderWatch] = [:]
-    private var currentRemoteHost: RemoteHost?
-    private var currentRemoteLocation: Location?
-    private var currentRemoteProvider: (any FileProvider)?
+    var currentRemoteHost: RemoteHost?
+    var currentRemoteLocation: Location?
+    var currentRemoteProvider: (any FileProvider)?
     private var directoryWatchTask: Task<Void, Never>?
     private var directoryChangeDebounce: DispatchWorkItem?
     /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
@@ -356,7 +356,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
-    private func openRemoteItem(_ item: FileItem) {
+    func openRemoteItem(_ item: FileItem, applicationURL: URL? = nil) {
         guard let provider = currentRemoteProvider else { return }
         if item.isNavigableFolder {
             loadRemoteDirectory(item.location, provider: provider, preserveExpansion: false)
@@ -377,13 +377,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 }
             }
         } else {
-            Task { @MainActor in
-                do {
-                    let localURL = try await provider.openForQuickLook(item.location)
-                    FileOpenHelper.open(localURL)
-                } catch {
-                    FileOperationQueue.shared.presentError(error)
-                }
+            if case .remote(let hostID, _) = item.location {
+                RemoteOpenWithCoordinator.shared.open(location: item.location, provider: provider, hostID: hostID, applicationURL: applicationURL)
             }
         }
     }
