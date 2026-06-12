@@ -1259,14 +1259,17 @@ final class PaneViewController: NSViewController {
             pathItemURLs = []
             return
         }
-        let url = tab.currentDirectory
 
         // Build path items manually to control truncation
         let components: [(String, URL)]
-        if tab.iCloudListingMode == .sharedTopLevel,
+        if let remoteLocation = tab.fileListViewController.currentRemoteLocation,
+           case .remote(_, let path) = remoteLocation {
+            components = remoteBreadcrumbComponents(for: path)
+        } else if tab.iCloudListingMode == .sharedTopLevel,
            let sharedComponents = sharedBreadcrumbComponents(for: tab) {
             components = sharedComponents
         } else {
+            let url = tab.currentDirectory
             var built: [(String, URL)] = []
             var current = url
             while current.path != "/" {
@@ -1345,6 +1348,20 @@ final class PaneViewController: NSViewController {
         // Build URL mapping: first item URL, nil for ellipsis, then trailing URLs
         pathItemURLs = [components[0].1, nil] + trailingItems.map { $0.1 }
         updatePathControlColors()
+    }
+
+    private func remoteBreadcrumbComponents(for path: String) -> [(String, URL)] {
+        let normalizedPath = path.hasPrefix("/") ? path : "/" + path
+        let parts = normalizedPath.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        guard !parts.isEmpty else {
+            return [("/", URL(fileURLWithPath: "/"))]
+        }
+
+        var current = ""
+        return parts.map { part in
+            current += "/" + part
+            return (part, URL(fileURLWithPath: current))
+        }
     }
 
     private func friendlyPathComponentName(for url: URL) -> String {
@@ -1682,6 +1699,7 @@ extension PaneViewController: FileListNavigationDelegate {
     }
 
     func fileListDidLoadDirectory() {
+        updatePathControl()
         updateStatusBar()
     }
 }

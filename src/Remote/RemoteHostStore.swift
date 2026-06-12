@@ -21,7 +21,11 @@ final class RemoteHostStore {
     init(defaults: UserDefaults = .standard, key: String = "Detours.RemoteHosts") {
         self.defaults = defaults
         self.key = key
-        self.hosts = Self.loadHosts(from: defaults, key: key, decoder: decoder)
+        let loadedHosts = Self.loadHosts(from: defaults, key: key, decoder: decoder)
+        self.hosts = Self.deduplicatedHosts(loadedHosts)
+        if hosts.count != loadedHosts.count {
+            save()
+        }
     }
 
     @discardableResult
@@ -31,11 +35,25 @@ final class RemoteHostStore {
         return host
     }
 
-    func upsert(_ host: RemoteHost) {
+    @discardableResult
+    func upsert(_ host: RemoteHost) -> RemoteHost {
         if let index = hosts.firstIndex(where: { $0.id == host.id }) {
             hosts[index] = host
+            return host
+        } else if let index = hosts.firstIndex(where: { Self.normalizedTarget($0.sshTarget) == Self.normalizedTarget(host.sshTarget) }) {
+            let existing = hosts[index]
+            let updated = RemoteHost(
+                id: existing.id,
+                displayName: host.displayName,
+                sshTarget: host.sshTarget,
+                knownHostKeyFingerprint: host.knownHostKeyFingerprint ?? existing.knownHostKeyFingerprint,
+                lastConnected: host.lastConnected ?? existing.lastConnected
+            )
+            hosts[index] = updated
+            return updated
         } else {
             hosts.append(host)
+            return host
         }
     }
 
@@ -73,5 +91,32 @@ final class RemoteHostStore {
     private static func loadHosts(from defaults: UserDefaults, key: String, decoder: JSONDecoder) -> [RemoteHost] {
         guard let data = defaults.data(forKey: key) else { return [] }
         return (try? decoder.decode([RemoteHost].self, from: data)) ?? []
+    }
+
+    private static func deduplicatedHosts(_ hosts: [RemoteHost]) -> [RemoteHost] {
+        var result: [RemoteHost] = []
+        var indexesByTarget: [String: Int] = [:]
+        for host in hosts {
+            let target = normalizedTarget(host.sshTarget)
+            guard !target.isEmpty else { continue }
+            if let index = indexesByTarget[target] {
+                let existing = result[index]
+                result[index] = RemoteHost(
+                    id: existing.id,
+                    displayName: host.displayName,
+                    sshTarget: host.sshTarget,
+                    knownHostKeyFingerprint: host.knownHostKeyFingerprint ?? existing.knownHostKeyFingerprint,
+                    lastConnected: host.lastConnected ?? existing.lastConnected
+                )
+            } else {
+                indexesByTarget[target] = result.count
+                result.append(host)
+            }
+        }
+        return result
+    }
+
+    private static func normalizedTarget(_ target: String) -> String {
+        target.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 }

@@ -1,8 +1,17 @@
 import Foundation
 
-enum RemoteFileProviderError: Error, Equatable {
+enum RemoteFileProviderError: Error, Equatable, LocalizedError {
     case expectedRemote(Location)
     case invalidResponse(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .expectedRemote:
+            return "Expected a remote location."
+        case .invalidResponse(let message):
+            return message
+        }
+    }
 }
 
 protocol RemoteRPCClient: Sendable {

@@ -4,9 +4,9 @@ Detours remote panes connect to x86_64 Linux development machines and Intel macO
 
 ## SSH Configuration
 
-Add a host in Detours with a display name and an SSH target, such as `devtest`, `wraith`, or `marco@devtest`. Authentication is delegated to OpenSSH and the running SSH agent. Detours does not ask for a password, key path, or private key passphrase.
+Add a host in Detours with a single SSH target, such as `devtest`, `wraith`, or `marco@devtest`. The target is the label shown in the sidebar and breadcrumb. Authentication is delegated to OpenSSH and the running SSH agent. Detours does not ask for a display name, password, key path, or private key passphrase.
 
-The Add Remote Host sheet suggests entries from `~/.ssh/config`. Suggestions come from top-level `Host` blocks only. Literal aliases and wildcard host patterns are suggested. `Match` blocks and conditional `Include` files are not used for suggestions.
+The Add Remote Host sheet suggests entries from `~/.ssh/config`. Suggestions come from top-level `Host` blocks only. Literal aliases and wildcard host patterns are suggested. `Match` blocks and conditional `Include` files are not used for suggestions. Adding a host immediately connects it in the active pane and persists it under Remote Hosts for later reconnects.
 
 The actual connection is still made by OpenSSH, so the SSH target may use the directives your terminal SSH already supports, including:
 

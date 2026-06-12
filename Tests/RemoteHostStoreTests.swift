@@ -23,6 +23,35 @@ final class RemoteHostStoreTests: XCTestCase {
         XCTAssertEqual(relaunchedStore.host(id: host.id)?.lastConnected, date)
     }
 
+    func testUpsertDeduplicatesBySSHTarget() throws {
+        let defaults = try makeDefaults()
+        let store = RemoteHostStore(defaults: defaults)
+        let first = RemoteHost(displayName: "wraith", sshTarget: "wraith", knownHostKeyFingerprint: "SHA256:first")
+        let second = RemoteHost(displayName: "wraith", sshTarget: "wraith")
+
+        let storedFirst = store.upsert(first)
+        let storedSecond = store.upsert(second)
+
+        XCTAssertEqual(store.hosts.count, 1)
+        XCTAssertEqual(storedSecond.id, storedFirst.id)
+        XCTAssertEqual(store.hosts.first?.knownHostKeyFingerprint, "SHA256:first")
+    }
+
+    func testLoadDeduplicatesPersistedDuplicateTargets() throws {
+        let defaults = try makeDefaults()
+        let first = RemoteHost(displayName: "wraith", sshTarget: "wraith", knownHostKeyFingerprint: "SHA256:first")
+        let second = RemoteHost(displayName: "wraith", sshTarget: "wraith")
+        let data = try JSONEncoder().encode([first, second])
+        defaults.set(data, forKey: "Detours.RemoteHosts")
+
+        let store = RemoteHostStore(defaults: defaults)
+        let relaunchedStore = RemoteHostStore(defaults: defaults)
+
+        XCTAssertEqual(store.hosts.count, 1)
+        XCTAssertEqual(relaunchedStore.hosts.count, 1)
+        XCTAssertEqual(relaunchedStore.hosts.first?.knownHostKeyFingerprint, "SHA256:first")
+    }
+
     private func makeDefaults() throws -> UserDefaults {
         let suiteName = "RemoteHostStoreTests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

@@ -1039,8 +1039,8 @@ extension MainSplitViewController: SidebarDelegate {
 
         let controller = AddRemoteHostWindowController()
         controller.present(over: window) { [weak self] host in
-            RemoteHostStore.shared.upsert(host)
-            self?.connectRemoteHost(host)
+            let storedHost = RemoteHostStore.shared.upsert(host)
+            self?.connectRemoteHost(storedHost)
         }
     }
 
@@ -1064,16 +1064,58 @@ extension MainSplitViewController: SidebarDelegate {
                     rpcClient: rpcClient,
                     transferChannel: transferChannel
                 )
+                let initialPath = try await validateRemoteConnection(provider: provider, rpcClient: rpcClient, host: host)
 
                 await RemoteConnectionRegistry.shared.register(connection, for: host.id)
                 FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
                 RemoteHostStore.shared.markConnected(id: host.id)
-                activePane.loadRemoteHost(host, provider: provider)
+                activePane.loadRemoteHost(host, provider: provider, path: initialPath)
                 view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
             } catch {
                 showRemoteConnectionError(error, host: host)
             }
         }
+    }
+
+    private func validateRemoteConnection(
+        provider: RemoteFileProvider,
+        rpcClient: SSHRemoteRPCClient,
+        host: RemoteHost
+    ) async throws -> String {
+        let response = try await rpcClient.send(.protocolVersion(1))
+        guard response.count == 1 else {
+            throw RemoteFileProviderError.invalidResponse("\(host.sshTarget) protocol version")
+        }
+        let initialPath = try await Self.remoteHomeDirectory(sshTarget: host.sshTarget)
+        _ = try await provider.list(.remote(hostID: host.id, path: initialPath), showHidden: false)
+        return initialPath
+    }
+
+    private static func remoteHomeDirectory(sshTarget: String) async throws -> String {
+        try await Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+            process.arguments = [
+                "-o", "BatchMode=yes",
+                "-o", "ConnectTimeout=8",
+                sshTarget,
+                "printf %s \"$HOME\"",
+            ]
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            process.standardOutput = outputPipe
+            process.standardError = errorPipe
+            try process.run()
+            process.waitUntilExit()
+            let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if process.terminationStatus == 0, !output.isEmpty {
+                return output
+            }
+            let stderr = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            throw RemoteFileProviderError.invalidResponse(stderr.isEmpty ? "\(sshTarget) home directory" : stderr)
+        }.value
     }
 
     private static func detoursServerBinaryDirectoryURL() -> URL {

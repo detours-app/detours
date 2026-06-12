@@ -248,8 +248,8 @@ final class SidebarItemView: NSTableCellView {
         nameLabel.font = theme.uiFont(size: 13)
         nameLabel.textColor = theme.textPrimary
 
-        subtitleLabel.isHidden = false
-        subtitleLabel.stringValue = host.sshTarget
+        subtitleLabel.isHidden = true
+        subtitleLabel.stringValue = ""
         subtitleLabel.font = theme.uiFont(size: 10)
         subtitleLabel.textColor = theme.textTertiary
 
@@ -258,10 +258,7 @@ final class SidebarItemView: NSTableCellView {
         ejectButton.isHidden = true
         resetNameLeadingToStatusDot()
 
-        for constraint in constraints where constraint.firstAnchor == nameLabel.centerYAnchor {
-            constraint.isActive = false
-        }
-        nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -5).isActive = true
+        resetNameCenterY()
     }
 
     private func statusDotColor(for state: SSHConnectionState, theme: Theme) -> NSColor {
@@ -404,6 +401,13 @@ final class SidebarItemView: NSTableCellView {
             constraint.isActive = false
         }
         nameLabel.leadingAnchor.constraint(equalTo: statusDot.trailingAnchor, constant: 8).isActive = true
+    }
+
+    private func resetNameCenterY(offset: CGFloat = 0) {
+        for constraint in constraints where constraint.firstAnchor == nameLabel.centerYAnchor {
+            constraint.isActive = false
+        }
+        nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: offset).isActive = true
     }
 
     override func prepareForReuse() {

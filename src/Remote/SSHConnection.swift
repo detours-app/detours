@@ -1,9 +1,20 @@
 import Foundation
 
-enum SSHConnectionError: Error, Equatable {
+enum SSHConnectionError: Error, Equatable, LocalizedError {
     case notConnected
     case unexpectedEOF
     case invalidControlDirectory(URL)
+
+    var errorDescription: String? {
+        switch self {
+        case .notConnected:
+            return "The SSH helper is not connected."
+        case .unexpectedEOF:
+            return "The SSH helper closed the connection before sending a complete response."
+        case .invalidControlDirectory(let url):
+            return "The SSH control socket directory is invalid: \(url.path)"
+        }
+    }
 }
 
 struct SSHConnectionConfiguration: Equatable, Sendable {
@@ -59,6 +70,11 @@ actor SSHConnection {
         self.askPassBridge = askPassBridge
         self.idleTimeout = idleTimeout
         self.processFactory = processFactory
+    }
+
+    deinit {
+        process?.terminationHandler = nil
+        process?.terminate()
     }
 
     func connect() async throws {
