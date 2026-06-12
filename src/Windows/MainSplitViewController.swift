@@ -975,6 +975,16 @@ extension MainSplitViewController: SidebarDelegate {
         SettingsManager.shared.favorites = favorites
     }
 
+    func sidebarDidRemoveRemoteHost(_ host: RemoteHost) {
+        RemoteHostStore.shared.remove(id: host.id)
+        FileOperationQueue.shared.unregisterRemoteFileProvider(for: host.id)
+        leftPane.navigateTabsViewingRemovedRemoteHost(host.id)
+        rightPane.navigateTabsViewingRemovedRemoteHost(host.id)
+        Task {
+            await RemoteConnectionRegistry.shared.unregister(hostID: host.id)
+        }
+    }
+
     func sidebarDidReorderFavorites(_ urls: [URL]) {
         SettingsManager.shared.favorites = urls.map { $0.path }
     }

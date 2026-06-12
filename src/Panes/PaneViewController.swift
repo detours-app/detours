@@ -483,6 +483,37 @@ final class PaneViewController: NSViewController {
         updateStatusBar()
     }
 
+    func navigateTabsViewingRemovedRemoteHost(_ hostID: UUID) {
+        var didChange = false
+
+        for tab in tabs {
+            guard remoteBreadcrumbHostsByTabID[tab.id]?.id == hostID else { continue }
+            remoteBreadcrumbHostsByTabID.removeValue(forKey: tab.id)
+            let fallback = localFallbackDirectory(for: tab)
+            tab.navigate(to: fallback.url, iCloudListingMode: fallback.mode, addToHistory: false)
+            didChange = true
+        }
+
+        guard didChange else { return }
+        hideReconnectBanner()
+        updateRemoteHostBadge()
+        updatePathControl()
+        updateNavigationControls()
+        reloadTabBar()
+        updateStatusBar()
+        scheduleSessionSave()
+    }
+
+    private func localFallbackDirectory(for tab: PaneTab) -> (url: URL, mode: ICloudListingMode) {
+        var isDirectory: ObjCBool = false
+        let current = tab.currentDirectory.standardizedFileURL
+        if FileManager.default.fileExists(atPath: current.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return (current, tab.iCloudListingMode)
+        }
+        return (FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL, .normal)
+    }
+
     private func clearRemoteBreadcrumbHostForSelectedTab() {
         guard let tab = selectedTab else { return }
         remoteBreadcrumbHostsByTabID.removeValue(forKey: tab.id)

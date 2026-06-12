@@ -224,6 +224,44 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertEqual(badge?.stringValue, "")
     }
 
+    func testRemovingRemoteHostNavigatesBackToPreviousLocalDirectory() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        pane.navigate(to: temp)
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider())
+
+        pane.navigateTabsViewingRemovedRemoteHost(host.id)
+
+        let badge = remoteHostBreadcrumbBadge(in: pane.view)
+        XCTAssertEqual(badge?.isHidden, true)
+        XCTAssertEqual(pane.selectedTab?.currentDirectory.standardizedFileURL, temp.standardizedFileURL)
+    }
+
+    func testRemovingRemoteHostFallsBackToHomeWhenPreviousLocalDirectoryIsGone() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let temp = try createTempDirectory()
+        pane.navigate(to: temp)
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider())
+        cleanupTempDirectory(temp)
+
+        pane.navigateTabsViewingRemovedRemoteHost(host.id)
+
+        let badge = remoteHostBreadcrumbBadge(in: pane.view)
+        XCTAssertEqual(badge?.isHidden, true)
+        XCTAssertEqual(
+            pane.selectedTab?.currentDirectory.standardizedFileURL,
+            FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
+        )
+    }
+
     func testReconnectBannerAppearsForFailedRemoteHost() {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()

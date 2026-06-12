@@ -328,6 +328,11 @@ final class SidebarViewController: NSViewController {
         delegate?.sidebarDidRemoveFavorite(url)
     }
 
+    @objc private func handleRemoveRemoteHost(_ sender: NSMenuItem) {
+        guard let host = sender.representedObject as? RemoteHost else { return }
+        delegate?.sidebarDidRemoveRemoteHost(host)
+    }
+
     @objc private func handleForgetPassword(_ sender: NSMenuItem) {
         guard let server = sender.representedObject as? NetworkServer else { return }
         do {
@@ -716,6 +721,11 @@ extension SidebarViewController: NSMenuDelegate {
             ejectItem.target = self
             ejectItem.representedObject = synthetic.host
             menu.addItem(ejectItem)
+        } else if let remoteHost = item as? RemoteHost {
+            let removeItem = NSMenuItem(title: "Remove Remote Host", action: #selector(handleRemoveRemoteHost(_:)), keyEquivalent: "")
+            removeItem.target = self
+            removeItem.representedObject = remoteHost
+            menu.addItem(removeItem)
         } else if let url = item as? URL {
             let removeItem = NSMenuItem(title: "Remove from Favorites", action: #selector(handleRemoveFavorite(_:)), keyEquivalent: "")
             removeItem.target = self
