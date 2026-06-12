@@ -12,6 +12,7 @@ final class FileListCell: NSTableCellView {
     private var isDropTarget: Bool = false
     private var isHiddenFile: Bool = false
     private var isNavigableFolder: Bool = false
+    private var isReadable: Bool = true
     private var originalIcon: NSImage?
     private var gitStatus: GitStatus?
     private var iconLeadingConstraint: NSLayoutConstraint?
@@ -168,6 +169,7 @@ final class FileListCell: NSTableCellView {
         self.isDropTarget = isDropTarget
         self.isHiddenFile = item.isHiddenFile
         self.isNavigableFolder = item.isNavigableFolder
+        self.isReadable = item.isReadable
         self.gitStatus = item.gitStatus
         originalIcon = item.icon
         iconView.image = item.icon
@@ -252,6 +254,8 @@ final class FileListCell: NSTableCellView {
         let alpha: CGFloat
         if isCut {
             alpha = 0.5
+        } else if !isReadable {
+            alpha = 0.55
         } else if isHiddenFile {
             alpha = 0.6
         } else {

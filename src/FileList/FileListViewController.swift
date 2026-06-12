@@ -362,6 +362,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     func openRemoteItem(_ item: FileItem, applicationURL: URL? = nil) {
         guard let provider = currentRemoteProvider else { return }
+        guard item.isReadable || item.isNavigableFolder else {
+            FileOperationQueue.shared.presentError(
+                FileProviderError.unsupportedOperation("Permission denied: \"\(item.name)\"")
+            )
+            return
+        }
         if item.isNavigableFolder {
             loadRemoteDirectory(item.location, provider: provider, preserveExpansion: false)
         } else if item.isSymbolicLink {

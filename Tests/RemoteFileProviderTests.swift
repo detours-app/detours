@@ -40,6 +40,30 @@ final class RemoteFileProviderTests: XCTestCase {
         XCTAssertEqual(messages, [.list(path: RemotePath("/home/marco"), showHidden: true)])
     }
 
+    func testListPreservesUnreadableFlag() async throws {
+        let hostID = UUID()
+        let payload = RemoteFileProvider.encodeFileEntries([
+            RemoteFileEntry(
+                path: RemotePath("/home/marco/secret.txt"),
+                name: Data("secret.txt".utf8),
+                isDirectory: false,
+                isReadable: false,
+                fileSize: 12
+            ),
+        ])
+        let client = FakeRemoteRPCClient(responses: [[payload]])
+        let provider = RemoteFileProvider(
+            hostID: hostID,
+            rpcClient: client,
+            transferChannel: RemoteTransferChannel(sshTarget: "devtest")
+        )
+
+        let entries = try await provider.list(.remote(hostID: hostID, path: "/home/marco"), showHidden: true)
+
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertFalse(entries[0].isReadable)
+    }
+
     func testCopySendsRPCThreshold() async throws {
         let hostID = UUID()
         let response = RemoteFileProvider.encodePathList([RemotePath("/home/marco/copied.txt")])
