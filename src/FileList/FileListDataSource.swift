@@ -500,10 +500,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     }
 
     private func loadDirectoryEntries(_ url: URL, showHidden: Bool) async throws -> [LoadedFileEntry] {
-        if SettingsManager.shared.fileProviderEnabled {
-            return try await LocalFileProvider.shared.list(.local(url), showHidden: showHidden)
-        }
-        return try await DirectoryLoader.shared.loadDirectory(url, showHidden: showHidden)
+        try await LocalFileProvider.shared.list(.local(url), showHidden: showHidden)
     }
 
     private func loadItems(for directory: URL, showHidden: Bool, mode: ICloudListingMode) async throws -> [FileItem] {
@@ -1020,19 +1017,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     private func fetchGitStatus(for directory: URL) {
         Task {
-            let useFileProvider = await MainActor.run {
-                SettingsManager.shared.fileProviderEnabled
-            }
-            let statuses: [URL: GitStatus]
-            if useFileProvider {
-                let providerStatuses = await LocalFileProvider.shared.gitStatus(for: .local(directory))
-                statuses = Dictionary(uniqueKeysWithValues: providerStatuses.compactMap { location, status in
-                    guard case .local(let url) = location else { return nil }
-                    return (url, status)
-                })
-            } else {
-                statuses = await GitStatusProvider.shared.status(for: directory)
-            }
+            let providerStatuses = await LocalFileProvider.shared.gitStatus(for: .local(directory))
+            let statuses: [URL: GitStatus] = Dictionary(uniqueKeysWithValues: providerStatuses.compactMap { location, status in
+                guard case .local(let url) = location else { return nil }
+                return (url, status)
+            })
 
             // Update on main thread
             await MainActor.run {
@@ -1546,28 +1535,15 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         let cell = makeTextCell(text: cellText, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
 
         if needsRefresh {
-            if SettingsManager.shared.fileProviderEnabled {
-                Task { [weak outlineView] in
-                    if let size = try? await LocalFileProvider.shared.folderSize(for: .local(url)) {
-                        FolderSizeCache.shared.store(size: size, for: url)
-                    }
-                    await MainActor.run {
-                        guard let outlineView else { return }
-                        let rowCount = outlineView.numberOfRows
-                        if rowCount > 0 {
-                            outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))
-                        }
-                    }
+            Task { [weak outlineView] in
+                if let size = try? await LocalFileProvider.shared.folderSize(for: .local(url)) {
+                    FolderSizeCache.shared.store(size: size, for: url)
                 }
-            } else {
-                FolderSizeCache.shared.calculateAsync(for: url) { [weak outlineView] _ in
-                    Task { @MainActor in
-                        guard let outlineView else { return }
-                        // Reload the entire Size column since we can't track the item across threads
-                        let rowCount = outlineView.numberOfRows
-                        if rowCount > 0 {
-                            outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))
-                        }
+                await MainActor.run {
+                    guard let outlineView else { return }
+                    let rowCount = outlineView.numberOfRows
+                    if rowCount > 0 {
+                        outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))
                     }
                 }
             }

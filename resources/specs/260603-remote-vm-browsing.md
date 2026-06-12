@@ -59,7 +59,7 @@ Add a Remote section to the sidebar where the user lists their SSH hosts. Select
 - [x] **A8** Cmd-P quick navigation returns recently visited remote folders, shows the host's current display name as a label, retains history when the display name is renamed, and dims entries from hosts that are not currently connected.
 - [ ] **A9** Detours never reads the contents of an SSH private key file and never prompts the user for an SSH key passphrase inside the app. An encrypted key without a running SSH agent produces a clear error telling the user to start their agent.
 - [ ] **A10** Connecting to an Intel Linux host (x86_64) works on the first try. Connecting to a host running an unsupported architecture (for example ARM Linux) produces a clear, plain-language error naming the architecture and stating that only x86_64 Linux is supported in this release.
-- [ ] **A11** Local file management continues to work exactly as it did before this feature shipped. Every existing test for local browsing, operations, folder watching, and git status passes unchanged, both with the FileProvider feature flag on and with it off.
+- [x] **A11** Local file management continues to work exactly as it did before this feature shipped. Every existing test for local browsing, operations, folder watching, and git status passes unchanged, both with the FileProvider feature flag on and with it off.
 - [ ] **A12** The first connect to a new host opens a modal sheet titled with the host name and shows named steps (Connecting, Checking host architecture, Installing helper, Starting helper, Done), each with a checkmark when complete. The sheet is cancellable at any step.
 - [ ] **A13** A connection failure (authentication, ProxyJump misconfigured, unreachable host, helper failed to start) shows an error sheet with a plain-language summary, a "Show Details" disclosure containing the raw stderr from the spawned ssh process and the daemon, and a "Copy to Clipboard" button that copies the full diagnostic block.
 - [x] **A14** Removing a host from the sidebar while a pane is currently viewing it navigates that pane back to its previous local location, falling back to the user's home if no previous local location exists.
@@ -207,7 +207,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 - [x] **T51** Update `src/Sidebar/SidebarViewController.swift` so removing a host while a pane is viewing it navigates that pane back to its previous local location, falling back to the home directory if no previous local location exists.
 - [x] **T52** Use the cache directory sanitisation helpers in `src/Remote/RemoteHost.swift` everywhere a local cache directory is created from a host or path.
 - [x] **T53** Add `resources/docs/remote-vm-browsing.md` documenting supported `~/.ssh/config` directives, the remote trash location, the helper binary install location, how to manually remove the helper from a host, and how to manually empty the remote trash.
-- [ ] **T54** Remove the `DETOURS_FILE_PROVIDER` feature flag and the legacy direct-`FileManager` code path. Verify the full test suite passes with the flag removed.
+- [x] **T54** Remove the `DETOURS_FILE_PROVIDER` feature flag and the legacy direct-`FileManager` code path. Verify the full test suite passes with the flag removed.
 
 ## ANSIBLE GUY
 

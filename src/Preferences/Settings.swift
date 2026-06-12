@@ -33,9 +33,6 @@ struct Settings: Equatable {
     // Git
     var gitStatusEnabled: Bool = true
 
-    // FileProvider rollout
-    var fileProviderEnabled: Bool = false
-
     // Shortcuts
     var shortcuts: [ShortcutAction: KeyCombo] = [:]
 
@@ -71,7 +68,6 @@ extension Settings: Codable {
         case favorites
         case recentServers
         case gitStatusEnabled
-        case fileProviderEnabled
         case shortcuts
     }
 
@@ -108,9 +104,6 @@ extension Settings: Codable {
         // Git
         gitStatusEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .gitStatusEnabled)) ?? defaults.gitStatusEnabled
 
-        // FileProvider rollout
-        fileProviderEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .fileProviderEnabled)) ?? defaults.fileProviderEnabled
-
         // Shortcuts - decode valid ones, skip invalid
         if let shortcutsDict = try? container.decodeIfPresent([ShortcutAction: KeyCombo].self, forKey: .shortcuts) {
             shortcuts = shortcutsDict
@@ -138,7 +131,6 @@ extension Settings: Codable {
         try container.encode(favorites, forKey: .favorites)
         try container.encode(recentServers, forKey: .recentServers)
         try container.encode(gitStatusEnabled, forKey: .gitStatusEnabled)
-        try container.encode(fileProviderEnabled, forKey: .fileProviderEnabled)
         try container.encode(shortcuts, forKey: .shortcuts)
     }
 

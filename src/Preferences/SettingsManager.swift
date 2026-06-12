@@ -139,26 +139,6 @@ final class SettingsManager {
         set { settings.gitStatusEnabled = newValue }
     }
 
-    var fileProviderEnabled: Bool {
-        get { Self.environmentFileProviderFlag() ?? settings.fileProviderEnabled }
-        set { settings.fileProviderEnabled = newValue }
-    }
-
-    private static func environmentFileProviderFlag() -> Bool? {
-        guard let value = ProcessInfo.processInfo.environment["DETOURS_FILE_PROVIDER"]?.lowercased() else {
-            return nil
-        }
-
-        switch value {
-        case "1", "true", "yes", "on":
-            return true
-        case "0", "false", "no", "off":
-            return false
-        default:
-            return nil
-        }
-    }
-
     // MARK: - Sidebar Settings
 
     var sidebarVisible: Bool {
