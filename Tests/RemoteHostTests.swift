@@ -17,4 +17,15 @@ final class RemoteHostTests: XCTestCase {
         XCTAssertFalse(cacheName.contains("&"))
         XCTAssertFalse(cacheName.contains("/"))
     }
+
+    func testCacheFileNameSanitisation() {
+        let cacheName = RemoteHost.cacheFileName(remotePath: "/tmp/../../evil; touch nope.txt")
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_")
+
+        XCTAssertTrue(cacheName.unicodeScalars.allSatisfy { allowed.contains($0) })
+        XCTAssertFalse(cacheName.contains(";"))
+        XCTAssertFalse(cacheName.contains("&"))
+        XCTAssertFalse(cacheName.contains("/"))
+        XCTAssertTrue(cacheName.hasSuffix("-evil-touch-nope.txt"))
+    }
 }

@@ -16,8 +16,6 @@ enum RemoteFileCache {
 
     static func makeSessionFile(hostID: UUID, remotePath: String, sessionID: UUID = UUID()) throws -> URL {
         let directory = try makeSessionDirectory(hostID: hostID, sessionID: sessionID)
-        let name = URL(fileURLWithPath: remotePath).lastPathComponent
-        let safeName = name.isEmpty ? "remote-file" : name
-        return directory.appendingPathComponent(safeName, isDirectory: false)
+        return directory.appendingPathComponent(RemoteHost.cacheFileName(remotePath: remotePath), isDirectory: false)
     }
 }
