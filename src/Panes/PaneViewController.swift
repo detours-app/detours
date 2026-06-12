@@ -317,6 +317,9 @@ final class PaneViewController: NSViewController {
     private let iCloudButton = NSButton()
     private let remoteHostBadge = NSTextField(labelWithString: "")
     private let pathControl = DroppablePathControl()
+    private let reconnectBanner = NSView()
+    private let reconnectBannerLabel = NSTextField(labelWithString: "")
+    private let reconnectButton = NSButton(title: "Reconnect", target: nil, action: nil)
     private let tabContainer = NSView()
     private let statusBar = StatusBarView()
     private var detailPopover: OperationDetailPopover?
@@ -332,6 +335,7 @@ final class PaneViewController: NSViewController {
     private var pathControlLeadingToICloudConstraint: NSLayoutConstraint?
     private var pathControlLeadingToRemoteBadgeConstraint: NSLayoutConstraint?
     private var pathControlTrailingConstraint: NSLayoutConstraint?
+    private var reconnectBannerHeightConstraint: NSLayoutConstraint?
     private var remoteBreadcrumbHostsByTabID: [UUID: RemoteHost] = [:]
 
     var selectedTab: PaneTab? {
@@ -352,6 +356,7 @@ final class PaneViewController: NSViewController {
         setupICloudButton()
         setupRemoteHostBadge()
         setupPathControl()
+        setupReconnectBanner()
         setupTabContainer()
         setupStatusBar()
         setupConstraints()
@@ -372,6 +377,13 @@ final class PaneViewController: NSViewController {
             self,
             selector: #selector(handleSettingsChange),
             name: SettingsManager.settingsDidChange,
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSSHConnectionStateChange(_:)),
+            name: .sshConnectionStateDidChange,
             object: nil
         )
 
@@ -462,6 +474,7 @@ final class PaneViewController: NSViewController {
 
     func loadRemoteHost(_ host: RemoteHost, provider: any FileProvider, path: String = "/") {
         setRemoteBreadcrumbHost(host)
+        hideReconnectBanner()
         selectedTab?.fileListViewController.loadRemoteDirectory(
             host: host,
             path: path,
@@ -530,6 +543,60 @@ final class PaneViewController: NSViewController {
 
     private func setupTabContainer() {
         view.addSubview(tabContainer)
+    }
+
+    private func setupReconnectBanner() {
+        reconnectBanner.isHidden = true
+        reconnectBanner.wantsLayer = true
+        reconnectBanner.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.18).cgColor
+        reconnectBanner.setAccessibilityIdentifier("remoteReconnectBanner")
+
+        reconnectBannerLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 12)
+        reconnectBannerLabel.textColor = ThemeManager.shared.currentTheme.textPrimary
+        reconnectBannerLabel.lineBreakMode = .byTruncatingTail
+
+        reconnectButton.bezelStyle = .rounded
+        reconnectButton.controlSize = .small
+        reconnectButton.target = self
+        reconnectButton.action = #selector(reconnectRemoteHost)
+
+        reconnectBanner.addSubview(reconnectBannerLabel)
+        reconnectBanner.addSubview(reconnectButton)
+        view.addSubview(reconnectBanner)
+    }
+
+    @objc private func handleSSHConnectionStateChange(_ notification: Notification) {
+        guard let change = notification.object as? SSHConnectionStateChange,
+              let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }),
+              host.id == change.hostID else {
+            return
+        }
+
+        if case .failed = change.newState {
+            showReconnectBanner(for: host)
+        } else if change.newState == .connected {
+            hideReconnectBanner()
+        }
+    }
+
+    private func showReconnectBanner(for host: RemoteHost) {
+        reconnectBannerLabel.stringValue = "Connection lost for \(host.displayName)"
+        reconnectBanner.isHidden = false
+        reconnectBannerHeightConstraint?.constant = 30
+    }
+
+    private func hideReconnectBanner() {
+        reconnectBanner.isHidden = true
+        reconnectBannerHeightConstraint?.constant = 0
+    }
+
+    @objc private func reconnectRemoteHost() {
+        guard let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }) else { return }
+        Task { @MainActor in
+            await RemoteConnectionRegistry.shared.reconnect(hostID: host.id)
+            hideReconnectBanner()
+            selectedTab?.fileListViewController.refresh()
+        }
     }
 
     private func showDetailPopover() {
@@ -652,12 +719,16 @@ final class PaneViewController: NSViewController {
         iCloudButton.translatesAutoresizingMaskIntoConstraints = false
         remoteHostBadge.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
+        reconnectBanner.translatesAutoresizingMaskIntoConstraints = false
+        reconnectBannerLabel.translatesAutoresizingMaskIntoConstraints = false
+        reconnectButton.translatesAutoresizingMaskIntoConstraints = false
         tabContainer.translatesAutoresizingMaskIntoConstraints = false
         statusBar.translatesAutoresizingMaskIntoConstraints = false
 
         pathControlLeadingToICloudConstraint = pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 6)
         pathControlLeadingToRemoteBadgeConstraint = pathControl.leadingAnchor.constraint(equalTo: remoteHostBadge.trailingAnchor, constant: 6)
         pathControlTrailingConstraint = pathControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8)
+        reconnectBannerHeightConstraint = reconnectBanner.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
             // Tab bar at top, 36px height
@@ -686,8 +757,18 @@ final class PaneViewController: NSViewController {
             pathControlTrailingConstraint!,
             pathControl.heightAnchor.constraint(equalToConstant: 24),
 
+            reconnectBanner.topAnchor.constraint(equalTo: pathControl.bottomAnchor),
+            reconnectBanner.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            reconnectBanner.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            reconnectBannerHeightConstraint!,
+            reconnectBannerLabel.leadingAnchor.constraint(equalTo: reconnectBanner.leadingAnchor, constant: 10),
+            reconnectBannerLabel.centerYAnchor.constraint(equalTo: reconnectBanner.centerYAnchor),
+            reconnectButton.leadingAnchor.constraint(greaterThanOrEqualTo: reconnectBannerLabel.trailingAnchor, constant: 8),
+            reconnectButton.trailingAnchor.constraint(equalTo: reconnectBanner.trailingAnchor, constant: -10),
+            reconnectButton.centerYAnchor.constraint(equalTo: reconnectBanner.centerYAnchor),
+
             // Tab container fills remaining space (bottom constraint handled dynamically)
-            tabContainer.topAnchor.constraint(equalTo: pathControl.bottomAnchor),
+            tabContainer.topAnchor.constraint(equalTo: reconnectBanner.bottomAnchor),
             tabContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 

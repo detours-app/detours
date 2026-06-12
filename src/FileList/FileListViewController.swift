@@ -442,6 +442,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     /// Refresh current directory, preserving selection and expansion
     func refresh() {
+        if let currentRemoteLocation, let currentRemoteProvider {
+            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
+            return
+        }
         guard let currentDirectory else { return }
         loadDirectory(currentDirectory, preserveExpansion: true)
     }

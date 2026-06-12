@@ -25,6 +25,18 @@ final class PaneViewControllerTests: XCTestCase {
         return nil
     }
 
+    private func descendant(in view: NSView, accessibilityIdentifier: String) -> NSView? {
+        if view.accessibilityIdentifier() == accessibilityIdentifier {
+            return view
+        }
+        for subview in view.subviews {
+            if let match = descendant(in: subview, accessibilityIdentifier: accessibilityIdentifier) {
+                return match
+            }
+        }
+        return nil
+    }
+
     func testCreateTabAddsToArray() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()
@@ -212,6 +224,26 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertEqual(badge?.stringValue, "")
     }
 
+    func testReconnectBannerAppearsForFailedRemoteHost() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider())
+        NotificationCenter.default.post(
+            name: .sshConnectionStateDidChange,
+            object: SSHConnectionStateChange(
+                hostID: host.id,
+                oldState: .connected,
+                newState: .failed(reason: .timedOut)
+            )
+        )
+
+        let banner = descendant(in: pane.view, accessibilityIdentifier: "remoteReconnectBanner")
+        XCTAssertNotNil(banner)
+        XCTAssertFalse(banner?.isHidden ?? true)
+    }
+
     // MARK: - Bug Fix Verification Tests
 
     /// Tests that restoreTabs correctly handles expansion and selection data.
@@ -310,4 +342,25 @@ final class PaneViewControllerTests: XCTestCase {
         // Note: expandedFolders is managed by outline view delegate, so this tests the data structure exists
         XCTAssertTrue(expandedCount >= 0, "Expanded folders set should exist")
     }
+}
+
+private actor PaneRemoteProvider: FileProvider {
+    func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] { [] }
+    func stat(_ location: Location) async throws -> LoadedFileEntry { throw FileProviderError.unsupportedOperation("stat") }
+    func copy(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+    func move(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+    func delete(_ items: [Location]) async throws {}
+    func trash(_ items: [Location]) async throws -> [TrashedItem] { [] }
+    func restoreFromTrash(_ items: [TrashedItem]) async throws -> [Location] { [] }
+    func rename(_ item: Location, to newName: String) async throws -> Location { item }
+    func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location { items[0] }
+    func archiveExtract(_ archive: Location, password: String?) async throws -> Location { archive }
+    func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        FileProviderWatch(id: UUID(), location: location)
+    }
+    func unwatch(_ watch: FileProviderWatch) async {}
+    func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
+    func folderSize(for location: Location) async throws -> Int64 { 0 }
+    func readSymlink(_ location: Location) async throws -> Location { location }
+    func openForQuickLook(_ location: Location) async throws -> URL { URL(fileURLWithPath: "/tmp/unused") }
 }

@@ -27,4 +27,8 @@ actor RemoteConnectionRegistry {
         activePaneCounts[hostID] = count
         await connections[hostID]?.setActivePaneCount(count)
     }
+
+    func reconnect(hostID: UUID) async {
+        try? await connections[hostID]?.connect()
+    }
 }

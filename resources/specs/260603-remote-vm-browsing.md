@@ -202,7 +202,7 @@ Phase headers are organisational. The phases land in order on the feature branch
 **Phase 5: Lifecycle, polish, flag removal**
 
 - [x] **T48** Add idle disconnect in `SSHConnection`: closes the connection after five minutes with no active pane on the host, no in-flight operation, and no active watch. Reconnects automatically on next interaction.
-- [ ] **T49** Add the reconnect banner UI in `src/Panes/PaneViewController.swift`: a non-blocking strip above the file list naming the host and a Reconnect button. Banner appears when the connection state transitions to `failed` after the backoff window.
+- [x] **T49** Add the reconnect banner UI in `src/Panes/PaneViewController.swift`: a non-blocking strip above the file list naming the host and a Reconnect button. Banner appears when the connection state transitions to `failed` after the backoff window.
 - [ ] **T50** Update `src/Operations/FileOperationQueue.swift` so queued remote operations pause when the connection drops (queue surface: "Paused — waiting for [host]") and resume automatically on reconnect. In-progress transfers at the drop have their partial deleted and requeue from the start.
 - [ ] **T51** Update `src/Sidebar/SidebarViewController.swift` so removing a host while a pane is viewing it navigates that pane back to its previous local location, falling back to the home directory if no previous local location exists.
 - [ ] **T52** Use the cache directory sanitisation helpers in `src/Remote/RemoteHost.swift` everywhere a local cache directory is created from a host or path.
