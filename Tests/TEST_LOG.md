@@ -2,6 +2,45 @@
 
 ## Latest Run
 
+- Started: 2026-06-12 19:02:15
+- Command: `swift test --filter <suite>` (suites below, run in batches)
+- Status: PASS
+- Notes: Regression pass after the code-audit fixes (Critical + Important). Server-side overwrite deletes (copy/move/upload) now route through Trash instead of removeItem; RPCHandler returns a per-request error envelope instead of crashing on filesystem errors and treats unwatch of an unknown token as a no-op; readRemotePaths caps its capacity reservation; GitOperations preserves the inherited environment and decodes git C-quoted filenames; symlink fileSize now reports the target size. Client side: SSHRemoteRPCClient throws on an error envelope instead of hanging, SSHConnection.readFrame caps the frame size, LocalFileProvider.upload trashes the prior file, SSHHostTrust pins UserKnownHostsFile + StrictHostKeyChecking, AddRemoteHost now scans/records the host key, and the local Replace conflict path plus the remote-move undo were corrected. No new tests added; existing suites cover the changed code.
+
+### Code Audit Fixes 2026-06-12
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| GitOperationsServerTests (1 test) | PASS | 0.544s | 2026-06-12 19:02:16 |
+| FileOperationsServerTests (2 tests) | PASS | 0.004s | 2026-06-12 19:02:42 |
+| TrashOperationsServerTests (3 tests) | PASS | 0.008s | 2026-06-12 19:02:42 |
+| DarwinServerSmokeTests (2 tests, upload/copy/move round-trip via helper) | PASS | 1.220s | 2026-06-12 19:02:42 |
+| LocalFileProviderTests + RemoteFileProviderTests (7+ tests) | PASS | 0.103s | 2026-06-12 19:02:49 |
+| SSHConnectionStateTests (6 tests) | PASS | 0.136s | 2026-06-12 19:02:50 |
+| SSHHostTrustTests (3 tests) | PASS | 0.012s | 2026-06-12 19:02:50 |
+| FileOperationQueueTests + MessagesTests + RPCStreamHandlerTests + RemoteTrashUndoTests (69 tests) | PASS | 5.713s | 2026-06-12 19:03:02 |
+| RemoteIntegrationTests live vs wraith: testIntelMacPersistentSSHConnectionListsHome (host-key trust flow), testIntelMacCopyLocalToRemote (upload), testIntelMacTrashAndRestore | PASS | 6.505s | 2026-06-12 19:08:28 |
+
+### Remote Browsing Fixes 2026-06-12
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FileListDataSourceTests (23 tests, 2 new regression tests) | PASS | 0.064s | 2026-06-12 15:49:43 |
+| RemoteTabSessionTargetTests (4 tests, new) | PASS | 0.004s | 2026-06-12 16:04:26 |
+| ClipboardManagerTests (8 tests) | PASS | 0.018s | 2026-06-12 16:05:41 |
+| PaneViewControllerTests (19 tests, badge tests rewritten for host-as-breadcrumb-segment) | PASS | 0.630s | 2026-06-12 16:14:47 |
+| RemoteUISurfaceTests (5 tests, rerun after badge removal) | PASS | 0.048s | 2026-06-12 16:14:55 |
+| SidebarTests (8 tests) | PASS | 0.028s | 2026-06-12 16:05:57 |
+| RemoteUISurfaceTests (5 tests) | PASS | 0.043s | 2026-06-12 16:05:58 |
+| SplitPositionTests (10 tests) | PASS | 0.006s | 2026-06-12 16:05:58 |
+| FileOperationsServerTests (2 tests) | PASS | 0.010s | 2026-06-12 15:47:20 |
+| TrashOperationsServerTests (3 tests) | PASS | 0.011s | 2026-06-12 15:47:37 |
+| WatcherServerTests + DarwinWatcherServerTests (5 tests) | PASS | 0.049s | 2026-06-12 15:47:51 |
+| RemoteWatcherPollFallbackTests (3 tests) | PASS | 0.187s | 2026-06-12 15:48:05 |
+| DarwinServerSmokeTests (2 tests, exercises rename/trash/restore decode changes) | PASS | 1.092s | 2026-06-12 15:48:22 |
+
+## Run 20260409 21:45
+
 - Started: 2026-04-09 21:45:44
 - Command: `swift test --filter FileOperationQueueTests`
 - Status: PASS

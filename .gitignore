@@ -8,6 +8,7 @@ resources/docs/scratch.md
 /.build
 /build
 /Packages
+/resources/Servers/*
 xcuserdata/
 DerivedData/
 .swiftpm/configuration/registries.json

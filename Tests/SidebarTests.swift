@@ -46,8 +46,18 @@ final class SidebarTests: XCTestCase {
         XCTAssertEqual(favorite1, favorite2)
         XCTAssertNotEqual(favorite1, favorite3)
 
+        // Test remote host equality by stable host ID
+        let hostID = UUID()
+        let remoteHost1 = SidebarItem.remoteHost(RemoteHost(id: hostID, displayName: "Dev", sshTarget: "devtest"))
+        let remoteHost2 = SidebarItem.remoteHost(RemoteHost(id: hostID, displayName: "Renamed", sshTarget: "devtest"))
+        let remoteHost3 = SidebarItem.remoteHost(RemoteHost(displayName: "Other", sshTarget: "other"))
+
+        XCTAssertEqual(remoteHost1, remoteHost2)
+        XCTAssertNotEqual(remoteHost1, remoteHost3)
+
         // Test different types not equal
         XCTAssertNotEqual(devicesSection1, favorite1)
+        XCTAssertNotEqual(remoteHost1, favorite1)
     }
 
     // MARK: - Settings Tests

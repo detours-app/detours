@@ -20,6 +20,9 @@ protocol SidebarDelegate: AnyObject {
     /// Called when user removes a folder from favorites
     func sidebarDidRemoveFavorite(_ url: URL)
 
+    /// Called when user removes a remote host from the sidebar
+    func sidebarDidRemoveRemoteHost(_ host: RemoteHost)
+
     /// Called when user reorders favorites via drag-drop
     func sidebarDidReorderFavorites(_ urls: [URL])
 

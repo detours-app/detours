@@ -18,6 +18,7 @@ final class SidebarViewController: NSViewController {
     static let width: CGFloat = 180
 
     private var sections: [SidebarSection] = SidebarSection.allCases
+    private var remoteConnectionStates: [UUID: SSHConnectionState] = [:]
 
     /// Themes that support vibrancy (system default / light / dark)
     private var isVibrancyTheme: Bool {
@@ -142,6 +143,20 @@ final class SidebarViewController: NSViewController {
             name: NetworkBrowser.serversDidChange,
             object: nil
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRemoteHostsChange),
+            name: RemoteHostStore.remoteHostsDidChange,
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSSHConnectionStateChange(_:)),
+            name: .sshConnectionStateDidChange,
+            object: nil
+        )
     }
 
     @objc private func handleVolumesChange() {
@@ -163,6 +178,16 @@ final class SidebarViewController: NSViewController {
     @objc private func handleNetworkServersChange() {
         outlineView.reloadData()
         expandServersWithVolumes()
+    }
+
+    @objc private func handleRemoteHostsChange() {
+        outlineView.reloadData()
+    }
+
+    @objc private func handleSSHConnectionStateChange(_ notification: Notification) {
+        guard let change = notification.object as? SSHConnectionStateChange else { return }
+        remoteConnectionStates[change.hostID] = change.newState
+        outlineView.reloadData()
     }
 
     /// Auto-expand servers that have mounted volumes
@@ -216,6 +241,10 @@ final class SidebarViewController: NSViewController {
 
     private func networkItems() -> [NetworkServer] {
         NetworkBrowser.shared.discoveredServers
+    }
+
+    private func remoteHostItems() -> [RemoteHost] {
+        RemoteHostsSection().items()
     }
 
     private func favoritesItems() -> [URL] {
@@ -299,6 +328,11 @@ final class SidebarViewController: NSViewController {
         delegate?.sidebarDidRemoveFavorite(url)
     }
 
+    @objc private func handleRemoveRemoteHost(_ sender: NSMenuItem) {
+        guard let host = sender.representedObject as? RemoteHost else { return }
+        delegate?.sidebarDidRemoveRemoteHost(host)
+    }
+
     @objc private func handleForgetPassword(_ sender: NSMenuItem) {
         guard let server = sender.representedObject as? NetworkServer else { return }
         do {
@@ -325,7 +359,11 @@ extension SidebarViewController: NSOutlineViewDataSource {
         items.append(SidebarSection.devices)
         items.append(contentsOf: devicesItems())
 
-        // NETWORK section header + servers (discovered + synthetic)
+        // REMOTE HOSTS section header + configured SSH hosts
+        items.append(SidebarSection.remoteHosts)
+        items.append(contentsOf: remoteHostItems())
+
+        // FILE SERVERS section header + servers (discovered + synthetic)
         items.append(SidebarSection.network)
         let networkHierarchy = buildNetworkHierarchy()
         if networkHierarchy.isEmpty && networkVolumes().isEmpty {
@@ -400,16 +438,18 @@ extension SidebarViewController: NSOutlineViewDataSource {
 
     /// Get the index where favorites start in the top-level list
     private func favoritesStartIndex() -> Int {
-        // devices header + local devices + network header + network servers/placeholder + favorites header
+        // devices header + local devices + remote header + remote hosts
+        // + network header + network servers/placeholder + favorites header
         let networkHierarchy = buildNetworkHierarchy()
         let networkItemCount = (networkHierarchy.isEmpty && networkVolumes().isEmpty) ? 1 : networkHierarchy.count
-        return 1 + devicesItems().count + 1 + networkItemCount + 1
+        return 1 + devicesItems().count + 1 + remoteHostItems().count + 1 + networkItemCount + 1
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
         // Reject drops on network servers (not mounted yet) and synthetic servers
         if item is NetworkServer { return [] }
         if item is SyntheticServer { return [] }
+        if item is RemoteHost { return [] }
 
         // Handle drops ON a favorite item (copy/move files to that location)
         if let targetURL = item as? URL {
@@ -552,6 +592,12 @@ extension SidebarViewController: NSOutlineViewDelegate {
             }
         } else if let placeholder = item as? NetworkPlaceholder {
             cellView.configureAsPlaceholder(placeholder, theme: theme)
+        } else if let remoteHost = item as? RemoteHost {
+            cellView.configure(
+                with: .remoteHost(remoteHost),
+                theme: theme,
+                remoteConnectionState: remoteConnectionStates[remoteHost.id]
+            )
         } else if let url = item as? URL {
             cellView.configure(with: .favorite(url), theme: theme)
         }
@@ -610,6 +656,8 @@ extension SidebarViewController: NSOutlineViewDelegate {
             } else {
                 outlineView.animator().expandItem(synthetic)
             }
+        } else if let remoteHost = item as? RemoteHost {
+            delegate?.sidebarDidSelectItem(.remoteHost(remoteHost))
         } else if let url = item as? URL {
             delegate?.sidebarDidSelectItem(.favorite(url))
         }
@@ -673,6 +721,11 @@ extension SidebarViewController: NSMenuDelegate {
             ejectItem.target = self
             ejectItem.representedObject = synthetic.host
             menu.addItem(ejectItem)
+        } else if let remoteHost = item as? RemoteHost {
+            let removeItem = NSMenuItem(title: "Remove Remote Host", action: #selector(handleRemoveRemoteHost(_:)), keyEquivalent: "")
+            removeItem.target = self
+            removeItem.representedObject = remoteHost
+            menu.addItem(removeItem)
         } else if let url = item as? URL {
             let removeItem = NSMenuItem(title: "Remove from Favorites", action: #selector(handleRemoveFavorite(_:)), keyEquivalent: "")
             removeItem.target = self

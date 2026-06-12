@@ -550,4 +550,45 @@ final class FileListDataSourceTests: XCTestCase {
 
         XCTAssertTrue(dataSource.items.isEmpty)
     }
+
+    private func makeRemoteItem(name: String, path: String, isDirectory: Bool) -> FileItem {
+        FileItem(
+            name: name,
+            location: .remote(hostID: UUID(), path: path),
+            isDirectory: isDirectory,
+            size: isDirectory ? nil : 10,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+    }
+
+    // Regression: expanding a remote folder with loaded children applied the
+    // URL-keyed git status pass to remote items, trapping in Location.url.
+    func testShouldExpandRemoteFolderWithLoadedChildrenDoesNotTrap() {
+        let dataSource = FileListDataSource()
+        let folder = makeRemoteItem(name: "dir", path: "/home/marco/dir", isDirectory: true)
+        let child = makeRemoteItem(name: "a.txt", path: "/home/marco/dir/a.txt", isDirectory: false)
+        child.parent = folder
+        folder.children = [child]
+        dataSource.items = [folder]
+
+        let outlineView = NSOutlineView()
+        XCTAssertTrue(dataSource.outlineView(outlineView, shouldExpandItem: folder))
+        XCTAssertNil(child.gitStatus)
+    }
+
+    // Regression: findItem(withURL:) accessed .url on remote items, trapping in Location.url.
+    func testFindItemByURLSkipsRemoteItems() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let localFile = try createTestFile(in: temp, name: "local.txt")
+
+        let dataSource = FileListDataSource()
+        let remote = makeRemoteItem(name: "remote.txt", path: "/home/marco/remote.txt", isDirectory: false)
+        let local = FileItem(url: localFile)
+        dataSource.items = [remote, local]
+
+        let found = dataSource.findItem(withURL: localFile, in: dataSource.items)
+        XCTAssertTrue(found === local)
+    }
 }

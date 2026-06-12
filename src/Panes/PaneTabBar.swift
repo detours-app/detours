@@ -200,7 +200,7 @@ final class PaneTabBar: NSView {
 
         // Create new buttons
         for (index, tab) in tabs.enumerated() {
-            let symbolName = Self.symbolName(for: tab.currentDirectory)
+            let symbolName = Self.tabSymbolName(for: tab)
             let button = TabButton(
                 title: tab.title,
                 symbolName: symbolName,
@@ -295,6 +295,15 @@ final class PaneTabBar: NSView {
     }
 
     // MARK: - Tab Icon Mapping
+
+    /// Tab bar glyph for a tab. Remote tabs keep a stale local `currentDirectory`,
+    /// so the contextual local icon would be wrong; show a plain folder for them.
+    static func tabSymbolName(for tab: PaneTab) -> String {
+        if tab.remoteTitle != nil {
+            return "folder"
+        }
+        return symbolName(for: tab.currentDirectory)
+    }
 
     private static func symbolName(for directory: URL) -> String {
         let path = directory.path

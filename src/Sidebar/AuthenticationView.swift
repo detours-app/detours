@@ -30,7 +30,7 @@ struct AuthenticationView: View {
                     .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Connect to Server")
+                    Text("Connect to Network Share")
                         .font(.headline)
                     Text(model.serverName)
                         .font(.subheadline)

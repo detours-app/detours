@@ -311,11 +311,43 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
 
 // MARK: - Pane View Controller
 
+/// Remote host and path a tab was viewing, persisted across relaunches.
+struct RemoteTabSessionTarget: Equatable {
+    let hostID: UUID
+    let path: String
+
+    /// Encodes one entry per tab; local tabs become empty dictionaries.
+    static func encode(_ targets: [RemoteTabSessionTarget?]) -> [[String: String]] {
+        targets.map { target in
+            guard let target else { return [:] }
+            return ["hostID": target.hostID.uuidString, "path": target.path]
+        }
+    }
+
+    /// Decodes saved entries; anything malformed or misaligned yields all-local tabs.
+    static func decode(_ data: Any?, count: Int) -> [RemoteTabSessionTarget?] {
+        guard let raw = data as? [[String: String]], raw.count == count else {
+            return Array(repeating: nil, count: count)
+        }
+        return raw.map { entry in
+            guard let hostIDString = entry["hostID"],
+                  let hostID = UUID(uuidString: hostIDString),
+                  let path = entry["path"] else {
+                return nil
+            }
+            return RemoteTabSessionTarget(hostID: hostID, path: path)
+        }
+    }
+}
+
 final class PaneViewController: NSViewController {
     private let tabBar = PaneTabBar()
     private let homeButton = NSButton()
     private let iCloudButton = NSButton()
     private let pathControl = DroppablePathControl()
+    private let reconnectBanner = NSView()
+    private let reconnectBannerLabel = NSTextField(labelWithString: "")
+    private let reconnectButton = NSButton(title: "Reconnect", target: nil, action: nil)
     private let tabContainer = NSView()
     private let statusBar = StatusBarView()
     private var detailPopover: OperationDetailPopover?
@@ -328,7 +360,12 @@ final class PaneViewController: NSViewController {
     private var pathItemURLs: [URL?] = []  // URLs for each path item (nil for ellipsis)
     private var statusBarBottomConstraint: NSLayoutConstraint?
     private var tabContainerBottomConstraint: NSLayoutConstraint?
+    private var pathControlLeadingToICloudConstraint: NSLayoutConstraint?
+    private var pathControlLeadingToViewConstraint: NSLayoutConstraint?
     private var pathControlTrailingConstraint: NSLayoutConstraint?
+    private var reconnectBannerHeightConstraint: NSLayoutConstraint?
+    private var remoteBreadcrumbHostsByTabID: [UUID: RemoteHost] = [:]
+    private var pendingRemoteTabTargetsByTabID: [UUID: RemoteTabSessionTarget] = [:]
 
     var selectedTab: PaneTab? {
         guard selectedTabIndex >= 0 && selectedTabIndex < tabs.count else { return nil }
@@ -346,7 +383,9 @@ final class PaneViewController: NSViewController {
         setupTabBar()
         setupHomeButton()
         setupICloudButton()
+        updateRemoteHostBadge()
         setupPathControl()
+        setupReconnectBanner()
         setupTabContainer()
         setupStatusBar()
         setupConstraints()
@@ -370,6 +409,13 @@ final class PaneViewController: NSViewController {
             object: nil
         )
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSSHConnectionStateChange(_:)),
+            name: .sshConnectionStateDidChange,
+            object: nil
+        )
+
         // Create initial tab at home directory
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         createTab(at: homeDir, select: true)
@@ -378,6 +424,7 @@ final class PaneViewController: NSViewController {
     @objc private func handleThemeChange() {
         view.needsDisplay = true
         updatePathControlColors()
+        updateRemoteHostBadge()
         updateButtonColors()
     }
 
@@ -427,6 +474,82 @@ final class PaneViewController: NSViewController {
         }
     }
 
+    func setRemoteBreadcrumbHost(_ host: RemoteHost?) {
+        guard let tab = selectedTab else { return }
+        // The tab now has an explicit destination; any restore target is obsolete.
+        pendingRemoteTabTargetsByTabID.removeValue(forKey: tab.id)
+        if let host {
+            remoteBreadcrumbHostsByTabID[tab.id] = host
+        } else {
+            remoteBreadcrumbHostsByTabID.removeValue(forKey: tab.id)
+        }
+        updateRemoteHostBadge()
+        updatePathControl()
+    }
+
+    func loadRemoteHost(_ host: RemoteHost, provider: any FileProvider, path: String = "/") {
+        setRemoteBreadcrumbHost(host)
+        hideReconnectBanner()
+        selectedTab?.fileListViewController.loadRemoteDirectory(
+            host: host,
+            path: path,
+            provider: provider
+        )
+        updateStatusBar()
+    }
+
+    func navigateTabsViewingRemovedRemoteHost(_ hostID: UUID) {
+        var didChange = false
+
+        for tab in tabs {
+            guard remoteBreadcrumbHostsByTabID[tab.id]?.id == hostID else { continue }
+            remoteBreadcrumbHostsByTabID.removeValue(forKey: tab.id)
+            pendingRemoteTabTargetsByTabID.removeValue(forKey: tab.id)
+            let fallback = localFallbackDirectory(for: tab)
+            tab.navigate(to: fallback.url, iCloudListingMode: fallback.mode, addToHistory: false)
+            didChange = true
+        }
+
+        guard didChange else { return }
+        hideReconnectBanner()
+        updateRemoteHostBadge()
+        updatePathControl()
+        updateNavigationControls()
+        reloadTabBar()
+        updateStatusBar()
+        scheduleSessionSave()
+    }
+
+    private func localFallbackDirectory(for tab: PaneTab) -> (url: URL, mode: ICloudListingMode) {
+        var isDirectory: ObjCBool = false
+        let current = tab.currentDirectory.standardizedFileURL
+        if FileManager.default.fileExists(atPath: current.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return (current, tab.iCloudListingMode)
+        }
+        return (FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL, .normal)
+    }
+
+    private func clearRemoteBreadcrumbHostForSelectedTab() {
+        guard let tab = selectedTab else { return }
+        remoteBreadcrumbHostsByTabID.removeValue(forKey: tab.id)
+        pendingRemoteTabTargetsByTabID.removeValue(forKey: tab.id)
+        updateRemoteHostBadge()
+        updatePathControl()
+    }
+
+    /// On remote tabs the host is the first breadcrumb segment, so the local
+    /// home/iCloud shortcuts hide and the path control takes their place.
+    private func updateRemoteHostBadge() {
+        let host = selectedTab.flatMap { remoteBreadcrumbHostsByTabID[$0.id] }
+        let isRemote = host != nil
+        homeButton.isHidden = isRemote
+        iCloudButton.isHidden = isRemote
+        pathControlLeadingToViewConstraint?.isActive = isRemote
+        pathControlLeadingToICloudConstraint?.isActive = !isRemote
+        pathControl.toolTip = host?.sshTarget
+    }
+
     private func setupPathControl() {
         pathControl.pathStyle = .standard
         pathControl.isEditable = false
@@ -459,6 +582,69 @@ final class PaneViewController: NSViewController {
 
     private func setupTabContainer() {
         view.addSubview(tabContainer)
+    }
+
+    private func setupReconnectBanner() {
+        reconnectBanner.isHidden = true
+        reconnectBanner.wantsLayer = true
+        reconnectBanner.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.18).cgColor
+        reconnectBanner.setAccessibilityIdentifier("remoteReconnectBanner")
+
+        reconnectBannerLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 12)
+        reconnectBannerLabel.textColor = ThemeManager.shared.currentTheme.textPrimary
+        reconnectBannerLabel.lineBreakMode = .byTruncatingTail
+
+        reconnectButton.bezelStyle = .rounded
+        reconnectButton.controlSize = .small
+        reconnectButton.target = self
+        reconnectButton.action = #selector(reconnectRemoteHost)
+
+        reconnectBanner.addSubview(reconnectBannerLabel)
+        reconnectBanner.addSubview(reconnectButton)
+        view.addSubview(reconnectBanner)
+    }
+
+    @objc private func handleSSHConnectionStateChange(_ notification: Notification) {
+        guard let change = notification.object as? SSHConnectionStateChange,
+              let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }),
+              host.id == change.hostID else {
+            return
+        }
+
+        if case .failed = change.newState {
+            showReconnectBanner(for: host)
+        } else if change.newState == .connected {
+            hideReconnectBanner()
+        }
+    }
+
+    private func showReconnectBanner(for host: RemoteHost) {
+        reconnectBannerLabel.stringValue = "Connection lost for \(host.displayName)"
+        reconnectBanner.isHidden = false
+        reconnectBannerHeightConstraint?.constant = 30
+    }
+
+    private func hideReconnectBanner() {
+        reconnectBanner.isHidden = true
+        reconnectBannerHeightConstraint?.constant = 0
+    }
+
+    @objc private func reconnectRemoteHost() {
+        guard let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }) else { return }
+
+        // Tabs restored from a previous session have no live connection yet;
+        // they need the full connect flow, not a registry reconnect.
+        if pendingRemoteTabTargetsByTabID.values.contains(where: { $0.hostID == host.id }) {
+            hideReconnectBanner()
+            (parent as? MainSplitViewController)?.retryRemoteConnection(for: host)
+            return
+        }
+
+        Task { @MainActor in
+            await RemoteConnectionRegistry.shared.reconnect(hostID: host.id)
+            hideReconnectBanner()
+            selectedTab?.fileListViewController.refresh()
+        }
     }
 
     private func showDetailPopover() {
@@ -512,6 +698,24 @@ final class PaneViewController: NSViewController {
     func updateOperationProgress(_ progress: FileOperationProgress) {
         statusBar.updateProgress(progress)
         updateDetailPopover(progress)
+    }
+
+    func showOperationPaused(_ message: String) {
+        if statusBar.isHidden {
+            operationStatusBarForceShown = true
+            statusBar.isHidden = false
+            statusBarBottomConstraint?.isActive = false
+            tabContainerBottomConstraint?.isActive = false
+            tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: statusBar.topAnchor)
+            statusBarBottomConstraint = statusBar.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            tabContainerBottomConstraint?.isActive = true
+            statusBarBottomConstraint?.isActive = true
+        }
+
+        statusBar.showPaused(message: message)
+        statusBar.onProgressClick = { [weak self] in
+            self?.showDetailPopover()
+        }
     }
 
     func hideOperationProgress(completion: String?, error: String?) {
@@ -580,10 +784,16 @@ final class PaneViewController: NSViewController {
         homeButton.translatesAutoresizingMaskIntoConstraints = false
         iCloudButton.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
+        reconnectBanner.translatesAutoresizingMaskIntoConstraints = false
+        reconnectBannerLabel.translatesAutoresizingMaskIntoConstraints = false
+        reconnectButton.translatesAutoresizingMaskIntoConstraints = false
         tabContainer.translatesAutoresizingMaskIntoConstraints = false
         statusBar.translatesAutoresizingMaskIntoConstraints = false
 
+        pathControlLeadingToICloudConstraint = pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 6)
+        pathControlLeadingToViewConstraint = pathControl.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8)
         pathControlTrailingConstraint = pathControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8)
+        reconnectBannerHeightConstraint = reconnectBanner.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
             // Tab bar at top, 36px height
@@ -604,12 +814,22 @@ final class PaneViewController: NSViewController {
             iCloudButton.widthAnchor.constraint(equalToConstant: 24),
             iCloudButton.heightAnchor.constraint(equalToConstant: 24),
 
-            pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 6),
+            pathControlLeadingToICloudConstraint!,
             pathControlTrailingConstraint!,
             pathControl.heightAnchor.constraint(equalToConstant: 24),
 
+            reconnectBanner.topAnchor.constraint(equalTo: pathControl.bottomAnchor),
+            reconnectBanner.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            reconnectBanner.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            reconnectBannerHeightConstraint!,
+            reconnectBannerLabel.leadingAnchor.constraint(equalTo: reconnectBanner.leadingAnchor, constant: 10),
+            reconnectBannerLabel.centerYAnchor.constraint(equalTo: reconnectBanner.centerYAnchor),
+            reconnectButton.leadingAnchor.constraint(greaterThanOrEqualTo: reconnectBannerLabel.trailingAnchor, constant: 8),
+            reconnectButton.trailingAnchor.constraint(equalTo: reconnectBanner.trailingAnchor, constant: -10),
+            reconnectButton.centerYAnchor.constraint(equalTo: reconnectBanner.centerYAnchor),
+
             // Tab container fills remaining space (bottom constraint handled dynamically)
-            tabContainer.topAnchor.constraint(equalTo: pathControl.bottomAnchor),
+            tabContainer.topAnchor.constraint(equalTo: reconnectBanner.bottomAnchor),
             tabContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 
@@ -674,6 +894,8 @@ final class PaneViewController: NSViewController {
 
             tabs.removeAll()
             selectedTabIndex = 0
+            remoteBreadcrumbHostsByTabID.removeAll()
+            pendingRemoteTabTargetsByTabID.removeAll()
 
             createTab(at: homeDir, select: true)
             return
@@ -686,6 +908,8 @@ final class PaneViewController: NSViewController {
         tab.fileListViewController.removeFromParent()
 
         tabs.remove(at: index)
+        remoteBreadcrumbHostsByTabID.removeValue(forKey: tab.id)
+        pendingRemoteTabTargetsByTabID.removeValue(forKey: tab.id)
 
         // Adjust selection
         if selectedTabIndex >= tabs.count {
@@ -712,12 +936,13 @@ final class PaneViewController: NSViewController {
         if index == selectedTabIndex {
             let tab = tabs[index]
             if tab.fileListViewController.view.isHidden {
-                tab.fileListViewController.view.isHidden = false
-                tabBar.updateSelectedIndex(index)
-                updateNavigationControls()
-                updatePathControl()
-                tab.fileListViewController.ensureLoaded()
-                applyPendingRestore(for: tab)
+            tab.fileListViewController.view.isHidden = false
+            tabBar.updateSelectedIndex(index)
+            updateNavigationControls()
+            updateRemoteHostBadge()
+            updatePathControl()
+            tab.fileListViewController.ensureLoaded()
+            applyPendingRestore(for: tab)
             }
 
             if isActive {
@@ -741,6 +966,7 @@ final class PaneViewController: NSViewController {
 
         tabBar.updateSelectedIndex(index)
         updateNavigationControls()
+        updateRemoteHostBadge()
         updatePathControl()
 
         // Make first responder if this pane is active
@@ -807,7 +1033,11 @@ final class PaneViewController: NSViewController {
         var selectionSize: Int64 = 0
         for index in selectedIndexes {
             if let item = dataSource.item(at: index) {
-                if item.isDirectory {
+                if item.isRemote {
+                    if let size = item.size {
+                        selectionSize += size
+                    }
+                } else if item.isDirectory {
                     if let size = FolderSizeCache.shared.size(for: item.url) {
                         selectionSize += size
                     }
@@ -859,6 +1089,8 @@ final class PaneViewController: NSViewController {
     // MARK: - Navigation (delegate to selected tab)
 
     func navigate(to url: URL, iCloudListingMode: ICloudListingMode = .normal) {
+        clearRemoteBreadcrumbHostForSelectedTab()
+
         // Clear status bar error on navigation
         if case .error = statusBar.mode {
             statusBar.showNormal()
@@ -873,6 +1105,7 @@ final class PaneViewController: NSViewController {
 
     func goBack() {
         selectedTab?.goBack()
+        clearRemoteBreadcrumbHostForSelectedTab()
         reloadTabBar()
         scheduleSessionSave()
     }
@@ -883,6 +1116,7 @@ final class PaneViewController: NSViewController {
 
     func goForward() {
         selectedTab?.goForward()
+        clearRemoteBreadcrumbHostForSelectedTab()
         reloadTabBar()
         scheduleSessionSave()
     }
@@ -893,6 +1127,7 @@ final class PaneViewController: NSViewController {
 
     func goUp() {
         selectedTab?.goUp()
+        clearRemoteBreadcrumbHostForSelectedTab()
         reloadTabBar()
         scheduleSessionSave()
     }
@@ -934,6 +1169,52 @@ final class PaneViewController: NSViewController {
         tabs.map { $0.currentDirectory }
     }
 
+    /// Per-tab remote target (host + path) for session persistence; nil for local tabs.
+    var tabRemoteTargets: [RemoteTabSessionTarget?] {
+        tabs.map { tab -> RemoteTabSessionTarget? in
+            if let pending = pendingRemoteTabTargetsByTabID[tab.id] {
+                return pending
+            }
+            guard remoteBreadcrumbHostsByTabID[tab.id] != nil,
+                  case .remote(let hostID, let path)? = tab.fileListViewController.currentRemoteLocation else {
+                return nil
+            }
+            return RemoteTabSessionTarget(hostID: hostID, path: path)
+        }
+    }
+
+    /// Hosts that restored tabs are waiting to reconnect to.
+    var pendingRemoteHostIDs: Set<UUID> {
+        Set(pendingRemoteTabTargetsByTabID.values.map(\.hostID))
+    }
+
+    func selectedTabHasPendingRemoteTarget(hostID: UUID) -> Bool {
+        guard let tab = selectedTab else { return false }
+        return pendingRemoteTabTargetsByTabID[tab.id]?.hostID == hostID
+    }
+
+    /// Loads the saved remote directory into every restored tab waiting on this host.
+    func resumePendingRemoteTabs(for host: RemoteHost, provider: any FileProvider) {
+        var didResume = false
+        for tab in tabs {
+            guard let target = pendingRemoteTabTargetsByTabID[tab.id], target.hostID == host.id else { continue }
+            pendingRemoteTabTargetsByTabID.removeValue(forKey: tab.id)
+            remoteBreadcrumbHostsByTabID[tab.id] = host
+            tab.fileListViewController.loadRemoteDirectory(host: host, path: target.path, provider: provider)
+            didResume = true
+        }
+
+        guard didResume else { return }
+        if let selectedTab, remoteBreadcrumbHostsByTabID[selectedTab.id]?.id == host.id {
+            hideReconnectBanner()
+        }
+        updateRemoteHostBadge()
+        updatePathControl()
+        updateNavigationControls()
+        reloadTabBar()
+        updateStatusBar()
+    }
+
     var tabICloudListingModes: [ICloudListingMode] {
         tabs.map { $0.iCloudListingMode }
     }
@@ -961,7 +1242,7 @@ final class PaneViewController: NSViewController {
         }
     }
 
-    func restoreTabs(from urls: [URL], selectedIndex: Int, selections: [[URL]]? = nil, showHiddenFiles: [Bool]? = nil, expansions: [Set<URL>]? = nil, iCloudListingModes: [ICloudListingMode]? = nil) {
+    func restoreTabs(from urls: [URL], selectedIndex: Int, selections: [[URL]]? = nil, showHiddenFiles: [Bool]? = nil, expansions: [Set<URL>]? = nil, iCloudListingModes: [ICloudListingMode]? = nil, remoteTargets: [RemoteTabSessionTarget?]? = nil) {
         guard !urls.isEmpty else { return }
 
         tabs.forEach { tab in
@@ -971,6 +1252,8 @@ final class PaneViewController: NSViewController {
 
         tabs.removeAll()
         selectedTabIndex = 0
+        remoteBreadcrumbHostsByTabID.removeAll()
+        pendingRemoteTabTargetsByTabID.removeAll()
 
         let clampedIndex = min(max(0, selectedIndex), urls.count - 1)
 
@@ -982,6 +1265,14 @@ final class PaneViewController: NSViewController {
             // Set showHiddenFiles before loading
             if let showHiddenFiles, index < showHiddenFiles.count {
                 tabs[index].fileListViewController.dataSource.showHiddenFiles = showHiddenFiles[index]
+            }
+
+            // Tabs that were on a remote host wait for the host to reconnect;
+            // until then they show their local fallback directory.
+            if let target = remoteTargets?[safe: index] ?? nil,
+               let host = RemoteHostStore.shared.host(id: target.hostID) {
+                pendingRemoteTabTargetsByTabID[tabs[index].id] = target
+                remoteBreadcrumbHostsByTabID[tabs[index].id] = host
             }
 
             // Only load selected tab immediately - others load on-demand via ensureLoaded
@@ -1001,6 +1292,8 @@ final class PaneViewController: NSViewController {
         }
 
         selectTab(at: clampedIndex)
+        updateRemoteHostBadge()
+        updatePathControl()
     }
 
     // MARK: - Active State
@@ -1040,14 +1333,17 @@ final class PaneViewController: NSViewController {
             pathItemURLs = []
             return
         }
-        let url = tab.currentDirectory
 
         // Build path items manually to control truncation
         let components: [(String, URL)]
-        if tab.iCloudListingMode == .sharedTopLevel,
+        if let remoteLocation = tab.fileListViewController.currentRemoteLocation,
+           case .remote(_, let path) = remoteLocation {
+            components = remoteBreadcrumbComponents(for: path)
+        } else if tab.iCloudListingMode == .sharedTopLevel,
            let sharedComponents = sharedBreadcrumbComponents(for: tab) {
             components = sharedComponents
         } else {
+            let url = tab.currentDirectory
             var built: [(String, URL)] = []
             var current = url
             while current.path != "/" {
@@ -1060,56 +1356,71 @@ final class PaneViewController: NSViewController {
             components = collapseICloudPath(built)
         }
 
+        // On a remote tab the host is the first breadcrumb segment, styled
+        // like every other segment (server glyph, not clickable).
+        let breadcrumbHost = remoteBreadcrumbHostsByTabID[tab.id]
+        var titles: [String] = []
+        var itemURLs: [URL?] = []
+        if let breadcrumbHost {
+            titles.append(breadcrumbHost.displayName)
+            itemURLs.append(nil)
+        }
+        titles.append(contentsOf: components.map { $0.0 })
+        itemURLs.append(contentsOf: components.map { Optional($0.1) })
+
+        let separatorWidth: CGFloat = 16 // approximate width of " › "
+        let hostIconWidth: CGFloat = 20
+        func makeItem(at index: Int) -> NSPathControlItem {
+            let item = NSPathControlItem()
+            item.title = titles[index]
+            if index == 0, breadcrumbHost != nil {
+                item.image = Self.remoteHostBreadcrumbIcon()
+            }
+            return item
+        }
+        func itemWidth(at index: Int) -> CGFloat {
+            let textWidth = (titles[index] as NSString).size(
+                withAttributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
+            ).width
+            let iconWidth: CGFloat = (index == 0 && breadcrumbHost != nil) ? hostIconWidth : 0
+            return textWidth + iconWidth + separatorWidth
+        }
+
         // Calculate available width and determine how many items fit
         let availableWidth = pathControl.bounds.width
-        let separatorWidth: CGFloat = 16 // approximate width of " › "
         let ellipsisWidth: CGFloat = 24
 
         // Create items and measure
         var items: [NSPathControlItem] = []
         var totalWidth: CGFloat = 0
 
-        for (name, _) in components {
-            let item = NSPathControlItem()
-            item.title = name
-            items.append(item)
-
-            // Approximate width: use font metrics
-            let textWidth = (name as NSString).size(
-                withAttributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
-            ).width
-            totalWidth += textWidth + separatorWidth
+        for index in titles.indices {
+            items.append(makeItem(at: index))
+            totalWidth += itemWidth(at: index)
         }
 
         // If it fits, use all items
         if totalWidth <= availableWidth || items.count <= 3 {
             pathControl.pathItems = items
-            pathItemURLs = components.map { $0.1 }
+            pathItemURLs = itemURLs
             updatePathControlColors()
             return
         }
 
         // Truncate: keep first item, ellipsis, and as many trailing items as fit
         let firstItem = items[0]
-        var trailingItems: [(NSPathControlItem, URL)] = []
+        var trailingItems: [(NSPathControlItem, URL?)] = []
         var trailingWidth: CGFloat = 0
 
         // Reserve space for first item + ellipsis
-        let firstWidth = (components[0].0 as NSString).size(
-            withAttributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
-        ).width + separatorWidth
-        let reservedWidth = firstWidth + ellipsisWidth + separatorWidth
+        let reservedWidth = itemWidth(at: 0) + ellipsisWidth + separatorWidth
 
         // Add items from the end until we run out of space
         for i in stride(from: items.count - 1, through: 1, by: -1) {
-            let name = components[i].0
-            let textWidth = (name as NSString).size(
-                withAttributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
-            ).width + separatorWidth
-
+            let textWidth = itemWidth(at: i)
             if trailingWidth + textWidth + reservedWidth <= availableWidth {
                 trailingWidth += textWidth
-                trailingItems.insert((items[i], components[i].1), at: 0)
+                trailingItems.insert((items[i], itemURLs[i]), at: 0)
             } else {
                 break
             }
@@ -1124,8 +1435,45 @@ final class PaneViewController: NSViewController {
         pathControl.pathItems = finalItems
 
         // Build URL mapping: first item URL, nil for ellipsis, then trailing URLs
-        pathItemURLs = [components[0].1, nil] + trailingItems.map { $0.1 }
+        pathItemURLs = [itemURLs[0], nil] + trailingItems.map { $0.1 }
         updatePathControlColors()
+    }
+
+    /// Builds the remote-host breadcrumb glyph as a square canvas with the
+    /// monitor symbol centred at its true aspect ratio. NSPathControl forces
+    /// item images into a tall icon box and would otherwise stretch the wide
+    /// monitor into a vertical sliver; a square image scales uniformly instead.
+    private static func remoteHostBreadcrumbIcon(side: CGFloat = 15) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: side, weight: .regular)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [ThemeManager.shared.currentTheme.textSecondary]))
+        guard let symbol = NSImage(systemSymbolName: "network", accessibilityDescription: "Remote host")?
+            .withSymbolConfiguration(config) else {
+            return nil
+        }
+        let natural = symbol.size
+        guard natural.width > 0, natural.height > 0 else { return symbol }
+        let scale = min(side / natural.width, side / natural.height)
+        let drawSize = NSSize(width: natural.width * scale, height: natural.height * scale)
+        let origin = NSPoint(x: (side - drawSize.width) / 2, y: (side - drawSize.height) / 2)
+        let canvas = NSImage(size: NSSize(width: side, height: side))
+        canvas.lockFocus()
+        symbol.draw(in: NSRect(origin: origin, size: drawSize))
+        canvas.unlockFocus()
+        return canvas
+    }
+
+    private func remoteBreadcrumbComponents(for path: String) -> [(String, URL)] {
+        let normalizedPath = path.hasPrefix("/") ? path : "/" + path
+        let parts = normalizedPath.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        guard !parts.isEmpty else {
+            return [("/", URL(fileURLWithPath: "/"))]
+        }
+
+        var current = ""
+        return parts.map { part in
+            current += "/" + part
+            return (part, URL(fileURLWithPath: current))
+        }
     }
 
     private func friendlyPathComponentName(for url: URL) -> String {
@@ -1170,10 +1518,34 @@ final class PaneViewController: NSViewController {
 
     @objc private func pathControlClicked(_ sender: NSPathControl) {
         guard let clickedItem = sender.clickedPathItem,
-              let index = sender.pathItems.firstIndex(of: clickedItem),
-              index < pathItemURLs.count,
-              let url = pathItemURLs[index] else { return }
+              let index = sender.pathItems.firstIndex(of: clickedItem) else { return }
+        navigatePathItem(at: index)
+    }
+
+    private func navigatePathItem(at index: Int) {
+        guard index < pathItemURLs.count, let url = pathItemURLs[index] else { return }
+
+        // On a remote tab the segment URLs carry remote paths; navigate on the host.
+        if let tab = selectedTab,
+           let host = remoteBreadcrumbHostsByTabID[tab.id],
+           tab.fileListViewController.currentRemoteLocation != nil {
+            guard let provider = tab.fileListViewController.currentRemoteProvider else { return }
+            tab.fileListViewController.loadRemoteDirectory(host: host, path: url.path, provider: provider)
+            updatePathControl()
+            updateNavigationControls()
+            scheduleSessionSave()
+            return
+        }
+
         navigate(to: url, iCloudListingMode: listingModeForPathNavigation(to: url))
+    }
+
+    /// True when the selected tab is showing a remote directory, meaning the
+    /// breadcrumb URLs are remote paths and must not be used as local file URLs.
+    private var selectedTabIsRemote: Bool {
+        guard let tab = selectedTab else { return false }
+        return remoteBreadcrumbHostsByTabID[tab.id] != nil
+            && tab.fileListViewController.currentRemoteLocation != nil
     }
 
     @objc private func homeClicked() {
@@ -1462,8 +1834,30 @@ extension PaneViewController: FileListNavigationDelegate {
         updateStatusBar()
     }
 
-    func fileListDidLoadDirectory() {
+    func fileListDidLoadDirectory(_ controller: FileListViewController) {
+        // A remote tab's title comes from the remote path, which only changes
+        // when the directory actually loads; rebuild the tab bar only when it does.
+        if let tab = tabs.first(where: { $0.fileListViewControllerIfLoaded === controller }) {
+            let newRemoteTitle = remoteTabTitle(for: tab, controller: controller)
+            if newRemoteTitle != tab.remoteTitle {
+                tab.remoteTitle = newRemoteTitle
+                reloadTabBar()
+                updateStatusBar()
+                return
+            }
+        }
+        updatePathControl()
         updateStatusBar()
+    }
+
+    /// The folder name to show in the tab for a remote location, or nil when the
+    /// tab is local. At the remote root the host name stands in for the folder.
+    private func remoteTabTitle(for tab: PaneTab, controller: FileListViewController) -> String? {
+        guard case .remote(_, let path)? = controller.currentRemoteLocation else { return nil }
+        if let last = path.split(separator: "/").map(String.init).last {
+            return last
+        }
+        return remoteBreadcrumbHostsByTabID[tab.id]?.displayName
     }
 }
 
@@ -1509,6 +1903,7 @@ extension PaneViewController: DroppablePathControlDelegate {
     }
 
     func pathControlDestinationURL(forItemAt index: Int) -> URL? {
+        guard !selectedTabIsRemote else { return nil }
         guard index < pathItemURLs.count else { return nil }
         guard let url = pathItemURLs[index] else { return nil }
         if let tab = selectedTab,
@@ -1520,12 +1915,12 @@ extension PaneViewController: DroppablePathControlDelegate {
     }
 
     func pathControlDragSourceURL(forItemAt index: Int) -> URL? {
+        guard !selectedTabIsRemote else { return nil }
         guard index < pathItemURLs.count else { return nil }
         return pathItemURLs[index]
     }
 
     func pathControlDidClick(at index: Int) {
-        guard index < pathItemURLs.count, let url = pathItemURLs[index] else { return }
-        navigate(to: url, iCloudListingMode: listingModeForPathNavigation(to: url))
+        navigatePathItem(at: index)
     }
 }

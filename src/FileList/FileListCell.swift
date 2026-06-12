@@ -4,12 +4,15 @@ final class FileListCell: NSTableCellView {
     private let gitStatusBar = NSView()
     private let iconView = NSImageView()
     private let cloudIcon = NSImageView()
+    private let linkIcon = NSImageView()
+    private let lockIcon = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
     private let sharedLabel = NSTextField(labelWithString: "")
     private var itemURL: URL?
     private var isDropTarget: Bool = false
     private var isHiddenFile: Bool = false
     private var isNavigableFolder: Bool = false
+    private var isReadable: Bool = true
     private var originalIcon: NSImage?
     private var gitStatus: GitStatus?
     private var iconLeadingConstraint: NSLayoutConstraint?
@@ -44,6 +47,18 @@ final class FileListCell: NSTableCellView {
         cloudIcon.isHidden = true
         addSubview(cloudIcon)
 
+        linkIcon.imageScaling = .scaleProportionallyUpOrDown
+        linkIcon.contentTintColor = .secondaryLabelColor
+        linkIcon.image = NSImage(systemSymbolName: "arrow.turn.up.right", accessibilityDescription: "Symbolic link")
+        linkIcon.isHidden = true
+        addSubview(linkIcon)
+
+        lockIcon.imageScaling = .scaleProportionallyUpOrDown
+        lockIcon.contentTintColor = .secondaryLabelColor
+        lockIcon.image = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: "Permission denied")
+        lockIcon.isHidden = true
+        addSubview(lockIcon)
+
         // Name label setup
         updateThemeColors()
         nameLabel.lineBreakMode = .byTruncatingTail
@@ -66,6 +81,8 @@ final class FileListCell: NSTableCellView {
         gitStatusBar.translatesAutoresizingMaskIntoConstraints = false
         iconView.translatesAutoresizingMaskIntoConstraints = false
         cloudIcon.translatesAutoresizingMaskIntoConstraints = false
+        linkIcon.translatesAutoresizingMaskIntoConstraints = false
+        lockIcon.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         sharedLabel.translatesAutoresizingMaskIntoConstraints = false
 
@@ -91,6 +108,16 @@ final class FileListCell: NSTableCellView {
             cloudIcon.bottomAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 4),
             cloudIcon.widthAnchor.constraint(equalToConstant: 12),
             cloudIcon.heightAnchor.constraint(equalToConstant: 12),
+
+            linkIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
+            linkIcon.topAnchor.constraint(equalTo: iconView.topAnchor, constant: -4),
+            linkIcon.widthAnchor.constraint(equalToConstant: 11),
+            linkIcon.heightAnchor.constraint(equalToConstant: 11),
+
+            lockIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
+            lockIcon.bottomAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 4),
+            lockIcon.widthAnchor.constraint(equalToConstant: 11),
+            lockIcon.heightAnchor.constraint(equalToConstant: 11),
 
             // Name: 8px after icon
             nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
@@ -125,6 +152,8 @@ final class FileListCell: NSTableCellView {
         sharedLabel.font = theme.font(size: fontSize - 2)
         sharedLabel.textColor = theme.textSecondary
         cloudIcon.contentTintColor = theme.textSecondary
+        linkIcon.contentTintColor = theme.textSecondary
+        lockIcon.contentTintColor = theme.textSecondary
     }
 
     @objc private func handleThemeChange() {
@@ -132,15 +161,22 @@ final class FileListCell: NSTableCellView {
     }
 
     func configure(with item: FileItem, isDropTarget: Bool = false) {
-        itemURL = item.url
+        if case .local(let url) = item.location {
+            itemURL = url
+        } else {
+            itemURL = nil
+        }
         self.isDropTarget = isDropTarget
         self.isHiddenFile = item.isHiddenFile
         self.isNavigableFolder = item.isNavigableFolder
+        self.isReadable = item.isReadable
         self.gitStatus = item.gitStatus
         originalIcon = item.icon
         iconView.image = item.icon
         itemName = item.name
         nameLabel.stringValue = item.name
+        linkIcon.isHidden = !item.isSymbolicLink
+        lockIcon.isHidden = item.isReadable
 
         // Adjust leading padding based on folder expansion and item type
         // Folders never have git status, so they can use tighter spacing
@@ -218,6 +254,8 @@ final class FileListCell: NSTableCellView {
         let alpha: CGFloat
         if isCut {
             alpha = 0.5
+        } else if !isReadable {
+            alpha = 0.55
         } else if isHiddenFile {
             alpha = 0.6
         } else {
@@ -225,6 +263,8 @@ final class FileListCell: NSTableCellView {
         }
         iconView.alphaValue = alpha
         cloudIcon.alphaValue = alpha
+        linkIcon.alphaValue = alpha
+        lockIcon.alphaValue = alpha
         nameLabel.alphaValue = alpha
         sharedLabel.alphaValue = alpha
     }
@@ -274,6 +314,8 @@ final class FileListCell: NSTableCellView {
             nameLabel.textColor = .white
             sharedLabel.textColor = NSColor.white.withAlphaComponent(0.8)
             cloudIcon.contentTintColor = .white
+            linkIcon.contentTintColor = .white
+            lockIcon.contentTintColor = .white
             // Tint folder icons with accent color
             if isNavigableFolder, let original = originalIcon {
                 iconView.image = Self.tintedIcon(original, color: theme.accent)
@@ -283,6 +325,8 @@ final class FileListCell: NSTableCellView {
             nameLabel.textColor = theme.textPrimary
             sharedLabel.textColor = theme.textSecondary
             cloudIcon.contentTintColor = theme.textSecondary
+            linkIcon.contentTintColor = theme.textSecondary
+            lockIcon.contentTintColor = theme.textSecondary
             // Restore original icon
             iconView.image = originalIcon
         }

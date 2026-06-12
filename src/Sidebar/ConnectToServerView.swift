@@ -43,9 +43,9 @@ struct ConnectToServerView: View {
                     .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Connect to Server")
+                    Text("Connect to Network Share")
                         .font(.headline)
-                    Text("Enter the address of the server")
+                    Text("Enter an SMB or NFS share URL")
                         .font(.subheadline)
                         .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                 }
@@ -57,7 +57,7 @@ struct ConnectToServerView: View {
 
             // Server Address
             VStack(alignment: .leading, spacing: 8) {
-                Text("Server Address:")
+                Text("Share URL:")
                     .font(.subheadline)
                     .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
 
@@ -79,7 +79,7 @@ struct ConnectToServerView: View {
             // Recent Servers
             if !model.recentServers.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Recent Servers:")
+                    Text("Recent Shares:")
                         .font(.subheadline)
                         .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
 

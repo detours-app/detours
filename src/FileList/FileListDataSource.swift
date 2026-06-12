@@ -56,6 +56,16 @@ final class FolderSizeCache {
         }
     }
 
+    func store(size: Int64, for url: URL) {
+        cache[url] = size
+        stale.remove(url)
+        pending.remove(url)
+    }
+
+    static func calculateFolderSizeForProvider(at url: URL) async -> Int64 {
+        await calculateFolderSize(at: url)
+    }
+
     private static func calculateFolderSize(at url: URL) async -> Int64 {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
@@ -191,6 +201,7 @@ final class InactiveHidingRowView: NSTableRowView {
 @MainActor
 protocol FileListDropDelegate: AnyObject {
     func handleDrop(urls: [URL], to destination: URL, isCopy: Bool)
+    func pasteboardWriter(for item: FileItem) -> (any NSPasteboardWriting)?
     var currentDirectoryURL: URL? { get }
 }
 
@@ -308,6 +319,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     var showHiddenFiles: Bool = false
     var sortDescriptor: SortDescriptor = .defaultSort
     private var currentDirectoryForGit: URL?
+    private var currentRemoteProvider: (any FileProvider)?
     private var currentICloudListingMode: ICloudListingMode = .normal
     private var gitStatuses: [URL: GitStatus] = [:]
 
@@ -344,6 +356,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
         onLoadStarted?()
 
+        currentRemoteProvider = nil
         currentICloudListingMode = iCloudListingMode
         let showHidden = showHiddenFiles
         let normalizedURL = url.standardizedFileURL
@@ -412,6 +425,69 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         }
     }
 
+    func loadRemoteDirectory(
+        _ location: Location,
+        provider: any FileProvider,
+        preserveExpansion: Bool = false
+    ) {
+        cancelCurrentLoad()
+
+        let previousExpanded = preserveExpansion ? expandedFolders : []
+        suppressCollapseNotifications = preserveExpansion
+        _cachedFilteredItems = nil
+        onLoadStarted?()
+
+        let showHidden = showHiddenFiles
+        currentRemoteProvider = provider
+
+        currentLoadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            do {
+                let entries = try await provider.list(location, showHidden: showHidden)
+                let statuses = await provider.gitStatus(for: location)
+
+                guard !Task.isCancelled else { return }
+
+                let fileItems = self.baseFileItems(for: entries)
+                for item in fileItems {
+                    item.gitStatus = statuses[item.location]
+                }
+
+                self.items = FileItem.sorted(fileItems, by: self.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
+                self.currentDirectoryForGit = nil
+                self.gitStatuses = [:]
+                self.expandedFolders = previousExpanded
+                self.outlineView?.reloadData()
+                self.outlineView?.needsLayout = true
+                self.suppressCollapseNotifications = false
+                self.onLoadCompleted?(.success(()))
+            } catch is CancellationError {
+                return
+            } catch let error as DirectoryLoadError {
+                guard !Task.isCancelled else { return }
+                self.items = []
+                self.currentDirectoryForGit = nil
+                self.gitStatuses = [:]
+                self.expandedFolders = previousExpanded
+                self.outlineView?.reloadData()
+                self.outlineView?.needsLayout = true
+                self.suppressCollapseNotifications = false
+                self.onLoadCompleted?(.failure(error))
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.items = []
+                self.currentDirectoryForGit = nil
+                self.gitStatuses = [:]
+                self.expandedFolders = previousExpanded
+                self.outlineView?.reloadData()
+                self.outlineView?.needsLayout = true
+                self.suppressCollapseNotifications = false
+                self.onLoadCompleted?(.failure(.other(error.localizedDescription)))
+            }
+        }
+    }
+
     /// Cancel the current directory load and all icon load tasks
     func cancelCurrentLoad() {
         currentLoadTask?.cancel()
@@ -426,6 +502,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         mode == .normal && !Self.isMobileDocuments(directory)
     }
 
+    private func loadDirectoryEntries(_ url: URL, showHidden: Bool) async throws -> [LoadedFileEntry] {
+        try await LocalFileProvider.shared.list(.local(url), showHidden: showHidden)
+    }
+
     private func loadItems(for directory: URL, showHidden: Bool, mode: ICloudListingMode) async throws -> [FileItem] {
         switch mode {
         case .normal:
@@ -433,13 +513,13 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 return try await loadICloudRootItems(mobileDocsURL: directory, showHidden: showHidden)
             }
 
-            let entries = try await DirectoryLoader.shared.loadDirectory(directory, showHidden: showHidden)
+            let entries = try await loadDirectoryEntries(directory, showHidden: showHidden)
             return baseFileItems(for: entries)
         case .sharedTopLevel:
             if Self.isMobileDocuments(directory) || Self.isCloudDocs(directory) {
                 return try await loadICloudSharedTopLevelItems(baseURL: directory, showHidden: showHidden)
             }
-            let entries = try await DirectoryLoader.shared.loadDirectory(directory, showHidden: showHidden)
+            let entries = try await loadDirectoryEntries(directory, showHidden: showHidden)
             return baseFileItems(for: entries)
         }
     }
@@ -461,14 +541,14 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     }
 
     private func loadICloudRootItems(mobileDocsURL: URL, showHidden: Bool) async throws -> [FileItem] {
-        let rootEntries = try await DirectoryLoader.shared.loadDirectory(mobileDocsURL, showHidden: showHidden)
+        let rootEntries = try await loadDirectoryEntries(mobileDocsURL, showHidden: showHidden)
         guard let cloudDocsEntry = rootEntries.first(where: { Self.isCloudDocs($0.url) }) else {
             return baseFileItems(for: dedupeEntries(rootEntries))
         }
 
         // CloudDocs can contain Finder-visible entries that are flagged hidden (Desktop/Documents links).
         // Load all entries and apply Finder-like visibility rules in composition.
-        let cloudDocsChildren = try await DirectoryLoader.shared.loadDirectory(cloudDocsEntry.url, showHidden: true)
+        let cloudDocsChildren = try await loadDirectoryEntries(cloudDocsEntry.url, showHidden: true)
         return composeICloudRootItems(
             rootEntries: rootEntries,
             cloudDocsChildren: cloudDocsChildren,
@@ -498,7 +578,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     }
 
     private func loadICloudSharedSources(cloudDocsURL: URL, showHidden: Bool) async throws -> ICloudSharedSources {
-        async let cloudDocsChildren = DirectoryLoader.shared.loadDirectory(cloudDocsURL, showHidden: true)
+        async let cloudDocsChildren = loadDirectoryEntries(cloudDocsURL, showHidden: true)
         async let sharedRootRecords = Self.loadICloudSharedRootRecords()
         async let spotlightEntries = Self.loadICloudSharedSpotlightEntries(showHidden: showHidden)
         return ICloudSharedSources(
@@ -814,9 +894,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
         let foldersOnTop = SettingsManager.shared.foldersOnTop
 
-        // Save selection by URL
-        let selectedURLs = outlineView.selectedRowIndexes.compactMap { row -> URL? in
-            (outlineView.item(atRow: row) as? FileItem)?.url
+        // Save selection by item reference (resort reorders the same objects,
+        // and remote items have no local URL)
+        let selectedItems = outlineView.selectedRowIndexes.compactMap { row -> FileItem? in
+            outlineView.item(atRow: row) as? FileItem
         }
         let expanded = expandedFolders
 
@@ -840,12 +921,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
         // Restore selection
         var rowIndexes = IndexSet()
-        for url in selectedURLs {
-            if let item = findItem(withURL: url, in: items) {
-                let row = outlineView.row(forItem: item)
-                if row >= 0 {
-                    rowIndexes.insert(row)
-                }
+        for item in selectedItems {
+            let row = outlineView.row(forItem: item)
+            if row >= 0 {
+                rowIndexes.insert(row)
             }
         }
         if !rowIndexes.isEmpty {
@@ -940,7 +1019,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     private func fetchGitStatus(for directory: URL) {
         Task {
-            let statuses = await GitStatusProvider.shared.status(for: directory)
+            let providerStatuses = await LocalFileProvider.shared.gitStatus(for: .local(directory))
+            let statuses: [URL: GitStatus] = Dictionary(uniqueKeysWithValues: providerStatuses.compactMap { location, status in
+                guard case .local(let url) = location else { return nil }
+                return (url, status)
+            })
 
             // Update on main thread
             await MainActor.run {
@@ -1008,7 +1091,8 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         // that cause URL equality to fail even for the same path
         let targetPath = url.standardizedFileURL.path
         for item in items {
-            if item.url.standardizedFileURL.path == targetPath {
+            guard case .local(let itemURL) = item.location else { continue }
+            if itemURL.standardizedFileURL.path == targetPath {
                 return item
             }
             if let children = item.children,
@@ -1021,7 +1105,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     private func updateGitStatus(for items: [FileItem], statuses: [URL: GitStatus]) {
         for item in items {
-            item.gitStatus = statuses[item.url]
+            // Remote items get git status from the remote provider, keyed by
+            // Location; the URL-keyed local statuses don't apply (and .url traps).
+            guard case .local(let url) = item.location else { continue }
+            item.gitStatus = statuses[url]
             if let children = item.children {
                 updateGitStatus(for: children, statuses: statuses)
             }
@@ -1080,7 +1167,12 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
         guard let fileItem = item as? FileItem else { return nil }
-        return fileItem.url as NSURL
+        switch fileItem.location {
+        case .local(let url):
+            return url as NSURL
+        case .remote:
+            return dropDelegate?.pasteboardWriter(for: fileItem)
+        }
     }
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
@@ -1247,6 +1339,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             return true
         }
 
+        guard fileItem.isLocal else {
+            loadRemoteChildrenAsync(for: fileItem, in: outlineView)
+            return false
+        }
+
         // For network volumes, load children asynchronously
         if VolumeMonitor.isNetworkVolume(fileItem.url) {
             loadChildrenAsync(for: fileItem, in: outlineView)
@@ -1299,6 +1396,51 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 outlineView.expandItem(item)
             } catch {
                 // Expansion failed - set empty children so folder shows as empty
+                item.children = []
+                outlineView.reloadItem(item, reloadChildren: true)
+            }
+        }
+    }
+
+    private func loadRemoteChildrenAsync(for item: FileItem, in outlineView: NSOutlineView) {
+        guard let provider = currentRemoteProvider else { return }
+
+        let row = outlineView.row(forItem: item)
+        var spinner: NSProgressIndicator?
+        if row >= 0, let rowView = outlineView.rowView(atRow: row, makeIfNecessary: false) {
+            let indicator = NSProgressIndicator()
+            indicator.style = .spinning
+            indicator.controlSize = .small
+            indicator.sizeToFit()
+            indicator.frame = NSRect(x: 6, y: (rowView.bounds.height - 16) / 2, width: 16, height: 16)
+            rowView.addSubview(indicator)
+            indicator.startAnimation(nil)
+            spinner = indicator
+        }
+
+        let showHidden = showHiddenFiles
+        let sort = sortDescriptor
+        let foldersTop = SettingsManager.shared.foldersOnTop
+
+        Task { @MainActor [weak self] in
+            defer {
+                spinner?.stopAnimation(nil)
+                spinner?.removeFromSuperview()
+            }
+
+            do {
+                guard let self else { return }
+                let entries = try await provider.list(item.location, showHidden: showHidden)
+                let statuses = await provider.gitStatus(for: item.location)
+                let children = FileItem.sorted(self.baseFileItems(for: entries), by: sort, foldersOnTop: foldersTop)
+                for child in children {
+                    child.parent = item
+                    child.gitStatus = statuses[child.location]
+                }
+                item.children = children
+                outlineView.reloadItem(item, reloadChildren: true)
+                outlineView.expandItem(item)
+            } catch {
                 item.children = []
                 outlineView.reloadItem(item, reloadChildren: true)
             }
@@ -1378,6 +1520,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     func outlineViewItemDidExpand(_ notification: Notification) {
         guard let fileItem = notification.userInfo?["NSObject"] as? FileItem else { return }
+        guard fileItem.isLocal else {
+            expansionDelegate?.dataSourceDidExpandItem(fileItem)
+            return
+        }
         expandedFolders.insert(fileItem.url.standardizedFileURL)
         expansionDelegate?.dataSourceDidExpandItem(fileItem)
     }
@@ -1386,6 +1532,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         // Skip if we're suppressing collapse notifications during reload
         guard !suppressCollapseNotifications else { return }
         guard let fileItem = notification.userInfo?["NSObject"] as? FileItem else { return }
+        guard fileItem.isLocal else {
+            expansionDelegate?.dataSourceDidCollapseItem(fileItem)
+            return
+        }
         expandedFolders.remove(fileItem.url.standardizedFileURL)
         expansionDelegate?.dataSourceDidCollapseItem(fileItem)
     }
@@ -1441,6 +1591,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             return makeTextCell(text: item.formattedSize, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
         }
 
+        guard item.isLocal else {
+            return makeTextCell(text: item.size.map(formatSize) ?? "—", outlineView: outlineView, identifier: "SizeCell", alignment: .right)
+        }
+
         let url = item.url
         let cachedSize = FolderSizeCache.shared.size(for: url)
         let needsRefresh = cachedSize == nil || FolderSizeCache.shared.isStale(url: url)
@@ -1449,10 +1603,12 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         let cell = makeTextCell(text: cellText, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
 
         if needsRefresh {
-            FolderSizeCache.shared.calculateAsync(for: url) { [weak outlineView] _ in
-                Task { @MainActor in
+            Task { [weak outlineView] in
+                if let size = try? await LocalFileProvider.shared.folderSize(for: .local(url)) {
+                    FolderSizeCache.shared.store(size: size, for: url)
+                }
+                await MainActor.run {
                     guard let outlineView else { return }
-                    // Reload the entire Size column since we can't track the item across threads
                     let rowCount = outlineView.numberOfRows
                     if rowCount > 0 {
                         outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))

@@ -14,10 +14,21 @@ enum SharedItemRole: Equatable {
 
 final class FileItem {
     let name: String
-    let url: URL
+    let location: Location
+    var url: URL { location.url }
+    var isLocal: Bool {
+        if case .local = location { return true }
+        return false
+    }
+    var isRemote: Bool {
+        if case .remote = location { return true }
+        return false
+    }
     let isDirectory: Bool
     let isPackage: Bool
     let isAliasFile: Bool
+    let isSymbolicLink: Bool
+    let isReadable: Bool
     let isHiddenFile: Bool
     let size: Int64?
     let dateModified: Date
@@ -31,12 +42,74 @@ final class FileItem {
     var children: [FileItem]?  // nil = not loaded, empty = loaded but empty
     weak var parent: FileItem?
 
-    init(name: String, url: URL, isDirectory: Bool, isPackage: Bool = false, isAliasFile: Bool = false, size: Int64?, dateModified: Date, icon: NSImage, sharedRole: SharedItemRole? = nil, isVirtualSharedFolder: Bool = false, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
+    convenience init(name: String, location: Location, isDirectory: Bool, isPackage: Bool = false, isAliasFile: Bool = false, isSymbolicLink: Bool = false, isReadable: Bool = true, size: Int64?, dateModified: Date, icon: NSImage, sharedRole: SharedItemRole? = nil, isVirtualSharedFolder: Bool = false, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
+        switch location {
+        case .local(let url):
+            self.init(
+                name: name,
+                url: url,
+                isDirectory: isDirectory,
+                isPackage: isPackage,
+                isAliasFile: isAliasFile,
+                isSymbolicLink: isSymbolicLink,
+                isReadable: isReadable,
+                size: size,
+                dateModified: dateModified,
+                icon: icon,
+                sharedRole: sharedRole,
+                isVirtualSharedFolder: isVirtualSharedFolder,
+                iCloudStatus: iCloudStatus,
+                isHiddenFile: isHiddenFile,
+                gitStatus: gitStatus
+            )
+        case .remote:
+            self.init(
+                name: name,
+                location: location,
+                isDirectory: isDirectory,
+                isPackage: isPackage,
+                isAliasFile: isAliasFile,
+                isSymbolicLink: isSymbolicLink,
+                isReadable: isReadable,
+                size: size,
+                dateModified: dateModified,
+                icon: icon,
+                sharedRole: sharedRole,
+                isVirtualSharedFolder: isVirtualSharedFolder,
+                iCloudStatus: iCloudStatus,
+                isHiddenFile: isHiddenFile,
+                gitStatus: gitStatus,
+                remoteToken: ()
+            )
+        }
+    }
+
+    init(name: String, url: URL, isDirectory: Bool, isPackage: Bool = false, isAliasFile: Bool = false, isSymbolicLink: Bool = false, isReadable: Bool = true, size: Int64?, dateModified: Date, icon: NSImage, sharedRole: SharedItemRole? = nil, isVirtualSharedFolder: Bool = false, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
         self.name = name
-        self.url = url
+        self.location = .local(url)
         self.isDirectory = isDirectory
         self.isPackage = isPackage
         self.isAliasFile = isAliasFile
+        self.isSymbolicLink = isSymbolicLink
+        self.isReadable = isReadable
+        self.isHiddenFile = isHiddenFile
+        self.size = size
+        self.dateModified = dateModified
+        self.icon = icon
+        self.sharedRole = sharedRole
+        self.isVirtualSharedFolder = isVirtualSharedFolder
+        self.iCloudStatus = iCloudStatus
+        self.gitStatus = gitStatus
+    }
+
+    private init(name: String, location: Location, isDirectory: Bool, isPackage: Bool, isAliasFile: Bool, isSymbolicLink: Bool, isReadable: Bool, size: Int64?, dateModified: Date, icon: NSImage, sharedRole: SharedItemRole?, isVirtualSharedFolder: Bool, iCloudStatus: ICloudStatus, isHiddenFile: Bool, gitStatus: GitStatus?, remoteToken: Void) {
+        self.name = name
+        self.location = location
+        self.isDirectory = isDirectory
+        self.isPackage = isPackage
+        self.isAliasFile = isAliasFile
+        self.isSymbolicLink = isSymbolicLink
+        self.isReadable = isReadable
         self.isHiddenFile = isHiddenFile
         self.size = size
         self.dateModified = dateModified
@@ -48,11 +121,13 @@ final class FileItem {
     }
 
     init(entry: LoadedFileEntry, icon: NSImage) {
-        self.url = entry.url
+        self.location = entry.location
         self.name = entry.name
         self.isDirectory = entry.isDirectory
         self.isPackage = entry.isPackage
         self.isAliasFile = entry.isAliasFile
+        self.isSymbolicLink = entry.isSymbolicLink
+        self.isReadable = entry.isReadable
         self.isHiddenFile = entry.isHidden
         self.size = entry.fileSize
         self.dateModified = entry.contentModificationDate
@@ -87,7 +162,7 @@ final class FileItem {
     /// Synchronous init that reads resource values from the file system directly.
     /// Blocks the calling thread — prefer init(entry:icon:) for async paths.
     init(url: URL) {
-        self.url = url
+        self.location = .local(url)
 
         let resourceKeys: Set<URLResourceKey> = [
             .isDirectoryKey,
@@ -124,6 +199,8 @@ final class FileItem {
         self.isDirectory = isDirectory
         self.isPackage = values?.isPackage ?? false
         self.isAliasFile = values?.isAliasFile ?? false
+        self.isSymbolicLink = values?.isSymbolicLink ?? false
+        self.isReadable = values?.isReadable ?? true
         self.isHiddenFile = url.lastPathComponent.hasPrefix(".")
         self.size = isDirectory ? nil : Int64(values?.fileSize ?? 0)
         self.dateModified = values?.contentModificationDate ?? Date()
@@ -326,7 +403,12 @@ struct SortDescriptor: Equatable {
 extension FileItem {
     /// True if this is a navigable folder (directory but not a package or disk image)
     var isNavigableFolder: Bool {
-        isDirectory && !isPackage && !FileOpenHelper.isDiskImage(url)
+        switch location {
+        case .local(let url):
+            return isDirectory && !isPackage && !FileOpenHelper.isDiskImage(url)
+        case .remote:
+            return isDirectory && !isPackage
+        }
     }
 
     var sharedLabelText: String? {
@@ -345,6 +427,7 @@ extension FileItem {
     /// Returns nil if this item is not a valid drop target.
     var dropDestination: URL? {
         guard !isVirtualSharedFolder else { return nil }
+        guard case .local(let url) = location else { return nil }
         if isDirectory { return url }
         guard isAliasFile else { return nil }
         guard let resolved = try? URL(resolvingAliasFileAt: url, options: [.withoutUI, .withoutMounting]) else { return nil }
@@ -393,11 +476,11 @@ extension FileItem {
 
 extension FileItem: Hashable {
     static func == (lhs: FileItem, rhs: FileItem) -> Bool {
-        lhs.url == rhs.url
+        lhs.location == rhs.location
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(url)
+        hasher.combine(location)
     }
 }
 

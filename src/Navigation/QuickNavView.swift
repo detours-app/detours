@@ -3,14 +3,15 @@ import SwiftUI
 /// SwiftUI view for the Cmd-P quick navigation popover.
 struct QuickNavView: View {
     @State private var query: String = ""
-    @State private var results: [URL] = []
-    @State private var frecencyResults: [URL] = []
+    @State private var results: [QuickNavResult] = []
+    @State private var frecencyResults: [QuickNavResult] = []
     @State private var spotlightResults: [URL] = []
     @State private var selectedIndex: Int = 0
     @State private var spotlightSearch = SpotlightSearch()
     @FocusState private var isTextFieldFocused: Bool
 
     let onSelect: (URL) -> Void
+    var onSelectLocation: ((Location) -> Void)?
     let onReveal: (_ folder: URL, _ itemToSelect: URL) -> Void
     let onDismiss: () -> Void
 
@@ -44,11 +45,12 @@ struct QuickNavView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            ForEach(Array(results.enumerated()), id: \.offset) { index, url in
+                            ForEach(results.indices, id: \.self) { index in
+                                let result = results[index]
                                 ResultRow(
-                                    url: url,
+                                    result: result,
                                     isSelected: index == selectedIndex,
-                                    isFrecent: FrecencyStore.shared.isFrecent(url)
+                                    isFrecent: FrecencyStore.shared.isFrecent(result.location)
                                 )
                                 .id(index)
                                 .onTapGesture {
@@ -118,7 +120,7 @@ struct QuickNavView: View {
 
     private func loadInitialResults() {
         // Show top frecent directories on initial load
-        frecencyResults = FrecencyStore.shared.frecencyMatches(for: "", limit: maxResults)
+        frecencyResults = FrecencyStore.shared.frecencyLocationMatches(for: "", limit: maxResults)
         spotlightResults = []
         updateMergedResults()
         selectedIndex = 0
@@ -130,14 +132,14 @@ struct QuickNavView: View {
 
         // Empty query: just show frecency
         if newQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-            frecencyResults = FrecencyStore.shared.frecencyMatches(for: "", limit: maxResults)
+            frecencyResults = FrecencyStore.shared.frecencyLocationMatches(for: "", limit: maxResults)
             spotlightResults = []
             updateMergedResults()
             return
         }
 
         // INSTANTLY show frecency matches (no blocking)
-        frecencyResults = FrecencyStore.shared.frecencyMatches(for: newQuery, limit: maxResults)
+        frecencyResults = FrecencyStore.shared.frecencyLocationMatches(for: newQuery, limit: maxResults)
         updateMergedResults()
 
         // Start async Spotlight search - results stream in via callback
@@ -148,7 +150,7 @@ struct QuickNavView: View {
     }
 
     private func updateMergedResults() {
-        results = FrecencyStore.shared.mergeResults(
+        results = FrecencyStore.shared.mergeLocationResults(
             frecency: frecencyResults,
             spotlight: spotlightResults,
             limit: maxResults
@@ -166,12 +168,17 @@ struct QuickNavView: View {
 
     private func selectCurrent() {
         guard !results.isEmpty && selectedIndex < results.count else { return }
-        onSelect(results[selectedIndex])
+        let result = results[selectedIndex]
+        if let localURL = result.localURL {
+            onSelect(localURL)
+        } else {
+            onSelectLocation?(result.location)
+        }
     }
 
     private func revealCurrent() {
         guard !results.isEmpty && selectedIndex < results.count else { return }
-        let selected = results[selectedIndex]
+        guard let selected = results[selectedIndex].localURL else { return }
         // Navigate to containing folder and select the item
         onReveal(selected.deletingLastPathComponent(), selected)
     }
@@ -179,42 +186,35 @@ struct QuickNavView: View {
     private func autocomplete() {
         guard !results.isEmpty && selectedIndex < results.count else { return }
         let selected = results[selectedIndex]
-        query = displayPath(for: selected)
-    }
-
-    private func displayPath(for url: URL) -> String {
-        let path = url.path
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        if path.hasPrefix(home) {
-            return "~" + path.dropFirst(home.count)
-        }
-        return path
+        query = selected.subtitle
     }
 }
 
 // MARK: - Result Row
 
 private struct ResultRow: View {
-    let url: URL
+    let result: QuickNavResult
     let isSelected: Bool
     let isFrecent: Bool
-    let isDirectory: Bool
     let icon: NSImage
 
     private static let rowHeight: CGFloat = 48
 
-    init(url: URL, isSelected: Bool, isFrecent: Bool) {
-        self.url = url
+    init(result: QuickNavResult, isSelected: Bool, isFrecent: Bool) {
+        self.result = result
         self.isSelected = isSelected
         self.isFrecent = isFrecent
 
-        // Check if directory and get appropriate icon
-        var isDir: ObjCBool = false
-        self.isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
-
-        let systemIcon = NSWorkspace.shared.icon(forFile: url.path)
+        let systemIcon: NSImage
+        if result.isRemote {
+            systemIcon = NSImage(systemSymbolName: "network", accessibilityDescription: nil) ?? NSImage()
+        } else if let localURL = result.localURL {
+            systemIcon = NSWorkspace.shared.icon(forFile: localURL.path)
+        } else {
+            systemIcon = NSImage()
+        }
         systemIcon.size = NSSize(width: 20, height: 20)
-        if self.isDirectory {
+        if result.isDirectory {
             self.icon = FileItem.tintedFolderIcon(systemIcon)
         } else {
             self.icon = systemIcon
@@ -231,7 +231,7 @@ private struct ResultRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Line 1: Filename with star if frecent
                 HStack(spacing: 6) {
-                    Text(url.lastPathComponent)
+                    Text(result.title)
                         .font(Font(ThemeManager.shared.currentTheme.font(size: 13)))
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -241,10 +241,20 @@ private struct ResultRow: View {
                             .font(.system(size: 9))
                             .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                     }
+
+                    if let hostLabel = result.hostLabel {
+                        Text(hostLabel)
+                            .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 10, weight: .medium)))
+                            .foregroundColor(Color(ThemeManager.shared.currentTheme.accentText))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(ThemeManager.shared.currentTheme.accent).opacity(result.isConnected ? 0.85 : 0.45))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    }
                 }
 
                 // Line 2: Full path (secondary, smaller)
-                Text(displayPath)
+                Text(result.subtitle)
                     .font(Font(ThemeManager.shared.currentTheme.font(size: 11)))
                     .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
                     .lineLimit(1)
@@ -263,17 +273,9 @@ private struct ResultRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
         .frame(height: Self.rowHeight)
+        .opacity(result.isDimmed ? 0.48 : 1.0)
         .background(isSelected ? Color(ThemeManager.shared.currentTheme.accent).opacity(0.2) : Color.clear)
         .contentShape(Rectangle())
-    }
-
-    private var displayPath: String {
-        let path = url.path
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        if path.hasPrefix(home) {
-            return "~" + path.dropFirst(home.count)
-        }
-        return path
     }
 
     static var height: CGFloat { rowHeight }

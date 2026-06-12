@@ -30,6 +30,16 @@ final class FrecencyStore {
     /// The directory check runs on a background queue to avoid blocking
     /// the main thread on network volumes.
     func recordVisit(_ url: URL) {
+        recordVisit(.local(url))
+    }
+
+    func recordVisit(_ location: Location) {
+        if case .remote = location {
+            recordConfirmedVisit(location)
+            return
+        }
+
+        guard case .local(let url) = location else { return }
         let path = url.standardizedFileURL.path
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
@@ -48,12 +58,24 @@ final class FrecencyStore {
                     entry.lastVisit = Date()
                     self.entries[path] = entry
                 } else {
-                    self.entries[path] = FrecencyEntry(path: path, visitCount: 1, lastVisit: Date())
+                    self.entries[path] = FrecencyEntry(location: .local(URL(fileURLWithPath: path)), visitCount: 1, lastVisit: Date())
                 }
 
                 self.scheduleSave()
             }
         }
+    }
+
+    private func recordConfirmedVisit(_ location: Location) {
+        let key = Self.key(for: location)
+        if var entry = entries[key] {
+            entry.visitCount += 1
+            entry.lastVisit = Date()
+            entries[key] = entry
+        } else {
+            entries[key] = FrecencyEntry(location: location, visitCount: 1, lastVisit: Date())
+        }
+        scheduleSave()
     }
 
     /// Get top directories matching a query, sorted by frecency score.
@@ -90,7 +112,9 @@ final class FrecencyStore {
 
         // Add matching frecent entries with their scores
         let queryLower = expandedQuery.lowercased()
-        for (path, entry) in entries {
+        for (_, entry) in entries {
+            guard case .local(let entryURL) = entry.location else { continue }
+            let path = entryURL.standardizedFileURL.path
             let lastComponent = URL(fileURLWithPath: path).lastPathComponent.lowercased()
             if lastComponent.contains(queryLower) || path.lowercased().contains(queryLower) {
                 var isDirectory: ObjCBool = false
@@ -111,14 +135,18 @@ final class FrecencyStore {
 
     /// Get frecency matches only (no Spotlight search). Fast, for instant results.
     func frecencyMatches(for query: String, limit: Int = 10) -> [URL] {
+        frecencyLocationMatches(for: query, includeRemote: false, limit: limit).compactMap(\.localURL)
+    }
+
+    func frecencyLocationMatches(
+        for query: String,
+        remoteHosts: [RemoteHost] = RemoteHostStore.shared.hosts,
+        connectedHostIDs: Set<UUID> = [],
+        includeRemote: Bool = true,
+        limit: Int = 10
+    ) -> [QuickNavResult] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespaces)
 
-        // Empty query: return frecent directories only
-        if trimmedQuery.isEmpty {
-            return topFrecent(limit: limit)
-        }
-
-        // Expand ~ to home directory
         let expandedQuery: String
         if trimmedQuery.hasPrefix("~") {
             let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -127,79 +155,113 @@ final class FrecencyStore {
             expandedQuery = trimmedQuery
         }
 
-        // If query looks like an absolute path, check if it exists
-        if expandedQuery.hasPrefix("/") {
+        if !expandedQuery.isEmpty, expandedQuery.hasPrefix("/") {
             var isDirectory: ObjCBool = false
             if FileManager.default.fileExists(atPath: expandedQuery, isDirectory: &isDirectory),
                isDirectory.boolValue {
-                return [URL(fileURLWithPath: expandedQuery)]
+                return [.local(url: URL(fileURLWithPath: expandedQuery), score: .greatestFiniteMagnitude, isDirectory: true)]
             }
         }
 
-        // Search frecency entries only (no filesystem search)
-        var results: [(URL, Double)] = []
         let queryLower = expandedQuery.lowercased()
+        let hostsByID = Dictionary(uniqueKeysWithValues: remoteHosts.map { ($0.id, $0) })
+        var results: [QuickNavResult] = []
 
-        for (path, entry) in entries {
-            let lastComponent = URL(fileURLWithPath: path).lastPathComponent.lowercased()
-            if lastComponent.contains(queryLower) || path.lowercased().contains(queryLower) {
+        for (_, entry) in entries {
+            switch entry.location {
+            case .local(let entryURL):
+                let path = entryURL.standardizedFileURL.path
+                guard queryLower.isEmpty || matches(queryLower, path: path, label: nil) else { continue }
                 var isDirectory: ObjCBool = false
                 if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
                    isDirectory.boolValue {
-                    results.append((URL(fileURLWithPath: path), frecencyScore(for: entry)))
+                    results.append(.local(url: URL(fileURLWithPath: path), score: frecencyScore(for: entry), isDirectory: true))
                 }
+            case .remote(let hostID, _):
+                guard includeRemote else { continue }
+                let host = hostsByID[hostID]
+                guard queryLower.isEmpty || matches(queryLower, path: entry.location.path, label: host?.displayName) else { continue }
+                results.append(
+                    .remote(
+                        location: entry.location,
+                        host: host,
+                        isConnected: connectedHostIDs.contains(hostID),
+                        score: frecencyScore(for: entry)
+                    )
+                )
             }
         }
 
-        // Sort by score descending, take top N
-        results.sort { $0.1 > $1.1 }
-        return Array(results.prefix(limit).map { $0.0 })
+        results.sort { lhs, rhs in
+            if lhs.isDirectory != rhs.isDirectory {
+                return lhs.isDirectory
+            }
+            return lhs.score > rhs.score
+        }
+        return Array(results.prefix(limit))
     }
 
     /// Merge frecency results with Spotlight results.
     /// Folders come first, then files. Within each group, sorted by frecency score.
     func mergeResults(frecency: [URL], spotlight: [URL], limit: Int = 10) -> [URL] {
-        var seen = Set<URL>()
-        var allResults: [(url: URL, score: Double, isDirectory: Bool)] = []
-
-        // Add frecency results with their scores
-        for url in frecency {
-            if !seen.contains(url) {
-                seen.insert(url)
-                let score = entries[url.path].map { frecencyScore(for: $0) } ?? 0.0
+        mergeLocationResults(
+            frecency: frecency.map { url in
                 var isDir: ObjCBool = false
                 let isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
-                allResults.append((url, score, isDirectory))
+                let score = entries[Self.key(for: .local(url))].map { frecencyScore(for: $0) } ?? 0.0
+                return .local(url: url, score: score, isDirectory: isDirectory)
+            },
+            spotlight: spotlight,
+            limit: limit
+        ).compactMap(\.localURL)
+    }
+
+    func mergeLocationResults(frecency: [QuickNavResult], spotlight: [URL], limit: Int = 10) -> [QuickNavResult] {
+        var seen = Set<Location>()
+        var allResults: [QuickNavResult] = []
+
+        for result in frecency {
+            if !seen.contains(result.location) {
+                seen.insert(result.location)
+                allResults.append(result)
             }
         }
 
-        // Add Spotlight results that aren't already in frecency
         for url in spotlight {
-            if !seen.contains(url) {
-                seen.insert(url)
-                let score = entries[url.path].map { frecencyScore(for: $0) } ?? 0.0
+            let location = Location.local(url)
+            if !seen.contains(location) {
+                seen.insert(location)
+                let score = entries[Self.key(for: location)].map { frecencyScore(for: $0) } ?? 0.0
                 var isDir: ObjCBool = false
                 let isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
-                allResults.append((url, score, isDirectory))
+                allResults.append(.local(url: url, score: score, isDirectory: isDirectory))
             }
         }
 
-        // Sort: folders first, then by score descending
         allResults.sort { lhs, rhs in
             if lhs.isDirectory != rhs.isDirectory {
-                return lhs.isDirectory  // folders come first
+                return lhs.isDirectory
             }
             return lhs.score > rhs.score
         }
 
-        return Array(allResults.prefix(limit).map { $0.url })
+        return Array(allResults.prefix(limit))
+    }
+
+    private func matches(_ query: String, path: String, label: String?) -> Bool {
+        let lastComponent = URL(fileURLWithPath: path).lastPathComponent.lowercased()
+        let lowercasedPath = path.lowercased()
+        let lowercasedLabel = label?.lowercased()
+        return lastComponent.contains(query) || lowercasedPath.contains(query) || lowercasedLabel?.contains(query) == true
     }
 
     /// Return top frecent directories (for empty query)
     private func topFrecent(limit: Int) -> [URL] {
         var scored: [(URL, Double)] = []
 
-        for (path, entry) in entries {
+        for (_, entry) in entries {
+            guard case .local(let entryURL) = entry.location else { continue }
+            let path = entryURL.standardizedFileURL.path
             var isDirectory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
                   isDirectory.boolValue else {
@@ -214,7 +276,11 @@ final class FrecencyStore {
 
     /// Check if a directory is "frecent" (high score) - used for showing star icon
     func isFrecent(_ url: URL) -> Bool {
-        guard let entry = entries[url.standardizedFileURL.path] else {
+        isFrecent(.local(url))
+    }
+
+    func isFrecent(_ location: Location) -> Bool {
+        guard let entry = entries[Self.key(for: location)] else {
             return false
         }
         return frecencyScore(for: entry) >= 3.0
@@ -282,7 +348,7 @@ final class FrecencyStore {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             let loadedEntries = try decoder.decode([FrecencyEntry].self, from: data)
-            entries = Dictionary(uniqueKeysWithValues: loadedEntries.map { ($0.path, $0) })
+            entries = Dictionary(uniqueKeysWithValues: loadedEntries.map { (Self.key(for: $0.location), $0) })
             pruneOldEntries()
             logger.info("Loaded \(self.entries.count) frecency entries")
         } catch {
@@ -340,14 +406,69 @@ final class FrecencyStore {
 
     /// Get entry for path (for testing)
     func entry(for path: String) -> FrecencyEntry? {
-        entries[path]
+        entries[Self.key(for: .local(URL(fileURLWithPath: path)))] ?? entries[path]
+    }
+
+    func entry(for location: Location) -> FrecencyEntry? {
+        entries[Self.key(for: location)]
+    }
+
+    static func key(for location: Location) -> String {
+        switch location {
+        case .local(let url):
+            return url.standardizedFileURL.path
+        case .remote(let hostID, let path):
+            let normalizedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            return "remote:\(hostID.uuidString.lowercased()):/\(normalizedPath)"
+        }
     }
 }
 
 // MARK: - FrecencyEntry
 
 struct FrecencyEntry: Codable {
-    let path: String
+    let location: Location
     var visitCount: Int
     var lastVisit: Date
+
+    var path: String {
+        location.path
+    }
+
+    init(location: Location, visitCount: Int, lastVisit: Date) {
+        self.location = location
+        self.visitCount = visitCount
+        self.lastVisit = lastVisit
+    }
+
+    init(path: String, visitCount: Int, lastVisit: Date) {
+        self.init(location: .local(URL(fileURLWithPath: path)), visitCount: visitCount, lastVisit: lastVisit)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case location
+        case path
+        case visitCount
+        case lastVisit
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let location = try container.decodeIfPresent(Location.self, forKey: .location) {
+            self.location = location
+        } else {
+            let path = try container.decode(String.self, forKey: .path)
+            self.location = .local(URL(fileURLWithPath: path))
+        }
+        self.visitCount = try container.decode(Int.self, forKey: .visitCount)
+        self.lastVisit = try container.decode(Date.self, forKey: .lastVisit)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(location, forKey: .location)
+        try container.encode(path, forKey: .path)
+        try container.encode(visitCount, forKey: .visitCount)
+        try container.encode(lastVisit, forKey: .lastVisit)
+    }
 }

@@ -18,7 +18,7 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestCopyToOtherPane(items: [URL])
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>)
     func fileListDidChangeSelection()
-    func fileListDidLoadDirectory()
+    func fileListDidLoadDirectory(_ controller: FileListViewController)
 }
 
 final class FileListViewController: NSViewController, FileListKeyHandling, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
@@ -36,7 +36,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var currentICloudListingMode: ICloudListingMode = .normal
     private var hasLoadedDirectory = false
     let renameController = RenameController()
-    private var directoryWatcher: MultiDirectoryWatcher?
+    private var providerWatches: [URL: FileProviderWatch] = [:]
+    var currentRemoteHost: RemoteHost?
+    var currentRemoteLocation: Location?
+    var currentRemoteProvider: (any FileProvider)?
+    private var directoryWatchTask: Task<Void, Never>?
     private var directoryChangeDebounce: DispatchWorkItem?
     /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
     private var pendingPostLoadAction: (() -> Void)?
@@ -59,6 +63,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     // Loading state
     private var loadingSpinner: NSProgressIndicator?
     private var errorOverlay: NSView?
+    private var remoteQuickLookPreviewURL: URL?
+    private weak var remoteQuickLookProgressOverlay: NSView?
 
     // Filter bar
     private let filterBar = FilterBarView()
@@ -163,7 +169,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     @objc private func outlineViewItemDidExpand(_ notification: Notification) {
         dataSource.outlineViewItemDidExpand(notification)
         // Start watching the expanded folder
-        if let item = notification.userInfo?["NSObject"] as? FileItem {
+        if let item = notification.userInfo?["NSObject"] as? FileItem, item.isLocal {
             watchExpandedDirectory(item.url)
         }
         navigationDelegate?.fileListDidChangeSelection()
@@ -172,7 +178,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     @objc private func outlineViewItemDidCollapse(_ notification: Notification) {
         dataSource.outlineViewItemDidCollapse(notification)
         // Stop watching the collapsed folder
-        if let item = notification.userInfo?["NSObject"] as? FileItem {
+        if let item = notification.userInfo?["NSObject"] as? FileItem, item.isLocal {
             unwatchCollapsedDirectory(item.url)
         }
         navigationDelegate?.fileListDidChangeSelection()
@@ -255,6 +261,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Note: fileListDidBecomeActive() is NOT called here because selection can change
         // programmatically (git status, refresh, session restore) and we only want to
         // change active pane on USER interaction. User clicks trigger onActivate instead.
+        remoteQuickLookPreviewURL = nil
+        hideRemoteQuickLookProgressOverlay()
         navigationDelegate?.fileListDidChangeSelection()
         refreshQuickLookPanel()
     }
@@ -333,7 +341,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private func handleDoubleClick(row: Int) {
         guard row >= 0, let item = dataSource.item(at: row) else { return }
 
-        if item.isVirtualSharedFolder {
+        if case .remote = item.location {
+            openRemoteItem(item)
+        } else if item.isVirtualSharedFolder {
             navigationDelegate?.fileListDidRequestICloudSharedNavigation(cloudDocsURL: item.url)
         } else if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: item.url)
@@ -348,6 +358,47 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         } else {
             FileOpenHelper.open(item.url)
         }
+    }
+
+    func openRemoteItem(_ item: FileItem, applicationURL: URL? = nil) {
+        guard let provider = currentRemoteProvider else { return }
+        guard item.isReadable || item.isNavigableFolder else {
+            FileOperationQueue.shared.presentError(
+                FileProviderError.unsupportedOperation("Permission denied: \"\(item.name)\"")
+            )
+            return
+        }
+        if item.isNavigableFolder {
+            loadRemoteDirectory(item.location, provider: provider, preserveExpansion: false)
+        } else if item.isSymbolicLink {
+            Task { @MainActor in
+                do {
+                    let destination = try await provider.readSymlink(item.location)
+                    let entry = try await provider.stat(destination)
+                    if entry.isDirectory {
+                        self.loadRemoteDirectory(destination, provider: provider, preserveExpansion: false)
+                    } else if case .remote(let hostID, _) = destination {
+                        RemoteOpenWithCoordinator.shared.open(location: destination, provider: provider, hostID: hostID)
+                    } else {
+                        FileOperationQueue.shared.presentError(
+                            FileProviderError.unsupportedOperation("Remote symbolic link target is not reachable")
+                        )
+                    }
+                } catch {
+                    FileOperationQueue.shared.presentError(
+                        FileProviderError.unsupportedOperation(Self.remoteBrokenSymlinkMessage(fileName: item.name))
+                    )
+                }
+            }
+        } else {
+            if case .remote(let hostID, _) = item.location {
+                RemoteOpenWithCoordinator.shared.open(location: item.location, provider: provider, hostID: hostID, applicationURL: applicationURL)
+            }
+        }
+    }
+
+    nonisolated static func remoteBrokenSymlinkMessage(fileName: String) -> String {
+        "Remote symbolic link \"\(fileName)\" is broken or unreachable"
     }
 
     private func setupColumns() {
@@ -395,6 +446,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     /// Refresh current directory, preserving selection and expansion
     func refresh() {
+        if let currentRemoteLocation, let currentRemoteProvider {
+            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
+            return
+        }
         guard let currentDirectory else { return }
         loadDirectory(currentDirectory, preserveExpansion: true)
     }
@@ -483,6 +538,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         hideErrorOverlay()
 
         let normalizedURL = url.standardizedFileURL
+        if let previousRemoteHost = currentRemoteHost {
+            Task {
+                await RemoteConnectionRegistry.shared.paneStoppedViewing(hostID: previousRemoteHost.id)
+            }
+        }
+        currentRemoteHost = nil
+        currentRemoteLocation = nil
+        currentRemoteProvider = nil
         let previousDirectory = currentDirectory?.standardizedFileURL
         let effectiveListingMode: ICloudListingMode
         if let requestedListingMode {
@@ -565,7 +628,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     self.scrollView.reflectScrolledClipView(self.scrollView.contentView)
                 }
 
-                self.navigationDelegate?.fileListDidLoadDirectory()
+                self.navigationDelegate?.fileListDidLoadDirectory(self)
 
                 // Run one-shot post-load action (e.g. select + rename newly created item)
                 let action = self.pendingPostLoadAction
@@ -574,16 +637,16 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
             case .failure(let error):
                 self.showErrorOverlay(for: error)
-                self.navigationDelegate?.fileListDidLoadDirectory()
+                self.navigationDelegate?.fileListDidLoadDirectory(self)
             }
         }
 
         // Only reset the watcher when navigating to a different directory.
         // Same-directory reloads (watcher-triggered, file operations, undo)
         // skip this to preserve expanded subdirectory watches.
-        // Always start watching on first load (directoryWatcher is nil) since
+        // Always start watching on first load (providerWatches is empty) since
         // PaneTab's lazy init pre-sets currentDirectory, making previousDirectory == normalizedURL.
-        if previousDirectory != normalizedURL || directoryWatcher == nil {
+        if previousDirectory != normalizedURL || providerWatches.isEmpty {
             startWatching(normalizedURL)
         }
 
@@ -593,6 +656,65 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         // Track directory visit for frecency (this is instant, no I/O)
         FrecencyStore.shared.recordVisit(normalizedURL)
+    }
+
+    func loadRemoteDirectory(
+        host: RemoteHost,
+        path: String = "/",
+        provider: any FileProvider,
+        preserveExpansion: Bool = false
+    ) {
+        let previousRemoteHost = currentRemoteHost
+        loadRemoteDirectory(.remote(hostID: host.id, path: path), provider: provider, preserveExpansion: preserveExpansion)
+        currentRemoteHost = host
+        currentRemoteProvider = provider
+        if previousRemoteHost?.id != host.id {
+            Task {
+                if let previousRemoteHost {
+                    await RemoteConnectionRegistry.shared.paneStoppedViewing(hostID: previousRemoteHost.id)
+                }
+                await RemoteConnectionRegistry.shared.paneStartedViewing(hostID: host.id)
+            }
+        }
+    }
+
+    private func loadRemoteDirectory(_ location: Location, provider: any FileProvider, preserveExpansion: Bool) {
+        dataSource.cancelCurrentLoad()
+        hideLoadingIndicator()
+        hideErrorOverlay()
+        currentRemoteLocation = location
+        currentRemoteProvider = provider
+        currentDirectory = nil
+        currentICloudListingMode = .normal
+
+        if isFilterBarVisible {
+            hideFilterBar()
+        }
+
+        guard isViewLoaded else {
+            hasLoadedDirectory = false
+            return
+        }
+
+        dataSource.onLoadCompleted = { [weak self] result in
+            guard let self else { return }
+            self.hideLoadingIndicator()
+            switch result {
+            case .success:
+                self.hideErrorOverlay()
+                if !self.dataSource.items.isEmpty {
+                    self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                }
+                self.navigationDelegate?.fileListDidLoadDirectory(self)
+            case .failure(let error):
+                self.showErrorOverlay(for: error)
+                self.navigationDelegate?.fileListDidLoadDirectory(self)
+            }
+        }
+
+        dataSource.loadRemoteDirectory(location, provider: provider, preserveExpansion: preserveExpansion)
+        hasLoadedDirectory = true
+        FrecencyStore.shared.recordVisit(location)
     }
 
     // MARK: - Loading & Error States
@@ -762,26 +884,56 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func startWatching(_ url: URL) {
-        if directoryWatcher == nil {
-            directoryWatcher = MultiDirectoryWatcher { [weak self] changedURL in
-                DispatchQueue.main.async {
-                    self?.handleDirectoryChange(at: changedURL)
-                }
+        directoryWatchTask?.cancel()
+        let existingWatches = Array(providerWatches.values)
+        providerWatches.removeAll()
+
+        directoryWatchTask = Task { [weak self] in
+            for watch in existingWatches {
+                await LocalFileProvider.shared.unwatch(watch)
             }
-        } else {
-            directoryWatcher?.unwatchAll()
+            guard !Task.isCancelled else { return }
+            await self?.watchDirectoryThroughProvider(url)
         }
-        directoryWatcher?.watch(url)
     }
 
     /// Called when a folder is expanded - start watching it
     func watchExpandedDirectory(_ url: URL) {
-        directoryWatcher?.watch(url)
+        let normalized = url.standardizedFileURL
+        guard providerWatches[normalized] == nil else { return }
+        Task { [weak self] in
+            await self?.watchDirectoryThroughProvider(normalized)
+        }
     }
 
     /// Called when a folder is collapsed - stop watching it and its children
     func unwatchCollapsedDirectory(_ url: URL) {
-        directoryWatcher?.unwatch(url)
+        let normalized = url.standardizedFileURL
+        guard let watch = providerWatches.removeValue(forKey: normalized) else { return }
+        Task {
+            await LocalFileProvider.shared.unwatch(watch)
+        }
+    }
+
+    private func watchDirectoryThroughProvider(_ url: URL) async {
+        let normalized = url.standardizedFileURL
+        guard providerWatches[normalized] == nil else { return }
+
+        do {
+            let watch = try await LocalFileProvider.shared.watch(.local(normalized)) { [weak self] location in
+                guard case .local(let changedURL) = location else { return }
+                DispatchQueue.main.async {
+                    self?.handleDirectoryChange(at: changedURL)
+                }
+            }
+            guard !Task.isCancelled else {
+                await LocalFileProvider.shared.unwatch(watch)
+                return
+            }
+            providerWatches[normalized] = watch
+        } catch {
+            logger.warning("Failed to watch directory through FileProvider: \(normalized.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func handleDirectoryChange(at changedURL: URL) {
@@ -838,7 +990,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     var selectedURLs: [URL] {
-        selectedItems.map { $0.url }
+        selectedItems.compactMap {
+            guard case .local(let url) = $0.location else { return nil }
+            return url
+        }
     }
 
     /// Returns the effective destination for file operations based on current selection.
@@ -1978,10 +2133,118 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         guard let panel = QLPreviewPanel.shared() else { return }
 
         if panel.isVisible {
+            remoteQuickLookPreviewURL = nil
+            hideRemoteQuickLookProgressOverlay()
             panel.orderOut(nil)
+        } else if let remoteItem = selectedRemoteQuickLookItem() {
+            startRemoteQuickLook(for: remoteItem, panel: panel)
         } else {
             panel.makeKeyAndOrderFront(nil)
         }
+    }
+
+    private func selectedRemoteQuickLookItem() -> FileItem? {
+        guard selectedItems.count == 1,
+              let item = selectedItems.first,
+              !item.isNavigableFolder,
+              !item.isSymbolicLink else {
+            return nil
+        }
+        guard case .remote = item.location else { return nil }
+        return item
+    }
+
+    private func startRemoteQuickLook(for item: FileItem, panel: QLPreviewPanel) {
+        guard let provider = currentRemoteProvider,
+              case .remote(let hostID, _) = item.location else {
+            return
+        }
+
+        Task { @MainActor in
+            do {
+                let entry = try await provider.stat(item.location)
+                let byteCount = entry.fileSize ?? 0
+                guard byteCount <= RemoteFileCache.quickLookMaximumBytes else {
+                    presentRemoteQuickLookTooLarge(fileName: item.name, byteCount: byteCount)
+                    return
+                }
+
+                let previewURL = try RemoteFileCache.makeSessionFile(hostID: hostID, remotePath: item.location.path)
+                if byteCount >= RemoteFileCache.progressMinimumBytes {
+                    remoteQuickLookPreviewURL = previewURL
+                    panel.makeKeyAndOrderFront(nil)
+                    panel.reloadData()
+                    showRemoteQuickLookProgressOverlay(in: panel, byteCount: byteCount)
+                }
+
+                try await provider.download(item.location, to: previewURL)
+                remoteQuickLookPreviewURL = previewURL
+                hideRemoteQuickLookProgressOverlay()
+                panel.makeKeyAndOrderFront(nil)
+                panel.reloadData()
+            } catch {
+                hideRemoteQuickLookProgressOverlay()
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    private func presentRemoteQuickLookTooLarge(fileName: String, byteCount: Int64) {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        let size = formatter.string(fromByteCount: byteCount)
+        FileOperationQueue.shared.presentError(
+            FileProviderError.unsupportedOperation("\"\(fileName)\" is \(size). Remote Quick Look supports files up to 100 MB.")
+        )
+    }
+
+    private func showRemoteQuickLookProgressOverlay(in panel: QLPreviewPanel, byteCount: Int64) {
+        hideRemoteQuickLookProgressOverlay()
+        guard let contentView = panel.contentView else { return }
+
+        let overlay = NSView()
+        overlay.wantsLayer = true
+        overlay.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.88).cgColor
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+
+        let progress = NSProgressIndicator()
+        progress.style = .bar
+        progress.isIndeterminate = false
+        progress.minValue = 0
+        progress.maxValue = Double(max(byteCount, 1))
+        progress.doubleValue = 0
+        progress.translatesAutoresizingMaskIntoConstraints = false
+        progress.setAccessibilityLabel("Remote Quick Look download progress")
+
+        let label = NSTextField(labelWithString: "Downloading remote preview...")
+        label.alignment = .center
+        label.textColor = .secondaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        overlay.addSubview(progress)
+        overlay.addSubview(label)
+        contentView.addSubview(overlay)
+
+        NSLayoutConstraint.activate([
+            overlay.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            overlay.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            overlay.topAnchor.constraint(equalTo: contentView.topAnchor),
+            overlay.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+
+            progress.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            progress.centerYAnchor.constraint(equalTo: overlay.centerYAnchor),
+            progress.widthAnchor.constraint(equalToConstant: 260),
+
+            label.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            label.bottomAnchor.constraint(equalTo: progress.topAnchor, constant: -12),
+        ])
+
+        remoteQuickLookProgressOverlay = overlay
+    }
+
+    private func hideRemoteQuickLookProgressOverlay() {
+        remoteQuickLookProgressOverlay?.removeFromSuperview()
+        remoteQuickLookProgressOverlay = nil
     }
 
     override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
@@ -2006,12 +2269,18 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     nonisolated func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
         MainActor.assumeIsolated {
+            if remoteQuickLookPreviewURL != nil {
+                return 1
+            }
             return selectedURLs.count
         }
     }
 
     nonisolated func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
         MainActor.assumeIsolated {
+            if let remoteQuickLookPreviewURL {
+                return remoteQuickLookPreviewURL as NSURL
+            }
             let urls = selectedURLs
             guard index >= 0 && index < urls.count else { return nil }
             return urls[index] as NSURL

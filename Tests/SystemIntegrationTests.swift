@@ -13,6 +13,17 @@ final class SystemIntegrationTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempDir)
     }
 
+    @MainActor
+    private func loadDirectoryAndWait(_ vc: FileListViewController, at url: URL) async {
+        await withCheckedContinuation { continuation in
+            vc.dataSource.onLoadCompleted = { _ in
+                vc.dataSource.onLoadCompleted = nil
+                continuation.resume()
+            }
+            vc.dataSource.loadDirectory(url)
+        }
+    }
+
     // MARK: - Context Menu Tests
 
     @MainActor
@@ -24,7 +35,7 @@ final class SystemIntegrationTests: XCTestCase {
         let vc = FileListViewController()
         vc.loadView()
         vc.viewDidLoad()
-        vc.loadDirectory(tempDir)
+        await loadDirectoryAndWait(vc, at: tempDir)
 
         // Select the file
         vc.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -58,7 +69,7 @@ final class SystemIntegrationTests: XCTestCase {
         let vc = FileListViewController()
         vc.loadView()
         vc.viewDidLoad()
-        vc.loadDirectory(tempDir)
+        await loadDirectoryAndWait(vc, at: tempDir)
 
         // Select the folder
         vc.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -85,7 +96,7 @@ final class SystemIntegrationTests: XCTestCase {
         let vc = FileListViewController()
         vc.loadView()
         vc.viewDidLoad()
-        vc.loadDirectory(tempDir)
+        await loadDirectoryAndWait(vc, at: tempDir)
 
         // Select both files
         let selection = IndexSet([0, 1])
@@ -104,6 +115,34 @@ final class SystemIntegrationTests: XCTestCase {
         XCTAssertFalse(titles.contains("Rename"), "Menu should NOT have Rename item for multi-selection")
         // Open With should not appear for multiple files
         XCTAssertFalse(titles.contains("Open With"), "Menu should NOT have Open With item for multi-selection")
+    }
+
+    @MainActor
+    func testContextMenuBuildsRemoteOpenWithWithoutLocalURLAssumptions() {
+        let hostID = UUID()
+        let item = FileItem(
+            name: "remote.txt",
+            location: .remote(hostID: hostID, path: "/home/marco/remote.txt"),
+            isDirectory: false,
+            size: 5,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+
+        let vc = FileListViewController()
+        vc.loadView()
+        vc.viewDidLoad()
+        vc.dataSource.items = [item]
+        vc.tableView.reloadData()
+        vc.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        let menu = vc.buildContextMenu(for: IndexSet(integer: 0), clickedRow: 0)
+
+        let titles = menu?.items.map { $0.title } ?? []
+        XCTAssertTrue(titles.contains("Open"), "Remote file menu should have Open")
+        XCTAssertTrue(titles.contains("Open With"), "Remote file menu should have Open With")
+        XCTAssertFalse(titles.contains("Reveal in Finder"), "Remote file menu should not expose Finder-only actions")
+        XCTAssertFalse(titles.contains("Share"), "Remote file menu should not expose local sharing actions before materialising")
     }
 
     // MARK: - Open With Tests
@@ -157,7 +196,7 @@ final class SystemIntegrationTests: XCTestCase {
         let vc = FileListViewController()
         vc.loadView()
         vc.viewDidLoad()
-        vc.loadDirectory(tempDir)
+        await loadDirectoryAndWait(vc, at: tempDir)
 
         // Get items
         let items = vc.dataSource.items

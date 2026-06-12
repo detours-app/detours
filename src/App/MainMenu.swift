@@ -14,6 +14,7 @@ private var windowMenuDelegate: WindowMenuDelegate?
 
 @MainActor
 func setupMainMenu(target: AppDelegate) {
+    let application = NSApplication.shared
     let mainMenu = NSMenu()
 
     // Detours menu
@@ -68,6 +69,28 @@ func setupMainMenu(target: AppDelegate) {
     newFileMenuItem.submenu = newFileMenu
     newFileMenuItem.image = NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: nil)
     fileMenu.addItem(newFileMenuItem)
+
+    fileMenu.addItem(NSMenuItem.separator())
+
+    let addRemoteHostItem = createDynamicMenuItem(
+        title: "Add Remote Host...",
+        action: #selector(AppDelegate.addRemoteHost(_:)),
+        shortcutAction: .connectToServer,
+        target: target
+    )
+    addRemoteHostItem.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: nil)
+    fileMenu.addItem(addRemoteHostItem)
+
+    let connectToNetworkShareItem = NSMenuItem(
+        title: "Connect to Network Share...",
+        action: #selector(AppDelegate.connectToNetworkShare(_:)),
+        keyEquivalent: ""
+    )
+    connectToNetworkShareItem.target = target
+    connectToNetworkShareItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
+    fileMenu.addItem(connectToNetworkShareItem)
+
+    fileMenu.addItem(NSMenuItem.separator())
 
     let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(FileListViewController.duplicate(_:)), keyEquivalent: "d")
     duplicateItem.image = NSImage(systemSymbolName: "plus.square.on.square", accessibilityDescription: nil)
@@ -279,15 +302,6 @@ func setupMainMenu(target: AppDelegate) {
 
     goMenu.addItem(NSMenuItem.separator())
 
-    let connectToServerItem = createDynamicMenuItem(
-        title: "Connect to Server...",
-        action: #selector(AppDelegate.connectToServer(_:)),
-        shortcutAction: .connectToServer,
-        target: target
-    )
-    connectToServerItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
-    goMenu.addItem(connectToServerItem)
-
     // Window menu
     let windowMenu = NSMenu(title: "Window")
     let windowMenuItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
@@ -302,7 +316,7 @@ func setupMainMenu(target: AppDelegate) {
     zoomItem.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: nil)
     windowMenu.addItem(zoomItem)
 
-    NSApp.windowsMenu = windowMenu
+    application.windowsMenu = windowMenu
 
     // Remove "Enter Full Screen" that macOS adds automatically
     windowMenuDelegate = WindowMenuDelegate()
@@ -314,9 +328,11 @@ func setupMainMenu(target: AppDelegate) {
     helpMenuItem.submenu = helpMenu
     mainMenu.addItem(helpMenuItem)
 
-    NSApp.helpMenu = helpMenu
+    helpMenu.addItem(makeRemoteTrashHelpMenuItem(target: target))
 
-    NSApp.mainMenu = mainMenu
+    application.helpMenu = helpMenu
+
+    application.mainMenu = mainMenu
 
     // Observe shortcut changes to update menu key equivalents
     NotificationCenter.default.addObserver(
@@ -331,6 +347,14 @@ func setupMainMenu(target: AppDelegate) {
 }
 
 // MARK: - Dynamic Menu Items
+
+@MainActor
+func makeRemoteTrashHelpMenuItem(target: AppDelegate) -> NSMenuItem {
+    let item = NSMenuItem(title: "About Remote Trash", action: #selector(AppDelegate.showRemoteTrashInfo(_:)), keyEquivalent: "")
+    item.target = target
+    item.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+    return item
+}
 
 @MainActor
 private func createDynamicMenuItem(

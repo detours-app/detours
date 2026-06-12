@@ -50,21 +50,45 @@ final class FileOperationQueue {
     /// Posted when files are restored from trash via undo. userInfo contains "urls": [URL]
     static let filesRestoredNotification = Notification.Name("FileOperationQueue.filesRestored")
 
-    private init() {}
+    private struct QueuedOperation {
+        let hostIDs: Set<UUID>
+        let work: () async -> Void
+    }
+
+    private init() {
+        sshStateObserver = NotificationCenter.default.addObserver(
+            forName: .sshConnectionStateDidChange,
+            object: nil,
+            queue: nil
+        ) { [weak self] notification in
+            guard let change = notification.object as? SSHConnectionStateChange else { return }
+            Task { @MainActor [weak self, change] in
+                self?.handleSSHConnectionStateChange(change)
+            }
+        }
+    }
 
     private(set) var currentOperation: FileOperation?
     var onProgressUpdate: ((FileOperationProgress) -> Void)?
     var onOperationStart: ((FileOperation, Int) -> Void)?
     var onOperationFinish: ((FileOperation?, Error?) -> Void)?
+    var onOperationPaused: ((String) -> Void)?
 
     var pendingCount: Int { pending.count }
 
-    private var pending: [() async -> Void] = []
+    private var pending: [QueuedOperation] = []
     private var isRunning = false
     private(set) var isCancelled = false
     private var currentIOCancellable: AnyCancellableTask?
     private var currentCancelFlag: CancelFlag?
     private var currentProcess: Process?
+    private var remoteFileProviders: [UUID: any FileProvider] = [:]
+    private var remoteHostNames: [UUID: String] = [:]
+    private var pausedRemoteHosts: Set<UUID> = []
+    private var currentRemoteOperationHosts: Set<UUID> = []
+    private var currentRemoteOperationInterruptedHosts: Set<UUID> = []
+    private(set) var operationPauseMessage: String?
+    private var sshStateObserver: NSObjectProtocol?
     private var lastProgressTime: CFAbsoluteTime = 0
     private var pendingProgress: FileOperationProgress?
     private var progressThrottleWorkItem: DispatchWorkItem?
@@ -89,36 +113,87 @@ final class FileOperationQueue {
 
     // MARK: - Public API
 
+    func registerRemoteFileProvider(_ provider: any FileProvider, for hostID: UUID, displayName: String? = nil) {
+        remoteFileProviders[hostID] = provider
+        remoteHostNames[hostID] = displayName ?? RemoteHostStore.shared.host(id: hostID)?.displayName
+    }
+
+    func unregisterRemoteFileProvider(for hostID: UUID) {
+        remoteFileProviders.removeValue(forKey: hostID)
+        remoteHostNames.removeValue(forKey: hostID)
+        pausedRemoteHosts.remove(hostID)
+    }
+
     @discardableResult
     func copy(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
-        if !conflictsWithActiveHeavyOperation(sources: items, destination: destination),
-           await isSmallTransferCandidate(items: items) {
-            return try await performFastCopy(items: items, to: destination, undoManager: undoManager)
+        let copied = try await copy(items: items.map(Location.local), to: .local(destination), undoManager: undoManager)
+        return copied.map(\.url)
+    }
+
+    @discardableResult
+    func copy(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+        if await isFastLaneCandidate(sources: items, destination: destination),
+           let sourceURLs = localURLs(from: items),
+           case .local(let destinationURL) = destination {
+            return try await performFastCopy(items: sourceURLs, to: destinationURL, undoManager: undoManager).map(Location.local)
+        }
+
+        guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
+            let hostIDs = remoteHostIDs(from: items, destination: destination)
+            return try await enqueue(remoteHosts: hostIDs) {
+                try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager)
+            }
         }
         return try await enqueue {
-            try await self.performCopy(items: items, to: destination, undoManager: undoManager)
+            try await self.performCopy(items: sourceURLs, to: destinationURL, undoManager: undoManager).map(Location.local)
         }
     }
 
     @discardableResult
     func move(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
-        if !conflictsWithActiveHeavyOperation(sources: items, destination: destination),
-           await isSmallTransferCandidate(items: items) {
-            return try await performFastMove(items: items, to: destination, undoManager: undoManager)
+        let moved = try await move(items: items.map(Location.local), to: .local(destination), undoManager: undoManager)
+        return moved.map(\.url)
+    }
+
+    @discardableResult
+    func move(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+        if await isFastLaneCandidate(sources: items, destination: destination),
+           let sourceURLs = localURLs(from: items),
+           case .local(let destinationURL) = destination {
+            return try await performFastMove(items: sourceURLs, to: destinationURL, undoManager: undoManager).map(Location.local)
+        }
+
+        guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
+            let hostIDs = remoteHostIDs(from: items, destination: destination)
+            return try await enqueue(remoteHosts: hostIDs) {
+                try await self.performRemoteMove(items: items, to: destination, undoManager: undoManager)
+            }
         }
         return try await enqueue {
-            try await self.performMove(items: items, to: destination, undoManager: undoManager)
+            try await self.performMove(items: sourceURLs, to: destinationURL, undoManager: undoManager).map(Location.local)
         }
     }
 
     func delete(items: [URL], undoManager: UndoManager? = nil) async throws {
-        if items.count <= Self.fastLaneMaxItems,
-           !conflictsWithActiveHeavyOperation(sources: items, destination: nil) {
-            try await performFastDelete(items: items, undoManager: undoManager)
+        try await delete(items: items.map(Location.local), undoManager: undoManager)
+    }
+
+    func delete(items: [Location], undoManager: UndoManager? = nil) async throws {
+        if await isFastLaneDeleteCandidate(items),
+           let urls = localURLs(from: items) {
+            try await performFastDelete(items: urls, undoManager: undoManager)
+            return
+        }
+
+        guard let urls = localURLs(from: items) else {
+            let hostIDs = remoteHostIDs(from: items)
+            try await enqueue(remoteHosts: hostIDs) {
+                try await self.performRemoteDelete(items: items, undoManager: undoManager)
+            }
             return
         }
         try await enqueue {
-            try await self.performDelete(items: items, undoManager: undoManager)
+            try await self.performDelete(items: urls, undoManager: undoManager)
         }
     }
 
@@ -137,12 +212,24 @@ final class FileOperationQueue {
     }
 
     func rename(item: URL, to newName: String) async throws -> URL {
-        let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
-        if !conflictsWithActiveHeavyOperation(sources: [item], destination: destination) {
-            return try await performFastRename(item: item, to: newName)
+        try await rename(item: .local(item), to: newName).url
+    }
+
+    func rename(item: Location, to newName: String) async throws -> Location {
+        guard case .local(let itemURL) = item else {
+            return try await enqueue {
+                throw FileProviderError.unsupportedOperation("Remote rename is not implemented yet")
+            }
+        }
+
+        let destination = itemURL.deletingLastPathComponent().appendingPathComponent(newName)
+        if !conflictsWithActiveHeavyOperation(sources: [itemURL], destination: destination) {
+            let renamed = try await performFastRename(item: itemURL, to: newName)
+            return .local(renamed)
         }
         return try await enqueue {
-            try await self.performRename(item: item, to: newName)
+            let renamed = try await self.performRename(item: itemURL, to: newName)
+            return .local(renamed)
         }
     }
 
@@ -182,15 +269,37 @@ final class FileOperationQueue {
 
     @discardableResult
     func archive(items: [URL], format: ArchiveFormat, archiveName: String, password: String?) async throws -> URL {
-        try await enqueue {
-            try await self.performArchive(items: items, format: format, archiveName: archiveName, password: password)
+        try await archive(items: items.map(Location.local), format: format, archiveName: archiveName, password: password).url
+    }
+
+    @discardableResult
+    func archive(items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location {
+        guard let itemURLs = localURLs(from: items) else {
+            return try await enqueue {
+                throw FileProviderError.unsupportedOperation("Remote archive creation is not implemented yet")
+            }
+        }
+        return try await enqueue { () async throws -> Location in
+            let archive = try await self.performArchive(items: itemURLs, format: format, archiveName: archiveName, password: password)
+            return .local(archive)
         }
     }
 
     @discardableResult
     func extract(archive: URL, password: String? = nil) async throws -> URL {
-        try await enqueue {
-            try await self.performExtract(archive: archive, password: password)
+        try await extract(archive: .local(archive), password: password).url
+    }
+
+    @discardableResult
+    func extract(archive: Location, password: String? = nil) async throws -> Location {
+        guard case .local(let archiveURL) = archive else {
+            return try await enqueue {
+                throw FileProviderError.unsupportedOperation("Remote archive extraction is not implemented yet")
+            }
+        }
+        return try await enqueue { () async throws -> Location in
+            let extracted = try await self.performExtract(archive: archiveURL, password: password)
+            return .local(extracted)
         }
     }
 
@@ -361,13 +470,86 @@ final class FileOperationQueue {
         }.value
     }
 
+    func isFastLaneCandidateForTesting(sources: [Location], destination: Location?) async -> Bool {
+        if let destination {
+            return await isFastLaneCandidate(sources: sources, destination: destination)
+        }
+        return await isFastLaneDeleteCandidate(sources)
+    }
+
+    private func isFastLaneCandidate(sources: [Location], destination: Location) async -> Bool {
+        guard let sourceURLs = localURLs(from: sources), case .local(let destinationURL) = destination else {
+            return false
+        }
+        guard !conflictsWithActiveHeavyOperation(sources: sourceURLs, destination: destinationURL) else {
+            return false
+        }
+        return await isSmallTransferCandidate(items: sourceURLs)
+    }
+
+    private func isFastLaneDeleteCandidate(_ items: [Location]) async -> Bool {
+        guard let urls = localURLs(from: items) else {
+            return false
+        }
+        return urls.count <= Self.fastLaneMaxItems && !conflictsWithActiveHeavyOperation(sources: urls, destination: nil)
+    }
+
+    private func localURLs(from locations: [Location]) -> [URL]? {
+        var urls: [URL] = []
+        urls.reserveCapacity(locations.count)
+        for location in locations {
+            guard case .local(let url) = location else {
+                return nil
+            }
+            urls.append(url)
+        }
+        return urls
+    }
+
+    private func remoteGroups(from locations: [Location]) -> [UUID: [Location]]? {
+        var groups: [UUID: [Location]] = [:]
+        for location in locations {
+            guard case .remote(let hostID, _) = location else {
+                return nil
+            }
+            groups[hostID, default: []].append(location)
+        }
+        return groups
+    }
+
+    private func remoteHostIDs(from locations: [Location]) -> Set<UUID> {
+        Set(locations.compactMap { location in
+            guard case .remote(let hostID, _) = location else { return nil }
+            return hostID
+        })
+    }
+
+    private func remoteHostIDs(from locations: [Location], destination: Location) -> Set<UUID> {
+        var hostIDs = remoteHostIDs(from: locations)
+        if case .remote(let hostID, _) = destination {
+            hostIDs.insert(hostID)
+        }
+        return hostIDs
+    }
+
+    private func remoteProvider(for hostID: UUID) throws -> any FileProvider {
+        guard let provider = remoteFileProviders[hostID] else {
+            throw FileProviderError.unsupportedRemote(.remote(hostID: hostID, path: "/"))
+        }
+        return provider
+    }
+
     // MARK: - Queue
 
-    private func enqueue<T>(_ work: @escaping () async throws -> T) async throws -> T {
+    private func enqueue<T: Sendable>(_ work: @escaping () async throws -> T) async throws -> T {
+        try await enqueue(remoteHosts: [], work)
+    }
+
+    private func enqueue<T: Sendable>(remoteHosts hostIDs: Set<UUID>, _ work: @escaping () async throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
-            enqueue {
+            enqueue(remoteHosts: hostIDs) {
                 do {
-                    let result = try await work()
+                    let result = try await self.performQueuedRemoteAwareWork(hostIDs: hostIDs, work)
                     self.onOperationFinish?(self.lastFinishedOperation, nil)
                     continuation.resume(returning: result)
                 } catch {
@@ -378,8 +560,8 @@ final class FileOperationQueue {
         }
     }
 
-    private func enqueue(_ work: @escaping () async -> Void) {
-        pending.append(work)
+    private func enqueue(remoteHosts hostIDs: Set<UUID> = [], _ work: @escaping () async -> Void) {
+        pending.append(QueuedOperation(hostIDs: hostIDs, work: work))
         if !isRunning {
             processNext()
         }
@@ -392,13 +574,115 @@ final class FileOperationQueue {
         }
 
         isRunning = true
-        let work = pending.removeFirst()
+        let operation = pending.removeFirst()
 
         Task { @MainActor in
-            await work()
+            await operation.work()
             processNext()
         }
     }
+
+    private func performQueuedRemoteAwareWork<T: Sendable>(
+        hostIDs: Set<UUID>,
+        _ work: @escaping () async throws -> T
+    ) async throws -> T {
+        guard !hostIDs.isEmpty else {
+            return try await work()
+        }
+
+        while true {
+            try await waitForRemoteHosts(hostIDs)
+            currentRemoteOperationHosts = hostIDs
+            currentRemoteOperationInterruptedHosts = []
+            defer {
+                currentRemoteOperationHosts = []
+                currentRemoteOperationInterruptedHosts = []
+            }
+
+            do {
+                return try await work()
+            } catch {
+                let interruptedHosts = currentRemoteOperationInterruptedHosts.intersection(hostIDs)
+                if !interruptedHosts.isEmpty || !pausedRemoteHosts.isDisjoint(with: hostIDs) {
+                    try await waitForRemoteHosts(hostIDs)
+                    continue
+                }
+                throw error
+            }
+        }
+    }
+
+    private func waitForRemoteHosts(_ hostIDs: Set<UUID>) async throws {
+        while let pausedHostID = firstPausedHost(in: hostIDs) {
+            try checkCancelled()
+            publishRemotePause(for: pausedHostID)
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        clearRemotePause()
+    }
+
+    private func firstPausedHost(in hostIDs: Set<UUID>) -> UUID? {
+        hostIDs.first { pausedRemoteHosts.contains($0) }
+    }
+
+    private func handleSSHConnectionStateChange(_ change: SSHConnectionStateChange) {
+        switch change.newState {
+        case .failed:
+            pausedRemoteHosts.insert(change.hostID)
+            if currentRemoteOperationHosts.contains(change.hostID) {
+                currentRemoteOperationInterruptedHosts.insert(change.hostID)
+                currentCancelFlag?.cancel()
+                currentIOCancellable?.cancel()
+                currentProcess?.terminate()
+            }
+            publishRemotePause(for: change.hostID)
+        case .connected:
+            pausedRemoteHosts.remove(change.hostID)
+            if operationPauseMessage != nil, pausedRemoteHosts.isEmpty {
+                clearRemotePause()
+            }
+        case .disconnected, .connecting, .reconnecting:
+            break
+        }
+    }
+
+    private func publishRemotePause(for hostID: UUID) {
+        let message = "Paused — waiting for \(remoteDisplayName(for: hostID))"
+        operationPauseMessage = message
+        onOperationPaused?(message)
+    }
+
+    private func clearRemotePause() {
+        operationPauseMessage = nil
+    }
+
+    private func remoteDisplayName(for hostID: UUID) -> String {
+        if let name = remoteHostNames[hostID], !name.isEmpty {
+            return name
+        }
+        if let host = RemoteHostStore.shared.host(id: hostID) {
+            return host.displayName
+        }
+        return String(hostID.uuidString.prefix(8))
+    }
+
+    #if DEBUG
+    func resetRemoteQueueStateForTesting() {
+        pending.removeAll()
+        isRunning = false
+        isCancelled = false
+        currentRemoteOperationHosts = []
+        currentRemoteOperationInterruptedHosts = []
+        pausedRemoteHosts = []
+        operationPauseMessage = nil
+        remoteHostNames = [:]
+        remoteFileProviders = [:]
+        currentOperation = nil
+        lastFinishedOperation = nil
+        lastReceivedProgress = nil
+        onOperationPaused = nil
+    }
+    #endif
 
     // MARK: - Operations
 
@@ -454,7 +738,8 @@ final class FileOperationQueue {
                         skipped = true
                         destinationURL = initialDestination
                     case .replace:
-                        try await runFileIO { try FileManager.default.removeItem(at: initialDestination) }
+                        // Replacing must not permanently destroy the existing file: move it to the Trash.
+                        try await runFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
                         destinationURL = initialDestination
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
@@ -584,7 +869,8 @@ final class FileOperationQueue {
                         skipped = true
                         destinationURL = initialDestination
                     case .replace:
-                        try await runFileIO { try FileManager.default.removeItem(at: initialDestination) }
+                        // Replacing must not permanently destroy the existing file: move it to the Trash.
+                        try await runFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
                         destinationURL = initialDestination
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
@@ -721,6 +1007,171 @@ final class FileOperationQueue {
         }
 
         try handleFailures(successes: successes.map { $0.original }, failures: failures)
+    }
+
+    private func performRemoteCopy(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+        guard case .remote(let destinationHostID, _) = destination,
+              let groups = remoteGroups(from: items),
+              groups.count == 1,
+              groups[destinationHostID] != nil else {
+            throw FileProviderError.unsupportedOperation("Remote copy supports one host per operation")
+        }
+
+        let operation = FileOperation.copy(
+            sources: items.map { URL(fileURLWithPath: $0.path) },
+            destination: URL(fileURLWithPath: destination.path)
+        )
+        startOperation(operation, totalCount: items.count)
+        defer { finishOperation() }
+
+        try checkCancelled()
+        let provider = try remoteProvider(for: destinationHostID)
+        let copied = try await provider.copy(items, to: destination)
+        updateProgress(
+            operation: operation,
+            currentItem: copied.last.map { URL(fileURLWithPath: $0.path) },
+            completed: copied.count,
+            total: items.count
+        )
+
+        if !copied.isEmpty, let undoManager {
+            undoManager.registerUndo(withTarget: self) { target in
+                Task { @MainActor in
+                    do {
+                        try await target.performRemoteDelete(items: copied, undoManager: nil)
+                    } catch {
+                        target.presentError(error)
+                    }
+                }
+            }
+            let firstName = copied.first?.lastPathComponent ?? ""
+            let actionName = copied.count == 1 ? "Copy \"\(firstName)\"" : "Copy \(copied.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
+        return copied
+    }
+
+    private func performRemoteMove(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+        guard case .remote(let destinationHostID, _) = destination,
+              let groups = remoteGroups(from: items),
+              groups.count == 1,
+              groups[destinationHostID] != nil else {
+            throw FileProviderError.unsupportedOperation("Remote move supports one host per operation")
+        }
+
+        let operation = FileOperation.move(
+            sources: items.map { URL(fileURLWithPath: $0.path) },
+            destination: URL(fileURLWithPath: destination.path)
+        )
+        startOperation(operation, totalCount: items.count)
+        defer { finishOperation() }
+
+        try checkCancelled()
+        let provider = try remoteProvider(for: destinationHostID)
+        let moved = try await provider.move(items, to: destination)
+        updateProgress(
+            operation: operation,
+            currentItem: moved.last.map { URL(fileURLWithPath: $0.path) },
+            completed: moved.count,
+            total: items.count
+        )
+
+        if moved.count == items.count, let undoManager {
+            let originalItems = items
+            let movedItems = moved
+            undoManager.registerUndo(withTarget: self) { target in
+                Task { @MainActor in
+                    do {
+                        // Restore each item to its own original parent, not just the first item's:
+                        // a move can span several source directories on the same host.
+                        let pairs = Array(zip(movedItems, originalItems))
+                        var handledParents: Set<String> = []
+                        for (_, original) in pairs {
+                            let parent = original.deletingLastPathComponent()
+                            guard handledParents.insert(parent.path).inserted else { continue }
+                            let itemsForParent = pairs
+                                .filter { $0.1.deletingLastPathComponent().path == parent.path }
+                                .map(\.0)
+                            _ = try await target.performRemoteMove(items: itemsForParent, to: parent, undoManager: nil)
+                        }
+                    } catch {
+                        target.presentError(error)
+                    }
+                }
+            }
+            let firstName = moved.first?.lastPathComponent ?? ""
+            let actionName = moved.count == 1 ? "Move \"\(firstName)\"" : "Move \(moved.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
+        return moved
+    }
+
+    private func performRemoteDelete(items: [Location], undoManager: UndoManager? = nil) async throws {
+        guard let groups = remoteGroups(from: items) else {
+            throw FileProviderError.unsupportedOperation("Mixed local and remote delete is not implemented yet")
+        }
+
+        RemoteTrashExplainer.showIfNeeded()
+
+        let operation = FileOperation.delete(items: items.map { URL(fileURLWithPath: $0.path) })
+        startOperation(operation, totalCount: items.count)
+        defer { finishOperation() }
+
+        var trashedItems: [TrashedItem] = []
+        var completed = 0
+
+        for (hostID, hostItems) in groups {
+            try checkCancelled()
+            if let current = hostItems.first {
+                updateProgress(
+                    operation: operation,
+                    currentItem: URL(fileURLWithPath: current.path),
+                    completed: completed,
+                    total: items.count
+                )
+            }
+
+            let provider = try remoteProvider(for: hostID)
+            let trashed = try await provider.trash(hostItems)
+            trashedItems.append(contentsOf: trashed)
+            completed += hostItems.count
+
+            if let current = hostItems.last {
+                updateProgress(
+                    operation: operation,
+                    currentItem: URL(fileURLWithPath: current.path),
+                    completed: completed,
+                    total: items.count
+                )
+            }
+        }
+
+        guard !trashedItems.isEmpty, let undoManager else { return }
+
+        undoManager.registerUndo(withTarget: self) { target in
+            Task { @MainActor in
+                do {
+                    let restored = try await target.restoreRemoteTrashedItems(trashedItems)
+                    undoManager.registerUndo(withTarget: target) { redoTarget in
+                        Task { @MainActor in
+                            do {
+                                try await redoTarget.performRemoteDelete(items: restored, undoManager: nil)
+                            } catch {
+                                redoTarget.presentError(error)
+                            }
+                        }
+                    }
+                } catch {
+                    target.presentError(error)
+                }
+            }
+        }
+
+        let firstName = trashedItems.first?.originalLocation.lastPathComponent ?? ""
+        let actionName = trashedItems.count == 1 ? "Delete \"\(firstName)\"" : "Delete \(trashedItems.count) Items"
+        undoManager.setActionName(actionName)
     }
 
     private func performDeleteImmediately(items: [URL]) async throws {
@@ -1037,7 +1488,8 @@ final class FileOperationQueue {
                     case .skip:
                         skipped = true
                     case .replace:
-                        try await runUntrackedFileIO { try FileManager.default.removeItem(at: initialDestination) }
+                        // Replacing must not permanently destroy the existing file: move it to the Trash.
+                        try await runUntrackedFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
                         destinationURL = initialDestination
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: destination)
@@ -1106,7 +1558,8 @@ final class FileOperationQueue {
                     case .skip:
                         skipped = true
                     case .replace:
-                        try await runUntrackedFileIO { try FileManager.default.removeItem(at: initialDestination) }
+                        // Replacing must not permanently destroy the existing file: move it to the Trash.
+                        try await runUntrackedFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
                         destinationURL = initialDestination
                     case .keepBoth:
                         destinationURL = uniqueCopyDestination(for: source, in: destination)
@@ -2486,6 +2939,28 @@ final class FileOperationQueue {
 
     private func restoreFromTrash(items: [(original: URL, trash: URL)]) async throws {
         try restoreFromTrashSync(items: items)
+    }
+
+    private func restoreRemoteTrashedItems(_ items: [TrashedItem]) async throws -> [Location] {
+        var groups: [UUID: [TrashedItem]] = [:]
+        for item in items {
+            let hostID: UUID
+            if case .remote(let trashHostID, _) = item.trashLocation {
+                hostID = trashHostID
+            } else if case .remote(let originalHostID, _) = item.originalLocation {
+                hostID = originalHostID
+            } else {
+                throw FileProviderError.unsupportedOperation("Local trash restore must use the local restore path")
+            }
+            groups[hostID, default: []].append(item)
+        }
+
+        var restored: [Location] = []
+        for (hostID, hostItems) in groups {
+            let provider = try remoteProvider(for: hostID)
+            restored.append(contentsOf: try await provider.restoreFromTrash(hostItems))
+        }
+        return restored
     }
 
     private func restoreFromTrashSync(items: [(original: URL, trash: URL)]) throws {

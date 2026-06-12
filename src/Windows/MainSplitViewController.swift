@@ -15,6 +15,7 @@ final class MainSplitViewController: NSSplitViewController {
     private var lastMediaKeyTimestamp: TimeInterval = 0
     private var quickNavController: QuickNavController?
     private var saveSessionWorkItem: DispatchWorkItem?
+    private var remoteConnectTasks: [UUID: Task<RemoteConnectionResources, Error>] = [:]
 
     private enum SessionKeys {
         static let leftTabs = "Detours.LeftPaneTabs"
@@ -29,10 +30,42 @@ final class MainSplitViewController: NSSplitViewController {
         static let rightICloudListingModes = "Detours.RightPaneICloudListingModes"
         static let leftExpansions = "Detours.LeftPaneExpansions"
         static let rightExpansions = "Detours.RightPaneExpansions"
+        static let leftRemoteTabs = "Detours.LeftPaneRemoteTabs"
+        static let rightRemoteTabs = "Detours.RightPaneRemoteTabs"
         static let activePane = "Detours.ActivePane"
         static let sidebarVisible = "Detours.SidebarVisible"
         static let sidebarWidth = "Detours.SidebarWidth"
         static let splitDividerPosition = "Detours.SplitDividerPosition"
+    }
+
+    private struct PaneSessionKeys {
+        let tabs: String
+        let remoteTabs: String
+        let selectedIndex: String
+        let selections: String
+        let showHidden: String
+        let expansions: String
+        let listingModes: String
+
+        static let left = PaneSessionKeys(
+            tabs: SessionKeys.leftTabs,
+            remoteTabs: SessionKeys.leftRemoteTabs,
+            selectedIndex: SessionKeys.leftSelectedIndex,
+            selections: SessionKeys.leftSelections,
+            showHidden: SessionKeys.leftShowHiddenFiles,
+            expansions: SessionKeys.leftExpansions,
+            listingModes: SessionKeys.leftICloudListingModes
+        )
+
+        static let right = PaneSessionKeys(
+            tabs: SessionKeys.rightTabs,
+            remoteTabs: SessionKeys.rightRemoteTabs,
+            selectedIndex: SessionKeys.rightSelectedIndex,
+            selections: SessionKeys.rightSelections,
+            showHidden: SessionKeys.rightShowHiddenFiles,
+            expansions: SessionKeys.rightExpansions,
+            listingModes: SessionKeys.rightICloudListingModes
+        )
     }
 
     override func viewDidLoad() {
@@ -66,6 +99,7 @@ final class MainSplitViewController: NSSplitViewController {
         isRestoringSession = true
         restoreSession()
         isRestoringSession = false
+        reconnectRestoredRemoteTabs()
 
         // Restore sidebar visibility
         let sidebarVisible = defaults.object(forKey: SessionKeys.sidebarVisible) as? Bool ?? SettingsManager.shared.sidebarVisible
@@ -125,6 +159,12 @@ final class MainSplitViewController: NSSplitViewController {
             guard let self else { return }
             self.leftPane.updateOperationProgress(progress)
             self.rightPane.updateOperationProgress(progress)
+        }
+
+        queue.onOperationPaused = { [weak self] message in
+            guard let self else { return }
+            self.leftPane.showOperationPaused(message)
+            self.rightPane.showOperationPaused(message)
         }
 
         queue.onOperationFinish = { [weak self] operation, error in
@@ -357,12 +397,14 @@ final class MainSplitViewController: NSSplitViewController {
         defaults.set(leftPane.tabShowHiddenFiles, forKey: SessionKeys.leftShowHiddenFiles)
         defaults.set(encodeICloudListingModes(leftPane.tabICloudListingModes), forKey: SessionKeys.leftICloudListingModes)
         defaults.set(encodeExpansions(leftPane.tabExpansions), forKey: SessionKeys.leftExpansions)
+        defaults.set(RemoteTabSessionTarget.encode(leftPane.tabRemoteTargets), forKey: SessionKeys.leftRemoteTabs)
         defaults.set(rightPane.tabDirectories.map { $0.path }, forKey: SessionKeys.rightTabs)
         defaults.set(rightPane.selectedTabIndex, forKey: SessionKeys.rightSelectedIndex)
         defaults.set(encodeSelections(rightPane.tabSelections), forKey: SessionKeys.rightSelections)
         defaults.set(rightPane.tabShowHiddenFiles, forKey: SessionKeys.rightShowHiddenFiles)
         defaults.set(encodeICloudListingModes(rightPane.tabICloudListingModes), forKey: SessionKeys.rightICloudListingModes)
         defaults.set(encodeExpansions(rightPane.tabExpansions), forKey: SessionKeys.rightExpansions)
+        defaults.set(RemoteTabSessionTarget.encode(rightPane.tabRemoteTargets), forKey: SessionKeys.rightRemoteTabs)
         defaults.set(activePaneIndex, forKey: SessionKeys.activePane)
         defaults.set(!sidebarItem.isCollapsed, forKey: SessionKeys.sidebarVisible)
         saveSplitPosition()
@@ -432,38 +474,63 @@ final class MainSplitViewController: NSSplitViewController {
             return
         }
 
-        let leftTabs = restoreTabs(forKey: SessionKeys.leftTabs)
-        if !leftTabs.isEmpty {
-            let selectedIndex = defaults.integer(forKey: SessionKeys.leftSelectedIndex)
-            let selections = decodeSelections(defaults.object(forKey: SessionKeys.leftSelections))
-            let showHiddenFiles = defaults.array(forKey: SessionKeys.leftShowHiddenFiles) as? [Bool]
-            let expansions = decodeExpansions(defaults.object(forKey: SessionKeys.leftExpansions))
-            let iCloudListingModes = decodeICloudListingModes(defaults.object(forKey: SessionKeys.leftICloudListingModes))
-            leftPane.restoreTabs(from: leftTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles, expansions: expansions, iCloudListingModes: iCloudListingModes)
-        }
-
-        let rightTabs = restoreTabs(forKey: SessionKeys.rightTabs)
-        if !rightTabs.isEmpty {
-            let selectedIndex = defaults.integer(forKey: SessionKeys.rightSelectedIndex)
-            let selections = decodeSelections(defaults.object(forKey: SessionKeys.rightSelections))
-            let showHiddenFiles = defaults.array(forKey: SessionKeys.rightShowHiddenFiles) as? [Bool]
-            let expansions = decodeExpansions(defaults.object(forKey: SessionKeys.rightExpansions))
-            let iCloudListingModes = decodeICloudListingModes(defaults.object(forKey: SessionKeys.rightICloudListingModes))
-            rightPane.restoreTabs(from: rightTabs, selectedIndex: selectedIndex, selections: selections, showHiddenFiles: showHiddenFiles, expansions: expansions, iCloudListingModes: iCloudListingModes)
-        }
+        restorePane(leftPane, keys: .left)
+        restorePane(rightPane, keys: .right)
     }
 
-    private func restoreTabs(forKey key: String) -> [URL] {
-        guard let paths = defaults.array(forKey: key) as? [String] else { return [] }
-        return paths.compactMap { path in
+    private func restorePane(_ pane: PaneViewController, keys: PaneSessionKeys) {
+        guard let paths = defaults.array(forKey: keys.tabs) as? [String], !paths.isEmpty else { return }
+
+        let savedRemoteTargets = RemoteTabSessionTarget.decode(defaults.object(forKey: keys.remoteTabs), count: paths.count)
+        var urls: [URL] = []
+        var remoteTargets: [RemoteTabSessionTarget?] = []
+        var keptIndices: [Int] = []
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+
+        for (index, path) in paths.enumerated() {
             let url = URL(fileURLWithPath: path)
             var isDirectory: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-                  isDirectory.boolValue else {
-                return nil
+            let existsLocally = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+                && isDirectory.boolValue
+
+            if let target = savedRemoteTargets[index], RemoteHostStore.shared.host(id: target.hostID) != nil {
+                // Remote tab: keep it even if its stale local path is gone;
+                // home is the placeholder until the host reconnects.
+                urls.append(existsLocally ? url : homeDir)
+                remoteTargets.append(target)
+                keptIndices.append(index)
+            } else if existsLocally {
+                urls.append(url)
+                remoteTargets.append(nil)
+                keptIndices.append(index)
             }
-            return url
         }
+
+        guard !urls.isEmpty else { return }
+
+        // Per-tab arrays were saved aligned with the full tab list; realign them
+        // to the surviving tabs so a dropped tab doesn't shift everything after it.
+        let savedIndex = defaults.integer(forKey: keys.selectedIndex)
+        let selectedIndex = keptIndices.firstIndex(of: savedIndex) ?? 0
+        let selections = realigned(decodeSelections(defaults.object(forKey: keys.selections)), keptIndices: keptIndices, originalCount: paths.count)
+        let showHiddenFiles = realigned(defaults.array(forKey: keys.showHidden) as? [Bool], keptIndices: keptIndices, originalCount: paths.count)
+        let expansions = realigned(decodeExpansions(defaults.object(forKey: keys.expansions)), keptIndices: keptIndices, originalCount: paths.count)
+        let iCloudListingModes = realigned(decodeICloudListingModes(defaults.object(forKey: keys.listingModes)), keptIndices: keptIndices, originalCount: paths.count)
+
+        pane.restoreTabs(
+            from: urls,
+            selectedIndex: selectedIndex,
+            selections: selections,
+            showHiddenFiles: showHiddenFiles,
+            expansions: expansions,
+            iCloudListingModes: iCloudListingModes,
+            remoteTargets: remoteTargets
+        )
+    }
+
+    private func realigned<T>(_ array: [T]?, keptIndices: [Int], originalCount: Int) -> [T]? {
+        guard let array, array.count == originalCount else { return nil }
+        return keptIndices.map { array[$0] }
     }
 
     // MARK: - Active Pane Management
@@ -790,6 +857,11 @@ final class MainSplitViewController: NSSplitViewController {
 
 extension MainSplitViewController: SidebarDelegate {
     func sidebarDidSelectItem(_ item: SidebarItem) {
+        if case .remoteHost(let host) = item {
+            connectRemoteHost(host)
+            return
+        }
+
         guard let url = item.url else { return }
         navigateActivePane(to: url)
         // Restore focus to the active pane's file list
@@ -964,6 +1036,16 @@ extension MainSplitViewController: SidebarDelegate {
         SettingsManager.shared.favorites = favorites
     }
 
+    func sidebarDidRemoveRemoteHost(_ host: RemoteHost) {
+        RemoteHostStore.shared.remove(id: host.id)
+        FileOperationQueue.shared.unregisterRemoteFileProvider(for: host.id)
+        leftPane.navigateTabsViewingRemovedRemoteHost(host.id)
+        rightPane.navigateTabsViewingRemovedRemoteHost(host.id)
+        Task {
+            await RemoteConnectionRegistry.shared.unregister(hostID: host.id)
+        }
+    }
+
     func sidebarDidReorderFavorites(_ urls: [URL]) {
         SettingsManager.shared.favorites = urls.map { $0.path }
     }
@@ -1011,6 +1093,170 @@ extension MainSplitViewController: SidebarDelegate {
                 await self.mountNetworkURL(url)
             }
         }
+    }
+
+    func showAddRemoteHost() {
+        guard let window = view.window else { return }
+
+        let controller = AddRemoteHostWindowController()
+        controller.present(over: window) { [weak self] host in
+            let storedHost = RemoteHostStore.shared.upsert(host)
+            self?.connectRemoteHost(storedHost)
+        }
+    }
+
+    struct RemoteConnectionResources {
+        let provider: RemoteFileProvider
+        let homePath: String
+    }
+
+    private func connectRemoteHost(_ host: RemoteHost) {
+        Task { @MainActor in
+            do {
+                let resources = try await remoteConnectionTask(for: host).value
+                let selectedTabWasPending = activePane.selectedTabHasPendingRemoteTarget(hostID: host.id)
+                leftPane.resumePendingRemoteTabs(for: host, provider: resources.provider)
+                rightPane.resumePendingRemoteTabs(for: host, provider: resources.provider)
+                if !selectedTabWasPending {
+                    activePane.loadRemoteHost(host, provider: resources.provider, path: resources.homePath)
+                }
+                view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
+            } catch {
+                showRemoteConnectionError(error, host: host)
+            }
+        }
+    }
+
+    /// Reconnects every host that restored tabs are waiting on.
+    private func reconnectRestoredRemoteTabs() {
+        let hostIDs = leftPane.pendingRemoteHostIDs.union(rightPane.pendingRemoteHostIDs)
+        for hostID in hostIDs {
+            guard let host = RemoteHostStore.shared.host(id: hostID) else { continue }
+            retryRemoteConnection(for: host)
+        }
+    }
+
+    /// Connects a host and reopens the restored tabs waiting on it.
+    /// On failure the sidebar status dot and the reconnect banner surface the error.
+    func retryRemoteConnection(for host: RemoteHost) {
+        Task { @MainActor in
+            do {
+                let resources = try await remoteConnectionTask(for: host).value
+                leftPane.resumePendingRemoteTabs(for: host, provider: resources.provider)
+                rightPane.resumePendingRemoteTabs(for: host, provider: resources.provider)
+            } catch {
+                logger.error("Could not reopen remote tabs on \(host.displayName): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Returns the in-flight connect task for the host, or starts one.
+    /// Sharing the task means a sidebar click during session restore (or a
+    /// double click) never opens a second SSH connection to the same host.
+    private func remoteConnectionTask(for host: RemoteHost) -> Task<RemoteConnectionResources, Error> {
+        if let existing = remoteConnectTasks[host.id] {
+            return existing
+        }
+
+        let task = Task { @MainActor () -> RemoteConnectionResources in
+            defer { remoteConnectTasks[host.id] = nil }
+            Self.postRemoteConnectionState(.connecting, for: host.id)
+            do {
+                let bundledBinaryDirectory = Self.detoursServerBinaryDirectoryURL()
+                let deploymentClient = SSHServerDeploymentClient(sshTarget: host.sshTarget)
+                let deployer = ServerDeployer(client: deploymentClient, bundledBinaryDirectoryURL: bundledBinaryDirectory)
+                _ = try await deployer.deployIfNeeded()
+
+                let connection = SSHConnection(
+                    configuration: SSHConnectionConfiguration(hostID: host.id, sshTarget: host.sshTarget)
+                )
+                try await connection.connect()
+
+                let rpcClient = SSHRemoteRPCClient(connection: connection)
+                let transferChannel = RemoteTransferChannel(sshTarget: host.sshTarget)
+                let provider = RemoteFileProvider(
+                    hostID: host.id,
+                    rpcClient: rpcClient,
+                    transferChannel: transferChannel
+                )
+                let initialPath = try await validateRemoteConnection(provider: provider, rpcClient: rpcClient, host: host)
+
+                await RemoteConnectionRegistry.shared.register(connection, for: host.id)
+                FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
+                RemoteHostStore.shared.markConnected(id: host.id)
+                return RemoteConnectionResources(provider: provider, homePath: initialPath)
+            } catch {
+                Self.postRemoteConnectionState(.failed(reason: .transport(error.localizedDescription)), for: host.id)
+                throw error
+            }
+        }
+        remoteConnectTasks[host.id] = task
+        return task
+    }
+
+    /// SSHConnection only reports state once connect() runs; the deploy and
+    /// validation steps around it get sidebar feedback through these posts.
+    private static func postRemoteConnectionState(_ state: SSHConnectionState, for hostID: UUID) {
+        let change = SSHConnectionStateChange(hostID: hostID, oldState: .disconnected, newState: state)
+        NotificationCenter.default.post(name: .sshConnectionStateDidChange, object: change)
+    }
+
+    private func validateRemoteConnection(
+        provider: RemoteFileProvider,
+        rpcClient: SSHRemoteRPCClient,
+        host: RemoteHost
+    ) async throws -> String {
+        let response = try await rpcClient.send(.protocolVersion(1))
+        guard response.count == 1 else {
+            throw RemoteFileProviderError.invalidResponse("\(host.sshTarget) protocol version")
+        }
+        let initialPath = try await Self.remoteHomeDirectory(sshTarget: host.sshTarget)
+        _ = try await provider.list(.remote(hostID: host.id, path: initialPath), showHidden: false)
+        return initialPath
+    }
+
+    private static func remoteHomeDirectory(sshTarget: String) async throws -> String {
+        try await Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+            process.arguments = [
+                "-o", "BatchMode=yes",
+                "-o", "ConnectTimeout=8",
+                sshTarget,
+                "printf %s \"$HOME\"",
+            ]
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            process.standardOutput = outputPipe
+            process.standardError = errorPipe
+            try process.run()
+            process.waitUntilExit()
+            let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if process.terminationStatus == 0, !output.isEmpty {
+                return output
+            }
+            let stderr = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            throw RemoteFileProviderError.invalidResponse(stderr.isEmpty ? "\(sshTarget) home directory" : stderr)
+        }.value
+    }
+
+    private static func detoursServerBinaryDirectoryURL() -> URL {
+        if let resourceURL = Bundle.main.resourceURL?.appendingPathComponent("Servers"),
+           FileManager.default.fileExists(atPath: resourceURL.path) {
+            return resourceURL
+        }
+        return URL(fileURLWithPath: "resources/Servers")
+    }
+
+    private func showRemoteConnectionError(_ error: Error, host: RemoteHost) {
+        let alert = NSAlert()
+        alert.messageText = "Could not connect to \"\(host.displayName)\""
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     func mountNetworkURL(_ url: URL) async {

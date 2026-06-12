@@ -12,6 +12,34 @@ final class PaneViewControllerTests: XCTestCase {
         XCTFail("Timed out waiting for condition")
     }
 
+    private func breadcrumbControl(in view: NSView) -> NSPathControl? {
+        if let control = view as? NSPathControl {
+            return control
+        }
+        for subview in view.subviews {
+            if let control = breadcrumbControl(in: subview) {
+                return control
+            }
+        }
+        return nil
+    }
+
+    private func breadcrumbTitles(in view: NSView) -> [String] {
+        breadcrumbControl(in: view)?.pathItems.map(\.title) ?? []
+    }
+
+    private func descendant(in view: NSView, accessibilityIdentifier: String) -> NSView? {
+        if view.accessibilityIdentifier() == accessibilityIdentifier {
+            return view
+        }
+        for subview in view.subviews {
+            if let match = descendant(in: subview, accessibilityIdentifier: accessibilityIdentifier) {
+                return match
+            }
+        }
+        return nil
+    }
+
     func testCreateTabAddsToArray() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()
@@ -151,6 +179,152 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertEqual(pane.selectedTab?.iCloudListingMode, .sharedTopLevel)
     }
 
+    func testRemoteHostAppearsAsFirstBreadcrumbSegment() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+        pane.setRemoteBreadcrumbHost(host)
+
+        let control = breadcrumbControl(in: pane.view)
+        XCTAssertEqual(control?.pathItems.first?.title, "Dev VM")
+        XCTAssertNotNil(control?.pathItems.first?.image)
+        XCTAssertEqual(control?.toolTip, "devtest")
+    }
+
+    func testRemoteHostBreadcrumbSegmentIsPerTab() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let temp = try createTempDirectory()
+        let other = try createTestFolder(in: temp, name: "Other")
+        defer { cleanupTempDirectory(temp) }
+
+        _ = pane.createTab(at: temp, select: true)
+        pane.setRemoteBreadcrumbHost(RemoteHost(displayName: "Dev VM", sshTarget: "devtest"))
+        _ = pane.createTab(at: other, select: true)
+
+        XCTAssertNotEqual(breadcrumbTitles(in: pane.view).first, "Dev VM")
+
+        pane.selectTab(at: 1)
+        XCTAssertEqual(breadcrumbTitles(in: pane.view).first, "Dev VM")
+    }
+
+    func testLocalNavigationClearsRemoteHostBreadcrumbSegment() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        pane.setRemoteBreadcrumbHost(RemoteHost(displayName: "Dev VM", sshTarget: "devtest"))
+        pane.navigate(to: temp)
+
+        XCTAssertNotEqual(breadcrumbTitles(in: pane.view).first, "Dev VM")
+        XCTAssertNil(breadcrumbControl(in: pane.view)?.toolTip)
+    }
+
+    func testRemovingRemoteHostNavigatesBackToPreviousLocalDirectory() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        pane.navigate(to: temp)
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider())
+
+        pane.navigateTabsViewingRemovedRemoteHost(host.id)
+
+        XCTAssertNotEqual(breadcrumbTitles(in: pane.view).first, "Dev VM")
+        XCTAssertEqual(pane.selectedTab?.currentDirectory.standardizedFileURL, temp.standardizedFileURL)
+    }
+
+    func testRemovingRemoteHostFallsBackToHomeWhenPreviousLocalDirectoryIsGone() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let temp = try createTempDirectory()
+        pane.navigate(to: temp)
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider())
+        cleanupTempDirectory(temp)
+
+        pane.navigateTabsViewingRemovedRemoteHost(host.id)
+
+        XCTAssertNotEqual(breadcrumbTitles(in: pane.view).first, "Dev VM")
+        XCTAssertEqual(
+            pane.selectedTab?.currentDirectory.standardizedFileURL,
+            FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
+        )
+    }
+
+    func testRemoteTabTitleReflectsRemoteFolder() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider(), path: "/home/marco/projects")
+
+        waitUntil(pane.selectedTab?.title == "projects")
+        XCTAssertEqual(pane.selectedTab?.title, "projects")
+    }
+
+    func testRemoteTabTitleAtRootShowsHostName() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider(), path: "/")
+
+        waitUntil(pane.selectedTab?.title == "Dev VM")
+        XCTAssertEqual(pane.selectedTab?.title, "Dev VM")
+    }
+
+    func testRemoteTabUsesPlainFolderIcon() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider(), path: "/home/marco/projects")
+        waitUntil(pane.selectedTab?.title == "projects")
+
+        let tab = try XCTUnwrap(pane.selectedTab)
+        XCTAssertEqual(PaneTabBar.tabSymbolName(for: tab), "folder")
+    }
+
+    func testLocalTabKeepsContextualIcon() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        _ = pane.createTab(at: home, select: true)
+        let tab = try XCTUnwrap(pane.selectedTab)
+
+        XCTAssertEqual(PaneTabBar.tabSymbolName(for: tab), "house")
+    }
+
+    func testReconnectBannerAppearsForFailedRemoteHost() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider())
+        NotificationCenter.default.post(
+            name: .sshConnectionStateDidChange,
+            object: SSHConnectionStateChange(
+                hostID: host.id,
+                oldState: .connected,
+                newState: .failed(reason: .timedOut)
+            )
+        )
+
+        let banner = descendant(in: pane.view, accessibilityIdentifier: "remoteReconnectBanner")
+        XCTAssertNotNil(banner)
+        XCTAssertFalse(banner?.isHidden ?? true)
+    }
+
     // MARK: - Bug Fix Verification Tests
 
     /// Tests that restoreTabs correctly handles expansion and selection data.
@@ -249,4 +423,25 @@ final class PaneViewControllerTests: XCTestCase {
         // Note: expandedFolders is managed by outline view delegate, so this tests the data structure exists
         XCTAssertTrue(expandedCount >= 0, "Expanded folders set should exist")
     }
+}
+
+private actor PaneRemoteProvider: FileProvider {
+    func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] { [] }
+    func stat(_ location: Location) async throws -> LoadedFileEntry { throw FileProviderError.unsupportedOperation("stat") }
+    func copy(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+    func move(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+    func delete(_ items: [Location]) async throws {}
+    func trash(_ items: [Location]) async throws -> [TrashedItem] { [] }
+    func restoreFromTrash(_ items: [TrashedItem]) async throws -> [Location] { [] }
+    func rename(_ item: Location, to newName: String) async throws -> Location { item }
+    func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location { items[0] }
+    func archiveExtract(_ archive: Location, password: String?) async throws -> Location { archive }
+    func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        FileProviderWatch(id: UUID(), location: location)
+    }
+    func unwatch(_ watch: FileProviderWatch) async {}
+    func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
+    func folderSize(for location: Location) async throws -> Int64 { 0 }
+    func readSymlink(_ location: Location) async throws -> Location { location }
+    func openForQuickLook(_ location: Location) async throws -> URL { URL(fileURLWithPath: "/tmp/unused") }
 }

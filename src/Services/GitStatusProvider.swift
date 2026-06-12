@@ -33,9 +33,24 @@ actor GitStatusProvider {
         return statuses
     }
 
+    func status(for directory: Location) async -> [Location: GitStatus] {
+        switch directory {
+        case .local(let url):
+            let statuses = await status(for: url)
+            return Dictionary(uniqueKeysWithValues: statuses.map { (.local($0.key), $0.value) })
+        case .remote:
+            return [:]
+        }
+    }
+
     /// Invalidate cache for a directory (call after file operations)
     func invalidateCache(for directory: URL) {
         cache.removeValue(forKey: directory)
+    }
+
+    func invalidateCache(for directory: Location) {
+        guard case .local(let url) = directory else { return }
+        invalidateCache(for: url)
     }
 
     /// Invalidate all cached statuses

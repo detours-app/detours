@@ -120,7 +120,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindowController?.splitViewController.quickOpen(sender)
     }
 
-    @objc func connectToServer(_ sender: Any?) {
+    @objc func addRemoteHost(_ sender: Any?) {
+        mainWindowController?.splitViewController.showAddRemoteHost()
+    }
+
+    @objc func connectToNetworkShare(_ sender: Any?) {
         mainWindowController?.splitViewController.showConnectToServer()
     }
 
@@ -152,6 +156,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .version: "",  // Hide build number
             .credits: credits
         ])
+    }
+
+    @objc func showRemoteTrashInfo(_ sender: Any?) {
+        RemoteTrashExplainer.showFromHelp()
     }
 
     // MARK: - Preferences

@@ -7,16 +7,24 @@ let package = Package(
     platforms: [
         .macOS(.v14)
     ],
+    products: [
+        .executable(name: "Detours", targets: ["Detours"]),
+        .executable(name: "detours-server", targets: ["detours-server"]),
+    ],
     targets: [
         .executableTarget(
             name: "Detours",
             path: "src"
         ),
+        .executableTarget(
+            name: "detours-server",
+            path: "Server"
+        ),
         .testTarget(
             name: "DetoursTests",
-            dependencies: ["Detours"],
+            dependencies: ["Detours", "detours-server"],
             path: "Tests",
-            exclude: ["TEST_LOG.md"]
+            exclude: ["TEST_LOG.md", "UITests"]
         ),
     ]
 )

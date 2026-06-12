@@ -118,13 +118,15 @@ final class RenameController: NSObject, NSTextFieldDelegate {
             return
         }
 
+        let oldLocation = item.location
         let oldURL = item.url
         let undoManager = currentUndoManager
         cancelRename()
 
         Task { @MainActor in
             do {
-                let newURL = try await FileOperationQueue.shared.rename(item: oldURL, to: newName)
+                let newLocation = try await FileOperationQueue.shared.rename(item: oldLocation, to: newName)
+                let newURL = newLocation.url
 
                 if wasNewItem {
                     // For new folders: undo trashes the folder (synchronous)

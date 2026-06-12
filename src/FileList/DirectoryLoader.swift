@@ -17,12 +17,14 @@ enum DirectoryLoadError: Error, Equatable {
 // MARK: - LoadedFileEntry
 
 struct LoadedFileEntry: Sendable {
+    let location: Location
     let url: URL
     let name: String
     let isDirectory: Bool
     let isPackage: Bool
     let isAliasFile: Bool
     let isSymbolicLink: Bool
+    let isReadable: Bool
     let isHidden: Bool
     let fileSize: Int64?
     let contentModificationDate: Date
@@ -48,12 +50,14 @@ struct LoadedFileEntry: Sendable {
             return false
         }()
 
+        self.location = .local(url)
         self.url = url
         self.name = values?.localizedName ?? url.lastPathComponent
         self.isDirectory = isDirectory
         self.isPackage = values?.isPackage ?? false
         self.isAliasFile = isAliasFile
         self.isSymbolicLink = isSymbolicLink
+        self.isReadable = values?.isReadable ?? true
         self.isHidden = values?.isHidden ?? url.lastPathComponent.hasPrefix(".")
         self.fileSize = isDirectory ? nil : values?.fileSize.map { Int64($0) }
         self.contentModificationDate = values?.contentModificationDate ?? Date()
@@ -65,12 +69,14 @@ struct LoadedFileEntry: Sendable {
     }
 
     init(
+        location: Location? = nil,
         url: URL,
         name: String,
         isDirectory: Bool,
         isPackage: Bool = false,
         isAliasFile: Bool = false,
         isSymbolicLink: Bool = false,
+        isReadable: Bool = true,
         isHidden: Bool = false,
         fileSize: Int64? = nil,
         contentModificationDate: Date = Date(),
@@ -80,12 +86,14 @@ struct LoadedFileEntry: Sendable {
         ubiquitousItemDownloadingStatus: URLUbiquitousItemDownloadingStatus? = nil,
         ubiquitousItemIsDownloading: Bool = false
     ) {
+        self.location = location ?? .local(url)
         self.url = url
         self.name = name
         self.isDirectory = isDirectory
         self.isPackage = isPackage
         self.isAliasFile = isAliasFile
         self.isSymbolicLink = isSymbolicLink
+        self.isReadable = isReadable
         self.isHidden = isHidden
         self.fileSize = fileSize
         self.contentModificationDate = contentModificationDate
