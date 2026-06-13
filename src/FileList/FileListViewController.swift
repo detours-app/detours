@@ -64,6 +64,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     private var loadingSpinner: NSProgressIndicator?
     private var errorOverlay: NSView?
     private var remoteQuickLookPreviewURL: URL?
+    private var remoteQuickLookTask: Task<Void, Never>?
+    private var remoteQuickLookRequestLocation: Location?
     private weak var remoteQuickLookProgressOverlay: NSView?
 
     // Filter bar
@@ -261,10 +263,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Note: fileListDidBecomeActive() is NOT called here because selection can change
         // programmatically (git status, refresh, session restore) and we only want to
         // change active pane on USER interaction. User clicks trigger onActivate instead.
-        remoteQuickLookPreviewURL = nil
-        hideRemoteQuickLookProgressOverlay()
         navigationDelegate?.fileListDidChangeSelection()
-        refreshQuickLookPanel()
+        if let panel = QLPreviewPanel.shared(), panel.isVisible {
+            refreshQuickLookPanel()
+        } else {
+            clearRemoteQuickLookState()
+        }
     }
 
     private func setupScrollView() {
@@ -2133,8 +2137,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         guard let panel = QLPreviewPanel.shared() else { return }
 
         if panel.isVisible {
-            remoteQuickLookPreviewURL = nil
-            hideRemoteQuickLookProgressOverlay()
+            clearRemoteQuickLookState()
             panel.orderOut(nil)
         } else if let remoteItem = selectedRemoteQuickLookItem() {
             startRemoteQuickLook(for: remoteItem, panel: panel)
@@ -2160,11 +2163,24 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             return
         }
 
-        Task { @MainActor in
+        if remoteQuickLookRequestLocation == item.location,
+           remoteQuickLookTask != nil {
+            return
+        }
+
+        remoteQuickLookTask?.cancel()
+        remoteQuickLookRequestLocation = item.location
+        hideRemoteQuickLookProgressOverlay()
+
+        remoteQuickLookTask = Task { @MainActor in
             do {
                 let entry = try await provider.stat(item.location)
+                try Task.checkCancellation()
+                guard remoteQuickLookRequestLocation == item.location else { return }
+
                 let byteCount = entry.fileSize ?? 0
                 guard byteCount <= RemoteFileCache.quickLookMaximumBytes else {
+                    clearRemoteQuickLookState(cancelTask: false)
                     presentRemoteQuickLookTooLarge(fileName: item.name, byteCount: byteCount)
                     return
                 }
@@ -2178,15 +2194,34 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 }
 
                 try await provider.download(item.location, to: previewURL)
+                try Task.checkCancellation()
+                guard remoteQuickLookRequestLocation == item.location else { return }
+
                 remoteQuickLookPreviewURL = previewURL
+                remoteQuickLookTask = nil
                 hideRemoteQuickLookProgressOverlay()
                 panel.makeKeyAndOrderFront(nil)
                 panel.reloadData()
+            } catch is CancellationError {
+                if remoteQuickLookRequestLocation == item.location {
+                    remoteQuickLookTask = nil
+                }
             } catch {
-                hideRemoteQuickLookProgressOverlay()
+                guard remoteQuickLookRequestLocation == item.location else { return }
+                clearRemoteQuickLookState(cancelTask: false)
                 FileOperationQueue.shared.presentError(error)
             }
         }
+    }
+
+    private func clearRemoteQuickLookState(cancelTask: Bool = true) {
+        if cancelTask {
+            remoteQuickLookTask?.cancel()
+        }
+        remoteQuickLookTask = nil
+        remoteQuickLookRequestLocation = nil
+        remoteQuickLookPreviewURL = nil
+        hideRemoteQuickLookProgressOverlay()
     }
 
     private func presentRemoteQuickLookTooLarge(fileName: String, byteCount: Int64) {
@@ -2317,6 +2352,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func refreshQuickLookPanel() {
         guard let panel = QLPreviewPanel.shared(), panel.isVisible else { return }
+        if let remoteItem = selectedRemoteQuickLookItem() {
+            startRemoteQuickLook(for: remoteItem, panel: panel)
+            return
+        }
+        clearRemoteQuickLookState()
         panel.reloadData()
     }
 }
