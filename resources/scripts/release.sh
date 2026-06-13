@@ -86,7 +86,16 @@ EOF
 
 echo "==> Tagging v$VERSION..."
 if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-    echo "Tag v$VERSION already exists, skipping"
+    TAG_COMMIT=$(git rev-parse "v$VERSION^{}")
+    HEAD_COMMIT=$(git rev-parse HEAD)
+    if [[ "$TAG_COMMIT" != "$HEAD_COMMIT" ]]; then
+        echo "Error: Tag v$VERSION already exists but does not point at HEAD"
+        echo "  tag:  $TAG_COMMIT"
+        echo "  HEAD: $HEAD_COMMIT"
+        echo "Bump VERSION or move the local tag intentionally before releasing."
+        exit 1
+    fi
+    echo "Tag v$VERSION already points at HEAD, skipping"
 else
     git tag -a "v$VERSION" -m "Version $VERSION"
 fi

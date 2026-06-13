@@ -13,7 +13,7 @@ final class AddRemoteHostWindowController: NSWindowController {
         self.hostTrust = hostTrust
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 430, height: 460),
+            contentRect: NSRect(x: 0, y: 0, width: 540, height: 360),
             styleMask: [.titled],
             backing: .buffered,
             defer: false

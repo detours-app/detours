@@ -32,6 +32,97 @@ final class RemoteUISurfaceTests: XCTestCase {
         XCTAssertEqual(host.sshTarget, "wraith")
     }
 
+    func testAddRemoteHostSuggestionsIncludePersistedHosts() {
+        let originalHosts = RemoteHostStore.shared.hosts
+        defer { RemoteHostStore.shared.replaceAll(originalHosts) }
+
+        RemoteHostStore.shared.replaceAll([
+            RemoteHost(displayName: "Wraith", sshTarget: "wraith"),
+        ])
+
+        let model = AddRemoteHostModel()
+
+        XCTAssertEqual(model.suggestions.first, "wraith")
+    }
+
+    func testAddRemoteHostSuggestionKeyboardSelection() {
+        let model = AddRemoteHostModel(suggestions: ["devtest", "wraith", "wraith-build"])
+
+        model.sshTarget = "wraith"
+        XCTAssertEqual(model.visibleSuggestions, ["wraith", "wraith-build"])
+        XCTAssertEqual(model.selectedSuggestion, "wraith")
+
+        model.moveSuggestionSelection(by: 1)
+        XCTAssertEqual(model.selectedSuggestion, "wraith-build")
+
+        model.moveSuggestionSelection(by: -1)
+        XCTAssertEqual(model.selectedSuggestion, "wraith")
+
+        model.selectSuggestion(model.selectedSuggestion!)
+        XCTAssertEqual(model.sshTarget, "wraith")
+        XCTAssertEqual(model.selectedSuggestion, "wraith")
+    }
+
+    func testAddRemoteHostExactMatchRanksBeforeEarlierPartialMatch() {
+        let model = AddRemoteHostModel(suggestions: ["wraith-wifi", "wraith"])
+
+        model.sshTarget = "wraith"
+
+        XCTAssertEqual(model.visibleSuggestions, ["wraith", "wraith-wifi"])
+        XCTAssertFalse(model.showsTypedTargetRow)
+        XCTAssertEqual(model.selectedSuggestion, "wraith")
+        XCTAssertEqual(model.commitTarget(), "wraith")
+    }
+
+    func testAddRemoteHostCaseInsensitiveExactMatchCommitsConfigAlias() {
+        let model = AddRemoteHostModel(suggestions: ["wraith-wifi", "wraith"])
+
+        model.sshTarget = "Wraith"
+
+        XCTAssertEqual(model.visibleSuggestions, ["wraith", "wraith-wifi"])
+        XCTAssertFalse(model.showsTypedTargetRow)
+        XCTAssertEqual(model.selectedSuggestion, "wraith")
+        XCTAssertEqual(model.commitTarget(), "wraith")
+    }
+
+    func testAddRemoteHostTypedTargetWinsOverPartialSuggestionUntilUserSelectsSuggestion() {
+        let model = AddRemoteHostModel(suggestions: ["wraith-wifi"])
+
+        model.sshTarget = "Wraith"
+
+        XCTAssertEqual(model.visibleSuggestions, ["wraith-wifi"])
+        XCTAssertTrue(model.showsTypedTargetRow)
+        XCTAssertNil(model.selectedSuggestion)
+        XCTAssertEqual(model.commitTarget(), "Wraith")
+
+        model.moveSuggestionSelection(by: 1)
+
+        XCTAssertEqual(model.selectedSuggestion, "wraith-wifi")
+        XCTAssertEqual(model.commitTarget(), "wraith-wifi")
+    }
+
+    func testAddRemoteHostFiltersVisibleRowsForPartialTyping() {
+        let model = AddRemoteHostModel(suggestions: ["github.com", "jet", "wraith-wifi", "wraith"])
+
+        model.sshTarget = "wrait"
+
+        XCTAssertEqual(model.visibleSuggestions, ["wraith", "wraith-wifi"])
+        XCTAssertTrue(model.showsTypedTargetRow)
+        XCTAssertNil(model.selectedSuggestion)
+        XCTAssertFalse(model.visibleSuggestions.contains("github.com"))
+        XCTAssertFalse(model.visibleSuggestions.contains("jet"))
+    }
+
+    func testAddRemoteHostRenderedRowsForPartialTyping() {
+        let model = AddRemoteHostModel(suggestions: ["github.com", "jet", "wraith-wifi", "wraith"])
+
+        model.sshTarget = "wrait"
+
+        XCTAssertEqual(model.visibleRows.map(\.title), ["Add wrait", "wraith", "wraith-wifi"])
+        XCTAssertFalse(model.visibleRows.map(\.title).contains("github.com"))
+        XCTAssertFalse(model.visibleRows.map(\.title).contains("jet"))
+    }
+
     func testDeploySheetModelContainsRequiredSteps() {
         XCTAssertEqual(
             RemoteDeployStep.allCases.map(\.rawValue),
@@ -128,4 +219,5 @@ final class RemoteUISurfaceTests: XCTestCase {
             keyCode: keyCode
         )!
     }
+
 }

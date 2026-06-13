@@ -46,7 +46,8 @@ git push public main
 ./resources/scripts/release.sh
 ```
 
-The script reads the version from `src/App/AppDelegate.swift` and:
+The script reads the version from the root `VERSION` file and:
+
 1. Builds the release binary
 2. Creates a DMG with the app and Applications symlink
 3. Notarizes the DMG with Apple (automated, ~5-15 min)
@@ -58,11 +59,13 @@ The script will prompt to push the tag and upload the DMG. Press `y` to publish 
 ### Manual steps (if needed)
 
 Build:
+
 ```bash
 resources/scripts/build.sh
 ```
 
 Create DMG:
+
 ```bash
 mkdir -p .build/dmg-staging
 cp -R .build/Build/Products/Release/Detours.app .build/dmg-staging/
@@ -72,6 +75,7 @@ rm -rf .build/dmg-staging
 ```
 
 Notarize and staple:
+
 ```bash
 xcrun notarytool submit Detours-0.7.0.dmg \
   --keychain-profile "detours-notarize" --wait
@@ -79,6 +83,7 @@ xcrun stapler staple Detours-0.7.0.dmg
 ```
 
 Tag and release:
+
 ```bash
 git tag -a v0.7.0 -m "Version 0.7.0"
 git push public v0.7.0
@@ -91,7 +96,7 @@ gh release upload v0.7.0 Detours-0.7.0.dmg --repo detours-app/detours
 - Format: `0.x.y`
 - Increment `x` for new features
 - Increment `y` for bug fixes
-- Update version in `src/App/AppDelegate.swift` (applicationVersion)
+- Update version in the root `VERSION` file
 
 ## Pre-release Checklist
 

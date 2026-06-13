@@ -16,6 +16,7 @@ final class MainSplitViewController: NSSplitViewController {
     private var quickNavController: QuickNavController?
     private var saveSessionWorkItem: DispatchWorkItem?
     private var remoteConnectTasks: [UUID: Task<RemoteConnectionResources, Error>] = [:]
+    private var remoteConnectionResources: [UUID: RemoteConnectionResources] = [:]
 
     private enum SessionKeys {
         static let leftTabs = "Detours.LeftPaneTabs"
@@ -99,7 +100,7 @@ final class MainSplitViewController: NSSplitViewController {
         isRestoringSession = true
         restoreSession()
         isRestoringSession = false
-        reconnectRestoredRemoteTabs()
+        warmRemoteHostsOnLaunch()
 
         // Restore sidebar visibility
         let sidebarVisible = defaults.object(forKey: SessionKeys.sidebarVisible) as? Bool ?? SettingsManager.shared.sidebarVisible
@@ -122,6 +123,13 @@ final class MainSplitViewController: NSSplitViewController {
             self,
             selector: #selector(handleVolumeUnmount(_:)),
             name: NSWorkspace.didUnmountNotification,
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRemoteConnectionStateChange(_:)),
+            name: .sshConnectionStateDidChange,
             object: nil
         )
 
@@ -285,6 +293,13 @@ final class MainSplitViewController: NSSplitViewController {
             if paneNeedsRefresh {
                 pane.refreshTabBar()
             }
+        }
+    }
+
+    @objc private func handleRemoteConnectionStateChange(_ notification: Notification) {
+        guard let change = notification.object as? SSHConnectionStateChange else { return }
+        if case .failed = change.newState {
+            remoteConnectionResources.removeValue(forKey: change.hostID)
         }
     }
 
@@ -1037,7 +1052,16 @@ extension MainSplitViewController: SidebarDelegate {
     }
 
     func sidebarDidRemoveRemoteHost(_ host: RemoteHost) {
+        let alert = NSAlert()
+        alert.messageText = "Eject \"\(host.displayName)\"?"
+        alert.informativeText = "This removes the remote host from the sidebar and moves any tabs using it back to a local folder."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Eject")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
         RemoteHostStore.shared.remove(id: host.id)
+        remoteConnectionResources.removeValue(forKey: host.id)
         FileOperationQueue.shared.unregisterRemoteFileProvider(for: host.id)
         leftPane.navigateTabsViewingRemovedRemoteHost(host.id)
         rightPane.navigateTabsViewingRemovedRemoteHost(host.id)
@@ -1112,9 +1136,12 @@ extension MainSplitViewController: SidebarDelegate {
 
     private func connectRemoteHost(_ host: RemoteHost) {
         Task { @MainActor in
+            let selectedTabWasPending = activePane.selectedTabHasPendingRemoteTarget(hostID: host.id)
+            if !selectedTabWasPending {
+                activePane.showConnectingRemoteHost(host)
+            }
             do {
                 let resources = try await remoteConnectionTask(for: host).value
-                let selectedTabWasPending = activePane.selectedTabHasPendingRemoteTarget(hostID: host.id)
                 leftPane.resumePendingRemoteTabs(for: host, provider: resources.provider)
                 rightPane.resumePendingRemoteTabs(for: host, provider: resources.provider)
                 if !selectedTabWasPending {
@@ -1127,12 +1154,30 @@ extension MainSplitViewController: SidebarDelegate {
         }
     }
 
-    /// Reconnects every host that restored tabs are waiting on.
-    private func reconnectRestoredRemoteTabs() {
+    /// Checks every saved host on launch. Reachable hosts become live sidebar
+    /// entries and any restored remote tabs are resumed; unreachable hosts stay
+    /// visible with a failed state so the user can retry or remove them.
+    private func warmRemoteHostsOnLaunch() {
         let hostIDs = leftPane.pendingRemoteHostIDs.union(rightPane.pendingRemoteHostIDs)
-        for hostID in hostIDs {
-            guard let host = RemoteHostStore.shared.host(id: hostID) else { continue }
-            retryRemoteConnection(for: host)
+        for host in RemoteHostStore.shared.hosts {
+            if hostIDs.contains(host.id) {
+                retryRemoteConnection(for: host)
+            } else {
+                prewarmRemoteHost(host)
+            }
+        }
+    }
+
+    /// Opens the SSH helper connection for a saved host without navigating a pane.
+    /// This gives the sidebar an accurate launch-time status for hosts that do
+    /// not currently have restored tabs.
+    private func prewarmRemoteHost(_ host: RemoteHost) {
+        Task { @MainActor in
+            do {
+                _ = try await remoteConnectionTask(for: host).value
+            } catch {
+                logger.error("Could not prewarm remote host \(host.displayName): \(error.localizedDescription)")
+            }
         }
     }
 
@@ -1154,6 +1199,10 @@ extension MainSplitViewController: SidebarDelegate {
     /// Sharing the task means a sidebar click during session restore (or a
     /// double click) never opens a second SSH connection to the same host.
     private func remoteConnectionTask(for host: RemoteHost) -> Task<RemoteConnectionResources, Error> {
+        if let resources = remoteConnectionResources[host.id] {
+            return Task { @MainActor in resources }
+        }
+
         if let existing = remoteConnectTasks[host.id] {
             return existing
         }
@@ -1184,8 +1233,11 @@ extension MainSplitViewController: SidebarDelegate {
                 await RemoteConnectionRegistry.shared.register(connection, for: host.id)
                 FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
                 RemoteHostStore.shared.markConnected(id: host.id)
-                return RemoteConnectionResources(provider: provider, homePath: initialPath)
+                let resources = RemoteConnectionResources(provider: provider, homePath: initialPath)
+                remoteConnectionResources[host.id] = resources
+                return resources
             } catch {
+                remoteConnectionResources.removeValue(forKey: host.id)
                 Self.postRemoteConnectionState(.failed(reason: .transport(error.localizedDescription)), for: host.id)
                 throw error
             }

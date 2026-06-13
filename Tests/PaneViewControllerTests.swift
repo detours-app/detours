@@ -282,6 +282,34 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertEqual(pane.selectedTab?.title, "Dev VM")
     }
 
+    func testRemoteParentNavigationMovesAboveHomePath() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let host = RemoteHost(displayName: "Wraith", sshTarget: "wraith")
+
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider(), path: "/home/marco")
+        pane.fileListDidRequestParentNavigation()
+
+        XCTAssertEqual(
+            pane.selectedTab?.fileListViewController.currentRemoteLocation,
+            .remote(hostID: host.id, path: "/home")
+        )
+    }
+
+    func testRemoteParentNavigationStopsAtRoot() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let host = RemoteHost(displayName: "Wraith", sshTarget: "wraith")
+
+        pane.loadRemoteHost(host, provider: PaneRemoteProvider(), path: "/")
+        pane.fileListDidRequestParentNavigation()
+
+        XCTAssertEqual(
+            pane.selectedTab?.fileListViewController.currentRemoteLocation,
+            .remote(hostID: host.id, path: "/")
+        )
+    }
+
     func testRemoteTabUsesPlainFolderIcon() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()
@@ -323,6 +351,64 @@ final class PaneViewControllerTests: XCTestCase {
         let banner = descendant(in: pane.view, accessibilityIdentifier: "remoteReconnectBanner")
         XCTAssertNotNil(banner)
         XCTAssertFalse(banner?.isHidden ?? true)
+    }
+
+    func testRestoredRemoteTabDoesNotLoadLocalFallbackBeforeReconnect() throws {
+        let originalHosts = RemoteHostStore.shared.hosts
+        defer { RemoteHostStore.shared.replaceAll(originalHosts) }
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        FileManager.default.createFile(
+            atPath: temp.appendingPathComponent("local.txt").path,
+            contents: Data("local".utf8)
+        )
+
+        let host = RemoteHost(displayName: "Wraith", sshTarget: "wraith")
+        RemoteHostStore.shared.replaceAll([host])
+
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        pane.restoreTabs(
+            from: [temp],
+            selectedIndex: 0,
+            remoteTargets: [RemoteTabSessionTarget(hostID: host.id, path: "/Users/marco")]
+        )
+
+        XCTAssertEqual(pane.selectedTab?.fileListViewController.tableView.numberOfRows, 0)
+        XCTAssertEqual(
+            pane.selectedTab?.fileListViewController.currentRemoteLocation,
+            .remote(hostID: host.id, path: "/Users/marco")
+        )
+        let hasSpinner = pane.selectedTab?.fileListViewController.view.subviews.contains { $0 is NSProgressIndicator }
+        XCTAssertEqual(hasSpinner, true)
+    }
+
+    func testConnectingRemoteHostClearsLocalRowsBeforeConnectionCompletes() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        FileManager.default.createFile(
+            atPath: temp.appendingPathComponent("local.txt").path,
+            contents: Data("local".utf8)
+        )
+
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        pane.navigate(to: temp)
+        waitUntil(pane.selectedTab?.fileListViewController.tableView.numberOfRows == 1)
+
+        let host = RemoteHost(displayName: "Wraith", sshTarget: "wraith")
+        pane.showConnectingRemoteHost(host)
+
+        XCTAssertEqual(pane.selectedTab?.fileListViewController.tableView.numberOfRows, 0)
+        XCTAssertEqual(
+            pane.selectedTab?.fileListViewController.currentRemoteLocation,
+            .remote(hostID: host.id, path: "/")
+        )
+        XCTAssertNil(pane.selectedTab?.fileListViewController.currentDirectory)
+        let hasSpinner = pane.selectedTab?.fileListViewController.view.subviews.contains { $0 is NSProgressIndicator }
+        XCTAssertEqual(hasSpinner, true)
     }
 
     // MARK: - Bug Fix Verification Tests

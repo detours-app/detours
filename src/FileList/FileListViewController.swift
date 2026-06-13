@@ -721,6 +721,37 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         FrecencyStore.shared.recordVisit(location)
     }
 
+    @discardableResult
+    func loadRemoteParentDirectory() -> Bool {
+        guard let currentRemoteLocation,
+              let currentRemoteProvider,
+              case .remote(let hostID, let path) = currentRemoteLocation else {
+            return false
+        }
+        let normalizedPath = Self.normalizedRemoteDirectoryPath(path)
+        guard normalizedPath != "/" else { return false }
+
+        let parentPath = Self.remoteParentPath(for: normalizedPath)
+        loadRemoteDirectory(.remote(hostID: hostID, path: parentPath), provider: currentRemoteProvider, preserveExpansion: false)
+        return true
+    }
+
+    var isViewingRemoteDirectory: Bool {
+        currentRemoteLocation != nil
+    }
+
+    private static func normalizedRemoteDirectoryPath(_ path: String) -> String {
+        let absolute = path.hasPrefix("/") ? path : "/" + path
+        let nsPath = absolute as NSString
+        let standardized = nsPath.standardizingPath
+        return standardized.isEmpty ? "/" : standardized
+    }
+
+    private static func remoteParentPath(for path: String) -> String {
+        let parent = (path as NSString).deletingLastPathComponent
+        return parent.isEmpty ? "/" : parent
+    }
+
     // MARK: - Loading & Error States
 
     private var suppressLoadingSpinner = false
@@ -981,10 +1012,27 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     func ensureLoaded() {
-        guard let currentDirectory else { return }
-        if !hasLoadedDirectory {
+        guard !hasLoadedDirectory else { return }
+        if let currentRemoteLocation, let currentRemoteProvider {
+            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: false)
+        } else if let currentDirectory {
             loadDirectory(currentDirectory)
         }
+    }
+
+    func showPendingRemoteReconnect(host: RemoteHost, path: String) {
+        dataSource.cancelCurrentLoad()
+        hideErrorOverlay()
+        currentRemoteHost = host
+        currentRemoteLocation = .remote(hostID: host.id, path: path)
+        currentRemoteProvider = nil
+        currentDirectory = nil
+        currentICloudListingMode = .normal
+        dataSource.items = []
+        tableView.reloadData()
+        hasLoadedDirectory = false
+        suppressLoadingSpinner = false
+        showLoadingIndicator()
     }
 
     // MARK: - Actions

@@ -598,6 +598,9 @@ extension SidebarViewController: NSOutlineViewDelegate {
                 theme: theme,
                 remoteConnectionState: remoteConnectionStates[remoteHost.id]
             )
+            cellView.onEject = { [weak self] in
+                self?.delegate?.sidebarDidRemoveRemoteHost(remoteHost)
+            }
         } else if let url = item as? URL {
             cellView.configure(with: .favorite(url), theme: theme)
         }
@@ -722,7 +725,7 @@ extension SidebarViewController: NSMenuDelegate {
             ejectItem.representedObject = synthetic.host
             menu.addItem(ejectItem)
         } else if let remoteHost = item as? RemoteHost {
-            let removeItem = NSMenuItem(title: "Remove Remote Host", action: #selector(handleRemoveRemoteHost(_:)), keyEquivalent: "")
+            let removeItem = NSMenuItem(title: "Eject", action: #selector(handleRemoveRemoteHost(_:)), keyEquivalent: "")
             removeItem.target = self
             removeItem.representedObject = remoteHost
             menu.addItem(removeItem)

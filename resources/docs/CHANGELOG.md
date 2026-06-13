@@ -2,6 +2,24 @@
 
 ## 1.5.0 — 2026-06-12
 
+### Remote VM Browsing over SSH
+
+- **Remote hosts in the sidebar** — Add SSH targets from the File menu and
+  browse them as first-class Detours locations, with remote tabs, breadcrumbs,
+  sidebar status, and session restore.
+- **Transparent remote file workflows** — Browse, copy, move, rename, trash,
+  restore, archive, extract, drag out, Quick Look, and Open With remote files
+  through the Detours helper without mounting a network share.
+- **Helper-backed transfers and watching** — Detours deploys its own helper to
+  supported x86_64 Linux and Intel macOS hosts, keeps a persistent SSH helper
+  connection, uses transfer channels for large files, and watches remote
+  directories for changes with polling fallback when needed.
+- **Relaunch readiness** — Saved remote hosts are checked on launch. Reachable
+  hosts become green live sidebar entries, restored remote tabs are pre-warmed,
+  and unreachable hosts stay visible with a reconnect state until removed.
+- **Discoverable host removal** — Remote host rows now include a visible remove
+  control, with confirmation before deleting the saved host from the sidebar.
+
 ### File List Stability Under Background Activity
 
 - **Scroll position held during background reloads** — When another process
@@ -51,6 +69,10 @@
 
 ### Bug Fixes
 
+- **Remote activation and preview stability** — Pressing Enter on a remote file
+  now opens it through the remote Open With flow instead of asking for a local
+  URL. Remote Quick Look follows arrow-key selection changes and ignores stale
+  downloads from previous selections.
 - **Stale file sizes after copy** — Fixed files showing incorrect sizes after
   copy operations complete. The NSURL resource value cache was not being cleared
   on local volumes, causing stale metadata to persist across refreshes.
@@ -79,8 +101,7 @@
 
 ### Visual Design Overhaul
 
-Modernized the entire UI to match the polish of contemporary macOS file
-managers.
+Modernized the entire UI to match the polish of contemporary macOS file managers.
 
 - **Mixed typography** — proportional font (SF Pro) for UI chrome (tabs,
   sidebar, status bar, headers), monospace font for file data; custom themes
@@ -131,8 +152,7 @@ managers.
 
 ## 1.4.0 (260225)
 
-First stable release under the 1.x version scheme. Detours is a native
-dual-pane file manager for macOS built with Swift and AppKit.
+First stable release under the 1.x version scheme. Detours is a native dual-pane file manager for macOS built with Swift and AppKit.
 
 ### Highlights
 
@@ -167,8 +187,7 @@ dual-pane file manager for macOS built with Swift and AppKit.
 
 #### Activity Indicator
 
-Non-blocking progress indicator for file operations, replacing the modal
-progress sheet.
+Non-blocking progress indicator for file operations, replacing the modal progress sheet.
 
 - Circular activity button in each pane's path row with rotating icon during
   operations
@@ -189,8 +208,7 @@ progress sheet.
 
 ### Network Shares
 
-Network volumes are now supported. Browse NAS drives, connect to SMB/AFP
-servers, and work with remote files.
+Network volumes are now supported. Browse NAS drives, connect to SMB/AFP servers, and work with remote files.
 
 - Sidebar shows network volumes grouped under their parent server in a
   dedicated NETWORK section
@@ -204,8 +222,7 @@ servers, and work with remote files.
 
 ### Async Directory Loading
 
-Opening a folder on a slow network share no longer freezes the app. Directory
-enumeration, icon loading, and change detection all happen off the main thread.
+Opening a folder on a slow network share no longer freezes the app. Directory enumeration, icon loading, and change detection all happen off the main thread.
 
 - Loading spinner while directories enumerate; error overlay with Retry on
   timeout or disconnect
@@ -220,8 +237,7 @@ enumeration, icon loading, and change detection all happen off the main thread.
 
 ### Undo & Redo (Cmd-Z / Cmd-Shift-Z)
 
-Full undo/redo for file operations, scoped per tab so each tab has its own
-independent history.
+Full undo/redo for file operations, scoped per tab so each tab has its own independent history.
 
 - Undo delete, copy, move, duplicate, and new folder/file creation
 - Edit menu shows the operation name ("Undo Delete", "Undo Move", etc.)
@@ -231,8 +247,7 @@ independent history.
 
 ### Filter-in-Place
 
-Press `/` or Cmd-F to filter the current file list without leaving the
-directory.
+Press `/` or Cmd-F to filter the current file list without leaving the directory.
 
 - Case-insensitive substring matching filters in real-time as you type
 - Auto-expands folders to reveal matching nested files
@@ -241,8 +256,7 @@ directory.
 
 ### Session Auto-Save
 
-Session state now saves continuously instead of only on quit, protecting
-against data loss from crashes.
+Session state now saves continuously instead of only on quit, protecting against data loss from crashes.
 
 - Tabs, selections, navigation history, and expansion state survive unexpected
   termination

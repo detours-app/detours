@@ -498,6 +498,13 @@ final class PaneViewController: NSViewController {
         updateStatusBar()
     }
 
+    func showConnectingRemoteHost(_ host: RemoteHost, path: String = "/") {
+        setRemoteBreadcrumbHost(host)
+        hideReconnectBanner()
+        selectedTab?.fileListViewController.showPendingRemoteReconnect(host: host, path: path)
+        updateStatusBar()
+    }
+
     func navigateTabsViewingRemovedRemoteHost(_ hostID: UUID) {
         var didChange = false
 
@@ -941,8 +948,7 @@ final class PaneViewController: NSViewController {
             updateNavigationControls()
             updateRemoteHostBadge()
             updatePathControl()
-            tab.fileListViewController.ensureLoaded()
-            applyPendingRestore(for: tab)
+            loadTabIfNeeded(tab)
             }
 
             if isActive {
@@ -961,8 +967,7 @@ final class PaneViewController: NSViewController {
         // Show new tab's view
         let tab = tabs[selectedTabIndex]
         tab.fileListViewController.view.isHidden = false
-        tab.fileListViewController.ensureLoaded()
-        applyPendingRestore(for: tab)
+        loadTabIfNeeded(tab)
 
         tabBar.updateSelectedIndex(index)
         updateNavigationControls()
@@ -1269,10 +1274,16 @@ final class PaneViewController: NSViewController {
 
             // Tabs that were on a remote host wait for the host to reconnect;
             // until then they show their local fallback directory.
-            if let target = remoteTargets?[safe: index] ?? nil,
+            let remoteTarget = remoteTargets?[safe: index] ?? nil
+            let isRemoteTab: Bool
+            if let target = remoteTarget,
                let host = RemoteHostStore.shared.host(id: target.hostID) {
                 pendingRemoteTabTargetsByTabID[tabs[index].id] = target
                 remoteBreadcrumbHostsByTabID[tabs[index].id] = host
+                tabs[index].fileListViewController.showPendingRemoteReconnect(host: host, path: target.path)
+                isRemoteTab = true
+            } else {
+                isRemoteTab = false
             }
 
             // Only load selected tab immediately - others load on-demand via ensureLoaded
@@ -1281,7 +1292,9 @@ final class PaneViewController: NSViewController {
                 if let expansions, index < expansions.count {
                     tabs[index].fileListViewController.pendingExpansionRestore = expansions[index]
                 }
-                tabs[index].fileListViewController.loadDirectory(url, iCloudListingMode: tabs[index].iCloudListingMode)
+                if !isRemoteTab {
+                    tabs[index].fileListViewController.loadDirectory(url, iCloudListingMode: tabs[index].iCloudListingMode)
+                }
                 if let selections, index < selections.count {
                     tabs[index].fileListViewController.restoreSelection(selections[index])
                 }
@@ -1309,9 +1322,15 @@ final class PaneViewController: NSViewController {
         }
 
         if active, let tab = selectedTab {
-            tab.fileListViewController.ensureLoaded()
+            loadTabIfNeeded(tab)
             view.window?.makeFirstResponder(tab.fileListViewController.tableView)
         }
+    }
+
+    private func loadTabIfNeeded(_ tab: PaneTab) {
+        guard pendingRemoteTabTargetsByTabID[tab.id] == nil else { return }
+        tab.fileListViewController.ensureLoaded()
+        applyPendingRestore(for: tab)
     }
 
     /// Notify that session state changed and should be saved
@@ -1778,6 +1797,16 @@ extension PaneViewController: FileListNavigationDelegate {
     }
 
     func fileListDidRequestParentNavigation() {
+        if selectedTab?.fileListViewController.loadRemoteParentDirectory() == true {
+            updatePathControl()
+            updateNavigationControls()
+            updateStatusBar()
+            scheduleSessionSave()
+            return
+        }
+        if selectedTab?.fileListViewController.isViewingRemoteDirectory == true {
+            return
+        }
         goUp()
     }
 

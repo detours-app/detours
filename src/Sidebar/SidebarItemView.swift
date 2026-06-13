@@ -9,8 +9,10 @@ final class SidebarItemView: NSTableCellView {
     private let capacityLabel = NSTextField(labelWithString: "")
     private let protocolBadge = NSTextField(labelWithString: "")
     private let ejectButton = NSButton()
+    private var nameTrailingConstraint: NSLayoutConstraint?
     private var capacityTrailingConstraint: NSLayoutConstraint?
     private var protocolBadgeTrailingConstraint: NSLayoutConstraint?
+    private var accessoryTrailingConstraint: NSLayoutConstraint?
 
     var onEject: (() -> Void)?
 
@@ -61,18 +63,16 @@ final class SidebarItemView: NSTableCellView {
         protocolBadge.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         protocolBadge.isHidden = true
 
-        // Eject button setup
+        // Accessory button setup
         ejectButton.translatesAutoresizingMaskIntoConstraints = false
         ejectButton.bezelStyle = .inline
         ejectButton.isBordered = false
-        let ejectImage = NSImage(systemSymbolName: "eject.fill", accessibilityDescription: "Eject")
-        let smallConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
-        ejectButton.image = ejectImage?.withSymbolConfiguration(smallConfig)
         ejectButton.imageScaling = .scaleProportionallyDown
         ejectButton.imagePosition = .imageOnly
         ejectButton.target = self
-        ejectButton.action = #selector(ejectClicked)
+        ejectButton.action = #selector(accessoryClicked)
         ejectButton.isHidden = true
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
 
         addSubview(iconView)
         addSubview(statusDot)
@@ -82,6 +82,9 @@ final class SidebarItemView: NSTableCellView {
         addSubview(capacityLabel)
         addSubview(protocolBadge)
         addSubview(ejectButton)
+
+        nameTrailingConstraint = nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: capacityLabel.leadingAnchor, constant: -4)
+        accessoryTrailingConstraint = ejectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4)
 
         NSLayoutConstraint.activate([
             iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
@@ -101,7 +104,7 @@ final class SidebarItemView: NSTableCellView {
 
             nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-            nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: capacityLabel.leadingAnchor, constant: -4),
+            nameTrailingConstraint!,
 
             subtitleLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             subtitleLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 0),
@@ -113,7 +116,7 @@ final class SidebarItemView: NSTableCellView {
             protocolBadge.centerYAnchor.constraint(equalTo: centerYAnchor),
             // protocolBadge trailing is set dynamically based on eject button visibility
 
-            ejectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            accessoryTrailingConstraint!,
             ejectButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             ejectButton.widthAnchor.constraint(equalToConstant: 16),
             ejectButton.heightAnchor.constraint(equalToConstant: 16),
@@ -132,6 +135,9 @@ final class SidebarItemView: NSTableCellView {
         statusSpinner.stopAnimation(nil)
         statusSpinner.isHidden = true
         subtitleLabel.isHidden = true
+        onEject = nil
+        setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
+        setAccessoryTrailing(-4)
         alphaValue = 1.0
 
         switch item {
@@ -181,6 +187,9 @@ final class SidebarItemView: NSTableCellView {
 
         // Show eject button for ejectable volumes
         ejectButton.isHidden = !volume.isEjectable
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
+        setAccessoryTrailing(-4)
+        setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
         ejectButton.contentTintColor = theme.textSecondary
         ejectButton.alphaValue = 0.7
 
@@ -205,8 +214,15 @@ final class SidebarItemView: NSTableCellView {
         resetNameLeading()
     }
 
-    @objc private func ejectClicked() {
+    @objc private func accessoryClicked() {
         onEject?()
+    }
+
+    private func configureAccessoryButton(symbolName: String, accessibilityDescription: String) {
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: accessibilityDescription)
+        let smallConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
+        ejectButton.image = image?.withSymbolConfiguration(smallConfig)
+        ejectButton.toolTip = accessibilityDescription
     }
 
     private func configureAsServer(_ server: NetworkServer, theme: Theme, isOffline: Bool = false, hasVolumes: Bool = false) {
@@ -238,6 +254,9 @@ final class SidebarItemView: NSTableCellView {
 
         // Show eject button when server has mounted volumes
         ejectButton.isHidden = !hasVolumes
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
+        setAccessoryTrailing(-4)
+        setNameTrailing(to: protocolBadge.leadingAnchor, constant: -4)
         protocolBadgeTrailingConstraint?.isActive = false
         if hasVolumes {
             ejectButton.contentTintColor = theme.textSecondary
@@ -281,7 +300,13 @@ final class SidebarItemView: NSTableCellView {
 
         capacityLabel.isHidden = true
         protocolBadge.isHidden = true
-        ejectButton.isHidden = true
+        ejectButton.isHidden = false
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
+        setAccessoryTrailing(-4)
+        setNameTrailing(to: ejectButton.leadingAnchor, constant: -4)
+        ejectButton.contentTintColor = theme.textSecondary
+        ejectButton.alphaValue = 0.7
+
         resetNameLeadingToStatusDot()
 
         resetNameCenterY()
@@ -325,6 +350,9 @@ final class SidebarItemView: NSTableCellView {
 
         // Show eject button when server has mounted volumes
         ejectButton.isHidden = !hasVolumes
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
+        setAccessoryTrailing(-4)
+        setNameTrailing(to: protocolBadge.leadingAnchor, constant: -4)
         protocolBadgeTrailingConstraint?.isActive = false
         if hasVolumes {
             ejectButton.contentTintColor = theme.textSecondary
@@ -352,6 +380,9 @@ final class SidebarItemView: NSTableCellView {
 
         // Show eject button for ejectable network volumes
         ejectButton.isHidden = !volume.isEjectable
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
+        setAccessoryTrailing(-4)
+        setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
         ejectButton.contentTintColor = theme.textSecondary
         ejectButton.alphaValue = 0.7
 
@@ -397,6 +428,7 @@ final class SidebarItemView: NSTableCellView {
         iconView.image = NSWorkspace.shared.icon(forFile: url.path)
         nameLabel.font = theme.uiFont(size: 13)
         capacityLabel.isHidden = true
+        setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
 
         // Check if favorite exists
         if FileManager.default.fileExists(atPath: url.path) {
@@ -408,6 +440,18 @@ final class SidebarItemView: NSTableCellView {
         }
 
         resetNameLeading()
+    }
+
+    private func setNameTrailing(to anchor: NSLayoutXAxisAnchor, constant: CGFloat) {
+        nameTrailingConstraint?.isActive = false
+        nameTrailingConstraint = nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: anchor, constant: constant)
+        nameTrailingConstraint?.isActive = true
+    }
+
+    private func setAccessoryTrailing(_ constant: CGFloat) {
+        accessoryTrailingConstraint?.isActive = false
+        accessoryTrailingConstraint = ejectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: constant)
+        accessoryTrailingConstraint?.isActive = true
     }
 
     private func resetNameLeading(indent: CGFloat = 0) {
@@ -455,6 +499,8 @@ final class SidebarItemView: NSTableCellView {
         capacityTrailingConstraint = nil
         protocolBadgeTrailingConstraint?.isActive = false
         protocolBadgeTrailingConstraint = nil
+        setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
+        setAccessoryTrailing(-4)
         ejectButton.isHidden = true
         ejectButton.alphaValue = 1.0
         alphaValue = 1.0
