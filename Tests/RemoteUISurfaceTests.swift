@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Detours
 
@@ -79,6 +80,28 @@ final class RemoteUISurfaceTests: XCTestCase {
         XCTAssertEqual(cell.textField?.stringValue, "remote.txt")
     }
 
+    func testEnterOnRemoteFileDoesNotRequestLocalURL() {
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        viewController.dataSource.items = [
+            FileItem(
+                name: "remote.txt",
+                location: .remote(hostID: UUID(), path: "/home/maf/remote.txt"),
+                isDirectory: false,
+                size: 12,
+                dateModified: Date(),
+                icon: NSImage()
+            ),
+        ]
+        viewController.tableView.reloadData()
+        viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        let event = makeKeyEvent(characters: "\r", keyCode: 36)
+
+        XCTAssertTrue(viewController.handleKeyDown(event))
+        XCTAssertEqual(viewController.tableView.selectedRow, 0)
+    }
+
     private func descendant(in view: NSView, accessibilityIdentifier: String) -> NSView? {
         if view.accessibilityIdentifier() == accessibilityIdentifier {
             return view
@@ -89,5 +112,20 @@ final class RemoteUISurfaceTests: XCTestCase {
             }
         }
         return nil
+    }
+
+    private func makeKeyEvent(characters: String, keyCode: UInt16) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: characters,
+            charactersIgnoringModifiers: characters,
+            isARepeat: false,
+            keyCode: keyCode
+        )!
     }
 }

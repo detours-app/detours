@@ -1076,14 +1076,20 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
 
+        if case .remote = item.location {
+            openRemoteItem(item)
+            return
+        }
+
+        let url = item.url
         if item.isVirtualSharedFolder {
-            navigationDelegate?.fileListDidRequestICloudSharedNavigation(cloudDocsURL: item.url)
+            navigationDelegate?.fileListDidRequestICloudSharedNavigation(cloudDocsURL: url)
         } else if item.isNavigableFolder {
-            navigationDelegate?.fileListDidRequestNavigation(to: item.url)
-        } else if CompressionTools.isExtractable(item.url) {
+            navigationDelegate?.fileListDidRequestNavigation(to: url)
+        } else if CompressionTools.isExtractable(url) {
             extractSelectedArchive()
         } else {
-            NSWorkspace.shared.open(item.url)
+            NSWorkspace.shared.open(url)
         }
     }
 
