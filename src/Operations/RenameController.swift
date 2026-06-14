@@ -126,7 +126,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         Task { @MainActor in
             do {
                 let newLocation = try await FileOperationQueue.shared.rename(item: oldLocation, to: newName)
-                let newURL = newLocation.url
+                let newURL = URL(fileURLWithPath: newLocation.path)
 
                 if wasNewItem {
                     // For new folders: undo trashes the folder (synchronous)
@@ -141,10 +141,20 @@ final class RenameController: NSObject, NSTextFieldDelegate {
                 } else {
                     // For existing items: undo renames back (synchronous)
                     undoManager?.registerUndo(withTarget: FileOperationQueue.shared) { target in
-                        do {
-                            try FileManager.default.moveItem(at: newURL, to: oldURL)
-                        } catch {
-                            target.presentError(error)
+                        if case .remote = newLocation {
+                            Task { @MainActor in
+                                do {
+                                    _ = try await target.rename(item: newLocation, to: oldLocation.lastPathComponent)
+                                } catch {
+                                    target.presentError(error)
+                                }
+                            }
+                        } else {
+                            do {
+                                try FileManager.default.moveItem(at: newURL, to: oldURL)
+                            } catch {
+                                target.presentError(error)
+                            }
                         }
                     }
                     undoManager?.setActionName("Rename")

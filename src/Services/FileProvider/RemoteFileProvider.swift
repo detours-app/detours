@@ -19,38 +19,111 @@ protocol RemoteRPCClient: Sendable {
 }
 
 actor SSHRemoteRPCClient: RemoteRPCClient {
+    private struct PendingResponse {
+        var assembler = RPCResponseAssembler()
+        let continuation: CheckedContinuation<[Data], Error>
+    }
+
     private let connection: SSHConnection
     private var nextRequestID: UInt64 = 1
+    private var pendingResponses: [UInt64: PendingResponse] = [:]
+    private var eventHandler: (@Sendable (RPCEnvelope) -> Void)?
+    private var readerTask: Task<Void, Never>?
 
     init(connection: SSHConnection) {
         self.connection = connection
     }
 
+    deinit {
+        readerTask?.cancel()
+    }
+
+    func setEventHandler(_ handler: @escaping @Sendable (RPCEnvelope) -> Void) {
+        startReaderIfNeeded()
+        eventHandler = handler
+    }
+
     func send(_ message: RPCMessage) async throws -> [Data] {
+        startReaderIfNeeded()
         let requestID = nextRequestID
         nextRequestID += 1
 
-        try await connection.send(
-            RPCEnvelope(
-                id: requestID,
-                kind: .request,
-                messageType: message.messageType,
-                sequence: 0,
-                isFinal: true,
-                payload: try message.binaryEncoded()
-            )
+        let envelope = RPCEnvelope(
+            id: requestID,
+            kind: .request,
+            messageType: message.messageType,
+            sequence: 0,
+            isFinal: true,
+            payload: try message.binaryEncoded()
         )
 
-        var assembler = RPCResponseAssembler()
-        while true {
-            let envelope = try await connection.receive()
-            guard envelope.id == requestID else { continue }
-            if envelope.kind == .error {
-                throw RemoteFileProviderError.invalidResponse(Self.decodeError(envelope.payload))
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                pendingResponses[requestID] = PendingResponse(continuation: continuation)
+                Task {
+                    do {
+                        try await connection.send(envelope)
+                    } catch {
+                        self.failResponse(id: requestID, error: error)
+                    }
+                }
             }
-            if let assembled = assembler.receive(envelope) {
-                return assembled.chunks
+        } onCancel: {
+            Task { await self.failResponse(id: requestID, error: CancellationError()) }
+        }
+    }
+
+    private func readResponses() async {
+        while !Task.isCancelled {
+            do {
+                let envelope = try await connection.receive()
+                receive(envelope)
+            } catch {
+                failAllResponses(error)
+                return
             }
+        }
+    }
+
+    private func startReaderIfNeeded() {
+        guard readerTask == nil else { return }
+        readerTask = Task { [weak self] in
+            await self?.readResponses()
+        }
+    }
+
+    private func receive(_ envelope: RPCEnvelope) {
+        if envelope.kind == .event {
+            eventHandler?(envelope)
+            return
+        }
+
+        guard var pending = pendingResponses[envelope.id] else { return }
+        if envelope.kind == .error {
+            pendingResponses.removeValue(forKey: envelope.id)?
+                .continuation
+                .resume(throwing: RemoteFileProviderError.invalidResponse(Self.decodeError(envelope.payload)))
+            return
+        }
+
+        if let assembled = pending.assembler.receive(envelope) {
+            pendingResponses.removeValue(forKey: envelope.id)?
+                .continuation
+                .resume(returning: assembled.chunks)
+        } else {
+            pendingResponses[envelope.id] = pending
+        }
+    }
+
+    private func failResponse(id: UInt64, error: Error) {
+        pendingResponses.removeValue(forKey: id)?.continuation.resume(throwing: error)
+    }
+
+    private func failAllResponses(_ error: Error) {
+        let responses = pendingResponses
+        pendingResponses.removeAll()
+        for response in responses.values {
+            response.continuation.resume(throwing: error)
         }
     }
 
@@ -255,11 +328,7 @@ actor RemoteFileProvider: FileProvider {
             return try await watcherClient.watch(location, onChange: onChange)
         }
 
-        let watch = FileProviderWatch(id: UUID(), location: location)
-        let remoteToken = UUID()
-        _ = try await rpcClient.send(.watch(path: remotePath(from: location), token: remoteToken))
-        watchers[watch] = remoteToken
-        return watch
+        throw FileProviderError.unsupportedOperation("Remote watcher events require a watcher client")
     }
 
     func unwatch(_ watch: FileProviderWatch) async {
@@ -338,7 +407,9 @@ actor RemoteFileProvider: FileProvider {
         try FileManager.default.createDirectory(at: localURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         let partial = RemoteTransferChannel.partialURL(for: localURL)
         try? FileManager.default.removeItem(at: partial)
-        try? FileManager.default.removeItem(at: localURL)
+        guard !FileManager.default.fileExists(atPath: localURL.path) else {
+            throw CocoaError(.fileWriteFileExists)
+        }
         do {
             try chunks[0].write(to: partial, options: .atomic)
             try FileManager.default.moveItem(at: partial, to: localURL)

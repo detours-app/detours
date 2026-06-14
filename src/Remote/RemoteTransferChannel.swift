@@ -59,6 +59,7 @@ actor RemoteTransferChannel {
     private let sshTarget: String
     private let remoteCommand: String
     private let controlDirectory: URL
+    private let hostTrust: SSHHostTrust
     private let processFactory: @Sendable () -> Process
 
     init(
@@ -66,11 +67,13 @@ actor RemoteTransferChannel {
         remoteCommand: String = "~/.detours-server/detours-server",
         controlDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".detours/ssh", isDirectory: true),
+        hostTrust: SSHHostTrust = SSHHostTrust(),
         processFactory: @escaping @Sendable () -> Process = { Process() }
     ) {
         self.sshTarget = sshTarget
         self.remoteCommand = remoteCommand
         self.controlDirectory = controlDirectory
+        self.hostTrust = hostTrust
         self.processFactory = processFactory
     }
 
@@ -95,13 +98,8 @@ actor RemoteTransferChannel {
     func startTransferProcess() throws -> Process {
         let process = processFactory()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = [
-            "-o", "ControlMaster=auto",
-            "-o", "ControlPath=\(controlDirectory.path)/%C",
-            sshTarget,
-            remoteCommand,
-            "--transfer",
-        ]
+        try hostTrust.prepareKnownHostsFile()
+        process.arguments = sshArguments()
         try process.run()
         return process
     }
@@ -125,7 +123,6 @@ actor RemoteTransferChannel {
         let partial = Self.partialURL(for: destination)
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? FileManager.default.removeItem(at: partial)
-        try? FileManager.default.removeItem(at: destination)
 
         var written: Int64 = 0
         do {
@@ -150,7 +147,7 @@ actor RemoteTransferChannel {
                 throw RemoteTransferError.byteCountMismatch(expected: expectedByteCount, actual: written)
             }
 
-            try FileManager.default.moveItem(at: partial, to: destination)
+            try Self.movePartial(partial, to: destination)
         } catch {
             try? FileManager.default.removeItem(at: partial)
             throw error
@@ -197,8 +194,9 @@ actor RemoteTransferChannel {
     ) async throws {
         let partial = Self.partialURL(for: destination)
         try? FileManager.default.removeItem(at: partial)
-        try? FileManager.default.removeItem(at: destination)
-        FileManager.default.createFile(atPath: partial.path, contents: nil)
+        guard FileManager.default.createFile(atPath: partial.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
 
         var written: Int64 = 0
 
@@ -227,7 +225,7 @@ actor RemoteTransferChannel {
                 throw RemoteTransferError.byteCountMismatch(expected: expectedByteCount, actual: written)
             }
 
-            try FileManager.default.moveItem(at: partial, to: destination)
+            try Self.movePartial(partial, to: destination)
         } catch {
             try? FileManager.default.removeItem(at: partial)
             throw error
@@ -239,20 +237,39 @@ actor RemoteTransferChannel {
             .appendingPathComponent(destination.lastPathComponent + ".detours-partial")
     }
 
+    #if DEBUG
+    func sshArgumentsForTesting() -> [String] {
+        sshArguments()
+    }
+    #endif
+
     private func configuredTransferProcess(stdin: Pipe, stdout: Pipe, stderr: Pipe) throws -> Process {
         let process = processFactory()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = [
-            "-o", "ControlMaster=auto",
-            "-o", "ControlPath=\(controlDirectory.path)/%C",
-            sshTarget,
-            remoteCommand,
-            "--transfer",
-        ]
+        try hostTrust.prepareKnownHostsFile()
+        process.arguments = sshArguments()
         process.standardInput = stdin
         process.standardOutput = stdout
         process.standardError = stderr
         return process
+    }
+
+    private func sshArguments() -> [String] {
+        [
+            "-o", "ControlMaster=auto",
+            "-o", "ControlPath=\(controlDirectory.path)/%C",
+        ] + hostTrust.sshArguments + [
+            sshTarget,
+            remoteCommand,
+            "--transfer",
+        ]
+    }
+
+    private static func movePartial(_ partial: URL, to destination: URL) throws {
+        guard !FileManager.default.fileExists(atPath: destination.path) else {
+            throw CocoaError(.fileWriteFileExists)
+        }
+        try FileManager.default.moveItem(at: partial, to: destination)
     }
 
     private static func stderrText(from pipe: Pipe) -> String {

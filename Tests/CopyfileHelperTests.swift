@@ -119,6 +119,22 @@ final class CopyfileHelperTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path), "Partial file should be cleaned up on cancel")
     }
 
+    func testCopyFileCancellationPreservesExistingDestination() throws {
+        let source = tempDir.appendingPathComponent("cancel_source_existing.bin")
+        let destination = tempDir.appendingPathComponent("cancel_dest_existing.bin")
+        try Data(count: 2_000_000).write(to: source)
+        try Data("existing".utf8).write(to: destination)
+
+        do {
+            try CopyfileHelper.copy(from: source, to: destination) { _ in
+                false
+            }
+            XCTFail("Should have thrown cancellation error")
+        } catch FileOperationError.cancelled {
+            XCTAssertEqual(try Data(contentsOf: destination), Data("existing".utf8))
+        }
+    }
+
     func testCopyFileLargeBuffer() throws {
         // Verify that copy succeeds with a larger file (exercising the 1 MB buffer)
         let source = tempDir.appendingPathComponent("large_source.bin")

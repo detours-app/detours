@@ -4,6 +4,11 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "filelist")
 
+private struct ProviderWatchRecord {
+    let watch: FileProviderWatch
+    let provider: any FileProvider
+}
+
 @MainActor
 protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestNavigation(to url: URL)
@@ -36,7 +41,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var currentICloudListingMode: ICloudListingMode = .normal
     private var hasLoadedDirectory = false
     let renameController = RenameController()
-    private var providerWatches: [URL: FileProviderWatch] = [:]
+    private var providerWatches: [URL: ProviderWatchRecord] = [:]
     var currentRemoteHost: RemoteHost?
     var currentRemoteLocation: Location?
     var currentRemoteProvider: (any FileProvider)?
@@ -651,7 +656,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Always start watching on first load (providerWatches is empty) since
         // PaneTab's lazy init pre-sets currentDirectory, making previousDirectory == normalizedURL.
         if previousDirectory != normalizedURL || providerWatches.isEmpty {
-            startWatching(normalizedURL)
+            startWatching(.local(normalizedURL), provider: LocalFileProvider.shared)
         }
 
         suppressLoadingSpinner = !showSpinner
@@ -731,6 +736,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             }
         }
 
+        startWatching(location, provider: provider)
         dataSource.loadRemoteDirectory(location, provider: provider, preserveExpansion: preserveExpansion)
         hasLoadedDirectory = true
         FrecencyStore.shared.recordVisit(location)
@@ -933,17 +939,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         navigationDelegate?.fileListDidRequestNavigation(to: candidate)
     }
 
-    private func startWatching(_ url: URL) {
+    private func startWatching(_ location: Location, provider: any FileProvider) {
         directoryWatchTask?.cancel()
         let existingWatches = Array(providerWatches.values)
         providerWatches.removeAll()
 
         directoryWatchTask = Task { [weak self] in
-            for watch in existingWatches {
-                await LocalFileProvider.shared.unwatch(watch)
+            for record in existingWatches {
+                await record.provider.unwatch(record.watch)
             }
             guard !Task.isCancelled else { return }
-            await self?.watchDirectoryThroughProvider(url)
+            await self?.watchDirectoryThroughProvider(location, provider: provider)
         }
     }
 
@@ -951,38 +957,56 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     func watchExpandedDirectory(_ url: URL) {
         let normalized = url.standardizedFileURL
         guard providerWatches[normalized] == nil else { return }
+        let location: Location
+        let provider: any FileProvider
+        if case .remote(let hostID, _) = currentRemoteLocation,
+           let currentRemoteProvider {
+            location = .remote(hostID: hostID, path: url.path)
+            provider = currentRemoteProvider
+        } else {
+            location = .local(normalized)
+            provider = LocalFileProvider.shared
+        }
         Task { [weak self] in
-            await self?.watchDirectoryThroughProvider(normalized)
+            await self?.watchDirectoryThroughProvider(location, provider: provider)
         }
     }
 
     /// Called when a folder is collapsed - stop watching it and its children
     func unwatchCollapsedDirectory(_ url: URL) {
         let normalized = url.standardizedFileURL
-        guard let watch = providerWatches.removeValue(forKey: normalized) else { return }
+        guard let record = providerWatches.removeValue(forKey: normalized) else { return }
         Task {
-            await LocalFileProvider.shared.unwatch(watch)
+            await record.provider.unwatch(record.watch)
         }
     }
 
-    private func watchDirectoryThroughProvider(_ url: URL) async {
-        let normalized = url.standardizedFileURL
-        guard providerWatches[normalized] == nil else { return }
+    private func watchDirectoryThroughProvider(_ location: Location, provider: any FileProvider) async {
+        let key = Self.watchKey(for: location)
+        guard providerWatches[key] == nil else { return }
 
         do {
-            let watch = try await LocalFileProvider.shared.watch(.local(normalized)) { [weak self] location in
-                guard case .local(let changedURL) = location else { return }
+            let watch = try await provider.watch(location) { [weak self] changedLocation in
                 DispatchQueue.main.async {
-                    self?.handleDirectoryChange(at: changedURL)
+                    self?.handleDirectoryChange(at: Self.watchKey(for: changedLocation))
                 }
             }
             guard !Task.isCancelled else {
-                await LocalFileProvider.shared.unwatch(watch)
+                await provider.unwatch(watch)
                 return
             }
-            providerWatches[normalized] = watch
+            providerWatches[key] = ProviderWatchRecord(watch: watch, provider: provider)
         } catch {
-            logger.warning("Failed to watch directory through FileProvider: \(normalized.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            logger.warning("Failed to watch directory through FileProvider: \(location.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private static func watchKey(for location: Location) -> URL {
+        switch location {
+        case .local(let url):
+            return url.standardizedFileURL
+        case .remote(_, let path):
+            return URL(fileURLWithPath: path).standardizedFileURL
         }
     }
 

@@ -29,8 +29,8 @@ enum ArchiveFormat: String, CaseIterable, Codable {
 
     var description: String {
         switch self {
-        case .zip: return "Universal format. Compatible with all systems. Weak encryption."
-        case .sevenZ: return "Best compression ratio. AES-256 encryption with filename hiding."
+        case .zip: return "Universal format. Compatible with all systems."
+        case .sevenZ: return "Best compression ratio."
         case .tarGz: return "Standard Unix archive. Good compression speed. No encryption."
         case .tarBz2: return "Better compression ratio than gzip. Slower. No encryption."
         case .tarXz: return "Best compression for tar archives. Slowest. No encryption."
@@ -38,10 +38,7 @@ enum ArchiveFormat: String, CaseIterable, Codable {
     }
 
     var supportsPassword: Bool {
-        switch self {
-        case .zip, .sevenZ: return true
-        case .tarGz, .tarBz2, .tarXz: return false
-        }
+        false
     }
 
     var requiredTools: [CompressionTool] {

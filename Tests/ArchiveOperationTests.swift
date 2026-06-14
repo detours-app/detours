@@ -111,22 +111,24 @@ final class ArchiveOperationTests: XCTestCase {
         XCTAssertEqual(result.lastPathComponent, "bundle.zip")
     }
 
-    func testCreateZipWithPassword() async throws {
+    func testCreateZipWithPasswordIsDisabled() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
         try createTestFile(in: temp, name: "secret.txt", content: "Secret data")
         let file = temp.appendingPathComponent("secret.txt")
 
-        let result = try await FileOperationQueue.shared.archive(
-            items: [file],
-            format: .zip,
-            archiveName: "encrypted",
-            password: "testpass123"
-        )
-
-        XCTAssertTrue(FileManager.default.fileExists(atPath: result.path))
-        XCTAssertEqual(result.lastPathComponent, "encrypted.zip")
+        do {
+            _ = try await FileOperationQueue.shared.archive(
+                items: [file],
+                format: .zip,
+                archiveName: "encrypted",
+                password: "testpass123"
+            )
+            XCTFail("Expected password-protected archive creation to be disabled")
+        } catch FileOperationError.archivePasswordUnsupported {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent("encrypted.zip").path))
+        }
     }
 
     func testCreateTarGzArchive() async throws {
@@ -245,29 +247,25 @@ final class ArchiveOperationTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: extractedFile.path))
     }
 
-    func testExtractPasswordZip() async throws {
+    func testExtractPasswordZipIsDisabled() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
-        // Create encrypted zip, then delete original
         try createTestFile(in: temp, name: "private.txt", content: "Top secret")
         let file = temp.appendingPathComponent("private.txt")
         let archive = try await FileOperationQueue.shared.archive(
             items: [file],
             format: .zip,
             archiveName: "private",
-            password: "mypass"
+            password: nil
         )
-        try FileManager.default.removeItem(at: file)
 
-        // Extract with correct password
-        let extracted = try await FileOperationQueue.shared.extract(archive: archive, password: "mypass")
-
-        XCTAssertEqual(extracted.lastPathComponent, "private.txt")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: extracted.path))
-
-        let content = try String(contentsOf: extracted, encoding: .utf8)
-        XCTAssertEqual(content, "Top secret")
+        do {
+            _ = try await FileOperationQueue.shared.extract(archive: archive, password: "mypass")
+            XCTFail("Expected password-protected archive extraction to be disabled")
+        } catch FileOperationError.archivePasswordUnsupported {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: archive.path))
+        }
     }
 
     func testExtractKeepsBothOnConflict() async throws {
@@ -348,8 +346,8 @@ final class ArchiveOperationTests: XCTestCase {
         XCTAssertFalse(ArchiveFormat.tarXz.supportsPassword)
     }
 
-    func testPasswordEnabledForZipAnd7z() {
-        XCTAssertTrue(ArchiveFormat.zip.supportsPassword)
-        XCTAssertTrue(ArchiveFormat.sevenZ.supportsPassword)
+    func testPasswordDisabledForZipAnd7z() {
+        XCTAssertFalse(ArchiveFormat.zip.supportsPassword)
+        XCTAssertFalse(ArchiveFormat.sevenZ.supportsPassword)
     }
 }

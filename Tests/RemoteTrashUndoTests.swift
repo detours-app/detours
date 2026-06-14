@@ -12,6 +12,7 @@ final class RemoteTrashUndoTests: XCTestCase {
         private let hostID: UUID
         private var trashCalls: [[Location]] = []
         private var restoreCalls: [[TrashedItem]] = []
+        private var renameCalls: [(Location, String)] = []
 
         init(hostID: UUID) {
             self.hostID = hostID
@@ -23,6 +24,10 @@ final class RemoteTrashUndoTests: XCTestCase {
 
         func recordedRestoreCalls() -> [[TrashedItem]] {
             restoreCalls
+        }
+
+        func recordedRenameCalls() -> [(Location, String)] {
+            renameCalls
         }
 
         func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
@@ -64,7 +69,8 @@ final class RemoteTrashUndoTests: XCTestCase {
         }
 
         func rename(_ item: Location, to newName: String) async throws -> Location {
-            throw FileProviderError.unsupportedOperation("rename")
+            renameCalls.append((item, newName))
+            return item.deletingLastPathComponent().appendingPathComponent(newName)
         }
 
         func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location {
@@ -135,6 +141,24 @@ final class RemoteTrashUndoTests: XCTestCase {
             restoreCall?.first?.trashLocation,
             .remote(hostID: hostID, path: "/home/marco/.local/share/Trash/info/file.txt.trashinfo")
         )
+    }
+
+    func testRemoteRenameRoutesThroughRegisteredProvider() async throws {
+        let hostID = UUID()
+        let provider = RecordingRemoteFileProvider(hostID: hostID)
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(provider, for: hostID)
+        defer { queue.unregisterRemoteFileProvider(for: hostID) }
+
+        let item = Location.remote(hostID: hostID, path: "/home/marco/project/old.txt")
+
+        let renamed = try await queue.rename(item: item, to: "new.txt")
+
+        XCTAssertEqual(renamed, .remote(hostID: hostID, path: "/home/marco/project/new.txt"))
+        let calls = await provider.recordedRenameCalls()
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.0, item)
+        XCTAssertEqual(calls.first?.1, "new.txt")
     }
 
     func testRemoteDeleteWithoutProviderFails() async throws {

@@ -12,6 +12,7 @@ enum FileOperationError: Error {
     case archiveProcessFailed(String)
     case insufficientDiskSpace
     case archivePasswordRequired
+    case archivePasswordUnsupported
 }
 
 extension FileOperationError: LocalizedError {
@@ -39,6 +40,8 @@ extension FileOperationError: LocalizedError {
             return "Not enough disk space to create the archive."
         case .archivePasswordRequired:
             return "This archive is password-protected."
+        case .archivePasswordUnsupported:
+            return "Password-protected archives are disabled until Detours can handle archive passwords without exposing them to other processes."
         }
     }
 }

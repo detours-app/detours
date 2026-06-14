@@ -8,8 +8,13 @@ enum CopyfileHelper {
 
     /// Copy a single file or directory using `copyfile(3)` with optimized buffer size.
     static func copy(from source: URL, to destination: URL, progress: ProgressHandler? = nil) throws {
+        let partial = partialURL(for: destination)
+        try? FileManager.default.removeItem(at: partial)
         let state = copyfile_state_alloc()
-        defer { copyfile_state_free(state) }
+        defer {
+            copyfile_state_free(state)
+            try? FileManager.default.removeItem(at: partial)
+        }
 
         var bufferSize: off_t = 1_048_576
         copyfile_state_set(state, UInt32(COPYFILE_STATE_BSIZE), &bufferSize)
@@ -35,19 +40,17 @@ enum CopyfileHelper {
         }
 
         let result = source.path.withCString { src in
-            destination.path.withCString { dst in
+            partial.path.withCString { dst in
                 copyfile(src, dst, state, flags)
             }
         }
 
         if context.pointee.cancelled {
-            try? FileManager.default.removeItem(at: destination)
             throw FileOperationError.cancelled
         }
 
         if result != 0 {
             let posixError = errno
-            try? FileManager.default.removeItem(at: destination)
 
             switch posixError {
             case EACCES, EPERM:
@@ -60,6 +63,13 @@ enum CopyfileHelper {
                 )
             }
         }
+
+        try FileManager.default.moveItem(at: partial, to: destination)
+    }
+
+    private static func partialURL(for destination: URL) -> URL {
+        destination.deletingLastPathComponent()
+            .appendingPathComponent(".\(destination.lastPathComponent).detours-copy-partial-\(UUID().uuidString)")
     }
 }
 

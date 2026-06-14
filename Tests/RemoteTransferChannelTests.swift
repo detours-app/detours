@@ -48,6 +48,25 @@ final class RemoteTransferChannelTests: XCTestCase {
         XCTAssertEqual(RemoteTransferChannel.route(forByteCount: 1_048_577), .transferChannel)
     }
 
+    func testTransferSSHArgumentsIncludeHostTrustPolicy() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let knownHosts = temp.appendingPathComponent("known_hosts")
+        let channel = RemoteTransferChannel(
+            sshTarget: "example",
+            controlDirectory: temp,
+            hostTrust: SSHHostTrust(knownHostsURL: knownHosts)
+        )
+
+        let arguments = await channel.sshArgumentsForTesting()
+
+        XCTAssertTrue(arguments.contains("StrictHostKeyChecking=yes"))
+        XCTAssertTrue(arguments.contains("UserKnownHostsFile=\(knownHosts.path)"))
+        XCTAssertTrue(arguments.contains("NumberOfPasswordPrompts=0"))
+        XCTAssertTrue(arguments.contains("ControlPath=\(temp.path)/%C"))
+    }
+
     func testNonUTF8PathTransfersWithRawBytes() throws {
         let invalidName = Data([0x2f, 0x74, 0x6d, 0x70, 0x2f, 0xff, 0x80])
         let source = RemotePath(bytes: invalidName)

@@ -71,6 +71,7 @@ enum ArchiveOperationsError: Error, Equatable, Sendable {
     case missingTool(String)
     case processFailed(String)
     case emptyArchive(String)
+    case passwordUnsupported
 }
 
 struct ArchiveOperations {
@@ -99,6 +100,9 @@ struct ArchiveOperations {
         progress: (ArchiveProgressFrame) -> Void = { _ in }
     ) throws -> String {
         guard !items.isEmpty else { throw ArchiveOperationsError.noItems }
+        if let password, !password.isEmpty {
+            throw ArchiveOperationsError.passwordUnsupported
+        }
         let format = try archiveFormat(rawFormat)
         try validateArchiveName(archiveName)
         let tools = try resolvedTools(format.requiredTools)
@@ -136,6 +140,9 @@ struct ArchiveOperations {
         password: String?,
         progress: (ArchiveProgressFrame) -> Void = { _ in }
     ) throws -> String {
+        if let password, !password.isEmpty {
+            throw ArchiveOperationsError.passwordUnsupported
+        }
         let archiveURL = URL(fileURLWithPath: path).standardizedFileURL
         guard let format = ServerArchiveFormat.detect(path: archiveURL.path) else {
             throw ArchiveOperationsError.unsupportedFormat(archiveURL.lastPathComponent)
@@ -209,7 +216,7 @@ struct ArchiveOperations {
         case .zip:
             var arguments = ["-r", "-q"]
             if let password, !password.isEmpty {
-                arguments.append(contentsOf: ["-P", password])
+                return (tools["zip"]!, ["--passwords-disabled"], nil)
             }
             arguments.append(destination.path)
             arguments.append(contentsOf: items.map(\.lastPathComponent))
@@ -217,8 +224,7 @@ struct ArchiveOperations {
         case .sevenZ:
             var arguments = ["a", "-t7z"]
             if let password, !password.isEmpty {
-                arguments.append("-p\(password)")
-                arguments.append("-mhe=on")
+                return (tools["7z"]!, ["--passwords-disabled"], nil)
             }
             arguments.append(destination.path)
             arguments.append(contentsOf: items.map(\.path))
@@ -238,7 +244,7 @@ struct ArchiveOperations {
         items: [URL],
         destination: URL
     ) -> (executable: String, arguments: [String], currentDirectory: URL?) {
-        var arguments = ["-c\(flag)f", destination.path]
+        var arguments = ["-c\(flag)f", destination.path, "--"]
         arguments.append(contentsOf: items.map(\.lastPathComponent))
         return (tool, arguments, items[0].deletingLastPathComponent())
     }
@@ -254,14 +260,14 @@ struct ArchiveOperations {
         case .zip:
             var arguments = ["-q"]
             if let password, !password.isEmpty {
-                arguments.append(contentsOf: ["-P", password])
+                return (tools["unzip"]!, ["--passwords-disabled"], nil)
             }
             arguments.append(contentsOf: [archive.path, "-d", destination.path])
             return (tools["unzip"]!, arguments, nil)
         case .sevenZ:
             var arguments = ["x", "-y", "-o\(destination.path)"]
             if let password, !password.isEmpty {
-                arguments.append("-p\(password)")
+                return (tools["7z"]!, ["--passwords-disabled"], nil)
             }
             arguments.append(archive.path)
             return (tools["7z"]!, arguments, nil)

@@ -124,4 +124,67 @@ final class ServerArchiveOperationsTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent("bundle.zip").path))
     }
+
+    func testPasswordArchiveCreationIsRejectedBeforeProcessLaunch() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = try createTestFile(in: temp, name: "hello.txt", content: "Hello")
+        let didRunProcess = LockedBox(false)
+        let operations = ArchiveOperations(
+            runProcess: { _, _, _ in
+                didRunProcess.value = true
+                return ServerProcessResult(status: 0, stderr: "")
+            }
+        )
+
+        XCTAssertThrowsError(
+            try operations.createArchive(items: [source.path], format: "zip", archiveName: "bundle", password: "secret")
+        ) { error in
+            XCTAssertEqual(error as? ArchiveOperationsError, .passwordUnsupported)
+        }
+        XCTAssertFalse(didRunProcess.value)
+    }
+
+    func testTarCreateUsesOptionDelimiterBeforeItemNames() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = try createTestFile(in: temp, name: "-leading-dash.txt", content: "Hello")
+        let capturedArguments = LockedBox<[String]>([])
+        let operations = ArchiveOperations(
+            resolveTool: { _ in "/usr/bin/tar" },
+            runProcess: { _, arguments, _ in
+                capturedArguments.value = arguments
+                return ServerProcessResult(status: 0, stderr: "")
+            }
+        )
+
+        _ = try operations.createArchive(items: [source.path], format: "tarGz", archiveName: "bundle", password: nil)
+
+        XCTAssertEqual(capturedArguments.value.dropFirst(2).first, "--")
+        XCTAssertEqual(capturedArguments.value.last, "-leading-dash.txt")
+    }
+}
+
+private final class LockedBox<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue: Value
+
+    init(_ value: Value) {
+        self.storedValue = value
+    }
+
+    var value: Value {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedValue
+        }
+        set {
+            lock.lock()
+            storedValue = newValue
+            lock.unlock()
+        }
+    }
 }

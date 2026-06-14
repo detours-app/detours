@@ -2,10 +2,20 @@
 
 ## Latest Run
 
-- Started: 2026-06-12 19:02:15
-- Command: `swift test --filter <suite>` (suites below, run in batches)
-- Status: PASS
-- Notes: Regression pass after the code-audit fixes (Critical + Important). Server-side overwrite deletes (copy/move/upload) now route through Trash instead of removeItem; RPCHandler returns a per-request error envelope instead of crashing on filesystem errors and treats unwatch of an unknown token as a no-op; readRemotePaths caps its capacity reservation; GitOperations preserves the inherited environment and decodes git C-quoted filenames; symlink fileSize now reports the target size. Client side: SSHRemoteRPCClient throws on an error envelope instead of hanging, SSHConnection.readFrame caps the frame size, LocalFileProvider.upload trashes the prior file, SSHHostTrust pins UserKnownHostsFile + StrictHostKeyChecking, AddRemoteHost now scans/records the host key, and the local Replace conflict path plus the remote-move undo were corrected. No new tests added; existing suites cover the changed code.
+- Started: 2026-06-14 13:36:46
+- Command: `swift test --filter 'RemoteTransferChannelTests|RemoteDragOutTests|FileOpenHelperTests|RemoteFileProviderTests|ArchiveOperationTests|ServerArchiveOperationsTests|CopyfileHelperTests'`
+- Status: FAIL
+- Notes: Targeted code-audit-fix run after deletion-safety, SSH/RPC, remote parity, archive password, SMB recent-server, and copyfile cleanup changes. Build and most targeted suites passed, but `ArchiveOperationTests.testCreateZipWithPassword` and `ArchiveOperationTests.testExtractPasswordZip` still expected password archive support. Updating those tests to assert the new disabled behavior, then rerunning the same targeted command.
+
+### Code Audit Fixes 2026-06-14
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests | FAIL | 1.165s | 2026-06-14 13:36:47 |
+| ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + NetworkTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests | FAIL | compile failed | 2026-06-14 13:39:00 |
+| ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + NetworkTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests | FAIL | 1.169s | 2026-06-14 13:39:56 |
+| ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + NetworkTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests | PASS | 1.106s | 2026-06-14 13:40:24 |
+| RemoteTrashUndoTests (remote delete/undo plus remote rename routing) | PASS | 0.113s | 2026-06-14 13:41:06 |
 
 ### Code Audit Fixes 2026-06-12
 

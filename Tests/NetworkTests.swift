@@ -241,4 +241,15 @@ final class NetworkTests: XCTestCase {
         // Restore original settings
         SettingsManager.shared.recentServers = originalServers
     }
+
+    @MainActor
+    func testRecentServersStripCredentials() {
+        let originalServers = SettingsManager.shared.recentServers
+        SettingsManager.shared.recentServers = []
+
+        SettingsManager.shared.addRecentServer(URL(string: "smb://user:secret@example.local/share")!)
+
+        XCTAssertEqual(SettingsManager.shared.recentServers, ["smb://example.local/share"])
+        SettingsManager.shared.recentServers = originalServers
+    }
 }

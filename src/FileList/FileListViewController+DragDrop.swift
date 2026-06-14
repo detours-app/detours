@@ -116,7 +116,9 @@ final class RemoteFilePromiseProvider: NSObject, NSFilePromiseProviderDelegate {
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         let partial = RemoteTransferChannel.partialURL(for: destination)
         try? FileManager.default.removeItem(at: partial)
-        try? FileManager.default.removeItem(at: destination)
+        guard !FileManager.default.fileExists(atPath: destination.path) else {
+            throw CocoaError(.fileWriteFileExists)
+        }
 
         do {
             try Task.checkCancellation()
@@ -125,7 +127,6 @@ final class RemoteFilePromiseProvider: NSObject, NSFilePromiseProviderDelegate {
             try FileManager.default.moveItem(at: partial, to: destination)
         } catch {
             try? FileManager.default.removeItem(at: partial)
-            try? FileManager.default.removeItem(at: destination)
             throw error
         }
     }

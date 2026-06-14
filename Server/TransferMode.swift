@@ -35,15 +35,18 @@ struct TransferMode {
     private let input: FileHandle
     private let output: FileHandle
     private let fileManager: FileManager
+    private let trashOperations: TrashOperations
 
     init(
         input: FileHandle = .standardInput,
         output: FileHandle = .standardOutput,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        trashOperations: TrashOperations = TrashOperations()
     ) {
         self.input = input
         self.output = output
         self.fileManager = fileManager
+        self.trashOperations = trashOperations
     }
 
     func run() throws {
@@ -83,8 +86,12 @@ struct TransferMode {
         let partial = destination.deletingLastPathComponent()
             .appendingPathComponent(destination.lastPathComponent + ".detours-partial")
         try? fileManager.removeItem(at: partial)
-        try? fileManager.removeItem(at: destination)
-        _ = fileManager.createFile(atPath: partial.path, contents: nil)
+        if fileManager.fileExists(atPath: destination.path) {
+            _ = try trashOperations.trash(paths: [destination.path])
+        }
+        guard fileManager.createFile(atPath: partial.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
 
         var received: Int64 = 0
         do {

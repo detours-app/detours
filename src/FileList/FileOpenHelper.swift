@@ -26,9 +26,10 @@ final class RemoteOpenWithCoordinator {
     static let shared = RemoteOpenWithCoordinator()
 
     private struct ActiveSession {
-        let session: RemoteOpenWithSession
+        var session: RemoteOpenWithSession
         let provider: any FileProvider
         let watcher: MultiDirectoryWatcher
+        var isUploading = false
     }
 
     private var activeSessions: [URL: ActiveSession] = [:]
@@ -63,6 +64,7 @@ final class RemoteOpenWithCoordinator {
         let watchedDirectory = session.localURL.deletingLastPathComponent()
         let watcher = MultiDirectoryWatcher { [weak self] changedURL in
             guard changedURL.standardizedFileURL == session.localURL.standardizedFileURL ||
+                  changedURL.standardizedFileURL == watchedDirectory.standardizedFileURL ||
                   changedURL.deletingLastPathComponent().standardizedFileURL == watchedDirectory.standardizedFileURL else {
                 return
             }
@@ -80,17 +82,30 @@ final class RemoteOpenWithCoordinator {
 
     private func uploadIfNeeded(localURL: URL) async {
         let key = localURL.standardizedFileURL
-        guard let active = activeSessions.removeValue(forKey: key) else { return }
-        active.watcher.unwatchAll()
+        guard var active = activeSessions[key], !active.isUploading else { return }
+        active.isUploading = true
+        activeSessions[key] = active
 
         do {
-            _ = try await FileOpenHelper.finishRemoteOpenWith(
+            let choice = try await FileOpenHelper.finishRemoteOpenWith(
                 active.session,
                 provider: active.provider,
                 conflictResolver: { await FileOpenHelper.presentRemoteOpenConflict($0, fileName: localURL.lastPathComponent) }
             )
+            if choice != .keepRemote && choice != .cancel {
+                let version = try await active.provider.version(of: active.session.remoteLocation)
+                active.session = RemoteOpenWithSession(
+                    remoteLocation: active.session.remoteLocation,
+                    localURL: active.session.localURL,
+                    originalVersion: version
+                )
+            }
         } catch {
             FileOperationQueue.shared.presentError(error)
+        }
+        active.isUploading = false
+        if activeSessions[key] != nil {
+            activeSessions[key] = active
         }
     }
 }
@@ -135,8 +150,8 @@ enum FileOpenHelper {
         opener: @MainActor (URL) -> Void = { NSWorkspace.shared.open($0) }
     ) async throws -> RemoteOpenWithSession {
         let localURL = try RemoteFileCache.makeSessionFile(hostID: hostID, remotePath: location.path)
-        try await provider.download(location, to: localURL)
         let version = try await provider.version(of: location)
+        try await provider.download(location, to: localURL)
         await MainActor.run {
             opener(localURL)
         }

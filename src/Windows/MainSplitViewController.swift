@@ -1222,11 +1222,18 @@ extension MainSplitViewController: SidebarDelegate {
                 try await connection.connect()
 
                 let rpcClient = SSHRemoteRPCClient(connection: connection)
+                let watcherClient = RemoteWatcherClient(hostID: host.id, rpcClient: rpcClient)
+                await rpcClient.setEventHandler { envelope in
+                    Task {
+                        await watcherClient.receive(envelope)
+                    }
+                }
                 let transferChannel = RemoteTransferChannel(sshTarget: host.sshTarget)
                 let provider = RemoteFileProvider(
                     hostID: host.id,
                     rpcClient: rpcClient,
-                    transferChannel: transferChannel
+                    transferChannel: transferChannel,
+                    watcherClient: watcherClient
                 )
                 let initialPath = try await validateRemoteConnection(provider: provider, rpcClient: rpcClient, host: host)
 
@@ -1269,14 +1276,17 @@ extension MainSplitViewController: SidebarDelegate {
 
     private static func remoteHomeDirectory(sshTarget: String) async throws -> String {
         try await Task.detached(priority: .userInitiated) {
+            let hostTrust = SSHHostTrust()
+            try hostTrust.prepareKnownHostsFile()
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
             process.arguments = [
                 "-o", "BatchMode=yes",
                 "-o", "ConnectTimeout=8",
-                sshTarget,
-                "printf %s \"$HOME\"",
-            ]
+            ] + hostTrust.sshArguments + [
+                    sshTarget,
+                    "printf %s \"$HOME\"",
+                ]
             let outputPipe = Pipe()
             let errorPipe = Pipe()
             process.standardOutput = outputPipe

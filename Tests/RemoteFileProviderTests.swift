@@ -185,6 +185,22 @@ final class RemoteFileProviderTests: XCTestCase {
             ]
         )
     }
+
+    func testWatchWithoutWatcherClientFailsExplicitly() async throws {
+        let hostID = UUID()
+        let provider = RemoteFileProvider(
+            hostID: hostID,
+            rpcClient: FakeRemoteRPCClient(responses: []),
+            transferChannel: RemoteTransferChannel(sshTarget: "devtest")
+        )
+
+        do {
+            _ = try await provider.watch(.remote(hostID: hostID, path: "/home/marco")) { _ in }
+            XCTFail("Expected remote watch without watcher client to fail")
+        } catch FileProviderError.unsupportedOperation(let message) {
+            XCTAssertTrue(message.contains("watcher client"))
+        }
+    }
 }
 
 private actor FakeRemoteRPCClient: RemoteRPCClient {

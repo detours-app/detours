@@ -218,7 +218,11 @@ final class FileOperationQueue {
     func rename(item: Location, to newName: String) async throws -> Location {
         guard case .local(let itemURL) = item else {
             return try await enqueue {
-                throw FileProviderError.unsupportedOperation("Remote rename is not implemented yet")
+                guard case .remote(let hostID, _) = item else {
+                    throw FileProviderError.unsupportedOperation("Mixed rename is not implemented yet")
+                }
+                let provider = try self.remoteProvider(for: hostID)
+                return try await provider.rename(item, to: newName)
             }
         }
 
@@ -353,6 +357,9 @@ final class FileOperationQueue {
             case .archivePasswordRequired:
                 // Handled by the caller to prompt for password
                 return
+            case .archivePasswordUnsupported:
+                alert.messageText = "Password Archives Disabled"
+                alert.informativeText = operationError.localizedDescription
             default:
                 alert.messageText = "Operation Failed"
                 alert.informativeText = operationError.localizedDescription
@@ -1829,6 +1836,9 @@ final class FileOperationQueue {
     }
 
     private func performArchive(items: [URL], format: ArchiveFormat, archiveName: String, password: String?) async throws -> URL {
+        if let password, !password.isEmpty {
+            throw FileOperationError.archivePasswordUnsupported
+        }
         let operation = FileOperation.archive(items: items, format: format)
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
@@ -1910,7 +1920,7 @@ final class FileOperationQueue {
 
         var arguments = ["-r", "-q"]
         if let password, !password.isEmpty {
-            arguments.append(contentsOf: ["-P", password])
+            throw FileOperationError.archivePasswordUnsupported
         }
         arguments.append(destination.path)
         for item in items {
@@ -1931,8 +1941,7 @@ final class FileOperationQueue {
 
         var arguments = ["a", "-t7z", "-bsp2"]
         if let password, !password.isEmpty {
-            arguments.append("-p\(password)")
-            arguments.append("-mhe=on")
+            throw FileOperationError.archivePasswordUnsupported
         }
         arguments.append(destination.path)
         for item in items {
@@ -2116,6 +2125,9 @@ final class FileOperationQueue {
     }
 
     private func performExtract(archive: URL, password: String?) async throws -> URL {
+        if let password, !password.isEmpty {
+            throw FileOperationError.archivePasswordUnsupported
+        }
         guard let format = ArchiveFormat.detect(from: archive) else {
             throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.pathExtension)")
         }
@@ -2276,7 +2288,10 @@ final class FileOperationQueue {
     private func extractZipWithUnzip(archive: URL, destination: URL, password: String) async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.unzip.path)
-        process.arguments = ["-o", "-q", "-P", password, archive.path, "-d", destination.path]
+        guard password.isEmpty else {
+            throw FileOperationError.archivePasswordUnsupported
+        }
+        process.arguments = ["-o", "-q", archive.path, "-d", destination.path]
 
         let errorPipe = Pipe()
         process.standardError = errorPipe
@@ -2470,7 +2485,7 @@ final class FileOperationQueue {
             process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
             var args = ["l", "-slt"]
             if let password, !password.isEmpty {
-                args.append("-p\(password)")
+                return []
             }
             args.append(archive.path)
             process.arguments = args
@@ -2583,7 +2598,7 @@ final class FileOperationQueue {
 
         var arguments = ["x", "-y", "-bsp2", "-o\(destination.path)"]
         if let password, !password.isEmpty {
-            arguments.append("-p\(password)")
+            throw FileOperationError.archivePasswordUnsupported
         }
         arguments.append(archive.path)
         process.arguments = arguments

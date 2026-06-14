@@ -211,7 +211,14 @@ actor SSHConnection {
         stderrPipe = nil
 
         guard state != .disconnected else { return }
-        transition(to: .failed(reason: .processExited(status)))
+        let reason = SSHConnectionFailureReason.processExited(status)
+        if hasIdleBlockers, SSHReconnectPolicy.isRetryable(reason) {
+            Task { [weak self] in
+                await self?.reconnect(afterFailure: reason)
+            }
+            return
+        }
+        transition(to: .failed(reason: reason))
     }
 
     private func disconnectAfterFailure(_ reason: SSHConnectionFailureReason) {

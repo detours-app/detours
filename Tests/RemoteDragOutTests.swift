@@ -49,6 +49,31 @@ final class RemoteDragOutTests: XCTestCase {
         let downloadedLocations = await provider.downloadedLocations()
         XCTAssertEqual(downloadedLocations, [item.location])
     }
+
+    func testRemoteFilePromiseDoesNotDeleteExistingDestination() async throws {
+        let hostID = UUID()
+        let item = FileItem(
+            name: "remote.txt",
+            location: .remote(hostID: hostID, path: "/home/marco/remote.txt"),
+            isDirectory: false,
+            size: 11,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+        let provider = RemoteDragOutProvider(contents: Data("remote-body".utf8))
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let destination = temp.appendingPathComponent("remote.txt")
+        try Data("keep-me".utf8).write(to: destination)
+
+        do {
+            try await RemoteFilePromiseProvider.materialise(location: item.location, provider: provider, to: destination)
+            XCTFail("Expected existing destination to fail safely")
+        } catch {
+            XCTAssertEqual(try Data(contentsOf: destination), Data("keep-me".utf8))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: RemoteTransferChannel.partialURL(for: destination).path))
+        }
+    }
 }
 
 private actor RemoteDragOutProvider: FileProvider {

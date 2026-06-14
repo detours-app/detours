@@ -160,10 +160,10 @@ final class SettingsManager {
 
     func addRecentServer(_ url: URL) {
         var recent = settings.recentServers
-        let urlString = url.absoluteString
+        let urlString = Self.sanitizedRecentServerString(from: url)
 
         // Remove if already exists (will re-add at top)
-        recent.removeAll { $0 == urlString }
+        recent.removeAll { $0 == url.absoluteString || $0 == urlString }
 
         // Add at top
         recent.insert(urlString, at: 0)
@@ -174,6 +174,15 @@ final class SettingsManager {
         }
 
         settings.recentServers = recent
+    }
+
+    private static func sanitizedRecentServerString(from url: URL) -> String {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url.absoluteString
+        }
+        components.user = nil
+        components.password = nil
+        return components.url?.absoluteString ?? url.absoluteString
     }
 
     // MARK: - Shortcut Settings
