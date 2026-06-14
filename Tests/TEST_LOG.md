@@ -2,10 +2,23 @@
 
 ## Latest Run
 
-- Started: 2026-06-14 13:36:46
-- Command: `swift test --filter 'RemoteTransferChannelTests|RemoteDragOutTests|FileOpenHelperTests|RemoteFileProviderTests|ArchiveOperationTests|ServerArchiveOperationsTests|CopyfileHelperTests'`
+- Started: 2026-06-14 13:54:17
+- Command: `swift test --filter 'DirectoryLoaderTests|NetworkDirectoryPollerTests|IconLoaderNetworkVolumeTests|LoadCancellationTests'`
 - Status: FAIL
-- Notes: Targeted code-audit-fix run after deletion-safety, SSH/RPC, remote parity, archive password, SMB recent-server, and copyfile cleanup changes. Build and most targeted suites passed, but `ArchiveOperationTests.testCreateZipWithPassword` and `ArchiveOperationTests.testExtractPasswordZip` still expected password archive support. Updating those tests to assert the new disabled behavior, then rerunning the same targeted command.
+- Notes: Targeted test-audit-fix run failed at compile because `DirectoryLoader.loadDirectory`'s task-group closure was missing an explicit `return` after adding a cancellation check. Fixed the closure and rerunning the same targeted command.
+
+### Test Audit Fixes 2026-06-14
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| DirectoryLoaderTests + NetworkDirectoryPollerTests + IconLoaderNetworkVolumeTests + LoadCancellationTests | FAIL | compile failed | 2026-06-14 13:54:17 |
+| DirectoryLoaderTests + NetworkDirectoryPollerTests + IconLoaderNetworkVolumeTests + LoadCancellationTests | FAIL | compile failed | 2026-06-14 13:54:50 |
+| DirectoryLoaderTests + NetworkDirectoryPollerTests + IconLoaderNetworkVolumeTests + LoadCancellationTests | PASS | 2.105s | 2026-06-14 13:55:37 |
+| FileOperationQueueTests/testCancellationWithAsyncProcess + testCopyLargeFileCancellation | PASS | 0.037s | 2026-06-14 13:55:50 |
+| GitStatusTests + HousekeepingTests + PaneViewControllerTests/testExpansionPreservedOnTabSwitch + RemoteHomeDirectoryProbeTests + PermanentDeleteWarningTests + RemoteFileCacheTests + ReleaseScriptTests | FAIL | 4.355s | 2026-06-14 13:56:21 |
+| GitStatusTests + HousekeepingTests + PaneViewControllerTests/testExpansionPreservedOnTabSwitch + RemoteHomeDirectoryProbeTests + PermanentDeleteWarningTests + RemoteFileCacheTests + ReleaseScriptTests | FAIL | 2.315s | 2026-06-14 13:57:58 |
+| GitStatusTests + HousekeepingTests + PaneViewControllerTests/testExpansionPreservedOnTabSwitch + RemoteHomeDirectoryProbeTests + PermanentDeleteWarningTests + RemoteFileCacheTests + ReleaseScriptTests | PASS | 2.199s | 2026-06-14 13:58:27 |
+| OpenWithConflictTests + RemoteFileProviderTests + RemoteTrashUndoTests + RemoteWatcherClientTests + RemoteWatcherPollFallbackTests + ServerDeployerTests | PASS | 0.469s | 2026-06-14 13:58:45 |
 
 ### Code Audit Fixes 2026-06-14
 

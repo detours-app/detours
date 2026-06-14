@@ -1309,12 +1309,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let urls = selectedURLs
         guard !urls.isEmpty else { return }
 
-        // Check if any items are on a remote volume (NAS, SMB, etc.) where Trash isn't available
-        let isRemote = urls.contains { url in
-            (try? url.resourceValues(forKeys: [.volumeIsLocalKey]))?.volumeIsLocal == false
-        }
-
-        if isRemote {
+        if Self.requiresPermanentDeleteWarning(urls: urls) {
             // Remote volumes can't use Trash — warn and offer permanent deletion
             let alert = NSAlert()
             alert.alertStyle = .warning
@@ -1380,6 +1375,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         guard response == .alertFirstButtonReturn else { return }
 
         performDeleteImmediately(urls: urls)
+    }
+
+    nonisolated static func requiresPermanentDeleteWarning(
+        urls: [URL],
+        volumeIsLocal: (URL) -> Bool? = { url in
+            (try? url.resourceValues(forKeys: [.volumeIsLocalKey]))?.volumeIsLocal
+        }
+    ) -> Bool {
+        urls.contains { volumeIsLocal($0) == false }
     }
 
     private func performDeleteImmediately(urls: [URL]) {

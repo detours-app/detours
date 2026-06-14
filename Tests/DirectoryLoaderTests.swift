@@ -63,23 +63,23 @@ struct DirectoryLoaderTests {
             try "data".write(to: tempDir.appendingPathComponent("file\(i).txt"), atomically: true, encoding: .utf8)
         }
 
-        let loader = DirectoryLoader()
+        let gate = EnumerationGate()
+        let loader = DirectoryLoader(enumerationHook: gate.hook)
 
         let task = Task {
             try await loader.loadDirectory(tempDir, showHidden: false, timeout: .seconds(30))
         }
 
-        // Cancel immediately
+        #expect(gate.waitUntilEntered())
         task.cancel()
+        gate.cancelAndRelease()
 
-        // The task should either complete (fast local FS) or be cancelled
         do {
             _ = try await task.value
-            // If it completes before cancellation takes effect, that's fine
+            Issue.record("Cancelled directory load delivered results")
         } catch is CancellationError {
-            // Expected
-        } catch {
-            // Other errors are acceptable too (cancellation can manifest differently)
+        } catch let error as DirectoryLoadError {
+            #expect(error == .cancelled)
         }
     }
 
@@ -290,13 +290,11 @@ struct NetworkDirectoryPollerTests {
         let poller = NetworkDirectoryPoller(url: tempDir) {
             changeCount += 1
         }
-        poller.start()
-
-        // Wait for several polling cycles without making changes
-        try await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds = ~2.5 poll cycles
+        poller.primeSnapshotForTesting()
+        poller.pollOnceForTesting()
+        try await Task.sleep(nanoseconds: 50_000_000)
 
         #expect(changeCount == 0)
-        poller.stop()
     }
 }
 
@@ -374,10 +372,9 @@ struct IconLoaderNetworkVolumeTests {
         let loader = IconLoader()
         let icon = await loader.icon(for: url, isDirectory: false, isPackage: false, isNetworkVolume: true)
 
-        // Should not be the generic file placeholder since PDF has a known UTType
-        let pdfType = UTType(filenameExtension: "pdf")!
-        let expectedIcon = NSWorkspace.shared.icon(for: pdfType)
-        #expect(icon.tiffRepresentation == expectedIcon.tiffRepresentation)
+        #expect(icon !== IconLoader.placeholderFileIcon)
+        #expect(icon.size.width > 0)
+        #expect(icon.size.height > 0)
     }
 
     @Test("Network volume file without extension returns file placeholder")
@@ -514,23 +511,22 @@ struct LoadCancellationTests {
             )
         }
 
-        let loader = DirectoryLoader()
+        let gate = EnumerationGate()
+        let loader = DirectoryLoader(enumerationHook: gate.hook)
 
-        // Start a load and immediately cancel
         let task = Task {
             try await loader.loadDirectory(tempDir, showHidden: false, timeout: .seconds(30))
         }
+        #expect(gate.waitUntilEntered())
         task.cancel()
+        gate.cancelAndRelease()
 
-        // Should either return results (completed before cancel) or throw cancellation
         do {
-            let result = try await task.value
-            // Fast local FS may complete before cancel takes effect - that's fine
-            #expect(result.count == 50)
+            _ = try await task.value
+            Issue.record("Cancelled directory load delivered results")
         } catch is CancellationError {
-            // Expected - cancel prevented delivery
-        } catch {
-            // Other errors acceptable from cancellation
+        } catch let error as DirectoryLoadError {
+            #expect(error == .cancelled)
         }
     }
 
@@ -567,6 +563,35 @@ struct LoadCancellationTests {
         let lastResult = try await tasks.last!.value
         #expect(lastResult.count == 1)
         #expect(lastResult[0].name == "file.txt")
+    }
+}
+
+private final class EnumerationGate: @unchecked Sendable {
+    private let entered = DispatchSemaphore(value: 0)
+    private let release = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var shouldCancel = false
+
+    func hook() throws {
+        entered.signal()
+        release.wait()
+        lock.lock()
+        let cancelled = shouldCancel
+        lock.unlock()
+        if cancelled {
+            throw DirectoryLoadError.cancelled
+        }
+    }
+
+    func waitUntilEntered(timeout: TimeInterval = 2) -> Bool {
+        entered.wait(timeout: .now() + timeout) == .success
+    }
+
+    func cancelAndRelease() {
+        lock.lock()
+        shouldCancel = true
+        lock.unlock()
+        release.signal()
     }
 }
 

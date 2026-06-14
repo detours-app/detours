@@ -109,6 +109,7 @@ struct LoadedFileEntry: Sendable {
 
 actor DirectoryLoader {
     static let shared = DirectoryLoader()
+    typealias EnumerationHook = @Sendable () throws -> Void
 
     private static let baseResourceKeys: [URLResourceKey] = [
         .isDirectoryKey,
@@ -149,12 +150,16 @@ actor DirectoryLoader {
         return baseResourceKeys + localResourceKeys
     }
 
-    private let operationQueue: OperationQueue = {
+    private let operationQueue: OperationQueue
+    private let enumerationHook: EnumerationHook?
+
+    init(enumerationHook: EnumerationHook? = nil) {
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = 4
         queue.qualityOfService = .userInitiated
-        return queue
-    }()
+        self.operationQueue = queue
+        self.enumerationHook = enumerationHook
+    }
 
     func loadDirectory(
         _ url: URL,
@@ -163,7 +168,8 @@ actor DirectoryLoader {
     ) async throws -> [LoadedFileEntry] {
         try await withThrowingTaskGroup(of: [LoadedFileEntry]?.self) { group in
             group.addTask {
-                try await self.enumerateDirectory(url, showHidden: showHidden)
+                try Task.checkCancellation()
+                return try await self.enumerateDirectory(url, showHidden: showHidden)
             }
 
             group.addTask {
@@ -176,6 +182,7 @@ actor DirectoryLoader {
             }
 
             if let entries = firstResult {
+                try Task.checkCancellation()
                 group.cancelAll()
                 return entries
             }
@@ -266,8 +273,14 @@ actor DirectoryLoader {
     ) async throws -> [LoadedFileEntry] {
         try await withCheckedThrowingContinuation { continuation in
             let keys = Self.resourceKeys(for: url)
+            let enumerationHook = self.enumerationHook
             operationQueue.addOperation {
                 do {
+                    try enumerationHook?()
+                    if Task.isCancelled {
+                        throw DirectoryLoadError.cancelled
+                    }
+
                     var options: FileManager.DirectoryEnumerationOptions = []
                     if !showHidden {
                         options.insert(.skipsHiddenFiles)
@@ -291,7 +304,12 @@ actor DirectoryLoader {
                         return LoadedFileEntry(url: fileURL, resourceValues: values)
                     }
 
+                    if Task.isCancelled {
+                        throw DirectoryLoadError.cancelled
+                    }
                     continuation.resume(returning: entries)
+                } catch let error as DirectoryLoadError {
+                    continuation.resume(throwing: error)
                 } catch let error as NSError {
                     let isNetwork = VolumeMonitor.isNetworkVolume(url)
                     if error.domain == NSCocoaErrorDomain {

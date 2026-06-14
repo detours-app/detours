@@ -215,6 +215,18 @@ final class NetworkDirectoryPoller: @unchecked Sendable {
         lastSnapshot = nil
     }
 
+    func primeSnapshotForTesting() {
+        pollQueue.sync {
+            self.lastSnapshot = self.takeSnapshot()
+        }
+    }
+
+    func pollOnceForTesting() {
+        pollQueue.sync {
+            self.poll()
+        }
+    }
+
     private func poll() {
         let newSnapshot = takeSnapshot()
 

@@ -20,47 +20,61 @@ final class GitStatusTests: XCTestCase {
     }
 
     func testGitStatusInGitRepo() async throws {
-        // Use the current project directory (which is a git repo)
-        let projectDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let projectDir = try makeGitRepository()
+        defer { cleanupTempDirectory(projectDir) }
 
-        // This should not crash and should return some result
+        let tracked = try createTestFile(in: projectDir, name: "tracked.txt", content: "old")
+        try runGit(["add", "tracked.txt"], in: projectDir)
+        try runGit(["commit", "-m", "initial"], in: projectDir)
+        try "new".write(to: tracked, atomically: true, encoding: .utf8)
+        try createTestFile(in: projectDir, name: "untracked.txt")
+        try createTestFile(in: projectDir, name: "staged.txt")
+        try runGit(["add", "staged.txt"], in: projectDir)
+
+        await GitStatusProvider.shared.invalidateCache(for: projectDir)
         let statuses = await GitStatusProvider.shared.status(for: projectDir)
+        let statusByPath = normalizedStatusByPath(statuses)
 
-        // We can't assert specific files, but we can verify it returns a dictionary
-        // and doesn't throw
-        XCTAssertNotNil(statuses, "Should return a dictionary")
+        XCTAssertEqual(statusByPath[gitStatusPath(tracked)], .modified)
+        XCTAssertEqual(statusByPath[gitStatusPath(projectDir.appendingPathComponent("untracked.txt"))], .untracked)
+        XCTAssertEqual(statusByPath[gitStatusPath(projectDir.appendingPathComponent("staged.txt"))], .staged)
     }
 
     func testGitStatusCaching() async throws {
-        // Use the current project directory
-        let projectDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let projectDir = try makeGitRepository()
+        defer { cleanupTempDirectory(projectDir) }
 
-        // First call
-        let start1 = Date()
-        _ = await GitStatusProvider.shared.status(for: projectDir)
-        let duration1 = Date().timeIntervalSince(start1)
+        let tracked = try createTestFile(in: projectDir, name: "tracked.txt", content: "old")
+        try runGit(["add", "tracked.txt"], in: projectDir)
+        try runGit(["commit", "-m", "initial"], in: projectDir)
 
-        // Second call should be cached and faster
-        let start2 = Date()
-        _ = await GitStatusProvider.shared.status(for: projectDir)
-        let duration2 = Date().timeIntervalSince(start2)
+        await GitStatusProvider.shared.invalidateCache(for: projectDir)
+        let cleanStatuses = await GitStatusProvider.shared.status(for: projectDir)
+        XCTAssertEqual(cleanStatuses, [:])
 
-        // Second call should be significantly faster due to caching
-        // (within the 5 second TTL)
-        XCTAssertLessThan(duration2, duration1 + 0.1, "Cached call should be fast")
+        try "new".write(to: tracked, atomically: true, encoding: .utf8)
+
+        let cachedStatuses = await GitStatusProvider.shared.status(for: projectDir)
+        XCTAssertEqual(cachedStatuses, [:])
     }
 
     func testGitStatusInvalidateCache() async throws {
-        let projectDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let projectDir = try makeGitRepository()
+        defer { cleanupTempDirectory(projectDir) }
 
-        // Prime the cache
-        _ = await GitStatusProvider.shared.status(for: projectDir)
+        let tracked = try createTestFile(in: projectDir, name: "tracked.txt", content: "old")
+        try runGit(["add", "tracked.txt"], in: projectDir)
+        try runGit(["commit", "-m", "initial"], in: projectDir)
 
-        // Invalidate
+        await GitStatusProvider.shared.invalidateCache(for: projectDir)
+        let cleanStatuses = await GitStatusProvider.shared.status(for: projectDir)
+        XCTAssertEqual(cleanStatuses, [:])
+
+        try "new".write(to: tracked, atomically: true, encoding: .utf8)
         await GitStatusProvider.shared.invalidateCache(for: projectDir)
 
-        // This should work without crashing
-        _ = await GitStatusProvider.shared.status(for: projectDir)
+        let statuses = await GitStatusProvider.shared.status(for: projectDir)
+        XCTAssertEqual(normalizedStatusByPath(statuses)[gitStatusPath(tracked)], .modified)
     }
 
     // MARK: - FileItem GitStatus Tests
@@ -97,4 +111,34 @@ final class GitStatusTests: XCTestCase {
         // URL init should have nil git status (set externally by data source)
         XCTAssertNil(item.gitStatus)
     }
+}
+
+private func makeGitRepository() throws -> URL {
+    let directory = try createTempDirectory()
+    try runGit(["init"], in: directory)
+    try runGit(["config", "user.email", "detours@example.test"], in: directory)
+    try runGit(["config", "user.name", "Detours Tests"], in: directory)
+    return directory
+}
+
+private func normalizedStatusByPath(_ statuses: [URL: GitStatus]) -> [String: GitStatus] {
+    Dictionary(uniqueKeysWithValues: statuses.map { url, status in
+        (gitStatusPath(url), status)
+    })
+}
+
+private func gitStatusPath(_ url: URL) -> String {
+    url.resolvingSymlinksInPath().standardizedFileURL.path
+}
+
+private func runGit(_ arguments: [String], in directory: URL) throws {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+    process.arguments = arguments
+    process.currentDirectoryURL = directory
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    process.waitUntilExit()
+    XCTAssertEqual(process.terminationStatus, 0, "git \(arguments.joined(separator: " "))")
 }

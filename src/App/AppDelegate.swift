@@ -152,10 +152,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationIcon: NSApp.applicationIconImage as Any,
             .applicationName: "Detours",
-            .applicationVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown",
+            .applicationVersion: Self.aboutApplicationVersion(bundle: .main),
             .version: "",  // Hide build number
             .credits: credits
         ])
+    }
+
+    nonisolated static func aboutApplicationVersion(bundle: Bundle) -> String {
+        bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
     }
 
     @objc func showRemoteTrashInfo(_ sender: Any?) {

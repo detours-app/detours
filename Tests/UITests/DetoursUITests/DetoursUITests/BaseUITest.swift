@@ -20,17 +20,14 @@ class BaseUITest: XCTestCase {
         let window = app.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5), "App window should exist")
 
-        // Give the app time to fully initialize
-        sleep(2)
-
         // IMPORTANT: Activate the LEFT pane before creating tab
         // This ensures we create the tab in a predictable location
         activateLeftPane()
-        usleep(300_000)
+        XCTAssertTrue(waitForLeftPaneReady(), "Left pane should be ready")
 
         // Create a new tab for this test (Cmd-T) so we don't affect user's existing tabs
         pressCharKey("t", modifiers: .command)
-        usleep(500_000)
+        XCTAssertTrue(waitForLeftPaneReady(), "New tab should expose a ready left pane")
 
         // Navigate to temp directory in the new tab
         navigateToTempDirectory()
@@ -40,14 +37,11 @@ class BaseUITest: XCTestCase {
         // IMPORTANT: Activate LEFT pane before closing tab
         // This ensures we close the tab we created, not a tab in another pane
         activateLeftPane()
-        usleep(300_000)
+        XCTAssertTrue(waitForLeftPaneReady(), "Left pane should be ready before closing the test tab")
 
         // Close the tab we created (Cmd-W)
         pressCharKey("w", modifiers: .command)
-
-        // Wait for tab close to be persisted before app termination
-        // Without this delay, the tab state may not be saved
-        sleep(2)
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 2))
 
         // Don't terminate - uitest.sh handles quitting and relaunching
         // Terminating too quickly after Cmd-W causes tab state to not be saved
@@ -56,9 +50,14 @@ class BaseUITest: XCTestCase {
     /// Activate the left pane by clicking its outline view
     private func activateLeftPane() {
         let leftOutline = app.outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
-        if leftOutline.exists {
+        if leftOutline.waitForExistence(timeout: 3) {
             leftOutline.click()
         }
+    }
+
+    private func waitForLeftPaneReady(timeout: TimeInterval = 3) -> Bool {
+        app.outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
+            .waitForExistence(timeout: timeout)
     }
 
     /// Ensures folder expansion is enabled. Call this at the start of tests that need disclosure triangles.
@@ -90,7 +89,6 @@ class BaseUITest: XCTestCase {
             return
         }
         homeButton.click()
-        sleep(1)
 
         // Wait for home directory to load
         // Look for the test folder by its name (static text content within the row)
@@ -111,6 +109,6 @@ class BaseUITest: XCTestCase {
         // Click on the static text inside the row (row itself has no free space)
         let folderName = testFolderRow.staticTexts[testFolderName]
         folderName.doubleClick()
-        sleep(1)
+        XCTAssertTrue(waitForLeftPaneReady(), "Temp directory should load in the left pane")
     }
 }

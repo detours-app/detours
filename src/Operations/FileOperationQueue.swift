@@ -73,6 +73,7 @@ final class FileOperationQueue {
     var onOperationStart: ((FileOperation, Int) -> Void)?
     var onOperationFinish: ((FileOperation?, Error?) -> Void)?
     var onOperationPaused: ((String) -> Void)?
+    var copyProgressCancellationProbeForTesting: (@Sendable (Int64) -> Bool)?
 
     var pendingCount: Int { pending.count }
 
@@ -688,6 +689,7 @@ final class FileOperationQueue {
         lastFinishedOperation = nil
         lastReceivedProgress = nil
         onOperationPaused = nil
+        copyProgressCancellationProbeForTesting = nil
     }
     #endif
 
@@ -768,8 +770,12 @@ final class FileOperationQueue {
                         let itemCount = items.count
                         let cancelFlag = CancelFlag()
                         self.currentCancelFlag = cancelFlag
+                        let cancellationProbe = self.copyProgressCancellationProbeForTesting
                         try await runFileIO {
                             try CopyfileHelper.copy(from: source, to: destinationURL) { copiedBytes in
+                                if cancellationProbe?(previousBytes + copiedBytes) == true {
+                                    cancelFlag.cancel()
+                                }
                                 DispatchQueue.main.async { [weak self] in
                                     self?.updateProgress(
                                         operation: operation,

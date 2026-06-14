@@ -7,12 +7,40 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+ensure_main_branch() {
+    local project_dir="$1"
+    local current_branch
+    current_branch=$(git -C "$project_dir" branch --show-current)
+    if [[ "$current_branch" != "main" ]]; then
+        echo "Error: Must be on main branch to release (currently on $current_branch)"
+        return 1
+    fi
+}
+
+ensure_release_tag_available_or_at_head() {
+    local project_dir="$1"
+    local version="$2"
+    if git -C "$project_dir" rev-parse "v$version" >/dev/null 2>&1; then
+        local tag_commit
+        local head_commit
+        tag_commit=$(git -C "$project_dir" rev-parse "v$version^{}")
+        head_commit=$(git -C "$project_dir" rev-parse HEAD)
+        if [[ "$tag_commit" != "$head_commit" ]]; then
+            echo "Error: Tag v$version already exists but does not point at HEAD"
+            echo "  tag:  $tag_commit"
+            echo "  HEAD: $head_commit"
+            echo "Bump VERSION or move the local tag intentionally before releasing."
+            return 1
+        fi
+        echo "Tag v$version already points at HEAD, skipping"
+        return 2
+    fi
+    return 0
+}
+
+main() {
 # Ensure we're on main branch
-CURRENT_BRANCH=$(git -C "$PROJECT_DIR" branch --show-current)
-if [[ "$CURRENT_BRANCH" != "main" ]]; then
-    echo "Error: Must be on main branch to release (currently on $CURRENT_BRANCH)"
-    exit 1
-fi
+ensure_main_branch "$PROJECT_DIR"
 
 # Read version from VERSION file (single source of truth)
 VERSION=$(cat "$PROJECT_DIR/VERSION")
@@ -85,19 +113,12 @@ Detours is a fast, keyboard-driven file manager for macOS with dual-pane layout,
 EOF
 
 echo "==> Tagging v$VERSION..."
-if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-    TAG_COMMIT=$(git rev-parse "v$VERSION^{}")
-    HEAD_COMMIT=$(git rev-parse HEAD)
-    if [[ "$TAG_COMMIT" != "$HEAD_COMMIT" ]]; then
-        echo "Error: Tag v$VERSION already exists but does not point at HEAD"
-        echo "  tag:  $TAG_COMMIT"
-        echo "  HEAD: $HEAD_COMMIT"
-        echo "Bump VERSION or move the local tag intentionally before releasing."
-        exit 1
-    fi
-    echo "Tag v$VERSION already points at HEAD, skipping"
-else
+TAG_STATUS=0
+ensure_release_tag_available_or_at_head "$PROJECT_DIR" "$VERSION" || TAG_STATUS=$?
+if [[ "$TAG_STATUS" == "0" ]]; then
     git tag -a "v$VERSION" -m "Version $VERSION"
+elif [[ "$TAG_STATUS" != "2" ]]; then
+    exit "$TAG_STATUS"
 fi
 
 echo ""
@@ -125,4 +146,9 @@ else
     echo "  git push public main"
     echo "  git push public v$VERSION"
     echo "  gh release upload v$VERSION $DMG_NAME --repo detours-app/detours --clobber"
+fi
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
 fi

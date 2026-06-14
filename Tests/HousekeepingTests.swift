@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Detours
 
@@ -70,21 +71,49 @@ final class HousekeepingTests: XCTestCase {
 
     // MARK: - Menu Items
 
+    @MainActor
     func testGoMenuHasKeyboardShortcuts() {
-        // Verify Go menu items have the expected key equivalents
-        // This is a compile-time check via the menu setup
-        // The actual shortcuts are: Back=[, Forward=], Enclosing=Cmd-Up, Refresh=r
-        // Test passes if the app compiles and menu is set up correctly
+        setupMainMenu(target: AppDelegate())
+        let goMenu = NSApp.mainMenu?.item(withTitle: "Go")?.submenu
+
+        let back = goMenu?.item(withTitle: "Back")
+        XCTAssertEqual(back?.action, #selector(FileListViewController.goBack(_:)))
+        XCTAssertEqual(back?.keyEquivalent, String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!)))
+        XCTAssertEqual(back?.keyEquivalentModifierMask, .command)
+
+        let forward = goMenu?.item(withTitle: "Forward")
+        XCTAssertEqual(forward?.action, #selector(FileListViewController.goForward(_:)))
+        XCTAssertEqual(forward?.keyEquivalent, String(Character(UnicodeScalar(NSRightArrowFunctionKey)!)))
+        XCTAssertEqual(forward?.keyEquivalentModifierMask, .command)
+
+        let enclosing = goMenu?.item(withTitle: "Enclosing Folder")
+        XCTAssertEqual(enclosing?.action, #selector(FileListViewController.goUp(_:)))
+        XCTAssertEqual(enclosing?.keyEquivalent, String(Character(UnicodeScalar(NSUpArrowFunctionKey)!)))
+        XCTAssertEqual(enclosing?.keyEquivalentModifierMask, .command)
+
+        let refresh = goMenu?.item(withTitle: "Refresh")
+        XCTAssertEqual(refresh?.action, #selector(AppDelegate.refresh(_:)))
+        XCTAssertFalse(refresh?.keyEquivalent.isEmpty ?? true)
     }
 
+    @MainActor
     func testFileMenuHasRevealInFinder() {
-        // Verify "Reveal in Finder" is the correct terminology
-        // This is validated by successful compilation of MainMenu.swift
+        setupMainMenu(target: AppDelegate())
+        let item = NSApp.mainMenu?.item(withTitle: "File")?.submenu?.item(withTitle: "Reveal in Finder")
+
+        XCTAssertNotNil(item)
+        XCTAssertEqual(item?.action, #selector(FileListViewController.showInFinder(_:)))
+        XCTAssertNotNil(item?.image)
     }
 
+    @MainActor
     func testViewMenuHasToggleHiddenFiles() {
-        // Verify Toggle Hidden Files menu item exists
-        // This is validated by successful compilation of MainMenu.swift
+        setupMainMenu(target: AppDelegate())
+        let item = NSApp.mainMenu?.item(withTitle: "View")?.submenu?.item(withTitle: "Toggle Hidden Files")
+
+        XCTAssertNotNil(item)
+        XCTAssertEqual(item?.action, #selector(AppDelegate.toggleHiddenFiles(_:)))
+        XCTAssertFalse(item?.keyEquivalent.isEmpty ?? true)
     }
 
     @MainActor
@@ -107,9 +136,20 @@ final class HousekeepingTests: XCTestCase {
 
     // MARK: - About Panel
 
-    func testAboutPanelVersion() {
-        // The About panel should show version 0.6.0
-        // This is set in AppDelegate.showAbout()
-        // Verified by code inspection - version string is "0.6.0"
+    func testAboutPanelVersion() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let bundleURL = temp.appendingPathComponent("Versioned.bundle", isDirectory: true)
+        try FileManager.default.createDirectory(at: bundleURL, withIntermediateDirectories: true)
+        let plist: [String: Any] = [
+            "CFBundleIdentifier": "com.detours.tests.versioned",
+            "CFBundleShortVersionString": "9.8.7",
+        ]
+        let plistData = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        try plistData.write(to: bundleURL.appendingPathComponent("Info.plist"))
+
+        let bundle = try XCTUnwrap(Bundle(url: bundleURL))
+        XCTAssertEqual(AppDelegate.aboutApplicationVersion(bundle: bundle), "9.8.7")
     }
 }

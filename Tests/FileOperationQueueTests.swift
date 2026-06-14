@@ -566,21 +566,21 @@ final class FileOperationQueueTests: XCTestCase {
         }
         defer { queue.onOperationStart = savedStart }
 
-        // Cancel immediately after starting
-        let savedProgress = queue.onProgressUpdate
-        queue.onProgressUpdate = { _ in
-            queue.cancelCurrentOperation()
+        let savedProbe = queue.copyProgressCancellationProbeForTesting
+        queue.copyProgressCancellationProbeForTesting = { copiedBytes in
+            copiedBytes > 0
         }
-        defer { queue.onProgressUpdate = savedProgress }
+        defer { queue.copyProgressCancellationProbeForTesting = savedProbe }
 
         do {
             try await queue.copy(items: files, to: dest)
-            // May or may not throw — small copies can complete before cancel fires
+            XCTFail("Expected heavy copy cancellation")
         } catch {
             if let opError = error as? FileOperationError, case .cancelled = opError {
-                XCTAssertTrue(true, "Operation was cancelled as expected")
+                XCTAssertTrue(operationStarted, "Operation should have started before cancellation")
+            } else {
+                XCTFail("Expected cancellation error, got: \(error)")
             }
-            // partialFailure is also acceptable if cancel hit mid-operation
         }
 
         XCTAssertTrue(operationStarted, "Operation should have started")
@@ -791,23 +791,19 @@ final class FileOperationQueueTests: XCTestCase {
         let dest = try createTestFolder(in: temp, name: "Dest")
 
         let queue = FileOperationQueue.shared
-        let savedProgress = queue.onProgressUpdate
-        queue.onProgressUpdate = { progress in
-            savedProgress?(progress)
-            // Cancel as soon as we see any progress
-            if progress.bytesCompleted > 0 {
-                queue.cancelCurrentOperation()
-            }
+        let savedProbe = queue.copyProgressCancellationProbeForTesting
+        queue.copyProgressCancellationProbeForTesting = { copiedBytes in
+            copiedBytes > 0
         }
-        defer { queue.onProgressUpdate = savedProgress }
+        defer { queue.copyProgressCancellationProbeForTesting = savedProbe }
 
         do {
             try await queue.copy(items: [source], to: dest)
-            // It's OK if copy completes before cancel triggers (small file / fast disk)
+            XCTFail("Expected large copy cancellation")
         } catch {
-            // Expected: cancellation error
             if let opError = error as? FileOperationError, case .cancelled = opError {
-                // Good — cancelled mid-copy
+                let copied = dest.appendingPathComponent(source.lastPathComponent)
+                XCTAssertFalse(FileManager.default.fileExists(atPath: copied.path))
             } else {
                 XCTFail("Expected cancellation error, got: \(error)")
             }

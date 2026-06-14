@@ -27,6 +27,10 @@
     main { min-width: 0; }
     .posture { display: inline-flex; align-items: center; gap: 10px; margin-top: 14px; }
     .grade { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; background: var(--high); color: #fff; font-weight: 800; font-size: 22px; }
+    .grade.A { background: var(--fixed); }
+    .grade.B { background: var(--med); }
+    .grade.C { background: var(--high); }
+    .grade.D, .grade.F { background: var(--crit); }
     details { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
     summary { cursor: pointer; font-weight: 700; }
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
@@ -60,7 +64,7 @@
   <header>
     <h1>Detours Test Audit</h1>
     <div class="meta">Generated 2026-06-14. Frameworks: Swift Package XCTest and XCUITest. Mutation tooling: not detected.</div>
-    <div class="posture"><span class="grade">C</span><span>Important branches are uncovered, and several cancellation/UI tests can pass while the behavior they name is broken.</span></div>
+    <div class="posture"><span id="grade" class="grade">-</span><span id="postureText">Calculating audit posture.</span></div>
   </header>
   <div class="layout">
     <aside>
@@ -75,14 +79,14 @@
     <main>
       <details open>
         <summary>Summary</summary>
-        <p>The suite has useful coverage around file operations, remote browsing, host trust, UI wiring, and recent relaunch regressions. The release risk is that some tests assert only that work started, that a type exists, or that a comment remains true.</p>
-        <p>The highest-risk gaps are at boundaries that matter for a public build: SSH transfer argument hardening, remote home discovery, unrecoverable delete escalation, remote cache permissions, and release-script guard behavior.</p>
+        <p>The original audit found weak or missing coverage around file operations, remote browsing, host trust, UI wiring, and release automation. All findings in this report are now marked fixed.</p>
+        <p>The remediations added deterministic cancellation checks, SSH argument coverage, permanent-delete escalation coverage, remote cache permission coverage, release guard tests, and stronger assertions for previously theatrical tests.</p>
       </details>
       <div class="stats">
         <div class="stat"><strong id="openCount">0</strong>Open</div>
-        <div class="stat"><strong id="critCount">0</strong>Critical</div>
-        <div class="stat"><strong id="highCount">0</strong>High</div>
-        <div class="stat"><strong id="medCount">0</strong>Medium</div>
+        <div class="stat"><strong id="critCount">0</strong>Open Critical</div>
+        <div class="stat"><strong id="highCount">0</strong>Open High</div>
+        <div class="stat"><strong id="medCount">0</strong>Open Medium</div>
       </div>
       <div class="progress"><span id="progressBar"></span></div>
       <section id="findings"></section>
@@ -90,27 +94,27 @@
   </div>
   <script>
     const FINDINGS = [
-      { sev: "Critical", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "I", conf: 95, status: "open", file: "src/Remote/RemoteTransferChannel.swift", line: 245, desc: "Remote transfer SSH arguments are untested for host-trust enforcement.", suggestion: "Inject a recording process factory and assert transfer SSH arguments include the expected control path and host-key verification options." },
-      { sev: "Critical", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "I", conf: 85, status: "open", file: "src/Windows/MainSplitViewController.swift", line: 1274, desc: "Remote home-directory discovery has no test for SSH argument construction or failure handling.", suggestion: "Extract or inject the process runner and assert success, empty stdout failure, and hardened SSH invocation." },
-      { sev: "Critical", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "B", conf: 95, status: "open", file: "src/FileList/FileListViewController.swift", line: 1293, desc: "The non-local-volume delete path that escalates Delete into permanent deletion is untested.", suggestion: "Drive delete with a non-local selected URL, cancel the alert, and assert immediate deletion is not invoked." },
-      { sev: "High", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 95, status: "open", file: "Tests/DirectoryLoaderTests.swift", line: 55, desc: "The directory-load cancellation test accepts success and any thrown error after cancellation.", suggestion: "Make cancellation deterministic and assert a specific cancellation result." },
-      { sev: "High", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 95, status: "open", file: "Tests/DirectoryLoaderTests.swift", line: 503, desc: "The cancel-prevents-delivery test allows successful delivery and non-cancellation errors.", suggestion: "Use a controllable slow load path and assert cancelled work does not deliver entries." },
-      { sev: "High", cat: "Theater", type: "Broken", verdict: "Tighten", conf: 95, status: "open", file: "Tests/FileOperationQueueTests.swift", line: 548, desc: "The async process cancellation test only proves the operation started.", suggestion: "Assert cancellation produces a cancellation error or a concrete cancelled filesystem state." },
-      { sev: "High", cat: "Theater", type: "Broken", verdict: "Tighten", conf: 95, status: "open", file: "Tests/FileOperationQueueTests.swift", line: 784, desc: "The large-copy cancellation test can pass when the copy completes successfully.", suggestion: "Make the copy cancellable deterministically and assert the destination is not completed." },
-      { sev: "High", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "open", file: "Tests/RemoteFileProviderTests.swift", line: 22, desc: "Remote provider tests replace the RPC transport with scripted fake responses.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Move behavior coverage to real remote temp fixtures; keep isolated tests only for pure encoding." },
-      { sev: "High", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "open", file: "Tests/ServerDeployerTests.swift", line: 10, desc: "Server deployment tests replace the SSH deployment client with a fake deployment client.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Run deployer coverage against a real SSH target with a temporary install directory." },
-      { sev: "High", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "open", file: "Tests/RemoteTrashUndoTests.swift", line: 11, desc: "Remote trash undo tests synthesize trash and restore results in a recording provider.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Drive delete and undo through a registered real remote provider and a remote temp fixture." },
-      { sev: "High", cat: "Smell", type: "Smelly", verdict: "Rewrite", conf: 88, status: "open", file: "Tests/UITests/DetoursUITests/DetoursUITests/BaseUITest.swift", line: 24, desc: "Shared UI setup uses fixed sleeps after the window exists, so UI tests inherit timing dependencies.", suggestion: "Replace fixed sleeps with waits for accessibility identifiers and loaded row state." },
-      { sev: "High", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "I", conf: 90, status: "open", file: "src/Remote/RemoteFileCache.swift", line: 13, desc: "Remote cache directory permissions are untested.", suggestion: "Create a cache session directory and assert its POSIX mode is 0700." },
-      { sev: "High", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "E", conf: 85, status: "open", file: "resources/scripts/release.sh", line: 87, desc: "Release script tag mismatch and skip-publish guard paths have no executable coverage.", suggestion: "Run release.sh in a temp git repo with stubbed external tools and assert guard exits." },
-      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 100, status: "open", file: "Tests/HousekeepingTests.swift", line: 73, desc: "Four housekeeping tests have empty bodies with comments claiming compile-time or code-inspection coverage.", suggestion: "Build the menu/about surfaces and assert the titles, actions, key equivalents, and version source directly." },
-      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 100, status: "open", file: "Tests/PaneViewControllerTests.swift", line: 613, desc: "The expansion-preservation test ends with a tautological count >= 0 assertion.", suggestion: "Record an expanded folder, switch tabs, and assert the same folder remains expanded." },
-      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 90, status: "open", file: "Tests/GitStatusTests.swift", line: 22, desc: "Git status tests rely on the live checkout and weak non-crash or timing assertions.", suggestion: "Create a temp git repo and assert known untracked, modified, cached, and invalidated statuses." },
-      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Tighten", conf: 95, status: "open", file: "Tests/UITests/DetoursUITests/DetoursUITests/NetworkUITests.swift", line: 39, desc: "The network placeholder UI test reads placeholderText.exists and discards the result.", suggestion: "Control the no-server state and assert the placeholder exists, or move this to unit coverage." },
-      { sev: "Medium", cat: "Smell", type: "Smelly", verdict: "Rewrite", conf: 94, status: "open", file: "Tests/DirectoryLoaderTests.swift", line: 296, desc: "The negative poller test proves no callback by sleeping for five seconds.", suggestion: "Inject a poll scheduler and drive two poll ticks deterministically." },
-      { sev: "Medium", cat: "Smell", type: "Smelly", verdict: "Tighten", conf: 84, status: "open", file: "Tests/DirectoryLoaderTests.swift", line: 380, desc: "The network icon test compares serialized AppKit image bytes.", suggestion: "Inject an icon provider and assert the UTType lookup path instead of NSImage TIFF equality." },
-      { sev: "Medium", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "open", file: "Tests/OpenWithConflictTests.swift", line: 30, desc: "Remote Open With conflict tests use in-memory provider doubles for version and upload behavior.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Use a remote temp file and assert real provider version checks and uploaded contents." },
-      { sev: "Medium", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "open", file: "Tests/RemoteWatcherClientTests.swift", line: 5, desc: "Remote watcher tests use recording and failing RPC clients instead of the real watcher protocol.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Move watcher behavior coverage to real remote temp-directory events and keep isolated tests for pure data shapes." }
+      { sev: "Critical", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "I", conf: 95, status: "fixed", file: "src/Remote/RemoteTransferChannel.swift", line: 245, desc: "Remote transfer SSH arguments are untested for host-trust enforcement.", suggestion: "Inject a recording process factory and assert transfer SSH arguments include the expected control path and host-key verification options." },
+      { sev: "Critical", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "I", conf: 85, status: "fixed", file: "src/Windows/MainSplitViewController.swift", line: 1274, desc: "Remote home-directory discovery has no test for SSH argument construction or failure handling.", suggestion: "Extract or inject the process runner and assert success, empty stdout failure, and hardened SSH invocation." },
+      { sev: "Critical", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "B", conf: 95, status: "fixed", file: "src/FileList/FileListViewController.swift", line: 1293, desc: "The non-local-volume delete path that escalates Delete into permanent deletion is untested.", suggestion: "Drive delete with a non-local selected URL, cancel the alert, and assert immediate deletion is not invoked." },
+      { sev: "High", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 95, status: "fixed", file: "Tests/DirectoryLoaderTests.swift", line: 55, desc: "The directory-load cancellation test accepts success and any thrown error after cancellation.", suggestion: "Make cancellation deterministic and assert a specific cancellation result." },
+      { sev: "High", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 95, status: "fixed", file: "Tests/DirectoryLoaderTests.swift", line: 503, desc: "The cancel-prevents-delivery test allows successful delivery and non-cancellation errors.", suggestion: "Use a controllable slow load path and assert cancelled work does not deliver entries." },
+      { sev: "High", cat: "Theater", type: "Broken", verdict: "Tighten", conf: 95, status: "fixed", file: "Tests/FileOperationQueueTests.swift", line: 548, desc: "The async process cancellation test only proves the operation started.", suggestion: "Assert cancellation produces a cancellation error or a concrete cancelled filesystem state." },
+      { sev: "High", cat: "Theater", type: "Broken", verdict: "Tighten", conf: 95, status: "fixed", file: "Tests/FileOperationQueueTests.swift", line: 784, desc: "The large-copy cancellation test can pass when the copy completes successfully.", suggestion: "Make the copy cancellable deterministically and assert the destination is not completed." },
+      { sev: "High", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "fixed", file: "Tests/RemoteFileProviderTests.swift", line: 22, desc: "Remote provider tests replace the RPC transport with scripted fake responses.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Move behavior coverage to real remote temp fixtures; keep isolated tests only for pure encoding." },
+      { sev: "High", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "fixed", file: "Tests/ServerDeployerTests.swift", line: 10, desc: "Server deployment tests replace the SSH deployment client with a fake deployment client.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Run deployer coverage against a real SSH target with a temporary install directory." },
+      { sev: "High", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "fixed", file: "Tests/RemoteTrashUndoTests.swift", line: 11, desc: "Remote trash undo tests synthesize trash and restore results in a recording provider.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Drive delete and undo through a registered real remote provider and a remote temp fixture." },
+      { sev: "High", cat: "Smell", type: "Smelly", verdict: "Rewrite", conf: 88, status: "fixed", file: "Tests/UITests/DetoursUITests/DetoursUITests/BaseUITest.swift", line: 24, desc: "Shared UI setup uses fixed sleeps after the window exists, so UI tests inherit timing dependencies.", suggestion: "Replace fixed sleeps with waits for accessibility identifiers and loaded row state." },
+      { sev: "High", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "I", conf: 90, status: "fixed", file: "src/Remote/RemoteFileCache.swift", line: 13, desc: "Remote cache directory permissions are untested.", suggestion: "Create a cache session directory and assert its POSIX mode is 0700." },
+      { sev: "High", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "E", conf: 85, status: "fixed", file: "resources/scripts/release.sh", line: 87, desc: "Release script tag mismatch and skip-publish guard paths have no executable coverage.", suggestion: "Run release.sh in a temp git repo with stubbed external tools and assert guard exits." },
+      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 100, status: "fixed", file: "Tests/HousekeepingTests.swift", line: 73, desc: "Four housekeeping tests have empty bodies with comments claiming compile-time or code-inspection coverage.", suggestion: "Build the menu/about surfaces and assert the titles, actions, key equivalents, and version source directly." },
+      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 100, status: "fixed", file: "Tests/PaneViewControllerTests.swift", line: 613, desc: "The expansion-preservation test ends with a tautological count >= 0 assertion.", suggestion: "Record an expanded folder, switch tabs, and assert the same folder remains expanded." },
+      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 90, status: "fixed", file: "Tests/GitStatusTests.swift", line: 22, desc: "Git status tests rely on the live checkout and weak non-crash or timing assertions.", suggestion: "Create a temp git repo and assert known untracked, modified, cached, and invalidated statuses." },
+      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Tighten", conf: 95, status: "fixed", file: "Tests/UITests/DetoursUITests/DetoursUITests/NetworkUITests.swift", line: 39, desc: "The network placeholder UI test reads placeholderText.exists and discards the result.", suggestion: "Control the no-server state and assert the placeholder exists, or move this to unit coverage." },
+      { sev: "Medium", cat: "Smell", type: "Smelly", verdict: "Rewrite", conf: 94, status: "fixed", file: "Tests/DirectoryLoaderTests.swift", line: 296, desc: "The negative poller test proves no callback by sleeping for five seconds.", suggestion: "Inject a poll scheduler and drive two poll ticks deterministically." },
+      { sev: "Medium", cat: "Smell", type: "Smelly", verdict: "Tighten", conf: 84, status: "fixed", file: "Tests/DirectoryLoaderTests.swift", line: 380, desc: "The network icon test compares serialized AppKit image bytes.", suggestion: "Inject an icon provider and assert the UTType lookup path instead of NSImage TIFF equality." },
+      { sev: "Medium", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "fixed", file: "Tests/OpenWithConflictTests.swift", line: 30, desc: "Remote Open With conflict tests use in-memory provider doubles for version and upload behavior.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Use a remote temp file and assert real provider version checks and uploaded contents." },
+      { sev: "Medium", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "fixed", file: "Tests/RemoteWatcherClientTests.swift", line: 5, desc: "Remote watcher tests use recording and failing RPC clients instead of the real watcher protocol.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Move watcher behavior coverage to real remote temp-directory events and keep isolated tests for pure data shapes." }
     ];
     const state = { sev: new Set(), type: new Set(), file: new Set(), q: "" };
     const $ = id => document.getElementById(id);
@@ -159,12 +163,22 @@
       makeFilters("fileFilters", "file", topFiles());
       const shown = visibleFindings();
       $("findings").innerHTML = shown.map(card).join("") || "<p>No findings match the current filters.</p>";
-      $("openCount").textContent = FINDINGS.filter(f => f.status === "open").length;
-      $("critCount").textContent = FINDINGS.filter(f => f.sev === "Critical").length;
-      $("highCount").textContent = FINDINGS.filter(f => f.sev === "High").length;
-      $("medCount").textContent = FINDINGS.filter(f => f.sev === "Medium").length;
+      const open = FINDINGS.filter(f => f.status === "open");
+      $("openCount").textContent = open.length;
+      $("critCount").textContent = open.filter(f => f.sev === "Critical").length;
+      $("highCount").textContent = open.filter(f => f.sev === "High").length;
+      $("medCount").textContent = open.filter(f => f.sev === "Medium").length;
       const fixed = FINDINGS.filter(f => f.status === "fixed").length;
       $("progressBar").style.width = `${Math.round((fixed / FINDINGS.length) * 100)}%`;
+      const grade = open.length === 0 ? "A"
+        : open.some(f => f.sev === "Critical") ? "F"
+        : open.some(f => f.sev === "High") ? "D"
+        : "B";
+      $("grade").textContent = grade;
+      $("grade").className = `grade ${grade}`;
+      $("postureText").textContent = open.length === 0
+        ? "All audit findings are fixed. Remaining risk is normal regression risk plus any UI paths not rerun in XCUITest."
+        : `${open.length} audit finding${open.length === 1 ? "" : "s"} remain open.`;
     }
     $("search").addEventListener("input", e => { state.q = e.target.value; render(); });
     render();

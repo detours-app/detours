@@ -3,6 +3,44 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "split")
 
+struct RemoteHomeDirectoryProbe {
+    let sshTarget: String
+    let hostTrust: SSHHostTrust
+
+    init(sshTarget: String, hostTrust: SSHHostTrust = SSHHostTrust()) {
+        self.sshTarget = sshTarget
+        self.hostTrust = hostTrust
+    }
+
+    func prepare() throws {
+        try hostTrust.prepareKnownHostsFile()
+    }
+
+    func arguments() -> [String] {
+        [
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=8",
+        ] + hostTrust.sshArguments + [
+            sshTarget,
+            "printf %s \"$HOME\"",
+        ]
+    }
+
+    func parse(terminationStatus: Int32, stdout: Data, stderr: Data) throws -> String {
+        let output = String(data: stdout, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if terminationStatus == 0, !output.isEmpty {
+            return output
+        }
+
+        let stderrText = String(data: stderr, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        throw RemoteFileProviderError.invalidResponse(
+            stderrText.isEmpty ? "\(sshTarget) home directory" : stderrText
+        )
+    }
+}
+
 final class MainSplitViewController: NSSplitViewController {
     private let sidebarViewController = SidebarViewController()
     private var sidebarItem: NSSplitViewItem!
@@ -1276,31 +1314,22 @@ extension MainSplitViewController: SidebarDelegate {
 
     private static func remoteHomeDirectory(sshTarget: String) async throws -> String {
         try await Task.detached(priority: .userInitiated) {
-            let hostTrust = SSHHostTrust()
-            try hostTrust.prepareKnownHostsFile()
+            let probe = RemoteHomeDirectoryProbe(sshTarget: sshTarget)
+            try probe.prepare()
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-            process.arguments = [
-                "-o", "BatchMode=yes",
-                "-o", "ConnectTimeout=8",
-            ] + hostTrust.sshArguments + [
-                    sshTarget,
-                    "printf %s \"$HOME\"",
-                ]
+            process.arguments = probe.arguments()
             let outputPipe = Pipe()
             let errorPipe = Pipe()
             process.standardOutput = outputPipe
             process.standardError = errorPipe
             try process.run()
             process.waitUntilExit()
-            let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if process.terminationStatus == 0, !output.isEmpty {
-                return output
-            }
-            let stderr = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            throw RemoteFileProviderError.invalidResponse(stderr.isEmpty ? "\(sshTarget) home directory" : stderr)
+            return try probe.parse(
+                terminationStatus: process.terminationStatus,
+                stdout: outputPipe.fileHandleForReading.readDataToEndOfFile(),
+                stderr: errorPipe.fileHandleForReading.readDataToEndOfFile()
+            )
         }.value
     }
 

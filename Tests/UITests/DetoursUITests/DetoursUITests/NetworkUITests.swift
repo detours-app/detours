@@ -12,7 +12,6 @@ final class NetworkUITests: BaseUITest {
         let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
         XCTAssertTrue(homeButton.waitForExistence(timeout: 5))
         homeButton.click()
-        sleep(1)
 
         // Get sidebar outline view
         let sidebar = app.outlines.matching(identifier: "sidebarOutlineView").firstMatch
@@ -40,17 +39,18 @@ final class NetworkUITests: BaseUITest {
         let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
         XCTAssertTrue(homeButton.waitForExistence(timeout: 5))
         homeButton.click()
-        sleep(1)
 
         let sidebar = app.outlines.matching(identifier: "sidebarOutlineView").firstMatch
         XCTAssertTrue(sidebar.waitForExistence(timeout: 2))
 
-        // Look for placeholder text (on a network without discoverable servers)
         let placeholderText = sidebar.staticTexts["No servers found"]
-        // Note: This may or may not exist depending on the test environment
-        // If servers are found, the placeholder won't show
-        // We just verify it doesn't crash
-        _ = placeholderText.exists
+        let fileServersText = sidebar.staticTexts["FILE SERVERS"]
+
+        XCTAssertTrue(fileServersText.exists, "FILE SERVERS section should be present")
+        XCTAssertTrue(
+            placeholderText.exists || sidebar.cells.count > 0,
+            "Network section should render either the placeholder or discovered server rows"
+        )
     }
 
     // MARK: - Connect to Network Share Dialog

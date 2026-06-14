@@ -590,27 +590,42 @@ final class PaneViewControllerTests: XCTestCase {
         let folder = try createTestFolder(in: temp, name: "Folder")
         _ = try createTestFile(in: folder, name: "child.txt")
 
-        // Create first tab at temp
         let tab1 = pane.createTab(at: temp, select: true)
+        let tab1Index = try XCTUnwrap(pane.tabs.firstIndex { $0 === tab1 })
+        let normalizedFolder = folder.resolvingSymlinksInPath().standardizedFileURL
+        waitUntil(tab1.fileListViewController.dataSource.items.contains {
+            $0.url.resolvingSymlinksInPath().standardizedFileURL == normalizedFolder
+        })
 
-        // Manually mark folder as expanded
-        let dataSource = tab1.fileListViewController.dataSource
-        if let folderItem = dataSource.items.first(where: { $0.name == "Folder" }) {
-            _ = folderItem.loadChildren(showHidden: false)
-        }
+        let folderItem = try XCTUnwrap(
+            tab1.fileListViewController.dataSource.findItem(withURL: folder, in: tab1.fileListViewController.dataSource.items)
+        )
+        tab1.fileListViewController.tableView.expandItem(folderItem)
+        waitUntil(tab1.fileListViewController.dataSource.expandedFolders.contains {
+            $0.resolvingSymlinksInPath().standardizedFileURL == normalizedFolder
+        })
 
-        // Create second tab
         let otherDir = try createTestFolder(in: temp, name: "Other")
         _ = pane.createTab(at: otherDir, select: true)
 
-        // Switch back to first tab
-        pane.selectTab(at: 1) // tab1 index after initial tab
+        pane.selectTab(at: tab1Index)
+        let restoredItem = try XCTUnwrap(
+            pane.tabs[tab1Index].fileListViewController.dataSource.findItem(
+                withURL: folder,
+                in: pane.tabs[tab1Index].fileListViewController.dataSource.items
+            )
+        )
 
-        // The expansion state should be preserved
-        // (This is a basic check - full verification needs UI testing)
-        let expandedCount = pane.tabs[1].fileListViewController.dataSource.expandedFolders.count
-        // Note: expandedFolders is managed by outline view delegate, so this tests the data structure exists
-        XCTAssertTrue(expandedCount >= 0, "Expanded folders set should exist")
+        XCTAssertTrue(
+            pane.tabs[tab1Index].fileListViewController.dataSource.expandedFolders.contains {
+                $0.resolvingSymlinksInPath().standardizedFileURL == normalizedFolder
+            },
+            "Switching tabs should preserve the expanded folder URL"
+        )
+        XCTAssertTrue(
+            pane.tabs[tab1Index].fileListViewController.tableView.isItemExpanded(restoredItem),
+            "Switching tabs should preserve the outline expansion state"
+        )
     }
 }
 
