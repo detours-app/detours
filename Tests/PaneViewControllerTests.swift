@@ -40,6 +40,28 @@ final class PaneViewControllerTests: XCTestCase {
         return nil
     }
 
+    private func textFieldStrings(in view: NSView) -> [String] {
+        var strings: [String] = []
+        if let textField = view as? NSTextField {
+            strings.append(textField.stringValue)
+        }
+        for subview in view.subviews {
+            strings.append(contentsOf: textFieldStrings(in: subview))
+        }
+        return strings
+    }
+
+    private func toolTips(in view: NSView) -> [String] {
+        var values: [String] = []
+        if let toolTip = view.toolTip {
+            values.append(toolTip)
+        }
+        for subview in view.subviews {
+            values.append(contentsOf: toolTips(in: subview))
+        }
+        return values
+    }
+
     func testCreateTabAddsToArray() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()
@@ -290,10 +312,13 @@ final class PaneViewControllerTests: XCTestCase {
         pane.loadRemoteHost(host, provider: PaneRemoteProvider(), path: "/home/marco")
         pane.fileListDidRequestParentNavigation()
 
+        waitUntil(pane.selectedTab?.title == "home")
         XCTAssertEqual(
             pane.selectedTab?.fileListViewController.currentRemoteLocation,
             .remote(hostID: host.id, path: "/home")
         )
+        XCTAssertTrue(toolTips(in: pane.view).contains("Wraith:/home"))
+        XCTAssertFalse(toolTips(in: pane.view).contains("Wraith:/home/marco"))
     }
 
     func testRemoteParentNavigationStopsAtRoot() {
@@ -376,6 +401,7 @@ final class PaneViewControllerTests: XCTestCase {
             remoteTargets: [RemoteTabSessionTarget(hostID: host.id, path: "/Users/marco")]
         )
 
+        XCTAssertEqual(pane.selectedTab?.title, "marco")
         XCTAssertEqual(pane.selectedTab?.fileListViewController.tableView.numberOfRows, 0)
         XCTAssertEqual(
             pane.selectedTab?.fileListViewController.currentRemoteLocation,
@@ -383,6 +409,78 @@ final class PaneViewControllerTests: XCTestCase {
         )
         let hasSpinner = pane.selectedTab?.fileListViewController.view.subviews.contains { $0 is NSProgressIndicator }
         XCTAssertEqual(hasSpinner, true)
+    }
+
+    func testRestoredRemoteRootTabRendersRemoteTitleBeforeReconnect() throws {
+        let originalHosts = RemoteHostStore.shared.hosts
+        defer { RemoteHostStore.shared.replaceAll(originalHosts) }
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let localDocuments = try createTestFolder(in: temp, name: "Documents")
+
+        let host = RemoteHost(displayName: "carraway-dev", sshTarget: "carraway-dev")
+        RemoteHostStore.shared.replaceAll([host])
+
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+
+        pane.restoreTabs(
+            from: [localDocuments],
+            selectedIndex: 0,
+            remoteTargets: [RemoteTabSessionTarget(hostID: host.id, path: "/")]
+        )
+
+        let visibleLabels = textFieldStrings(in: pane.view)
+        let visibleToolTips = toolTips(in: pane.view)
+        XCTAssertEqual(pane.selectedTab?.title, "carraway-dev")
+        XCTAssertTrue(visibleLabels.contains("carraway-dev"))
+        XCTAssertFalse(visibleLabels.contains("Documents"))
+        XCTAssertTrue(visibleToolTips.contains("carraway-dev:/"))
+        XCTAssertFalse(visibleToolTips.contains { $0.contains("Documents") })
+    }
+
+    func testRestoredRemoteTabReappliesExpansionAfterReconnect() throws {
+        let originalHosts = RemoteHostStore.shared.hosts
+        defer { RemoteHostStore.shared.replaceAll(originalHosts) }
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let host = RemoteHost(displayName: "Wraith", sshTarget: "wraith")
+        RemoteHostStore.shared.replaceAll([host])
+        let expandedProject = URL(fileURLWithPath: "/home/marco/projects")
+        let provider = PaneRemoteProvider(listings: [
+            "/home/marco": [
+                .remoteDirectory(hostID: host.id, path: "/home/marco/projects", name: "projects"),
+            ],
+            "/home/marco/projects": [
+                .remoteDirectory(hostID: host.id, path: "/home/marco/projects/src", name: "src"),
+            ],
+        ])
+
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        pane.restoreTabs(
+            from: [temp],
+            selectedIndex: 0,
+            expansions: [Set([expandedProject])],
+            remoteTargets: [RemoteTabSessionTarget(hostID: host.id, path: "/home/marco")]
+        )
+
+        pane.resumePendingRemoteTabs(for: host, provider: provider)
+
+        waitUntil(
+            pane.selectedTab?.fileListViewController.dataSource
+                .findItem(withURL: expandedProject, in: pane.selectedTab?.fileListViewController.dataSource.items ?? [])?
+                .children != nil
+        )
+
+        let fileList = try XCTUnwrap(pane.selectedTab?.fileListViewController)
+        let item = try XCTUnwrap(fileList.dataSource.findItem(withURL: expandedProject, in: fileList.dataSource.items))
+        XCTAssertTrue(fileList.tableView.isItemExpanded(item))
+        XCTAssertEqual(item.children?.map(\.name), ["src"])
+        XCTAssertTrue(fileList.dataSource.expandedFolders.contains(expandedProject.standardizedFileURL))
     }
 
     func testConnectingRemoteHostClearsLocalRowsBeforeConnectionCompletes() throws {
@@ -401,6 +499,11 @@ final class PaneViewControllerTests: XCTestCase {
         let host = RemoteHost(displayName: "Wraith", sshTarget: "wraith")
         pane.showConnectingRemoteHost(host)
 
+        let visibleLabels = textFieldStrings(in: pane.view)
+        let visibleToolTips = toolTips(in: pane.view)
+        XCTAssertEqual(pane.selectedTab?.title, "Wraith")
+        XCTAssertTrue(visibleToolTips.contains("Wraith:/"))
+        XCTAssertFalse(visibleLabels.contains { $0.contains("available") })
         XCTAssertEqual(pane.selectedTab?.fileListViewController.tableView.numberOfRows, 0)
         XCTAssertEqual(
             pane.selectedTab?.fileListViewController.currentRemoteLocation,
@@ -512,7 +615,16 @@ final class PaneViewControllerTests: XCTestCase {
 }
 
 private actor PaneRemoteProvider: FileProvider {
-    func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] { [] }
+    private let listings: [String: [LoadedFileEntry]]
+
+    init(listings: [String: [LoadedFileEntry]] = [:]) {
+        self.listings = listings
+    }
+
+    func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
+        listings[location.path] ?? []
+    }
+
     func stat(_ location: Location) async throws -> LoadedFileEntry { throw FileProviderError.unsupportedOperation("stat") }
     func copy(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
     func move(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
@@ -530,4 +642,15 @@ private actor PaneRemoteProvider: FileProvider {
     func folderSize(for location: Location) async throws -> Int64 { 0 }
     func readSymlink(_ location: Location) async throws -> Location { location }
     func openForQuickLook(_ location: Location) async throws -> URL { URL(fileURLWithPath: "/tmp/unused") }
+}
+
+private extension LoadedFileEntry {
+    static func remoteDirectory(hostID: UUID, path: String, name: String) -> LoadedFileEntry {
+        LoadedFileEntry(
+            location: .remote(hostID: hostID, path: path),
+            url: URL(fileURLWithPath: path),
+            name: name,
+            isDirectory: true
+        )
+    }
 }

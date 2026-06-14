@@ -489,6 +489,11 @@ final class PaneViewController: NSViewController {
 
     func loadRemoteHost(_ host: RemoteHost, provider: any FileProvider, path: String = "/") {
         setRemoteBreadcrumbHost(host)
+        if let tab = selectedTab {
+            tab.remoteTitle = remoteTabTitle(host: host, path: path)
+            tab.remoteFullPath = remoteTabFullPath(host: host, path: path)
+            reloadTabBar()
+        }
         hideReconnectBanner()
         selectedTab?.fileListViewController.loadRemoteDirectory(
             host: host,
@@ -500,6 +505,11 @@ final class PaneViewController: NSViewController {
 
     func showConnectingRemoteHost(_ host: RemoteHost, path: String = "/") {
         setRemoteBreadcrumbHost(host)
+        if let tab = selectedTab {
+            tab.remoteTitle = remoteTabTitle(host: host, path: path)
+            tab.remoteFullPath = remoteTabFullPath(host: host, path: path)
+            reloadTabBar()
+        }
         hideReconnectBanner()
         selectedTab?.fileListViewController.showPendingRemoteReconnect(host: host, path: path)
         updateStatusBar()
@@ -1027,10 +1037,11 @@ final class PaneViewController: NSViewController {
         let itemCount = tab.fileListViewController.tableView.numberOfRows
         let selectedIndexes = tab.fileListViewController.tableView.selectedRowIndexes
         let selectedCount = selectedIndexes.count
+        let isRemoteTab = tab.fileListViewController.currentRemoteLocation != nil
 
         // Calculate hidden file count (only when not showing hidden files)
         var hiddenCount = 0
-        if !dataSource.showHiddenFiles {
+        if !isRemoteTab && !dataSource.showHiddenFiles {
             hiddenCount = countHiddenFiles(in: tab.currentDirectory)
         }
 
@@ -1053,7 +1064,7 @@ final class PaneViewController: NSViewController {
         }
 
         // Get available disk space
-        let availableSpace = getAvailableDiskSpace(for: tab.currentDirectory)
+        let availableSpace = isRemoteTab ? 0 : getAvailableDiskSpace(for: tab.currentDirectory)
 
         statusBar.update(
             itemCount: itemCount,
@@ -1205,6 +1216,8 @@ final class PaneViewController: NSViewController {
             guard let target = pendingRemoteTabTargetsByTabID[tab.id], target.hostID == host.id else { continue }
             pendingRemoteTabTargetsByTabID.removeValue(forKey: tab.id)
             remoteBreadcrumbHostsByTabID[tab.id] = host
+            tab.remoteTitle = remoteTabTitle(host: host, path: target.path)
+            tab.remoteFullPath = remoteTabFullPath(host: host, path: target.path)
             tab.fileListViewController.loadRemoteDirectory(host: host, path: target.path, provider: provider)
             didResume = true
         }
@@ -1273,13 +1286,15 @@ final class PaneViewController: NSViewController {
             }
 
             // Tabs that were on a remote host wait for the host to reconnect;
-            // until then they show their local fallback directory.
+            // until then the file list stays empty and the tab keeps its remote title.
             let remoteTarget = remoteTargets?[safe: index] ?? nil
             let isRemoteTab: Bool
             if let target = remoteTarget,
                let host = RemoteHostStore.shared.host(id: target.hostID) {
                 pendingRemoteTabTargetsByTabID[tabs[index].id] = target
                 remoteBreadcrumbHostsByTabID[tabs[index].id] = host
+                tabs[index].remoteTitle = remoteTabTitle(host: host, path: target.path)
+                tabs[index].remoteFullPath = remoteTabFullPath(host: host, path: target.path)
                 tabs[index].fileListViewController.showPendingRemoteReconnect(host: host, path: target.path)
                 isRemoteTab = true
             } else {
@@ -1307,6 +1322,7 @@ final class PaneViewController: NSViewController {
         selectTab(at: clampedIndex)
         updateRemoteHostBadge()
         updatePathControl()
+        reloadTabBar()
     }
 
     // MARK: - Active State
@@ -1868,8 +1884,10 @@ extension PaneViewController: FileListNavigationDelegate {
         // when the directory actually loads; rebuild the tab bar only when it does.
         if let tab = tabs.first(where: { $0.fileListViewControllerIfLoaded === controller }) {
             let newRemoteTitle = remoteTabTitle(for: tab, controller: controller)
-            if newRemoteTitle != tab.remoteTitle {
+            let newRemoteFullPath = remoteTabFullPath(for: tab, controller: controller)
+            if newRemoteTitle != tab.remoteTitle || newRemoteFullPath != tab.remoteFullPath {
                 tab.remoteTitle = newRemoteTitle
+                tab.remoteFullPath = newRemoteFullPath
                 reloadTabBar()
                 updateStatusBar()
                 return
@@ -1883,10 +1901,27 @@ extension PaneViewController: FileListNavigationDelegate {
     /// tab is local. At the remote root the host name stands in for the folder.
     private func remoteTabTitle(for tab: PaneTab, controller: FileListViewController) -> String? {
         guard case .remote(_, let path)? = controller.currentRemoteLocation else { return nil }
+        return remoteTabTitle(host: remoteBreadcrumbHostsByTabID[tab.id], path: path)
+    }
+
+    private func remoteTabFullPath(for tab: PaneTab, controller: FileListViewController) -> String? {
+        guard let host = remoteBreadcrumbHostsByTabID[tab.id],
+              case .remote(_, let path)? = controller.currentRemoteLocation else {
+            return nil
+        }
+        return remoteTabFullPath(host: host, path: path)
+    }
+
+    private func remoteTabTitle(host: RemoteHost?, path: String) -> String? {
         if let last = path.split(separator: "/").map(String.init).last {
             return last
         }
-        return remoteBreadcrumbHostsByTabID[tab.id]?.displayName
+        return host?.displayName
+    }
+
+    private func remoteTabFullPath(host: RemoteHost, path: String) -> String {
+        let normalizedPath = path.hasPrefix("/") ? path : "/" + path
+        return "\(host.displayName):\(normalizedPath)"
     }
 }
 

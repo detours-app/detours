@@ -26,6 +26,7 @@ final class PaneTab {
     /// Tab title for remote tabs, set by the pane on remote navigation.
     /// `currentDirectory` is a local URL and is not meaningful for remote tabs.
     var remoteTitle: String?
+    var remoteFullPath: String?
 
     /// Created on first access for this tab.
     /// Note: Does NOT load directory on creation - caller must call loadDirectory or ensureLoaded
@@ -83,6 +84,10 @@ final class PaneTab {
         return path
     }
 
+    var displayPath: String {
+        remoteFullPath ?? fullPath
+    }
+
     init(directory: URL, iCloudListingMode: ICloudListingMode = .normal) {
         self.id = UUID()
         self.currentDirectory = Self.normalizeDirectoryURL(directory)
@@ -101,6 +106,7 @@ final class PaneTab {
     /// Navigate to a directory, optionally adding current to history
     func navigate(to url: URL, iCloudListingMode listingMode: ICloudListingMode = .normal, addToHistory: Bool = true, skipContainerResolution: Bool = false) {
         remoteTitle = nil
+        remoteFullPath = nil
         let previousDirectory = currentDirectory
         let previousMode = iCloudListingMode
         let previousSharedRoot = sharedNavigationRootURL

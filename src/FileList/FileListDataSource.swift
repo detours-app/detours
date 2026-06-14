@@ -1091,8 +1091,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         // that cause URL equality to fail even for the same path
         let targetPath = url.standardizedFileURL.path
         for item in items {
-            guard case .local(let itemURL) = item.location else { continue }
-            if itemURL.standardizedFileURL.path == targetPath {
+            if item.expansionURL.path == targetPath {
                 return item
             }
             if let children = item.children,
@@ -1447,6 +1446,26 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         }
     }
 
+    func loadRemoteChildrenForExpansionRestore(_ item: FileItem) async {
+        guard let provider = currentRemoteProvider, item.children == nil else { return }
+        do {
+            let entries = try await provider.list(item.location, showHidden: showHiddenFiles)
+            let statuses = await provider.gitStatus(for: item.location)
+            let children = FileItem.sorted(
+                baseFileItems(for: entries),
+                by: sortDescriptor,
+                foldersOnTop: SettingsManager.shared.foldersOnTop
+            )
+            for child in children {
+                child.parent = item
+                child.gitStatus = statuses[child.location]
+            }
+            item.children = children
+        } catch {
+            item.children = []
+        }
+    }
+
     private func loadVirtualSharedChildrenAsync(for item: FileItem, in outlineView: NSOutlineView) {
         let showHidden = showHiddenFiles
         let sort = sortDescriptor
@@ -1520,11 +1539,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     func outlineViewItemDidExpand(_ notification: Notification) {
         guard let fileItem = notification.userInfo?["NSObject"] as? FileItem else { return }
-        guard fileItem.isLocal else {
-            expansionDelegate?.dataSourceDidExpandItem(fileItem)
-            return
-        }
-        expandedFolders.insert(fileItem.url.standardizedFileURL)
+        expandedFolders.insert(fileItem.expansionURL)
         expansionDelegate?.dataSourceDidExpandItem(fileItem)
     }
 
@@ -1532,11 +1547,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         // Skip if we're suppressing collapse notifications during reload
         guard !suppressCollapseNotifications else { return }
         guard let fileItem = notification.userInfo?["NSObject"] as? FileItem else { return }
-        guard fileItem.isLocal else {
-            expansionDelegate?.dataSourceDidCollapseItem(fileItem)
-            return
-        }
-        expandedFolders.remove(fileItem.url.standardizedFileURL)
+        expandedFolders.remove(fileItem.expansionURL)
         expansionDelegate?.dataSourceDidCollapseItem(fileItem)
     }
 

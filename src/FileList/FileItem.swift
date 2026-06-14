@@ -16,6 +16,14 @@ final class FileItem {
     let name: String
     let location: Location
     var url: URL { location.url }
+    var expansionURL: URL {
+        switch location {
+        case .local(let url):
+            return url.standardizedFileURL
+        case .remote(_, let path):
+            return URL(fileURLWithPath: path).standardizedFileURL
+        }
+    }
     var isLocal: Bool {
         if case .local = location { return true }
         return false

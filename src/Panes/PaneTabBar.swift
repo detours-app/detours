@@ -214,7 +214,7 @@ final class PaneTabBar: NSView {
                     textSecondary: textSecondaryColor
                 )
             )
-            button.toolTip = tab.fullPath
+            button.toolTip = tab.displayPath
             button.tabAction = { [weak self] in self?.tabClicked(index) }
             button.closeAction = { [weak self] in self?.closeTabClicked(index) }
             button.dragAction = { [weak self] event in self?.beginDraggingTab(at: index, with: event) }

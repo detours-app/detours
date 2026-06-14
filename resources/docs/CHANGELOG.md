@@ -16,7 +16,8 @@
   directories for changes with polling fallback when needed.
 - **Relaunch readiness** — Saved remote hosts are checked on launch. Reachable
   hosts become green live sidebar entries, restored remote tabs are pre-warmed,
-  and unreachable hosts stay visible with a reconnect state until removed.
+  restored remote folder expansion state is reapplied, and unreachable hosts stay
+  visible with a reconnect state until removed.
 - **Discoverable host removal** — Remote host rows now include a visible remove
   control, with confirmation before deleting the saved host from the sidebar.
 

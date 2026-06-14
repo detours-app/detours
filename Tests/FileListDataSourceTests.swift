@@ -578,7 +578,7 @@ final class FileListDataSourceTests: XCTestCase {
     }
 
     // Regression: findItem(withURL:) accessed .url on remote items, trapping in Location.url.
-    func testFindItemByURLSkipsRemoteItems() throws {
+    func testFindItemByURLMatchesLocalAndRemoteItemsWithoutTrapping() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
         let localFile = try createTestFile(in: temp, name: "local.txt")
@@ -588,7 +588,10 @@ final class FileListDataSourceTests: XCTestCase {
         let local = FileItem(url: localFile)
         dataSource.items = [remote, local]
 
-        let found = dataSource.findItem(withURL: localFile, in: dataSource.items)
-        XCTAssertTrue(found === local)
+        let foundLocal = dataSource.findItem(withURL: localFile, in: dataSource.items)
+        let foundRemote = dataSource.findItem(withURL: URL(fileURLWithPath: "/home/marco/remote.txt"), in: dataSource.items)
+
+        XCTAssertTrue(foundLocal === local)
+        XCTAssertTrue(foundRemote === remote)
     }
 }

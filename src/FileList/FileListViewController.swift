@@ -700,12 +700,27 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             return
         }
 
+        let shouldPreserveExpansion = preserveExpansion
         dataSource.onLoadCompleted = { [weak self] result in
             guard let self else { return }
             self.hideLoadingIndicator()
             switch result {
             case .success:
                 self.hideErrorOverlay()
+                let expansionToRestore: Set<URL>
+                if let pending = self.pendingExpansionRestore {
+                    self.pendingExpansionRestore = nil
+                    expansionToRestore = pending
+                } else if shouldPreserveExpansion {
+                    expansionToRestore = self.dataSource.expandedFolders
+                } else {
+                    expansionToRestore = []
+                }
+                if !expansionToRestore.isEmpty {
+                    Task { @MainActor in
+                        await self.restoreRemoteExpansion(expansionToRestore)
+                    }
+                }
                 if !self.dataSource.items.isEmpty {
                     self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
                 }
@@ -1090,7 +1105,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         // Build a map from URL to item for quick lookup
         var urlToItem: [URL: FileItem] = [:]
         for item in dataSource.items {
-            urlToItem[item.url.standardizedFileURL] = item
+            urlToItem[item.expansionURL] = item
         }
 
         // Sort URLs by path depth (shortest first) to expand parents before children
@@ -1106,8 +1121,36 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 // Add children to the map for nested expansion
                 if let children = item.children {
                     for child in children {
-                        urlToItem[child.url.standardizedFileURL] = child
+                        urlToItem[child.expansionURL] = child
                     }
+                }
+            }
+        }
+    }
+
+    private func restoreRemoteExpansion(_ expandedURLs: Set<URL>) async {
+        guard !expandedURLs.isEmpty, SettingsManager.shared.folderExpansionEnabled else { return }
+
+        var urlToItem: [URL: FileItem] = [:]
+        for item in dataSource.items {
+            urlToItem[item.expansionURL] = item
+        }
+
+        let sortedURLs = expandedURLs.sorted { $0.pathComponents.count < $1.pathComponents.count }
+
+        for url in sortedURLs {
+            let normalized = url.standardizedFileURL
+            guard let item = urlToItem[normalized], item.isNavigableFolder else { continue }
+            if item.isRemote {
+                await dataSource.loadRemoteChildrenForExpansionRestore(item)
+            } else {
+                loadChildrenIfNeededForExpansion(item)
+            }
+            tableView.expandItem(item)
+
+            if let children = item.children {
+                for child in children {
+                    urlToItem[child.expansionURL] = child
                 }
             }
         }
@@ -1117,6 +1160,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         guard item.children == nil else { return }
         // Virtual Shared must load through outline expansion callback, not filesystem.
         guard !item.isVirtualSharedFolder else { return }
+        guard item.isLocal else { return }
         _ = item.loadChildren(showHidden: dataSource.showHiddenFiles, sortDescriptor: dataSource.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
     }
 
