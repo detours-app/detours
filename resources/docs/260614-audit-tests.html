@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detours Test Audit - 2026-06-14</title>
+  <style>
+    :root {
+      --bg: #f7f7f8; --panel: #ffffff; --text: #17181a; --muted: #666b73;
+      --border: #d9dce1; --crit: #b42318; --high: #b54708; --med: #175cd3;
+      --fixed: #067647; --wont: #6c737f; --shadow: 0 1px 2px rgba(16,24,40,.08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111315; --panel: #1a1d20; --text: #eceff3; --muted: #a4abb6;
+        --border: #333942; --crit: #ff6b63; --high: #ffb020; --med: #7cb7ff;
+        --fixed: #54d38a; --wont: #98a2b3; --shadow: none;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    header { padding: 28px 32px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    .meta { color: var(--muted); }
+    .layout { display: grid; grid-template-columns: 260px 1fr; gap: 20px; padding: 20px; }
+    aside { position: sticky; top: 16px; align-self: start; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; box-shadow: var(--shadow); }
+    main { min-width: 0; }
+    .posture { display: inline-flex; align-items: center; gap: 10px; margin-top: 14px; }
+    .grade { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; background: var(--high); color: #fff; font-weight: 800; font-size: 22px; }
+    details { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
+    summary { cursor: pointer; font-weight: 700; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; box-shadow: var(--shadow); }
+    .stat strong { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+    .progress { height: 10px; background: var(--border); border-radius: 999px; overflow: hidden; margin: 12px 0; }
+    .progress span { display: block; height: 100%; background: var(--fixed); width: 0%; }
+    input[type="search"] { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--text); }
+    .filter-title { margin: 14px 0 7px; font-weight: 700; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    .filter { display: flex; justify-content: space-between; width: 100%; margin: 4px 0; padding: 7px 8px; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--text); cursor: pointer; text-align: left; }
+    .filter.active { outline: 2px solid var(--med); }
+    .card { background: var(--panel); border: 1px solid var(--border); border-left: 5px solid var(--med); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+    .card.Critical { border-left-color: var(--crit); }
+    .card.High { border-left-color: var(--high); }
+    .card.Medium { border-left-color: var(--med); }
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .badge { border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); }
+    .badge.Critical { color: var(--crit); border-color: var(--crit); }
+    .badge.High { color: var(--high); border-color: var(--high); }
+    .badge.Medium { color: var(--med); border-color: var(--med); }
+    .desc { font-size: 15px; margin: 5px 0 10px; }
+    code, .file { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .file { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 8px; color: var(--muted); }
+    .cite { margin-top: 8px; border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); }
+    .suggestion { margin-top: 8px; color: var(--muted); }
+    .status { margin-top: 10px; color: var(--high); font-weight: 700; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Detours Test Audit</h1>
+    <div class="meta">Generated 2026-06-14. Frameworks: Swift Package XCTest and XCUITest. Mutation tooling: not detected.</div>
+    <div class="posture"><span class="grade">C</span><span>Important branches are uncovered, and several cancellation/UI tests can pass while the behavior they name is broken.</span></div>
+  </header>
+  <div class="layout">
+    <aside>
+      <input id="search" type="search" placeholder="Search findings">
+      <div class="filter-title">Severity</div>
+      <div id="sevFilters"></div>
+      <div class="filter-title">Type</div>
+      <div id="typeFilters"></div>
+      <div class="filter-title">Top files</div>
+      <div id="fileFilters"></div>
+    </aside>
+    <main>
+      <details open>
+        <summary>Summary</summary>
+        <p>The suite has useful coverage around file operations, remote browsing, host trust, UI wiring, and recent relaunch regressions. The release risk is that some tests assert only that work started, that a type exists, or that a comment remains true.</p>
+        <p>The highest-risk gaps are at boundaries that matter for a public build: SSH transfer argument hardening, remote home discovery, unrecoverable delete escalation, remote cache permissions, and release-script guard behavior.</p>
+      </details>
+      <div class="stats">
+        <div class="stat"><strong id="openCount">0</strong>Open</div>
+        <div class="stat"><strong id="critCount">0</strong>Critical</div>
+        <div class="stat"><strong id="highCount">0</strong>High</div>
+        <div class="stat"><strong id="medCount">0</strong>Medium</div>
+      </div>
+      <div class="progress"><span id="progressBar"></span></div>
+      <section id="findings"></section>
+    </main>
+  </div>
+  <script>
+    const FINDINGS = [
+      { sev: "Critical", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "I", conf: 95, status: "open", file: "src/Remote/RemoteTransferChannel.swift", line: 245, desc: "Remote transfer SSH arguments are untested for host-trust enforcement.", suggestion: "Inject a recording process factory and assert transfer SSH arguments include the expected control path and host-key verification options." },
+      { sev: "Critical", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "I", conf: 85, status: "open", file: "src/Windows/MainSplitViewController.swift", line: 1274, desc: "Remote home-directory discovery has no test for SSH argument construction or failure handling.", suggestion: "Extract or inject the process runner and assert success, empty stdout failure, and hardened SSH invocation." },
+      { sev: "Critical", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "B", conf: 95, status: "open", file: "src/FileList/FileListViewController.swift", line: 1293, desc: "The non-local-volume delete path that escalates Delete into permanent deletion is untested.", suggestion: "Drive delete with a non-local selected URL, cancel the alert, and assert immediate deletion is not invoked." },
+      { sev: "High", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 95, status: "open", file: "Tests/DirectoryLoaderTests.swift", line: 55, desc: "The directory-load cancellation test accepts success and any thrown error after cancellation.", suggestion: "Make cancellation deterministic and assert a specific cancellation result." },
+      { sev: "High", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 95, status: "open", file: "Tests/DirectoryLoaderTests.swift", line: 503, desc: "The cancel-prevents-delivery test allows successful delivery and non-cancellation errors.", suggestion: "Use a controllable slow load path and assert cancelled work does not deliver entries." },
+      { sev: "High", cat: "Theater", type: "Broken", verdict: "Tighten", conf: 95, status: "open", file: "Tests/FileOperationQueueTests.swift", line: 548, desc: "The async process cancellation test only proves the operation started.", suggestion: "Assert cancellation produces a cancellation error or a concrete cancelled filesystem state." },
+      { sev: "High", cat: "Theater", type: "Broken", verdict: "Tighten", conf: 95, status: "open", file: "Tests/FileOperationQueueTests.swift", line: 784, desc: "The large-copy cancellation test can pass when the copy completes successfully.", suggestion: "Make the copy cancellable deterministically and assert the destination is not completed." },
+      { sev: "High", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "open", file: "Tests/RemoteFileProviderTests.swift", line: 22, desc: "Remote provider tests replace the RPC transport with scripted fake responses.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Move behavior coverage to real remote temp fixtures; keep isolated tests only for pure encoding." },
+      { sev: "High", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "open", file: "Tests/ServerDeployerTests.swift", line: 10, desc: "Server deployment tests replace the SSH deployment client with a fake deployment client.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Run deployer coverage against a real SSH target with a temporary install directory." },
+      { sev: "High", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "open", file: "Tests/RemoteTrashUndoTests.swift", line: 11, desc: "Remote trash undo tests synthesize trash and restore results in a recording provider.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Drive delete and undo through a registered real remote provider and a remote temp fixture." },
+      { sev: "High", cat: "Smell", type: "Smelly", verdict: "Rewrite", conf: 88, status: "open", file: "Tests/UITests/DetoursUITests/DetoursUITests/BaseUITest.swift", line: 24, desc: "Shared UI setup uses fixed sleeps after the window exists, so UI tests inherit timing dependencies.", suggestion: "Replace fixed sleeps with waits for accessibility identifiers and loaded row state." },
+      { sev: "High", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "I", conf: 90, status: "open", file: "src/Remote/RemoteFileCache.swift", line: 13, desc: "Remote cache directory permissions are untested.", suggestion: "Create a cache session directory and assert its POSIX mode is 0700." },
+      { sev: "High", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "E", conf: 85, status: "open", file: "resources/scripts/release.sh", line: 87, desc: "Release script tag mismatch and skip-publish guard paths have no executable coverage.", suggestion: "Run release.sh in a temp git repo with stubbed external tools and assert guard exits." },
+      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 100, status: "open", file: "Tests/HousekeepingTests.swift", line: 73, desc: "Four housekeeping tests have empty bodies with comments claiming compile-time or code-inspection coverage.", suggestion: "Build the menu/about surfaces and assert the titles, actions, key equivalents, and version source directly." },
+      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 100, status: "open", file: "Tests/PaneViewControllerTests.swift", line: 613, desc: "The expansion-preservation test ends with a tautological count >= 0 assertion.", suggestion: "Record an expanded folder, switch tabs, and assert the same folder remains expanded." },
+      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Rewrite", conf: 90, status: "open", file: "Tests/GitStatusTests.swift", line: 22, desc: "Git status tests rely on the live checkout and weak non-crash or timing assertions.", suggestion: "Create a temp git repo and assert known untracked, modified, cached, and invalidated statuses." },
+      { sev: "Medium", cat: "Theater", type: "Broken", verdict: "Tighten", conf: 95, status: "open", file: "Tests/UITests/DetoursUITests/DetoursUITests/NetworkUITests.swift", line: 39, desc: "The network placeholder UI test reads placeholderText.exists and discards the result.", suggestion: "Control the no-server state and assert the placeholder exists, or move this to unit coverage." },
+      { sev: "Medium", cat: "Smell", type: "Smelly", verdict: "Rewrite", conf: 94, status: "open", file: "Tests/DirectoryLoaderTests.swift", line: 296, desc: "The negative poller test proves no callback by sleeping for five seconds.", suggestion: "Inject a poll scheduler and drive two poll ticks deterministically." },
+      { sev: "Medium", cat: "Smell", type: "Smelly", verdict: "Tighten", conf: 84, status: "open", file: "Tests/DirectoryLoaderTests.swift", line: 380, desc: "The network icon test compares serialized AppKit image bytes.", suggestion: "Inject an icon provider and assert the UTType lookup path instead of NSImage TIFF equality." },
+      { sev: "Medium", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "open", file: "Tests/OpenWithConflictTests.swift", line: 30, desc: "Remote Open With conflict tests use in-memory provider doubles for version and upload behavior.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Use a remote temp file and assert real provider version checks and uploaded contents." },
+      { sev: "Medium", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 85, status: "open", file: "Tests/RemoteWatcherClientTests.swift", line: 5, desc: "Remote watcher tests use recording and failing RPC clients instead of the real watcher protocol.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"", suggestion: "Move watcher behavior coverage to real remote temp-directory events and keep isolated tests for pure data shapes." }
+    ];
+    const state = { sev: new Set(), type: new Set(), file: new Set(), q: "" };
+    const $ = id => document.getElementById(id);
+    function countsBy(key) {
+      return FINDINGS.reduce((m, f) => (m[f[key]] = (m[f[key]] || 0) + 1, m), {});
+    }
+    function topFiles() {
+      return Object.entries(countsBy("file")).sort((a,b) => b[1] - a[1]).slice(0, 8);
+    }
+    function makeFilters(id, key, entries) {
+      const root = $(id); root.innerHTML = "";
+      entries.forEach(([name, count]) => {
+        const b = document.createElement("button");
+        b.className = "filter"; b.innerHTML = `<span>${name}</span><span>${count}</span>`;
+        b.onclick = () => { const set = state[key]; set.has(name) ? set.delete(name) : set.add(name); render(); };
+        if (state[key].has(name)) b.classList.add("active");
+        root.appendChild(b);
+      });
+    }
+    function visibleFindings() {
+      const q = state.q.toLowerCase();
+      return FINDINGS.filter(f =>
+        (!state.sev.size || state.sev.has(f.sev)) &&
+        (!state.type.size || state.type.has(f.type)) &&
+        (!state.file.size || state.file.has(f.file)) &&
+        (!q || `${f.desc} ${f.file} ${f.cat}`.toLowerCase().includes(q))
+      );
+    }
+    function card(f) {
+      return `<article class="card ${f.sev}">
+        <div class="badges">
+          <span class="badge ${f.sev}">${f.sev}</span><span class="badge">${f.cat}</span>
+          <span class="badge">${f.type}</span><span class="badge">${f.verdict}</span>
+          <span class="badge">${f.conf}%</span>${f.zombies ? `<span class="badge">ZOMBIES ${f.zombies}</span>` : ""}
+        </div>
+        <div class="desc">${f.desc}</div>
+        <div class="file">${f.file}:${f.line ?? ""}</div>
+        ${f.cite ? `<div class="cite">${f.cite}</div>` : ""}
+        ${f.suggestion ? `<div class="suggestion">Suggested test: ${f.suggestion}</div>` : ""}
+        <div class="status">${f.status}</div>
+      </article>`;
+    }
+    function render() {
+      makeFilters("sevFilters", "sev", Object.entries(countsBy("sev")));
+      makeFilters("typeFilters", "type", Object.entries(countsBy("type")));
+      makeFilters("fileFilters", "file", topFiles());
+      const shown = visibleFindings();
+      $("findings").innerHTML = shown.map(card).join("") || "<p>No findings match the current filters.</p>";
+      $("openCount").textContent = FINDINGS.filter(f => f.status === "open").length;
+      $("critCount").textContent = FINDINGS.filter(f => f.sev === "Critical").length;
+      $("highCount").textContent = FINDINGS.filter(f => f.sev === "High").length;
+      $("medCount").textContent = FINDINGS.filter(f => f.sev === "Medium").length;
+      const fixed = FINDINGS.filter(f => f.status === "fixed").length;
+      $("progressBar").style.width = `${Math.round((fixed / FINDINGS.length) * 100)}%`;
+    }
+    $("search").addEventListener("input", e => { state.q = e.target.value; render(); });
+    render();
+  </script>
+</body>
+</html>
