@@ -79,7 +79,26 @@ rm -rf "$STAGING_DIR"
 echo "==> Notarizing DMG..."
 # Submit for notarization (requires keychain profile "detours-notarize")
 # Set up with: xcrun notarytool store-credentials "detours-notarize" ...
-xcrun notarytool submit "$DMG_PATH" --keychain-profile "detours-notarize" --wait
+NOTARY_PROFILE="${NOTARY_PROFILE:-detours-notarize}"
+NOTARY_KEYCHAIN="${NOTARY_KEYCHAIN:-${CODESIGN_KEYCHAIN:-}}"
+NOTARY_KEYCHAIN_PASSWORD="${NOTARY_KEYCHAIN_PASSWORD:-${CODESIGN_KEYCHAIN_PASSWORD:-}}"
+NOTARY_KEYCHAIN_PASSWORD_FILE="${NOTARY_KEYCHAIN_PASSWORD_FILE:-${CODESIGN_KEYCHAIN_PASSWORD_FILE:-}}"
+
+if [[ -n "$NOTARY_KEYCHAIN_PASSWORD_FILE" ]]; then
+    NOTARY_KEYCHAIN_PASSWORD="$(cat "$NOTARY_KEYCHAIN_PASSWORD_FILE")"
+fi
+
+if [[ -n "$NOTARY_KEYCHAIN" && -n "$NOTARY_KEYCHAIN_PASSWORD" ]]; then
+    security unlock-keychain -p "$NOTARY_KEYCHAIN_PASSWORD" "$NOTARY_KEYCHAIN"
+    NOTARY_KEYCHAIN_PASSWORD=""
+fi
+
+NOTARY_ARGS=(--keychain-profile "$NOTARY_PROFILE")
+if [[ -n "$NOTARY_KEYCHAIN" ]]; then
+    NOTARY_ARGS+=(--keychain "$NOTARY_KEYCHAIN")
+fi
+
+xcrun notarytool submit "$DMG_PATH" "${NOTARY_ARGS[@]}" --wait
 
 echo "==> Stapling notarization ticket..."
 xcrun stapler staple "$DMG_PATH"

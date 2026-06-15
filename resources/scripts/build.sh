@@ -209,12 +209,15 @@ if [ -n "$CODESIGN_KEYCHAIN" ] && [ -n "$CODESIGN_KEYCHAIN_PASSWORD" ]; then
     CODESIGN_KEYCHAIN_PASSWORD=""
 fi
 
-CODESIGN_ARGS=(--force --timestamp --options runtime --entitlements "$ENTITLEMENTS" -s "$CODESIGN_IDENTITY")
+CODESIGN_BASE_ARGS=(--force --timestamp --options runtime -s "$CODESIGN_IDENTITY")
 if [ -n "$CODESIGN_KEYCHAIN" ]; then
-    CODESIGN_ARGS+=(--keychain "$CODESIGN_KEYCHAIN")
+    CODESIGN_BASE_ARGS+=(--keychain "$CODESIGN_KEYCHAIN")
 fi
 
-/usr/bin/codesign "${CODESIGN_ARGS[@]}" "$APP_DIR" 2>&1
+/usr/bin/codesign "${CODESIGN_BASE_ARGS[@]}" "$APP_DIR/Contents/Resources/Servers/detours-server-x86_64-darwin" 2>&1
+
+CODESIGN_APP_ARGS=("${CODESIGN_BASE_ARGS[@]}" --entitlements "$ENTITLEMENTS")
+/usr/bin/codesign "${CODESIGN_APP_ARGS[@]}" "$APP_DIR" 2>&1
 log_ok "Codesigned"
 
 if [ "$UNIVERSAL" = true ] || [ "$NO_INSTALL" = true ]; then
