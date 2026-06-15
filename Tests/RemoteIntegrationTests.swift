@@ -448,7 +448,12 @@ final class RemoteIntegrationTests: XCTestCase {
     fileprivate static func configuredSSHProcess(command: String, target: String = "devtest") throws -> Process {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = ["-o", "BatchMode=yes", target, command]
+        process.arguments = [
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=5",
+            target,
+            command,
+        ]
         return process
     }
 
