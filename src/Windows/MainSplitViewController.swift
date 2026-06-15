@@ -1275,7 +1275,7 @@ extension MainSplitViewController: SidebarDelegate {
                 )
                 let initialPath = try await validateRemoteConnection(provider: provider, rpcClient: rpcClient, host: host)
 
-                await RemoteConnectionRegistry.shared.register(connection, for: host.id)
+                await RemoteConnectionRegistry.shared.register(connection, rpcClient: rpcClient, for: host.id)
                 FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
                 RemoteHostStore.shared.markConnected(id: host.id)
                 let resources = RemoteConnectionResources(provider: provider, homePath: initialPath)

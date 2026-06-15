@@ -658,9 +658,13 @@ final class PaneViewController: NSViewController {
         }
 
         Task { @MainActor in
-            await RemoteConnectionRegistry.shared.reconnect(hostID: host.id)
-            hideReconnectBanner()
-            selectedTab?.fileListViewController.refresh()
+            do {
+                try await RemoteConnectionRegistry.shared.reconnect(hostID: host.id)
+                hideReconnectBanner()
+                selectedTab?.fileListViewController.refresh()
+            } catch {
+                showReconnectBanner(for: host)
+            }
         }
     }
 

@@ -115,4 +115,58 @@ final class SSHConnectionStateTests: XCTestCase {
         XCTAssertEqual(idleState, .disconnected)
         XCTAssertTrue(disconnectedForIdle)
     }
+
+    func testDisconnectAdvancesStreamGeneration() async {
+        let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"))
+
+        await connection.simulateProcessForTesting()
+        let before = await connection.streamGenerationForTesting()
+        await connection.disconnect()
+        let after = await connection.streamGenerationForTesting()
+
+        XCTAssertGreaterThan(after, before)
+    }
+
+    func testDisconnectCanRunWhileReceiveIsWaiting() async throws {
+        final class Flag: @unchecked Sendable {
+            private let lock = NSLock()
+            private var value = false
+
+            func set() {
+                lock.lock()
+                value = true
+                lock.unlock()
+            }
+
+            func get() -> Bool {
+                lock.lock()
+                defer { lock.unlock() }
+                return value
+            }
+        }
+
+        let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"))
+        let pipe = Pipe()
+        await connection.simulateStdoutPipeForTesting(pipe)
+        let receiveTask = Task {
+            try await connection.receive()
+        }
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        let didDisconnect = Flag()
+        let disconnectTask = Task {
+            await connection.disconnect()
+            didDisconnect.set()
+        }
+
+        let deadline = Date().addingTimeInterval(0.5)
+        while !didDisconnect.get(), Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTAssertTrue(didDisconnect.get())
+        try pipe.fileHandleForWriting.close()
+        _ = await disconnectTask.result
+        _ = await receiveTask.result
+    }
 }

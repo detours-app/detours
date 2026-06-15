@@ -201,6 +201,22 @@ final class RemoteFileProviderTests: XCTestCase {
             XCTAssertTrue(message.contains("watcher client"))
         }
     }
+
+    func testRPCClientPrepareForReconnectInvalidatesReader() async {
+        let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"))
+        let client = SSHRemoteRPCClient(connection: connection)
+
+        await client.simulateReaderForTesting(streamGeneration: 1)
+        let before = await client.readerStateForTesting()
+        await client.prepareForReconnect()
+        let after = await client.readerStateForTesting()
+
+        XCTAssertTrue(before.hasReaderTask)
+        XCTAssertEqual(before.streamGeneration, 1)
+        XCTAssertGreaterThan(after.generation, before.generation)
+        XCTAssertFalse(after.hasReaderTask)
+        XCTAssertNil(after.streamGeneration)
+    }
 }
 
 private actor FakeRemoteRPCClient: RemoteRPCClient {

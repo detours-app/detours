@@ -29,6 +29,8 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
     private var pendingResponses: [UInt64: PendingResponse] = [:]
     private var eventHandler: (@Sendable (RPCEnvelope) -> Void)?
     private var readerTask: Task<Void, Never>?
+    private var readerGeneration: UInt64 = 0
+    private var readerStreamGeneration: UInt64?
 
     init(connection: SSHConnection) {
         self.connection = connection
@@ -38,13 +40,20 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
         readerTask?.cancel()
     }
 
-    func setEventHandler(_ handler: @escaping @Sendable (RPCEnvelope) -> Void) {
-        startReaderIfNeeded()
+    func setEventHandler(_ handler: @escaping @Sendable (RPCEnvelope) -> Void) async {
+        await startReaderIfNeeded()
         eventHandler = handler
     }
 
+    func prepareForReconnect() {
+        readerGeneration += 1
+        readerTask?.cancel()
+        readerTask = nil
+        readerStreamGeneration = nil
+        failAllResponses(CancellationError())
+    }
+
     func send(_ message: RPCMessage) async throws -> [Data] {
-        startReaderIfNeeded()
         let requestID = nextRequestID
         nextRequestID += 1
 
@@ -63,6 +72,7 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
                 Task {
                     do {
                         try await connection.send(envelope)
+                        await self.startReaderIfNeeded()
                     } catch {
                         self.failResponse(id: requestID, error: error)
                     }
@@ -73,22 +83,39 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
         }
     }
 
-    private func readResponses() async {
+    private func readResponses(generation: UInt64) async {
+        defer {
+            if readerGeneration == generation {
+                readerTask = nil
+                readerStreamGeneration = nil
+            }
+        }
+
         while !Task.isCancelled {
             do {
                 let envelope = try await connection.receive()
+                guard readerGeneration == generation else { return }
                 receive(envelope)
             } catch {
-                failAllResponses(error)
+                if readerGeneration == generation {
+                    failAllResponses(error)
+                }
                 return
             }
         }
     }
 
-    private func startReaderIfNeeded() {
-        guard readerTask == nil else { return }
+    private func startReaderIfNeeded() async {
+        let streamGeneration = await connection.currentStreamGeneration()
+        if readerTask != nil, readerStreamGeneration == streamGeneration {
+            return
+        }
+        readerGeneration += 1
+        let generation = readerGeneration
+        readerTask?.cancel()
+        readerStreamGeneration = streamGeneration
         readerTask = Task { [weak self] in
-            await self?.readResponses()
+            await self?.readResponses(generation: generation)
         }
     }
 
@@ -134,6 +161,21 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
         }
         return "The remote server reported an error."
     }
+
+    #if DEBUG
+    func simulateReaderForTesting(streamGeneration: UInt64) {
+        readerTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: 10_000_000_000)
+            } catch {}
+        }
+        readerStreamGeneration = streamGeneration
+    }
+
+    func readerStateForTesting() -> (generation: UInt64, streamGeneration: UInt64?, hasReaderTask: Bool) {
+        (readerGeneration, readerStreamGeneration, readerTask != nil)
+    }
+    #endif
 }
 
 struct RemoteFileEntry: Equatable, Sendable {

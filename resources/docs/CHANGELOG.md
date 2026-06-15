@@ -70,6 +70,10 @@
 
 ### Bug Fixes
 
+- **Remote reconnect no longer spins forever** — Reconnect now tears down the
+  stale SSH helper process, invalidates the old RPC reader, and starts a fresh
+  stream before refreshing the tab. Restored remote tabs keep their remote
+  location and expansion state while waiting for the host to come back.
 - **Remote activation and preview stability** — Pressing Enter on a remote file
   now opens it through the remote Open With flow instead of asking for a local
   URL. Remote Quick Look follows arrow-key selection changes and ignores stale
