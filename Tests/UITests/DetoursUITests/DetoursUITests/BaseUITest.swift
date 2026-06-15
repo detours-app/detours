@@ -14,6 +14,7 @@ class BaseUITest: XCTestCase {
 
         // Launch app by bundle identifier
         app = XCUIApplication(bundleIdentifier: "com.detours.app")
+        app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = testFolderName
         app.launch()
 
         // Wait for app to be ready
@@ -25,18 +26,15 @@ class BaseUITest: XCTestCase {
         activateLeftPane()
         XCTAssertTrue(waitForLeftPaneReady(), "Left pane should be ready")
 
-        // Create a new tab for this test (Cmd-T) so we don't affect user's existing tabs
-        pressCharKey("t", modifiers: .command)
-        XCTAssertTrue(waitForLeftPaneReady(), "New tab should expose a ready left pane")
-
-        // Navigate to temp directory in the new tab
+        // DETOURS_UI_TEST_ROOT launches the app into an isolated test tab, so tests that
+        // assert Cmd-1/Cmd-2 tab behavior can use stable indexes.
         navigateToTempDirectory()
     }
 
     override func tearDownWithError() throws {
         // IMPORTANT: Activate LEFT pane before closing tab
         // This ensures we close the tab we created, not a tab in another pane
-        activateLeftPane()
+        activateLeftPane(useCoordinateClick: true)
         XCTAssertTrue(waitForLeftPaneReady(), "Left pane should be ready before closing the test tab")
 
         // Close the tab we created (Cmd-W)
@@ -48,10 +46,14 @@ class BaseUITest: XCTestCase {
     }
 
     /// Activate the left pane by clicking its outline view
-    private func activateLeftPane() {
+    private func activateLeftPane(useCoordinateClick: Bool = false) {
         let leftOutline = app.outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
         if leftOutline.waitForExistence(timeout: 3) {
-            leftOutline.click()
+            if useCoordinateClick {
+                leftOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+            } else {
+                leftOutline.click()
+            }
         }
     }
 
@@ -82,6 +84,10 @@ class BaseUITest: XCTestCase {
 
     /// Navigate to temp directory via home button and double-click
     private func navigateToTempDirectory() {
+        if waitForRow(named: "FolderA", timeout: 5) {
+            return
+        }
+
         // Click the first home button (left pane) to go to home directory
         let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
         guard homeButton.waitForExistence(timeout: 2) else {

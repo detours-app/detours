@@ -1108,7 +1108,7 @@ final class PaneViewController: NSViewController {
 
     // MARK: - Navigation (delegate to selected tab)
 
-    func navigate(to url: URL, iCloudListingMode: ICloudListingMode = .normal) {
+    func navigate(to url: URL, iCloudListingMode: ICloudListingMode = .normal, selectingItem itemToSelect: URL? = nil) {
         clearRemoteBreadcrumbHostForSelectedTab()
 
         // Clear status bar error on navigation
@@ -1118,7 +1118,7 @@ final class PaneViewController: NSViewController {
             restoreStatusBarIfForceShown()
         }
 
-        selectedTab?.navigate(to: url, iCloudListingMode: iCloudListingMode)
+        selectedTab?.navigate(to: url, iCloudListingMode: iCloudListingMode, selectingItem: itemToSelect)
         reloadTabBar() // Title may have changed
         scheduleSessionSave()
     }
@@ -1735,11 +1735,7 @@ extension PaneViewController: PaneTabBarDelegate {
     func tabBarDidRequestNewTab() {
         let currentDir = selectedTab?.currentDirectory ?? FileManager.default.homeDirectoryForCurrentUser
         let mode = selectedTab?.iCloudListingMode ?? .normal
-        let expandedFolders = selectedTab?.fileListViewController.dataSource.expandedFolders
-        let tab = createTab(at: currentDir, iCloudListingMode: mode, select: true)
-        if let expandedFolders, !expandedFolders.isEmpty {
-            tab.fileListViewController.pendingExpansionRestore = expandedFolders
-        }
+        createTab(at: currentDir, iCloudListingMode: mode, select: true)
     }
 
     func tabBarDidRequestBack() {

@@ -104,7 +104,7 @@ final class PaneTab {
     // MARK: - Navigation
 
     /// Navigate to a directory, optionally adding current to history
-    func navigate(to url: URL, iCloudListingMode listingMode: ICloudListingMode = .normal, addToHistory: Bool = true, skipContainerResolution: Bool = false) {
+    func navigate(to url: URL, iCloudListingMode listingMode: ICloudListingMode = .normal, addToHistory: Bool = true, skipContainerResolution: Bool = false, selectingItem itemToSelect: URL? = nil) {
         remoteTitle = nil
         remoteFullPath = nil
         let previousDirectory = currentDirectory
@@ -149,7 +149,7 @@ final class PaneTab {
         currentDirectory = normalized
         iCloudListingMode = resolvedMode
         sharedNavigationRootURL = resolvedSharedRoot
-        fileListViewController.loadDirectory(currentDirectory, iCloudListingMode: resolvedMode)
+        fileListViewController.loadDirectory(currentDirectory, selectingItem: itemToSelect, iCloudListingMode: resolvedMode)
     }
 
     /// Go back in history. Returns false if can't go back.

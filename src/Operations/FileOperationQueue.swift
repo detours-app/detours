@@ -737,21 +737,25 @@ final class FileOperationQueue {
                 let destinationReserved = isReserved(initialDestination)
 
                 if destinationExists {
-                    let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
-                    if resolution.applyToAll {
-                        conflictChoice = resolution.choice
-                    }
-
-                    switch resolution.choice {
-                    case .skip:
-                        skipped = true
-                        destinationURL = initialDestination
-                    case .replace:
-                        // Replacing must not permanently destroy the existing file: move it to the Trash.
-                        try await runFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
-                        destinationURL = initialDestination
-                    case .keepBoth:
+                    if isSameFilesystemPath(source, initialDestination) {
                         destinationURL = uniqueCopyDestination(for: source, in: targetDir)
+                    } else {
+                        let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
+                        if resolution.applyToAll {
+                            conflictChoice = resolution.choice
+                        }
+
+                        switch resolution.choice {
+                        case .skip:
+                            skipped = true
+                            destinationURL = initialDestination
+                        case .replace:
+                            // Replacing must not permanently destroy the existing file: move it to the Trash.
+                            try await runFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
+                            destinationURL = initialDestination
+                        case .keepBoth:
+                            destinationURL = uniqueCopyDestination(for: source, in: targetDir)
+                        }
                     }
                 } else if destinationReserved {
                     // A reserved path is an in-flight internal collision, not a
@@ -1493,19 +1497,23 @@ final class FileOperationQueue {
                 let destinationReserved = isReserved(initialDestination)
 
                 if destinationExists {
-                    let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
-                    if resolution.applyToAll {
-                        conflictChoice = resolution.choice
-                    }
-                    switch resolution.choice {
-                    case .skip:
-                        skipped = true
-                    case .replace:
-                        // Replacing must not permanently destroy the existing file: move it to the Trash.
-                        try await runUntrackedFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
-                        destinationURL = initialDestination
-                    case .keepBoth:
+                    if isSameFilesystemPath(source, initialDestination) {
                         destinationURL = uniqueCopyDestination(for: source, in: destination)
+                    } else {
+                        let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
+                        if resolution.applyToAll {
+                            conflictChoice = resolution.choice
+                        }
+                        switch resolution.choice {
+                        case .skip:
+                            skipped = true
+                        case .replace:
+                            // Replacing must not permanently destroy the existing file: move it to the Trash.
+                            try await runUntrackedFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
+                            destinationURL = initialDestination
+                        case .keepBoth:
+                            destinationURL = uniqueCopyDestination(for: source, in: destination)
+                        }
                     }
                 } else if destinationReserved {
                     destinationURL = uniqueCopyDestination(for: source, in: destination)
@@ -3168,6 +3176,10 @@ final class FileOperationQueue {
         }
 
         return (source.deletingPathExtension().lastPathComponent, source.pathExtension)
+    }
+
+    private func isSameFilesystemPath(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.standardizedFileURL.resolvingSymlinksInPath().path == rhs.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     private func uniqueCopyDestination(for source: URL, in directory: URL) -> URL {

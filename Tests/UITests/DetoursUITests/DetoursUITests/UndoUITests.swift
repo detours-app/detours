@@ -83,15 +83,20 @@ final class UndoUITests: BaseUITest {
         pressCharKey("v", modifiers: .command)
         usleep(1_500_000)
 
-        // Verify file1.txt is gone from root
-        XCTAssertFalse(rowExists(named: "file1.txt"), "file1.txt should be moved to FolderB")
+        // Verify file1.txt moved under expanded FolderB. In the root sort order,
+        // a child of FolderB appears between FolderB and FolderC.
+        XCTAssertTrue(waitForRow(named: "file1.txt", timeout: 3), "file1.txt should be visible in FolderB")
+        let movedFileFrame = outlineRow(named: "file1.txt").frame
+        XCTAssertGreaterThan(movedFileFrame.minY, outlineRow(named: "FolderB").frame.minY, "file1.txt should appear after FolderB")
+        XCTAssertLessThan(movedFileFrame.minY, outlineRow(named: "FolderC").frame.minY, "file1.txt should be nested before FolderC")
 
         // Undo the move
         pressCharKey("z", modifiers: .command)
         usleep(1_500_000)
 
-        // Verify file1.txt is back at root
+        // Verify file1.txt is back at root, where it sorts after FolderD.
         XCTAssertTrue(waitForRow(named: "file1.txt", timeout: 3), "file1.txt should be restored after undo")
+        XCTAssertGreaterThan(outlineRow(named: "file1.txt").frame.minY, outlineRow(named: "FolderD").frame.minY, "file1.txt should be restored at the root")
     }
 
     func testUndoMenuLabel() throws {

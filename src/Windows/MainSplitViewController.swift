@@ -518,6 +518,14 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func restoreSession() {
+        if let uiTestRoot = uiTestRootDirectory() {
+            resetUITestRootDirectory(uiTestRoot)
+            SettingsManager.shared.folderExpansionEnabled = true
+            leftPane.restoreTabs(from: [uiTestRoot], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
+            rightPane.restoreTabs(from: [uiTestRoot], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
+            return
+        }
+
         // Check if session restore is enabled in preferences
         guard SettingsManager.shared.restoreSession else {
             // Start fresh with home directory
@@ -529,6 +537,73 @@ final class MainSplitViewController: NSSplitViewController {
 
         restorePane(leftPane, keys: .left)
         restorePane(rightPane, keys: .right)
+    }
+
+    private func uiTestRootDirectory() -> URL? {
+        guard let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"], !root.isEmpty else {
+            return nil
+        }
+
+        let url: URL
+        if root.hasPrefix("/") {
+            url = URL(fileURLWithPath: root)
+        } else {
+            url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(root)
+        }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return nil
+        }
+
+        return url
+    }
+
+    private func resetUITestRootDirectory(_ root: URL) {
+        guard root.lastPathComponent.hasPrefix("DetoursUITests-Temp") else {
+            return
+        }
+
+        let fm = FileManager.default
+        try? fm.removeItem(at: root)
+
+        let directories = [
+            "AAA_First",
+            "BBB_Second/SubfolderB1",
+            "BBB_Second/SubfolderB2",
+            "CCC_Third",
+            "FolderA/SubfolderA1",
+            "FolderA/SubfolderA2",
+            "FolderB/SubfolderB1",
+            "FolderB/SubfolderB2",
+            "FolderC",
+            "FolderD",
+            "Projects2025/Quarterly/Q1",
+            "Projects2025/Quarterly/Q2",
+            "Projects2025/Annual",
+        ]
+
+        for directory in directories {
+            try? fm.createDirectory(at: root.appendingPathComponent(directory), withIntermediateDirectories: true)
+        }
+
+        let files: [(String, String)] = [
+            ("FolderA/SubfolderA1/file.txt", "test\n"),
+            ("FolderA/alpha-file.txt", "test\n"),
+            ("FolderB/beta-file.txt", "test\n"),
+            ("FolderB/SubfolderB1/nested.txt", "test\n"),
+            ("file1.txt", "test\n"),
+            ("file2.txt", "test\n"),
+            ("zz-target.txt", "target\n"),
+            ("FolderB/unique-in-B.txt", "target\n"),
+            ("Projects2025/notes.txt", "data\n"),
+        ]
+
+        for (path, contents) in files {
+            let url = root.appendingPathComponent(path)
+            try? contents.write(to: url, atomically: true, encoding: .utf8)
+        }
     }
 
     private func restorePane(_ pane: PaneViewController, keys: PaneSessionKeys) {
@@ -662,10 +737,8 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func revealItemInActivePane(folder: URL, itemToSelect: URL) {
-        activePane.navigate(to: folder)
+        activePane.navigate(to: folder, selectingItem: itemToSelect)
         FrecencyStore.shared.recordVisit(folder)
-        // Select the item after navigation
-        activePane.selectedTab?.fileListViewController.selectItem(at: itemToSelect)
         // Ensure focus returns to the file list
         if let tableView = activePane.selectedTab?.fileListViewController.tableView {
             view.window?.makeFirstResponder(tableView)

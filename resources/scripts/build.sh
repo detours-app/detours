@@ -233,8 +233,9 @@ fi
 # Remove stale copies
 log_info "Check for stale installations"
 STALE_FOUND=false
+BUILD_APP_PATH="$(cd "$(dirname "$APP_DIR")" && pwd)/$(basename "$APP_DIR")"
 while IFS= read -r app_path; do
-    if [ "$app_path" != "/Applications/Detours.app" ] && [ -d "$app_path" ]; then
+    if [ "$app_path" != "/Applications/Detours.app" ] && [ "$app_path" != "$BUILD_APP_PATH" ] && [ -d "$app_path" ]; then
         log_info "Remove stale copy: $app_path"
         rm -rf "$app_path"
         STALE_FOUND=true
