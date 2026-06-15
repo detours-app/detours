@@ -281,10 +281,12 @@ private struct ResultRow: View {
     static var height: CGFloat { rowHeight }
 }
 
-#Preview {
-    QuickNavView(
-        onSelect: { url in print("Selected: \(url)") },
-        onReveal: { folder, item in print("Reveal: \(item) in \(folder)") },
-        onDismiss: { print("Dismissed") }
-    )
-}
+#if canImport(PreviewsMacros)
+    #Preview {
+        QuickNavView(
+            onSelect: { url in print("Selected: \(url)") },
+            onReveal: { folder, item in print("Reveal: \(item) in \(folder)") },
+            onDismiss: { print("Dismissed") }
+        )
+    }
+#endif

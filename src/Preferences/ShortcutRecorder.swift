@@ -129,28 +129,30 @@ private class ShortcutRecorderView: NSView {
     }
 }
 
-#Preview {
-    struct PreviewWrapper: View {
-        @State private var isRecording = false
+#if canImport(PreviewsMacros)
+    #Preview {
+        struct PreviewWrapper: View {
+            @State private var isRecording = false
 
-        var body: some View {
-            VStack(spacing: 20) {
-                HStack {
-                    Text("Quick Look")
-                    Spacer()
-                    ShortcutRecorder(action: .quickLook, isRecording: $isRecording)
-                }
+            var body: some View {
+                VStack(spacing: 20) {
+                    HStack {
+                        Text("Quick Look")
+                        Spacer()
+                        ShortcutRecorder(action: .quickLook, isRecording: $isRecording)
+                    }
 
-                HStack {
-                    Text("Refresh")
-                    Spacer()
-                    ShortcutRecorder(action: .refresh, isRecording: $isRecording)
+                    HStack {
+                        Text("Refresh")
+                        Spacer()
+                        ShortcutRecorder(action: .refresh, isRecording: $isRecording)
+                    }
                 }
+                .padding()
+                .frame(width: 300)
             }
-            .padding()
-            .frame(width: 300)
         }
-    }
 
-    return PreviewWrapper()
-}
+        return PreviewWrapper()
+    }
+#endif

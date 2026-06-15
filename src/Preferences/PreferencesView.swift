@@ -61,6 +61,8 @@ struct PreferencesView: View {
     }
 }
 
-#Preview {
-    PreferencesView()
-}
+#if canImport(PreviewsMacros)
+    #Preview {
+        PreferencesView()
+    }
+#endif

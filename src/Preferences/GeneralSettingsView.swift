@@ -62,7 +62,9 @@ struct GeneralSettingsView: View {
     }
 }
 
-#Preview {
-    GeneralSettingsView()
-        .frame(width: 450, height: 300)
-}
+#if canImport(PreviewsMacros)
+    #Preview {
+        GeneralSettingsView()
+            .frame(width: 450, height: 300)
+    }
+#endif

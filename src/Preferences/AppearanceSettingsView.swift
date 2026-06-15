@@ -413,7 +413,9 @@ struct FileRowPreview: View {
     }
 }
 
-#Preview {
-    AppearanceSettingsView()
-        .frame(width: 450, height: 500)
-}
+#if canImport(PreviewsMacros)
+    #Preview {
+        AppearanceSettingsView()
+            .frame(width: 450, height: 500)
+    }
+#endif

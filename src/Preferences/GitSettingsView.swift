@@ -63,7 +63,9 @@ struct GitStatusPreview: View {
     }
 }
 
-#Preview {
-    GitSettingsView()
-        .frame(width: 450, height: 300)
-}
+#if canImport(PreviewsMacros)
+    #Preview {
+        GitSettingsView()
+            .frame(width: 450, height: 300)
+    }
+#endif

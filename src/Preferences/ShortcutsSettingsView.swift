@@ -68,7 +68,9 @@ private struct ShortcutRow: View {
     }
 }
 
-#Preview {
-    ShortcutsSettingsView()
-        .frame(width: 450, height: 500)
-}
+#if canImport(PreviewsMacros)
+    #Preview {
+        ShortcutsSettingsView()
+            .frame(width: 450, height: 500)
+    }
+#endif
