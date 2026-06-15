@@ -195,8 +195,26 @@ log_ok "App bundle created"
 # Codesign
 log_info "Codesign app bundle"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Marco Fruh (AHUQTWVD7X)}"
+CODESIGN_KEYCHAIN="${CODESIGN_KEYCHAIN:-}"
+CODESIGN_KEYCHAIN_PASSWORD="${CODESIGN_KEYCHAIN_PASSWORD:-}"
+CODESIGN_KEYCHAIN_PASSWORD_FILE="${CODESIGN_KEYCHAIN_PASSWORD_FILE:-}"
 ENTITLEMENTS="Detours.entitlements"
-/usr/bin/codesign --force --timestamp --options runtime --entitlements "$ENTITLEMENTS" -s "$CODESIGN_IDENTITY" "$APP_DIR" 2>&1
+
+if [ -n "$CODESIGN_KEYCHAIN_PASSWORD_FILE" ]; then
+    CODESIGN_KEYCHAIN_PASSWORD="$(cat "$CODESIGN_KEYCHAIN_PASSWORD_FILE")"
+fi
+
+if [ -n "$CODESIGN_KEYCHAIN" ] && [ -n "$CODESIGN_KEYCHAIN_PASSWORD" ]; then
+    /usr/bin/security unlock-keychain -p "$CODESIGN_KEYCHAIN_PASSWORD" "$CODESIGN_KEYCHAIN"
+    CODESIGN_KEYCHAIN_PASSWORD=""
+fi
+
+CODESIGN_ARGS=(--force --timestamp --options runtime --entitlements "$ENTITLEMENTS" -s "$CODESIGN_IDENTITY")
+if [ -n "$CODESIGN_KEYCHAIN" ]; then
+    CODESIGN_ARGS+=(--keychain "$CODESIGN_KEYCHAIN")
+fi
+
+/usr/bin/codesign "${CODESIGN_ARGS[@]}" "$APP_DIR" 2>&1
 log_ok "Codesigned"
 
 if [ "$UNIVERSAL" = true ] || [ "$NO_INSTALL" = true ]; then
