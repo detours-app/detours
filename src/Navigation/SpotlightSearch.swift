@@ -49,7 +49,9 @@ final class SpotlightSearch {
                 pattern, pattern
             )
         }
-        query.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: tokenPredicates)
+        query.predicate = tokenPredicates.count == 1
+            ? tokenPredicates[0]
+            : NSCompoundPredicate(andPredicateWithSubpredicates: tokenPredicates)
 
         // Limit results for performance
         query.notificationBatchingInterval = 0.1
