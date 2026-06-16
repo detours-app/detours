@@ -175,6 +175,22 @@ rm -f temp.png temp2.png mask.png
 - Never commit `.xcuserdata/`
 - **Push to origin only** - never push to `public` remote except during releases
 
+### Machine Boundaries
+
+- **Spectre** is the source-of-truth development machine: edit source, run local tests, make commits, and manage repo state here.
+- **Foundry** is the build, runtime staging, and screenshot machine: use it only for builds, installed-app verification, screenshot fixtures, and capture setup.
+- Before any command that changes Foundry app state, user preferences, screenshot fixtures, installed apps, or files outside the repo, state that it affects Foundry.
+- Do not stage screenshot fixtures, write Detours preferences, relaunch Detours, or mutate runtime state on Spectre.
+- If a command touches both machines, call out both sides explicitly before running it.
+
+### Spectre/Foundry Git Sync
+
+- Commit on Spectre first. Do not leave source changes as the source of truth on Foundry.
+- Before using Foundry for builds, screenshots, or runtime verification, check `git status --short --branch` and `git rev-parse HEAD` on both Spectre and Foundry.
+- Foundry must be clean and at the same commit as Spectre before runtime or screenshot work starts.
+- If files were temporarily copied to Foundry for staging, reconcile them by committing on Spectre, pushing, then updating Foundry to that commit.
+- Do not leave Foundry with uncommitted repo changes after a task. If Foundry is dirty, stop and cleanly reconcile it before continuing.
+
 ---
 
 ## Code Style
