@@ -98,7 +98,6 @@ final class FrecencyStoreTests: XCTestCase {
         XCTAssertEqual(result.location, location)
         XCTAssertEqual(result.hostLabel, "Dev VM")
         XCTAssertTrue(result.isConnected)
-        XCTAssertFalse(result.isDimmed)
 
         result = try XCTUnwrap(
             FrecencyStore.shared.frecencyLocationMatches(
@@ -111,24 +110,57 @@ final class FrecencyStoreTests: XCTestCase {
         XCTAssertEqual(result.hostLabel, "Build VM")
     }
 
-    func testDisconnectedRemoteEntriesAreDimmed() throws {
+    func testDisconnectedRemoteEntriesAreHidden() throws {
         let hostID = UUID()
         let location = Location.remote(hostID: hostID, path: "/srv/project")
         let host = RemoteHost(id: hostID, displayName: "Prod VM", sshTarget: "prod")
 
         FrecencyStore.shared.recordVisit(location)
 
+        // Host not connected: the path can't be opened right now, so it's omitted.
+        let whenDisconnected = FrecencyStore.shared.frecencyLocationMatches(
+            for: "project",
+            remoteHosts: [host],
+            connectedHostIDs: []
+        )
+        XCTAssertTrue(whenDisconnected.isEmpty, "Disconnected remote entries should not be shown")
+
+        // Same host connected: the entry reappears.
         let result = try XCTUnwrap(
             FrecencyStore.shared.frecencyLocationMatches(
                 for: "project",
                 remoteHosts: [host],
-                connectedHostIDs: []
+                connectedHostIDs: [hostID]
             ).first
         )
         XCTAssertEqual(result.location, location)
         XCTAssertEqual(result.hostLabel, "Prod VM")
-        XCTAssertFalse(result.isConnected)
-        XCTAssertTrue(result.isDimmed)
+        XCTAssertTrue(result.isConnected)
+    }
+
+    func testTrivialRemoteRootsAreNotRecorded() {
+        let hostID = UUID()
+
+        FrecencyStore.shared.recordVisit(.remote(hostID: hostID, path: "/"))
+        FrecencyStore.shared.recordVisit(.remote(hostID: hostID, path: "/opt"))
+        FrecencyStore.shared.recordVisit(.remote(hostID: hostID, path: "/opt/cognel-app"))
+
+        XCTAssertNil(FrecencyStore.shared.entry(for: .remote(hostID: hostID, path: "/")))
+        XCTAssertNil(FrecencyStore.shared.entry(for: .remote(hostID: hostID, path: "/opt")))
+        XCTAssertNotNil(FrecencyStore.shared.entry(for: .remote(hostID: hostID, path: "/opt/cognel-app")))
+    }
+
+    func testPruneUnknownRemoteHostsDropsStaleEntries() {
+        let knownHost = UUID()
+        let deletedHost = UUID()
+
+        FrecencyStore.shared.recordVisit(.remote(hostID: knownHost, path: "/work/keep"))
+        FrecencyStore.shared.recordVisit(.remote(hostID: deletedHost, path: "/work/gone"))
+
+        FrecencyStore.shared.pruneUnknownRemoteHosts(knownHostIDs: [knownHost])
+
+        XCTAssertNotNil(FrecencyStore.shared.entry(for: .remote(hostID: knownHost, path: "/work/keep")))
+        XCTAssertNil(FrecencyStore.shared.entry(for: .remote(hostID: deletedHost, path: "/work/gone")))
     }
 
     // MARK: - Frecency scoring tests

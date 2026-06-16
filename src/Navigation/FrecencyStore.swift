@@ -42,6 +42,10 @@ final class FrecencyStore {
         guard case .local(let url) = location else { return }
         let path = url.standardizedFileURL.path
 
+        // Don't pollute history with filesystem roots and bare system dirs
+        // that are only ever passed through on the way somewhere useful.
+        guard !Self.isTrivialDirectory(path) else { return }
+
         DispatchQueue.global(qos: .utility).async { [weak self] in
             // Only track directories
             var isDirectory: ObjCBool = false
@@ -67,6 +71,7 @@ final class FrecencyStore {
     }
 
     private func recordConfirmedVisit(_ location: Location) {
+        guard !Self.isTrivialDirectory(location.path) else { return }
         let key = Self.key(for: location)
         if var entry = entries[key] {
             entry.visitCount += 1
@@ -171,6 +176,7 @@ final class FrecencyStore {
             switch entry.location {
             case .local(let entryURL):
                 let path = entryURL.standardizedFileURL.path
+                guard !Self.isTrivialDirectory(path) else { continue }
                 guard queryLower.isEmpty || matches(queryLower, path: path, label: nil) else { continue }
                 var isDirectory: ObjCBool = false
                 if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
@@ -179,13 +185,16 @@ final class FrecencyStore {
                 }
             case .remote(let hostID, _):
                 guard includeRemote else { continue }
-                let host = hostsByID[hostID]
-                guard queryLower.isEmpty || matches(queryLower, path: entry.location.path, label: host?.displayName) else { continue }
+                // Only surface remotes whose host is known and currently connected -
+                // a path you can't open right now is just noise.
+                guard let host = hostsByID[hostID], connectedHostIDs.contains(hostID) else { continue }
+                guard !Self.isTrivialDirectory(entry.location.path) else { continue }
+                guard queryLower.isEmpty || matches(queryLower, path: entry.location.path, label: host.displayName) else { continue }
                 results.append(
                     .remote(
                         location: entry.location,
                         host: host,
-                        isConnected: connectedHostIDs.contains(hostID),
+                        isConnected: true,
                         score: frecencyScore(for: entry)
                     )
                 )
@@ -246,6 +255,37 @@ final class FrecencyStore {
         }
 
         return Array(allResults.prefix(limit))
+    }
+
+    /// Filesystem roots and bare system directories that are only ever passed
+    /// through, never a real destination. Matched exactly, so `/opt/cognel-app`
+    /// and `/Users/marco` are still tracked while `/opt` and `/Users` are not.
+    private static let trivialDirectoryPaths: Set<String> = [
+        "/", "/bin", "/sbin", "/usr", "/lib", "/lib64", "/opt", "/srv", "/boot",
+        "/dev", "/proc", "/sys", "/run", "/mnt", "/media", "/etc", "/var", "/tmp",
+        "/home", "/root", "/private", "/private/tmp", "/private/var", "/private/etc",
+        "/System", "/Library", "/Applications", "/Volumes", "/Users", "/cores", "/Network"
+    ]
+
+    static func isTrivialDirectory(_ path: String) -> Bool {
+        if path == "/" { return true }
+        let normalized = "/" + path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return trivialDirectoryPaths.contains(normalized)
+    }
+
+    /// Remove frecency entries for remote hosts that no longer exist, so deleted
+    /// hosts don't linger as "Unknown Host" rows. Pass the current known host IDs.
+    func pruneUnknownRemoteHosts(knownHostIDs: Set<UUID>) {
+        let before = entries.count
+        entries = entries.filter { _, entry in
+            guard case .remote(let hostID, _) = entry.location else { return true }
+            return knownHostIDs.contains(hostID)
+        }
+        let removed = before - entries.count
+        if removed > 0 {
+            logger.info("Pruned \(removed) frecency entries for unknown remote hosts")
+            scheduleSave()
+        }
     }
 
     private func matches(_ query: String, path: String, label: String?) -> Bool {
@@ -386,6 +426,7 @@ final class FrecencyStore {
         let before = entries.count
 
         entries = entries.filter { _, entry in
+            guard !Self.isTrivialDirectory(entry.location.path) else { return false }
             let score = frecencyScore(for: entry)
             let isRecent = entry.lastVisit > cutoffDate
             return score >= 0.1 || isRecent

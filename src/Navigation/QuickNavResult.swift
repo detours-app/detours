@@ -16,10 +16,6 @@ struct QuickNavResult: Equatable, Identifiable {
         return false
     }
 
-    var isDimmed: Bool {
-        isRemote && !isConnected
-    }
-
     var localURL: URL? {
         if case .local(let url) = location { return url }
         return nil

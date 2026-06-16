@@ -2,10 +2,18 @@
 
 ## Latest Run
 
-- Started: 2026-06-16 09:20:35
-- Command: `swift test --filter RemoteIntegrationTests`
+- Started: 2026-06-16 16:16:27
+- Command: `swift test --filter FrecencyStoreTests` / `QuickNavTests` / `RemoteHostTests`
 - Status: PASS
-- Notes: Foundry live remote integration rerun passed after the test harness now creates the SSH multiplexing control directory before using `devtest` and `wraith`.
+- Notes: Quick Open cleanup - hide disconnected/unknown-host remotes, drop trivial roots, prune stale hosts, remove dimming. New tests for trivial-root skipping, unknown-host pruning, and disconnected-remote hiding.
+
+### Quick Open Cleanup 2026-06-16
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| FrecencyStoreTests (incl. testTrivialRemoteRootsAreNotRecorded, testPruneUnknownRemoteHostsDropsStaleEntries, testDisconnectedRemoteEntriesAreHidden) | PASS | 0.283s | 2026-06-16 16:16:17 |
+| QuickNavTests | PASS | 0.072s | 2026-06-16 16:16:21 |
+| RemoteHostTests | PASS | 0.004s | 2026-06-16 16:16:27 |
 
 ### Remote Integration 2026-06-16
 

@@ -8,6 +8,7 @@ struct QuickNavView: View {
     @State private var spotlightResults: [URL] = []
     @State private var selectedIndex: Int = 0
     @State private var spotlightSearch = SpotlightSearch()
+    @State private var spotlightDebounce: Task<Void, Never>?
     @FocusState private var isTextFieldFocused: Bool
 
     let onSelect: (URL) -> Void
@@ -16,6 +17,8 @@ struct QuickNavView: View {
     let onDismiss: () -> Void
 
     private let maxResults = 50
+    private let emptyQueryLimit = 12
+    private let spotlightDebounceInterval: UInt64 = 150_000_000
 
     var body: some View {
         VStack(spacing: 0) {
@@ -119,34 +122,63 @@ struct QuickNavView: View {
     // MARK: - Actions
 
     private func loadInitialResults() {
+        // Drop stale entries for hosts that no longer exist before showing anything
+        FrecencyStore.shared.pruneUnknownRemoteHosts(knownHostIDs: knownHostIDs())
+
         // Show top frecent directories on initial load
-        frecencyResults = FrecencyStore.shared.frecencyLocationMatches(for: "", limit: maxResults)
+        frecencyResults = FrecencyStore.shared.frecencyLocationMatches(
+            for: "", connectedHostIDs: connectedHostIDs(), limit: emptyQueryLimit
+        )
         spotlightResults = []
         updateMergedResults()
         selectedIndex = 0
     }
 
     private func performSearch(_ newQuery: String) {
-        // Cancel any existing Spotlight search
+        // Cancel any in-flight Spotlight work
+        spotlightDebounce?.cancel()
         spotlightSearch.cancel()
+
+        let connected = connectedHostIDs()
 
         // Empty query: just show frecency
         if newQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-            frecencyResults = FrecencyStore.shared.frecencyLocationMatches(for: "", limit: maxResults)
+            frecencyResults = FrecencyStore.shared.frecencyLocationMatches(
+                for: "", connectedHostIDs: connected, limit: emptyQueryLimit
+            )
             spotlightResults = []
             updateMergedResults()
             return
         }
 
         // INSTANTLY show frecency matches (no blocking)
-        frecencyResults = FrecencyStore.shared.frecencyLocationMatches(for: newQuery, limit: maxResults)
+        frecencyResults = FrecencyStore.shared.frecencyLocationMatches(
+            for: newQuery, connectedHostIDs: connected, limit: maxResults
+        )
         updateMergedResults()
 
-        // Start async Spotlight search - results stream in via callback
-        spotlightSearch.search(for: newQuery) { [self] urls in
-            spotlightResults = urls
-            updateMergedResults()
+        // Debounce the filesystem-wide Spotlight search so fast typing doesn't
+        // spin up an NSMetadataQuery on every keystroke.
+        spotlightDebounce = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: spotlightDebounceInterval)
+            guard !Task.isCancelled else { return }
+            spotlightSearch.search(for: newQuery) { urls in
+                spotlightResults = urls
+                updateMergedResults()
+            }
         }
+    }
+
+    /// IDs of remote hosts with a live connection right now.
+    private func connectedHostIDs() -> Set<UUID> {
+        Set(RemoteConnectionStateStore.shared.snapshot()
+            .filter { $0.value == .connected }
+            .map { $0.key })
+    }
+
+    /// IDs of all remote hosts that still exist in the host store.
+    private func knownHostIDs() -> Set<UUID> {
+        Set(RemoteHostStore.shared.hosts.map { $0.id })
     }
 
     private func updateMergedResults() {
@@ -248,7 +280,7 @@ private struct ResultRow: View {
                             .foregroundColor(Color(ThemeManager.shared.currentTheme.accentText))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color(ThemeManager.shared.currentTheme.accent).opacity(result.isConnected ? 0.85 : 0.45))
+                            .background(Color(ThemeManager.shared.currentTheme.accent).opacity(0.85))
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                     }
                 }
@@ -273,7 +305,6 @@ private struct ResultRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
         .frame(height: Self.rowHeight)
-        .opacity(result.isDimmed ? 0.48 : 1.0)
         .background(isSelected ? Color(ThemeManager.shared.currentTheme.accent).opacity(0.2) : Color.clear)
         .contentShape(Rectangle())
     }
