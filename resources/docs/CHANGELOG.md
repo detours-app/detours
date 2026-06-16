@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.5.2 — 2026-06-16
+
+### Bug Fixes
+
+- **Quick Open no longer crashes under Swift 6.3 AppKit callbacks** — Disabled
+  dynamic actor-isolation runtime entry checks for the app target and removed
+  explicit `MainActor.assumeIsolated` calls from AppKit drawing paths.
+- **Quick Open finds fresh active-pane files deterministically** — Active-pane
+  scoped search now supplements Spotlight so fixture folders and newly created
+  files appear immediately.
+- **Single-token Quick Open searches are valid Spotlight queries** — Fixed the
+  invalid one-child `NSCompoundPredicate` crash for queries like `vr`.
+- **Folder accent colors match the Detours theme** — Restored themed folder and
+  row-selection accents in the file list and sidebar favorites without relying
+  on AppKit's system accent color.
+
 ## 1.5.1 — 2026-06-16
 
 ### Bug Fixes
