@@ -76,6 +76,14 @@ rm -f "$DMG_PATH"
 hdiutil create -volname "Detours" -srcfolder "$STAGING_DIR" -ov -format UDZO "$DMG_PATH"
 rm -rf "$STAGING_DIR"
 
+echo "==> Signing DMG..."
+CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Marco Fruh (AHUQTWVD7X)}"
+CODESIGN_DMG_ARGS=(--force --timestamp --sign "$CODESIGN_IDENTITY")
+if [[ -n "${CODESIGN_KEYCHAIN:-}" ]]; then
+    CODESIGN_DMG_ARGS+=(--keychain "$CODESIGN_KEYCHAIN")
+fi
+/usr/bin/codesign "${CODESIGN_DMG_ARGS[@]}" "$DMG_PATH"
+
 echo "==> Notarizing DMG..."
 # Submit for notarization (requires keychain profile "detours-notarize")
 # Set up with: xcrun notarytool store-credentials "detours-notarize" ...
