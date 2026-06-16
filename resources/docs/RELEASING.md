@@ -42,18 +42,28 @@ git push public main
 
 ### Using the release script
 
+Run the docs reconciliation before every release:
+
+```bash
+$update-docs
+resources/scripts/confirm-update-docs.sh
+```
+
+The confirmation helper records the current clean commit after the docs pass. `release.sh` refuses to continue if the confirmation is missing, stale, or the worktree has uncommitted changes.
+
 ```bash
 ./resources/scripts/release.sh
 ```
 
 The script reads the version from the root `VERSION` file and:
 
-1. Builds the release binary
-2. Creates a DMG with the app and Applications symlink
-3. Signs the DMG with the Developer ID Application identity
-4. Notarizes the DMG with Apple (automated, ~5-15 min)
-5. Staples the notarization ticket to the DMG
-6. Tags the release as `v<version>`
+1. Verifies the `$update-docs` preflight for the current clean commit
+2. Builds the release binary
+3. Creates a DMG with the app and Applications symlink
+4. Signs the DMG with the Developer ID Application identity
+5. Notarizes the DMG with Apple (automated, ~5-15 min)
+6. Staples the notarization ticket to the DMG
+7. Tags the release as `v<version>`
 
 The script will prompt to push `main`, push the tag, and upload the DMG. Press `y` to publish automatically, or `n` to do it manually later.
 
@@ -107,6 +117,7 @@ gh release upload "v$version" "Detours-$version.dmg" --repo detours-app/detours 
 ## Pre-release Checklist
 
 - [ ] All tests pass
+- [ ] `$update-docs` run and `resources/scripts/confirm-update-docs.sh` completed for the release commit
 - [ ] CHANGELOG.md updated (heading changed from "Unreleased" to version + date)
 - [ ] `VERSION` file bumped (single source of truth - build.sh reads this)
 - [ ] Build succeeds in release mode

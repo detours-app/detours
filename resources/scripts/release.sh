@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DOCS_PREFLIGHT_FILE="$PROJECT_DIR/.build/update-docs-preflight"
 
 ensure_main_branch() {
     local project_dir="$1"
@@ -38,9 +39,46 @@ ensure_release_tag_available_or_at_head() {
     return 0
 }
 
+ensure_update_docs_preflight() {
+    local project_dir="$1"
+    local preflight_file="$2"
+    local status
+    status=$(git -C "$project_dir" status --porcelain)
+    if [[ -n "$status" ]]; then
+        echo "Error: Worktree has uncommitted changes."
+        echo "Run \$update-docs first, commit any docs changes, then confirm the preflight:"
+        echo "  resources/scripts/confirm-update-docs.sh"
+        return 1
+    fi
+
+    if [[ ! -f "$preflight_file" ]]; then
+        echo "Error: Missing \$update-docs preflight confirmation for this release."
+        echo "Run \$update-docs first, commit any docs changes, then confirm the preflight:"
+        echo "  resources/scripts/confirm-update-docs.sh"
+        return 1
+    fi
+
+    local expected_commit
+    local confirmed_commit
+    expected_commit=$(git -C "$project_dir" rev-parse HEAD)
+    confirmed_commit=$(awk -F= '$1 == "commit" { print $2 }' "$preflight_file" | tail -n 1)
+
+    if [[ "$confirmed_commit" != "$expected_commit" ]]; then
+        echo "Error: \$update-docs preflight is stale."
+        echo "  confirmed: ${confirmed_commit:-missing}"
+        echo "  HEAD:      $expected_commit"
+        echo "Run \$update-docs again, commit any docs changes, then confirm the preflight:"
+        echo "  resources/scripts/confirm-update-docs.sh"
+        return 1
+    fi
+}
+
 main() {
 # Ensure we're on main branch
 ensure_main_branch "$PROJECT_DIR"
+
+echo "==> Verifying \$update-docs preflight..."
+ensure_update_docs_preflight "$PROJECT_DIR" "$DOCS_PREFLIGHT_FILE"
 
 # Read version from VERSION file (single source of truth)
 VERSION=$(cat "$PROJECT_DIR/VERSION")

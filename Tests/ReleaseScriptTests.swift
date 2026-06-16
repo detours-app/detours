@@ -39,6 +39,57 @@ final class ReleaseScriptTests: XCTestCase {
         XCTAssertEqual(result.status, 2)
         XCTAssertTrue(result.output.contains("already points at HEAD"))
     }
+
+    func testUpdateDocsGuardRejectsMissingConfirmation() throws {
+        let repo = try makeReleaseTestRepository()
+        defer { cleanupTempDirectory(repo) }
+
+        let preflight = repo.appendingPathComponent(".build/update-docs-preflight")
+        let result = runReleaseGuard("ensure_update_docs_preflight \(shellQuote(repo.path)) \(shellQuote(preflight.path))")
+
+        XCTAssertEqual(result.status, 1)
+        XCTAssertTrue(result.output.contains("Missing $update-docs preflight confirmation"))
+    }
+
+    func testUpdateDocsGuardRejectsDirtyWorktree() throws {
+        let repo = try makeReleaseTestRepository()
+        defer { cleanupTempDirectory(repo) }
+
+        let preflight = try writeUpdateDocsPreflight(for: repo, commit: try gitOutput(["rev-parse", "HEAD"], in: repo))
+        try "dirty".write(to: repo.appendingPathComponent("dirty.txt"), atomically: true, encoding: .utf8)
+
+        let result = runReleaseGuard("ensure_update_docs_preflight \(shellQuote(repo.path)) \(shellQuote(preflight.path))")
+
+        XCTAssertEqual(result.status, 1)
+        XCTAssertTrue(result.output.contains("Worktree has uncommitted changes"))
+    }
+
+    func testUpdateDocsGuardRejectsStaleConfirmation() throws {
+        let repo = try makeReleaseTestRepository()
+        defer { cleanupTempDirectory(repo) }
+
+        let oldCommit = try gitOutput(["rev-parse", "HEAD"], in: repo)
+        let preflight = try writeUpdateDocsPreflight(for: repo, commit: oldCommit)
+        try "second".write(to: repo.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+        try runGit(["add", "file.txt"], in: repo)
+        try runGit(["commit", "-m", "second"], in: repo)
+
+        let result = runReleaseGuard("ensure_update_docs_preflight \(shellQuote(repo.path)) \(shellQuote(preflight.path))")
+
+        XCTAssertEqual(result.status, 1)
+        XCTAssertTrue(result.output.contains("$update-docs preflight is stale"))
+    }
+
+    func testUpdateDocsGuardAcceptsCurrentConfirmation() throws {
+        let repo = try makeReleaseTestRepository()
+        defer { cleanupTempDirectory(repo) }
+
+        let preflight = try writeUpdateDocsPreflight(for: repo, commit: try gitOutput(["rev-parse", "HEAD"], in: repo))
+
+        let result = runReleaseGuard("ensure_update_docs_preflight \(shellQuote(repo.path)) \(shellQuote(preflight.path))")
+
+        XCTAssertEqual(result.status, 0)
+    }
 }
 
 private func makeReleaseTestRepository() throws -> URL {
@@ -48,7 +99,8 @@ private func makeReleaseTestRepository() throws -> URL {
     try runGit(["config", "user.email", "detours@example.test"], in: repo)
     try runGit(["config", "user.name", "Detours Tests"], in: repo)
     try "initial".write(to: repo.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
-    try runGit(["add", "file.txt"], in: repo)
+    try ".build/\n".write(to: repo.appendingPathComponent(".gitignore"), atomically: true, encoding: .utf8)
+    try runGit(["add", ".gitignore", "file.txt"], in: repo)
     try runGit(["commit", "-m", "initial"], in: repo)
     return repo
 }
@@ -84,6 +136,36 @@ private func runGit(_ arguments: [String], in directory: URL) throws {
     try process.run()
     process.waitUntilExit()
     XCTAssertEqual(process.terminationStatus, 0, "git \(arguments.joined(separator: " "))")
+}
+
+private func gitOutput(_ arguments: [String], in directory: URL) throws -> String {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+    process.arguments = arguments
+    process.currentDirectoryURL = directory
+
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+
+    try process.run()
+    process.waitUntilExit()
+    XCTAssertEqual(process.terminationStatus, 0, "git \(arguments.joined(separator: " "))")
+
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    return (String(data: data, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+@discardableResult
+private func writeUpdateDocsPreflight(for repo: URL, commit: String) throws -> URL {
+    let preflight = repo.appendingPathComponent(".build/update-docs-preflight")
+    try FileManager.default.createDirectory(at: preflight.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try """
+    skill=update-docs
+    commit=\(commit)
+    created_at=2026-06-16T00:00:00Z
+    """.write(to: preflight, atomically: true, encoding: .utf8)
+    return preflight
 }
 
 private func shellQuote(_ value: String) -> String {
