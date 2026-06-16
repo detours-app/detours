@@ -50,11 +50,12 @@ The script reads the version from the root `VERSION` file and:
 
 1. Builds the release binary
 2. Creates a DMG with the app and Applications symlink
-3. Notarizes the DMG with Apple (automated, ~5-15 min)
-4. Staples the notarization ticket to the DMG
-5. Tags the release as `v<version>`
+3. Signs the DMG with the Developer ID Application identity
+4. Notarizes the DMG with Apple (automated, ~5-15 min)
+5. Staples the notarization ticket to the DMG
+6. Tags the release as `v<version>`
 
-The script will prompt to push the tag and upload the DMG. Press `y` to publish automatically, or `n` to do it manually later.
+The script will prompt to push `main`, push the tag, and upload the DMG. Press `y` to publish automatically, or `n` to do it manually later.
 
 ### Manual steps (if needed)
 
@@ -67,33 +68,38 @@ resources/scripts/build.sh
 Create DMG:
 
 ```bash
+version=$(cat VERSION)
 mkdir -p .build/dmg-staging
-cp -R .build/Build/Products/Release/Detours.app .build/dmg-staging/
+cp -R build/Detours.app .build/dmg-staging/
 ln -s /Applications .build/dmg-staging/Applications
-hdiutil create -volname "Detours" -srcfolder .build/dmg-staging -ov -format UDZO Detours-0.7.0.dmg
+hdiutil create -volname "Detours" -srcfolder .build/dmg-staging -ov -format UDZO "Detours-$version.dmg"
 rm -rf .build/dmg-staging
 ```
 
-Notarize and staple:
+Sign, notarize, and staple:
 
 ```bash
-xcrun notarytool submit Detours-0.7.0.dmg \
+codesign --force --timestamp \
+  --sign "Developer ID Application: Marco Fruh (AHUQTWVD7X)" \
+  "Detours-$version.dmg"
+xcrun notarytool submit "Detours-$version.dmg" \
   --keychain-profile "detours-notarize" --wait
-xcrun stapler staple Detours-0.7.0.dmg
+xcrun stapler staple "Detours-$version.dmg"
 ```
 
 Tag and release:
 
 ```bash
-git tag -a v0.7.0 -m "Version 0.7.0"
-git push public v0.7.0
+git tag -a "v$version" -m "Version $version"
+git push public main
+git push public "v$version"
 # GitHub Actions creates release automatically
-gh release upload v0.7.0 Detours-0.7.0.dmg --repo detours-app/detours
+gh release upload "v$version" "Detours-$version.dmg" --repo detours-app/detours --clobber
 ```
 
 ## Version Numbering
 
-- Format: `0.x.y`
+- Format: `1.x.y`
 - Increment `x` for new features
 - Increment `y` for bug fixes
 - Update version in the root `VERSION` file
@@ -104,6 +110,9 @@ gh release upload v0.7.0 Detours-0.7.0.dmg --repo detours-app/detours
 - [ ] CHANGELOG.md updated (heading changed from "Unreleased" to version + date)
 - [ ] `VERSION` file bumped (single source of truth - build.sh reads this)
 - [ ] Build succeeds in release mode
+- [ ] DMG is Developer ID signed
+- [ ] Notarization succeeds and staple validates
+- [ ] Gatekeeper accepts the DMG and mounted app
 - [ ] App launches and basic functionality works
 - [ ] No debug logging left enabled
 

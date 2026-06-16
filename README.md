@@ -1,6 +1,6 @@
 # Detours
 
-Dual-pane file manager with tabs, folder expansion, Quick Open, and git status. Keyboard-first, fully themeable.
+Dual-pane file manager with tabs, folder expansion, SSH remote browsing, Quick Open, file-operation progress, and git status. Keyboard-first, fully themeable.
 
 ![Detours screenshot](resources/docs/screenshot.png)
 
@@ -11,9 +11,13 @@ Dual-pane file manager with tabs, folder expansion, Quick Open, and git status. 
 - **Folder expansion** - Disclosure triangles to expand folders inline (like Finder list view)
 - **Quick Open** - Spotlight search with frecency ranking (Cmd-P)
 - **Git status indicators** - See modified, staged, and untracked files at a glance
+- **SSH remote browsing** - Browse supported remote hosts directly in Detours panes
+- **Remote file workflows** - Copy, move, trash, restore, archive, extract, Quick Look, Open With, and drag out remote files
+- **Inline operation progress** - Status bars show progress, transfer speed, completion, and error states
+- **Fast lane operations** - Small independent operations stay responsive while large transfers run
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
 - **Theming** - Four built-in themes plus custom theme editor
-- **Sidebar** - Quick access to mounted volumes and favorite folders
+- **Sidebar** - Quick access to remote hosts, mounted volumes, network shares, and favorite folders
 - **Path bar** - Click to navigate, drag to terminal, right-click to copy path
 - **Quick Look** - Preview files with spacebar
 - **Drag and drop** - Between panes, to/from Finder, from Mail attachments, to favorites
@@ -21,7 +25,7 @@ Dual-pane file manager with tabs, folder expansion, Quick Open, and git status. 
 - **Delete Immediately** - Permanent deletion option bypassing Trash (Cmd-Option-Delete)
 - **Truncation tooltips** - Hover to see full filename when truncated
 - **Session restore** - Tabs, selections, and expansion states persist across restarts
-- **Status bar** - Item counts, selection size, available disk space
+- **Status bar** - Item counts, selection size, disk space, and operation progress
 - **iCloud Drive** - Friendly folder names, automatic container navigation
 - **Native macOS** - AppKit, SF Symbol icons, system appearance
 
@@ -37,7 +41,7 @@ Requires macOS 14.0+ (Sonoma).
 git clone https://github.com/detours-app/detours.git
 cd detours
 
-# Build and install to ~/Applications
+# Build and install to /Applications
 ./resources/scripts/build.sh
 
 # Or keep app bundle in build/ without installing
@@ -51,7 +55,7 @@ Requires Xcode Command Line Tools (Swift 5.9+).
 All shortcuts are customizable in Preferences (Cmd-,).
 
 | Action | Default |
-|--------|---------|
+| ------ | -------- |
 | Open | Cmd-O / Enter |
 | Quick Look | Space |
 | Quick Open | Cmd-P |
@@ -86,16 +90,19 @@ See the [User Guide](resources/docs/USER_GUIDE.md) for complete documentation.
 
 ```
 detours/
-├── src/                  # Swift source (~11K LOC)
+├── src/                  # Swift app source
 │   ├── App/              # Entry point, menus
 │   ├── Windows/          # Window management
 │   ├── Panes/            # Pane and tab logic
 │   ├── FileList/         # File list view
 │   ├── Navigation/       # Quick nav, frecency
 │   ├── Operations/       # Copy, move, delete
-│   ├── Services/         # FSEvents, Quick Look
+│   ├── Remote/           # SSH connections, helper deploy, remote RPC
+│   ├── Services/         # File providers, git status
+│   ├── Sidebar/          # Favorites, volumes, network shares, remote hosts
 │   ├── Preferences/      # Settings UI
 │   └── Utilities/        # Helpers
+├── Server/               # Remote helper source
 ├── Tests/                # XCTest suite
 ├── resources/
 │   ├── docs/             # User guide, changelog
