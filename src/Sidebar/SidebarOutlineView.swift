@@ -49,7 +49,7 @@ final class SidebarOutlineView: NSOutlineView {
                 object: clipView,
                 queue: .main
             ) { [weak self] _ in
-                MainActor.assumeIsolated {
+                Task { @MainActor [weak self] in
                     self?.clearHover()
                 }
             }
@@ -104,9 +104,7 @@ final class SidebarRowView: NSTableRowView {
 
     override func drawBackground(in dirtyRect: NSRect) {
         if isHovered && !isSelected {
-            let hoverColor = MainActor.assumeIsolated {
-                ThemeManager.shared.currentTheme.textPrimary.withAlphaComponent(0.06)
-            }
+            let hoverColor = NSColor.labelColor.withAlphaComponent(0.06)
             hoverColor.setFill()
             bounds.fill()
         }
@@ -114,7 +112,7 @@ final class SidebarRowView: NSTableRowView {
 
     override func drawSelection(in dirtyRect: NSRect) {
         guard isSelected else { return }
-        let accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
+        let accentColor = NSColor.controlAccentColor
         accentColor.withAlphaComponent(0.3).setFill()
         bounds.fill()
     }

@@ -164,9 +164,7 @@ final class InactiveHidingRowView: NSTableRowView {
     override func drawBackground(in dirtyRect: NSRect) {
         // Draw hover highlight for non-selected rows
         if isHovered && !isSelected {
-            let hoverColor = MainActor.assumeIsolated {
-                ThemeManager.shared.currentTheme.textPrimary.withAlphaComponent(0.06)
-            }
+            let hoverColor = NSColor.labelColor.withAlphaComponent(0.06)
             hoverColor.setFill()
             bounds.fill()
         }
@@ -174,7 +172,7 @@ final class InactiveHidingRowView: NSTableRowView {
 
     override func drawSelection(in dirtyRect: NSRect) {
         guard isTableActive, isSelected else { return }
-        let accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
+        let accentColor = NSColor.controlAccentColor
         accentColor.withAlphaComponent(0.3).setFill()
         bounds.fill()
     }

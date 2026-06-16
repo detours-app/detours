@@ -298,13 +298,22 @@ final class FileItem {
         let calendar = Calendar.current
         let now = Date()
         let formatter = DateFormatter()
+        let settings = Self.currentSettingsSnapshot()
 
         if calendar.isDate(dateModified, equalTo: now, toGranularity: .year) {
-            formatter.dateFormat = MainActor.assumeIsolated { SettingsManager.shared.dateFormatCurrentYear }
+            formatter.dateFormat = settings.dateFormatCurrentYear
         } else {
-            formatter.dateFormat = MainActor.assumeIsolated { SettingsManager.shared.dateFormatOtherYears }
+            formatter.dateFormat = settings.dateFormatOtherYears
         }
         return formatter.string(from: dateModified)
+    }
+
+    private static func currentSettingsSnapshot() -> Settings {
+        guard let data = UserDefaults.standard.data(forKey: "Detours.Settings"),
+              let decoded = try? JSONDecoder().decode(Settings.self, from: data) else {
+            return Settings()
+        }
+        return decoded
     }
 
     // MARK: - Tree Operations
@@ -506,11 +515,10 @@ extension FileItem {
             // Draw the original icon
             icon.draw(in: rect)
 
-            // Get accent color and brighten for dark mode
-            var accentColor = MainActor.assumeIsolated { ThemeManager.shared.currentTheme.accent }
-            let isDark = MainActor.assumeIsolated {
-                NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            }
+            // Use AppKit drawing state here; icon rendering can happen from AppKit callbacks
+            // that are not in Swift's MainActor executor context.
+            var accentColor = NSColor.controlAccentColor
+            let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             if isDark {
                 accentColor = accentColor.brighterForDarkMode()
             }
