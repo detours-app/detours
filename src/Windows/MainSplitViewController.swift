@@ -1367,8 +1367,7 @@ extension MainSplitViewController: SidebarDelegate {
     /// SSHConnection only reports state once connect() runs; the deploy and
     /// validation steps around it get sidebar feedback through these posts.
     private static func postRemoteConnectionState(_ state: SSHConnectionState, for hostID: UUID) {
-        let change = SSHConnectionStateChange(hostID: hostID, oldState: .disconnected, newState: state)
-        NotificationCenter.default.post(name: .sshConnectionStateDidChange, object: change)
+        RemoteConnectionStateStore.shared.setState(state, for: hostID)
     }
 
     private func validateRemoteConnection(

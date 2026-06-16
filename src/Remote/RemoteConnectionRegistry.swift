@@ -19,6 +19,9 @@ actor RemoteConnectionRegistry {
     func unregister(hostID: UUID) {
         connections.removeValue(forKey: hostID)
         activePaneCounts.removeValue(forKey: hostID)
+        Task { @MainActor in
+            RemoteConnectionStateStore.shared.setState(.disconnected, for: hostID)
+        }
     }
 
     func paneStartedViewing(hostID: UUID) async {

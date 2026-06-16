@@ -53,6 +53,7 @@ final class SidebarViewController: NSViewController {
         setupSidebarSeparator()
         applyTheme()
         observeNotifications()
+        reloadRemoteConnectionStates()
 
         DispatchQueue.main.async { [weak self] in
             self?.expandServersWithVolumes()
@@ -198,13 +199,23 @@ final class SidebarViewController: NSViewController {
     }
 
     @objc private func handleRemoteHostsChange() {
+        reloadRemoteConnectionStates()
         outlineView.reloadData()
     }
 
     @objc private func handleSSHConnectionStateChange(_ notification: Notification) {
         guard let change = notification.object as? SSHConnectionStateChange else { return }
-        remoteConnectionStates[change.hostID] = change.newState
+        reloadRemoteConnectionStates()
+        if remoteConnectionStates[change.hostID] == nil, change.newState != .disconnected {
+            remoteConnectionStates[change.hostID] = change.newState
+        }
         outlineView.reloadData()
+    }
+
+    private func reloadRemoteConnectionStates() {
+        let hostIDs = Set(remoteHostItems().map(\.id))
+        remoteConnectionStates = RemoteConnectionStateStore.shared.snapshot()
+            .filter { hostIDs.contains($0.key) }
     }
 
     /// Auto-expand servers that have mounted volumes

@@ -368,13 +368,8 @@ actor SSHConnection {
     #endif
 
     private func publishStateChange(from oldState: SSHConnectionState, to newState: SSHConnectionState) {
-        let change = SSHConnectionStateChange(
-            hostID: configuration.hostID,
-            oldState: oldState,
-            newState: newState
-        )
         Task { @MainActor in
-            NotificationCenter.default.post(name: .sshConnectionStateDidChange, object: change)
+            RemoteConnectionStateStore.shared.setState(newState, for: configuration.hostID, oldState: oldState)
         }
     }
 
