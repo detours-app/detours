@@ -14,6 +14,9 @@
 | FrecencyStoreTests (incl. testTrivialRemoteRootsAreNotRecorded, testPruneUnknownRemoteHostsDropsStaleEntries, testDisconnectedRemoteEntriesAreHidden) | PASS | 0.283s | 2026-06-16 16:16:17 |
 | QuickNavTests | PASS | 0.072s | 2026-06-16 16:16:21 |
 | RemoteHostTests | PASS | 0.004s | 2026-06-16 16:16:27 |
+| Spotlight predicate fix (multi-word + mid-token substring) | PASS | n/a | 2026-06-16 16:22 |
+
+Spotlight search has no unit test (depends on the live, async-built system index). Verified empirically on Spectre: the file `250617 VR-Honorare.xlsx` did not match the old `CONTAINS[cd]` predicate (Spotlight CONTAINS only matches whole words/prefixes, so "Honorare" missed "VR-Honorare"). The new per-token `LIKE[cd] "*token*"` compound predicate returned the file via both `mdfind` and a direct `NSMetadataQuery` run.
 
 ### Remote Integration 2026-06-16
 

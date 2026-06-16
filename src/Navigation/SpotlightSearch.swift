@@ -23,6 +23,16 @@ final class SpotlightSearch {
             return
         }
 
+        // Each whitespace-separated word must appear, in any order, as a
+        // case/diacritic-insensitive substring of the name. Spotlight's CONTAINS
+        // only matches whole words or word prefixes, so "Honorare" misses
+        // "VR-Honorare"; the *glob* LIKE form is a true substring match.
+        let tokens = searchText.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        guard !tokens.isEmpty else {
+            onResults([])
+            return
+        }
+
         self.onResults = onResults
         self.currentSearchText = searchText
         logger.info("Starting Spotlight search for: \(searchText)")
@@ -32,14 +42,14 @@ final class SpotlightSearch {
             NSMetadataQueryLocalComputerScope
         ]
 
-        // Search display name OR filesystem name (finds more matches)
-        // Using CONTAINS[cd] for case-insensitive, diacritic-insensitive matching
-        // Use kMDItemContentType to exclude system items (calendars, contacts, etc.)
-        // public.item is the base type for all files and folders
-        query.predicate = NSPredicate(
-            format: "(kMDItemDisplayName CONTAINS[cd] %@ OR kMDItemFSName CONTAINS[cd] %@)",
-            searchText, searchText
-        )
+        let tokenPredicates = tokens.map { token -> NSPredicate in
+            let pattern = "*\(token)*"
+            return NSPredicate(
+                format: "(kMDItemDisplayName LIKE[cd] %@) OR (kMDItemFSName LIKE[cd] %@)",
+                pattern, pattern
+            )
+        }
+        query.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: tokenPredicates)
 
         // Limit results for performance
         query.notificationBatchingInterval = 0.1
