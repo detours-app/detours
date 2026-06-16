@@ -517,7 +517,7 @@ extension FileItem {
 
             // Use AppKit drawing state here; icon rendering can happen from AppKit callbacks
             // that are not in Swift's MainActor executor context.
-            var accentColor = NSColor.controlAccentColor
+            var accentColor = Theme.currentSnapshot().accent
             let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             if isDark {
                 accentColor = accentColor.brighterForDarkMode()

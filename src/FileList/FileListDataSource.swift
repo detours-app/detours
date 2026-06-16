@@ -172,7 +172,7 @@ final class InactiveHidingRowView: NSTableRowView {
 
     override func drawSelection(in dirtyRect: NSRect) {
         guard isTableActive, isSelected else { return }
-        let accentColor = NSColor.controlAccentColor
+        let accentColor = Theme.currentSnapshot().accent
         accentColor.withAlphaComponent(0.3).setFill()
         bounds.fill()
     }

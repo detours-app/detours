@@ -49,6 +49,42 @@ struct Theme: Equatable {
 // MARK: - Built-in Themes
 
 extension Theme {
+    static func currentSnapshot() -> Theme {
+        let settings: Settings
+        if let data = UserDefaults.standard.data(forKey: "Detours.Settings"),
+           let decoded = try? JSONDecoder().decode(Settings.self, from: data) {
+            settings = decoded
+        } else {
+            settings = Settings()
+        }
+
+        return snapshot(for: settings)
+    }
+
+    private static func snapshot(for settings: Settings) -> Theme {
+        switch settings.theme {
+        case .system:
+            return currentDrawingAppearanceIsDark ? .dark : .light
+        case .light:
+            return .light
+        case .dark:
+            return .dark
+        case .foolscap:
+            return .foolscap
+        case .drafting:
+            return .drafting
+        case .custom:
+            if let customTheme = settings.customTheme {
+                return .custom(from: customTheme)
+            }
+            return .light
+        }
+    }
+
+    private static var currentDrawingAppearanceIsDark: Bool {
+        NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+
     /// Light theme: neutral warm gray, teal accent, system font
     static let light = Theme(
         background: NSColor(hex: "#FAFAF8"),
