@@ -457,6 +457,13 @@ final class RemoteIntegrationTests: XCTestCase {
         return process
     }
 
+    fileprivate static func prepareDefaultSSHControlDirectory() throws {
+        let controlDirectory = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".detours/ssh", isDirectory: true)
+        try FileManager.default.createDirectory(at: controlDirectory, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: controlDirectory.path)
+    }
+
     fileprivate static func requireIntelMacHost(_ target: String) throws {
         let architecture = try runSSH("uname -sm", target: target).trimmingCharacters(in: .whitespacesAndNewlines)
         guard architecture == "Darwin x86_64" else {
@@ -486,10 +493,11 @@ private struct RemoteIntegrationSession {
 
     static func make() throws -> RemoteIntegrationSession {
         try RemoteIntegrationTests.runSSH("test -x ~/.detours-server/detours-server")
-        return make(sshTarget: "devtest")
+        return try make(sshTarget: "devtest")
     }
 
-    static func make(sshTarget: String) -> RemoteIntegrationSession {
+    static func make(sshTarget: String) throws -> RemoteIntegrationSession {
+        try RemoteIntegrationTests.prepareDefaultSSHControlDirectory()
         let hostID = UUID()
         let client = ProcessRemoteRPCClient(sshTarget: sshTarget)
         let provider = RemoteFileProvider(
@@ -502,7 +510,7 @@ private struct RemoteIntegrationSession {
 
     static func makeIntelMac() async throws -> RemoteIntegrationSession {
         try await deployIntelMacHelper()
-        return make(sshTarget: "wraith")
+        return try make(sshTarget: "wraith")
     }
 
     static func deployIntelMacHelper() async throws {
@@ -638,6 +646,7 @@ private final class PersistentRemoteRPCSession: @unchecked Sendable {
     }
 
     static func start(sshTarget: String = "devtest") throws -> PersistentRemoteRPCSession {
+        try RemoteIntegrationTests.prepareDefaultSSHControlDirectory()
         let process = Process()
         let stdin = Pipe()
         let stdout = Pipe()

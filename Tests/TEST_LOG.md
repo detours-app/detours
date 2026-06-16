@@ -2,10 +2,17 @@
 
 ## Latest Run
 
-- Started: 2026-06-14 13:54:17
-- Command: `swift test --filter 'DirectoryLoaderTests|NetworkDirectoryPollerTests|IconLoaderNetworkVolumeTests|LoadCancellationTests'`
-- Status: FAIL
-- Notes: Targeted test-audit-fix run failed at compile because `DirectoryLoader.loadDirectory`'s task-group closure was missing an explicit `return` after adding a cancellation check. Fixed the closure and rerunning the same targeted command.
+- Started: 2026-06-16 09:20:35
+- Command: `swift test --filter RemoteIntegrationTests`
+- Status: PASS
+- Notes: Foundry live remote integration rerun passed after the test harness now creates the SSH multiplexing control directory before using `devtest` and `wraith`.
+
+### Remote Integration 2026-06-16
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| RemoteIntegrationTests live vs devtest + wraith (test RPC client did not create `~/.detours/ssh`, so SSH ControlPath binding failed) | FAIL | 19.804s | 2026-06-16 09:19:11 |
+| RemoteIntegrationTests live vs devtest + wraith | PASS | 23.029s | 2026-06-16 09:20:35 |
 
 ### Test Audit Fixes 2026-06-14
 
