@@ -727,6 +727,7 @@ final class MainSplitViewController: NSSplitViewController {
 
         quickNavController?.show(
             in: window,
+            searchRoots: activePane.selectedTab.map { [$0.currentDirectory] } ?? [],
             onNavigate: { [weak self] url in
                 self?.navigateActivePane(to: url)
             },

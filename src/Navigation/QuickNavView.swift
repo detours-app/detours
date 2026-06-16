@@ -5,12 +5,15 @@ struct QuickNavView: View {
     @State private var query: String = ""
     @State private var results: [QuickNavResult] = []
     @State private var frecencyResults: [QuickNavResult] = []
+    @State private var scopedResults: [URL] = []
     @State private var spotlightResults: [URL] = []
     @State private var selectedIndex: Int = 0
     @State private var spotlightSearch = SpotlightSearch()
     @State private var spotlightDebounce: Task<Void, Never>?
+    @State private var scopedSearchTask: Task<Void, Never>?
     @FocusState private var isTextFieldFocused: Bool
 
+    var searchRoots: [URL] = []
     let onSelect: (URL) -> Void
     var onSelectLocation: ((Location) -> Void)?
     let onReveal: (_ folder: URL, _ itemToSelect: URL) -> Void
@@ -117,6 +120,11 @@ struct QuickNavView: View {
             // Plain Return is handled by onSubmit
             return .ignored
         }
+        .onDisappear {
+            spotlightDebounce?.cancel()
+            scopedSearchTask?.cancel()
+            spotlightSearch.cancel()
+        }
     }
 
     // MARK: - Actions
@@ -130,6 +138,7 @@ struct QuickNavView: View {
             for: "", connectedHostIDs: connectedHostIDs(), limit: emptyQueryLimit
         )
         spotlightResults = []
+        scopedResults = []
         updateMergedResults()
         selectedIndex = 0
     }
@@ -138,6 +147,7 @@ struct QuickNavView: View {
         // Cancel any in-flight Spotlight work
         spotlightDebounce?.cancel()
         spotlightSearch.cancel()
+        scopedSearchTask?.cancel()
 
         let connected = connectedHostIDs()
 
@@ -147,6 +157,7 @@ struct QuickNavView: View {
                 for: "", connectedHostIDs: connected, limit: emptyQueryLimit
             )
             spotlightResults = []
+            scopedResults = []
             updateMergedResults()
             return
         }
@@ -156,6 +167,20 @@ struct QuickNavView: View {
             for: newQuery, connectedHostIDs: connected, limit: maxResults
         )
         updateMergedResults()
+
+        let roots = searchRoots
+        let includeHidden = SettingsManager.shared.searchIncludesHidden
+        scopedSearchTask = Task {
+            let urls = await Self.localMatches(
+                for: newQuery,
+                in: roots,
+                includeHidden: includeHidden,
+                limit: maxResults
+            )
+            guard !Task.isCancelled else { return }
+            scopedResults = urls
+            updateMergedResults()
+        }
 
         // Debounce the filesystem-wide Spotlight search so fast typing doesn't
         // spin up an NSMetadataQuery on every keystroke.
@@ -184,10 +209,102 @@ struct QuickNavView: View {
     private func updateMergedResults() {
         results = FrecencyStore.shared.mergeLocationResults(
             frecency: frecencyResults,
-            spotlight: spotlightResults,
+            spotlight: scopedResults + spotlightResults,
             limit: maxResults
         )
         selectedIndex = results.isEmpty ? 0 : min(selectedIndex, results.count - 1)
+    }
+
+    private static func localMatches(
+        for query: String,
+        in roots: [URL],
+        includeHidden: Bool,
+        limit: Int
+    ) async -> [URL] {
+        await Task.detached(priority: .userInitiated) {
+            let tokens = query
+                .split(whereSeparator: { $0.isWhitespace })
+                .map { String($0).lowercased() }
+            guard !tokens.isEmpty, !roots.isEmpty else { return [] }
+
+            let fileManager = FileManager.default
+            let maxDepth = 4
+            let maxVisitedPerRoot = 5_000
+            var seen = Set<String>()
+            var matches: [(url: URL, isDirectory: Bool, depth: Int)] = []
+
+            for root in roots {
+                guard matches.count < limit else { break }
+
+                let rootURL = root.standardizedFileURL
+                var isRootDirectory: ObjCBool = false
+                guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isRootDirectory),
+                      isRootDirectory.boolValue else {
+                    continue
+                }
+
+                var options: FileManager.DirectoryEnumerationOptions = [.skipsPackageDescendants]
+                if !includeHidden {
+                    options.insert(.skipsHiddenFiles)
+                }
+
+                guard let enumerator = fileManager.enumerator(
+                    at: rootURL,
+                    includingPropertiesForKeys: [.isDirectoryKey],
+                    options: options
+                ) else {
+                    continue
+                }
+
+                let rootDepth = rootURL.pathComponents.count
+                var visited = 0
+
+                while let candidate = enumerator.nextObject() as? URL {
+                    if Task.isCancelled || matches.count >= limit || visited >= maxVisitedPerRoot {
+                        break
+                    }
+                    visited += 1
+
+                    let url = candidate.standardizedFileURL
+                    let depth = max(0, url.pathComponents.count - rootDepth)
+                    if depth > maxDepth {
+                        enumerator.skipDescendants()
+                        continue
+                    }
+
+                    if url.path.contains(".app/") ||
+                        url.path.contains(".xcodeproj/") ||
+                        url.path.contains(".xcworkspace/") ||
+                        url.path.contains("node_modules/") ||
+                        url.path.contains(".git/") {
+                        enumerator.skipDescendants()
+                        continue
+                    }
+
+                    let name = url.lastPathComponent.lowercased()
+                    guard tokens.allSatisfy({ name.localizedCaseInsensitiveContains($0) }) else {
+                        continue
+                    }
+
+                    let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+                    let isDirectory = values?.isDirectory == true
+                    guard seen.insert(url.path).inserted else { continue }
+                    matches.append((url, isDirectory, depth))
+                }
+            }
+
+            matches.sort { lhs, rhs in
+                if lhs.isDirectory != rhs.isDirectory {
+                    return lhs.isDirectory
+                }
+                if lhs.depth != rhs.depth {
+                    return lhs.depth < rhs.depth
+                }
+                return lhs.url.lastPathComponent.localizedStandardCompare(rhs.url.lastPathComponent) == .orderedAscending
+            }
+
+            return matches.prefix(limit).map(\.url)
+        }.value
     }
 
     private func moveSelection(by delta: Int) {

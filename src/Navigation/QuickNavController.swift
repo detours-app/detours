@@ -18,6 +18,7 @@ final class QuickNavController {
     /// Show the quick navigation panel centered in the window.
     func show(
         in window: NSWindow,
+        searchRoots: [URL],
         onNavigate: @escaping (URL) -> Void,
         onReveal: @escaping (_ folder: URL, _ itemToSelect: URL) -> Void
     ) {
@@ -28,6 +29,7 @@ final class QuickNavController {
         self.onReveal = onReveal
 
         let quickNavView = QuickNavView(
+            searchRoots: searchRoots,
             onSelect: { [weak self] url in
                 self?.handleSelection(url)
             },
