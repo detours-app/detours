@@ -170,7 +170,7 @@ struct QuickNavView: View {
 
         let roots = searchRoots
         let includeHidden = SettingsManager.shared.searchIncludesHidden
-        scopedSearchTask = Task {
+        scopedSearchTask = Task { @MainActor in
             let urls = await Self.localMatches(
                 for: newQuery,
                 in: roots,
