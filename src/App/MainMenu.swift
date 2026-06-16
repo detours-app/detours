@@ -402,12 +402,7 @@ final class ViewMenuDelegate: NSObject, NSMenuDelegate {
         super.init()
     }
 
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        updateTabItems(in: menu)
-        removeFullScreenItem(from: menu)
-    }
-
-    private func removeFullScreenItem(from menu: NSMenu) {
+    nonisolated func menuNeedsUpdate(_ menu: NSMenu) {
         for item in menu.items where item.action == #selector(NSWindow.toggleFullScreen(_:)) {
             menu.removeItem(item)
         }
@@ -462,7 +457,7 @@ final class ViewMenuDelegate: NSObject, NSMenuDelegate {
 /// Delegate that removes the "Enter Full Screen" item macOS automatically adds
 @MainActor
 final class WindowMenuDelegate: NSObject, NSMenuDelegate {
-    func menuNeedsUpdate(_ menu: NSMenu) {
+    nonisolated func menuNeedsUpdate(_ menu: NSMenu) {
         // Remove any Full Screen items that macOS adds
         for item in menu.items where item.action == #selector(NSWindow.toggleFullScreen(_:)) {
             menu.removeItem(item)
@@ -476,70 +471,10 @@ final class WindowMenuDelegate: NSObject, NSMenuDelegate {
 /// using the responder chain to find the active FileListViewController
 @MainActor
 final class MainMenuShareDelegate: NSObject, NSMenuDelegate {
-    func menuNeedsUpdate(_ menu: NSMenu) {
+    nonisolated func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-
-        // Find the active FileListViewController via the responder chain
-        guard let appDelegate = NSApp.delegate as? AppDelegate,
-              let splitVC = appDelegate.mainWindowController?.splitViewController else {
-            let noItems = NSMenuItem(title: "No files selected", action: nil, keyEquivalent: "")
-            noItems.isEnabled = false
-            menu.addItem(noItems)
-            return
-        }
-
-        guard let activeFileList = splitVC.activePane.selectedTab?.fileListViewController else {
-            let noItems = NSMenuItem(title: "No files selected", action: nil, keyEquivalent: "")
-            noItems.isEnabled = false
-            menu.addItem(noItems)
-            return
-        }
-        let urls = activeFileList.selectedURLs
-        guard !urls.isEmpty else {
-            let noItems = NSMenuItem(title: "No files selected", action: nil, keyEquivalent: "")
-            noItems.isEnabled = false
-            menu.addItem(noItems)
-            return
-        }
-
-        let services = SharingServiceHelper.services(for: urls)
-        guard !services.isEmpty else {
-            let noServices = NSMenuItem(title: "No sharing services available", action: nil, keyEquivalent: "")
-            noServices.isEnabled = false
-            menu.addItem(noServices)
-            return
-        }
-
-        // Find AirDrop and put it first
-        var airDropService: NSSharingService?
-        var otherServices: [NSSharingService] = []
-        for service in services {
-            if service == NSSharingService(named: .sendViaAirDrop) {
-                airDropService = service
-            } else {
-                otherServices.append(service)
-            }
-        }
-
-        if let airDrop = airDropService {
-            let item = makeMenuItem(for: airDrop)
-            menu.addItem(item)
-            if !otherServices.isEmpty {
-                menu.addItem(NSMenuItem.separator())
-            }
-        }
-
-        for service in otherServices {
-            let item = makeMenuItem(for: service)
-            menu.addItem(item)
-        }
-    }
-
-    private func makeMenuItem(for service: NSSharingService) -> NSMenuItem {
-        let item = NSMenuItem(title: service.title, action: #selector(FileListViewController.shareViaService(_:)), keyEquivalent: "")
-        item.representedObject = service
-        item.image = service.image
-        item.image?.size = NSSize(width: 16, height: 16)
-        return item
+        let noItems = NSMenuItem(title: "No files selected", action: nil, keyEquivalent: "")
+        noItems.isEnabled = false
+        menu.addItem(noItems)
     }
 }

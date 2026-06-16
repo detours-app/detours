@@ -5,12 +5,15 @@ struct QuickNavView: View {
     @State private var query: String = ""
     @State private var results: [QuickNavResult] = []
     @State private var frecencyResults: [QuickNavResult] = []
+    @State private var scopedFilesystemResults: [QuickNavResult] = []
     @State private var spotlightResults: [URL] = []
     @State private var selectedIndex: Int = 0
     @State private var spotlightSearch = SpotlightSearch()
     @State private var spotlightDebounce: Task<Void, Never>?
     @FocusState private var isTextFieldFocused: Bool
 
+    var searchRoot: URL?
+    var onActiveResultChange: ((QuickNavResult?) -> Void)?
     let onSelect: (URL) -> Void
     var onSelectLocation: ((Location) -> Void)?
     let onReveal: (_ folder: URL, _ itemToSelect: URL) -> Void
@@ -30,9 +33,6 @@ struct QuickNavView: View {
                 .padding(.vertical, 14)
                 .focused($isTextFieldFocused)
                 .accessibilityIdentifier("quickNavSearchField")
-                .onSubmit {
-                    selectCurrent()
-                }
                 .onChange(of: query) { _, newValue in
                     performSearch(newValue)
                 }
@@ -109,14 +109,6 @@ struct QuickNavView: View {
             autocomplete()
             return .handled
         }
-        .onKeyPress(.return) {
-            if NSEvent.modifierFlags.contains(.command) {
-                revealCurrent()
-                return .handled
-            }
-            // Plain Return is handled by onSubmit
-            return .ignored
-        }
     }
 
     // MARK: - Actions
@@ -146,6 +138,7 @@ struct QuickNavView: View {
             frecencyResults = FrecencyStore.shared.frecencyLocationMatches(
                 for: "", connectedHostIDs: connected, limit: emptyQueryLimit
             )
+            scopedFilesystemResults = []
             spotlightResults = []
             updateMergedResults()
             return
@@ -155,6 +148,7 @@ struct QuickNavView: View {
         frecencyResults = FrecencyStore.shared.frecencyLocationMatches(
             for: newQuery, connectedHostIDs: connected, limit: maxResults
         )
+        scopedFilesystemResults = scopedFilesystemMatches(for: newQuery)
         updateMergedResults()
 
         // Debounce the filesystem-wide Spotlight search so fast typing doesn't
@@ -183,11 +177,79 @@ struct QuickNavView: View {
 
     private func updateMergedResults() {
         results = FrecencyStore.shared.mergeLocationResults(
-            frecency: frecencyResults,
+            frecency: scopedFilesystemResults + frecencyResults,
             spotlight: spotlightResults,
             limit: maxResults
         )
         selectedIndex = results.isEmpty ? 0 : min(selectedIndex, results.count - 1)
+        publishActiveResult()
+    }
+
+    private func scopedFilesystemMatches(for query: String) -> [QuickNavResult] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty, let searchRoot else { return [] }
+
+        let root = searchRoot.standardizedFileURL
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return []
+        }
+
+        let queryLower = trimmedQuery.lowercased()
+        let rootDepth = root.pathComponents.count
+        let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .isHiddenKey, .isPackageKey]
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: resourceKeys,
+            options: [.skipsHiddenFiles],
+            errorHandler: { _, _ in true }
+        ) else {
+            return []
+        }
+
+        var matches: [QuickNavResult] = []
+        for case let url as URL in enumerator {
+            let values = try? url.resourceValues(forKeys: Set(resourceKeys))
+            if values?.isPackage == true {
+                enumerator.skipDescendants()
+            }
+            if values?.isHidden == true && !SettingsManager.shared.searchIncludesHidden {
+                continue
+            }
+
+            let name = url.lastPathComponent
+            guard name.localizedCaseInsensitiveContains(trimmedQuery) else { continue }
+
+            let score = scopedFilesystemScore(name: name, queryLower: queryLower, depth: url.pathComponents.count - rootDepth)
+            matches.append(.local(url: url, score: score, isDirectory: values?.isDirectory == true))
+            if matches.count >= maxResults * 2 {
+                break
+            }
+        }
+
+        return matches.sorted { lhs, rhs in
+            if lhs.isDirectory != rhs.isDirectory {
+                return lhs.isDirectory
+            }
+            if lhs.score != rhs.score {
+                return lhs.score > rhs.score
+            }
+            return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+        }
+    }
+
+    private func scopedFilesystemScore(name: String, queryLower: String, depth: Int) -> Double {
+        let nameLower = name.lowercased()
+        let base: Double
+        if nameLower == queryLower {
+            base = 1_000
+        } else if nameLower.hasPrefix(queryLower) {
+            base = 750
+        } else {
+            base = 500
+        }
+        return base - Double(max(depth, 0))
     }
 
     private func moveSelection(by delta: Int) {
@@ -195,7 +257,16 @@ struct QuickNavView: View {
         let newIndex = selectedIndex + delta
         if newIndex >= 0 && newIndex < results.count {
             selectedIndex = newIndex
+            publishActiveResult()
         }
+    }
+
+    private func publishActiveResult() {
+        guard !results.isEmpty && selectedIndex < results.count else {
+            onActiveResultChange?(nil)
+            return
+        }
+        onActiveResultChange?(results[selectedIndex])
     }
 
     private func selectCurrent() {

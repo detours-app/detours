@@ -13,6 +13,7 @@ final class QuickNavController {
     private var panel: FloatingPanel?
     private var onNavigate: ((URL) -> Void)?
     private var onReveal: ((_ folder: URL, _ itemToSelect: URL) -> Void)?
+    private var activeResult: QuickNavResult?
     private var eventMonitor: Any?
 
     /// Show the quick navigation panel centered in the window.
@@ -28,6 +29,14 @@ final class QuickNavController {
         self.onReveal = onReveal
 
         let quickNavView = QuickNavView(
+            searchRoot: (NSApp.delegate as? AppDelegate)?
+                .mainWindowController?
+                .splitViewController
+                .activePane
+                .currentDirectory,
+            onActiveResultChange: { [weak self] result in
+                self?.activeResult = result
+            },
             onSelect: { [weak self] url in
                 self?.handleSelection(url)
             },
@@ -84,13 +93,10 @@ final class QuickNavController {
         }
 
         // Monitor for clicks outside to dismiss
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self = self, let panel = self.panel else { return event }
-            if event.window != panel {
-                self.dismiss()
-            }
-            return event
-        }
+        eventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .keyDown],
+            handler: Self.makeEventMonitor(controller: self)
+        )
     }
 
     /// Dismiss the panel.
@@ -106,6 +112,7 @@ final class QuickNavController {
         panel = nil
         onNavigate = nil
         onReveal = nil
+        activeResult = nil
     }
 
     private func handleSelection(_ url: URL) {
@@ -118,5 +125,48 @@ final class QuickNavController {
         let reveal = onReveal
         dismiss()
         reveal?(folder, itemToSelect)
+    }
+
+    private func selectActiveResult(reveal: Bool) {
+        guard let selected = activeResult?.localURL else { return }
+        if reveal {
+            handleReveal(folder: selected.deletingLastPathComponent(), itemToSelect: selected)
+        } else {
+            handleSelection(selected)
+        }
+    }
+
+    private nonisolated static func makeEventMonitor(controller: QuickNavController) -> (NSEvent) -> NSEvent? {
+        { [weak controller] event in
+            switch event.type {
+            case .leftMouseDown, .rightMouseDown:
+                let eventWindow = event.window
+                Task { @MainActor [weak controller, weak eventWindow] in
+                    guard let controller, let panel = controller.panel else { return }
+                    if eventWindow !== panel {
+                        controller.dismiss()
+                    }
+                }
+                return event
+            case .keyDown:
+                switch event.keyCode {
+                case 36, 76: // Return, keypad Enter
+                    let reveal = event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command)
+                    Task { @MainActor [weak controller] in
+                        controller?.selectActiveResult(reveal: reveal)
+                    }
+                    return nil
+                case 53: // Escape
+                    Task { @MainActor [weak controller] in
+                        controller?.dismiss()
+                    }
+                    return nil
+                default:
+                    return event
+                }
+            default:
+                return event
+            }
+        }
     }
 }

@@ -191,7 +191,13 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         navigationDelegate?.fileListDidChangeSelection()
     }
 
-    @objc private func handleSettingsChange() {
+    @objc private nonisolated func handleSettingsChange() {
+        Task { @MainActor in
+            handleSettingsChangeOnMain()
+        }
+    }
+
+    private func handleSettingsChangeOnMain() {
         let isNowEnabled = SettingsManager.shared.folderExpansionEnabled
 
         // Preserve selection before reload
@@ -240,7 +246,13 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         restoreSelection(relevantURLs)
     }
 
-    @objc private func handleThemeChange() {
+    @objc private nonisolated func handleThemeChange() {
+        Task { @MainActor in
+            handleThemeChangeOnMain()
+        }
+    }
+
+    private func handleThemeChangeOnMain() {
         // Apply new theme background and force table redraw
         applyThemeBackground()
         updateColumnHeaderColors()

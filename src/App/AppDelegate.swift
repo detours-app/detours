@@ -25,15 +25,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.activate(ignoringOtherApps: true)
         }
 
-        systemEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .systemDefined) { [weak self] event in
-            guard let splitVC = self?.mainWindowController?.splitViewController else { return event }
-            return splitVC.handleSystemDefinedEvent(event) ? nil : event
-        }
+        systemEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: .systemDefined,
+            handler: Self.makeSystemDefinedEventMonitor(delegate: self)
+        )
 
-        keyDownEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let splitVC = self?.mainWindowController?.splitViewController else { return event }
-            return splitVC.handleGlobalKeyDown(event) ? nil : event
-        }
+        keyDownEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: .keyDown,
+            handler: Self.makeKeyDownEventMonitor(delegate: self)
+        )
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -171,15 +171,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showPreferences(_ sender: Any?) {
         PreferencesWindowController.shared.showWindow(nil)
     }
+
+    private nonisolated static func makeSystemDefinedEventMonitor(delegate: AppDelegate) -> (NSEvent) -> NSEvent? {
+        { [weak delegate] event in
+            guard let keyCode = SystemMediaKey.keyCodeIfKeyDown(from: event) ?? SystemMediaKey.keyCode(from: event),
+                  SystemMediaKey.isCopyKeyCode(keyCode) else {
+                return event
+            }
+
+            Task { @MainActor [weak delegate] in
+                delegate?.mainWindowController?.splitViewController.copySelectedItemsToOtherPaneFromEventMonitor()
+            }
+            return nil
+        }
+    }
+
+    private nonisolated static func makeKeyDownEventMonitor(delegate: AppDelegate) -> (NSEvent) -> NSEvent? {
+        { [weak delegate] event in
+            guard event.specialKey == .f5 || event.keyCode == SystemMediaKey.f5KeyCode else {
+                return event
+            }
+
+            Task { @MainActor [weak delegate] in
+                delegate?.mainWindowController?.splitViewController.copySelectedItemsToOtherPaneFromEventMonitor()
+            }
+            return nil
+        }
+    }
 }
 
 // MARK: - Menu Validation
 
 extension AppDelegate: NSMenuItemValidation {
-    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    nonisolated func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleStatusBar(_:)) {
-            menuItem.title = SettingsManager.shared.settings.showStatusBar ? "Hide Status Bar" : "Show Status Bar"
+            menuItem.title = Self.persistedShowStatusBarTitle()
         }
         return true
+    }
+
+    private nonisolated static func persistedShowStatusBarTitle(defaults: UserDefaults = .standard) -> String {
+        persistedShowStatusBar(defaults: defaults) ? "Hide Status Bar" : "Show Status Bar"
+    }
+
+    private nonisolated static func persistedShowStatusBar(defaults: UserDefaults = .standard) -> Bool {
+        guard let data = defaults.data(forKey: "Detours.Settings"),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let showStatusBar = object["showStatusBar"] as? Bool else {
+            return true
+        }
+        return showStatusBar
     }
 }

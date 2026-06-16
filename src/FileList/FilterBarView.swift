@@ -86,7 +86,13 @@ final class FilterBarView: NSView {
         delegate?.filterBar(self, didChangeText: searchField.stringValue)
     }
 
-    @objc private func handleThemeChange() {
+    @objc private nonisolated func handleThemeChange() {
+        Task { @MainActor in
+            handleThemeChangeOnMain()
+        }
+    }
+
+    private func handleThemeChangeOnMain() {
         applyTheme()
     }
 

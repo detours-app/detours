@@ -15,6 +15,7 @@ class BaseUITest: XCTestCase {
         // Launch app by bundle identifier
         app = XCUIApplication(bundleIdentifier: "com.detours.app")
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = testFolderName
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         // Wait for app to be ready

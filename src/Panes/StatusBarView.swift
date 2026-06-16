@@ -113,7 +113,13 @@ final class StatusBarView: NSView {
         )
     }
 
-    @objc private func handleThemeChange() {
+    @objc private nonisolated func handleThemeChange() {
+        Task { @MainActor in
+            handleThemeChangeOnMain()
+        }
+    }
+
+    private func handleThemeChangeOnMain() {
         let theme = ThemeManager.shared.currentTheme
         label.font = theme.uiFont(size: ThemeManager.shared.fontSize - 1)
 

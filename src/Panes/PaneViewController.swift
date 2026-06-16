@@ -23,8 +23,12 @@ final class ThemedPaneView: NSView {
         )
     }
 
-    @objc private func themeDidChange() {
-        needsDisplay = true
+    @objc private nonisolated func themeDidChange() {
+        DispatchQueue.main.async { [weak self] in
+            Task { @MainActor in
+                self?.needsDisplay = true
+            }
+        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -372,6 +376,15 @@ final class PaneViewController: NSViewController {
         return tabs[selectedTabIndex]
     }
 
+    private nonisolated func performOnMainAsync(_ work: @escaping @MainActor (PaneViewController) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                work(self)
+            }
+        }
+    }
+
     override func loadView() {
         let themedView = ThemedPaneView()
         view = themedView
@@ -421,7 +434,13 @@ final class PaneViewController: NSViewController {
         createTab(at: homeDir, select: true)
     }
 
-    @objc private func handleThemeChange() {
+    @objc private nonisolated func handleThemeChange() {
+        performOnMainAsync { pane in
+            pane.handleThemeChangeOnMain()
+        }
+    }
+
+    private func handleThemeChangeOnMain() {
         view.needsDisplay = true
         updatePathControlColors()
         updateRemoteHostBadge()
@@ -621,9 +640,15 @@ final class PaneViewController: NSViewController {
         view.addSubview(reconnectBanner)
     }
 
-    @objc private func handleSSHConnectionStateChange(_ notification: Notification) {
-        guard let change = notification.object as? SSHConnectionStateChange,
-              let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }),
+    @objc private nonisolated func handleSSHConnectionStateChange(_ notification: Notification) {
+        guard let change = notification.object as? SSHConnectionStateChange else { return }
+        performOnMainAsync { pane in
+            pane.handleSSHConnectionStateChangeOnMain(change)
+        }
+    }
+
+    private func handleSSHConnectionStateChangeOnMain(_ change: SSHConnectionStateChange) {
+        guard let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }),
               host.id == change.hostID else {
             return
         }
@@ -777,7 +802,13 @@ final class PaneViewController: NSViewController {
         statusBar.isHidden = !SettingsManager.shared.settings.showStatusBar
     }
 
-    @objc private func handleSettingsChange() {
+    @objc private nonisolated func handleSettingsChange() {
+        performOnMainAsync { pane in
+            pane.handleSettingsChangeOnMain()
+        }
+    }
+
+    private func handleSettingsChangeOnMain() {
         updateStatusBarVisibility()
     }
 
