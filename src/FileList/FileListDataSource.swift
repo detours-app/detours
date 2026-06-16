@@ -1,4 +1,5 @@
 import AppKit
+import ObjectiveC.runtime
 
 // MARK: - Folder Size Cache
 
@@ -139,25 +140,30 @@ final class ThemedTextCell: NSTableCellView {
 
 /// Row view with theme-aware selection color (background is drawn by BandedOutlineView)
 final class InactiveHidingRowView: NSTableRowView {
-    var isTableActive: Bool = true {
+    nonisolated(unsafe) var isTableActive: Bool = true {
         didSet {
-            if isTableActive != oldValue {
+            if isTableActive == oldValue { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 needsDisplay = true
-                for subview in subviews {
-                    updateCellBackgroundStyle(subview)
-                }
+                updateAllCellBackgroundStyles()
             }
         }
     }
 
-    var isHovered: Bool = false {
+    nonisolated(unsafe) var isHovered: Bool = false {
         didSet {
-            if isHovered != oldValue { needsDisplay = true }
+            if isHovered == oldValue { return }
+            Task { @MainActor [weak self] in
+                self?.needsDisplay = true
+            }
         }
     }
 
-    override var isEmphasized: Bool {
-        get { isTableActive }
+    override nonisolated var isEmphasized: Bool {
+        get {
+            isTableActive
+        }
         set { }
     }
 
@@ -184,11 +190,39 @@ final class InactiveHidingRowView: NSTableRowView {
         updateCellBackgroundStyle(subview)
     }
 
-    override var isSelected: Bool {
-        didSet {
-            for subview in subviews {
-                updateCellBackgroundStyle(subview)
+    override nonisolated var isSelected: Bool {
+        get {
+            appKitIsSelected()
+        }
+        set {
+            setAppKitIsSelected(newValue)
+            Task { @MainActor [weak self] in
+                self?.updateAllCellBackgroundStyles()
             }
+        }
+    }
+
+    private nonisolated func appKitIsSelected() -> Bool {
+        typealias Implementation = @convention(c) (AnyObject, Selector) -> Bool
+        let selector = #selector(getter: NSTableRowView.isSelected)
+        guard let method = class_getInstanceMethod(NSTableRowView.self, selector) else {
+            return false
+        }
+        return unsafeBitCast(method_getImplementation(method), to: Implementation.self)(self, selector)
+    }
+
+    private nonisolated func setAppKitIsSelected(_ selected: Bool) {
+        typealias Implementation = @convention(c) (AnyObject, Selector, Bool) -> Void
+        let selector = #selector(setter: NSTableRowView.isSelected)
+        guard let method = class_getInstanceMethod(NSTableRowView.self, selector) else {
+            return
+        }
+        unsafeBitCast(method_getImplementation(method), to: Implementation.self)(self, selector, selected)
+    }
+
+    private func updateAllCellBackgroundStyles() {
+        for subview in subviews {
+            updateCellBackgroundStyle(subview)
         }
     }
 
