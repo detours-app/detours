@@ -2,7 +2,7 @@
 
 Dual-pane file manager with tabs, folder expansion, SSH remote browsing, Quick Open, file-operation progress, and git status. Keyboard-first, fully themeable.
 
-![Detours screenshot](resources/docs/screenshot.png)
+![Detours screenshot](resources/docs/screenshot.png?v=2026-06-16)
 
 ## Features
 
