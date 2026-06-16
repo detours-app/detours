@@ -12,8 +12,10 @@ Match the current checked-in screenshot:
 - Left pane tabs: `Tools`, `Finance`, `acme-corp`; `acme-corp` selected.
 - Left pane path: `/tmp/detours-screenshot/acme-corp`.
 - Left pane selection: `Budget-2026.xlsx`.
+- Remote Hosts section: `devtest`, connected.
+- File Servers section: `devtest-files`, with an `api` share.
 - Right pane tabs: `INBOX`, `Downloads`, `api`; `api` selected.
-- Right pane path: `/tmp/detours-screenshot/taskflow/api`.
+- Right pane path: `devtest:/tmp/detours-screenshot/taskflow/api`.
 - Active pane: left pane, so the left selection is teal and the right pane is inactive.
 - Pane split: approximately 48/52 left/right after the sidebar.
 
@@ -25,6 +27,7 @@ Run this on Foundry:
 cd ~/dev/detours
 git pull --ff-only
 resources/scripts/screenshot-setup.sh
+ssh devtest 'bash -s' < resources/scripts/screenshot-setup.sh
 resources/scripts/screenshot-configure.sh
 ```
 
@@ -33,9 +36,9 @@ The setup script recreates:
 - `/tmp/detours-screenshot/acme-corp`
 - `/tmp/detours-screenshot/taskflow`
 
-It also initializes the `taskflow` git repository with staged, modified, and untracked files so Detours can show git status markers.
+Run it both on Foundry and through SSH on `devtest`. It initializes the `taskflow` git repository with staged, modified, and untracked files so Detours can show git status markers locally and in the remote pane.
 
-The configure script quits Detours, writes the screenshot session defaults, and relaunches `/Applications/Detours.app`.
+The configure script quits Detours, writes the screenshot session defaults, stores `devtest` as a Remote Host, adds the screenshot-only `devtest-files` file server row, and relaunches `/Applications/Detours.app`.
 
 ## Manual Details
 
@@ -52,10 +55,7 @@ mkdir -p \
   "$HOME/2 Areas" \
   "$HOME/3 Resources" \
   "$HOME/4 Archive" \
-  "$HOME/dev" \
-  "$HOME/Documents" \
-  "$HOME/Downloads" \
-  "$HOME/Applications"
+  "$HOME/dev"
 ```
 
 It writes these session defaults for bundle id `com.detours.app`:
@@ -66,6 +66,9 @@ It writes these session defaults for bundle id `com.detours.app`:
 - `Detours.RightPaneTabs`: `/tmp/detours-screenshot/INBOX`, `/tmp/detours-screenshot/Downloads`, `/tmp/detours-screenshot/taskflow/api`
 - `Detours.RightPaneSelectedIndex`: `2`
 - `Detours.RightPaneSelections`: only the `api` tab selects `/tmp/detours-screenshot/taskflow/api/database.py`
+- `Detours.RemoteHosts`: one host named `devtest`
+- `Detours.RightPaneRemoteTabs`: the `api` tab targets `devtest:/tmp/detours-screenshot/taskflow/api`
+- `Detours.ScreenshotFileServers`: one screenshot-only file server named `devtest-files` with an `api` share
 - `Detours.ActivePane`: `0`
 - `Detours.SidebarVisible`: `true`
 - `Detours.SidebarWidth`: `190`

@@ -3,6 +3,16 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "sidebar")
 
+private struct ScreenshotFileServer {
+    let host: String
+    let shares: [ScreenshotFileShare]
+}
+
+private struct ScreenshotFileShare {
+    let name: String
+    let path: String?
+}
+
 final class SidebarViewController: NSViewController {
     private let outlineView = SidebarOutlineView()
     private let scrollView = NSScrollView()
@@ -40,6 +50,10 @@ final class SidebarViewController: NSViewController {
         setupSidebarSeparator()
         applyTheme()
         observeNotifications()
+
+        DispatchQueue.main.async { [weak self] in
+            self?.expandServersWithVolumes()
+        }
     }
 
     private func setupSidebarSeparator() {
@@ -255,6 +269,7 @@ final class SidebarViewController: NSViewController {
     private func buildNetworkHierarchy() -> [Any] {
         let discoveredServers = networkItems()
         let netVolumes = networkVolumes()
+        let screenshotServers = screenshotFileServers()
 
         var items: [Any] = []
         var matchedVolumeHosts: Set<String> = []
@@ -281,6 +296,13 @@ final class SidebarViewController: NSViewController {
             }
         }
 
+        for server in screenshotServers {
+            let host = server.host.lowercased()
+            guard !matchedVolumeHosts.contains(host) else { continue }
+            items.append(SyntheticServer(host: server.host))
+            matchedVolumeHosts.insert(host)
+        }
+
         return items
     }
 
@@ -305,10 +327,50 @@ final class SidebarViewController: NSViewController {
     /// Get mounted volumes for a specific server (discovered or synthetic)
     private func mountedVolumes(forHost host: String) -> [VolumeInfo] {
         let netVolumes = networkVolumes()
-        return netVolumes.filter { volume in
+        let realVolumes = netVolumes.filter { volume in
             guard let volumeHost = volume.serverHost else { return false }
             return volumeHostMatchesServer(volumeHost: volumeHost, serverHost: host)
         }
+        return realVolumes + screenshotVolumes(forHost: host)
+    }
+
+    private func screenshotFileServers() -> [ScreenshotFileServer] {
+        guard let rawServers = UserDefaults.standard.array(forKey: "Detours.ScreenshotFileServers") as? [[String: Any]] else {
+            return []
+        }
+
+        return rawServers.compactMap { rawServer in
+            guard let host = rawServer["host"] as? String, !host.isEmpty else { return nil }
+            let rawShares = rawServer["shares"] as? [[String: Any]] ?? []
+            let shares = rawShares.compactMap { rawShare -> ScreenshotFileShare? in
+                guard let name = rawShare["name"] as? String, !name.isEmpty else { return nil }
+                return ScreenshotFileShare(
+                    name: name,
+                    path: rawShare["path"] as? String
+                )
+            }
+            return ScreenshotFileServer(host: host, shares: shares)
+        }
+    }
+
+    private func screenshotVolumes(forHost host: String) -> [VolumeInfo] {
+        screenshotFileServers()
+            .filter { volumeHostMatchesServer(volumeHost: $0.host, serverHost: host) }
+            .flatMap { server in
+                server.shares.map { share in
+                    let path = share.path ?? "/Volumes/\(share.name)"
+                    return VolumeInfo(
+                        url: URL(fileURLWithPath: path),
+                        name: share.name,
+                        icon: NSImage(systemSymbolName: "externaldrive.connected.to.line.below", accessibilityDescription: "Network Share") ?? NSWorkspace.shared.icon(forFile: path),
+                        capacity: nil,
+                        availableCapacity: nil,
+                        isEjectable: false,
+                        isNetwork: true,
+                        serverHost: server.host
+                    )
+                }
+            }
     }
 
     // MARK: - Context Menu

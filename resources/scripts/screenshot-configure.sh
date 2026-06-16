@@ -8,6 +8,9 @@ BASE="/tmp/detours-screenshot"
 DOMAIN="com.detours.app"
 PLIST="$HOME/Library/Preferences/$DOMAIN.plist"
 PLIST_BUDDY="/usr/libexec/PlistBuddy"
+REMOTE_HOST="${DETOURS_SCREENSHOT_REMOTE_HOST:-devtest}"
+REMOTE_HOST_ID="$(uuidgen)"
+REMOTE_API_PATH="$BASE/taskflow/api"
 
 require_directory() {
     local path="$1"
@@ -55,10 +58,13 @@ mkdir -p \
 
 quit_detours
 
-settings_json=$(printf '{"schemaVersion":1,"restoreSession":true,"showHiddenByDefault":false,"searchIncludesHidden":false,"theme":"dark","fontSize":13,"dateFormatCurrentYear":"d. MMM H:mm","dateFormatOtherYears":"d.M.yy","showStatusBar":true,"sidebarVisible":true,"folderExpansionEnabled":true,"foldersOnTop":true,"favorites":["%s/INBOX","%s/1 Projects","%s/2 Areas","%s/3 Resources","%s/4 Archive","%s/dev","%s/Downloads","%s/Documents","%s/Applications"],"recentServers":[],"gitStatusEnabled":true,"shortcuts":{}}' "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" "$HOME")
+settings_json=$(printf '{"schemaVersion":1,"restoreSession":true,"showHiddenByDefault":false,"searchIncludesHidden":false,"theme":"dark","fontSize":13,"dateFormatCurrentYear":"d. MMM H:mm","dateFormatOtherYears":"d.M.yy","showStatusBar":true,"sidebarVisible":true,"folderExpansionEnabled":true,"foldersOnTop":true,"favorites":["%s/INBOX","%s/1 Projects","%s/2 Areas","%s/3 Resources","%s/4 Archive","%s/dev"],"recentServers":[],"gitStatusEnabled":true,"shortcuts":{}}' "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" "$HOME")
 settings_hex=$(printf '%s' "$settings_json" | xxd -p -c 100000)
+remote_hosts_json=$(printf '[{"id":"%s","displayName":"%s","sshTarget":"%s"}]' "$REMOTE_HOST_ID" "$REMOTE_HOST" "$REMOTE_HOST")
+remote_hosts_hex=$(printf '%s' "$remote_hosts_json" | xxd -p -c 100000)
 
 defaults write "$DOMAIN" Detours.Settings -data "$settings_hex"
+defaults write "$DOMAIN" Detours.RemoteHosts -data "$remote_hosts_hex"
 defaults write "$DOMAIN" Detours.LeftPaneTabs -array "$BASE/Tools" "$BASE/Finance" "$BASE/acme-corp"
 defaults write "$DOMAIN" Detours.LeftPaneSelectedIndex -int 2
 defaults write "$DOMAIN" Detours.LeftPaneShowHiddenFiles -array false false false
@@ -99,9 +105,21 @@ for key in Detours.LeftPaneRemoteTabs Detours.RightPaneRemoteTabs; do
     "$PLIST_BUDDY" -c "Add :$key:2 dict" "$PLIST"
 done
 
+"$PLIST_BUDDY" -c "Add :Detours.RightPaneRemoteTabs:2:hostID string $REMOTE_HOST_ID" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.RightPaneRemoteTabs:2:path string $REMOTE_API_PATH" "$PLIST"
+
+reset_array "Detours.ScreenshotFileServers"
+"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0 dict" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:host string ${REMOTE_HOST}-files" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares array" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares:0 dict" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares:0:name string api" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares:0:path string $REMOTE_API_PATH" "$PLIST"
+
 killall cfprefsd >/dev/null 2>&1 || true
 open -g /Applications/Detours.app
 
 echo "Detours configured for README screenshot."
 echo "Left pane:  $BASE/acme-corp"
-echo "Right pane: $BASE/taskflow/api"
+echo "Right pane: $REMOTE_HOST:$REMOTE_API_PATH"
+echo "File server: ${REMOTE_HOST}-files / api"

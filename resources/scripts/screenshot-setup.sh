@@ -1,4 +1,5 @@
 #!/bin/bash
+# lint-ignore: max-lines -- single generated screenshot fixture scenario; keeping the file contents together makes the resulting demo tree auditable.
 set -euo pipefail
 
 # Screenshot setup script for Detours
@@ -27,7 +28,7 @@ dd if=/dev/urandom bs=1024 count=250 2>/dev/null | base64 > "$CORP/contracts/Ven
 
 mkdir -p "$CORP/invoices"
 for i in {1..12}; do
-    dd if=/dev/urandom bs=1024 count=$((10 + RANDOM % 20)) 2>/dev/null | base64 > "$CORP/invoices/INV-2025-$(printf '%03d' $i).pdf"
+    dd if=/dev/urandom bs=1024 count=$((10 + RANDOM % 20)) 2>/dev/null | base64 > "$CORP/invoices/INV-2025-$(printf '%03d' "$i").pdf"
 done
 
 mkdir -p "$CORP/reports"
@@ -116,6 +117,8 @@ cd "$DEV"
 
 # Initialize git repo
 git init -q
+git config user.name "Detours Screenshot"
+git config user.email "screenshot@detours.local"
 
 # Create project structure
 mkdir -p api api/middleware api/schemas docs tests web web/components web/hooks web/pages config scripts migrations
