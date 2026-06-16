@@ -20,7 +20,8 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
 
           # Extract latest changelog entry and format as release notes
-          BODY=$(awk '/^## [Vv0-9]/{if(found) exit; found=1; next} found{print}' resources/docs/CHANGELOG.md)
+          BODY=$(awk '/^## [Vv0-9]/{if(found) exit; found=1; next} found{print}' resources/docs/CHANGELOG.md \
+            | perl -CSDA -Mutf8 -pe 's/\x{2014}/-/g; s/\x{2013}/-/g')
 
           # Write to file for the release action
           cat > RELEASE_NOTES.md << EOF
