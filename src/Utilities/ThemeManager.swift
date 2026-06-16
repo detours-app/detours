@@ -35,10 +35,8 @@ final class ThemeManager {
         logger.info("ThemeManager initialized with theme: \(SettingsManager.shared.theme.rawValue)")
     }
 
-    @objc private nonisolated func handleSettingsChange() {
-        Task { @MainActor in
-            updateTheme()
-        }
+    @objc private func handleSettingsChange() {
+        updateTheme()
     }
 
     private func observeSystemAppearance() {
@@ -51,13 +49,7 @@ final class ThemeManager {
         )
     }
 
-    @objc private nonisolated func handleSystemAppearanceChange() {
-        Task { @MainActor in
-            handleSystemAppearanceChangeOnMain()
-        }
-    }
-
-    private func handleSystemAppearanceChangeOnMain() {
+    @objc private func handleSystemAppearanceChange() {
         // Only update if using system theme
         if SettingsManager.shared.theme == .system {
             updateTheme()

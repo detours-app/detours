@@ -80,13 +80,7 @@ final class PaneTabBar: NSView {
         )
     }
 
-    @objc private nonisolated func handleThemeChange() {
-        Task { @MainActor in
-            handleThemeChangeOnMain()
-        }
-    }
-
-    private func handleThemeChangeOnMain() {
+    @objc private func handleThemeChange() {
         // Force redisplay to trigger updateLayer with new theme colors
         needsDisplay = true
         needsLayout = true

@@ -915,10 +915,6 @@ final class MainSplitViewController: NSSplitViewController {
         copyItems(activePane.selectedTab?.fileListViewController.selectedURLs ?? [], toOtherPaneFrom: activePane)
     }
 
-    func copySelectedItemsToOtherPaneFromEventMonitor() {
-        copySelectedItemsToOtherPane()
-    }
-
     func otherPane(from pane: PaneViewController) -> PaneViewController {
         pane === leftPane ? rightPane : leftPane
     }

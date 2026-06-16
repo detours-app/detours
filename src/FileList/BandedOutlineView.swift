@@ -1,5 +1,4 @@
 import AppKit
-import ObjectiveC.runtime
 
 @MainActor
 protocol FileListKeyHandling: AnyObject {
@@ -227,50 +226,23 @@ final class BandedOutlineView: NSOutlineView {
         return contextMenuDelegate?.buildContextMenu(for: selectedRowIndexes, clickedRow: clickedRow)
     }
 
-    override nonisolated func frameOfOutlineCell(atRow row: Int) -> NSRect {
+    override func frameOfOutlineCell(atRow row: Int) -> NSRect {
         // When folder expansion is disabled, hide the disclosure triangle entirely
-        guard Self.persistedFolderExpansionEnabled() else {
+        guard SettingsManager.shared.folderExpansionEnabled else {
             return .zero
         }
-        return appKitFrameOfOutlineCell(atRow: row)
+        return super.frameOfOutlineCell(atRow: row)
     }
 
-    override nonisolated func frameOfCell(atColumn column: Int, row: Int) -> NSRect {
-        var frame = appKitFrameOfCell(atColumn: column, row: row)
+    override func frameOfCell(atColumn column: Int, row: Int) -> NSRect {
+        var frame = super.frameOfCell(atColumn: column, row: row)
         // When folder expansion is disabled, shift content left to fill the disclosure triangle space
-        if !Self.persistedFolderExpansionEnabled() && column == 0 {
+        if !SettingsManager.shared.folderExpansionEnabled && column == 0 {
             let outlineWidth: CGFloat = 20 // disclosure triangle space
             frame.origin.x -= outlineWidth
             frame.size.width += outlineWidth
         }
         return frame
-    }
-
-    private nonisolated func appKitFrameOfOutlineCell(atRow row: Int) -> NSRect {
-        typealias Implementation = @convention(c) (AnyObject, Selector, Int) -> NSRect
-        guard let method = class_getInstanceMethod(NSOutlineView.self, #selector(NSOutlineView.frameOfOutlineCell(atRow:))) else {
-            return .zero
-        }
-        let implementation = method_getImplementation(method)
-        return unsafeBitCast(implementation, to: Implementation.self)(self, #selector(NSOutlineView.frameOfOutlineCell(atRow:)), row)
-    }
-
-    private nonisolated func appKitFrameOfCell(atColumn column: Int, row: Int) -> NSRect {
-        typealias Implementation = @convention(c) (AnyObject, Selector, Int, Int) -> NSRect
-        guard let method = class_getInstanceMethod(NSTableView.self, #selector(NSTableView.frameOfCell(atColumn:row:))) else {
-            return .zero
-        }
-        let implementation = method_getImplementation(method)
-        return unsafeBitCast(implementation, to: Implementation.self)(self, #selector(NSTableView.frameOfCell(atColumn:row:)), column, row)
-    }
-
-    private nonisolated static func persistedFolderExpansionEnabled(defaults: UserDefaults = .standard) -> Bool {
-        guard let data = defaults.data(forKey: "Detours.Settings"),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let folderExpansionEnabled = object["folderExpansionEnabled"] as? Bool else {
-            return true
-        }
-        return folderExpansionEnabled
     }
 
     override func draggingExited(_ sender: (any NSDraggingInfo)?) {

@@ -375,37 +375,7 @@ final class PaneViewControllerTests: XCTestCase {
 
         let banner = descendant(in: pane.view, accessibilityIdentifier: "remoteReconnectBanner")
         XCTAssertNotNil(banner)
-        waitUntil(banner?.isHidden == false)
-    }
-
-    func testPaneNotificationsPostedOffMainHopToMainThread() {
-        let pane = PaneViewController()
-        pane.loadViewIfNeeded()
-        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
-        let hostID = host.id
-
-        pane.loadRemoteHost(host, provider: PaneRemoteProvider())
-
-        let themeDidChange = ThemeManager.themeDidChange
-        let settingsDidChange = SettingsManager.settingsDidChange
-        let sshConnectionStateDidChange = Notification.Name.sshConnectionStateDidChange
-        let posted = expectation(description: "off-main notifications posted")
-        DispatchQueue.global(qos: .userInitiated).async {
-            NotificationCenter.default.post(name: themeDidChange, object: nil)
-            NotificationCenter.default.post(name: settingsDidChange, object: nil)
-            NotificationCenter.default.post(
-                name: sshConnectionStateDidChange,
-                object: SSHConnectionStateChange(
-                    hostID: hostID,
-                    oldState: .connected,
-                    newState: .failed(reason: .timedOut)
-                )
-            )
-            posted.fulfill()
-        }
-
-        wait(for: [posted], timeout: 1)
-        waitUntil(descendant(in: pane.view, accessibilityIdentifier: "remoteReconnectBanner")?.isHidden == false)
+        XCTAssertFalse(banner?.isHidden ?? true)
     }
 
     func testRestoredRemoteTabDoesNotLoadLocalFallbackBeforeReconnect() throws {
