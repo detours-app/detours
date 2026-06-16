@@ -4,10 +4,14 @@ import Foundation
 import PackageDescription
 
 let detoursSwiftSettings: [SwiftSetting] = {
+    var settings: [SwiftSetting] = [
+        .unsafeFlags(["-Xfrontend", "-disable-dynamic-actor-isolation"])
+    ]
     guard ProcessInfo.processInfo.environment["DETOURS_SCREENSHOT_FIXTURES"] == "1" else {
-        return []
+        return settings
     }
-    return [.define("DETOURS_SCREENSHOT_FIXTURES")]
+    settings.append(.define("DETOURS_SCREENSHOT_FIXTURES"))
+    return settings
 }()
 
 let package = Package(
