@@ -11,6 +11,8 @@ PLIST_BUDDY="/usr/libexec/PlistBuddy"
 REMOTE_HOST="${DETOURS_SCREENSHOT_REMOTE_HOST:-devtest}"
 REMOTE_HOST_ID="$(uuidgen)"
 REMOTE_API_PATH="$BASE/taskflow/api"
+FILE_SERVER_NAME="${DETOURS_SCREENSHOT_FILE_SERVER:-Acme NAS}"
+FILE_SERVER_SHARE="${DETOURS_SCREENSHOT_FILE_SHARE:-Projects}"
 
 require_directory() {
     local path="$1"
@@ -77,7 +79,6 @@ defaults write "$DOMAIN" Detours.ActivePane -int 0
 defaults write "$DOMAIN" Detours.SidebarVisible -bool true
 defaults write "$DOMAIN" Detours.SidebarWidth -int 190
 defaults write "$DOMAIN" Detours.SplitDividerPosition -float 0.4841646872525732
-defaults write "$DOMAIN" "NSWindow Frame MainWindow" "100 200 1217 737 0 0 1920 1050 "
 
 reset_array "Detours.LeftPaneSelections"
 "$PLIST_BUDDY" -c "Add :Detours.LeftPaneSelections:0 array" "$PLIST"
@@ -110,10 +111,10 @@ done
 
 reset_array "Detours.ScreenshotFileServers"
 "$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0 dict" "$PLIST"
-"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:host string ${REMOTE_HOST}-files" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:host string $FILE_SERVER_NAME" "$PLIST"
 "$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares array" "$PLIST"
 "$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares:0 dict" "$PLIST"
-"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares:0:name string api" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares:0:name string $FILE_SERVER_SHARE" "$PLIST"
 "$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares:0:path string $REMOTE_API_PATH" "$PLIST"
 
 killall cfprefsd >/dev/null 2>&1 || true
@@ -122,4 +123,4 @@ open -g /Applications/Detours.app
 echo "Detours configured for README screenshot."
 echo "Left pane:  $BASE/acme-corp"
 echo "Right pane: $REMOTE_HOST:$REMOTE_API_PATH"
-echo "File server: ${REMOTE_HOST}-files / api"
+echo "File server: $FILE_SERVER_NAME / $FILE_SERVER_SHARE"

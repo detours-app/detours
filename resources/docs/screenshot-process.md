@@ -6,14 +6,14 @@ The README screenshot is staged on Foundry so it does not touch Spectre's filesy
 
 Match the current checked-in screenshot:
 
-- Window size: 1217 x 737 points, which captures as 2434 x 1474 pixels on a Retina display.
+- Window size: set manually before capture; the configure script does not reset it.
 - Theme: Dark.
 - Sidebar: visible, about 190 pt wide.
 - Left pane tabs: `Tools`, `Finance`, `acme-corp`; `acme-corp` selected.
 - Left pane path: `/tmp/detours-screenshot/acme-corp`.
 - Left pane selection: `Budget-2026.xlsx`.
 - Remote Hosts section: `devtest`, connected.
-- File Servers section: `devtest-files`, with an `api` share.
+- File Servers section: `Acme NAS`, with a `Projects` share.
 - Right pane tabs: `INBOX`, `Downloads`, `api`; `api` selected.
 - Right pane path: `devtest:/tmp/detours-screenshot/taskflow/api`.
 - Active pane: left pane, so the left selection is teal and the right pane is inactive.
@@ -38,7 +38,7 @@ The setup script recreates:
 
 Run it both on Foundry and through SSH on `devtest`. It initializes the `taskflow` git repository with staged, modified, and untracked files so Detours can show git status markers locally and in the remote pane.
 
-The configure script quits Detours, writes the screenshot session defaults, stores `devtest` as a Remote Host, adds the screenshot-only `devtest-files` file server row, and relaunches `/Applications/Detours.app`.
+The configure script quits Detours, writes the screenshot session defaults, stores `devtest` as a Remote Host, adds the screenshot-only `Acme NAS` file server row, and relaunches `/Applications/Detours.app`.
 
 ## Manual Details
 
@@ -68,17 +68,11 @@ It writes these session defaults for bundle id `com.detours.app`:
 - `Detours.RightPaneSelections`: only the `api` tab selects `/tmp/detours-screenshot/taskflow/api/database.py`
 - `Detours.RemoteHosts`: one host named `devtest`
 - `Detours.RightPaneRemoteTabs`: the `api` tab targets `devtest:/tmp/detours-screenshot/taskflow/api`
-- `Detours.ScreenshotFileServers`: one screenshot-only file server named `devtest-files` with an `api` share
+- `Detours.ScreenshotFileServers`: one screenshot-only file server named `Acme NAS` with a `Projects` share
 - `Detours.ActivePane`: `0`
 - `Detours.SidebarVisible`: `true`
 - `Detours.SidebarWidth`: `190`
 - `Detours.SplitDividerPosition`: `0.4841646872525732`
-- `NSWindow Frame MainWindow`:
-
-  ```text
-  100 200 1217 737 0 0 1920 1050
-  ```
-
 The settings JSON stored in `Detours.Settings` should keep restore-session, sidebar, status bar, folders-on-top, folder expansion, and git status enabled, with the dark theme and the screenshot favorites.
 
 Wait for both panes to load before capturing.
