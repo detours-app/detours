@@ -2,17 +2,28 @@
 set -euo pipefail
 
 # Configure Detours for the README screenshot after screenshot-setup.sh has
-# created /tmp/detours-screenshot. Intended to run on the screenshot Mac.
+# created the fixture folders. Intended to run on the screenshot Mac.
 
-BASE="/tmp/detours-screenshot"
+BASE="${DETOURS_SCREENSHOT_BASE:-$HOME/Projects}"
 DOMAIN="com.detours.app"
 PLIST="$HOME/Library/Preferences/$DOMAIN.plist"
 PLIST_BUDDY="/usr/libexec/PlistBuddy"
 REMOTE_HOST="${DETOURS_SCREENSHOT_REMOTE_HOST:-devtest}"
 REMOTE_HOST_ID="$(uuidgen)"
-REMOTE_API_PATH="$BASE/taskflow/api"
 FILE_SERVER_NAME="${DETOURS_SCREENSHOT_FILE_SERVER:-Acme NAS}"
 FILE_SERVER_SHARE="${DETOURS_SCREENSHOT_FILE_SHARE:-Projects}"
+FILE_SERVER_PROTOCOL="${DETOURS_SCREENSHOT_FILE_SERVER_PROTOCOL:-SMB}"
+REMOTE_BASE="${DETOURS_SCREENSHOT_REMOTE_BASE:-}"
+
+if [[ -z "$REMOTE_BASE" ]]; then
+    if remote_home=$(ssh -o BatchMode=yes "$REMOTE_HOST" 'printf %s "$HOME"' 2>/dev/null); then
+        REMOTE_BASE="$remote_home/Projects"
+    else
+        REMOTE_BASE="$BASE"
+    fi
+fi
+
+REMOTE_API_PATH="$REMOTE_BASE/taskflow/api"
 
 require_directory() {
     local path="$1"
@@ -77,8 +88,8 @@ defaults write "$DOMAIN" Detours.RightPaneShowHiddenFiles -array false false fal
 defaults write "$DOMAIN" Detours.RightPaneICloudListingModes -array normal normal normal
 defaults write "$DOMAIN" Detours.ActivePane -int 0
 defaults write "$DOMAIN" Detours.SidebarVisible -bool true
-defaults write "$DOMAIN" Detours.SidebarWidth -int 190
-defaults write "$DOMAIN" Detours.SplitDividerPosition -float 0.4841646872525732
+defaults write "$DOMAIN" Detours.SidebarWidth -int 189
+defaults write "$DOMAIN" Detours.SplitDividerPosition -float 0.5
 
 reset_array "Detours.LeftPaneSelections"
 "$PLIST_BUDDY" -c "Add :Detours.LeftPaneSelections:0 array" "$PLIST"
@@ -90,7 +101,7 @@ reset_array "Detours.RightPaneSelections"
 "$PLIST_BUDDY" -c "Add :Detours.RightPaneSelections:0 array" "$PLIST"
 "$PLIST_BUDDY" -c "Add :Detours.RightPaneSelections:1 array" "$PLIST"
 "$PLIST_BUDDY" -c "Add :Detours.RightPaneSelections:2 array" "$PLIST"
-"$PLIST_BUDDY" -c "Add :Detours.RightPaneSelections:2:0 string $BASE/taskflow/api/database.py" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.RightPaneSelections:2:0 string $REMOTE_API_PATH/database.py" "$PLIST"
 
 for key in Detours.LeftPaneExpansions Detours.RightPaneExpansions; do
     reset_array "$key"
@@ -112,6 +123,7 @@ done
 reset_array "Detours.ScreenshotFileServers"
 "$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0 dict" "$PLIST"
 "$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:host string $FILE_SERVER_NAME" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:protocol string $FILE_SERVER_PROTOCOL" "$PLIST"
 "$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares array" "$PLIST"
 "$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares:0 dict" "$PLIST"
 "$PLIST_BUDDY" -c "Add :Detours.ScreenshotFileServers:0:shares:0:name string $FILE_SERVER_SHARE" "$PLIST"

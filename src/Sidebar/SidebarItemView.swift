@@ -342,9 +342,12 @@ final class SidebarItemView: NSTableCellView {
         nameLabel.textColor = theme.textPrimary
         capacityLabel.isHidden = true
 
-        // Show "manual" badge instead of protocol
         protocolBadge.isHidden = false
+#if DETOURS_SCREENSHOT_FIXTURES
+        protocolBadge.stringValue = server.protocolLabel ?? "manual"
+#else
         protocolBadge.stringValue = "manual"
+#endif
         protocolBadge.font = theme.uiFont(size: 9)
         protocolBadge.textColor = theme.textTertiary
 

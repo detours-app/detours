@@ -1,6 +1,14 @@
 // swift-tools-version: 6.2
 
+import Foundation
 import PackageDescription
+
+let detoursSwiftSettings: [SwiftSetting] = {
+    guard ProcessInfo.processInfo.environment["DETOURS_SCREENSHOT_FIXTURES"] == "1" else {
+        return []
+    }
+    return [.define("DETOURS_SCREENSHOT_FIXTURES")]
+}()
 
 let package = Package(
     name: "Detours",
@@ -14,7 +22,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Detours",
-            path: "src"
+            path: "src",
+            swiftSettings: detoursSwiftSettings
         ),
         .executableTarget(
             name: "detours-server",

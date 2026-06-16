@@ -483,6 +483,51 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertTrue(fileList.dataSource.expandedFolders.contains(expandedProject.standardizedFileURL))
     }
 
+    func testRestoredRemoteTabReappliesSelectionAfterReconnect() throws {
+        let originalHosts = RemoteHostStore.shared.hosts
+        defer { RemoteHostStore.shared.replaceAll(originalHosts) }
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let host = RemoteHost(displayName: "Wraith", sshTarget: "wraith")
+        RemoteHostStore.shared.replaceAll([host])
+        let selectedFile = URL(fileURLWithPath: "/home/marco/projects/api/database.py")
+        let provider = PaneRemoteProvider(listings: [
+            "/home/marco/projects/api": [
+                .remoteFile(hostID: host.id, path: "/home/marco/projects/api/app.py", name: "app.py"),
+                .remoteFile(hostID: host.id, path: selectedFile.path, name: "database.py"),
+            ],
+        ])
+
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        pane.restoreTabs(
+            from: [temp],
+            selectedIndex: 0,
+            selections: [[selectedFile]],
+            remoteTargets: [RemoteTabSessionTarget(hostID: host.id, path: "/home/marco/projects/api")]
+        )
+
+        pane.resumePendingRemoteTabs(for: host, provider: provider)
+
+        func selectedFileName() -> String? {
+            guard let fileList = pane.selectedTab?.fileListViewController,
+                  fileList.tableView.selectedRow >= 0,
+                  let selected = fileList.tableView.item(atRow: fileList.tableView.selectedRow) as? FileItem else {
+                return nil
+            }
+            return selected.name
+        }
+
+        waitUntil(selectedFileName() == "database.py")
+
+        let fileList = try XCTUnwrap(pane.selectedTab?.fileListViewController)
+        let selected = try XCTUnwrap(fileList.tableView.item(atRow: fileList.tableView.selectedRow) as? FileItem)
+        XCTAssertEqual(selected.location.path, selectedFile.path)
+        XCTAssertEqual(pane.tabSelections, [[selectedFile]])
+    }
+
     func testConnectingRemoteHostClearsLocalRowsBeforeConnectionCompletes() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -666,6 +711,15 @@ private extension LoadedFileEntry {
             url: URL(fileURLWithPath: path),
             name: name,
             isDirectory: true
+        )
+    }
+
+    static func remoteFile(hostID: UUID, path: String, name: String) -> LoadedFileEntry {
+        LoadedFileEntry(
+            location: .remote(hostID: hostID, path: path),
+            url: URL(fileURLWithPath: path),
+            name: name,
+            isDirectory: false
         )
     }
 }

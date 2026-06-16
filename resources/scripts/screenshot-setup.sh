@@ -6,18 +6,20 @@ set -euo pipefail
 # Creates sample folders/files for taking README screenshots
 # Usage: ./resources/scripts/screenshot-setup.sh
 
-BASE="/tmp/detours-screenshot"
+BASE="${DETOURS_SCREENSHOT_BASE:-$HOME/Projects}"
+CORP="$BASE/acme-corp"
+DEV="$BASE/taskflow"
 
 echo "==> Creating screenshot folders..."
 
-# Clean up any existing setup
-rm -rf "$BASE"
+# Clean up only the managed fixture trees. The default base is ~/Projects so
+# unrelated project folders must be left intact.
+rm -rf "$CORP" "$DEV"
 mkdir -p "$BASE"
 
 # ============================================
 # LEFT PANE: acme-corp (business/finance)
 # ============================================
-CORP="$BASE/acme-corp"
 mkdir -p "$CORP"
 
 # Folders with content
@@ -111,7 +113,6 @@ touch -t 202601151430 "$CORP/Meeting-Notes.md"
 # RIGHT PANE: taskflow (dev project with git)
 # Many files with varied git statuses
 # ============================================
-DEV="$BASE/taskflow"
 mkdir -p "$DEV"
 cd "$DEV"
 

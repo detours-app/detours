@@ -1242,7 +1242,7 @@ final class PaneViewController: NSViewController {
     }
 
     var tabSelections: [[URL]] {
-        tabs.map { $0.fileListViewController.selectedURLs }
+        tabs.map { $0.fileListViewController.restorableSelectedURLs }
     }
 
     var tabShowHiddenFiles: [Bool] {
@@ -1315,7 +1315,11 @@ final class PaneViewController: NSViewController {
                     tabs[index].fileListViewController.loadDirectory(url, iCloudListingMode: tabs[index].iCloudListingMode)
                 }
                 if let selections, index < selections.count {
-                    tabs[index].fileListViewController.restoreSelection(selections[index])
+                    if isRemoteTab {
+                        tabs[index].fileListViewController.setPendingSelection(at: selections[index])
+                    } else {
+                        tabs[index].fileListViewController.restoreSelection(selections[index])
+                    }
                 }
             } else {
                 // Store pending state for deferred loading
@@ -1877,6 +1881,7 @@ extension PaneViewController: FileListNavigationDelegate {
 
     func fileListDidChangeSelection() {
         updateStatusBar()
+        scheduleSessionSave()
     }
 
     func fileListDidLoadDirectory(_ controller: FileListViewController) {

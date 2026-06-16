@@ -730,6 +730,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
                 }
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
+
+                let action = self.pendingPostLoadAction
+                self.pendingPostLoadAction = nil
+                action?()
             case .failure(let error):
                 self.showErrorOverlay(for: error)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
@@ -1085,6 +1089,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             guard case .local(let url) = $0.location else { return nil }
             return url
         }
+    }
+
+    var restorableSelectedURLs: [URL] {
+        selectedItems.map { URL(fileURLWithPath: $0.location.path) }
     }
 
     /// Returns the effective destination for file operations based on current selection.

@@ -29,6 +29,7 @@ log_error() { echo -e "${RED}ERROR $1${NC}" >&2; }
 BUILD_CONFIG="release"
 UNIVERSAL=false
 NO_INSTALL=false
+SCREENSHOT_FIXTURES=false
 for arg in "$@"; do
     case $arg in
         --debug)
@@ -39,6 +40,9 @@ for arg in "$@"; do
             ;;
         --no-install)
             NO_INSTALL=true
+            ;;
+        --screenshot-fixtures)
+            SCREENSHOT_FIXTURES=true
             ;;
     esac
 done
@@ -51,6 +55,13 @@ esac
 
 echo "DETOURS BUILD" >&2
 echo "-------------" >&2
+
+if [ "$SCREENSHOT_FIXTURES" = true ]; then
+    export DETOURS_SCREENSHOT_FIXTURES=1
+    log_info "Screenshot fixtures enabled"
+else
+    unset DETOURS_SCREENSHOT_FIXTURES
+fi
 
 # Build helper binaries when server sources changed.
 if [ -d Server ]; then

@@ -3,8 +3,10 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "sidebar")
 
+#if DETOURS_SCREENSHOT_FIXTURES
 private struct ScreenshotFileServer {
     let host: String
+    let protocolLabel: String?
     let shares: [ScreenshotFileShare]
 }
 
@@ -12,6 +14,7 @@ private struct ScreenshotFileShare {
     let name: String
     let path: String?
 }
+#endif
 
 final class SidebarViewController: NSViewController {
     private let outlineView = SidebarOutlineView()
@@ -269,7 +272,9 @@ final class SidebarViewController: NSViewController {
     private func buildNetworkHierarchy() -> [Any] {
         let discoveredServers = networkItems()
         let netVolumes = networkVolumes()
+#if DETOURS_SCREENSHOT_FIXTURES
         let screenshotServers = screenshotFileServers()
+#endif
 
         var items: [Any] = []
         var matchedVolumeHosts: Set<String> = []
@@ -296,12 +301,14 @@ final class SidebarViewController: NSViewController {
             }
         }
 
+#if DETOURS_SCREENSHOT_FIXTURES
         for server in screenshotServers {
             let host = server.host.lowercased()
             guard !matchedVolumeHosts.contains(host) else { continue }
-            items.append(SyntheticServer(host: server.host))
+            items.append(SyntheticServer(host: server.host, protocolLabel: server.protocolLabel))
             matchedVolumeHosts.insert(host)
         }
+#endif
 
         return items
     }
@@ -331,9 +338,14 @@ final class SidebarViewController: NSViewController {
             guard let volumeHost = volume.serverHost else { return false }
             return volumeHostMatchesServer(volumeHost: volumeHost, serverHost: host)
         }
+#if DETOURS_SCREENSHOT_FIXTURES
         return realVolumes + screenshotVolumes(forHost: host)
+#else
+        return realVolumes
+#endif
     }
 
+#if DETOURS_SCREENSHOT_FIXTURES
     private func screenshotFileServers() -> [ScreenshotFileServer] {
         guard let rawServers = UserDefaults.standard.array(forKey: "Detours.ScreenshotFileServers") as? [[String: Any]] else {
             return []
@@ -349,7 +361,7 @@ final class SidebarViewController: NSViewController {
                     path: rawShare["path"] as? String
                 )
             }
-            return ScreenshotFileServer(host: host, shares: shares)
+            return ScreenshotFileServer(host: host, protocolLabel: rawServer["protocol"] as? String, shares: shares)
         }
     }
 
@@ -372,6 +384,7 @@ final class SidebarViewController: NSViewController {
                 }
             }
     }
+#endif
 
     // MARK: - Context Menu
 

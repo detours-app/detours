@@ -32,7 +32,7 @@ final class ThemedHeaderView: NSTableHeaderView {
 
 /// Header cell that draws text with theme colors and optional sort indicator
 final class ThemedHeaderCell: NSTableHeaderCell {
-    /// nil = no sort indicator, true = ascending (up arrow), false = descending (down arrow)
+    /// nil = no sort indicator, otherwise follows AppKit's ascending/descending header glyph convention.
     var sortAscending: Bool?
 
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
@@ -50,8 +50,8 @@ final class ThemedHeaderCell: NSTableHeaderCell {
         let title = stringValue
         let size = title.size(withAttributes: attrs)
 
-        // Reserve space for sort indicator arrow
-        let indicatorWidth: CGFloat = sortAscending != nil ? 16 : 0
+        // Reserve space for AppKit's sort indicator.
+        let indicatorWidth: CGFloat = sortAscending != nil ? sortIndicatorRect(forBounds: cellFrame).width + 4 : 0
         let textRect = NSRect(
             x: cellFrame.minX + 4,
             y: cellFrame.midY - size.height / 2,
@@ -60,28 +60,8 @@ final class ThemedHeaderCell: NSTableHeaderCell {
         )
         title.draw(in: textRect, withAttributes: attrs)
 
-        // Draw sort indicator triangle
         if let ascending = sortAscending {
-            let triangleSize: CGFloat = 6
-            let centerX = cellFrame.maxX - 12
-            let centerY = cellFrame.midY
-
-            let path = NSBezierPath()
-            if ascending {
-                // Up-pointing triangle (ascending)
-                path.move(to: NSPoint(x: centerX - triangleSize / 2, y: centerY + triangleSize / 3))
-                path.line(to: NSPoint(x: centerX + triangleSize / 2, y: centerY + triangleSize / 3))
-                path.line(to: NSPoint(x: centerX, y: centerY - triangleSize * 2 / 3))
-            } else {
-                // Down-pointing triangle (descending)
-                path.move(to: NSPoint(x: centerX - triangleSize / 2, y: centerY - triangleSize / 3))
-                path.line(to: NSPoint(x: centerX + triangleSize / 2, y: centerY - triangleSize / 3))
-                path.line(to: NSPoint(x: centerX, y: centerY + triangleSize * 2 / 3))
-            }
-            path.close()
-
-            theme.textSecondary.setFill()
-            path.fill()
+            drawSortIndicator(withFrame: cellFrame, in: controlView, ascending: ascending, priority: 0)
         }
     }
 
