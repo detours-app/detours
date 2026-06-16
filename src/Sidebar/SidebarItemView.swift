@@ -428,19 +428,23 @@ final class SidebarItemView: NSTableCellView {
 
     private func configureAsFavorite(_ url: URL, theme: Theme) {
         iconView.isHidden = false
-        iconView.image = NSWorkspace.shared.icon(forFile: url.path)
         nameLabel.font = theme.uiFont(size: 13)
         capacityLabel.isHidden = true
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
 
         // Check if favorite exists
+        var isDirectory: ObjCBool = false
         if FileManager.default.fileExists(atPath: url.path) {
             nameLabel.stringValue = url.lastPathComponent
             nameLabel.textColor = theme.textPrimary
+            _ = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
         } else {
             nameLabel.stringValue = url.lastPathComponent
             nameLabel.textColor = theme.textTertiary
         }
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        iconView.image = isDirectory.boolValue ? FileItem.tintedFolderIcon(icon) : icon
+        iconView.contentTintColor = nil
 
         resetNameLeading()
     }
