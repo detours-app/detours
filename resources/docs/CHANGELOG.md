@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.5.1 — 2026-06-16
+
+### Bug Fixes
+
+- **Remote reconnect no longer spins indefinitely** — Reconnecting to a stale
+  SSH helper now tears down the old process and starts a fresh stream before
+  refreshing the remote tab.
+- **Same-folder copy behaves like Finder** — Copying and pasting a file into
+  the same folder now creates a uniquely named copy instead of opening a
+  conflict prompt against itself.
+- **Quick Open selection is stable after reveal** — Cmd-Enter navigation now
+  loads the destination folder and selects the revealed item in one navigation
+  pass.
+- **UI test launch state is deterministic** — XCUITest runs now start from an
+  isolated fixture root with stable tab indexes, which makes the public-release
+  UI gate reproducible on Foundry.
+
 ## 1.5.0 — 2026-06-12
 
 ### Remote VM Browsing over SSH
