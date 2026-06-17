@@ -35,6 +35,8 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         let html = try String(contentsOf: previewURL, encoding: .utf8)
 
         XCTAssertTrue(html.contains("id=\"rendered-markdown\""))
+        XCTAssertTrue(html.contains("<h1>Title</h1>"))
+        XCTAssertTrue(html.contains("<p>Body</p>"))
         XCTAssertTrue(html.contains("id=\"markdown-rendered-toggle\""))
         XCTAssertTrue(html.contains("id=\"markdown-source-toggle\""))
         XCTAssertTrue(html.contains("id=\"source-payload\""))
@@ -58,6 +60,8 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertFalse(html.contains("<script>alert(1)</script>"))
         XCTAssertFalse(html.contains("href=\"https://example.com\""))
         XCTAssertFalse(html.contains("src=\"https://example.com"))
+        XCTAssertTrue(html.contains("<span class=\"inert-link\">leave</span>"))
+        XCTAssertTrue(html.contains("<span class=\"blocked-image\">Image blocked: remote</span>"))
         XCTAssertTrue(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"))
     }
 
