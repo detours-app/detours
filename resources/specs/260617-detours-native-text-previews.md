@@ -92,14 +92,14 @@ Highlight.js is browser-compatible, has no framework dependency, and supports br
 
 **Phase 2: Preview generation**
 
-- [ ] **T6** Create `src/QuickLook/DetoursPreviewGenerator.swift` with an async API that accepts a source file URL, source display name, current theme, configured font size, and remote/local context, then returns either a generated HTML file URL or the original source URL for system Quick Look.
-- [ ] **T7** Add a preview cache under the user caches directory at `Detours/previews/`, keyed by a hash of source path, file size, modification date, preview kind, active theme identity, configured font size, and preview asset manifest version. Store generated HTML, same-directory support assets, and generated support metadata without raw source paths in filenames.
-- [ ] **T8** Implement source decoding in `DetoursPreviewGenerator`: read file data off the main actor, decode as UTF-8 when valid, decode lossily when needed, and carry a `lossyDecode` flag into the generated preview.
-- [ ] **T9** Implement generated HTML template creation for source and plain-text previews: escape all file content into an inert `<template>` payload, include line numbers, apply highlight.js by language class from `preview-runtime.js`, default wrapping off, include a wrap toggle, and show the lossy decode warning when applicable.
-- [ ] **T10** Implement generated HTML template creation for Markdown previews: place Markdown source in an inert `<template>` payload, set `markdown-it` to HTML-disabled rendering, override Markdown link renderers so all user-authored links render as non-clickable text, override Markdown image renderers so all user-authored images render as alt-text placeholders, render Markdown by default from `preview-runtime.js`, include an escaped highlighted source view, include a rendered/source toggle, and show the lossy decode warning when applicable.
-- [ ] **T11** Add the generated preview content security policy: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`. Generated preview HTML contains no inline executable script and references only relative files copied into its support directory.
-- [ ] **T12** Add render guard behavior in `DetoursPreviewGenerator`: use a twenty megabyte rich-render input guard before handing content to `preview-runtime.js`, run generation with a five-second timeout, and enforce a two hundred megabyte generated-output guard; on guard failure, generate a plain-text fallback HTML preview with the explanatory banner and a best-effort escaped text excerpt consisting of the first two megabytes and final two megabytes of the source file.
-- [ ] **T13** Add theme mapping from `ThemeManager` to preview CSS variables for background, primary text, secondary text, borders, accent, selection, line-number gutter, code tokens, toolbar colors, monospace font family, and configured font size.
+- [x] **T6** Create `src/QuickLook/DetoursPreviewGenerator.swift` with an async API that accepts a source file URL, source display name, current theme, configured font size, and remote/local context, then returns either a generated HTML file URL or the original source URL for system Quick Look.
+- [x] **T7** Add a preview cache under the user caches directory at `Detours/previews/`, keyed by a hash of source path, file size, modification date, preview kind, active theme identity, configured font size, and preview asset manifest version. Store generated HTML, same-directory support assets, and generated support metadata without raw source paths in filenames.
+- [x] **T8** Implement source decoding in `DetoursPreviewGenerator`: read file data off the main actor, decode as UTF-8 when valid, decode lossily when needed, and carry a `lossyDecode` flag into the generated preview.
+- [x] **T9** Implement generated HTML template creation for source and plain-text previews: escape all file content into an inert `<template>` payload, include line numbers, apply highlight.js by language class from `preview-runtime.js`, default wrapping off, include a wrap toggle, and show the lossy decode warning when applicable.
+- [x] **T10** Implement generated HTML template creation for Markdown previews: place Markdown source in an inert `<template>` payload, set `markdown-it` to HTML-disabled rendering, override Markdown link renderers so all user-authored links render as non-clickable text, override Markdown image renderers so all user-authored images render as alt-text placeholders, render Markdown by default from `preview-runtime.js`, include an escaped highlighted source view, include a rendered/source toggle, and show the lossy decode warning when applicable.
+- [x] **T11** Add the generated preview content security policy: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`. Generated preview HTML contains no inline executable script and references only relative files copied into its support directory.
+- [x] **T12** Add render guard behavior in `DetoursPreviewGenerator`: use a twenty megabyte rich-render input guard before handing content to `preview-runtime.js`, run generation with a five-second timeout, and enforce a two hundred megabyte generated-output guard; on guard failure, generate a plain-text fallback HTML preview with the explanatory banner and a best-effort escaped text excerpt consisting of the first two megabytes and final two megabytes of the source file.
+- [x] **T13** Add theme mapping from `ThemeManager` to preview CSS variables for background, primary text, secondary text, borders, accent, selection, line-number gutter, code tokens, toolbar colors, monospace font family, and configured font size.
 
 **Phase 3: Quick Look wiring**
 
@@ -114,7 +114,7 @@ Highlight.js is browser-compatible, has no framework dependency, and supports br
 
 - [ ] **T20** Add `resources/docs/text-previews.md` documenting supported file types, Markdown safety behavior, remote size behavior, vendored asset update steps, and cache location.
 - [ ] **T21** Update `README.md` Quick Look feature text to mention enhanced code and Markdown previews without implying Finder Quick Look has changed.
-- [ ] **T22** Ensure generated preview cache directories and copied support-asset directories are created with user-only permissions, and clean stale generated previews opportunistically during app launch or first preview generation.
+- [x] **T22** Ensure generated preview cache directories and copied support-asset directories are created with user-only permissions, and clean stale generated previews opportunistically during app launch or first preview generation.
 
 ---
 
@@ -131,14 +131,14 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 ### Unit Tests (`Tests/DetoursPreviewGeneratorTests.swift`)
 
-- [ ] **T27** `testCodePreviewEscapesContentAndShowsLineNumbers` - generated source HTML escapes user content, includes line numbers, and defaults wrapping off.
-- [ ] **T28** `testMarkdownPreviewRendersAndIncludesSourceToggle` - generated Markdown HTML contains rendered output and a source view toggle.
-- [ ] **T29** `testMarkdownRawHTMLAndExternalURLsAreInert` - raw HTML, script tags, event attributes, external links, and remote image URLs in Markdown cannot execute, navigate, or load external resources in the generated preview.
-- [ ] **T30** `testLossyDecodeShowsWarning` - invalid UTF-8 bytes produce replacement characters and the visible lossy decode warning.
-- [ ] **T31** `testRenderGuardProducesPlainTextFallback` - a simulated input-size, timeout, or output guard failure generates the explanatory fallback preview instead of throwing to the Quick Look panel.
-- [ ] **T32** `testCacheKeyIncludesThemeFontAssetAndSourceMetadata` - changing source size, source modification date, preview kind, theme identity, configured font size, or preview asset manifest version changes the generated cache key.
-- [ ] **T33** `testGeneratedPreviewUsesRelativeSupportAssetsAndNoInlineScript` - generated HTML references same-directory support assets with relative URLs and contains no inline executable script.
-- [ ] **T34** `testPreviewCacheUsesUserOnlyPermissionsAndHashedSourceKeys` - generated preview cache directories use user-only permissions and filenames do not contain raw source paths.
+- [x] **T27** `testCodePreviewEscapesContentAndShowsLineNumbers` - generated source HTML escapes user content, includes line numbers, and defaults wrapping off.
+- [x] **T28** `testMarkdownPreviewRendersAndIncludesSourceToggle` - generated Markdown HTML contains rendered output and a source view toggle.
+- [x] **T29** `testMarkdownRawHTMLAndExternalURLsAreInert` - raw HTML, script tags, event attributes, external links, and remote image URLs in Markdown cannot execute, navigate, or load external resources in the generated preview.
+- [x] **T30** `testLossyDecodeShowsWarning` - invalid UTF-8 bytes produce replacement characters and the visible lossy decode warning.
+- [x] **T31** `testRenderGuardProducesPlainTextFallback` - a simulated input-size, timeout, or output guard failure generates the explanatory fallback preview instead of throwing to the Quick Look panel.
+- [x] **T32** `testCacheKeyIncludesThemeFontAssetAndSourceMetadata` - changing source size, source modification date, preview kind, theme identity, configured font size, or preview asset manifest version changes the generated cache key.
+- [x] **T33** `testGeneratedPreviewUsesRelativeSupportAssetsAndNoInlineScript` - generated HTML references same-directory support assets with relative URLs and contains no inline executable script.
+- [x] **T34** `testPreviewCacheUsesUserOnlyPermissionsAndHashedSourceKeys` - generated preview cache directories use user-only permissions and filenames do not contain raw source paths.
 
 ### Unit Tests (`Tests/BuildCacheTests.swift`)
 
