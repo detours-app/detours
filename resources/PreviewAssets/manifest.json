@@ -1,0 +1,46 @@
+{
+  "assetManifestVersion": "2026-06-17.1",
+  "packages": [
+    {
+      "name": "markdown-it",
+      "version": "14.2.0",
+      "asset": "vendor/markdown-it.min.js",
+      "sourceURL": "https://www.npmjs.com/package/markdown-it/v/14.2.0",
+      "license": "MIT",
+      "licenseFile": "vendor/LICENSE.markdown-it.txt"
+    },
+    {
+      "name": "highlight.js",
+      "version": "11.11.1",
+      "asset": "vendor/highlight.min.js",
+      "sourceURL": "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js",
+      "license": "BSD-3-Clause",
+      "licenseFile": "vendor/LICENSE.highlight.js.txt",
+      "styleAssets": [
+        "vendor/highlight-github.min.css",
+        "vendor/highlight-github-dark.min.css"
+      ],
+      "languages": [
+        "swift",
+        "javascript",
+        "typescript",
+        "python",
+        "json",
+        "yaml",
+        "toml",
+        "ini",
+        "xml",
+        "bash",
+        "css",
+        "markdown",
+        "sql",
+        "diff",
+        "plaintext"
+      ]
+    }
+  ],
+  "detoursAssets": [
+    "detours/preview-runtime.js",
+    "detours/preview.css"
+  ]
+}

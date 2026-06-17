@@ -84,11 +84,11 @@ Highlight.js is browser-compatible, has no framework dependency, and supports br
 
 **Phase 1: Assets and classification**
 
-- [ ] **T1** Add `resources/PreviewAssets/manifest.json` naming pinned `markdown-it` and `highlight.js` versions, bundled asset filenames, source URLs, and license filenames.
-- [ ] **T2** Add pinned local assets under `resources/PreviewAssets/vendor/`: minified `markdown-it`, minified `highlight.js` with Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML/INI, XML/HTML, Bash, CSS, Markdown, SQL, Diff, and plaintext language support, the `github` and `github-dark` highlight.js CSS baselines for token reference, and the upstream license files. Add Detours-owned `preview-runtime.js` and `preview.css` under `resources/PreviewAssets/detours/`; the runtime reads inert templates, runs `markdown-it` and `highlight.js`, toggles Markdown source/rendered view, toggles line wrapping, and prevents user-authored link navigation.
-- [ ] **T3** Update `resources/scripts/build.sh` to copy `resources/PreviewAssets/` into `Detours.app/Contents/Resources/PreviewAssets/` for normal, debug, and universal builds, and fail with a clear error if required preview assets are missing.
-- [ ] **T4** Create `src/QuickLook/DetoursPreviewKind.swift` with supported kinds: Markdown, source code, configuration, plain text, and unsupported. Include extension and filename classification for Markdown, Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML, XML, shell, CSS, HTML, SQL, `.env`-style files, `.gitignore`-style files, and `.txt` files.
-- [ ] **T5** Add text sniffing helpers in `src/QuickLook/DetoursPreviewKind.swift` that reject every candidate text preview when the first read window contains binary markers and accept extensionless UTF-8-like plain text files only when the bytes are text-like.
+- [x] **T1** Add `resources/PreviewAssets/manifest.json` naming pinned `markdown-it` and `highlight.js` versions, bundled asset filenames, source URLs, and license filenames.
+- [x] **T2** Add pinned local assets under `resources/PreviewAssets/vendor/`: minified `markdown-it`, minified `highlight.js` with Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML/INI, XML/HTML, Bash, CSS, Markdown, SQL, Diff, and plaintext language support, the `github` and `github-dark` highlight.js CSS baselines for token reference, and the upstream license files. Add Detours-owned `preview-runtime.js` and `preview.css` under `resources/PreviewAssets/detours/`; the runtime reads inert templates, runs `markdown-it` and `highlight.js`, toggles Markdown source/rendered view, toggles line wrapping, and prevents user-authored link navigation.
+- [x] **T3** Update `resources/scripts/build.sh` to copy `resources/PreviewAssets/` into `Detours.app/Contents/Resources/PreviewAssets/` for normal, debug, and universal builds, and fail with a clear error if required preview assets are missing.
+- [x] **T4** Create `src/QuickLook/DetoursPreviewKind.swift` with supported kinds: Markdown, source code, configuration, plain text, and unsupported. Include extension and filename classification for Markdown, Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML, XML, shell, CSS, HTML, SQL, `.env`-style files, `.gitignore`-style files, and `.txt` files.
+- [x] **T5** Add text sniffing helpers in `src/QuickLook/DetoursPreviewKind.swift` that reject every candidate text preview when the first read window contains binary markers and accept extensionless UTF-8-like plain text files only when the bytes are text-like.
 
 **Phase 2: Preview generation**
 
@@ -124,10 +124,10 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 ### Unit Tests (`Tests/DetoursPreviewKindTests.swift`)
 
-- [ ] **T23** `testMarkdownExtensionsClassifyAsMarkdown` - `.md`, `.markdown`, and `.mdown` classify as Markdown.
-- [ ] **T24** `testCommonDeveloperExtensionsClassifyAsSourceOrConfig` - Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML, XML, shell, CSS, HTML, SQL, `.env`, and `.gitignore` inputs classify into Detours preview kinds.
-- [ ] **T25** `testBinarySniffingRejectsBinaryData` - binary markers in the first read window return unsupported even when the file extension is ambiguous.
-- [ ] **T26** `testExtensionlessUtf8TextClassifiesAsPlainText` - extensionless text-like files classify as plain text when byte sniffing confirms text content.
+- [x] **T23** `testMarkdownExtensionsClassifyAsMarkdown` - `.md`, `.markdown`, and `.mdown` classify as Markdown.
+- [x] **T24** `testCommonDeveloperExtensionsClassifyAsSourceOrConfig` - Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML, XML, shell, CSS, HTML, SQL, `.env`, and `.gitignore` inputs classify into Detours preview kinds.
+- [x] **T25** `testBinarySniffingRejectsBinaryData` - binary markers in the first read window return unsupported even when the file extension is ambiguous.
+- [x] **T26** `testExtensionlessUtf8TextClassifiesAsPlainText` - extensionless text-like files classify as plain text when byte sniffing confirms text content.
 
 ### Unit Tests (`Tests/DetoursPreviewGeneratorTests.swift`)
 

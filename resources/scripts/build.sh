@@ -14,6 +14,7 @@ LINUX_SERVER_HASH_FILE="$SERVER_DIR/.cache-hash-linux"
 DARWIN_SERVER_HASH_FILE="$SERVER_DIR/.cache-hash-darwin"
 LINUX_SERVER_BINARY="$SERVER_DIR/detours-server-x86_64-linux"
 DARWIN_SERVER_BINARY="$SERVER_DIR/detours-server-x86_64-darwin"
+PREVIEW_ASSETS_DIR="resources/PreviewAssets"
 
 # Colors
 RED='\033[0;31m'
@@ -24,6 +25,26 @@ NC='\033[0m'
 log_info() { echo -e "${DIMMED}INFO  $1${NC}" >&2; }
 log_ok()   { echo -e "${GREEN}OK    $1${NC}" >&2; }
 log_error() { echo -e "${RED}ERROR $1${NC}" >&2; }
+
+check_preview_assets() {
+    local required=(
+        "$PREVIEW_ASSETS_DIR/manifest.json"
+        "$PREVIEW_ASSETS_DIR/vendor/markdown-it.min.js"
+        "$PREVIEW_ASSETS_DIR/vendor/highlight.min.js"
+        "$PREVIEW_ASSETS_DIR/vendor/highlight-github.min.css"
+        "$PREVIEW_ASSETS_DIR/vendor/highlight-github-dark.min.css"
+        "$PREVIEW_ASSETS_DIR/vendor/LICENSE.markdown-it.txt"
+        "$PREVIEW_ASSETS_DIR/vendor/LICENSE.highlight.js.txt"
+        "$PREVIEW_ASSETS_DIR/detours/preview-runtime.js"
+        "$PREVIEW_ASSETS_DIR/detours/preview.css"
+    )
+    for path in "${required[@]}"; do
+        if [ ! -f "$path" ]; then
+            log_error "Missing preview asset: $path"
+            exit 1
+        fi
+    done
+}
 
 # Parse arguments
 BUILD_CONFIG="release"
@@ -62,6 +83,10 @@ if [ "$SCREENSHOT_FIXTURES" = true ]; then
 else
     unset DETOURS_SCREENSHOT_FIXTURES
 fi
+
+log_info "Check preview assets"
+check_preview_assets
+log_ok "Preview assets ready"
 
 # Build helper binaries when server sources changed.
 if [ -d Server ]; then
@@ -161,6 +186,7 @@ cp "$BUILT_BINARY" "$APP_DIR/Contents/MacOS/Detours"
 cp resources/icons/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "$LINUX_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
 cp "$DARWIN_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
+cp -R "$PREVIEW_ASSETS_DIR" "$APP_DIR/Contents/Resources/PreviewAssets"
 echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
 cat > "$APP_DIR/Contents/Info.plist" << EOF
