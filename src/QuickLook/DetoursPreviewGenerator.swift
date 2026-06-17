@@ -596,6 +596,15 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
                 continue
             }
 
+            if let parsed = parseDelimitedInline(in: raw, from: index, delimiter: "**", tag: "strong") ??
+                parseDelimitedInline(in: raw, from: index, delimiter: "__", tag: "strong") ??
+                parseDelimitedInline(in: raw, from: index, delimiter: "*", tag: "em") ??
+                parseDelimitedInline(in: raw, from: index, delimiter: "_", tag: "em") {
+                output += parsed.html
+                index = parsed.endIndex
+                continue
+            }
+
             output += escapeHTML(String(raw[index]))
             index = raw.index(after: index)
         }
@@ -614,5 +623,27 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             return nil
         }
         return (String(raw[raw.index(after: openBracket)..<closeBracket]), raw.index(after: closeParen))
+    }
+
+    private static func parseDelimitedInline(
+        in raw: String,
+        from index: String.Index,
+        delimiter: String,
+        tag: String
+    ) -> (html: String, endIndex: String.Index)? {
+        guard raw[index...].hasPrefix(delimiter) else {
+            return nil
+        }
+
+        let contentStart = raw.index(index, offsetBy: delimiter.count)
+        guard contentStart < raw.endIndex,
+              let contentEnd = raw[contentStart...].range(of: delimiter)?.lowerBound,
+              contentEnd > contentStart else {
+            return nil
+        }
+
+        let content = String(raw[contentStart..<contentEnd])
+        let rendered = renderInlineMarkdown(content)
+        return ("<\(tag)>\(rendered)</\(tag)>", raw.index(contentEnd, offsetBy: delimiter.count))
     }
 }

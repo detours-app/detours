@@ -30,13 +30,13 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
     }
 
     func testMarkdownPreviewRendersAndIncludesSourceToggle() async throws {
-        let source = try write("README.md", "# Title\n\nBody")
+        let source = try write("README.md", "# Title\n\nBody with **bold** and *italic* text")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "README.md"))
         let html = try String(contentsOf: previewURL, encoding: .utf8)
 
         XCTAssertTrue(html.contains("id=\"rendered-markdown\""))
         XCTAssertTrue(html.contains("<h1>Title</h1>"))
-        XCTAssertTrue(html.contains("<p>Body</p>"))
+        XCTAssertTrue(html.contains("<p>Body with <strong>bold</strong> and <em>italic</em> text</p>"))
         XCTAssertTrue(html.contains("id=\"markdown-rendered-toggle\""))
         XCTAssertTrue(html.contains("id=\"markdown-source-toggle\""))
         XCTAssertTrue(html.contains("id=\"source-payload\""))
