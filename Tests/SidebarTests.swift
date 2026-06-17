@@ -60,6 +60,33 @@ final class SidebarTests: XCTestCase {
         XCTAssertNotEqual(remoteHost1, favorite1)
     }
 
+    func testRemoteHostWithLastConnectionDisplaysConnectedWhenIdle() {
+        let displayState = SidebarViewController.remoteHostDisplayState(
+            currentState: nil,
+            lastConnected: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+
+        XCTAssertEqual(displayState, .connected)
+    }
+
+    func testRemoteHostCurrentFailureOverridesLastConnection() {
+        let displayState = SidebarViewController.remoteHostDisplayState(
+            currentState: .failed(reason: .transport("offline")),
+            lastConnected: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+
+        XCTAssertEqual(displayState, .failed(reason: .transport("offline")))
+    }
+
+    func testRemoteHostWithoutLastConnectionDisplaysDisconnected() {
+        let displayState = SidebarViewController.remoteHostDisplayState(
+            currentState: nil,
+            lastConnected: nil
+        )
+
+        XCTAssertEqual(displayState, .disconnected)
+    }
+
     // MARK: - Settings Tests
 
     func testSettingsSidebarVisibleDefault() {

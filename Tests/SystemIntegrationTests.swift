@@ -143,6 +143,29 @@ final class SystemIntegrationTests: XCTestCase {
         XCTAssertTrue(titles.contains("Open With"), "Remote file menu should have Open With")
         XCTAssertFalse(titles.contains("Reveal in Finder"), "Remote file menu should not expose Finder-only actions")
         XCTAssertFalse(titles.contains("Share"), "Remote file menu should not expose local sharing actions before materialising")
+
+        let openWithItem = menu?.items.first { $0.title == "Open With" }
+        let openWithTitles = openWithItem?.submenu?.items.map(\.title) ?? []
+        XCTAssertFalse(openWithTitles.contains("No Applications"), "Remote Open With should not be empty")
+        XCTAssertTrue(openWithTitles.contains("Other..."), "Remote Open With should allow choosing an app")
+        if !FileListViewController.installedVSCodeApplications().isEmpty {
+            XCTAssertTrue(
+                openWithTitles.contains { $0.localizedCaseInsensitiveContains("Visual Studio Code") },
+                "Remote Open With should show VS Code when installed"
+            )
+        }
+    }
+
+    func testVSCodeRemoteURLUsesSSHTargetAndPath() throws {
+        let url = try XCTUnwrap(FileListViewController.vsCodeRemoteURL(
+            sshTarget: "foundry",
+            path: "/Users/smith/dev/detours/remote file.txt"
+        ))
+
+        XCTAssertEqual(
+            url.absoluteString,
+            "vscode://vscode-remote/ssh-remote+foundry/Users/smith/dev/detours/remote%20file.txt"
+        )
     }
 
     // MARK: - Open With Tests

@@ -682,7 +682,10 @@ extension SidebarViewController: NSOutlineViewDelegate {
             cellView.configure(
                 with: .remoteHost(remoteHost),
                 theme: theme,
-                remoteConnectionState: remoteConnectionStates[remoteHost.id]
+                remoteConnectionState: Self.remoteHostDisplayState(
+                    currentState: remoteConnectionStates[remoteHost.id],
+                    lastConnected: remoteHost.lastConnected
+                )
             )
             cellView.onEject = { [weak self] in
                 self?.delegate?.sidebarDidRemoveRemoteHost(remoteHost)
@@ -757,6 +760,16 @@ extension SidebarViewController: NSOutlineViewDelegate {
 
     func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
         return SidebarRowView()
+    }
+
+    nonisolated static func remoteHostDisplayState(
+        currentState: SSHConnectionState?,
+        lastConnected: Date?
+    ) -> SSHConnectionState {
+        if let currentState {
+            return currentState
+        }
+        return lastConnected == nil ? .disconnected : .connected
     }
 }
 

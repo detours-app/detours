@@ -203,6 +203,10 @@ extension FileListViewController: FileListContextMenuDelegate {
     }
 
     private func buildOpenWithMenu(for item: FileItem) -> NSMenu {
+        if case .remote = item.location {
+            return buildRemoteOpenWithMenu(for: item)
+        }
+
         let menu = NSMenu()
         let lookupURL = item.openWithLookupURL
 
@@ -257,6 +261,33 @@ extension FileListViewController: FileListContextMenuDelegate {
         return menu
     }
 
+    private func buildRemoteOpenWithMenu(for item: FileItem) -> NSMenu {
+        let menu = NSMenu()
+        let codeApps = Self.installedVSCodeApplications()
+
+        for appURL in codeApps {
+            let appName = (try? appURL.resourceValues(forKeys: [.localizedNameKey]).localizedName)
+                ?? appURL.deletingPathExtension().lastPathComponent
+            let menuItem = NSMenuItem(title: appName, action: #selector(openRemoteWithVSCode(_:)), keyEquivalent: "")
+            menuItem.target = self
+            menuItem.representedObject = RemoteVSCodeOpenRequest(appURL: appURL, location: item.location)
+            menuItem.image = NSWorkspace.shared.icon(forFile: appURL.path)
+            menuItem.image?.size = NSSize(width: 16, height: 16)
+            menu.addItem(menuItem)
+        }
+
+        if !codeApps.isEmpty {
+            menu.addItem(NSMenuItem.separator())
+        }
+        let otherItem = NSMenuItem(title: "Other...", action: #selector(openWithOtherApp(_:)), keyEquivalent: "")
+        otherItem.target = self
+        otherItem.representedObject = item.openWithRepresentedObject
+        otherItem.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: nil)
+        menu.addItem(otherItem)
+
+        return menu
+    }
+
     // MARK: - Context Menu Actions
 
     @objc private func openFromContextMenu(_ sender: Any?) {
@@ -292,6 +323,67 @@ extension FileListViewController: FileListContextMenuDelegate {
             withApplicationAt: appURL,
             configuration: NSWorkspace.OpenConfiguration()
         ) { _, _ in }
+    }
+
+    @objc private func openRemoteWithVSCode(_ sender: NSMenuItem) {
+        guard let request = sender.representedObject as? RemoteVSCodeOpenRequest else { return }
+        guard case .remote(let hostID, let path) = request.location,
+              let host = RemoteHostStore.shared.host(id: hostID),
+              let remoteURL = Self.vsCodeRemoteURL(sshTarget: host.sshTarget, path: path) else {
+            openSelectedRemoteFile(applicationURL: request.appURL)
+            return
+        }
+
+        NSWorkspace.shared.open(
+            [remoteURL],
+            withApplicationAt: request.appURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        ) { _, _ in }
+    }
+
+    nonisolated static func vsCodeRemoteURL(sshTarget: String, path: String) -> URL? {
+        var targetAllowed = CharacterSet.urlPathAllowed
+        targetAllowed.remove(charactersIn: "/+")
+        let encodedTarget = sshTarget.addingPercentEncoding(withAllowedCharacters: targetAllowed) ?? sshTarget
+
+        let normalizedPath = path.hasPrefix("/") ? path : "/" + path
+        let encodedPath = normalizedPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? normalizedPath
+
+        return URL(string: "vscode://vscode-remote/ssh-remote+\(encodedTarget)\(encodedPath)")
+    }
+
+    static func installedVSCodeApplications() -> [URL] {
+        let bundleIDs = [
+            "com.microsoft.VSCode",
+            "com.microsoft.VSCodeInsiders",
+        ]
+        let commonPaths = [
+            "/Applications/Visual Studio Code.app",
+            "/Applications/Visual Studio Code - Insiders.app",
+            "\(FileManager.default.homeDirectoryForCurrentUser.path)/Applications/Visual Studio Code.app",
+            "\(FileManager.default.homeDirectoryForCurrentUser.path)/Applications/Visual Studio Code - Insiders.app",
+        ]
+
+        var urls: [URL] = []
+        let fileManager = FileManager.default
+        for bundleID in bundleIDs {
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
+               fileManager.fileExists(atPath: url.path) {
+                urls.append(url)
+            }
+        }
+        for path in commonPaths {
+            let url = URL(fileURLWithPath: path)
+            if fileManager.fileExists(atPath: url.path) {
+                urls.append(url)
+            }
+        }
+
+        var seen: Set<String> = []
+        return urls.filter { url in
+            let path = url.standardizedFileURL.path
+            return seen.insert(path).inserted
+        }
     }
 
     @objc private func openWithOtherApp(_ sender: NSMenuItem) {
@@ -356,6 +448,16 @@ extension FileListViewController: FileListContextMenuDelegate {
         guard let item = selectedSingleRemoteFile() else { return false }
         openRemoteItem(item, applicationURL: applicationURL)
         return true
+    }
+}
+
+private final class RemoteVSCodeOpenRequest: NSObject {
+    let appURL: URL
+    let location: Location
+
+    init(appURL: URL, location: Location) {
+        self.appURL = appURL
+        self.location = location
     }
 }
 
