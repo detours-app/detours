@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/detours-native-text-previews
 
 ---
@@ -23,24 +23,28 @@ Improve the existing Spacebar Quick Look action by generating Detours-owned HTML
 - Pressing Space on images, PDFs, media, archives, folders, and unsupported file types keeps the current system Quick Look behavior.
 - Markdown previews show rendered content first and include a source toggle inside the preview.
 - Code and plain text previews show syntax-highlighted source, line numbers, and a line-wrap toggle. Line numbers are on by default. Wrapping is off by default.
+- Source previews include static Detours-generated syntax highlighting for supported code and configuration languages, including JSON, so highlighting does not depend on Quick Look running JavaScript. Token colors use a VS Code Light+/Dark+-inspired palette that follows the active Detours preview theme instead of browser color-scheme preference.
 - Detours previews match the active Detours theme, including background, foreground, border, accent, and monospace choices.
 - Remote files use the same Detours preview once downloaded. Remote Quick Look keeps the existing one hundred megabyte download limit.
 - Files with invalid text bytes still preview with replacement characters and show a visible warning that the file was decoded lossily.
 - If a rich render cannot complete within the app's time or size limits, the preview shows a clear plain-text fallback instead of leaving Quick Look blank or stalled.
 - Generated previews use only Detours-owned local files and never load external network resources.
 - User-authored Markdown links, images, HTML, and scripts stay inert inside the preview.
+- Markdown previews may render Detours' whitelisted severity summary block (`sevbar`) as a styled static component when it exactly matches the allowed `div`/`span` structure and known severity classes, either as a direct block or inside a Pandoc raw HTML fence. All other raw HTML stays escaped and inert.
 
 ### Acceptance Criteria
 
-- [ ] **A1** Pressing Space on a supported local code file shows a Detours-styled preview with syntax highlighting, line numbers, and long lines unwrapped by default.
-- [ ] **A2** Pressing Space on a supported local Markdown file shows rendered Markdown first and provides a source view without leaving Quick Look.
-- [ ] **A3** Pressing Space on a supported remote code or Markdown file downloads it through the existing remote Quick Look path and then shows the same Detours-styled preview as a local file.
-- [ ] **A4** Pressing Space on a remote file larger than one hundred megabytes still shows the existing plain-language too-large message and does not start a download.
-- [ ] **A5** Pressing Space on an image, PDF, media file, archive, folder, or unsupported file type keeps the current system Quick Look behavior.
-- [ ] **A6** A file containing invalid text bytes previews with replacement characters and shows a visible warning that decoding was lossy.
-- [ ] **A7** Markdown content containing raw HTML, scripts, external links, external images, or other active content cannot execute code, navigate away, or load network resources inside the preview.
-- [ ] **A8** Changing the active Detours theme changes newly generated previews to match the active theme.
-- [ ] **A9** A very large or malformed supported text file either renders successfully or shows an explanatory plain-text fallback without freezing Detours or leaving the Quick Look panel blank.
+- [x] **A1** Pressing Space on a supported local code file shows a Detours-styled preview with syntax highlighting, line numbers, and long lines unwrapped by default.
+- [x] **A2** Pressing Space on a supported local Markdown file shows rendered Markdown first and provides a source view without leaving Quick Look.
+- [x] **A3** Pressing Space on a supported remote code or Markdown file downloads it through the existing remote Quick Look path and then shows the same Detours-styled preview as a local file.
+- [x] **A4** Pressing Space on a remote file larger than one hundred megabytes still shows the existing plain-language too-large message and does not start a download.
+- [x] **A5** Pressing Space on an image, PDF, media file, archive, folder, or unsupported file type keeps the current system Quick Look behavior.
+- [x] **A6** A file containing invalid text bytes previews with replacement characters and shows a visible warning that decoding was lossy.
+- [x] **A7** Markdown content containing raw HTML, scripts, external links, external images, or other active content cannot execute code, navigate away, or load network resources inside the preview.
+- [x] **A8** Changing the active Detours theme changes newly generated previews to match the active theme.
+- [x] **A9** A very large or malformed supported text file either renders successfully or shows an explanatory plain-text fallback without freezing Detours or leaving the Quick Look panel blank.
+- [x] **A10** Markdown severity summary blocks using only the whitelisted `sevbar`, `cell`, `c-critical`, `c-high`, `c-medium`, `c-low`, `n`, and `l` classes render as a styled static component from direct Markdown or Pandoc raw HTML fences, while unsafe variants are escaped.
+- [x] **A11** Supported source and configuration previews, including JSON, render with VS Code-style syntax highlighting even when preview JavaScript does not execute.
 
 ### Out of scope
 
@@ -59,7 +63,7 @@ Improve the existing Spacebar Quick Look action by generating Detours-owned HTML
 
 Add a Detours-owned preview generation layer between file selection and `QLPreviewPanel`. The layer classifies selected files, generates a temporary HTML document plus same-directory support assets for supported text-like files, and returns that generated file URL to the existing Quick Look data source. Unsupported files keep their original URL and continue through system Quick Look. Remote files continue to download through the current `RemoteFileProvider` and `FileListViewController` flow, then pass the downloaded local cache file through the same generator.
 
-The generator uses local bundled web assets: `markdown-it` for Markdown rendering and `highlight.js` for syntax highlighting. Detours vendors pinned minified assets and their licenses under `resources/PreviewAssets/`, and `resources/scripts/build.sh` copies them into `Detours.app/Contents/Resources/PreviewAssets/`. For each cached preview, the generator copies the required scripts and styles into a support directory beside the generated HTML and references them with relative URLs only. Generated HTML uses Detours theme values from `ThemeManager`, embeds a restrictive content security policy, stores source text in inert `<template>` nodes, loads Detours-owned JavaScript from the support directory, disables raw Markdown HTML rendering, makes user-authored navigation inert, and never references network URLs.
+The generator uses local bundled web assets: `markdown-it` for Markdown rendering and `highlight.js` for runtime enhancement, plus Detours-owned static tokenization for source and configuration highlighting. Detours vendors pinned minified assets and their licenses under `resources/PreviewAssets/`, and `resources/scripts/build.sh` copies them into `Detours.app/Contents/Resources/PreviewAssets/`. For each cached preview, the generator copies the required scripts and styles into a support directory beside the generated HTML and references them with relative URLs only. Generated HTML uses Detours theme values from `ThemeManager`, embeds a restrictive content security policy, stores source text in inert `<template>` nodes, loads Detours-owned JavaScript from the support directory, disables raw Markdown HTML rendering, makes user-authored navigation inert, and never references network URLs. Source, configuration, Markdown source, and Markdown code-fence rows are emitted with escaped static token spans for supported languages including Swift, JavaScript/TypeScript, Python, Bash, SQL, CSS, XML/HTML, YAML/TOML/INI, diff, Markdown, and JSON; runtime highlighting skips those static rows. Token colors are emitted as generated theme CSS variables using VS Code Light+/Dark+-inspired palettes selected from the actual Detours preview theme luminance, avoiding browser color-scheme mismatch. The static Markdown renderer recognizes only one raw-HTML-shaped component: a severity summary bar with exact `div`/`span` tags, no extra attributes, and a fixed class whitelist, either as a direct block or inside a Pandoc raw HTML fence. Its text values are escaped before output; malformed or unknown raw HTML remains escaped Markdown text or an escaped code block.
 
 ### Approach Validation
 
@@ -73,7 +77,7 @@ Highlight.js is browser-compatible, has no framework dependency, and supports br
 
 | Risk | Mitigation |
 | ---- | ---------- |
-| Generated HTML previews accidentally run user-authored content from Markdown or HTML files. | Disable raw Markdown HTML, escape source views, store source text in inert templates, load only Detours-owned relative scripts, use a restrictive content security policy, block remote resource URLs, neutralize user-authored links, and test malicious Markdown fixtures. |
+| Generated HTML previews accidentally run user-authored content from Markdown or HTML files. | Disable raw Markdown HTML, escape source views before static tokenization emits Detours-owned spans, store source text in inert templates, load only Detours-owned relative scripts, use a restrictive content security policy, block remote resource URLs, neutralize user-authored links, permit only the exact sanitized severity-bar component, and test malicious Markdown fixtures. |
 | Very large files make Quick Look or Detours feel stalled. | Run generation off the main actor, enforce input-size, output-size, and timeout guards before client-side rendering starts, then show a plain-text fallback with an explanatory banner. |
 | Vendored JavaScript assets become unclear or untraceable. | Pin versions in a manifest, commit license files, and add a test that required assets are present in the app bundle and copied into generated-preview support directories. |
 | File classification sends binary data into the text preview pipeline. | Classify by known extensions and dotfiles first, sniff the first bytes for binary markers, and fall back to system Quick Look when the file is not text-like. |
@@ -84,37 +88,37 @@ Highlight.js is browser-compatible, has no framework dependency, and supports br
 
 **Phase 1: Assets and classification**
 
-- [ ] **T1** Add `resources/PreviewAssets/manifest.json` naming pinned `markdown-it` and `highlight.js` versions, bundled asset filenames, source URLs, and license filenames.
-- [ ] **T2** Add pinned local assets under `resources/PreviewAssets/vendor/`: minified `markdown-it`, minified `highlight.js` with Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML/INI, XML/HTML, Bash, CSS, Markdown, SQL, Diff, and plaintext language support, the `github` and `github-dark` highlight.js CSS baselines for token reference, and the upstream license files. Add Detours-owned `preview-runtime.js` and `preview.css` under `resources/PreviewAssets/detours/`; the runtime reads inert templates, runs `markdown-it` and `highlight.js`, toggles Markdown source/rendered view, toggles line wrapping, and prevents user-authored link navigation.
-- [ ] **T3** Update `resources/scripts/build.sh` to copy `resources/PreviewAssets/` into `Detours.app/Contents/Resources/PreviewAssets/` for normal, debug, and universal builds, and fail with a clear error if required preview assets are missing.
-- [ ] **T4** Create `src/QuickLook/DetoursPreviewKind.swift` with supported kinds: Markdown, source code, configuration, plain text, and unsupported. Include extension and filename classification for Markdown, Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML, XML, shell, CSS, HTML, SQL, `.env`-style files, `.gitignore`-style files, and `.txt` files.
-- [ ] **T5** Add text sniffing helpers in `src/QuickLook/DetoursPreviewKind.swift` that reject every candidate text preview when the first read window contains binary markers and accept extensionless UTF-8-like plain text files only when the bytes are text-like.
+- [x] **T1** Add `resources/PreviewAssets/manifest.json` naming pinned `markdown-it` and `highlight.js` versions, bundled asset filenames, source URLs, and license filenames.
+- [x] **T2** Add pinned local assets under `resources/PreviewAssets/vendor/`: minified `markdown-it`, minified `highlight.js` with Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML/INI, XML/HTML, Bash, CSS, Markdown, SQL, Diff, and plaintext language support, the `github` and `github-dark` highlight.js CSS baselines for token reference, and the upstream license files. Add Detours-owned `preview-runtime.js` and `preview.css` under `resources/PreviewAssets/detours/`; the runtime reads inert templates, runs `markdown-it` and `highlight.js`, toggles Markdown source/rendered view, toggles line wrapping, and prevents user-authored link navigation.
+- [x] **T3** Update `resources/scripts/build.sh` to copy `resources/PreviewAssets/` into `Detours.app/Contents/Resources/PreviewAssets/` for normal, debug, and universal builds, and fail with a clear error if required preview assets are missing.
+- [x] **T4** Create `src/QuickLook/DetoursPreviewKind.swift` with supported kinds: Markdown, source code, configuration, plain text, and unsupported. Include extension and filename classification for Markdown, Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML, XML, shell, CSS, HTML, SQL, `.env`-style files, `.gitignore`-style files, and `.txt` files.
+- [x] **T5** Add text sniffing helpers in `src/QuickLook/DetoursPreviewKind.swift` that reject every candidate text preview when the first read window contains binary markers and accept extensionless UTF-8-like plain text files only when the bytes are text-like.
 
 **Phase 2: Preview generation**
 
-- [ ] **T6** Create `src/QuickLook/DetoursPreviewGenerator.swift` with an async API that accepts a source file URL, source display name, current theme, configured font size, and remote/local context, then returns either a generated HTML file URL or the original source URL for system Quick Look.
-- [ ] **T7** Add a preview cache under the user caches directory at `Detours/previews/`, keyed by a hash of source path, file size, modification date, preview kind, active theme identity, configured font size, and preview asset manifest version. Store generated HTML, same-directory support assets, and generated support metadata without raw source paths in filenames.
-- [ ] **T8** Implement source decoding in `DetoursPreviewGenerator`: read file data off the main actor, decode as UTF-8 when valid, decode lossily when needed, and carry a `lossyDecode` flag into the generated preview.
-- [ ] **T9** Implement generated HTML template creation for source and plain-text previews: escape all file content into an inert `<template>` payload, include line numbers, apply highlight.js by language class from `preview-runtime.js`, default wrapping off, include a wrap toggle, and show the lossy decode warning when applicable.
-- [ ] **T10** Implement generated HTML template creation for Markdown previews: place Markdown source in an inert `<template>` payload, set `markdown-it` to HTML-disabled rendering, override Markdown link renderers so all user-authored links render as non-clickable text, override Markdown image renderers so all user-authored images render as alt-text placeholders, render Markdown by default from `preview-runtime.js`, include an escaped highlighted source view, include a rendered/source toggle, and show the lossy decode warning when applicable.
-- [ ] **T11** Add the generated preview content security policy: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`. Generated preview HTML contains no inline executable script and references only relative files copied into its support directory.
-- [ ] **T12** Add render guard behavior in `DetoursPreviewGenerator`: use a twenty megabyte rich-render input guard before handing content to `preview-runtime.js`, run generation with a five-second timeout, and enforce a two hundred megabyte generated-output guard; on guard failure, generate a plain-text fallback HTML preview with the explanatory banner and a best-effort escaped text excerpt consisting of the first two megabytes and final two megabytes of the source file.
-- [ ] **T13** Add theme mapping from `ThemeManager` to preview CSS variables for background, primary text, secondary text, borders, accent, selection, line-number gutter, code tokens, toolbar colors, monospace font family, and configured font size.
+- [x] **T6** Create `src/QuickLook/DetoursPreviewGenerator.swift` with an async API that accepts a source file URL, source display name, current theme, configured font size, and remote/local context, then returns either a generated HTML file URL or the original source URL for system Quick Look.
+- [x] **T7** Add a preview cache under the user caches directory at `Detours/previews/`, keyed by a hash of source path, file size, modification date, preview kind, active theme identity, configured font size, and preview asset manifest version. Store generated HTML, same-directory support assets, and generated support metadata without raw source paths in filenames.
+- [x] **T8** Implement source decoding in `DetoursPreviewGenerator`: read file data off the main actor, decode as UTF-8 when valid, decode lossily when needed, and carry a `lossyDecode` flag into the generated preview.
+- [x] **T9** Implement generated HTML template creation for source and plain-text previews: escape all file content into an inert `<template>` payload, include line numbers, emit static syntax token spans for supported languages including JSON, skip runtime highlighting for static rows, default wrapping off, include a wrap toggle, and show the lossy decode warning when applicable.
+- [x] **T10** Implement generated HTML template creation for Markdown previews: place Markdown source in an inert `<template>` payload, set `markdown-it` to HTML-disabled rendering, override Markdown link renderers so all user-authored links render as non-clickable text, override Markdown image renderers so all user-authored images render as alt-text placeholders, render Markdown by default from static generated HTML with runtime enhancement when available, include an escaped highlighted source view, include a rendered/source toggle, recognize only the sanitized Detours severity-bar component, and show the lossy decode warning when applicable.
+- [x] **T11** Add the generated preview content security policy: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`. Generated preview HTML contains no inline executable script and references only relative files copied into its support directory.
+- [x] **T12** Add render guard behavior in `DetoursPreviewGenerator`: use a twenty megabyte rich-render input guard before handing content to `preview-runtime.js`, run generation with a five-second timeout, and enforce a two hundred megabyte generated-output guard; on guard failure, generate a plain-text fallback HTML preview with the explanatory banner and a best-effort escaped text excerpt consisting of the first two megabytes and final two megabytes of the source file.
+- [x] **T13** Add theme mapping from `ThemeManager` to preview CSS variables for background, primary text, secondary text, borders, accent, selection, line-number gutter, code tokens, toolbar colors, monospace font family, and configured font size.
 
 **Phase 3: Quick Look wiring**
 
-- [ ] **T14** Update `src/FileList/FileListViewController.swift` Quick Look state so local selected URLs are converted through `DetoursPreviewGenerator` into an ordered `quickLookPreviewURLs` array before the panel opens or reloads, while unsupported files keep their original URLs.
-- [ ] **T15** Update the remote Quick Look path in `src/FileList/FileListViewController.swift` so the downloaded cache file is converted through `DetoursPreviewGenerator` with the remote item name before assigning `remoteQuickLookPreviewURL`.
-- [ ] **T16** Preserve current remote Quick Look progress behavior: files under one megabyte download silently, files from one to one hundred megabytes show progress, and files above one hundred megabytes show the current too-large error before any download.
-- [ ] **T17** Preserve multiple-selection Quick Look order by tracking an ordered array of generated-or-original preview URLs and a request token instead of relying on live `selectedURLs` after asynchronous generation completes.
-- [ ] **T18** Cancel outstanding preview generation tasks when selection changes, the panel closes, the user navigates, or a remote Quick Look request is replaced; stale completions whose request token no longer matches leave the panel state unchanged.
-- [ ] **T19** On Detours theme changes, clear generated preview state for visible Quick Look panels and regenerate previews on the next reload.
+- [x] **T14** Update `src/FileList/FileListViewController.swift` Quick Look state so local selected URLs are converted through `DetoursPreviewGenerator` into an ordered `quickLookPreviewURLs` array before the panel opens or reloads, while unsupported files keep their original URLs.
+- [x] **T15** Update the remote Quick Look path in `src/FileList/FileListViewController.swift` so the downloaded cache file is converted through `DetoursPreviewGenerator` with the remote item name before assigning `remoteQuickLookPreviewURL`.
+- [x] **T16** Preserve current remote Quick Look progress behavior: files under one megabyte download silently, files from one to one hundred megabytes show progress, and files above one hundred megabytes show the current too-large error before any download.
+- [x] **T17** Preserve multiple-selection Quick Look order by tracking an ordered array of generated-or-original preview URLs and a request token instead of relying on live `selectedURLs` after asynchronous generation completes.
+- [x] **T18** Cancel outstanding preview generation tasks when selection changes, the panel closes, the user navigates, or a remote Quick Look request is replaced; stale completions whose request token no longer matches leave the panel state unchanged.
+- [x] **T19** On Detours theme changes, clear generated preview state for visible Quick Look panels and regenerate previews on the next reload.
 
 **Phase 4: Documentation and cleanup**
 
-- [ ] **T20** Add `resources/docs/text-previews.md` documenting supported file types, Markdown safety behavior, remote size behavior, vendored asset update steps, and cache location.
-- [ ] **T21** Update `README.md` Quick Look feature text to mention enhanced code and Markdown previews without implying Finder Quick Look has changed.
-- [ ] **T22** Ensure generated preview cache directories and copied support-asset directories are created with user-only permissions, and clean stale generated previews opportunistically during app launch or first preview generation.
+- [x] **T20** Add `resources/docs/text-previews.md` documenting supported file types, Markdown safety behavior, remote size behavior, vendored asset update steps, and cache location.
+- [x] **T21** Update `README.md` Quick Look feature text to mention enhanced code and Markdown previews without implying Finder Quick Look has changed.
+- [x] **T22** Ensure generated preview cache directories and copied support-asset directories are created with user-only permissions, and clean stale generated previews opportunistically during app launch or first preview generation.
 
 ---
 
@@ -124,36 +128,42 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 ### Unit Tests (`Tests/DetoursPreviewKindTests.swift`)
 
-- [ ] **T23** `testMarkdownExtensionsClassifyAsMarkdown` - `.md`, `.markdown`, and `.mdown` classify as Markdown.
-- [ ] **T24** `testCommonDeveloperExtensionsClassifyAsSourceOrConfig` - Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML, XML, shell, CSS, HTML, SQL, `.env`, and `.gitignore` inputs classify into Detours preview kinds.
-- [ ] **T25** `testBinarySniffingRejectsBinaryData` - binary markers in the first read window return unsupported even when the file extension is ambiguous.
-- [ ] **T26** `testExtensionlessUtf8TextClassifiesAsPlainText` - extensionless text-like files classify as plain text when byte sniffing confirms text content.
+- [x] **T23** `testMarkdownExtensionsClassifyAsMarkdown` - `.md`, `.markdown`, and `.mdown` classify as Markdown.
+- [x] **T24** `testCommonDeveloperExtensionsClassifyAsSourceOrConfig` - Swift, JavaScript, TypeScript, Python, JSON, YAML, TOML, XML, shell, CSS, HTML, SQL, `.env`, and `.gitignore` inputs classify into Detours preview kinds.
+- [x] **T25** `testBinarySniffingRejectsBinaryData` - binary markers in the first read window return unsupported even when the file extension is ambiguous.
+- [x] **T26** `testExtensionlessUtf8TextClassifiesAsPlainText` - extensionless text-like files classify as plain text when byte sniffing confirms text content.
 
 ### Unit Tests (`Tests/DetoursPreviewGeneratorTests.swift`)
 
-- [ ] **T27** `testCodePreviewEscapesContentAndShowsLineNumbers` - generated source HTML escapes user content, includes line numbers, and defaults wrapping off.
-- [ ] **T28** `testMarkdownPreviewRendersAndIncludesSourceToggle` - generated Markdown HTML contains rendered output and a source view toggle.
-- [ ] **T29** `testMarkdownRawHTMLAndExternalURLsAreInert` - raw HTML, script tags, event attributes, external links, and remote image URLs in Markdown cannot execute, navigate, or load external resources in the generated preview.
-- [ ] **T30** `testLossyDecodeShowsWarning` - invalid UTF-8 bytes produce replacement characters and the visible lossy decode warning.
-- [ ] **T31** `testRenderGuardProducesPlainTextFallback` - a simulated input-size, timeout, or output guard failure generates the explanatory fallback preview instead of throwing to the Quick Look panel.
-- [ ] **T32** `testCacheKeyIncludesThemeFontAssetAndSourceMetadata` - changing source size, source modification date, preview kind, theme identity, configured font size, or preview asset manifest version changes the generated cache key.
-- [ ] **T33** `testGeneratedPreviewUsesRelativeSupportAssetsAndNoInlineScript` - generated HTML references same-directory support assets with relative URLs and contains no inline executable script.
-- [ ] **T34** `testPreviewCacheUsesUserOnlyPermissionsAndHashedSourceKeys` - generated preview cache directories use user-only permissions and filenames do not contain raw source paths.
+- [x] **T27** `testCodePreviewEscapesContentAndShowsLineNumbers` - generated source HTML escapes user content, includes line numbers, and defaults wrapping off.
+- [x] **T28** `testMarkdownPreviewRendersAndIncludesSourceToggle` - generated Markdown HTML contains rendered output and a source view toggle.
+- [x] **T29** `testMarkdownRawHTMLAndExternalURLsAreInert` - raw HTML, script tags, event attributes, external links, and remote image URLs in Markdown cannot execute, navigate, or load external resources in the generated preview.
+- [x] **T30** `testLossyDecodeShowsWarning` - invalid UTF-8 bytes produce replacement characters and the visible lossy decode warning.
+- [x] **T31** `testRenderGuardProducesPlainTextFallback` - a simulated input-size, timeout, or output guard failure generates the explanatory fallback preview instead of throwing to the Quick Look panel.
+- [x] **T32** `testCacheKeyIncludesThemeFontAssetAndSourceMetadata` - changing source size, source modification date, preview kind, theme identity, configured font size, or preview asset manifest version changes the generated cache key.
+- [x] **T33** `testGeneratedPreviewUsesRelativeSupportAssetsAndNoInlineScript` - generated HTML references same-directory support assets with relative URLs and contains no inline executable script.
+- [x] **T34** `testPreviewCacheUsesUserOnlyPermissionsAndHashedSourceKeys` - generated preview cache directories use user-only permissions and filenames do not contain raw source paths.
+- [x] **T44** `testMarkdownSeverityBarRendersTrustedComponent` - the exact whitelisted `sevbar` Markdown block renders as a styled static component and the bundled preview CSS includes the component styling.
+- [x] **T45** `testMarkdownSeverityBarRejectsUnsafeHTMLVariants` - severity-bar-shaped Markdown with event attributes, embedded HTML, or unknown classes is escaped instead of emitted as raw HTML.
+- [x] **T46** `testMarkdownSeverityBarRendersTrustedPandocRawHTMLFence` - the exact whitelisted `sevbar` component inside a Pandoc raw HTML fence renders as the same styled static component instead of a code block.
+- [x] **T47** `testCodePreviewIncludesStaticSyntaxHighlighting` - generated code previews contain Detours-owned static token spans for keywords and strings.
+- [x] **T48** `testJSONPreviewIncludesStaticSyntaxHighlighting` - generated JSON previews contain static token spans for properties, punctuation, booleans, numbers, and strings.
+- [x] **T49** `testDarkThemeUsesVSCodeDarkSyntaxPalette` - generated dark-theme previews use VS Code Dark+-inspired token CSS variables, while light previews use the matching Light+ values and bundled CSS does not switch token colors by browser color-scheme preference.
 
 ### Unit Tests (`Tests/BuildCacheTests.swift`)
 
-- [ ] **T35** `testBuildScriptCopiesPreviewAssetsAndChecksRequiredFiles` - `resources/scripts/build.sh` copies `resources/PreviewAssets/` into `Contents/Resources/PreviewAssets/` and fails when manifest, vendor assets, Detours runtime, or license files are missing.
+- [x] **T35** `testBuildScriptCopiesPreviewAssetsAndChecksRequiredFiles` - `resources/scripts/build.sh` copies `resources/PreviewAssets/` into `Contents/Resources/PreviewAssets/` and fails when manifest, vendor assets, Detours runtime, or license files are missing.
 
 ### Integration Tests (`Tests/FileListResponderTests.swift`, `Tests/RemoteFileProviderTests.swift`)
 
-- [ ] **T36** `testLocalQuickLookUsesGeneratedPreviewForSupportedTextFile` - local supported text files populate `quickLookPreviewURLs` with generated HTML preview URLs before the panel data source reports them.
-- [ ] **T37** `testLocalQuickLookKeepsOriginalURLForUnsupportedFile` - unsupported local files keep the system Quick Look URL path.
-- [ ] **T38** `testRemoteQuickLookGeneratesPreviewAfterDownload` - downloaded remote text files pass through the generator before the panel receives its preview URL.
-- [ ] **T39** `testRemoteQuickLookMaximumStillRejectsHugeFilesBeforeDownload` - remote files above one hundred megabytes still fail before transfer.
-- [ ] **T40** `testQuickLookSelectionChangeCancelsPreviewGeneration` - changing selection during generation cancels stale work and the panel receives only the newest selected file previews.
+- [x] **T36** `testLocalQuickLookUsesGeneratedPreviewForSupportedTextFile` - local supported text files populate `quickLookPreviewURLs` with generated HTML preview URLs before the panel data source reports them.
+- [x] **T37** `testLocalQuickLookKeepsOriginalURLForUnsupportedFile` - unsupported local files keep the system Quick Look URL path.
+- [x] **T38** `testRemoteQuickLookGeneratesPreviewAfterDownload` - downloaded remote text files pass through the generator before the panel receives its preview URL.
+- [x] **T39** `testRemoteQuickLookMaximumStillRejectsHugeFilesBeforeDownload` - remote files above one hundred megabytes still fail before transfer.
+- [x] **T40** `testQuickLookSelectionChangeCancelsPreviewGeneration` - changing selection during generation cancels stale work and the panel receives only the newest selected file previews.
 
 ### Build and Verification
 
-- [ ] **T41** Run the focused Detours preview and Quick Look test filters with `swift test`.
-- [ ] **T42** Run `resources/scripts/build.sh --no-install` to verify asset bundling and app bundle creation without replacing the installed app.
-- [ ] **T43** After implementation changes, run `resources/scripts/build.sh` without `--no-install` so the fixed Detours app is installed in `/Applications` and relaunched.
+- [x] **T41** Run the focused Detours preview and Quick Look test filters with `swift test`.
+- [x] **T42** Run `resources/scripts/build.sh --no-install` to verify asset bundling and app bundle creation without replacing the installed app.
+- [x] **T43** After implementation changes, run `resources/scripts/build.sh` without `--no-install` so the fixed Detours app is installed in `/Applications` and relaunched.

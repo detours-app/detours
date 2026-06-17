@@ -40,6 +40,19 @@ final class BuildCacheTests: XCTestCase {
         XCTAssertTrue(script.contains("Contents/Resources/Servers"))
     }
 
+    func testBuildScriptCopiesPreviewAssetsAndChecksRequiredFiles() throws {
+        let script = try String(contentsOfFile: "resources/scripts/build.sh", encoding: .utf8)
+
+        XCTAssertTrue(script.contains("check_preview_assets"))
+        XCTAssertTrue(script.contains("resources/PreviewAssets"))
+        XCTAssertTrue(script.contains("Contents/Resources/PreviewAssets"))
+        XCTAssertTrue(script.contains("manifest.json"))
+        XCTAssertTrue(script.contains("markdown-it.min.js"))
+        XCTAssertTrue(script.contains("highlight.min.js"))
+        XCTAssertTrue(script.contains("preview-runtime.js"))
+        XCTAssertTrue(script.contains("preview.css"))
+    }
+
     func testGeneratedHelpersIgnored() throws {
         XCTAssertTrue(try isIgnored("resources/Servers/detours-server-x86_64-linux"))
         XCTAssertTrue(try isIgnored("resources/Servers/detours-server-x86_64-darwin"))
