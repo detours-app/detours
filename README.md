@@ -19,7 +19,7 @@ Dual-pane file manager with tabs, folder expansion, SSH remote browsing, Quick O
 - **Theming** - Four built-in themes plus custom theme editor
 - **Sidebar** - Quick access to remote hosts, mounted volumes, network shares, and favorite folders
 - **Path bar** - Click to navigate, drag to terminal, right-click to copy path
-- **Quick Look** - Preview files with spacebar
+- **Quick Look** - Preview files with spacebar, including enhanced Detours-styled code and Markdown previews
 - **Drag and drop** - Between panes, to/from Finder, from Mail attachments, to favorites
 - **Duplicate folder structure** - Copy folder hierarchy without files (great for year-based templates)
 - **Delete Immediately** - Permanent deletion option bypassing Trash (Cmd-Option-Delete)
@@ -101,6 +101,7 @@ detours/
 │   ├── Services/         # File providers, git status
 │   ├── Sidebar/          # Favorites, volumes, network shares, remote hosts
 │   ├── Preferences/      # Settings UI
+│   ├── QuickLook/        # Detours-native text preview generation
 │   └── Utilities/        # Helpers
 ├── Server/               # Remote helper source
 ├── Tests/                # XCTest suite

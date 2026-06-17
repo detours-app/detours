@@ -112,8 +112,8 @@ Highlight.js is browser-compatible, has no framework dependency, and supports br
 
 **Phase 4: Documentation and cleanup**
 
-- [ ] **T20** Add `resources/docs/text-previews.md` documenting supported file types, Markdown safety behavior, remote size behavior, vendored asset update steps, and cache location.
-- [ ] **T21** Update `README.md` Quick Look feature text to mention enhanced code and Markdown previews without implying Finder Quick Look has changed.
+- [x] **T20** Add `resources/docs/text-previews.md` documenting supported file types, Markdown safety behavior, remote size behavior, vendored asset update steps, and cache location.
+- [x] **T21** Update `README.md` Quick Look feature text to mention enhanced code and Markdown previews without implying Finder Quick Look has changed.
 - [x] **T22** Ensure generated preview cache directories and copied support-asset directories are created with user-only permissions, and clean stale generated previews opportunistically during app launch or first preview generation.
 
 ---
@@ -142,7 +142,7 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 ### Unit Tests (`Tests/BuildCacheTests.swift`)
 
-- [ ] **T35** `testBuildScriptCopiesPreviewAssetsAndChecksRequiredFiles` - `resources/scripts/build.sh` copies `resources/PreviewAssets/` into `Contents/Resources/PreviewAssets/` and fails when manifest, vendor assets, Detours runtime, or license files are missing.
+- [x] **T35** `testBuildScriptCopiesPreviewAssetsAndChecksRequiredFiles` - `resources/scripts/build.sh` copies `resources/PreviewAssets/` into `Contents/Resources/PreviewAssets/` and fails when manifest, vendor assets, Detours runtime, or license files are missing.
 
 ### Integration Tests (`Tests/FileListResponderTests.swift`, `Tests/RemoteFileProviderTests.swift`)
 
