@@ -2321,7 +2321,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
                 let previewURL = try RemoteFileCache.makeSessionFile(hostID: hostID, remotePath: item.location.path)
                 if byteCount >= RemoteFileCache.progressMinimumBytes {
-                    remoteQuickLookPreviewURL = previewURL
                     panel.makeKeyAndOrderFront(nil)
                     panel.reloadData()
                     showRemoteQuickLookProgressOverlay(in: panel, byteCount: byteCount)
@@ -2438,10 +2437,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     nonisolated func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
         MainActor.assumeIsolated {
-            if remoteQuickLookPreviewURL != nil {
-                return 1
-            }
-            return selectedURLs.count
+            Self.quickLookPreviewItemCount(
+                remoteRequestActive: remoteQuickLookRequestLocation != nil,
+                remotePreviewReady: remoteQuickLookPreviewURL != nil,
+                selectedURLCount: selectedURLs.count
+            )
         }
     }
 
@@ -2450,10 +2450,24 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             if let remoteQuickLookPreviewURL {
                 return remoteQuickLookPreviewURL as NSURL
             }
+            if remoteQuickLookRequestLocation != nil {
+                return nil
+            }
             let urls = selectedURLs
             guard index >= 0 && index < urls.count else { return nil }
             return urls[index] as NSURL
         }
+    }
+
+    static func quickLookPreviewItemCount(
+        remoteRequestActive: Bool,
+        remotePreviewReady: Bool,
+        selectedURLCount: Int
+    ) -> Int {
+        if remoteRequestActive {
+            return remotePreviewReady ? 1 : 0
+        }
+        return selectedURLCount
     }
 
     // MARK: - QLPreviewPanelDelegate

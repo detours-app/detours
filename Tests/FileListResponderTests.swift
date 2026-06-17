@@ -4,6 +4,39 @@ import XCTest
 
 @MainActor
 final class FileListResponderTests: XCTestCase {
+    func testRemoteQuickLookReportsNoPreviewItemUntilDownloadCompletes() {
+        XCTAssertEqual(
+            FileListViewController.quickLookPreviewItemCount(
+                remoteRequestActive: true,
+                remotePreviewReady: false,
+                selectedURLCount: 1
+            ),
+            0
+        )
+    }
+
+    func testRemoteQuickLookReportsPreviewItemAfterDownloadCompletes() {
+        XCTAssertEqual(
+            FileListViewController.quickLookPreviewItemCount(
+                remoteRequestActive: true,
+                remotePreviewReady: true,
+                selectedURLCount: 0
+            ),
+            1
+        )
+    }
+
+    func testLocalQuickLookUsesSelectedURLsWhenNoRemoteRequestIsActive() {
+        XCTAssertEqual(
+            FileListViewController.quickLookPreviewItemCount(
+                remoteRequestActive: false,
+                remotePreviewReady: false,
+                selectedURLCount: 3
+            ),
+            3
+        )
+    }
+
     func testTableViewIsInViewControllerHierarchy() throws {
         let (viewController, _, cleanup) = try makeViewControllerWithSelection()
         defer { cleanup() }
