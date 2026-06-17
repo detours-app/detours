@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/detours-native-text-previews
 
 ---
@@ -32,15 +32,15 @@ Improve the existing Spacebar Quick Look action by generating Detours-owned HTML
 
 ### Acceptance Criteria
 
-- [ ] **A1** Pressing Space on a supported local code file shows a Detours-styled preview with syntax highlighting, line numbers, and long lines unwrapped by default.
-- [ ] **A2** Pressing Space on a supported local Markdown file shows rendered Markdown first and provides a source view without leaving Quick Look.
-- [ ] **A3** Pressing Space on a supported remote code or Markdown file downloads it through the existing remote Quick Look path and then shows the same Detours-styled preview as a local file.
-- [ ] **A4** Pressing Space on a remote file larger than one hundred megabytes still shows the existing plain-language too-large message and does not start a download.
-- [ ] **A5** Pressing Space on an image, PDF, media file, archive, folder, or unsupported file type keeps the current system Quick Look behavior.
-- [ ] **A6** A file containing invalid text bytes previews with replacement characters and shows a visible warning that decoding was lossy.
-- [ ] **A7** Markdown content containing raw HTML, scripts, external links, external images, or other active content cannot execute code, navigate away, or load network resources inside the preview.
-- [ ] **A8** Changing the active Detours theme changes newly generated previews to match the active theme.
-- [ ] **A9** A very large or malformed supported text file either renders successfully or shows an explanatory plain-text fallback without freezing Detours or leaving the Quick Look panel blank.
+- [x] **A1** Pressing Space on a supported local code file shows a Detours-styled preview with syntax highlighting, line numbers, and long lines unwrapped by default.
+- [x] **A2** Pressing Space on a supported local Markdown file shows rendered Markdown first and provides a source view without leaving Quick Look.
+- [x] **A3** Pressing Space on a supported remote code or Markdown file downloads it through the existing remote Quick Look path and then shows the same Detours-styled preview as a local file.
+- [x] **A4** Pressing Space on a remote file larger than one hundred megabytes still shows the existing plain-language too-large message and does not start a download.
+- [x] **A5** Pressing Space on an image, PDF, media file, archive, folder, or unsupported file type keeps the current system Quick Look behavior.
+- [x] **A6** A file containing invalid text bytes previews with replacement characters and shows a visible warning that decoding was lossy.
+- [x] **A7** Markdown content containing raw HTML, scripts, external links, external images, or other active content cannot execute code, navigate away, or load network resources inside the preview.
+- [x] **A8** Changing the active Detours theme changes newly generated previews to match the active theme.
+- [x] **A9** A very large or malformed supported text file either renders successfully or shows an explanatory plain-text fallback without freezing Detours or leaving the Quick Look panel blank.
 
 ### Out of scope
 
@@ -154,6 +154,6 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 ### Build and Verification
 
-- [ ] **T41** Run the focused Detours preview and Quick Look test filters with `swift test`.
-- [ ] **T42** Run `resources/scripts/build.sh --no-install` to verify asset bundling and app bundle creation without replacing the installed app.
-- [ ] **T43** After implementation changes, run `resources/scripts/build.sh` without `--no-install` so the fixed Detours app is installed in `/Applications` and relaunched.
+- [x] **T41** Run the focused Detours preview and Quick Look test filters with `swift test`.
+- [x] **T42** Run `resources/scripts/build.sh --no-install` to verify asset bundling and app bundle creation without replacing the installed app.
+- [x] **T43** After implementation changes, run `resources/scripts/build.sh` without `--no-install` so the fixed Detours app is installed in `/Applications` and relaunched.
