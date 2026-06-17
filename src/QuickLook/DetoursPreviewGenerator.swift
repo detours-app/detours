@@ -212,8 +212,9 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         fallbackReason: String?
     ) -> String {
         let rows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
-            """
-            <tr><td class="line-number">\(index + 1)</td><td class="line-code"><code class="language-\(kind.highlightLanguage)" data-highlight-language="\(kind.highlightLanguage)">\(Self.escapeHTML(String(line)))</code></td></tr>
+            let highlightedLine = Self.highlightSourceLine(String(line), language: kind.highlightLanguage)
+            return """
+            <tr><td class="line-number">\(index + 1)</td><td class="line-code"><code class="language-\(kind.highlightLanguage)" data-highlight-language="\(kind.highlightLanguage)" data-static-highlight="true">\(highlightedLine)</code></td></tr>
             """
         }.joined(separator: "\n")
 
@@ -246,8 +247,9 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
     ) -> String {
         let renderedMarkdown = Self.renderStaticMarkdown(source)
         let sourceRows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
-            """
-            <tr><td class="line-number">\(index + 1)</td><td class="line-code"><code class="language-markdown" data-highlight-language="markdown">\(Self.escapeHTML(String(line)))</code></td></tr>
+            let highlightedLine = Self.highlightSourceLine(String(line), language: "markdown")
+            return """
+            <tr><td class="line-number">\(index + 1)</td><td class="line-code"><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></td></tr>
             """
         }.joined(separator: "\n")
 
@@ -360,7 +362,8 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
     }
 
     private func themeVariablesCSS(for theme: Theme, fontSize: CGFloat) -> String {
-        """
+        let syntax = syntaxColors(for: theme)
+        return """
         :root {
           --detours-background: \(cssHex(theme.background));
           --detours-surface: \(cssHex(theme.surface));
@@ -375,8 +378,68 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
           --detours-line-number: \(cssHex(theme.textTertiary));
           --detours-font-family: "\(theme.fontName)", "SF Mono", Menlo, monospace;
           --detours-font-size: \(Int(fontSize.rounded()))px;
+          --detours-token-keyword: \(syntax.keyword);
+          --detours-token-string: \(syntax.string);
+          --detours-token-number: \(syntax.number);
+          --detours-token-property: \(syntax.property);
+          --detours-token-comment: \(syntax.comment);
+          --detours-token-punctuation: \(syntax.punctuation);
+          --detours-token-tag: \(syntax.tag);
+          --detours-token-section: \(syntax.section);
+          --detours-token-add: \(syntax.add);
+          --detours-token-delete: \(syntax.delete);
         }
         """
+    }
+
+    private func syntaxColors(for theme: Theme) -> (
+        keyword: String,
+        string: String,
+        number: String,
+        property: String,
+        comment: String,
+        punctuation: String,
+        tag: String,
+        section: String,
+        add: String,
+        delete: String
+    ) {
+        if themeIsDark(theme) {
+            return (
+                keyword: "#569CD6",
+                string: "#CE9178",
+                number: "#B5CEA8",
+                property: "#9CDCFE",
+                comment: "#6A9955",
+                punctuation: "#D4D4D4",
+                tag: "#569CD6",
+                section: "#C586C0",
+                add: "#6A9955",
+                delete: "#F44747"
+            )
+        }
+
+        return (
+            keyword: "#0000FF",
+            string: "#A31515",
+            number: "#098658",
+            property: "#001080",
+            comment: "#008000",
+            punctuation: "#393A34",
+            tag: "#800000",
+            section: "#AF00DB",
+            add: "#008000",
+            delete: "#A31515"
+        )
+    }
+
+    private func themeIsDark(_ theme: Theme) -> Bool {
+        let rgb = theme.background.usingColorSpace(.sRGB) ?? theme.background
+        let red = rgb.redComponent
+        let green = rgb.greenComponent
+        let blue = rgb.blueComponent
+        let luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+        return luminance < 0.5
     }
 
     private func themeIdentity(_ theme: Theme) -> String {
@@ -442,6 +505,365 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             .replacingOccurrences(of: "'", with: "&#39;")
     }
 
+    private static func highlightSourceLine(_ raw: String, language: String) -> String {
+        switch language {
+        case "json":
+            return highlightJSONLine(raw)
+        case "swift":
+            return highlightProgrammingLine(
+                raw,
+                commentMarker: "//",
+                keywords: swiftKeywords,
+                literals: commonLiterals
+            )
+        case "javascript", "typescript":
+            return highlightProgrammingLine(
+                raw,
+                commentMarker: "//",
+                keywords: javascriptKeywords,
+                literals: commonLiterals
+            )
+        case "python":
+            return highlightProgrammingLine(
+                raw,
+                commentMarker: "#",
+                keywords: pythonKeywords,
+                literals: pythonLiterals
+            )
+        case "bash":
+            return highlightProgrammingLine(
+                raw,
+                commentMarker: "#",
+                keywords: bashKeywords,
+                literals: commonLiterals
+            )
+        case "sql":
+            return highlightProgrammingLine(
+                raw,
+                commentMarker: "--",
+                keywords: sqlKeywords,
+                literals: commonLiterals,
+                caseInsensitiveKeywords: true
+            )
+        case "yaml", "toml", "ini":
+            return highlightConfigLine(raw)
+        case "xml":
+            return highlightXMLLine(raw)
+        case "css":
+            return highlightCSSLine(raw)
+        case "diff":
+            return highlightDiffLine(raw)
+        case "markdown":
+            return highlightMarkdownSourceLine(raw)
+        default:
+            return escapeHTML(raw)
+        }
+    }
+
+    private static func span(_ className: String, _ raw: String) -> String {
+        "<span class=\"\(className)\">\(escapeHTML(raw))</span>"
+    }
+
+    private static func highlightJSONLine(_ raw: String) -> String {
+        var output = ""
+        var index = raw.startIndex
+
+        while index < raw.endIndex {
+            let character = raw[index]
+            if character == "\"" {
+                let end = stringEnd(in: raw, from: index, quote: "\"")
+                let token = String(raw[index..<end])
+                let rest = raw[end...].trimmingCharacters(in: .whitespaces)
+                output += span(rest.hasPrefix(":") ? "tok-property" : "tok-string", token)
+                index = end
+                continue
+            }
+
+            if character.isNumber || character == "-" {
+                let end = raw[index...].firstIndex { char in
+                    !(char.isNumber || char == "." || char == "-" || char == "+" || char == "e" || char == "E")
+                } ?? raw.endIndex
+                output += span("tok-number", String(raw[index..<end]))
+                index = end
+                continue
+            }
+
+            if let literal = matchingLiteral(in: raw, from: index, literals: commonLiterals) {
+                output += span(literal == "null" ? "tok-null" : "tok-boolean", literal)
+                index = raw.index(index, offsetBy: literal.count)
+                continue
+            }
+
+            if "{}[]:,".contains(character) {
+                output += span("tok-punctuation", String(character))
+            } else {
+                output += escapeHTML(String(character))
+            }
+            index = raw.index(after: index)
+        }
+
+        return output
+    }
+
+    private static func highlightProgrammingLine(
+        _ raw: String,
+        commentMarker: String,
+        keywords: Set<String>,
+        literals: Set<String>,
+        caseInsensitiveKeywords: Bool = false
+    ) -> String {
+        var output = ""
+        var index = raw.startIndex
+
+        while index < raw.endIndex {
+            if raw[index...].hasPrefix(commentMarker) {
+                output += span("tok-comment", String(raw[index...]))
+                break
+            }
+
+            let character = raw[index]
+            if character == "\"" || character == "'" {
+                let end = stringEnd(in: raw, from: index, quote: character)
+                output += span("tok-string", String(raw[index..<end]))
+                index = end
+                continue
+            }
+
+            if character.isNumber {
+                let end = raw[index...].firstIndex { char in
+                    !(char.isNumber || char == "." || char == "_" || char == "x" || char == "X" ||
+                      char == "b" || char == "B" || char == "e" || char == "E" || char.isHexDigit)
+                } ?? raw.endIndex
+                output += span("tok-number", String(raw[index..<end]))
+                index = end
+                continue
+            }
+
+            if isIdentifierStart(character) {
+                let end = raw[index...].firstIndex { !isIdentifierPart($0) } ?? raw.endIndex
+                let word = String(raw[index..<end])
+                let lookup = caseInsensitiveKeywords ? word.uppercased() : word
+                if keywords.contains(lookup) {
+                    output += span("tok-keyword", word)
+                } else if literals.contains(word) || literals.contains(word.lowercased()) {
+                    output += span(word.lowercased() == "null" || word.lowercased() == "nil" ? "tok-null" : "tok-boolean", word)
+                } else {
+                    output += escapeHTML(word)
+                }
+                index = end
+                continue
+            }
+
+            output += escapeHTML(String(character))
+            index = raw.index(after: index)
+        }
+
+        return output
+    }
+
+    private static func highlightConfigLine(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("#") || trimmed.hasPrefix(";") {
+            return span("tok-comment", raw)
+        }
+        if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+            return span("tok-section", raw)
+        }
+
+        let separator = raw.firstIndex { $0 == ":" || $0 == "=" }
+        guard let separator else {
+            return highlightProgrammingLine(raw, commentMarker: "#", keywords: [], literals: commonLiterals)
+        }
+
+        let key = String(raw[..<separator])
+        let valueStart = raw.index(after: separator)
+        let value = String(raw[valueStart...])
+        return span("tok-property", key) +
+            span("tok-punctuation", String(raw[separator])) +
+            highlightProgrammingLine(value, commentMarker: "#", keywords: [], literals: commonLiterals)
+    }
+
+    private static func highlightXMLLine(_ raw: String) -> String {
+        var output = ""
+        var index = raw.startIndex
+
+        while index < raw.endIndex {
+            guard raw[index] == "<", let close = raw[index...].firstIndex(of: ">") else {
+                output += escapeHTML(String(raw[index]))
+                index = raw.index(after: index)
+                continue
+            }
+
+            let tag = String(raw[index...close])
+            output += highlightXMLTag(tag)
+            index = raw.index(after: close)
+        }
+
+        return output
+    }
+
+    private static func highlightXMLTag(_ raw: String) -> String {
+        var output = ""
+        var index = raw.startIndex
+
+        while index < raw.endIndex {
+            let character = raw[index]
+            if character == "<" || character == ">" || character == "/" || character == "=" {
+                output += span("tok-punctuation", String(character))
+                index = raw.index(after: index)
+                continue
+            }
+
+            if character == "\"" || character == "'" {
+                let end = stringEnd(in: raw, from: index, quote: character)
+                output += span("tok-string", String(raw[index..<end]))
+                index = end
+                continue
+            }
+
+            if isIdentifierStart(character) {
+                let end = raw[index...].firstIndex { !(isIdentifierPart($0) || $0 == "-" || $0 == ":") } ?? raw.endIndex
+                let token = String(raw[index..<end])
+                let previous = raw[..<index].trimmingCharacters(in: .whitespaces)
+                output += span(previous.hasSuffix("<") || previous.hasSuffix("</") ? "tok-tag" : "tok-attr", token)
+                index = end
+                continue
+            }
+
+            output += escapeHTML(String(character))
+            index = raw.index(after: index)
+        }
+
+        return output
+    }
+
+    private static func highlightCSSLine(_ raw: String) -> String {
+        if let commentStart = raw.range(of: "/*") {
+            let before = String(raw[..<commentStart.lowerBound])
+            let comment = String(raw[commentStart.lowerBound...])
+            return highlightCSSLine(before) + span("tok-comment", comment)
+        }
+
+        if let colon = raw.firstIndex(of: ":") {
+            let property = String(raw[..<colon])
+            let value = String(raw[raw.index(after: colon)...])
+            return span("tok-property", property) + span("tok-punctuation", ":") +
+                highlightProgrammingLine(value, commentMarker: "/*", keywords: [], literals: commonLiterals)
+        }
+
+        return highlightProgrammingLine(raw, commentMarker: "/*", keywords: cssKeywords, literals: commonLiterals)
+    }
+
+    private static func highlightDiffLine(_ raw: String) -> String {
+        if raw.hasPrefix("+") {
+            return span("tok-add", raw)
+        }
+        if raw.hasPrefix("-") {
+            return span("tok-delete", raw)
+        }
+        if raw.hasPrefix("@@") || raw.hasPrefix("diff ") || raw.hasPrefix("index ") {
+            return span("tok-section", raw)
+        }
+        return escapeHTML(raw)
+    }
+
+    private static func highlightMarkdownSourceLine(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("#") || trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+            return span("tok-section", raw)
+        }
+        if trimmed.hasPrefix(">") {
+            return span("tok-comment", raw)
+        }
+        return renderInlineSourceEmphasis(raw)
+    }
+
+    private static func renderInlineSourceEmphasis(_ raw: String) -> String {
+        var output = ""
+        var index = raw.startIndex
+        while index < raw.endIndex {
+            if raw[index] == "`", let close = raw[raw.index(after: index)...].firstIndex(of: "`") {
+                output += span("tok-string", String(raw[index...close]))
+                index = raw.index(after: close)
+                continue
+            }
+            output += escapeHTML(String(raw[index]))
+            index = raw.index(after: index)
+        }
+        return output
+    }
+
+    private static func stringEnd(in raw: String, from start: String.Index, quote: Character) -> String.Index {
+        var index = raw.index(after: start)
+        var escaped = false
+        while index < raw.endIndex {
+            let character = raw[index]
+            if escaped {
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == quote {
+                return raw.index(after: index)
+            }
+            index = raw.index(after: index)
+        }
+        return raw.endIndex
+    }
+
+    private static func matchingLiteral(in raw: String, from index: String.Index, literals: Set<String>) -> String? {
+        for literal in literals where raw[index...].hasPrefix(literal) {
+            let end = raw.index(index, offsetBy: literal.count)
+            if end == raw.endIndex || !isIdentifierPart(raw[end]) {
+                return literal
+            }
+        }
+        return nil
+    }
+
+    private static func isIdentifierStart(_ character: Character) -> Bool {
+        character.isLetter || character == "_" || character == "$"
+    }
+
+    private static func isIdentifierPart(_ character: Character) -> Bool {
+        isIdentifierStart(character) || character.isNumber
+    }
+
+    private static let commonLiterals: Set<String> = ["true", "false", "null", "nil"]
+    private static let swiftKeywords: Set<String> = [
+        "actor", "as", "associatedtype", "await", "break", "case", "catch", "class", "continue",
+        "default", "defer", "do", "else", "enum", "extension", "fallthrough", "false", "fileprivate",
+        "for", "func", "guard", "if", "import", "in", "init", "inout", "internal", "is", "let",
+        "nil", "open", "operator", "private", "protocol", "public", "repeat", "return", "self",
+        "static", "struct", "subscript", "super", "switch", "throw", "throws", "true", "try",
+        "typealias", "var", "where", "while"
+    ]
+    private static let javascriptKeywords: Set<String> = [
+        "async", "await", "break", "case", "catch", "class", "const", "continue", "default",
+        "delete", "do", "else", "export", "extends", "finally", "for", "from", "function", "if",
+        "import", "in", "instanceof", "interface", "let", "new", "of", "return", "switch", "throw",
+        "try", "type", "typeof", "var", "void", "while", "with", "yield"
+    ]
+    private static let pythonKeywords: Set<String> = [
+        "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif",
+        "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda",
+        "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"
+    ]
+    private static let pythonLiterals: Set<String> = ["True", "False", "None"]
+    private static let bashKeywords: Set<String> = [
+        "case", "do", "done", "elif", "else", "esac", "fi", "for", "function", "if", "in", "select",
+        "then", "until", "while"
+    ]
+    private static let sqlKeywords: Set<String> = [
+        "ALTER", "AND", "AS", "ASC", "BETWEEN", "BY", "CASE", "CREATE", "DELETE", "DESC", "DISTINCT",
+        "DROP", "ELSE", "END", "FROM", "GROUP", "HAVING", "IN", "INSERT", "INTO", "IS", "JOIN",
+        "LEFT", "LIKE", "LIMIT", "NOT", "NULL", "ON", "OR", "ORDER", "RIGHT", "SELECT", "SET",
+        "TABLE", "THEN", "UNION", "UPDATE", "VALUES", "WHEN", "WHERE"
+    ]
+    private static let cssKeywords: Set<String> = [
+        "display", "grid", "flex", "block", "none", "relative", "absolute", "fixed", "sticky",
+        "var", "calc", "repeat", "minmax"
+    ]
+
     private static func renderStaticMarkdown(_ source: String) -> String {
         var html: [String] = []
         var paragraph: [String] = []
@@ -464,17 +886,29 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
 
         func closeFence() {
             guard inFence else { return }
-            html.append(
-                """
-                <pre><code class="language-\(escapeHTML(fenceLanguage))" data-highlight-language="\(escapeHTML(fenceLanguage))">\(escapeHTML(fenceLines.joined(separator: "\n")))</code></pre>
-                """
-            )
+            if isTrustedHTMLFenceLanguage(fenceLanguage),
+               let severityBarHTML = sanitizedSeverityBarHTML(from: fenceLines) {
+                html.append(severityBarHTML)
+            } else {
+                let highlightedFence = fenceLines
+                    .map { highlightSourceLine($0, language: fenceLanguage) }
+                    .joined(separator: "\n")
+                html.append(
+                    """
+                    <pre><code class="language-\(escapeHTML(fenceLanguage))" data-highlight-language="\(escapeHTML(fenceLanguage))" data-static-highlight="true">\(highlightedFence)</code></pre>
+                    """
+                )
+            }
             inFence = false
             fenceLanguage = "plaintext"
             fenceLines.removeAll()
         }
 
-        for rawLine in source.components(separatedBy: .newlines) {
+        let sourceLines = source.components(separatedBy: .newlines)
+        var lineIndex = 0
+        while lineIndex < sourceLines.count {
+            let rawLine = sourceLines[lineIndex]
+            lineIndex += 1
             let line = rawLine.trimmingCharacters(in: .whitespaces)
 
             if line.hasPrefix("```") || line.hasPrefix("~~~") {
@@ -492,6 +926,14 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
 
             if inFence {
                 fenceLines.append(rawLine)
+                continue
+            }
+
+            if let severityBar = trustedSeverityBarBlock(in: sourceLines, startingAt: lineIndex - 1) {
+                closeParagraph()
+                closeList()
+                html.append(severityBar.html)
+                lineIndex = severityBar.nextIndex
                 continue
             }
 
@@ -552,6 +994,87 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         closeParagraph()
         closeList()
         return html.joined(separator: "\n")
+    }
+
+    private static func isTrustedHTMLFenceLanguage(_ language: String) -> Bool {
+        language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "{=html}"
+    }
+
+    private static func trustedSeverityBarBlock(
+        in lines: [String],
+        startingAt startIndex: Int
+    ) -> (html: String, nextIndex: Int)? {
+        guard startIndex < lines.count,
+              lines[startIndex].trimmingCharacters(in: .whitespaces) == "<div class=\"sevbar\">" else {
+            return nil
+        }
+
+        var blockLines = [lines[startIndex]]
+        var index = startIndex + 1
+        while index < lines.count, blockLines.count < 16 {
+            blockLines.append(lines[index])
+            if lines[index].trimmingCharacters(in: .whitespaces) == "</div>" {
+                guard let html = sanitizedSeverityBarHTML(from: blockLines) else {
+                    return nil
+                }
+                return (html, index + 1)
+            }
+            index += 1
+        }
+        return nil
+    }
+
+    private static func sanitizedSeverityBarHTML(from lines: [String]) -> String? {
+        guard lines.count >= 3,
+              lines.first?.trimmingCharacters(in: .whitespaces) == "<div class=\"sevbar\">",
+              lines.last?.trimmingCharacters(in: .whitespaces) == "</div>" else {
+            return nil
+        }
+
+        let allowedSeverityClasses = Set(["c-critical", "c-high", "c-medium", "c-low"])
+        let cellPattern = #"^\s*<div\s+class="cell\s+(c-[a-z]+)">\s*<span\s+class="n">([^<>]{1,32})</span>\s*<span\s+class="l">([^<>]{1,64})</span>\s*</div>\s*$"#
+        guard let cellExpression = try? NSRegularExpression(pattern: cellPattern) else {
+            return nil
+        }
+
+        var cells: [String] = []
+        for rawLine in lines.dropFirst().dropLast() {
+            let fullRange = NSRange(rawLine.startIndex..<rawLine.endIndex, in: rawLine)
+            guard let match = cellExpression.firstMatch(in: rawLine, range: fullRange),
+                  match.range == fullRange,
+                  let severityRange = Range(match.range(at: 1), in: rawLine),
+                  let countRange = Range(match.range(at: 2), in: rawLine),
+                  let labelRange = Range(match.range(at: 3), in: rawLine) else {
+                return nil
+            }
+
+            let severityClass = String(rawLine[severityRange])
+            guard allowedSeverityClasses.contains(severityClass) else {
+                return nil
+            }
+
+            let count = escapeHTML(String(rawLine[countRange]).trimmingCharacters(in: .whitespacesAndNewlines))
+            let label = escapeHTML(String(rawLine[labelRange]).trimmingCharacters(in: .whitespacesAndNewlines))
+            guard !count.isEmpty, !label.isEmpty else {
+                return nil
+            }
+
+            cells.append(
+                """
+                  <div class="cell \(severityClass)"><span class="n">\(count)</span><span class="l">\(label)</span></div>
+                """
+            )
+        }
+
+        guard !cells.isEmpty else {
+            return nil
+        }
+
+        return """
+        <div class="sevbar">
+        \(cells.joined(separator: "\n"))
+        </div>
+        """
     }
 
     private static func headingParts(from line: String) -> (level: Int, text: String)? {

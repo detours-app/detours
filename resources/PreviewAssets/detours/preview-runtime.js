@@ -24,6 +24,11 @@
       return;
     }
 
+    if (target.innerHTML.trim().length > 0) {
+      disableNavigation(target);
+      return;
+    }
+
     var md = window.markdownit({ html: false, linkify: false, typographer: false });
     md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
       tokens[idx].attrs = [["class", "inert-link"], ["role", "text"]];
@@ -40,6 +45,9 @@
 
   function renderSource() {
     document.querySelectorAll("code[data-highlight-language]").forEach(function (block) {
+      if (block.getAttribute("data-static-highlight") === "true") {
+        return;
+      }
       if (window.hljs) {
         window.hljs.highlightElement(block);
       }

@@ -29,6 +29,55 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("id=\"wrap-toggle\" for=\"source-wrap-toggle\""))
     }
 
+    func testCodePreviewIncludesStaticSyntaxHighlighting() async throws {
+        let source = try write("main.swift", "let value = \"hello\"\nif value.isEmpty { return }\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "main.swift"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("data-static-highlight=\"true\""))
+        XCTAssertTrue(html.contains("<span class=\"tok-keyword\">let</span> value = <span class=\"tok-string\">&quot;hello&quot;</span>"))
+        XCTAssertTrue(html.contains("<span class=\"tok-keyword\">if</span> value.isEmpty"))
+        XCTAssertTrue(html.contains("<span class=\"tok-keyword\">return</span>"))
+    }
+
+    func testJSONPreviewIncludesStaticSyntaxHighlighting() async throws {
+        let source = try write("config.json", "{\n  \"enabled\": true,\n  \"threshold\": 12,\n  \"name\": \"detours\"\n}\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "config.json"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+        let themeCSS = try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/theme.css"), encoding: .utf8)
+
+        XCTAssertTrue(html.contains("class=\"language-json\""))
+        XCTAssertTrue(html.contains("<span class=\"tok-property\">&quot;enabled&quot;</span><span class=\"tok-punctuation\">:</span> <span class=\"tok-boolean\">true</span>"))
+        XCTAssertTrue(html.contains("<span class=\"tok-property\">&quot;threshold&quot;</span><span class=\"tok-punctuation\">:</span> <span class=\"tok-number\">12</span>"))
+        XCTAssertTrue(html.contains("<span class=\"tok-string\">&quot;detours&quot;</span>"))
+        XCTAssertTrue(themeCSS.contains("--detours-token-keyword: #0000FF;"))
+        XCTAssertTrue(themeCSS.contains("--detours-token-string: #A31515;"))
+
+        if let exportPath = ProcessInfo.processInfo.environment["DETOURS_EXPORT_JSON_PREVIEW"] {
+            let exportURL = URL(fileURLWithPath: exportPath)
+            try? FileManager.default.removeItem(at: exportURL)
+            try FileManager.default.createDirectory(at: exportURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: previewURL.deletingLastPathComponent(), to: exportURL)
+        }
+    }
+
+    func testDarkThemeUsesVSCodeDarkSyntaxPalette() async throws {
+        let source = try write("dark-config.json", "{\n  \"enabled\": true,\n  \"name\": \"detours\"\n}\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "dark-config.json", theme: .dark))
+        let themeCSS = try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/theme.css"), encoding: .utf8)
+
+        XCTAssertTrue(themeCSS.contains("--detours-token-keyword: #569CD6;"))
+        XCTAssertTrue(themeCSS.contains("--detours-token-string: #CE9178;"))
+        XCTAssertTrue(themeCSS.contains("--detours-token-comment: #6A9955;"))
+
+        if let exportPath = ProcessInfo.processInfo.environment["DETOURS_EXPORT_DARK_JSON_PREVIEW"] {
+            let exportURL = URL(fileURLWithPath: exportPath)
+            try? FileManager.default.removeItem(at: exportURL)
+            try FileManager.default.createDirectory(at: exportURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: previewURL.deletingLastPathComponent(), to: exportURL)
+        }
+    }
+
     func testMarkdownPreviewRendersAndIncludesSourceToggle() async throws {
         let source = try write("README.md", "# Title\n\nBody with **bold** and *italic* text")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "README.md"))
@@ -73,6 +122,99 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("<span class=\"inert-link\">leave</span>"))
         XCTAssertTrue(html.contains("<span class=\"blocked-image\">Image blocked: remote</span>"))
         XCTAssertTrue(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"))
+    }
+
+    func testMarkdownSeverityBarRendersTrustedComponent() async throws {
+        let markdown = """
+        # Report
+
+        <div class="sevbar">
+          <div class="cell c-critical"><span class="n">2</span><span class="l">Critical</span></div>
+          <div class="cell c-high"><span class="n">10</span><span class="l">High</span></div>
+          <div class="cell c-medium"><span class="n">12</span><span class="l">Medium</span></div>
+          <div class="cell c-low"><span class="n">10</span><span class="l">Low</span></div>
+        </div>
+        """
+        let source = try write("report.md", markdown)
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "report.md"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+        let css = try String(
+            contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(html.contains("<div class=\"sevbar\">"))
+        XCTAssertTrue(html.contains("<div class=\"cell c-critical\"><span class=\"n\">2</span><span class=\"l\">Critical</span></div>"))
+        XCTAssertTrue(html.contains("<div class=\"cell c-high\"><span class=\"n\">10</span><span class=\"l\">High</span></div>"))
+        XCTAssertTrue(css.contains(".markdown-body .sevbar"))
+        XCTAssertTrue(css.contains(".markdown-body .sevbar .c-critical"))
+
+        if let exportPath = ProcessInfo.processInfo.environment["DETOURS_EXPORT_SEVBAR_PREVIEW"] {
+            let exportURL = URL(fileURLWithPath: exportPath)
+            try? FileManager.default.removeItem(at: exportURL)
+            try FileManager.default.createDirectory(at: exportURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: previewURL.deletingLastPathComponent(), to: exportURL)
+        }
+    }
+
+    func testMarkdownSeverityBarRendersTrustedPandocRawHTMLFence() async throws {
+        let markdown = """
+        # Report
+
+        ```{=html}
+        <div class="sevbar">
+          <div class="cell c-critical"><span class="n">2</span><span class="l">Critical</span></div>
+          <div class="cell c-high"><span class="n">10</span><span class="l">High</span></div>
+          <div class="cell c-medium"><span class="n">12</span><span class="l">Medium</span></div>
+          <div class="cell c-low"><span class="n">10</span><span class="l">Low</span></div>
+        </div>
+        ```
+        """
+        let source = try write("pandoc-report.md", markdown)
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "pandoc-report.md"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("<div class=\"sevbar\">"))
+        XCTAssertTrue(html.contains("<div class=\"cell c-critical\"><span class=\"n\">2</span><span class=\"l\">Critical</span></div>"))
+        XCTAssertFalse(html.contains("<pre><code class=\"language-{=html}\""))
+
+        if let exportPath = ProcessInfo.processInfo.environment["DETOURS_EXPORT_PANDOC_SEVBAR_PREVIEW"] {
+            let exportURL = URL(fileURLWithPath: exportPath)
+            try? FileManager.default.removeItem(at: exportURL)
+            try FileManager.default.createDirectory(at: exportURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: previewURL.deletingLastPathComponent(), to: exportURL)
+        }
+    }
+
+    func testMarkdownSeverityBarRejectsUnsafeHTMLVariants() async throws {
+        let markdown = """
+        <div class="sevbar">
+          <div class="cell c-critical" onclick="alert(1)"><span class="n">2</span><span class="l">Critical</span></div>
+        </div>
+
+        <div class="sevbar">
+          <div class="cell c-critical"><span class="n"><img src=x onerror=alert(1)></span><span class="l">Critical</span></div>
+        </div>
+
+        <div class="sevbar">
+          <div class="cell c-unknown"><span class="n">1</span><span class="l">Unknown</span></div>
+        </div>
+
+        ```{=html}
+        <div class="sevbar">
+          <div class="cell c-critical" onclick="alert(1)"><span class="n">2</span><span class="l">Critical</span></div>
+        </div>
+        ```
+        """
+        let source = try write("unsafe-sevbar.md", markdown)
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "unsafe-sevbar.md"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        XCTAssertFalse(html.contains("<div class=\"cell c-critical\" onclick=\"alert(1)\">"))
+        XCTAssertFalse(html.contains("<img src=x onerror=alert(1)>"))
+        XCTAssertFalse(html.contains("<div class=\"cell c-unknown\">"))
+        XCTAssertTrue(html.contains("&lt;div class=&quot;sevbar&quot;&gt;"))
+        XCTAssertTrue(html.contains("&lt;img src=x onerror=alert(1)&gt;"))
     }
 
     func testLossyDecodeShowsWarning() async throws {
@@ -130,6 +272,14 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("src=\"support/highlight.min.js\""))
         XCTAssertTrue(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"), encoding: .utf8)
             .contains("#markdown-view-source:checked ~ #rendered-markdown"))
+        XCTAssertTrue(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"), encoding: .utf8)
+            .contains("color: var(--detours-token-keyword);"))
+        XCTAssertFalse(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"), encoding: .utf8)
+            .contains("prefers-color-scheme: dark"))
+        XCTAssertTrue(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview-runtime.js"), encoding: .utf8)
+            .contains("target.innerHTML.trim().length > 0"))
+        XCTAssertTrue(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview-runtime.js"), encoding: .utf8)
+            .contains("data-static-highlight"))
         XCTAssertFalse(html.contains("<script>"))
         XCTAssertFalse(html.contains("http://"))
         XCTAssertFalse(html.contains("https://"))

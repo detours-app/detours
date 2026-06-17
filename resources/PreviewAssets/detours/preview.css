@@ -135,6 +135,53 @@ button[aria-pressed="true"],
   overflow-wrap: anywhere;
 }
 
+.tok-keyword {
+  color: var(--detours-token-keyword);
+  font-weight: 600;
+}
+
+.tok-string {
+  color: var(--detours-token-string);
+}
+
+.tok-number,
+.tok-boolean,
+.tok-null {
+  color: var(--detours-token-number);
+}
+
+.tok-property,
+.tok-attr {
+  color: var(--detours-token-property);
+}
+
+.tok-comment {
+  color: var(--detours-token-comment);
+  font-style: italic;
+}
+
+.tok-punctuation {
+  color: var(--detours-token-punctuation);
+}
+
+.tok-tag {
+  color: var(--detours-token-tag);
+  font-weight: 600;
+}
+
+.tok-section {
+  color: var(--detours-token-section);
+  font-weight: 600;
+}
+
+.tok-add {
+  color: var(--detours-token-add);
+}
+
+.tok-delete {
+  color: var(--detours-token-delete);
+}
+
 .markdown-body {
   max-width: 920px;
   padding: 22px 34px 60px;
@@ -159,6 +206,63 @@ button[aria-pressed="true"],
   overflow-x: auto;
 }
 
+.markdown-body .sevbar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  margin: 18px 0;
+  border: 1px solid var(--detours-border);
+  border-radius: 7px;
+  background: var(--detours-surface);
+}
+
+.markdown-body .sevbar .cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-left: 1px solid var(--detours-border);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+}
+
+.markdown-body .sevbar .cell:first-child {
+  border-left: 0;
+}
+
+.markdown-body .sevbar .n {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.markdown-body .sevbar .l {
+  overflow: hidden;
+  color: var(--detours-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.markdown-body .sevbar .c-critical {
+  border-top: 3px solid #d73a49;
+}
+
+.markdown-body .sevbar .c-high {
+  border-top: 3px solid #f66a0a;
+}
+
+.markdown-body .sevbar .c-medium {
+  border-top: 3px solid #dbab09;
+}
+
+.markdown-body .sevbar .c-low {
+  border-top: 3px solid #2cbe4e;
+}
+
 .inert-link {
   color: var(--detours-accent);
 }
@@ -173,4 +277,14 @@ button[aria-pressed="true"],
 
 ::selection {
   background: var(--detours-selection);
+}
+
+@media (max-width: 560px) {
+  .markdown-body .sevbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .markdown-body .sevbar .cell:nth-child(odd) {
+    border-left: 0;
+  }
 }
