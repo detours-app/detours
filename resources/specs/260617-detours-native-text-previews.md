@@ -103,12 +103,12 @@ Highlight.js is browser-compatible, has no framework dependency, and supports br
 
 **Phase 3: Quick Look wiring**
 
-- [ ] **T14** Update `src/FileList/FileListViewController.swift` Quick Look state so local selected URLs are converted through `DetoursPreviewGenerator` into an ordered `quickLookPreviewURLs` array before the panel opens or reloads, while unsupported files keep their original URLs.
-- [ ] **T15** Update the remote Quick Look path in `src/FileList/FileListViewController.swift` so the downloaded cache file is converted through `DetoursPreviewGenerator` with the remote item name before assigning `remoteQuickLookPreviewURL`.
-- [ ] **T16** Preserve current remote Quick Look progress behavior: files under one megabyte download silently, files from one to one hundred megabytes show progress, and files above one hundred megabytes show the current too-large error before any download.
-- [ ] **T17** Preserve multiple-selection Quick Look order by tracking an ordered array of generated-or-original preview URLs and a request token instead of relying on live `selectedURLs` after asynchronous generation completes.
-- [ ] **T18** Cancel outstanding preview generation tasks when selection changes, the panel closes, the user navigates, or a remote Quick Look request is replaced; stale completions whose request token no longer matches leave the panel state unchanged.
-- [ ] **T19** On Detours theme changes, clear generated preview state for visible Quick Look panels and regenerate previews on the next reload.
+- [x] **T14** Update `src/FileList/FileListViewController.swift` Quick Look state so local selected URLs are converted through `DetoursPreviewGenerator` into an ordered `quickLookPreviewURLs` array before the panel opens or reloads, while unsupported files keep their original URLs.
+- [x] **T15** Update the remote Quick Look path in `src/FileList/FileListViewController.swift` so the downloaded cache file is converted through `DetoursPreviewGenerator` with the remote item name before assigning `remoteQuickLookPreviewURL`.
+- [x] **T16** Preserve current remote Quick Look progress behavior: files under one megabyte download silently, files from one to one hundred megabytes show progress, and files above one hundred megabytes show the current too-large error before any download.
+- [x] **T17** Preserve multiple-selection Quick Look order by tracking an ordered array of generated-or-original preview URLs and a request token instead of relying on live `selectedURLs` after asynchronous generation completes.
+- [x] **T18** Cancel outstanding preview generation tasks when selection changes, the panel closes, the user navigates, or a remote Quick Look request is replaced; stale completions whose request token no longer matches leave the panel state unchanged.
+- [x] **T19** On Detours theme changes, clear generated preview state for visible Quick Look panels and regenerate previews on the next reload.
 
 **Phase 4: Documentation and cleanup**
 
@@ -146,11 +146,11 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 ### Integration Tests (`Tests/FileListResponderTests.swift`, `Tests/RemoteFileProviderTests.swift`)
 
-- [ ] **T36** `testLocalQuickLookUsesGeneratedPreviewForSupportedTextFile` - local supported text files populate `quickLookPreviewURLs` with generated HTML preview URLs before the panel data source reports them.
-- [ ] **T37** `testLocalQuickLookKeepsOriginalURLForUnsupportedFile` - unsupported local files keep the system Quick Look URL path.
-- [ ] **T38** `testRemoteQuickLookGeneratesPreviewAfterDownload` - downloaded remote text files pass through the generator before the panel receives its preview URL.
-- [ ] **T39** `testRemoteQuickLookMaximumStillRejectsHugeFilesBeforeDownload` - remote files above one hundred megabytes still fail before transfer.
-- [ ] **T40** `testQuickLookSelectionChangeCancelsPreviewGeneration` - changing selection during generation cancels stale work and the panel receives only the newest selected file previews.
+- [x] **T36** `testLocalQuickLookUsesGeneratedPreviewForSupportedTextFile` - local supported text files populate `quickLookPreviewURLs` with generated HTML preview URLs before the panel data source reports them.
+- [x] **T37** `testLocalQuickLookKeepsOriginalURLForUnsupportedFile` - unsupported local files keep the system Quick Look URL path.
+- [x] **T38** `testRemoteQuickLookGeneratesPreviewAfterDownload` - downloaded remote text files pass through the generator before the panel receives its preview URL.
+- [x] **T39** `testRemoteQuickLookMaximumStillRejectsHugeFilesBeforeDownload` - remote files above one hundred megabytes still fail before transfer.
+- [x] **T40** `testQuickLookSelectionChangeCancelsPreviewGeneration` - changing selection during generation cancels stale work and the panel receives only the newest selected file previews.
 
 ### Build and Verification
 

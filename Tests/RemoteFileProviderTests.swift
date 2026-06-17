@@ -152,6 +152,10 @@ final class RemoteFileProviderTests: XCTestCase {
         XCTAssertEqual(messages, [.stat(path: RemotePath("/home/marco/huge.mov"))])
     }
 
+    func testRemoteQuickLookMaximumStillRejectsHugeFilesBeforeDownload() async throws {
+        try await testQuickLookRejectsFilesAboveMaximumBeforeDownload()
+    }
+
     func testQuickLookDownloadsOnDemand() async throws {
         let hostID = UUID()
         let stat = RemoteFileProvider.encodeFileEntries([

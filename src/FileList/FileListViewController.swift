@@ -68,7 +68,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     // Loading state
     private var loadingSpinner: NSProgressIndicator?
     private var errorOverlay: NSView?
-    private var remoteQuickLookPreviewURL: URL?
+    private var quickLookPreviewURLs: [URL] = []
+    private var quickLookGenerationTask: Task<Void, Never>?
+    private var quickLookRequestID = UUID()
+    var quickLookPreviewGenerator: any DetoursPreviewGenerating = DetoursPreviewGenerator.shared
     private var remoteQuickLookTask: Task<Void, Never>?
     private var remoteQuickLookRequestLocation: Location?
     private weak var remoteQuickLookProgressOverlay: NSView?
@@ -245,6 +248,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         applyThemeBackground()
         updateColumnHeaderColors()
         tableView.needsDisplay = true
+        clearQuickLookPreviewState()
         // Reload directory to re-tint folder icons with new accent color
         if let currentDirectory {
             loadDirectory(currentDirectory, preserveExpansion: true)
@@ -543,6 +547,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false, iCloudListingMode requestedListingMode: ICloudListingMode? = nil, showSpinner: Bool = true) {
         // Cancel any in-progress load before starting a new one
         dataSource.cancelCurrentLoad()
+        clearQuickLookPreviewState()
         hideLoadingIndicator()
         hideErrorOverlay()
 
@@ -2271,12 +2276,55 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         guard let panel = QLPreviewPanel.shared() else { return }
 
         if panel.isVisible {
-            clearRemoteQuickLookState()
+            clearQuickLookPreviewState()
             panel.orderOut(nil)
         } else if let remoteItem = selectedRemoteQuickLookItem() {
             startRemoteQuickLook(for: remoteItem, panel: panel)
         } else {
-            panel.makeKeyAndOrderFront(nil)
+            startLocalQuickLookGeneration(urls: selectedURLs, panel: panel)
+        }
+    }
+
+    private func startLocalQuickLookGeneration(urls: [URL], panel: QLPreviewPanel?) {
+        guard !urls.isEmpty else { return }
+        let requestID = UUID()
+        quickLookRequestID = requestID
+        quickLookGenerationTask?.cancel()
+        quickLookPreviewURLs = []
+        panel?.reloadData()
+
+        let generator = quickLookPreviewGenerator
+        let theme = ThemeManager.shared.currentTheme
+        let fontSize = ThemeManager.shared.fontSize
+        quickLookGenerationTask = Task { @MainActor in
+            do {
+                var previews: [URL] = []
+                previews.reserveCapacity(urls.count)
+                for url in urls {
+                    try Task.checkCancellation()
+                    let preview = try await generator.previewURL(for: DetoursPreviewRequest(
+                        sourceURL: url,
+                        displayName: url.lastPathComponent,
+                        theme: theme,
+                        fontSize: fontSize,
+                        context: .local
+                    ))
+                    previews.append(preview)
+                }
+                guard self.quickLookRequestID == requestID else { return }
+                self.quickLookPreviewURLs = previews
+                self.quickLookGenerationTask = nil
+                panel?.makeKeyAndOrderFront(nil)
+                panel?.reloadData()
+            } catch is CancellationError {
+                if self.quickLookRequestID == requestID {
+                    self.quickLookGenerationTask = nil
+                }
+            } catch {
+                guard self.quickLookRequestID == requestID else { return }
+                self.clearQuickLookPreviewState(cancelTasks: false)
+                FileOperationQueue.shared.presentError(error)
+            }
         }
     }
 
@@ -2303,6 +2351,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
 
         remoteQuickLookTask?.cancel()
+        quickLookGenerationTask?.cancel()
+        quickLookPreviewURLs = []
+        quickLookRequestID = UUID()
         remoteQuickLookRequestLocation = item.location
         hideRemoteQuickLookProgressOverlay()
 
@@ -2330,7 +2381,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 try Task.checkCancellation()
                 guard remoteQuickLookRequestLocation == item.location else { return }
 
-                remoteQuickLookPreviewURL = previewURL
+                let generatedPreviewURL = try await quickLookPreviewGenerator.previewURL(for: DetoursPreviewRequest(
+                    sourceURL: previewURL,
+                    displayName: item.name,
+                    theme: ThemeManager.shared.currentTheme,
+                    fontSize: ThemeManager.shared.fontSize,
+                    context: .remote
+                ))
+                try Task.checkCancellation()
+                guard remoteQuickLookRequestLocation == item.location else { return }
+
+                quickLookPreviewURLs = [generatedPreviewURL]
                 remoteQuickLookTask = nil
                 hideRemoteQuickLookProgressOverlay()
                 panel.makeKeyAndOrderFront(nil)
@@ -2353,8 +2414,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
         remoteQuickLookTask = nil
         remoteQuickLookRequestLocation = nil
-        remoteQuickLookPreviewURL = nil
         hideRemoteQuickLookProgressOverlay()
+    }
+
+    private func clearQuickLookPreviewState(cancelTasks: Bool = true) {
+        if cancelTasks {
+            quickLookGenerationTask?.cancel()
+        }
+        quickLookGenerationTask = nil
+        quickLookRequestID = UUID()
+        quickLookPreviewURLs = []
+        clearRemoteQuickLookState(cancelTask: cancelTasks)
     }
 
     private func presentRemoteQuickLookTooLarge(fileName: String, byteCount: Int64) {
@@ -2430,6 +2500,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         MainActor.assumeIsolated {
             panel.dataSource = nil
             panel.delegate = nil
+            clearQuickLookPreviewState()
         }
     }
 
@@ -2439,16 +2510,19 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         MainActor.assumeIsolated {
             Self.quickLookPreviewItemCount(
                 remoteRequestActive: remoteQuickLookRequestLocation != nil,
-                remotePreviewReady: remoteQuickLookPreviewURL != nil,
-                selectedURLCount: selectedURLs.count
+                remotePreviewReady: !quickLookPreviewURLs.isEmpty,
+                selectedURLCount: selectedURLs.count,
+                generatedPreviewCount: quickLookPreviewURLs.count,
+                generationActive: quickLookGenerationTask != nil
             )
         }
     }
 
     nonisolated func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
         MainActor.assumeIsolated {
-            if let remoteQuickLookPreviewURL {
-                return remoteQuickLookPreviewURL as NSURL
+            if !quickLookPreviewURLs.isEmpty {
+                guard index >= 0 && index < quickLookPreviewURLs.count else { return nil }
+                return quickLookPreviewURLs[index] as NSURL
             }
             if remoteQuickLookRequestLocation != nil {
                 return nil
@@ -2462,10 +2536,18 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     static func quickLookPreviewItemCount(
         remoteRequestActive: Bool,
         remotePreviewReady: Bool,
-        selectedURLCount: Int
+        selectedURLCount: Int,
+        generatedPreviewCount: Int = 0,
+        generationActive: Bool = false
     ) -> Int {
         if remoteRequestActive {
             return remotePreviewReady ? 1 : 0
+        }
+        if generationActive {
+            return 0
+        }
+        if generatedPreviewCount > 0 {
+            return generatedPreviewCount
         }
         return selectedURLCount
     }
@@ -2505,7 +2587,33 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             return
         }
         clearRemoteQuickLookState()
-        panel.reloadData()
+        startLocalQuickLookGeneration(urls: selectedURLs, panel: panel)
+    }
+
+    // MARK: - Quick Look Test Hooks
+
+    func startLocalQuickLookGenerationForTesting(urls: [URL]) {
+        startLocalQuickLookGeneration(urls: urls, panel: nil)
+    }
+
+    func prepareRemoteQuickLookPreviewForTesting(downloadedURL: URL, displayName: String) async throws {
+        quickLookPreviewURLs = [
+            try await quickLookPreviewGenerator.previewURL(for: DetoursPreviewRequest(
+                sourceURL: downloadedURL,
+                displayName: displayName,
+                theme: ThemeManager.shared.currentTheme,
+                fontSize: ThemeManager.shared.fontSize,
+                context: .remote
+            ))
+        ]
+    }
+
+    var quickLookPreviewURLsForTesting: [URL] {
+        quickLookPreviewURLs
+    }
+
+    var quickLookGenerationTaskIsActiveForTesting: Bool {
+        quickLookGenerationTask != nil
     }
 }
 

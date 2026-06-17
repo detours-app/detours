@@ -33,7 +33,11 @@ enum DetoursPreviewGeneratorError: Error, Equatable {
     case missingPreviewAssets(URL)
 }
 
-final class DetoursPreviewGenerator: @unchecked Sendable {
+protocol DetoursPreviewGenerating: AnyObject, Sendable {
+    func previewURL(for request: DetoursPreviewRequest) async throws -> URL
+}
+
+final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendable {
     static let shared = DetoursPreviewGenerator()
 
     private let fileManager: FileManager

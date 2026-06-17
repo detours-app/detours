@@ -37,6 +37,78 @@ final class FileListResponderTests: XCTestCase {
         )
     }
 
+    func testLocalQuickLookUsesGeneratedPreviewForSupportedTextFile() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "note.txt")
+        let generated = temp.appendingPathComponent("generated-preview.html")
+        let viewController = FileListViewController()
+        viewController.quickLookPreviewGenerator = FakeQuickLookPreviewGenerator(results: [source: generated])
+
+        viewController.startLocalQuickLookGenerationForTesting(urls: [source])
+        let completed = await waitForQuickLookGeneration(in: viewController)
+
+        XCTAssertTrue(completed)
+        XCTAssertEqual(viewController.quickLookPreviewURLsForTesting, [generated])
+        XCTAssertEqual(
+            FileListViewController.quickLookPreviewItemCount(
+                remoteRequestActive: false,
+                remotePreviewReady: false,
+                selectedURLCount: 1,
+                generatedPreviewCount: viewController.quickLookPreviewURLsForTesting.count
+            ),
+            1
+        )
+    }
+
+    func testLocalQuickLookKeepsOriginalURLForUnsupportedFile() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "image.png")
+        let viewController = FileListViewController()
+        viewController.quickLookPreviewGenerator = FakeQuickLookPreviewGenerator(results: [source: source])
+
+        viewController.startLocalQuickLookGenerationForTesting(urls: [source])
+        let completed = await waitForQuickLookGeneration(in: viewController)
+
+        XCTAssertTrue(completed)
+        XCTAssertEqual(viewController.quickLookPreviewURLsForTesting, [source])
+    }
+
+    func testRemoteQuickLookGeneratesPreviewAfterDownload() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let downloaded = try createTestFile(in: temp, name: "remote.md")
+        let generated = temp.appendingPathComponent("remote-generated.html")
+        let viewController = FileListViewController()
+        viewController.quickLookPreviewGenerator = FakeQuickLookPreviewGenerator(results: [downloaded: generated])
+
+        try await viewController.prepareRemoteQuickLookPreviewForTesting(downloadedURL: downloaded, displayName: "remote.md")
+
+        XCTAssertEqual(viewController.quickLookPreviewURLsForTesting, [generated])
+    }
+
+    func testQuickLookSelectionChangeCancelsPreviewGeneration() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let first = try createTestFile(in: temp, name: "first.txt")
+        let second = try createTestFile(in: temp, name: "second.txt")
+        let firstPreview = temp.appendingPathComponent("first-preview.html")
+        let secondPreview = temp.appendingPathComponent("second-preview.html")
+        let viewController = FileListViewController()
+        viewController.quickLookPreviewGenerator = FakeQuickLookPreviewGenerator(
+            results: [first: firstPreview, second: secondPreview],
+            delayNanoseconds: 50_000_000
+        )
+
+        viewController.startLocalQuickLookGenerationForTesting(urls: [first])
+        viewController.startLocalQuickLookGenerationForTesting(urls: [second])
+        let completed = await waitForQuickLookGeneration(in: viewController)
+
+        XCTAssertTrue(completed)
+        XCTAssertEqual(viewController.quickLookPreviewURLsForTesting, [secondPreview])
+    }
+
     func testTableViewIsInViewControllerHierarchy() throws {
         let (viewController, _, cleanup) = try makeViewControllerWithSelection()
         defer { cleanup() }
@@ -746,6 +818,16 @@ final class FileListResponderTests: XCTestCase {
         return loadSpy
     }
 
+    private func waitForQuickLookGeneration(in viewController: FileListViewController) async -> Bool {
+        for _ in 0..<100 {
+            if !viewController.quickLookGenerationTaskIsActiveForTesting {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return false
+    }
+
     private func makeKeyEvent(
         characters: String,
         keyCode: UInt16,
@@ -858,5 +940,22 @@ private final class NavigationDelegateSpy: FileListNavigationDelegate {
     func fileListDidLoadDirectory(_ controller: FileListViewController) {
         directoryLoadCount += 1
         onDidLoadDirectory?()
+    }
+}
+
+private final class FakeQuickLookPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendable {
+    private let results: [URL: URL]
+    private let delayNanoseconds: UInt64
+
+    init(results: [URL: URL], delayNanoseconds: UInt64 = 0) {
+        self.results = results
+        self.delayNanoseconds = delayNanoseconds
+    }
+
+    func previewURL(for request: DetoursPreviewRequest) async throws -> URL {
+        if delayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: delayNanoseconds)
+        }
+        return results[request.sourceURL] ?? request.sourceURL
     }
 }
