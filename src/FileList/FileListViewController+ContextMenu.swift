@@ -263,20 +263,18 @@ extension FileListViewController: FileListContextMenuDelegate {
 
     private func buildRemoteOpenWithMenu(for item: FileItem) -> NSMenu {
         let menu = NSMenu()
-        let codeApps = Self.installedVSCodeApplications()
+        let remoteApps = Self.installedRemoteEditorApplications()
 
-        for appURL in codeApps {
-            let appName = (try? appURL.resourceValues(forKeys: [.localizedNameKey]).localizedName)
-                ?? appURL.deletingPathExtension().lastPathComponent
-            let menuItem = NSMenuItem(title: appName, action: #selector(openRemoteWithVSCode(_:)), keyEquivalent: "")
+        for app in remoteApps {
+            let menuItem = NSMenuItem(title: app.displayName, action: #selector(openRemoteWithEditor(_:)), keyEquivalent: "")
             menuItem.target = self
-            menuItem.representedObject = RemoteVSCodeOpenRequest(appURL: appURL, location: item.location)
-            menuItem.image = NSWorkspace.shared.icon(forFile: appURL.path)
+            menuItem.representedObject = RemoteEditorOpenRequest(app: app, location: item.location)
+            menuItem.image = NSWorkspace.shared.icon(forFile: app.appURL.path)
             menuItem.image?.size = NSSize(width: 16, height: 16)
             menu.addItem(menuItem)
         }
 
-        if !codeApps.isEmpty {
+        if !remoteApps.isEmpty {
             menu.addItem(NSMenuItem.separator())
         }
         let otherItem = NSMenuItem(title: "Other...", action: #selector(openWithOtherApp(_:)), keyEquivalent: "")
@@ -325,23 +323,36 @@ extension FileListViewController: FileListContextMenuDelegate {
         ) { _, _ in }
     }
 
-    @objc private func openRemoteWithVSCode(_ sender: NSMenuItem) {
-        guard let request = sender.representedObject as? RemoteVSCodeOpenRequest else { return }
+    @objc private func openRemoteWithEditor(_ sender: NSMenuItem) {
+        guard let request = sender.representedObject as? RemoteEditorOpenRequest else { return }
         guard case .remote(let hostID, let path) = request.location,
               let host = RemoteHostStore.shared.host(id: hostID),
-              let remoteURL = Self.vsCodeRemoteURL(sshTarget: host.sshTarget, path: path) else {
-            openSelectedRemoteFile(applicationURL: request.appURL)
+              let remoteURL = request.app.remoteURL(sshTarget: host.sshTarget, path: path) else {
+            openSelectedRemoteFile(applicationURL: request.app.appURL)
             return
         }
 
         NSWorkspace.shared.open(
             [remoteURL],
-            withApplicationAt: request.appURL,
+            withApplicationAt: request.app.appURL,
             configuration: NSWorkspace.OpenConfiguration()
         ) { _, _ in }
     }
 
-    nonisolated static func vsCodeRemoteURL(sshTarget: String, path: String) -> URL? {
+    nonisolated static func remoteEditorURL(
+        scheme: RemoteEditorApplication.RemoteScheme,
+        sshTarget: String,
+        path: String
+    ) -> URL? {
+        switch scheme {
+        case .vscodeRemote(let urlScheme):
+            return vsCodeFamilyRemoteURL(urlScheme: urlScheme, sshTarget: sshTarget, path: path)
+        case .zedSSH:
+            return zedRemoteURL(sshTarget: sshTarget, path: path)
+        }
+    }
+
+    nonisolated private static func vsCodeFamilyRemoteURL(urlScheme: String, sshTarget: String, path: String) -> URL? {
         var targetAllowed = CharacterSet.urlPathAllowed
         targetAllowed.remove(charactersIn: "/+")
         let encodedTarget = sshTarget.addingPercentEncoding(withAllowedCharacters: targetAllowed) ?? sshTarget
@@ -349,41 +360,77 @@ extension FileListViewController: FileListContextMenuDelegate {
         let normalizedPath = path.hasPrefix("/") ? path : "/" + path
         let encodedPath = normalizedPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? normalizedPath
 
-        return URL(string: "vscode://vscode-remote/ssh-remote+\(encodedTarget)\(encodedPath)")
+        return URL(string: "\(urlScheme)://vscode-remote/ssh-remote+\(encodedTarget)\(encodedPath)")
     }
 
-    static func installedVSCodeApplications() -> [URL] {
-        let bundleIDs = [
-            "com.microsoft.VSCode",
-            "com.microsoft.VSCodeInsiders",
-        ]
-        let commonPaths = [
-            "/Applications/Visual Studio Code.app",
-            "/Applications/Visual Studio Code - Insiders.app",
-            "\(FileManager.default.homeDirectoryForCurrentUser.path)/Applications/Visual Studio Code.app",
-            "\(FileManager.default.homeDirectoryForCurrentUser.path)/Applications/Visual Studio Code - Insiders.app",
+    nonisolated private static func zedRemoteURL(sshTarget: String, path: String) -> URL? {
+        var targetAllowed = CharacterSet.urlPathAllowed
+        targetAllowed.remove(charactersIn: "/")
+        let encodedTarget = sshTarget.addingPercentEncoding(withAllowedCharacters: targetAllowed) ?? sshTarget
+
+        let normalizedPath = path.hasPrefix("/") ? path : "/" + path
+        let encodedPath = normalizedPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? normalizedPath
+
+        return URL(string: "zed://ssh/\(encodedTarget)\(encodedPath)")
+    }
+
+    static func installedRemoteEditorApplications() -> [RemoteEditorApplication] {
+        let candidates = [
+            RemoteEditorCandidate(
+                displayName: "Visual Studio Code",
+                bundleID: "com.microsoft.VSCode",
+                commonPaths: [
+                    "/Applications/Visual Studio Code.app",
+                    "\(FileManager.default.homeDirectoryForCurrentUser.path)/Applications/Visual Studio Code.app",
+                ],
+                scheme: .vscodeRemote(urlScheme: "vscode")
+            ),
+            RemoteEditorCandidate(
+                displayName: "Visual Studio Code - Insiders",
+                bundleID: "com.microsoft.VSCodeInsiders",
+                commonPaths: [
+                    "/Applications/Visual Studio Code - Insiders.app",
+                    "\(FileManager.default.homeDirectoryForCurrentUser.path)/Applications/Visual Studio Code - Insiders.app",
+                ],
+                scheme: .vscodeRemote(urlScheme: "vscode-insiders")
+            ),
+            RemoteEditorCandidate(
+                displayName: "Cursor",
+                bundleID: "com.todesktop.230313mzl4w4u92",
+                commonPaths: [
+                    "/Applications/Cursor.app",
+                    "\(FileManager.default.homeDirectoryForCurrentUser.path)/Applications/Cursor.app",
+                ],
+                scheme: .vscodeRemote(urlScheme: "cursor")
+            ),
+            RemoteEditorCandidate(
+                displayName: "Zed",
+                bundleID: "dev.zed.Zed",
+                commonPaths: [
+                    "/Applications/Zed.app",
+                    "\(FileManager.default.homeDirectoryForCurrentUser.path)/Applications/Zed.app",
+                ],
+                scheme: .zedSSH
+            ),
         ]
 
-        var urls: [URL] = []
-        let fileManager = FileManager.default
-        for bundleID in bundleIDs {
-            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
-               fileManager.fileExists(atPath: url.path) {
-                urls.append(url)
-            }
-        }
-        for path in commonPaths {
-            let url = URL(fileURLWithPath: path)
-            if fileManager.fileExists(atPath: url.path) {
-                urls.append(url)
-            }
-        }
-
+        var apps: [RemoteEditorApplication] = []
         var seen: Set<String> = []
-        return urls.filter { url in
-            let path = url.standardizedFileURL.path
-            return seen.insert(path).inserted
+        let fileManager = FileManager.default
+        for candidate in candidates {
+            let urls = ([NSWorkspace.shared.urlForApplication(withBundleIdentifier: candidate.bundleID)] + candidate.commonPaths.map {
+                URL(fileURLWithPath: $0)
+            }).compactMap { $0 }
+            for url in urls where fileManager.fileExists(atPath: url.path) {
+                let path = url.standardizedFileURL.path
+                guard seen.insert(path).inserted else { continue }
+                let appName = (try? url.resourceValues(forKeys: [.localizedNameKey]).localizedName)
+                    ?? candidate.displayName
+                apps.append(RemoteEditorApplication(displayName: appName, appURL: url, scheme: candidate.scheme))
+                break
+            }
         }
+        return apps
     }
 
     @objc private func openWithOtherApp(_ sender: NSMenuItem) {
@@ -451,12 +498,34 @@ extension FileListViewController: FileListContextMenuDelegate {
     }
 }
 
-private final class RemoteVSCodeOpenRequest: NSObject {
+struct RemoteEditorApplication: Equatable {
+    enum RemoteScheme: Equatable {
+        case vscodeRemote(urlScheme: String)
+        case zedSSH
+    }
+
+    let displayName: String
     let appURL: URL
+    let scheme: RemoteScheme
+
+    func remoteURL(sshTarget: String, path: String) -> URL? {
+        FileListViewController.remoteEditorURL(scheme: scheme, sshTarget: sshTarget, path: path)
+    }
+}
+
+private struct RemoteEditorCandidate {
+    let displayName: String
+    let bundleID: String
+    let commonPaths: [String]
+    let scheme: RemoteEditorApplication.RemoteScheme
+}
+
+private final class RemoteEditorOpenRequest: NSObject {
+    let app: RemoteEditorApplication
     let location: Location
 
-    init(appURL: URL, location: Location) {
-        self.appURL = appURL
+    init(app: RemoteEditorApplication, location: Location) {
+        self.app = app
         self.location = location
     }
 }

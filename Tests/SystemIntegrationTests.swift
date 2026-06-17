@@ -148,23 +148,42 @@ final class SystemIntegrationTests: XCTestCase {
         let openWithTitles = openWithItem?.submenu?.items.map(\.title) ?? []
         XCTAssertFalse(openWithTitles.contains("No Applications"), "Remote Open With should not be empty")
         XCTAssertTrue(openWithTitles.contains("Other..."), "Remote Open With should allow choosing an app")
-        if !FileListViewController.installedVSCodeApplications().isEmpty {
+        for app in FileListViewController.installedRemoteEditorApplications() {
             XCTAssertTrue(
-                openWithTitles.contains { $0.localizedCaseInsensitiveContains("Visual Studio Code") },
-                "Remote Open With should show VS Code when installed"
+                openWithTitles.contains(app.displayName),
+                "Remote Open With should show \(app.displayName) when installed"
             )
         }
     }
 
-    func testVSCodeRemoteURLUsesSSHTargetAndPath() throws {
-        let url = try XCTUnwrap(FileListViewController.vsCodeRemoteURL(
+    func testRemoteEditorURLsUseSSHTargetAndPath() throws {
+        let codeURL = try XCTUnwrap(FileListViewController.remoteEditorURL(
+            scheme: .vscodeRemote(urlScheme: "vscode"),
+            sshTarget: "foundry",
+            path: "/Users/smith/dev/detours/remote file.txt"
+        ))
+        let cursorURL = try XCTUnwrap(FileListViewController.remoteEditorURL(
+            scheme: .vscodeRemote(urlScheme: "cursor"),
+            sshTarget: "foundry",
+            path: "/Users/smith/dev/detours/remote file.txt"
+        ))
+        let zedURL = try XCTUnwrap(FileListViewController.remoteEditorURL(
+            scheme: .zedSSH,
             sshTarget: "foundry",
             path: "/Users/smith/dev/detours/remote file.txt"
         ))
 
         XCTAssertEqual(
-            url.absoluteString,
+            codeURL.absoluteString,
             "vscode://vscode-remote/ssh-remote+foundry/Users/smith/dev/detours/remote%20file.txt"
+        )
+        XCTAssertEqual(
+            cursorURL.absoluteString,
+            "cursor://vscode-remote/ssh-remote+foundry/Users/smith/dev/detours/remote%20file.txt"
+        )
+        XCTAssertEqual(
+            zedURL.absoluteString,
+            "zed://ssh/foundry/Users/smith/dev/detours/remote%20file.txt"
         )
     }
 
