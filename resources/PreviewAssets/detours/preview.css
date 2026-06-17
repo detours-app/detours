@@ -52,9 +52,41 @@ button {
   font: 12px -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
 }
 
-button[aria-pressed="true"] {
+button[aria-pressed="true"],
+#markdown-view-rendered:checked ~ .preview-toolbar label[for="markdown-view-rendered"],
+#markdown-view-source:checked ~ .preview-toolbar label[for="markdown-view-source"],
+#source-wrap-toggle:checked ~ .preview-toolbar label[for="source-wrap-toggle"] {
   border-color: var(--detours-accent);
   color: var(--detours-accent);
+}
+
+.view-toggle-input {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.view-toggle {
+  display: inline-block;
+  border: 1px solid var(--detours-border);
+  border-radius: 6px;
+  padding: 4px 9px;
+  background: var(--detours-surface);
+  color: var(--detours-text-primary);
+  font: 12px -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+  cursor: default;
+}
+
+#markdown-view-source:checked ~ #rendered-markdown,
+#markdown-view-rendered:checked ~ #source-preview {
+  display: none;
+}
+
+#source-wrap-toggle:checked ~ .source-table .line-code code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .warning,

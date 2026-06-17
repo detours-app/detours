@@ -220,9 +220,12 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         return htmlDocument(
             title: request.displayName,
             bodyClass: "source-preview",
+            controls: """
+            <input class="view-toggle-input" id="source-wrap-toggle" type="checkbox">
+            """,
             toolbar: """
             <span class="preview-title">\(Self.escapeHTML(request.displayName))</span>
-            <button id="wrap-toggle" type="button" aria-pressed="false">Wrap</button>
+            <label class="view-toggle" id="wrap-toggle" for="source-wrap-toggle">Wrap</label>
             """,
             body: """
             \(fallbackReason.map { "<div class=\"fallback-banner\">\(Self.escapeHTML($0))</div>" } ?? "")
@@ -251,23 +254,27 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         return htmlDocument(
             title: request.displayName,
             bodyClass: "markdown-preview",
+            controls: """
+            <input class="view-toggle-input" id="markdown-view-rendered" type="radio" name="markdown-view" checked>
+            <input class="view-toggle-input" id="markdown-view-source" type="radio" name="markdown-view">
+            """,
             toolbar: """
             <span class="preview-title">\(Self.escapeHTML(request.displayName))</span>
-            <button id="markdown-rendered-toggle" type="button" aria-pressed="true">Rendered</button>
-            <button id="markdown-source-toggle" type="button" aria-pressed="false">Source</button>
+            <label class="view-toggle" id="markdown-rendered-toggle" for="markdown-view-rendered">Rendered</label>
+            <label class="view-toggle" id="markdown-source-toggle" for="markdown-view-source">Source</label>
             """,
             body: """
             \(lossyWarning(lossyDecode))
             <template id="source-payload">\(Self.escapeHTML(source))</template>
             <main id="rendered-markdown" class="markdown-body">\(renderedMarkdown)</main>
-            <table id="source-preview" class="source-table" hidden><tbody>
+            <table id="source-preview" class="source-table"><tbody>
             \(sourceRows)
             </tbody></table>
             """
         )
     }
 
-    private func htmlDocument(title: String, bodyClass: String, toolbar: String, body: String) -> String {
+    private func htmlDocument(title: String, bodyClass: String, controls: String = "", toolbar: String, body: String) -> String {
         """
         <!doctype html>
         <html>
@@ -286,6 +293,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         </head>
         <body class="\(bodyClass)">
         <div class="preview-shell">
+        \(controls)
         <div class="preview-toolbar">\(toolbar)</div>
         \(body)
         </div>

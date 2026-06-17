@@ -25,8 +25,8 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertFalse(html.contains("<script>alert(1)</script>"))
         XCTAssertTrue(html.contains("line-number\">1</td>"))
         XCTAssertTrue(html.contains("line-number\">2</td>"))
-        XCTAssertTrue(html.contains("id=\"wrap-toggle\""))
-        XCTAssertTrue(html.contains("aria-pressed=\"false\""))
+        XCTAssertTrue(html.contains("id=\"source-wrap-toggle\" type=\"checkbox\""))
+        XCTAssertTrue(html.contains("id=\"wrap-toggle\" for=\"source-wrap-toggle\""))
     }
 
     func testMarkdownPreviewRendersAndIncludesSourceToggle() async throws {
@@ -37,10 +37,20 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("id=\"rendered-markdown\""))
         XCTAssertTrue(html.contains("<h1>Title</h1>"))
         XCTAssertTrue(html.contains("<p>Body with <strong>bold</strong> and <em>italic</em> text</p>"))
-        XCTAssertTrue(html.contains("id=\"markdown-rendered-toggle\""))
-        XCTAssertTrue(html.contains("id=\"markdown-source-toggle\""))
+        XCTAssertTrue(html.contains("id=\"markdown-view-rendered\" type=\"radio\" name=\"markdown-view\" checked"))
+        XCTAssertTrue(html.contains("id=\"markdown-view-source\" type=\"radio\" name=\"markdown-view\""))
+        XCTAssertTrue(html.contains("id=\"markdown-rendered-toggle\" for=\"markdown-view-rendered\""))
+        XCTAssertTrue(html.contains("id=\"markdown-source-toggle\" for=\"markdown-view-source\""))
         XCTAssertTrue(html.contains("id=\"source-payload\""))
+        XCTAssertFalse(html.contains("id=\"source-preview\" class=\"source-table\" hidden"))
         XCTAssertTrue(html.contains("# Title"))
+
+        if let exportPath = ProcessInfo.processInfo.environment["DETOURS_EXPORT_MARKDOWN_PREVIEW"] {
+            let exportURL = URL(fileURLWithPath: exportPath)
+            try? FileManager.default.removeItem(at: exportURL)
+            try FileManager.default.createDirectory(at: exportURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: previewURL.deletingLastPathComponent(), to: exportURL)
+        }
     }
 
     func testMarkdownRawHTMLAndExternalURLsAreInert() async throws {
@@ -118,6 +128,8 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("href=\"support/preview.css\""))
         XCTAssertTrue(html.contains("src=\"support/preview-runtime.js\""))
         XCTAssertTrue(html.contains("src=\"support/highlight.min.js\""))
+        XCTAssertTrue(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"), encoding: .utf8)
+            .contains("#markdown-view-source:checked ~ #rendered-markdown"))
         XCTAssertFalse(html.contains("<script>"))
         XCTAssertFalse(html.contains("http://"))
         XCTAssertFalse(html.contains("https://"))
