@@ -121,8 +121,8 @@ The legacy custom resize code was already deleted by commit `15a7821` and is abs
 
 **Phase 5: Passive 50/50 Divider Indicator**
 
-- [x] **T37** Add `src/Windows/PaneDividerSplitView.swift`, an `NSSplitView` subclass that overrides `drawDivider(in:)` to render the divider between the two content panes in the control accent color when the two content panes are within a small tolerance (2pt) of equal width, and otherwise calls `super.drawDivider(in:)`. Include a pure static decision helper (`showsEqualSplitIndicator(leftWidth:rightWidth:paneCount:tolerance:)`) so the threshold is unit-testable. The subclass overrides drawing only: no `setPosition`, no resize observers, no `splitViewDidResizeSubviews`, no persistence.
-- [ ] **T38** In `src/Windows/MainSplitViewController.swift`, inject the subclass by overriding `loadView()` to set `splitView = PaneDividerSplitView()` before `super.loadView()`, leaving the existing `isVertical`, `dividerStyle`, item setup, and `splitView.autosaveName` untouched. Add nothing else to `MainSplitViewController` (must not reintroduce any banned symbol checked by T27).
+- [x] **T37** Add `src/Windows/EqualSplitIndicatorView.swift`, a thin click-through accent `NSView` that shows itself only when the two content panes are within a small tolerance (2pt) of equal width. It observes the two pane views' `frameDidChangeNotification` and toggles its own `isHidden`; it overrides `hitTest(_:)` to return nil so it never intercepts clicks. Include a pure static decision helper (`showsEqualSplitIndicator(leftWidth:rightWidth:paneCount:tolerance:)`) so the threshold is unit-testable. No `setPosition`, no `NSSplitView` subclass, no persistence. (Implementation note: substituting the controller's managed `NSSplitView` with a subclass crashes `NSSplitViewController._setupSplitView`, so the indicator is an overlay rather than custom divider drawing.)
+- [x] **T38** In `src/Windows/MainSplitViewController.swift`, after the split items are added, pin one `EqualSplitIndicatorView` to the right pane view's leading edge (full height, `EqualSplitIndicatorView.thickness` wide) so it sits at the left/right divider. Leave the stock `splitView`, `isVertical`, `dividerStyle`, item setup, and `splitView.autosaveName` untouched. Add no `loadView` override and no banned symbol checked by T27 (no `splitView.setPosition`, no `splitViewDidResizeSubviews`).
 
 ---
 
@@ -154,7 +154,7 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 - [x] **T31** `testPaneDividerDragPersistsAcrossRelaunch` - Drag the left/right divider through UI automation, quit, relaunch, and verify the pane layout persists through AppKit split autosave.
 - [x] **T32** `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` - Seed invalid old split defaults, launch Detours, and verify both panes are usable and the divider remains draggable.
 
-### Equal-Split Indicator Tests (`Tests/PaneDividerSplitViewTests.swift`)
+### Equal-Split Indicator Tests (`Tests/EqualSplitIndicatorViewTests.swift`)
 
 - [x] **T39** `testIndicatorShowsWhenPanesEqual` - Equal content-pane widths (and within tolerance) return true from `showsEqualSplitIndicator`.
 - [x] **T40** `testIndicatorHiddenWhenPanesUneven` - Content-pane widths differing by more than the tolerance return false.

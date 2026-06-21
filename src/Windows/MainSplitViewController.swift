@@ -106,19 +106,6 @@ final class MainSplitViewController: NSSplitViewController {
         )
     }
 
-    override func loadView() {
-        // Use the custom split view so the divider between the two content panes
-        // can paint a passive equal-split indicator. NSSplitViewController manages
-        // its split view with Auto Layout, so the substitute must opt into it too
-        // (the default NSSplitView created by the controller has this set) — a
-        // custom split view left with translatesAutoresizingMaskIntoConstraints
-        // true throws during the controller's fitting-size measurement.
-        let customSplitView = PaneDividerSplitView()
-        customSplitView.translatesAutoresizingMaskIntoConstraints = false
-        splitView = customSplitView
-        super.loadView()
-    }
-
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -143,6 +130,8 @@ final class MainSplitViewController: NSSplitViewController {
 
         sidebarSplitViewItem = sidebarItem
         splitView.autosaveName = NSSplitView.AutosaveName(Self.splitViewAutosaveName)
+
+        addEqualSplitIndicator()
 
         isRestoringSession = true
         restoreSession()
@@ -384,6 +373,21 @@ final class MainSplitViewController: NSSplitViewController {
         }
         saveSessionWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: workItem)
+    }
+
+    /// Pins the passive 50/50 indicator at the divider (the right pane's leading
+    /// edge). The indicator toggles its own visibility from the panes' widths; it
+    /// never moves the divider or persists anything.
+    private func addEqualSplitIndicator() {
+        let indicator = EqualSplitIndicatorView(leftPane: leftPane.view, rightPane: rightPane.view)
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        rightPane.view.addSubview(indicator)
+        NSLayoutConstraint.activate([
+            indicator.leadingAnchor.constraint(equalTo: rightPane.view.leadingAnchor),
+            indicator.topAnchor.constraint(equalTo: rightPane.view.topAnchor),
+            indicator.bottomAnchor.constraint(equalTo: rightPane.view.bottomAnchor),
+            indicator.widthAnchor.constraint(equalToConstant: EqualSplitIndicatorView.thickness),
+        ])
     }
 
     // MARK: - Sidebar
