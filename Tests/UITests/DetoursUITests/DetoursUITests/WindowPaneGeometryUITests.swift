@@ -70,7 +70,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
         waitForPanes()
 
         let restoredSidebarBoundaryX = leftPaneOutline().frame.minX
-        let restoredDividerX = rightPaneOutline().frame.minX
+        let restoredDividerX = paneDivider().frame.midX
         XCTAssertEqual(restoredSidebarBoundaryX, persistedSidebarBoundaryX, accuracy: 16)
         XCTAssertEqual(restoredDividerX, persistedDividerX, accuracy: 16)
     }
@@ -93,40 +93,6 @@ final class WindowPaneGeometryUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(rightPaneOutline().frame.width, 180)
         _ = try dragSidebarDivider()
         _ = try dragPaneDivider()
-    }
-
-    func testDumpSplitGeometry() throws {
-        launchApp()
-        waitForPanes()
-        let window = mainWindow()
-        let sidebar = sidebarOutline()
-        let left = leftPaneOutline()
-        let right = rightPaneOutline()
-        NSLog("GEOMDUMP window=\(NSStringFromRect(window.frame))")
-        NSLog("GEOMDUMP sidebar=\(NSStringFromRect(sidebar.frame))")
-        NSLog("GEOMDUMP left=\(NSStringFromRect(left.frame))")
-        NSLog("GEOMDUMP right=\(NSStringFromRect(right.frame))")
-        NSLog("GEOMDUMP sidebar.maxX=\(sidebar.frame.maxX) left.minX=\(left.frame.minX) " +
-              "left.maxX=\(left.frame.maxX) right.minX=\(right.frame.minX) gap=\(right.frame.minX - left.frame.maxX)")
-        let groups = app.splitGroups
-        NSLog("GEOMDUMP splitGroups=\(groups.count)")
-        var gi = 0
-        while gi < groups.count {
-            NSLog("GEOMDUMP splitGroup[\(gi)]=\(NSStringFromRect(groups.element(boundBy: gi).frame))")
-            gi += 1
-        }
-        let splitters = app.descendants(matching: .splitter)
-        var summary = "GEOMDUMP window=\(NSStringFromRect(window.frame)) " +
-            "sidebar=\(NSStringFromRect(sidebar.frame)) left=\(NSStringFromRect(left.frame)) " +
-            "right=\(NSStringFromRect(right.frame)) " +
-            "leftMaxX=\(left.frame.maxX) rightMinX=\(right.frame.minX) gap=\(right.frame.minX - left.frame.maxX) " +
-            "splitGroups=\(groups.count) splitters=\(splitters.count)"
-        var si = 0
-        while si < splitters.count {
-            summary += " splitter[\(si)]=\(NSStringFromRect(splitters.element(boundBy: si).frame))"
-            si += 1
-        }
-        XCTFail(summary)
     }
 
     private func launchApp() {
@@ -155,6 +121,16 @@ final class WindowPaneGeometryUITests: XCTestCase {
 
     private func sidebarOutline() -> XCUIElement {
         app.outlines.matching(identifier: "sidebarOutlineView").firstMatch
+    }
+
+    /// The left/right pane divider, targeted as the rightmost AppKit split divider.
+    /// Outline frames are unreliable for locating it (their reported frames overlap
+    /// and overflow the window), so the splitter element is the source of truth.
+    private func paneDivider() -> XCUIElement {
+        let query = app.descendants(matching: .splitter)
+        let elements = (0..<query.count).map { query.element(boundBy: $0) }
+        return elements.max(by: { $0.frame.minX < $1.frame.minX })
+            ?? query.element(boundBy: max(query.count - 1, 0))
     }
 
     private func waitForPanes() {
@@ -248,23 +224,15 @@ final class WindowPaneGeometryUITests: XCTestCase {
 
     @discardableResult
     private func dragPaneDivider() throws -> CGFloat {
-        let left = leftPaneOutline()
-        let right = rightPaneOutline()
-        let originalDividerX = right.frame.minX
-        let dividerX = (left.frame.maxX + right.frame.minX) / 2
-        let dividerY = min(left.frame.midY, right.frame.midY)
-        let windowFrame = mainWindow().frame
-        let normalized = CGVector(
-            dx: (dividerX - windowFrame.minX) / windowFrame.width,
-            dy: (dividerY - windowFrame.minY) / windowFrame.height
-        )
-        let start = mainWindow().coordinate(withNormalizedOffset: normalized)
+        let divider = paneDivider()
+        let originalDividerX = divider.frame.midX
+        let start = divider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let end = start.withOffset(CGVector(dx: 90, dy: 0))
 
         start.press(forDuration: 0.2, thenDragTo: end)
         RunLoop.current.run(until: Date().addingTimeInterval(0.8))
 
-        let movedDividerX = rightPaneOutline().frame.minX
+        let movedDividerX = paneDivider().frame.midX
         guard abs(movedDividerX - originalDividerX) > 20 else {
             throw NSError(domain: "WindowPaneGeometryUITests", code: 4)
         }
