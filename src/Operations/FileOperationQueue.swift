@@ -637,13 +637,16 @@ final class FileOperationQueue {
         switch change.newState {
         case .failed:
             pausedRemoteHosts.insert(change.hostID)
+            // Only surface a pause when an operation is actually running against this
+            // host. An offline saved host at launch warmup must not paint a spurious
+            // "Paused — waiting for…" status when nothing is in flight.
             if currentRemoteOperationHosts.contains(change.hostID) {
                 currentRemoteOperationInterruptedHosts.insert(change.hostID)
                 currentCancelFlag?.cancel()
                 currentIOCancellable?.cancel()
                 currentProcess?.terminate()
+                publishRemotePause(for: change.hostID)
             }
-            publishRemotePause(for: change.hostID)
         case .connected:
             pausedRemoteHosts.remove(change.hostID)
             if operationPauseMessage != nil, pausedRemoteHosts.isEmpty {
@@ -675,6 +678,10 @@ final class FileOperationQueue {
     }
 
     #if DEBUG
+    func isRemoteHostPausedForTesting(_ hostID: UUID) -> Bool {
+        pausedRemoteHosts.contains(hostID)
+    }
+
     func resetRemoteQueueStateForTesting() {
         pending.removeAll()
         isRunning = false
