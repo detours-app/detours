@@ -114,9 +114,11 @@ resources/scripts/uitest.sh FolderExpansionUITests/testDisclosureTriangleExpand
 - Tests target the installed `/Applications/Detours.app`
 - The script builds the app first, then runs tests
 
-**UI Test Procedure (MANDATORY):**
+**XCUI runs on Foundry: NO permission gate, ever.** Foundry is the dedicated build/test machine and is not in active use, so XCUI tests run there freely without asking Marco for permission, including reruns after failure. Just sync Foundry, run the tests, and update `Tests/TEST_LOG.md`. Never run XCUI on Spectre.
 
-UI tests interrupt Marco's workflow. Follow this procedure exactly:
+**UI Test Procedure (MANDATORY, Spectre/local-focus runs only):**
+
+The ask-permission procedure below applies ONLY to UI test runs that would interrupt Marco's machine. It does NOT apply to Foundry XCUI runs (see the no-gate rule above). Follow this procedure exactly when a run would steal focus locally:
 
 1. **Check** - Review what tests need to be run
 2. **Check test log** - If test passed in the last 2-4 hours, do NOT rerun it. If you need to rerun a recent test, ask first.
@@ -188,7 +190,9 @@ rm -f temp.png temp2.png mask.png
 - Commit on Spectre first. Do not leave source changes as the source of truth on Foundry.
 - Before using Foundry for builds, screenshots, or runtime verification, check `git status --short --branch` and `git rev-parse HEAD` on both Spectre and Foundry.
 - Foundry must be clean and at the same commit as Spectre before runtime or screenshot work starts.
-- If files were temporarily copied to Foundry for staging, reconcile them by committing on Spectre, pushing, then updating Foundry to that commit.
+- **Sync Foundry with `git pull`.** When Foundry is clean (the normal case), bring it to the latest commit with `git fetch && git checkout <branch> && git pull`. A clean tree fast-forwards; this is the default and only sync command.
+- **Never `git reset --hard` a clean Foundry.** Reset is destructive and is reserved for the one case where Foundry is genuinely dirty or has diverged and `git pull` refuses to fast-forward. If you reach for reset on a clean tree, stop, you are overcomplicating it.
+- If files were temporarily copied to Foundry for staging, reconcile them by committing on Spectre, pushing, then `git pull` on Foundry.
 - Do not leave Foundry with uncommitted repo changes after a task. If Foundry is dirty, stop and cleanly reconcile it before continuing.
 
 ---
