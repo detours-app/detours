@@ -343,6 +343,7 @@ final class MainSplitViewController: NSSplitViewController {
 
     private var hasRestoredSplitPosition = false
     private var isRestoringSplitPosition = false
+    private var lastSplitViewWidth: CGFloat = 0
 
     override func viewDidAppear() {
         super.viewDidAppear()
@@ -952,7 +953,39 @@ final class MainSplitViewController: NSSplitViewController {
     override func splitViewDidResizeSubviews(_ notification: Notification) {
         // Don't save during initial layout or while restoring
         guard hasRestoredSplitPosition, !isRestoringSplitPosition else { return }
+
+        let currentWidth = splitView.bounds.width
+        defer { lastSplitViewWidth = currentWidth }
+
+        // The overall width changed (window resize, sidebar toggle): the two panes
+        // have equal holding priority, so AppKit would hand the entire delta to one
+        // pane and pin the other at its minimum. Re-apply the saved ratio instead so
+        // both panes scale proportionally.
+        if lastSplitViewWidth > 0, abs(currentWidth - lastSplitViewWidth) > 0.5 {
+            reapplySplitRatio()
+            return
+        }
+
+        // Width unchanged: the user dragged the divider. Persist the new ratio.
         saveSplitPosition()
+    }
+
+    /// Re-applies the saved left/right pane ratio at the current split view width,
+    /// keeping the divider proportional across window resizes.
+    private func reapplySplitRatio() {
+        guard defaults.object(forKey: SessionKeys.splitDividerPosition) != nil else { return }
+        let ratio = defaults.double(forKey: SessionKeys.splitDividerPosition)
+        guard ratio > 0, ratio < 1 else { return }
+
+        let sidebarWidth = sidebarItem.isCollapsed ? 0 : splitView.arrangedSubviews[0].frame.width
+        let divider = splitView.dividerThickness
+        let availableWidth = splitView.bounds.width - sidebarWidth - (divider * 2)
+        guard availableWidth > 0 else { return }
+
+        let divider1Position = sidebarWidth + divider + (availableWidth * ratio)
+        isRestoringSplitPosition = true
+        splitView.setPosition(divider1Position, ofDividerAt: 1)
+        isRestoringSplitPosition = false
     }
 
     override func splitView(
