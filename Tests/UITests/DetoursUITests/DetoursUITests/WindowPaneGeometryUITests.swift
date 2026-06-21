@@ -15,7 +15,6 @@ final class WindowPaneGeometryUITests: XCTestCase {
         try clearGeometryDefaults()
         app = XCUIApplication(bundleIdentifier: appBundleIdentifier)
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootName
-        app.launchEnvironment["DETOURS_DISABLE_EQUAL_SPLIT_INDICATOR"] = "1"
     }
 
     override func tearDownWithError() throws {
@@ -183,19 +182,24 @@ final class WindowPaneGeometryUITests: XCTestCase {
     private func resizeMainWindow() throws -> CGRect {
         let window = mainWindow()
         let originalFrame = window.frame
-        let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.99))
-        let end = start.withOffset(CGVector(dx: 90, dy: 70))
-        start.press(forDuration: 0.2, thenDragTo: end)
-        RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+        // Drag the bottom-right corner. Try growing first; if the window is already
+        // near the screen edge (small displays), grow is clamped, so fall back to
+        // shrinking, which always has room down to the minimum size.
+        for delta in [CGVector(dx: 90, dy: 70), CGVector(dx: -90, dy: -70)] {
+            let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.99))
+            let end = start.withOffset(delta)
+            start.press(forDuration: 0.2, thenDragTo: end)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.8))
 
-        let frame = window.frame
-        guard frame.width > 0, frame.height > 0 else {
-            throw NSError(domain: "WindowPaneGeometryUITests", code: 1)
+            let frame = window.frame
+            guard frame.width > 0, frame.height > 0 else {
+                throw NSError(domain: "WindowPaneGeometryUITests", code: 1)
+            }
+            if abs(frame.width - originalFrame.width) > 20 || abs(frame.height - originalFrame.height) > 20 {
+                return frame
+            }
         }
-        guard abs(frame.width - originalFrame.width) > 20 || abs(frame.height - originalFrame.height) > 20 else {
-            throw NSError(domain: "WindowPaneGeometryUITests", code: 2)
-        }
-        return frame
+        throw NSError(domain: "WindowPaneGeometryUITests", code: 2)
     }
 
     @discardableResult
@@ -230,19 +234,24 @@ final class WindowPaneGeometryUITests: XCTestCase {
 
     @discardableResult
     private func dragPaneDivider() throws -> CGFloat {
-        let divider = paneDivider()
-        let originalDividerX = divider.frame.midX
-        let start = divider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        let end = start.withOffset(CGVector(dx: 90, dy: 0))
+        let originalDividerX = paneDivider().frame.midX
+        // Try moving the divider right; if a pane is already at its minimum width
+        // (tight layouts on small displays), that direction is clamped, so fall
+        // back to moving left.
+        for dx in [CGFloat(90), CGFloat(-90)] {
+            let divider = paneDivider()
+            let start = divider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            let end = start.withOffset(CGVector(dx: dx, dy: 0))
 
-        start.press(forDuration: 0.2, thenDragTo: end)
-        RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+            start.press(forDuration: 0.2, thenDragTo: end)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.8))
 
-        let movedDividerX = paneDivider().frame.midX
-        guard abs(movedDividerX - originalDividerX) > 20 else {
-            throw NSError(domain: "WindowPaneGeometryUITests", code: 4)
+            let movedDividerX = paneDivider().frame.midX
+            if abs(movedDividerX - originalDividerX) > 20 {
+                return movedDividerX
+            }
         }
-        return movedDividerX
+        throw NSError(domain: "WindowPaneGeometryUITests", code: 4)
     }
 
     private func clearGeometryDefaults() throws {

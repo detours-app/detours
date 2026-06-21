@@ -131,9 +131,7 @@ final class MainSplitViewController: NSSplitViewController {
         sidebarSplitViewItem = sidebarItem
         splitView.autosaveName = NSSplitView.AutosaveName(Self.splitViewAutosaveName)
 
-        if ProcessInfo.processInfo.environment["DETOURS_DISABLE_EQUAL_SPLIT_INDICATOR"] == nil {
-            addEqualSplitIndicator()
-        }
+        addEqualSplitIndicator()
 
         isRestoringSession = true
         restoreSession()
