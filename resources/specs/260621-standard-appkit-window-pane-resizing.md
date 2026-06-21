@@ -26,6 +26,7 @@ Restore standard AppKit window and split-view behavior, with AppKit owning resiz
 - If saved geometry is too large, off-screen, or violates pane minimums, Detours silently starts with a sane default AppKit layout.
 - Startup shows the window once. It must not appear at one size and then jump to another size after launch.
 - Session restore, remote host warmup, file-list loading, and first layout must not save geometry as user intent.
+- When the two content panes are within a small tolerance of equal width, the divider between them shows a subtle accent indicator; otherwise it renders as the normal divider. This is a passive visual cue only and does not move, snap, or persist anything.
 
 ### Acceptance Criteria
 
@@ -38,6 +39,7 @@ Restore standard AppKit window and split-view behavior, with AppKit owning resiz
 - [x] **A7** Invalid saved split-view geometry never opens Detours with an unusable pane ratio.
 - [x] **A8** Launch and session restore do not save geometry unless the user actually resizes the window or drags a divider.
 - [x] **A9** The implementation uses standard AppKit window and split-view resizing, not a Detours-owned replacement layout system.
+- [ ] **A10** When the two content panes are equal width, the divider between them shows a distinct accent indicator; when they are not equal, the divider looks normal. The indicator never moves the divider or changes persistence.
 
 ### Out of scope
 
@@ -45,6 +47,7 @@ Restore standard AppKit window and split-view behavior, with AppKit owning resiz
 - Replacing AppKit split views with manual child-view frame layout.
 - Custom divider snapping or custom pane-ratio correction loops.
 - Warning dialogs for invalid saved layout.
+- An "equalize panes" command, keyboard shortcut, or toolbar button. The 50/50 signal is a passive indicator only; nothing programmatically sets the divider position.
 
 ---
 
@@ -116,6 +119,11 @@ The legacy custom resize code was already deleted by commit `15a7821` and is abs
 - [x] **T16** Keep the window shown exactly once via `showWindow(nil)` in `applicationDidFinishLaunching`; introduce no hidden-then-reveal path (no `orderOut`/delayed `makeKeyAndOrderFront`, no `alphaValue` fade-in). Launch capture (T28) must prove no jump.
 - [x] **T17** Ensure remote host warmup, file-list population, active-pane restoration, and first-responder restoration cannot resize the main window after first visibility.
 
+**Phase 5: Passive 50/50 Divider Indicator**
+
+- [x] **T37** Add `src/Windows/PaneDividerSplitView.swift`, an `NSSplitView` subclass that overrides `drawDivider(in:)` to render the divider between the two content panes in the control accent color when the two content panes are within a small tolerance (2pt) of equal width, and otherwise calls `super.drawDivider(in:)`. Include a pure static decision helper (`showsEqualSplitIndicator(leftWidth:rightWidth:paneCount:tolerance:)`) so the threshold is unit-testable. The subclass overrides drawing only: no `setPosition`, no resize observers, no `splitViewDidResizeSubviews`, no persistence.
+- [ ] **T38** In `src/Windows/MainSplitViewController.swift`, inject the subclass by overriding `loadView()` to set `splitView = PaneDividerSplitView()` before `super.loadView()`, leaving the existing `isVertical`, `dividerStyle`, item setup, and `splitView.autosaveName` untouched. Add nothing else to `MainSplitViewController` (must not reintroduce any banned symbol checked by T27).
+
 ---
 
 ## Testing
@@ -145,6 +153,12 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 - [x] **T30** `testMainWindowResizePersistsAcrossRelaunch` - Resize the main window through UI automation, quit, relaunch, and verify AppKit restores the user-sized frame.
 - [x] **T31** `testPaneDividerDragPersistsAcrossRelaunch` - Drag the left/right divider through UI automation, quit, relaunch, and verify the pane layout persists through AppKit split autosave.
 - [x] **T32** `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` - Seed invalid old split defaults, launch Detours, and verify both panes are usable and the divider remains draggable.
+
+### Equal-Split Indicator Tests (`Tests/PaneDividerSplitViewTests.swift`)
+
+- [x] **T39** `testIndicatorShowsWhenPanesEqual` - Equal content-pane widths (and within tolerance) return true from `showsEqualSplitIndicator`.
+- [x] **T40** `testIndicatorHiddenWhenPanesUneven` - Content-pane widths differing by more than the tolerance return false.
+- [x] **T41** `testIndicatorHiddenWithoutTwoContentPanes` - Fewer than three panes, or a zero-width pane, return false.
 
 ### Build And Release Verification
 
