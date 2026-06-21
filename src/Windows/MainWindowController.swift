@@ -39,20 +39,22 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.setContentSize(contentSize)
         window.center()
 
-        // Restore a previously saved (and preflight-sanitized) frame if present,
-        // then enable autosave so user resizes persist.
-        let savedFrame = UserDefaults.standard.string(forKey: "NSWindow Frame \(Self.frameAutosaveName)") ?? "nil"
-        let restored = window.setFrameUsingName(Self.frameAutosaveName)
-        NSLog("WINDBG saved=\(savedFrame) restored=\(restored) afterRestore=\(NSStringFromRect(window.frame))")
-        window.setFrameAutosaveName(Self.frameAutosaveName)
-        NSLog("WINDBG afterAutosaveName=\(NSStringFromRect(window.frame))")
-
         // Clean title bar: no title text, blends with content
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.titlebarSeparatorStyle = .none
 
         super.init(window: window)
+
+        // Engage AppKit frame autosave through the controller AFTER it adopts the
+        // window. Setting the window's frameAutosaveName before super.init(window:)
+        // is wiped when the controller takes ownership (its own empty
+        // windowFrameAutosaveName overrides it), so no frame was ever persisted and
+        // the window always reopened at its minimum size. The controller restores a
+        // previously saved (preflight-sanitized) frame on showWindow and saves user
+        // resizes back to "NSWindow Frame MainWindow".
+        shouldCascadeWindows = false
+        windowFrameAutosaveName = Self.frameAutosaveName
 
         window.delegate = self
 

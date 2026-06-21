@@ -13,13 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMainMenu(target: self)
 
         mainWindowController = MainWindowController()
-        NSLog("WINDBG beforeShow=\(NSStringFromRect(mainWindowController?.window?.frame ?? .zero))")
         mainWindowController?.showWindow(nil)
-        NSLog("WINDBG afterShow=\(NSStringFromRect(mainWindowController?.window?.frame ?? .zero))")
         NSApp.activate(ignoringOtherApps: true)
-        DispatchQueue.main.async {
-            NSLog("WINDBG nextRunloop=\(NSStringFromRect(self.mainWindowController?.window?.frame ?? .zero))")
-        }
 
         systemEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .systemDefined) { [weak self] event in
             guard let splitVC = self?.mainWindowController?.splitViewController else { return event }

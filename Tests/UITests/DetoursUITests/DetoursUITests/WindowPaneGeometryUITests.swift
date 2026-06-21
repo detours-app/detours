@@ -95,39 +95,6 @@ final class WindowPaneGeometryUITests: XCTestCase {
         _ = try dragPaneDivider()
     }
 
-    func testResizePersistenceDiag() throws {
-        launchApp()
-        let initial = mainWindow().frame
-        let resized = try resizeMainWindow()
-        let savedAfterResize = readDefault(windowFrameKey)
-        app.terminate()
-        XCTAssertTrue(app.wait(for: .notRunning, timeout: 5))
-        let savedAfterTerminate = readDefault(windowFrameKey)
-        app.launch()
-        XCTAssertTrue(mainWindow().waitForExistence(timeout: 8))
-        let restored = mainWindow().frame
-        XCTFail("DIAG initial=\(NSStringFromRect(initial)) resized=\(NSStringFromRect(resized)) " +
-                "savedAfterResize=[\(savedAfterResize)] savedAfterTerminate=[\(savedAfterTerminate)] " +
-                "restored=\(NSStringFromRect(restored))")
-    }
-
-    private func readDefault(_ key: String) -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
-        process.arguments = ["read", defaultsDomain, key]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return "error:\(error)"
-        }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return (String(data: data, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private func launchApp() {
         app.launch()
         XCTAssertTrue(mainWindow().waitForExistence(timeout: 8), "Main Detours window should exist")
@@ -243,7 +210,9 @@ final class WindowPaneGeometryUITests: XCTestCase {
             dy: (dividerY - windowFrame.minY) / windowFrame.height
         )
         let start = mainWindow().coordinate(withNormalizedOffset: normalized)
-        let end = start.withOffset(CGVector(dx: 60, dy: 0))
+        // The sidebar opens at its maximum thickness, so drag toward narrowing
+        // (left) where there is room to move; dragging wider cannot move it.
+        let end = start.withOffset(CGVector(dx: -60, dy: 0))
 
         start.press(forDuration: 0.2, thenDragTo: end)
         RunLoop.current.run(until: Date().addingTimeInterval(0.8))
