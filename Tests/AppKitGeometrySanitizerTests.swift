@@ -96,6 +96,61 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
         XCTAssertNil(defaults.object(forKey: key))
     }
 
+    func testAcceptsRealAppKitWindowFrameFormat() {
+        // AppKit stores window frames space-separated: "x y w h sx sy sw sh".
+        let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
+        defaults.set("240 416 800 552 0 0 1680 1020 ", forKey: key)
+
+        AppKitGeometrySanitizer.sanitizeWindowFrame(
+            defaults: defaults,
+            autosaveName: "MainWindow",
+            visibleScreenFrames: [NSRect(x: 0, y: 0, width: 1680, height: 1020)],
+            minimumSize: NSSize(width: 800, height: 520)
+        )
+
+        XCTAssertEqual(defaults.string(forKey: key), "240 416 800 552 0 0 1680 1020 ")
+    }
+
+    func testAcceptsRealAppKitSplitFrameFormat() {
+        // AppKit stores split subview frames comma-separated: "x, y, w, h, collapsed, collapsed".
+        let key = AppKitGeometrySanitizer.splitSubviewFramesKey(autosaveName: "Detours.MainSplitView.AppKitV1")
+        let frames = [
+            "0.000000, 0.000000, 218.000000, 520.000000, NO, NO",
+            "218.000000, 0.000000, 282.500000, 520.000000, NO, NO",
+            "501.500000, 0.000000, 298.500000, 520.000000, NO, NO",
+        ]
+        defaults.set(frames, forKey: key)
+
+        AppKitGeometrySanitizer.sanitizeSplitFrames(
+            defaults: defaults,
+            autosaveName: "Detours.MainSplitView.AppKitV1",
+            minimumWindowSize: NSSize(width: 800, height: 520),
+            sidebarMinimumWidth: 150,
+            paneMinimumWidth: 200
+        )
+
+        XCTAssertEqual(defaults.array(forKey: key) as? [String], frames)
+    }
+
+    func testRejectsRealAppKitUnusableSplitFrames() {
+        let key = AppKitGeometrySanitizer.splitSubviewFramesKey(autosaveName: "Detours.MainSplitView.AppKitV1")
+        defaults.set([
+            "0.000000, 0.000000, 180.000000, 700.000000, NO, NO",
+            "180.000000, 0.000000, 60.000000, 700.000000, NO, NO",
+            "240.000000, 0.000000, 560.000000, 700.000000, NO, NO",
+        ], forKey: key)
+
+        AppKitGeometrySanitizer.sanitizeSplitFrames(
+            defaults: defaults,
+            autosaveName: "Detours.MainSplitView.AppKitV1",
+            minimumWindowSize: NSSize(width: 800, height: 520),
+            sidebarMinimumWidth: 150,
+            paneMinimumWidth: 200
+        )
+
+        XCTAssertNil(defaults.object(forKey: key))
+    }
+
     func testMigrationRemovesLegacyCustomGeometryKeys() {
         defaults.set(240, forKey: AppKitGeometrySanitizer.legacySidebarWidthKey)
         defaults.set(0.4, forKey: AppKitGeometrySanitizer.legacySplitDividerPositionKey)

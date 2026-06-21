@@ -85,8 +85,8 @@ enum AppKitGeometrySanitizer {
         visibleScreenFrames: [NSRect],
         minimumSize: NSSize
     ) -> Bool {
-        let frame = NSRectFromString(frameString)
-        guard isFinite(frame),
+        guard let frame = parseRect(frameString),
+              isFinite(frame),
               frame.width >= minimumSize.width,
               frame.height >= minimumSize.height,
               frame.width > 0,
@@ -109,7 +109,9 @@ enum AppKitGeometrySanitizer {
         paneMinimumWidth: CGFloat
     ) -> Bool {
         guard frameStrings.count >= 3 else { return false }
-        let frames = frameStrings.prefix(3).map(NSRectFromString)
+        let parsed = frameStrings.prefix(3).map(parseRect)
+        guard parsed.allSatisfy({ $0 != nil }) else { return false }
+        let frames = parsed.compactMap { $0 }
         guard frames.allSatisfy(isFinite(_:)) else { return false }
 
         let widths = frames.map(\.width)
@@ -148,6 +150,25 @@ enum AppKitGeometrySanitizer {
         default:
             return nil
         }
+    }
+
+    /// Parses a rect from AppKit's autosave defaults. AppKit stores window frames as
+    /// space-separated `x y w h sx sy sw sh` strings and split-view subview frames as
+    /// comma-separated `x, y, w, h, collapsed, collapsed` strings; `NSStringFromRect`
+    /// (`{{x, y}, {w, h}}`) is also accepted. Returns nil for unparseable input.
+    static func parseRect(_ string: String) -> NSRect? {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("{") {
+            let rect = NSRectFromString(trimmed)
+            return rect == .zero && trimmed != NSStringFromRect(.zero) ? nil : rect
+        }
+
+        let separators = CharacterSet(charactersIn: ", \t")
+        let numbers = trimmed
+            .components(separatedBy: separators)
+            .compactMap { component -> Double? in component.isEmpty ? nil : Double(component) }
+        guard numbers.count >= 4 else { return nil }
+        return NSRect(x: numbers[0], y: numbers[1], width: numbers[2], height: numbers[3])
     }
 
     private static func isFinite(_ rect: NSRect) -> Bool {

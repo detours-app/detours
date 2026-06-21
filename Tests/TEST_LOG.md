@@ -2,7 +2,22 @@
 
 ## Latest Run
 
-- Started: 2026-06-16 16:16:27
+- Started: 2026-06-21 15:36:03
+- Command: `swift test --filter AppKitGeometrySanitizerTests` (Spectre)
+- Status: PASS
+- Notes: AppKit geometry sanitizer - fixed real-format parsing. AppKit autosaves window frames space-separated (`x y w h ...`) and split subview frames comma-separated (`x, y, w, h, NO, NO`), but the sanitizer parsed both with `NSRectFromString` (brace-only), so it judged every real saved layout invalid and deleted it on launch, defeating window/divider persistence. Added a robust `parseRect` handling all three formats plus real-format unit coverage. 11 tests pass.
+
+### AppKit Geometry Sanitizer 2026-06-21
+
+| Test | Status | Duration | Last Run |
+| --- | --- | --- | --- |
+| AppKitGeometrySanitizerTests (11 incl. testAcceptsRealAppKitWindowFrameFormat, testAcceptsRealAppKitSplitFrameFormat, testRejectsRealAppKitUnusableSplitFrames) | PASS | 0.020s | 2026-06-21 15:36:03 |
+| WindowPaneGeometryUITests (Foundry, 5 UI tests: launch jump, poisoned window, resize/divider persistence, poisoned split) | PARTIAL | 35s | 2026-06-21 15:32 |
+
+WindowPaneGeometryUITests first Foundry run: T28/T29 (launch stability, poisoned-window fallback) PASS; T30/T31/T32 FAIL traced to the sanitizer real-format parsing bug above (and T32's seed used the wrong defaults format). Re-run pending after the fix.
+
+### Prior: Quick Open Cleanup 2026-06-16
+
 - Command: `swift test --filter FrecencyStoreTests` / `QuickNavTests` / `RemoteHostTests`
 - Status: PASS
 - Notes: Quick Open cleanup - hide disconnected/unknown-host remotes, drop trivial roots, prune stale hosts, remove dimming. New tests for trivial-root skipping, unknown-host pruning, and disconnected-remote hiding.

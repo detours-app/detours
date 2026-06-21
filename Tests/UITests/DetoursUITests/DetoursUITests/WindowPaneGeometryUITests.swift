@@ -76,12 +76,13 @@ final class WindowPaneGeometryUITests: XCTestCase {
     }
 
     func testPoisonedSplitDefaultsFallBackWithoutUnusablePanes() throws {
+        // AppKit stores split subview frames comma-separated, not as NSStringFromRect braces.
         try writeArrayDefault(
             key: splitFramesKey,
             values: [
-                NSStringFromRect(NSRect(x: 0, y: 0, width: 180, height: 700)),
-                NSStringFromRect(NSRect(x: 181, y: 0, width: 60, height: 700)),
-                NSStringFromRect(NSRect(x: 242, y: 0, width: 560, height: 700)),
+                "0.000000, 0.000000, 180.000000, 700.000000, NO, NO",
+                "180.000000, 0.000000, 60.000000, 700.000000, NO, NO",
+                "240.000000, 0.000000, 560.000000, 700.000000, NO, NO",
             ]
         )
 
