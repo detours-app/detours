@@ -108,9 +108,14 @@ final class MainSplitViewController: NSSplitViewController {
 
     override func loadView() {
         // Use the custom split view so the divider between the two content panes
-        // can paint a passive equal-split indicator. Set before super.loadView()
-        // so the controller adopts it instead of creating a plain NSSplitView.
-        splitView = PaneDividerSplitView()
+        // can paint a passive equal-split indicator. NSSplitViewController manages
+        // its split view with Auto Layout, so the substitute must opt into it too
+        // (the default NSSplitView created by the controller has this set) — a
+        // custom split view left with translatesAutoresizingMaskIntoConstraints
+        // true throws during the controller's fitting-size measurement.
+        let customSplitView = PaneDividerSplitView()
+        customSplitView.translatesAutoresizingMaskIntoConstraints = false
+        splitView = customSplitView
         super.loadView()
     }
 
