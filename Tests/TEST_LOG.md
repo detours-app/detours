@@ -12,9 +12,9 @@
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
 | AppKitGeometrySanitizerTests (11 incl. testAcceptsRealAppKitWindowFrameFormat, testAcceptsRealAppKitSplitFrameFormat, testRejectsRealAppKitUnusableSplitFrames) | PASS | 0.020s | 2026-06-21 15:36:03 |
-| WindowPaneGeometryUITests (Foundry, 5 UI tests: launch jump, poisoned window, resize/divider persistence, poisoned split) | PARTIAL | 35s | 2026-06-21 15:32 |
+| WindowPaneGeometryUITests (Foundry, 5 UI tests: launch jump, poisoned window, resize/divider persistence, poisoned split) | PASS | 56s | 2026-06-21 16:02 |
 
-WindowPaneGeometryUITests first Foundry run: T28/T29 (launch stability, poisoned-window fallback) PASS; T30/T31/T32 FAIL traced to the sanitizer real-format parsing bug above (and T32's seed used the wrong defaults format). Re-run pending after the fix.
+WindowPaneGeometryUITests now all green on Foundry (TEST SUCCEEDED, 5/5). Three real bugs were found and fixed to get there: (1) the sanitizer parsed AppKit autosave data with NSRectFromString (brace-only) and deleted every valid saved layout on launch; (2) the main-window frame autosave name was set before super.init(window:) and wiped by the controller, so no frame ever persisted and the window always reopened at its 800-wide minimum, fixed by setting windowFrameAutosaveName on the controller after adoption; (3) the UI test located the pane divider from overlapping/stale outline frames and dragged the sidebar into its max-thickness limit, fixed by targeting the real .splitter element and dragging the sidebar toward narrowing. Clean build.sh install launches and the installed window is stable at 980x692 across samples (no post-start jump).
 
 ### Prior: Quick Open Cleanup 2026-06-16
 

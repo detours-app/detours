@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: fix/standard-appkit-window-pane-resizing
 
 ---
@@ -29,15 +29,15 @@ Restore standard AppKit window and split-view behavior, with AppKit owning resiz
 
 ### Acceptance Criteria
 
-- [ ] **A1** Detours opens without a visible post-start resize jump.
-- [ ] **A2** The main window is normally resizable by the user.
-- [ ] **A3** The sidebar divider and the left/right pane divider are normally draggable by the user.
-- [ ] **A4** A valid user-resized window frame persists across relaunch.
-- [ ] **A5** A valid user-resized sidebar and pane layout persists across relaunch.
-- [ ] **A6** Invalid saved window geometry never opens Detours oversized, off-screen, or impossible to resize.
-- [ ] **A7** Invalid saved split-view geometry never opens Detours with an unusable pane ratio.
-- [ ] **A8** Launch and session restore do not save geometry unless the user actually resizes the window or drags a divider.
-- [ ] **A9** The implementation uses standard AppKit window and split-view resizing, not a Detours-owned replacement layout system.
+- [x] **A1** Detours opens without a visible post-start resize jump.
+- [x] **A2** The main window is normally resizable by the user.
+- [x] **A3** The sidebar divider and the left/right pane divider are normally draggable by the user.
+- [x] **A4** A valid user-resized window frame persists across relaunch.
+- [x] **A5** A valid user-resized sidebar and pane layout persists across relaunch.
+- [x] **A6** Invalid saved window geometry never opens Detours oversized, off-screen, or impossible to resize.
+- [x] **A7** Invalid saved split-view geometry never opens Detours with an unusable pane ratio.
+- [x] **A8** Launch and session restore do not save geometry unless the user actually resizes the window or drags a divider.
+- [x] **A9** The implementation uses standard AppKit window and split-view resizing, not a Detours-owned replacement layout system.
 
 ### Out of scope
 
@@ -149,6 +149,6 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 ### Build And Release Verification
 
 - [x] **T33** Run the focused unit tests for the sanitizer and split-position regressions.
-- [ ] **T34** Run the focused UI tests for launch stability, resize persistence, and poisoned-state fallback.
-- [ ] **T35** Run `resources/scripts/build.sh` without `--no-install`; confirm the installed `/Applications/Detours.app` launches.
-- [ ] **T36** After the release install, repeat the launch capture against the installed app and confirm the main window and pane frames do not jump after first visibility.
+- [x] **T34** Run the focused UI tests for launch stability, resize persistence, and poisoned-state fallback.
+- [x] **T35** Run `resources/scripts/build.sh` without `--no-install`; confirm the installed `/Applications/Detours.app` launches.
+- [x] **T36** After the release install, repeat the launch capture against the installed app and confirm the main window and pane frames do not jump after first visibility.
