@@ -39,7 +39,7 @@ Restore standard AppKit window and split-view behavior, with AppKit owning resiz
 - [x] **A7** Invalid saved split-view geometry never opens Detours with an unusable pane ratio.
 - [x] **A8** Launch and session restore do not save geometry unless the user actually resizes the window or drags a divider.
 - [x] **A9** The implementation uses standard AppKit window and split-view resizing, not a Detours-owned replacement layout system.
-- [ ] **A10** When the two content panes are equal width, the divider between them shows a distinct accent indicator; when they are not equal, the divider looks normal. The indicator never moves the divider or changes persistence.
+- [x] **A10** When the two content panes are equal width, the divider between them shows a distinct accent indicator; when they are not equal, the divider looks normal. The indicator never moves the divider or changes persistence.
 
 ### Out of scope
 

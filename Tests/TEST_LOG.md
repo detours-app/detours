@@ -2,7 +2,13 @@
 
 ## Latest Run
 
-- Started: 2026-06-21 15:36:03
+- Started: 2026-06-21 18:4x
+- Command: `uitest.sh WindowPaneGeometryUITests` (Foundry) + `swift test --filter EqualSplitIndicatorViewTests/SplitPositionTests` (Spectre)
+- Status: PASS
+- Notes: Passive 50/50 pane-divider indicator added (EqualSplitIndicatorView: a thin click-through accent overlay at the divider that shows only when the two content panes are within 2pt of equal width). First tried an NSSplitView subclass with custom drawDivider, but substituting NSSplitViewController's managed split view crashed _setupSplitView on launch — the overlay approach replaced it. The geometry UI suite went red afterward, but isolation (env-gated indicator off) proved the indicator innocent: Foundry's display had changed to a 1280pt-wide screen, leaving the 1200pt default window no room to grow, so fixed-direction resize/divider drags clamped. Made resizeMainWindow and dragPaneDivider drag toward whichever side has room. All 5 WindowPaneGeometryUITests pass (TEST SUCCEEDED) with the indicator enabled; EqualSplitIndicatorViewTests (3) and SplitPositionTests (4, including the controller-autosave assertion update) pass on Spectre.
+
+### Prior: AppKit Geometry Sanitizer 2026-06-21
+
 - Command: `swift test --filter AppKitGeometrySanitizerTests` (Spectre)
 - Status: PASS
 - Notes: AppKit geometry sanitizer - fixed real-format parsing. AppKit autosaves window frames space-separated (`x y w h ...`) and split subview frames comma-separated (`x, y, w, h, NO, NO`), but the sanitizer parsed both with `NSRectFromString` (brace-only), so it judged every real saved layout invalid and deleted it on launch, defeating window/divider persistence. Added a robust `parseRect` handling all three formats plus real-format unit coverage. 11 tests pass.
