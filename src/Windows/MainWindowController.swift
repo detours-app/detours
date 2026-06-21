@@ -4,18 +4,21 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     let splitViewController = MainSplitViewController()
 
     init() {
+        let contentSize = NSSize(width: 1200, height: 700)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1200, height: 700),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            contentRect: NSRect(origin: .zero, size: contentSize),
+            styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
 
         window.title = "Detours"
-        window.minSize = NSSize(width: 800, height: 400)
+        window.contentMinSize = contentSize
+        window.contentMaxSize = contentSize
         window.center()
         window.tabbingMode = .disallowed
         window.collectionBehavior = .fullScreenNone
+        window.isRestorable = false
 
         // Clean title bar: no title text, blends with content
         window.titlebarAppearsTransparent = true
@@ -25,10 +28,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
 
         window.delegate = self
-        window.contentViewController = splitViewController
 
-        // Persist window frame
-        window.setFrameAutosaveName("MainWindow")
+        let contentView = NSView(frame: NSRect(origin: .zero, size: contentSize))
+        window.contentView = contentView
+
+        splitViewController.view.frame = contentView.bounds
+        contentView.addSubview(splitViewController.view)
 
         // Apply theme background
         applyThemeBackground()

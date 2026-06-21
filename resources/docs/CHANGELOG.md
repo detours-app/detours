@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- **Main window launch no longer jumps wider after startup** - Removed the
+  custom pane resize paths that could fight AppKit during launch, documented the
+  permanent standard-AppKit replacement plan, and kept the installed app stable
+  while the native resizing fix is implemented.
+
 ## 1.5.2 - 2026-06-16
 
 ### Bug Fixes

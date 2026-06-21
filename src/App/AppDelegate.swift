@@ -13,17 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMainMenu(target: self)
 
         mainWindowController = MainWindowController()
-
-        // Keep window hidden until layout is complete to avoid visual disturbance
-        mainWindowController?.window?.alphaValue = 0
         mainWindowController?.showWindow(nil)
-
-        // Show window after layout stabilizes (viewDidAppear async restoration)
-        DispatchQueue.main.async { [weak self] in
-            self?.mainWindowController?.window?.alphaValue = 1
-            self?.mainWindowController?.window?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        NSApp.activate(ignoringOtherApps: true)
 
         systemEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .systemDefined) { [weak self] event in
             guard let splitVC = self?.mainWindowController?.splitViewController else { return event }
@@ -38,6 +29,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
+    }
+
+    func applicationShouldSaveApplicationState(_ application: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldRestoreApplicationState(_ application: NSApplication) -> Bool {
+        false
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

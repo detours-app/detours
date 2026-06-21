@@ -41,9 +41,8 @@ struct RemoteHomeDirectoryProbe {
     }
 }
 
-final class MainSplitViewController: NSSplitViewController {
+final class MainSplitViewController: NSViewController {
     private let sidebarViewController = SidebarViewController()
-    private var sidebarItem: NSSplitViewItem!
     private let leftPane = PaneViewController()
     private let rightPane = PaneViewController()
     private var activePaneIndex: Int = 0
@@ -72,9 +71,6 @@ final class MainSplitViewController: NSSplitViewController {
         static let leftRemoteTabs = "Detours.LeftPaneRemoteTabs"
         static let rightRemoteTabs = "Detours.RightPaneRemoteTabs"
         static let activePane = "Detours.ActivePane"
-        static let sidebarVisible = "Detours.SidebarVisible"
-        static let sidebarWidth = "Detours.SidebarWidth"
-        static let splitDividerPosition = "Detours.SplitDividerPosition"
     }
 
     private struct PaneSessionKeys {
@@ -107,42 +103,39 @@ final class MainSplitViewController: NSSplitViewController {
         )
     }
 
+    override func loadView() {
+        view = NSView(frame: NSRect(x: 0, y: 0, width: 1200, height: 700))
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Configure split view
-        splitView.dividerStyle = .thin
-        splitView.isVertical = true
-        // Note: Manual position saving instead of autosaveName (unreliable with sidebar)
-
-        // Create sidebar item (resizable)
-        sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
-        sidebarItem.canCollapse = true
-        sidebarItem.minimumThickness = 140
-        sidebarItem.maximumThickness = 300
         sidebarViewController.delegate = self
+        addChild(sidebarViewController)
+        addChild(leftPane)
+        addChild(rightPane)
 
-        // Create split view items
-        let leftItem = NSSplitViewItem(viewController: leftPane)
-        leftItem.minimumThickness = 280
-        leftItem.holdingPriority = .defaultLow
+        let sidebarWidth: CGFloat = 180
+        let dividerWidth: CGFloat = 1
+        let contentBounds = view.bounds
+        let paneWidth = (contentBounds.width - sidebarWidth - (dividerWidth * 2)) / 2
+        let leftX = sidebarWidth + dividerWidth
+        let rightX = leftX + paneWidth + dividerWidth
 
-        let rightItem = NSSplitViewItem(viewController: rightPane)
-        rightItem.minimumThickness = 280
-        rightItem.holdingPriority = .defaultLow
+        sidebarViewController.view.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: contentBounds.height)
+        leftPane.view.frame = NSRect(x: leftX, y: 0, width: paneWidth, height: contentBounds.height)
+        rightPane.view.frame = NSRect(x: rightX, y: 0, width: paneWidth, height: contentBounds.height)
 
-        addSplitViewItem(sidebarItem)
-        addSplitViewItem(leftItem)
-        addSplitViewItem(rightItem)
+        for childView in [sidebarViewController.view, leftPane.view, rightPane.view] {
+            childView.translatesAutoresizingMaskIntoConstraints = true
+            childView.autoresizingMask = []
+            view.addSubview(childView)
+        }
 
         isRestoringSession = true
         restoreSession()
         isRestoringSession = false
         warmRemoteHostsOnLaunch()
-
-        // Restore sidebar visibility
-        let sidebarVisible = defaults.object(forKey: SessionKeys.sidebarVisible) as? Bool ?? SettingsManager.shared.sidebarVisible
-        sidebarItem.isCollapsed = !sidebarVisible
 
         // Restore active pane (defaults to 0 if not saved)
         let savedActivePane = defaults.integer(forKey: SessionKeys.activePane)
@@ -341,102 +334,6 @@ final class MainSplitViewController: NSSplitViewController {
         }
     }
 
-    private var hasRestoredSplitPosition = false
-    private var isRestoringSplitPosition = false
-
-    override func viewDidAppear() {
-        super.viewDidAppear()
-
-        if !hasRestoredSplitPosition {
-            // Block saves until restoration is complete
-            isRestoringSplitPosition = true
-            hasRestoredSplitPosition = true
-            // Delay restoration to ensure layout is complete
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                if !self.restoreSplitPosition() {
-                    self.resetSplitTo5050()
-                }
-                self.isRestoringSplitPosition = false
-            }
-        }
-    }
-
-    /// Default sidebar width when no saved value exists
-    private let defaultSidebarWidth: CGFloat = 180
-
-    private func restoreSplitPosition() -> Bool {
-        // Determine sidebar width to use for all calculations
-        // IMPORTANT: Don't read from view bounds - they may be stale after setPosition
-        let sidebarWidth: CGFloat
-        if sidebarItem.isCollapsed {
-            sidebarWidth = 0
-        } else if let savedWidth = defaults.object(forKey: SessionKeys.sidebarWidth) as? Double {
-            sidebarWidth = CGFloat(savedWidth)
-            splitView.setPosition(sidebarWidth, ofDividerAt: 0)
-        } else {
-            sidebarWidth = defaultSidebarWidth
-        }
-
-        // Check for saved divider position (ratio between left/right panes)
-        guard defaults.object(forKey: SessionKeys.splitDividerPosition) != nil else {
-            return false
-        }
-        let ratio = defaults.double(forKey: SessionKeys.splitDividerPosition)
-        guard ratio > 0, ratio < 1 else {
-            return false
-        }
-
-        // Calculate divider 1 position using the sidebar width we determined above
-        let divider = splitView.dividerThickness
-        let totalWidth = splitView.bounds.width
-        let availableWidth = totalWidth - sidebarWidth - (divider * 2)
-        guard availableWidth > 0 else { return false }
-
-        let leftPaneWidth = availableWidth * ratio
-        let divider1Position = sidebarWidth + divider + leftPaneWidth
-        splitView.setPosition(divider1Position, ofDividerAt: 1)
-
-        logger.info("Restored split: sidebar=\(sidebarWidth), ratio=\(ratio), divider1=\(divider1Position), total=\(totalWidth)")
-        return true
-    }
-
-    private func resetSplitTo5050() {
-        // Read from split view subviews to match setPosition behavior
-        let sidebarWidth = sidebarItem.isCollapsed ? 0 : splitView.arrangedSubviews[0].frame.width
-        let divider = splitView.dividerThickness
-        let totalWidth = splitView.bounds.width
-        let availableWidth = totalWidth - sidebarWidth - (divider * 2)
-        guard availableWidth > 0 else { return }
-
-        let paneWidth = availableWidth / 2
-        let divider1Position = sidebarWidth + divider + paneWidth
-        splitView.setPosition(divider1Position, ofDividerAt: 1)
-    }
-
-    private func saveSplitPosition() {
-        // Read from split view subviews to match setPosition behavior
-        // Note: Sidebar-style NSSplitViewItem has internal chrome, so view bounds != subview frame
-        let sidebarWidth = sidebarItem.isCollapsed ? 0 : splitView.arrangedSubviews[0].frame.width
-        let leftPaneWidth = splitView.arrangedSubviews[1].frame.width
-        let divider = splitView.dividerThickness
-        let totalWidth = splitView.bounds.width
-
-        // Save sidebar width
-        if !sidebarItem.isCollapsed {
-            defaults.set(Double(sidebarWidth), forKey: SessionKeys.sidebarWidth)
-        }
-
-        // Save ratio of left pane to available space (left + right)
-        let availableWidth = totalWidth - sidebarWidth - (divider * 2)
-        guard availableWidth > 0 else { return }
-
-        let ratio = leftPaneWidth / availableWidth
-        guard ratio > 0, ratio < 1 else { return }  // Sanity check
-
-        defaults.set(ratio, forKey: SessionKeys.splitDividerPosition)
-    }
-
     // MARK: - Session Persistence
 
     func saveSession() {
@@ -459,8 +356,6 @@ final class MainSplitViewController: NSSplitViewController {
         defaults.set(encodeExpansions(rightPane.tabExpansions), forKey: SessionKeys.rightExpansions)
         defaults.set(RemoteTabSessionTarget.encode(rightPane.tabRemoteTargets), forKey: SessionKeys.rightRemoteTabs)
         defaults.set(activePaneIndex, forKey: SessionKeys.activePane)
-        defaults.set(!sidebarItem.isCollapsed, forKey: SessionKeys.sidebarVisible)
-        saveSplitPosition()
     }
 
     /// Schedule a debounced session save (2 second delay, coalesces rapid changes)
@@ -482,12 +377,10 @@ final class MainSplitViewController: NSSplitViewController {
     // MARK: - Sidebar
 
     func toggleSidebar() {
-        sidebarItem.isCollapsed.toggle()
-        SettingsManager.shared.sidebarVisible = !sidebarItem.isCollapsed
     }
 
     var isSidebarVisible: Bool {
-        !sidebarItem.isCollapsed
+        true
     }
 
     private func encodeSelections(_ selections: [[URL]]) -> [[String]] {
@@ -935,49 +828,6 @@ final class MainSplitViewController: NSSplitViewController {
         }
     }
 
-    // MARK: - Split View Delegate
-
-    override func splitView(_ splitView: NSSplitView, shouldHideDividerAt dividerIndex: Int) -> Bool {
-        return false
-    }
-
-    override func splitView(_ splitView: NSSplitView, effectiveRect proposedEffectiveRect: NSRect, forDrawnRect drawnRect: NSRect, ofDividerAt dividerIndex: Int) -> NSRect {
-        // Expand hit area to 9px for easier grabbing
-        var rect = proposedEffectiveRect
-        rect.origin.x -= 4
-        rect.size.width += 8
-        return rect
-    }
-
-    override func splitViewDidResizeSubviews(_ notification: Notification) {
-        // Don't save during initial layout or while restoring
-        guard hasRestoredSplitPosition, !isRestoringSplitPosition else { return }
-        saveSplitPosition()
-    }
-
-    override func splitView(
-        _ splitView: NSSplitView,
-        constrainSplitPosition proposedPosition: CGFloat,
-        ofSubviewAt dividerIndex: Int
-    ) -> CGFloat {
-        // Only snap the pane divider (index 1), not sidebar (index 0)
-        guard dividerIndex == 1 else { return proposedPosition }
-
-        // Calculate center position for equal pane widths
-        let sidebarWidth = sidebarItem.isCollapsed ? 0 : splitView.arrangedSubviews[0].frame.width
-        let dividerThickness = splitView.dividerThickness
-        let totalWidth = splitView.bounds.width
-        let availableWidth = totalWidth - sidebarWidth - (dividerThickness * 2)
-        guard availableWidth > 0 else { return proposedPosition }
-
-        let centerPosition = sidebarWidth + dividerThickness + (availableWidth / 2)
-        let snapThreshold: CGFloat = 12
-
-        if abs(proposedPosition - centerPosition) < snapThreshold {
-            return centerPosition
-        }
-        return proposedPosition
-    }
 }
 
 // MARK: - SidebarDelegate
