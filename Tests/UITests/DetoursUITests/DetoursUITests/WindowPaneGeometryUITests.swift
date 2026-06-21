@@ -220,10 +220,10 @@ final class WindowPaneGeometryUITests: XCTestCase {
     private func resizeMainWindow() throws -> CGRect {
         let window = mainWindow()
         let originalFrame = window.frame
-        // Drag the bottom-right corner. Try growing first; if the window is already
-        // near the screen edge (small displays), grow is clamped, so fall back to
-        // shrinking, which always has room down to the minimum size.
-        for delta in [CGVector(dx: 90, dy: 70), CGVector(dx: -90, dy: -70)] {
+        // Drag the bottom-right corner. Try shrinking first — a default-sized window
+        // always has room to shrink toward its minimum, regardless of screen size —
+        // then fall back to growing if it is already near the minimum.
+        for delta in [CGVector(dx: -120, dy: -90), CGVector(dx: 120, dy: 90)] {
             let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.99))
             let end = start.withOffset(delta)
             start.press(forDuration: 0.2, thenDragTo: end)
