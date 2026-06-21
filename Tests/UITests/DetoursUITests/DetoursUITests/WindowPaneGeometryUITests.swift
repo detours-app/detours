@@ -220,21 +220,23 @@ final class WindowPaneGeometryUITests: XCTestCase {
     private func resizeMainWindow() throws -> CGRect {
         let window = mainWindow()
         let originalFrame = window.frame
-        // Drag the bottom-right corner. Try shrinking first — a default-sized window
-        // always has room to shrink toward its minimum, regardless of screen size —
-        // then fall back to growing if it is already near the minimum.
-        for delta in [CGVector(dx: -120, dy: -90), CGVector(dx: 120, dy: 90)] {
-            let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.99))
-            let end = start.withOffset(delta)
-            start.press(forDuration: 0.2, thenDragTo: end)
-            RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+        // The window-corner resize grab is intermittent under UI automation on some
+        // displays, so retry. Each attempt tries growing then shrinking (one of the
+        // two always has room regardless of screen size).
+        for _ in 0..<4 {
+            for delta in [CGVector(dx: 110, dy: 80), CGVector(dx: -110, dy: -80)] {
+                let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.99))
+                let end = start.withOffset(delta)
+                start.press(forDuration: 0.3, thenDragTo: end)
+                RunLoop.current.run(until: Date().addingTimeInterval(0.8))
 
-            let frame = window.frame
-            guard frame.width > 0, frame.height > 0 else {
-                throw NSError(domain: "WindowPaneGeometryUITests", code: 1)
-            }
-            if abs(frame.width - originalFrame.width) > 20 || abs(frame.height - originalFrame.height) > 20 {
-                return frame
+                let frame = window.frame
+                guard frame.width > 0, frame.height > 0 else {
+                    throw NSError(domain: "WindowPaneGeometryUITests", code: 1)
+                }
+                if abs(frame.width - originalFrame.width) > 20 || abs(frame.height - originalFrame.height) > 20 {
+                    return frame
+                }
             }
         }
         throw NSError(domain: "WindowPaneGeometryUITests", code: 2)
