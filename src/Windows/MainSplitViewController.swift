@@ -41,10 +41,13 @@ struct RemoteHomeDirectoryProbe {
     }
 }
 
-final class MainSplitViewController: NSViewController {
+final class MainSplitViewController: NSSplitViewController {
+    static let splitViewAutosaveName = "Detours.MainSplitView.AppKitV1"
+
     private let sidebarViewController = SidebarViewController()
     private let leftPane = PaneViewController()
     private let rightPane = PaneViewController()
+    private var sidebarSplitViewItem: NSSplitViewItem?
     private var activePaneIndex: Int = 0
     private var isRestoringSession = false
     private let defaults = UserDefaults.standard
@@ -103,34 +106,30 @@ final class MainSplitViewController: NSViewController {
         )
     }
 
-    override func loadView() {
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 1200, height: 700))
-    }
-
     override func viewDidLoad() {
         super.viewDidLoad()
 
         sidebarViewController.delegate = self
-        addChild(sidebarViewController)
-        addChild(leftPane)
-        addChild(rightPane)
 
-        let sidebarWidth: CGFloat = 180
-        let dividerWidth: CGFloat = 1
-        let contentBounds = view.bounds
-        let paneWidth = (contentBounds.width - sidebarWidth - (dividerWidth * 2)) / 2
-        let leftX = sidebarWidth + dividerWidth
-        let rightX = leftX + paneWidth + dividerWidth
+        splitView.isVertical = true
+        splitView.dividerStyle = .thin
 
-        sidebarViewController.view.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: contentBounds.height)
-        leftPane.view.frame = NSRect(x: leftX, y: 0, width: paneWidth, height: contentBounds.height)
-        rightPane.view.frame = NSRect(x: rightX, y: 0, width: paneWidth, height: contentBounds.height)
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
+        sidebarItem.minimumThickness = 150
+        sidebarItem.maximumThickness = 320
 
-        for childView in [sidebarViewController.view, leftPane.view, rightPane.view] {
-            childView.translatesAutoresizingMaskIntoConstraints = true
-            childView.autoresizingMask = []
-            view.addSubview(childView)
-        }
+        let leftPaneItem = NSSplitViewItem(viewController: leftPane)
+        leftPaneItem.minimumThickness = 200
+
+        let rightPaneItem = NSSplitViewItem(viewController: rightPane)
+        rightPaneItem.minimumThickness = 200
+
+        addSplitViewItem(sidebarItem)
+        addSplitViewItem(leftPaneItem)
+        addSplitViewItem(rightPaneItem)
+
+        sidebarSplitViewItem = sidebarItem
+        splitView.autosaveName = NSSplitView.AutosaveName(Self.splitViewAutosaveName)
 
         isRestoringSession = true
         restoreSession()
@@ -377,10 +376,12 @@ final class MainSplitViewController: NSViewController {
     // MARK: - Sidebar
 
     func toggleSidebar() {
+        guard let sidebarSplitViewItem else { return }
+        sidebarSplitViewItem.animator().isCollapsed = !sidebarSplitViewItem.isCollapsed
     }
 
     var isSidebarVisible: Bool {
-        true
+        !(sidebarSplitViewItem?.isCollapsed ?? false)
     }
 
     private func encodeSelections(_ selections: [[URL]]) -> [[String]] {

@@ -87,34 +87,34 @@ The only Detours-owned geometry code is a small preflight sanitizer that runs be
 
 **Phase 1: Restore Standard AppKit Shell**
 
-- [ ] **T1** Update `src/Windows/MainWindowController.swift` so the main window is a normal resizable `NSWindow`: add `.resizable` to the style mask, set `contentMinSize` to `800x520` (enough for the sidebar plus two usable panes), remove the `contentMaxSize` cap, set `contentViewController = splitViewController`, and delete the manual content host view (`window.contentView = contentView` plus `contentView.addSubview(splitViewController.view)`).
-- [ ] **T2** Use one AppKit persistence authority for the main window: call `setFrameAutosaveName("MainWindow")` only after the saved-frame preflight (T11) has removed invalid values. Leave the existing main-window state restoration disabled (`window.isRestorable = false` and the two `applicationShould*ApplicationState` methods returning `false`) so AppKit frame autosave is the sole frame authority.
-- [ ] **T3** Convert `src/Windows/MainSplitViewController.swift` from `NSViewController` to `NSSplitViewController`. Remove the fixed-size `loadView()` override and the manual frame layout in `viewDidLoad()` (the `sidebarWidth`/`paneWidth` math and `autoresizingMask = []` block). Add a standard `NSSplitViewItem(sidebarWithViewController:)` for `sidebarViewController` and standard `NSSplitViewItem(viewController:)` items for `leftPane` and `rightPane`.
-- [ ] **T4** Set normal AppKit item bounds only: sidebar `minimumThickness` 150 and `maximumThickness` 320 (default ~180, matching the prior layout), left and right pane `minimumThickness` 200, and leave the sidebar item at its default sidebar `holdingPriority` (250) so window resizing grows the panes and not the sidebar. Do not add custom width equality constraints.
-- [ ] **T5** Enable AppKit split-view persistence with a new clean autosave name, for example `Detours.MainSplitView.AppKitV1`, after split-default preflight has removed invalid values.
+- [x] **T1** Update `src/Windows/MainWindowController.swift` so the main window is a normal resizable `NSWindow`: add `.resizable` to the style mask, set `contentMinSize` to `800x520` (enough for the sidebar plus two usable panes), remove the `contentMaxSize` cap, set `contentViewController = splitViewController`, and delete the manual content host view (`window.contentView = contentView` plus `contentView.addSubview(splitViewController.view)`).
+- [x] **T2** Use one AppKit persistence authority for the main window: call `setFrameAutosaveName("MainWindow")` only after the saved-frame preflight (T11) has removed invalid values. Leave the existing main-window state restoration disabled (`window.isRestorable = false` and the two `applicationShould*ApplicationState` methods returning `false`) so AppKit frame autosave is the sole frame authority.
+- [x] **T3** Convert `src/Windows/MainSplitViewController.swift` from `NSViewController` to `NSSplitViewController`. Remove the fixed-size `loadView()` override and the manual frame layout in `viewDidLoad()` (the `sidebarWidth`/`paneWidth` math and `autoresizingMask = []` block). Add a standard `NSSplitViewItem(sidebarWithViewController:)` for `sidebarViewController` and standard `NSSplitViewItem(viewController:)` items for `leftPane` and `rightPane`.
+- [x] **T4** Set normal AppKit item bounds only: sidebar `minimumThickness` 150 and `maximumThickness` 320 (default ~180, matching the prior layout), left and right pane `minimumThickness` 200, and leave the sidebar item at its default sidebar `holdingPriority` (250) so window resizing grows the panes and not the sidebar. Do not add custom width equality constraints.
+- [x] **T5** Enable AppKit split-view persistence with a new clean autosave name, for example `Detours.MainSplitView.AppKitV1`, after split-default preflight has removed invalid values.
 
 **Phase 2: Keep Custom Resize Machinery Out**
 
 The legacy custom resize code was already deleted by commit `15a7821` and is absent at HEAD; these tasks ensure the Phase 1 conversion does not re-introduce it and that persistence stays AppKit-only.
 
-- [ ] **T6** When converting `src/Windows/MainSplitViewController.swift`, add no launch-time split restoration path: no `viewDidAppear` split restore, no `DispatchQueue.main.async` geometry restore, no `restoreSplitPosition`, no `resetSplitTo5050`, and no launch-time `splitView.setPosition` calls. Divider position comes only from AppKit split-view autosave.
-- [ ] **T7** Keep `saveSession()` limited to its current tab/session keys; add no split persistence: no `Detours.SidebarWidth`, no `Detours.SplitDividerPosition`, and no `splitViewDidResizeSubviews` save hook writing pane ratios.
-- [ ] **T8** Add no custom divider behavior that changes normal AppKit resizing: no custom snapping, no expanded divider hit rect that affects layout or persistence, and no custom "automatic versus user drag" resize loop.
-- [ ] **T9** Implement sidebar show/hide through the sidebar `NSSplitViewItem`'s `isCollapsed` / `toggleSidebar` behavior (standard AppKit, via the existing `toggleSidebar()` entry point). It must not write sidebar width or pane ratio during launch.
+- [x] **T6** When converting `src/Windows/MainSplitViewController.swift`, add no launch-time split restoration path: no `viewDidAppear` split restore, no `DispatchQueue.main.async` geometry restore, no `restoreSplitPosition`, no `resetSplitTo5050`, and no launch-time `splitView.setPosition` calls. Divider position comes only from AppKit split-view autosave.
+- [x] **T7** Keep `saveSession()` limited to its current tab/session keys; add no split persistence: no `Detours.SidebarWidth`, no `Detours.SplitDividerPosition`, and no `splitViewDidResizeSubviews` save hook writing pane ratios.
+- [x] **T8** Add no custom divider behavior that changes normal AppKit resizing: no custom snapping, no expanded divider hit rect that affects layout or persistence, and no custom "automatic versus user drag" resize loop.
+- [x] **T9** Implement sidebar show/hide through the sidebar `NSSplitViewItem`'s `isCollapsed` / `toggleSidebar` behavior (standard AppKit, via the existing `toggleSidebar()` entry point). It must not write sidebar width or pane ratio during launch.
 
 **Phase 3: Saved-State Preflight And Migration**
 
-- [ ] **T10** Add a small AppKit saved-state sanitizer under `src/Windows/`, with pure validation helpers for window frames and split-view saved values. This helper may remove invalid saved values before AppKit restore; it must not compute or apply live layouts.
-- [ ] **T11** Validate `NSWindow Frame MainWindow` before calling `setFrameAutosaveName`: reject frames that are off-screen, wider or taller than the visible screen, below the app minimum size, or nonsensical.
-- [ ] **T12** Validate the chosen split-view autosave defaults before assigning `splitView.autosaveName`: reject saved subview frames that cannot fit within the current window minimums or make either pane/sidebar unusable.
-- [ ] **T13** Add a one-time migration marker. On first run of this fix, remove legacy custom geometry keys (`Detours.SidebarWidth`, `Detours.SplitDividerPosition`) and stale split autosave names that are not the new AppKit autosave name.
-- [ ] **T14** Preserve valid old `NSWindow Frame MainWindow` data only if it passes the sanitizer. Invalid old main-window frames are removed before AppKit can restore them.
+- [x] **T10** Add a small AppKit saved-state sanitizer under `src/Windows/`, with pure validation helpers for window frames and split-view saved values. This helper may remove invalid saved values before AppKit restore; it must not compute or apply live layouts.
+- [x] **T11** Validate `NSWindow Frame MainWindow` before calling `setFrameAutosaveName`: reject frames that are off-screen, wider or taller than the visible screen, below the app minimum size, or nonsensical.
+- [x] **T12** Validate the chosen split-view autosave defaults before assigning `splitView.autosaveName`: reject saved subview frames that cannot fit within the current window minimums or make either pane/sidebar unusable.
+- [x] **T13** Add a one-time migration marker. On first run of this fix, remove legacy custom geometry keys (`Detours.SidebarWidth`, `Detours.SplitDividerPosition`) and stale split autosave names that are not the new AppKit autosave name.
+- [x] **T14** Preserve valid old `NSWindow Frame MainWindow` data only if it passes the sanitizer. Invalid old main-window frames are removed before AppKit can restore them.
 
 **Phase 4: Launch Ordering**
 
-- [ ] **T15** Make launch order explicit in `src/App/AppDelegate.swift` and `src/Windows/MainWindowController.swift`: run the saved-state preflight (T10-T14), create the native window/split controller, enable the AppKit window and split autosave names, restore tabs/session, then call `showWindow(nil)` once.
-- [ ] **T16** Keep the window shown exactly once via `showWindow(nil)` in `applicationDidFinishLaunching`; introduce no hidden-then-reveal path (no `orderOut`/delayed `makeKeyAndOrderFront`, no `alphaValue` fade-in). Launch capture (T28) must prove no jump.
-- [ ] **T17** Ensure remote host warmup, file-list population, active-pane restoration, and first-responder restoration cannot resize the main window after first visibility.
+- [x] **T15** Make launch order explicit in `src/App/AppDelegate.swift` and `src/Windows/MainWindowController.swift`: run the saved-state preflight (T10-T14), create the native window/split controller, enable the AppKit window and split autosave names, restore tabs/session, then call `showWindow(nil)` once.
+- [x] **T16** Keep the window shown exactly once via `showWindow(nil)` in `applicationDidFinishLaunching`; introduce no hidden-then-reveal path (no `orderOut`/delayed `makeKeyAndOrderFront`, no `alphaValue` fade-in). Launch capture (T28) must prove no jump.
+- [x] **T17** Ensure remote host warmup, file-list population, active-pane restoration, and first-responder restoration cannot resize the main window after first visibility.
 
 ---
 

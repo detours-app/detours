@@ -1,24 +1,38 @@
 import AppKit
 
 final class MainWindowController: NSWindowController, NSWindowDelegate {
-    let splitViewController = MainSplitViewController()
+    static let frameAutosaveName = "MainWindow"
+    static let minimumContentSize = NSSize(width: 800, height: 520)
+
+    let splitViewController: MainSplitViewController
 
     init() {
+        AppKitGeometrySanitizer.preflight(
+            defaults: .standard,
+            visibleScreenFrames: NSScreen.screens.map(\.visibleFrame),
+            windowAutosaveName: Self.frameAutosaveName,
+            splitAutosaveName: MainSplitViewController.splitViewAutosaveName,
+            minimumWindowSize: Self.minimumContentSize
+        )
+
         let contentSize = NSSize(width: 1200, height: 700)
+        splitViewController = MainSplitViewController()
+
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: contentSize),
-            styleMask: [.titled, .closable, .miniaturizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
 
         window.title = "Detours"
-        window.contentMinSize = contentSize
-        window.contentMaxSize = contentSize
+        window.contentMinSize = Self.minimumContentSize
         window.center()
         window.tabbingMode = .disallowed
         window.collectionBehavior = .fullScreenNone
         window.isRestorable = false
+        window.setFrameAutosaveName(Self.frameAutosaveName)
+        window.contentViewController = splitViewController
 
         // Clean title bar: no title text, blends with content
         window.titlebarAppearsTransparent = true
@@ -28,12 +42,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
 
         window.delegate = self
-
-        let contentView = NSView(frame: NSRect(origin: .zero, size: contentSize))
-        window.contentView = contentView
-
-        splitViewController.view.frame = contentView.bounds
-        contentView.addSubview(splitViewController.view)
 
         // Apply theme background
         applyThemeBackground()
