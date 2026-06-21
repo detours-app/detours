@@ -34,11 +34,19 @@ final class SplitPositionTests: XCTestCase {
         let bannedSymbols = [
             "restoreSplitPosition",
             "resetSplitTo5050",
-            "splitView.setPosition",
         ]
 
         for symbol in bannedSymbols {
             XCTAssertFalse(source.contains(symbol), "\(symbol) must not return to MainSplitViewController")
         }
+
+        // The user-triggered Equalize command may position the divider, but launch
+        // and automatic-layout code must not. `equalizePanes` is defined after
+        // viewDidLoad, so no `setPosition` may appear before it.
+        let beforeEqualize = source.components(separatedBy: "func equalizePanes").first ?? source
+        XCTAssertFalse(
+            beforeEqualize.contains("setPosition"),
+            "Only the user-triggered equalizePanes may set the divider position; launch/layout code must not"
+        )
     }
 }

@@ -390,6 +390,16 @@ final class MainSplitViewController: NSSplitViewController {
         ])
     }
 
+    /// Sets the divider between the two content panes so they are equal width.
+    /// Triggered only by the user's Equalize Panes command — never at launch or
+    /// during automatic layout. The sidebar divider is left untouched. AppKit
+    /// split autosave then persists the new layout like any user drag.
+    func equalizePanes() {
+        let sidebarWidth = (sidebarSplitViewItem?.isCollapsed ?? false) ? 0 : sidebarViewController.view.frame.width
+        let position = (splitView.bounds.width + sidebarWidth) / 2
+        splitView.setPosition(position, ofDividerAt: 1)
+    }
+
     // MARK: - Sidebar
 
     func toggleSidebar() {

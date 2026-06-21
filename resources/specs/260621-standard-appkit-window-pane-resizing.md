@@ -26,7 +26,8 @@ Restore standard AppKit window and split-view behavior, with AppKit owning resiz
 - If saved geometry is too large, off-screen, or violates pane minimums, Detours silently starts with a sane default AppKit layout.
 - Startup shows the window once. It must not appear at one size and then jump to another size after launch.
 - Session restore, remote host warmup, file-list loading, and first layout must not save geometry as user intent.
-- When the two content panes are within a small tolerance of equal width, the divider between them shows a subtle accent indicator; otherwise it renders as the normal divider. This is a passive visual cue only and does not move, snap, or persist anything.
+- While dragging the divider, when the two content panes pass through equal width the divider briefly flashes an accent highlight as a 50/50 signal; the highlight clears shortly after movement stops, so it never lingers as a permanent line. It is a visual cue only and does not move, snap, or persist anything.
+- A View menu command, "Equalize Panes" (keyboard shortcut Control-Command-Equals), sets the two content panes to equal width on demand. The sidebar is unaffected, and the resulting layout persists like any user divider drag.
 
 ### Acceptance Criteria
 
@@ -39,7 +40,8 @@ Restore standard AppKit window and split-view behavior, with AppKit owning resiz
 - [x] **A7** Invalid saved split-view geometry never opens Detours with an unusable pane ratio.
 - [x] **A8** Launch and session restore do not save geometry unless the user actually resizes the window or drags a divider.
 - [x] **A9** The implementation uses standard AppKit window and split-view resizing, not a Detours-owned replacement layout system.
-- [x] **A10** When the two content panes are equal width, the divider between them shows a distinct accent indicator; when they are not equal, the divider looks normal. The indicator never moves the divider or changes persistence.
+- [x] **A10** When the divider passes through equal width during a drag, the divider briefly flashes an accent highlight and then clears; it never stays lit as a permanent line and never moves the divider or changes persistence.
+- [ ] **A11** The View menu has an "Equalize Panes" command (Control-Command-Equals) that makes the two content panes equal width; the sidebar is unaffected and the equalized layout persists across relaunch.
 
 ### Out of scope
 
@@ -47,7 +49,7 @@ Restore standard AppKit window and split-view behavior, with AppKit owning resiz
 - Replacing AppKit split views with manual child-view frame layout.
 - Custom divider snapping or custom pane-ratio correction loops.
 - Warning dialogs for invalid saved layout.
-- An "equalize panes" command, keyboard shortcut, or toolbar button. The 50/50 signal is a passive indicator only; nothing programmatically sets the divider position.
+- Custom snapping or a magnetic detent at 50/50. The divider does not stick; the Equalize command is an explicit one-shot, and the highlight is passive.
 
 ---
 
@@ -121,8 +123,9 @@ The legacy custom resize code was already deleted by commit `15a7821` and is abs
 
 **Phase 5: Passive 50/50 Divider Indicator**
 
-- [x] **T37** Add `src/Windows/EqualSplitIndicatorView.swift`, a thin click-through accent `NSView` that shows itself only when the two content panes are within a small tolerance (2pt) of equal width. It observes the two pane views' `frameDidChangeNotification` and toggles its own `isHidden`; it overrides `hitTest(_:)` to return nil so it never intercepts clicks. Include a pure static decision helper (`showsEqualSplitIndicator(leftWidth:rightWidth:paneCount:tolerance:)`) so the threshold is unit-testable. No `setPosition`, no `NSSplitView` subclass, no persistence. (Implementation note: substituting the controller's managed `NSSplitView` with a subclass crashes `NSSplitViewController._setupSplitView`, so the indicator is an overlay rather than custom divider drawing.)
-- [x] **T38** In `src/Windows/MainSplitViewController.swift`, after the split items are added, pin one `EqualSplitIndicatorView` to the right pane view's leading edge (full height, `EqualSplitIndicatorView.thickness` wide) so it sits at the left/right divider. Leave the stock `splitView`, `isVertical`, `dividerStyle`, item setup, and `splitView.autosaveName` untouched. Add no `loadView` override and no banned symbol checked by T27 (no `splitView.setPosition`, no `splitViewDidResizeSubviews`).
+- [x] **T37** Add `src/Windows/EqualSplitIndicatorView.swift`, a thin click-through accent `NSView` that flashes only while the two content panes are within a small tolerance (2pt) of equal width and auto-clears shortly after movement stops (so it never lingers). It observes the two pane views' `frameDidChangeNotification` and toggles its own `isHidden` with a refreshed auto-hide work item; it overrides `hitTest(_:)` to return nil so it never intercepts clicks. Include a pure static decision helper (`showsEqualSplitIndicator(leftWidth:rightWidth:paneCount:tolerance:)`) so the threshold is unit-testable. No `setPosition`, no `NSSplitView` subclass, no persistence. (Implementation note: substituting the controller's managed `NSSplitView` with a subclass crashes `NSSplitViewController._setupSplitView`, so the indicator is an overlay rather than custom divider drawing.)
+- [x] **T38** In `src/Windows/MainSplitViewController.swift`, after the split items are added, pin one `EqualSplitIndicatorView` to the right pane view's leading edge (full height, `EqualSplitIndicatorView.thickness` wide) so it sits at the left/right divider. Leave the stock `splitView`, `isVertical`, `dividerStyle`, item setup, and `splitView.autosaveName` untouched. Add no `loadView` override and no `splitViewDidResizeSubviews`.
+- [ ] **T42** Add an `equalizePanes()` method to `src/Windows/MainSplitViewController.swift` (defined after `viewDidLoad`) that sets the left/right divider to the content midpoint via `splitView.setPosition(_:ofDividerAt: 1)`, leaving the sidebar untouched. Add `@objc func equalizePanes(_:)` to `src/App/AppDelegate.swift` forwarding to it, and an "Equalize Panes" item in the View menu in `src/App/MainMenu.swift` (after Toggle Sidebar) with key equivalent `=` and modifiers Control+Command. This is the only `setPosition` use and is user-triggered, so it stays outside launch/layout code (T27 allows `setPosition` only in `equalizePanes`).
 
 ---
 
@@ -158,7 +161,11 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 - [x] **T39** `testIndicatorShowsWhenPanesEqual` - Equal content-pane widths (and within tolerance) return true from `showsEqualSplitIndicator`.
 - [x] **T40** `testIndicatorHiddenWhenPanesUneven` - Content-pane widths differing by more than the tolerance return false.
-- [x] **T41** `testIndicatorHiddenWithoutTwoContentPanes` - Fewer than three panes, or a zero-width pane, return false.
+- [x] **T41** `testIndicatorHiddenWithoutTwoContentPanes` - Fewer than two content panes, or a zero-width pane, return false.
+
+### Equalize Command Test (`Tests/UITests/DetoursUITests/DetoursUITests/WindowPaneGeometryUITests.swift`)
+
+- [ ] **T44** `testEqualizePanesCommandSetsFiftyFifty` - Move the divider off-center, trigger the Equalize Panes shortcut, and verify the two content panes end up equal width.
 
 ### Build And Release Verification
 

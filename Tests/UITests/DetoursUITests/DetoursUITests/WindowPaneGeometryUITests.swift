@@ -95,6 +95,23 @@ final class WindowPaneGeometryUITests: XCTestCase {
         _ = try dragPaneDivider()
     }
 
+    func testEqualizePanesCommandSetsFiftyFifty() throws {
+        launchApp()
+        waitForPanes()
+
+        // Move the divider off-center so equalizing has a visible effect.
+        _ = try dragPaneDivider()
+        let before = contentPaneWidths()
+        XCTAssertGreaterThan(abs(before.left - before.right), 20, "Divider should start off-center")
+
+        // Trigger the Equalize Panes command via its keyboard shortcut.
+        app.typeKey("=", modifierFlags: [.command, .control])
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+
+        let after = contentPaneWidths()
+        XCTAssertEqual(after.left, after.right, accuracy: 12, "Equalize Panes should make the content panes equal width")
+    }
+
     private func launchApp() {
         app.launch()
         XCTAssertTrue(mainWindow().waitForExistence(timeout: 8), "Main Detours window should exist")
@@ -121,6 +138,22 @@ final class WindowPaneGeometryUITests: XCTestCase {
 
     private func sidebarOutline() -> XCUIElement {
         app.outlines.matching(identifier: "sidebarOutlineView").firstMatch
+    }
+
+    private func splittersSortedByX() -> [XCUIElement] {
+        let query = app.descendants(matching: .splitter)
+        return (0..<query.count).map { query.element(boundBy: $0) }.sorted { $0.frame.minX < $1.frame.minX }
+    }
+
+    /// Widths of the two content panes derived from the split dividers (the sidebar
+    /// divider and the left/right divider). Outline frames are unreliable, so the
+    /// splitter positions are the source of truth.
+    private func contentPaneWidths() -> (left: CGFloat, right: CGFloat) {
+        let splitters = splittersSortedByX()
+        guard splitters.count >= 2 else { return (0, 0) }
+        let sidebarDividerX = splitters[0].frame.midX
+        let paneDividerX = splitters[1].frame.midX
+        return (left: paneDividerX - sidebarDividerX, right: mainWindow().frame.maxX - paneDividerX)
     }
 
     /// The left/right pane divider, targeted as the rightmost AppKit split divider.

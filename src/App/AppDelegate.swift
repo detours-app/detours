@@ -139,6 +139,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindowController?.splitViewController.toggleSidebar()
     }
 
+    @objc func equalizePanes(_ sender: Any?) {
+        mainWindowController?.splitViewController.equalizePanes()
+    }
+
     @objc func showAbout(_ sender: Any?) {
         let credits = NSAttributedString(
             string: "Dual-pane file manager with tabs, folder expansion, Quick Open, and git status. Keyboard-first, fully themeable.",
