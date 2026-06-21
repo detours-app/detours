@@ -116,12 +116,17 @@ final class WindowPaneGeometryUITests: XCTestCase {
             gi += 1
         }
         let splitters = app.descendants(matching: .splitter)
-        NSLog("GEOMDUMP splitters=\(splitters.count)")
+        var summary = "GEOMDUMP window=\(NSStringFromRect(window.frame)) " +
+            "sidebar=\(NSStringFromRect(sidebar.frame)) left=\(NSStringFromRect(left.frame)) " +
+            "right=\(NSStringFromRect(right.frame)) " +
+            "leftMaxX=\(left.frame.maxX) rightMinX=\(right.frame.minX) gap=\(right.frame.minX - left.frame.maxX) " +
+            "splitGroups=\(groups.count) splitters=\(splitters.count)"
         var si = 0
         while si < splitters.count {
-            NSLog("GEOMDUMP splitter[\(si)]=\(NSStringFromRect(splitters.element(boundBy: si).frame))")
+            summary += " splitter[\(si)]=\(NSStringFromRect(splitters.element(boundBy: si).frame))"
             si += 1
         }
+        XCTFail(summary)
     }
 
     private func launchApp() {
