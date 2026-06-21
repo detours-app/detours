@@ -3,19 +3,6 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "split")
 
-/// NSSplitView subclass that reports whether the user is actively dragging a divider.
-/// Divider drags run a modal tracking loop inside `mouseDown`, so the flag is true for
-/// the whole drag, letting the controller tell user drags apart from automatic layout.
-final class DraggableSplitView: NSSplitView {
-    private(set) var isUserAdjustingDivider = false
-
-    override func mouseDown(with event: NSEvent) {
-        isUserAdjustingDivider = true
-        super.mouseDown(with: event)
-        isUserAdjustingDivider = false
-    }
-}
-
 struct RemoteHomeDirectoryProbe {
     let sshTarget: String
     let hostTrust: SSHHostTrust
@@ -123,9 +110,7 @@ final class MainSplitViewController: NSSplitViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Configure split view. Use a subclass that reports active user divider drags
-        // so automatic layout passes can be told apart from the user moving the divider.
-        splitView = DraggableSplitView()
+        // Configure split view
         splitView.dividerStyle = .thin
         splitView.isVertical = true
         // Note: Manual position saving instead of autosaveName (unreliable with sidebar)
@@ -965,46 +950,9 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     override func splitViewDidResizeSubviews(_ notification: Notification) {
-        // Don't react during initial layout or while we're repositioning the divider.
+        // Don't save during initial layout or while restoring
         guard hasRestoredSplitPosition, !isRestoringSplitPosition else { return }
-
-        if let splitView = splitView as? DraggableSplitView {
-            if splitView.isUserAdjustingDivider {
-                // The user is dragging the divider: remember where they put it.
-                saveSplitPosition()
-            } else {
-                // Automatic layout (window/sidebar resize, content load). The two panes
-                // share holding priority, so AppKit collapses one to its minimum width
-                // and the other balloons. Re-impose the saved ratio so the split stays
-                // where the user left it instead of snapping lopsided.
-                reapplySplitRatio()
-            }
-        } else {
-            // Fallback if the custom split view wasn't installed: original behavior.
-            saveSplitPosition()
-        }
-    }
-
-    /// Re-applies the saved left/right pane ratio (centered by default) at the current
-    /// width, so automatic layout passes can't collapse a pane to its minimum.
-    private func reapplySplitRatio() {
-        let ratio: CGFloat
-        if defaults.object(forKey: SessionKeys.splitDividerPosition) != nil {
-            let saved = defaults.double(forKey: SessionKeys.splitDividerPosition)
-            ratio = (saved > 0 && saved < 1) ? CGFloat(saved) : 0.5
-        } else {
-            ratio = 0.5
-        }
-
-        let sidebarWidth = sidebarItem.isCollapsed ? 0 : splitView.arrangedSubviews[0].frame.width
-        let divider = splitView.dividerThickness
-        let availableWidth = splitView.bounds.width - sidebarWidth - (divider * 2)
-        guard availableWidth > 0 else { return }
-
-        let divider1Position = sidebarWidth + divider + (availableWidth * ratio)
-        isRestoringSplitPosition = true
-        splitView.setPosition(divider1Position, ofDividerAt: 1)
-        isRestoringSplitPosition = false
+        saveSplitPosition()
     }
 
     override func splitView(
