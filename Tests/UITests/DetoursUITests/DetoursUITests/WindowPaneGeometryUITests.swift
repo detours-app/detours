@@ -95,6 +95,35 @@ final class WindowPaneGeometryUITests: XCTestCase {
         _ = try dragPaneDivider()
     }
 
+    func testDumpSplitGeometry() throws {
+        launchApp()
+        waitForPanes()
+        let window = mainWindow()
+        let sidebar = sidebarOutline()
+        let left = leftPaneOutline()
+        let right = rightPaneOutline()
+        NSLog("GEOMDUMP window=\(NSStringFromRect(window.frame))")
+        NSLog("GEOMDUMP sidebar=\(NSStringFromRect(sidebar.frame))")
+        NSLog("GEOMDUMP left=\(NSStringFromRect(left.frame))")
+        NSLog("GEOMDUMP right=\(NSStringFromRect(right.frame))")
+        NSLog("GEOMDUMP sidebar.maxX=\(sidebar.frame.maxX) left.minX=\(left.frame.minX) " +
+              "left.maxX=\(left.frame.maxX) right.minX=\(right.frame.minX) gap=\(right.frame.minX - left.frame.maxX)")
+        let groups = app.splitGroups
+        NSLog("GEOMDUMP splitGroups=\(groups.count)")
+        var gi = 0
+        while gi < groups.count {
+            NSLog("GEOMDUMP splitGroup[\(gi)]=\(NSStringFromRect(groups.element(boundBy: gi).frame))")
+            gi += 1
+        }
+        let splitters = app.descendants(matching: .splitter)
+        NSLog("GEOMDUMP splitters=\(splitters.count)")
+        var si = 0
+        while si < splitters.count {
+            NSLog("GEOMDUMP splitter[\(si)]=\(NSStringFromRect(splitters.element(boundBy: si).frame))")
+            si += 1
+        }
+    }
+
     private func launchApp() {
         app.launch()
         XCTAssertTrue(mainWindow().waitForExistence(timeout: 8), "Main Detours window should exist")

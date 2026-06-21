@@ -26,13 +26,23 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         )
 
         window.title = "Detours"
-        window.contentMinSize = Self.minimumContentSize
-        window.center()
         window.tabbingMode = .disallowed
         window.collectionBehavior = .fullScreenNone
         window.isRestorable = false
-        window.setFrameAutosaveName(Self.frameAutosaveName)
+
+        // Assign the content view controller before sizing. An NSSplitViewController
+        // otherwise drives the window down to its minimum content size at assignment
+        // time; with autosave already enabled that minimum gets written back to
+        // defaults and sticks the window at the minimum on every relaunch.
         window.contentViewController = splitViewController
+        window.contentMinSize = Self.minimumContentSize
+        window.setContentSize(contentSize)
+        window.center()
+
+        // Restore a previously saved (and preflight-sanitized) frame if present,
+        // then enable autosave so user resizes persist.
+        window.setFrameUsingName(Self.frameAutosaveName)
+        window.setFrameAutosaveName(Self.frameAutosaveName)
 
         // Clean title bar: no title text, blends with content
         window.titlebarAppearsTransparent = true
