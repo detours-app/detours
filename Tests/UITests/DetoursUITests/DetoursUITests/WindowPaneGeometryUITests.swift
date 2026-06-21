@@ -104,8 +104,13 @@ final class WindowPaneGeometryUITests: XCTestCase {
         let before = contentPaneWidths()
         XCTAssertGreaterThan(abs(before.left - before.right), 20, "Divider should start off-center")
 
-        // Trigger the Equalize Panes command via its keyboard shortcut.
-        app.typeKey("=", modifierFlags: [.command, .control])
+        // Trigger the Equalize Panes command from the View menu.
+        let viewMenu = app.menuBarItems["View"]
+        XCTAssertTrue(viewMenu.waitForExistence(timeout: 5), "View menu should exist")
+        viewMenu.click()
+        let equalizeItem = app.menuItems["Equalize Panes"]
+        XCTAssertTrue(equalizeItem.waitForExistence(timeout: 5), "Equalize Panes item should exist")
+        equalizeItem.click()
         RunLoop.current.run(until: Date().addingTimeInterval(0.6))
 
         let after = contentPaneWidths()
