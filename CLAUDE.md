@@ -182,8 +182,18 @@ rm -f temp.png temp2.png mask.png
 - **Spectre** is the source-of-truth development machine: edit source, run local tests, make commits, and manage repo state here.
 - **Foundry** is the build, runtime staging, and screenshot machine: use it only for builds, installed-app verification, screenshot fixtures, and capture setup.
 - Before any command that changes Foundry app state, user preferences, screenshot fixtures, installed apps, or files outside the repo, state that it affects Foundry.
-- Do not stage screenshot fixtures, write Detours preferences, relaunch Detours, or mutate runtime state on Spectre.
+- Do not stage screenshot fixtures, write Detours preferences, relaunch Detours, or mutate runtime state on Spectre during development and testing.
 - If a command touches both machines, call out both sides explicitly before running it.
+
+### Build, Prove, Then Install on Spectre (MANDATORY FLOW)
+
+Every change follows this order. Do not skip ahead, and never declare a change done before it is proven crash-free on Foundry.
+
+1. **Edit + commit on Spectre.** Source changes and commits happen here.
+2. **Build and prove on Foundry.** Build with `build.sh` on Foundry and run the relevant XCUI tests there. **A launch crash MUST be caught here, not by Marco.** UI tests that launch the app (e.g. `waitForExistence` on the main window) fail when the app crashes on launch — so always run the UI suite after any change that touches window/view/controller setup, and treat a crash as a failing test to fix before continuing. If the build or any test is red, the change is not done.
+3. **When done, tested, and proven crash-free on Foundry, rebuild and install on Spectre.** Run `build.sh` on Spectre so Marco's running Detours gets the fix. This is the only sanctioned time to build/install/relaunch Detours on Spectre — it is required at the end of proven work, not optional. State that it relaunches Marco's Detours before running it.
+
+A change is not complete until it is proven on Foundry AND installed on Spectre.
 
 ### Spectre/Foundry Git Sync
 
