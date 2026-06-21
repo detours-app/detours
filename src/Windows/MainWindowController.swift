@@ -41,8 +41,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         // Restore a previously saved (and preflight-sanitized) frame if present,
         // then enable autosave so user resizes persist.
-        window.setFrameUsingName(Self.frameAutosaveName)
+        let savedFrame = UserDefaults.standard.string(forKey: "NSWindow Frame \(Self.frameAutosaveName)") ?? "nil"
+        let restored = window.setFrameUsingName(Self.frameAutosaveName)
+        NSLog("WINDBG saved=\(savedFrame) restored=\(restored) afterRestore=\(NSStringFromRect(window.frame))")
         window.setFrameAutosaveName(Self.frameAutosaveName)
+        NSLog("WINDBG afterAutosaveName=\(NSStringFromRect(window.frame))")
 
         // Clean title bar: no title text, blends with content
         window.titlebarAppearsTransparent = true
