@@ -15,6 +15,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
         try clearGeometryDefaults()
         app = XCUIApplication(bundleIdentifier: appBundleIdentifier)
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootName
+        app.launchEnvironment["DETOURS_DISABLE_EQUAL_SPLIT_INDICATOR"] = "1"
     }
 
     override func tearDownWithError() throws {
