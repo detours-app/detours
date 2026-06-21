@@ -140,11 +140,11 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 ### UI Tests (`Tests/UITests/DetoursUITests/DetoursUITests/WindowPaneGeometryUITests.swift`)
 
-- [ ] **T28** `testLaunchHasNoWindowFrameJump` - Launch Detours, sample the main window frame repeatedly from first visibility through several seconds, and fail if the frame changes without user input.
-- [ ] **T29** `testPoisonedSavedWindowFrameFallsBackWithoutJump` - Seed an oversized/off-screen `NSWindow Frame MainWindow`, launch Detours, and verify the window opens onscreen, resizable, and stable.
-- [ ] **T30** `testMainWindowResizePersistsAcrossRelaunch` - Resize the main window through UI automation, quit, relaunch, and verify AppKit restores the user-sized frame.
-- [ ] **T31** `testPaneDividerDragPersistsAcrossRelaunch` - Drag the left/right divider through UI automation, quit, relaunch, and verify the pane layout persists through AppKit split autosave.
-- [ ] **T32** `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` - Seed invalid old split defaults, launch Detours, and verify both panes are usable and the divider remains draggable.
+- [x] **T28** `testLaunchHasNoWindowFrameJump` - Launch Detours, sample the main window frame repeatedly from first visibility through several seconds, and fail if the frame changes without user input.
+- [x] **T29** `testPoisonedSavedWindowFrameFallsBackWithoutJump` - Seed an oversized/off-screen `NSWindow Frame MainWindow`, launch Detours, and verify the window opens onscreen, resizable, and stable.
+- [x] **T30** `testMainWindowResizePersistsAcrossRelaunch` - Resize the main window through UI automation, quit, relaunch, and verify AppKit restores the user-sized frame.
+- [x] **T31** `testPaneDividerDragPersistsAcrossRelaunch` - Drag the left/right divider through UI automation, quit, relaunch, and verify the pane layout persists through AppKit split autosave.
+- [x] **T32** `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` - Seed invalid old split defaults, launch Detours, and verify both panes are usable and the divider remains draggable.
 
 ### Build And Release Verification
 
