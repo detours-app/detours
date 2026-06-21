@@ -210,9 +210,12 @@ final class WindowPaneGeometryUITests: XCTestCase {
             dy: (dividerY - windowFrame.minY) / windowFrame.height
         )
         let start = mainWindow().coordinate(withNormalizedOffset: normalized)
-        // The sidebar opens at its maximum thickness, so drag toward narrowing
-        // (left) where there is room to move; dragging wider cannot move it.
-        let end = start.withOffset(CGVector(dx: -60, dy: 0))
+        // The sidebar is clamped between its minimum and maximum thickness, so drag
+        // toward whichever side has room: widen it when it is narrow, narrow it when
+        // it is wide. A fixed direction stalls when the sidebar starts at that limit.
+        let sidebarMidpointWidth: CGFloat = 235
+        let dx: CGFloat = sidebar.frame.width < sidebarMidpointWidth ? 60 : -60
+        let end = start.withOffset(CGVector(dx: dx, dy: 0))
 
         start.press(forDuration: 0.2, thenDragTo: end)
         RunLoop.current.run(until: Date().addingTimeInterval(0.8))
