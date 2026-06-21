@@ -4,7 +4,11 @@ final class SplitPositionTests: XCTestCase {
     func testAppKitFrameAutosaveIsTheWindowPersistenceAuthority() throws {
         let source = try String(contentsOfFile: "src/Windows/MainWindowController.swift", encoding: .utf8)
 
-        XCTAssertTrue(source.contains("setFrameAutosaveName(Self.frameAutosaveName)"))
+        // Frame autosave is the sole window-frame persistence authority. It is
+        // engaged through the controller (windowFrameAutosaveName) after super.init
+        // adopts the window; setting it on the window before adoption is wiped by
+        // the controller, so the controller property is the authority.
+        XCTAssertTrue(source.contains("windowFrameAutosaveName = Self.frameAutosaveName"))
         XCTAssertFalse(source.contains("contentMaxSize"))
         XCTAssertFalse(source.contains("contentView.addSubview"))
     }
