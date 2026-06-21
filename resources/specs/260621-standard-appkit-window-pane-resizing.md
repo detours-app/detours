@@ -124,19 +124,19 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 ### Unit Tests (`Tests/AppKitGeometrySanitizerTests.swift`)
 
-- [ ] **T18** `testAcceptsVisibleWindowFrame` - A saved main-window frame fully inside the visible screen and above the minimum size is accepted.
-- [ ] **T19** `testRejectsOversizedWindowFrame` - A saved frame wider or taller than the visible screen is removed before AppKit restore.
-- [ ] **T20** `testRejectsOffscreenWindowFrame` - A saved frame outside all visible screens is removed before AppKit restore.
-- [ ] **T21** `testRejectsTooSmallWindowFrame` - A saved frame below the app minimum size is removed before AppKit restore.
-- [ ] **T22** `testRejectsUnusableSplitFrames` - Saved split frames that leave a pane below minimum usable width are removed before AppKit split autosave is enabled.
-- [ ] **T23** `testMigrationRemovesLegacyCustomGeometryKeys` - The one-time migration removes `Detours.SidebarWidth` and `Detours.SplitDividerPosition`.
-- [ ] **T24** `testMigrationKeepsValidMainWindowAutosaveFrame` - A valid existing `NSWindow Frame MainWindow` survives migration.
-- [ ] **T25** `testMigrationRemovesInvalidMainWindowAutosaveFrame` - An invalid existing `NSWindow Frame MainWindow` is removed during migration.
+- [x] **T18** `testAcceptsVisibleWindowFrame` - A saved main-window frame fully inside the visible screen and above the minimum size is accepted.
+- [x] **T19** `testRejectsOversizedWindowFrame` - A saved frame wider or taller than the visible screen is removed before AppKit restore.
+- [x] **T20** `testRejectsOffscreenWindowFrame` - A saved frame outside all visible screens is removed before AppKit restore.
+- [x] **T21** `testRejectsTooSmallWindowFrame` - A saved frame below the app minimum size is removed before AppKit restore.
+- [x] **T22** `testRejectsUnusableSplitFrames` - Saved split frames that leave a pane below minimum usable width are removed before AppKit split autosave is enabled.
+- [x] **T23** `testMigrationRemovesLegacyCustomGeometryKeys` - The one-time migration removes `Detours.SidebarWidth` and `Detours.SplitDividerPosition`.
+- [x] **T24** `testMigrationKeepsValidMainWindowAutosaveFrame` - A valid existing `NSWindow Frame MainWindow` survives migration.
+- [x] **T25** `testMigrationRemovesInvalidMainWindowAutosaveFrame` - An invalid existing `NSWindow Frame MainWindow` is removed during migration.
 
 ### Regression Tests (`Tests/SplitPositionTests.swift`)
 
-- [ ] **T26** Replace old manual-ratio persistence expectations with AppKit-focused expectations: no Detours custom split ratio key is written, and no launch/session restore path calls manual split-position logic.
-- [ ] **T27** Add a static regression test that fails if `MainSplitViewController` reintroduces `restoreSplitPosition`, `resetSplitTo5050`, `Detours.SplitDividerPosition`, `Detours.SidebarWidth`, or launch-time `splitView.setPosition`.
+- [x] **T26** Replace old manual-ratio persistence expectations with AppKit-focused expectations: no Detours custom split ratio key is written, and no launch/session restore path calls manual split-position logic.
+- [x] **T27** Add a static regression test that fails if `MainSplitViewController` reintroduces `restoreSplitPosition`, `resetSplitTo5050`, `Detours.SplitDividerPosition`, `Detours.SidebarWidth`, or launch-time `splitView.setPosition`.
 
 ### UI Tests (`Tests/UITests/DetoursUITests/DetoursUITests/WindowPaneGeometryUITests.swift`)
 
@@ -148,7 +148,7 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 ### Build And Release Verification
 
-- [ ] **T33** Run the focused unit tests for the sanitizer and split-position regressions.
+- [x] **T33** Run the focused unit tests for the sanitizer and split-position regressions.
 - [ ] **T34** Run the focused UI tests for launch stability, resize persistence, and poisoned-state fallback.
 - [ ] **T35** Run `resources/scripts/build.sh` without `--no-install`; confirm the installed `/Applications/Detours.app` launches.
 - [ ] **T36** After the release install, repeat the launch capture against the installed app and confirm the main window and pane frames do not jump after first visibility.
