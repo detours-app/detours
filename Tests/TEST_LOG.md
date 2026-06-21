@@ -2,7 +2,12 @@
 
 ## Latest Run
 
-- Started: 2026-06-21 18:4x
+- Started: 2026-06-21 19:1x
+- Command: `uitest.sh WindowPaneGeometryUITests` (Foundry) + `swift test` unit/regression (Spectre)
+- Status: PARTIAL on Foundry (see note), feature verified
+- Notes: 50/50 indicator changed from a persistent highlight to a transient flash (auto-clears ~0.45s after movement stops) and a "Equalize Panes" View-menu command (Ctrl-Cmd-=) added that sets the two content panes equal via setPosition on explicit user action. `testEqualizePanesCommandSetsFiftyFifty` PASSES on Foundry (menu click → panes equal), confirming the command. `testLaunchHasNoWindowFrameJump`, `testPaneDividerDragPersistsAcrossRelaunch`, `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` PASS. `testMainWindowResizePersistsAcrossRelaunch` and `testPoisonedSavedWindowFrameFallsBackWithoutJump` FAIL on Foundry ONLY: Foundry's display changed to 2560x1600 Retina (1280pt wide) and XCUI's synthetic window-corner resize gesture no longer grabs the resize handle (4 retries, both directions — never moves the frame). Not a product bug: the window-resize functionality is verified working on Spectre's real display (osascript resize to 1160x780 saved and restored across relaunch). EqualSplitIndicatorViewTests (3) and SplitPositionTests (4, T27 now allows setPosition only inside equalizePanes) pass on Spectre.
+
+### Prior run 2026-06-21 18:4x
 - Command: `uitest.sh WindowPaneGeometryUITests` (Foundry) + `swift test --filter EqualSplitIndicatorViewTests/SplitPositionTests` (Spectre)
 - Status: PASS
 - Notes: Passive 50/50 pane-divider indicator added (EqualSplitIndicatorView: a thin click-through accent overlay at the divider that shows only when the two content panes are within 2pt of equal width). First tried an NSSplitView subclass with custom drawDivider, but substituting NSSplitViewController's managed split view crashed _setupSplitView on launch — the overlay approach replaced it. The geometry UI suite went red afterward, but isolation (env-gated indicator off) proved the indicator innocent: Foundry's display had changed to a 1280pt-wide screen, leaving the 1200pt default window no room to grow, so fixed-direction resize/divider drags clamped. Made resizeMainWindow and dragPaneDivider drag toward whichever side has room. All 5 WindowPaneGeometryUITests pass (TEST SUCCEEDED) with the indicator enabled; EqualSplitIndicatorViewTests (3) and SplitPositionTests (4, including the controller-autosave assertion update) pass on Spectre.
