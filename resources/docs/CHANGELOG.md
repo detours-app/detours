@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.1 - 2026-06-22
+
+### Bug Fixes
+
+- **Quick Look no longer errors on folders** - Arrowing onto a folder while Quick
+  Look is open now shows the native folder preview instead of failing with an
+  operation error.
+- **New tab keeps the remote connection** - Pressing Cmd-T on a tab connected to
+  a remote host now opens the new tab on the same remote host and path, reusing
+  the existing connection, instead of jumping to a local folder.
+
 ## 1.6.0 - 2026-06-22
 
 ### New Features
