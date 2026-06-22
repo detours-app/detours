@@ -1132,10 +1132,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   (PASS on Foundry) proving a directory now hands back its own URL for the
   native folder preview instead of misclassifying as text and failing.
   DetoursPreviewGeneratorTests (14), PaneViewControllerTests (30), PaneTabTests
-  (14) all PASS on Foundry. XCUI launch suite not run: Foundry login keychain is
-  missing the Developer ID Application identity (0 codesigning identities), so
-  build.sh codesign/install aborts; both changes compiled clean in the Foundry
-  release build and neither touches window/view/controller setup.
+  (14) all PASS on Foundry. After the Ansible guy restored the Developer ID
+  Application signing identity on Foundry, XCUI SmokeTests (4) and NetworkUITests
+  all PASS on Foundry against the signed/installed build: app launches clean with
+  both changes, no launch crash.
 
 - 2026-01-06 10:25:43: Added system-defined media key handling for the dictation
   key (F5 on many keyboards) and tests for the path.
