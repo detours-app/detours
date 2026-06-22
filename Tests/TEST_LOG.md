@@ -2,10 +2,20 @@
 
 ## Latest Run
 
-- Started: 2026-06-22 15:15
+- Started: 2026-06-22 16:18
 - Command: `CODESIGN_IDENTITY=- resources/scripts/uitest.sh WindowPaneGeometryUITests` (Foundry)
-- Status: FAIL
-- Notes: Foundry Git was set up with a normal `git@github.com:MAF27/detours.git` checkout at `b968070`. `resources/scripts/build.sh` first failed because Foundry has no `Developer ID Application: Marco Fruh (AHUQTWVD7X)` signing identity; rerun with `CODESIGN_IDENTITY=-` built, signed, installed `/Applications/Detours.app`, and relaunched it. XCUITest did not start because Foundry only has Command Line Tools selected (`/Library/Developer/CommandLineTools`) and no Xcode installation, so `xcodebuild` exits with “tool 'xcodebuild' requires Xcode”. Smallest failing surface is Foundry host setup: install/select Xcode on Foundry, then rerun `resources/scripts/uitest.sh WindowPaneGeometryUITests`.
+- Status: PASS
+- Notes: Foundry normal Git checkout is clean and current. `WindowPaneGeometryUITests`
+  passed 6/6 in 67.821s with warning-clean Xcode output after installing/selecting
+  Xcode on Foundry, routing UI-test resize through the absolute
+  `DETOURS_UI_TEST_ROOT` command file, pinning the runner destination to arm64,
+  sharing the UI-test scheme, and linking AppIntents in the UI-test target.
+  Detours privacy prompts and repeat XCTest password prompts did not recur.
+  Spectre checks also pass: `swiftlint lint --quiet`;
+  `swift test --filter 'SidebarTests|AppKitGeometrySanitizerTests|SplitPositionTests|EqualSplitIndicatorViewTests'`
+  (29 tests); `bash -n resources/scripts/build.sh resources/scripts/uitest.sh && git diff --check`;
+  `plutil -lint` for the UI-test project and `xmllint --noout` for the shared
+  scheme.
 
 ### Prior run 2026-06-22 14:58
 - Command: `swift test --filter 'AppKitGeometrySanitizerTests|EqualSplitIndicatorViewTests|SplitPositionTests|DisconnectedQueueTests|FileOperationQueueTests|DetoursPreviewKindTests|DetoursPreviewGeneratorTests'` (Spectre)
