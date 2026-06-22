@@ -22,7 +22,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
         try clearGeometryDefaults()
         clearResizeCommand()
         app = XCUIApplication(bundleIdentifier: appBundleIdentifier)
-        app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootName
+        app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
     }
 
     override func tearDownWithError() throws {
@@ -258,6 +258,11 @@ final class WindowPaneGeometryUITests: XCTestCase {
     }
 
     private var uiTestRootURL: URL {
+        if let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"],
+           !root.isEmpty {
+            return URL(fileURLWithPath: root)
+        }
+
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(uiTestRootName)
     }
 

@@ -10,6 +10,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 XCODEPROJ="$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj"
+UITEST_DESTINATION="platform=macOS,arch=arm64"
 
 # Test directory setup in home (accessible and easy to navigate)
 TEST_DIR="$HOME/DetoursUITests-Temp"
@@ -69,17 +70,17 @@ trap cleanup EXIT
 
 if [ -n "$1" ]; then
     # Run specific test
-    xcodebuild test \
+    DETOURS_UI_TEST_ROOT="$TEST_DIR" xcodebuild test \
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
-        -destination 'platform=macOS' \
+        -destination "$UITEST_DESTINATION" \
         -only-testing:"DetoursUITests/$1"
 else
     # Run all tests
-    xcodebuild test \
+    DETOURS_UI_TEST_ROOT="$TEST_DIR" xcodebuild test \
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
-        -destination 'platform=macOS'
+        -destination "$UITEST_DESTINATION"
 fi
 
 exit $?
