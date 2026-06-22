@@ -96,6 +96,16 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
     }
 
     private func generatePreview(for request: DetoursPreviewRequest) async throws -> URL {
+        // Directories must never be rendered as a rich preview: reading their
+        // contents yields an empty/erroring sample that misclassifies as text and
+        // then fails generation. Hand the URL back so Quick Look shows the native
+        // folder preview instead.
+        var isDirectory: ObjCBool = false
+        if fileManager.fileExists(atPath: request.sourceURL.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return request.sourceURL
+        }
+
         let sample = try readSample(from: request.sourceURL)
         let kind = DetoursPreviewKind.classify(url: request.sourceURL, sampleData: sample)
         guard kind.isSupported else {

@@ -1737,6 +1737,13 @@ extension PaneViewController: PaneTabBarDelegate {
     }
 
     func tabBarDidRequestNewTab() {
+        // On a remote tab `currentDirectory` is a stale local placeholder, not a
+        // real path; inheriting it opens a bogus folder and errors. Start the new
+        // tab at the local home directory instead.
+        if selectedTabIsRemote {
+            createTab(at: FileManager.default.homeDirectoryForCurrentUser, iCloudListingMode: .normal, select: true)
+            return
+        }
         let currentDir = selectedTab?.currentDirectory ?? FileManager.default.homeDirectoryForCurrentUser
         let mode = selectedTab?.iCloudListingMode ?? .normal
         createTab(at: currentDir, iCloudListingMode: mode, select: true)
