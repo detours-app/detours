@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 import XCTest
 
 final class WindowPaneGeometryUITests: XCTestCase {
@@ -223,7 +222,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
         let originalFrame = window.frame
         let targetSize = targetResizeSize(from: originalFrame)
 
-        try setMainWindowSizeWithAccessibility(targetSize)
+        setMainWindowSizeForUITest(targetSize)
 
         for _ in 0..<30 {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
@@ -248,43 +247,13 @@ final class WindowPaneGeometryUITests: XCTestCase {
         return CGSize(width: frame.width + 140, height: frame.height + 90)
     }
 
-    private func setMainWindowSizeWithAccessibility(_ size: CGSize) throws {
-        let applicationElement = AXUIElementCreateApplication(try detoursProcessIdentifier())
-        var windowsValue: CFTypeRef?
-        let copyResult = AXUIElementCopyAttributeValue(
-            applicationElement,
-            kAXWindowsAttribute as CFString,
-            &windowsValue
+    private func setMainWindowSizeForUITest(_ size: CGSize) {
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.detours.uiTest.resizeMainWindow"),
+            object: nil,
+            userInfo: ["width": Double(size.width), "height": Double(size.height)],
+            deliverImmediately: true
         )
-        guard copyResult == .success,
-              let windows = windowsValue as? [AXUIElement],
-              let windowElement = windows.first else {
-            throw NSError(domain: "WindowPaneGeometryUITests", code: 10 + Int(copyResult.rawValue))
-        }
-
-        var mutableSize = size
-        guard let sizeValue = AXValueCreate(.cgSize, &mutableSize) else {
-            throw NSError(domain: "WindowPaneGeometryUITests", code: 20)
-        }
-
-        let setResult = AXUIElementSetAttributeValue(
-            windowElement,
-            kAXSizeAttribute as CFString,
-            sizeValue
-        )
-        guard setResult == .success else {
-            throw NSError(domain: "WindowPaneGeometryUITests", code: 30 + Int(setResult.rawValue))
-        }
-    }
-
-    private func detoursProcessIdentifier() throws -> pid_t {
-        if let process = NSRunningApplication
-            .runningApplications(withBundleIdentifier: appBundleIdentifier)
-            .first(where: { !$0.isTerminated }) {
-            return process.processIdentifier
-        }
-
-        throw NSError(domain: "WindowPaneGeometryUITests", code: 40)
     }
 
     @discardableResult

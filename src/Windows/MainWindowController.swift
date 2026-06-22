@@ -83,6 +83,15 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         window?.backgroundColor = ThemeManager.shared.currentTheme.background
     }
 
+    func resizeForUITest(to size: NSSize) {
+        guard UITestEnvironment.isEnabled, let window else { return }
+
+        var frame = window.frame
+        frame.size = size
+        window.setFrame(frame, display: true)
+        window.saveFrame(usingName: Self.frameAutosaveName)
+    }
+
     // MARK: - NSWindowDelegate
 
     func windowDidBecomeKey(_ notification: Notification) {

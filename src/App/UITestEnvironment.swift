@@ -1,6 +1,8 @@
 import Foundation
 
 enum UITestEnvironment {
+    static let resizeMainWindowNotification = Notification.Name("com.detours.uiTest.resizeMainWindow")
+
     static var isEnabled: Bool {
         guard let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"] else {
             return false

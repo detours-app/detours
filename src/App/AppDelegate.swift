@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let splitVC = self?.mainWindowController?.splitViewController else { return event }
             return splitVC.handleGlobalKeyDown(event) ? nil : event
         }
+
+        installUITestHooks()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -67,6 +69,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(monitor)
             keyDownEventMonitor = nil
         }
+
+        DistributedNotificationCenter.default().removeObserver(
+            self,
+            name: UITestEnvironment.resizeMainWindowNotification,
+            object: nil
+        )
+    }
+
+    private func installUITestHooks() {
+        guard UITestEnvironment.isEnabled else { return }
+
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleUITestResizeNotification(_:)),
+            name: UITestEnvironment.resizeMainWindowNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleUITestResizeNotification(_ notification: Notification) {
+        guard let width = notification.userInfo?["width"] as? Double,
+              let height = notification.userInfo?["height"] as? Double else {
+            return
+        }
+
+        mainWindowController?.resizeForUITest(to: NSSize(width: width, height: height))
     }
 
     // MARK: - Tab Actions
