@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased
+## 1.6.0 - 2026-06-22
+
+### New Features
+
+- **Native Detours previews for text assets** - Text, Markdown, code, and
+  configuration files now render through Detours-owned preview HTML, including
+  Markdown emphasis, source toggling, and asset classification for the supported
+  preview types.
+- **Quick Look uses the native preview pipeline** - Detours-generated previews
+  are now wired into Quick Look so preview behavior is consistent between local
+  browsing and the app's own preview assets.
+- **Standard AppKit window and pane resizing is restored** - Main-window frame
+  resizing, sidebar divider dragging, and pane divider resizing now use native
+  AppKit behavior with persisted geometry.
+- **Equalize Panes command and split marker** - Added a command for returning
+  the two file panes to an even split and a transient theme-colored marker when
+  the panes reach the same width.
 
 ### Bug Fixes
 
@@ -8,6 +24,21 @@
   custom pane resize paths that could fight AppKit during launch, documented the
   permanent standard-AppKit replacement plan, and kept the installed app stable
   while the native resizing fix is implemented.
+- **Pane geometry survives relaunch and resize workflows** - Window frame and
+  split geometry persistence now sanitize AppKit autosave formats correctly and
+  keep the dual-pane divider proportional when the window changes size.
+- **Remote previews and editor entries are more reliable** - Remote Quick Look,
+  remote host status refresh, and Open With entries now resolve through the
+  expected helper-backed local materialization paths.
+
+### Testing
+
+- **Window and pane geometry UI coverage is in place** - Added regression and
+  UI coverage for window frame persistence, sidebar resizing, pane divider
+  resizing, equal split detection, and the Equalize Panes command.
+- **Foundry UI verification is warning-clean** - Hardened the UI test harness,
+  Xcode scheme, launch state, and privacy-prompt handling so Foundry can run the
+  resize verification without interactive XCTest prompts.
 
 ## 1.5.2 - 2026-06-16
 
