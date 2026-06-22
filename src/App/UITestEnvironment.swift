@@ -1,7 +1,13 @@
 import Foundation
 
 enum UITestEnvironment {
-    static let resizeMainWindowNotification = Notification.Name("com.detours.uiTest.resizeMainWindow")
+    static let resizeMainWindowCommandFileName = ".detours-resize-main-window.json"
+
+    struct ResizeMainWindowCommand: Decodable {
+        let id: String
+        let width: Double
+        let height: Double
+    }
 
     static var isEnabled: Bool {
         guard let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"] else {
@@ -29,5 +35,19 @@ enum UITestEnvironment {
         }
 
         return url
+    }
+
+    static var resizeMainWindowCommandURL: URL? {
+        rootDirectory?.appendingPathComponent(resizeMainWindowCommandFileName)
+    }
+
+    static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
+        guard let url = resizeMainWindowCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(ResizeMainWindowCommand.self, from: data)
     }
 }

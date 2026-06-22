@@ -5,6 +5,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var mainWindowController: MainWindowController?
     private var systemEventMonitor: Any?
     private var keyDownEventMonitor: Any?
+    private var uiTestCommandTimer: Timer?
+    private var lastUITestResizeCommandID: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Reduce tooltip delay from default ~1000ms to 200ms
@@ -70,31 +72,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyDownEventMonitor = nil
         }
 
-        DistributedNotificationCenter.default().removeObserver(
-            self,
-            name: UITestEnvironment.resizeMainWindowNotification,
-            object: nil
-        )
+        uiTestCommandTimer?.invalidate()
+        uiTestCommandTimer = nil
     }
 
     private func installUITestHooks() {
         guard UITestEnvironment.isEnabled else { return }
 
-        DistributedNotificationCenter.default().addObserver(
-            self,
-            selector: #selector(handleUITestResizeNotification(_:)),
-            name: UITestEnvironment.resizeMainWindowNotification,
-            object: nil
+        uiTestCommandTimer = Timer.scheduledTimer(
+            timeInterval: 0.1,
+            target: self,
+            selector: #selector(pollUITestCommands),
+            userInfo: nil,
+            repeats: true
         )
+        uiTestCommandTimer?.tolerance = 0.05
+        pollUITestCommands()
     }
 
-    @objc private func handleUITestResizeNotification(_ notification: Notification) {
-        guard let width = notification.userInfo?["width"] as? Double,
-              let height = notification.userInfo?["height"] as? Double else {
+    @objc private func pollUITestCommands() {
+        guard let command = UITestEnvironment.currentResizeMainWindowCommand(),
+              command.id != lastUITestResizeCommandID else {
             return
         }
 
-        mainWindowController?.resizeForUITest(to: NSSize(width: width, height: height))
+        lastUITestResizeCommandID = command.id
+        mainWindowController?.resizeForUITest(to: NSSize(width: command.width, height: command.height))
     }
 
     // MARK: - Tab Actions

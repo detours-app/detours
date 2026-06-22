@@ -5,14 +5,22 @@ final class WindowPaneGeometryUITests: XCTestCase {
     private let appBundleIdentifier = "com.detours.app"
     private let defaultsDomain = "com.detours.app"
     private let uiTestRootName = "DetoursUITests-Temp"
+    private let resizeCommandFileName = ".detours-resize-main-window.json"
     private let windowFrameKey = "NSWindow Frame MainWindow"
     private let splitFramesKey = "NSSplitView Subview Frames Detours.MainSplitView.AppKitV1"
     private let migrationMarkerKey = "Detours.AppKitGeometryMigration.AppKitV1"
     private var app: XCUIApplication!
 
+    private struct ResizeMainWindowCommand: Encodable {
+        let id: String
+        let width: Double
+        let height: Double
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
         try clearGeometryDefaults()
+        clearResizeCommand()
         app = XCUIApplication(bundleIdentifier: appBundleIdentifier)
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootName
     }
@@ -20,6 +28,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
     override func tearDownWithError() throws {
         app?.terminate()
         try? clearGeometryDefaults()
+        clearResizeCommand()
         app = nil
     }
 
@@ -222,7 +231,8 @@ final class WindowPaneGeometryUITests: XCTestCase {
         let originalFrame = window.frame
         let targetSize = targetResizeSize(from: originalFrame)
 
-        setMainWindowSizeForUITest(targetSize)
+        try setMainWindowSizeForUITest(targetSize)
+        defer { clearResizeCommand() }
 
         for _ in 0..<30 {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
@@ -247,13 +257,31 @@ final class WindowPaneGeometryUITests: XCTestCase {
         return CGSize(width: frame.width + 140, height: frame.height + 90)
     }
 
-    private func setMainWindowSizeForUITest(_ size: CGSize) {
-        DistributedNotificationCenter.default().postNotificationName(
-            Notification.Name("com.detours.uiTest.resizeMainWindow"),
-            object: nil,
-            userInfo: ["width": Double(size.width), "height": Double(size.height)],
-            deliverImmediately: true
+    private var uiTestRootURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(uiTestRootName)
+    }
+
+    private var resizeCommandURL: URL {
+        uiTestRootURL.appendingPathComponent(resizeCommandFileName)
+    }
+
+    private func setMainWindowSizeForUITest(_ size: CGSize) throws {
+        let command = ResizeMainWindowCommand(
+            id: UUID().uuidString,
+            width: Double(size.width),
+            height: Double(size.height)
         )
+        let data = try JSONEncoder().encode(command)
+
+        try FileManager.default.createDirectory(
+            at: uiTestRootURL,
+            withIntermediateDirectories: true
+        )
+        try data.write(to: resizeCommandURL, options: .atomic)
+    }
+
+    private func clearResizeCommand() {
+        try? FileManager.default.removeItem(at: resizeCommandURL)
     }
 
     @discardableResult
