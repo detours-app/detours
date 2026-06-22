@@ -78,6 +78,18 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         }
     }
 
+    func testDirectoryReturnsSourceURLForNativePreview() async throws {
+        // A folder navigated to via Quick Look arrow keys must hand back its own
+        // URL (so Quick Look shows the native folder preview) rather than reading
+        // its contents, misclassifying as text, and failing generation.
+        let directory = tempRoot.appendingPathComponent("Foundry", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let previewURL = try await generator().previewURL(for: request(directory, displayName: "Foundry"))
+
+        XCTAssertEqual(previewURL.standardizedFileURL, directory.standardizedFileURL)
+    }
+
     func testMarkdownPreviewRendersAndIncludesSourceToggle() async throws {
         let source = try write("README.md", "# Title\n\nBody with **bold** and *italic* text")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "README.md"))
