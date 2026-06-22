@@ -179,14 +179,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showAbout(_ sender: Any?) {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
-        paragraphStyle.lineSpacing = 3
-        paragraphStyle.paragraphSpacing = 8
+        paragraphStyle.lineSpacing = 1
 
         let credits = NSAttributedString(
             string: Self.aboutCreditsText,
             attributes: [
-                .font: ThemeManager.shared.currentTheme.uiFont(size: 11),
-                .foregroundColor: ThemeManager.shared.currentTheme.textSecondary,
+                .font: NSFont.systemFont(ofSize: 12),
+                .foregroundColor: NSColor.labelColor,
                 .paragraphStyle: paragraphStyle
             ]
         )
@@ -204,13 +203,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
     }
 
-    nonisolated static let aboutCreditsText = [
-        "A fast, keyboard-driven dual-pane file manager for macOS.",
-        "",
-        "Browse local folders and SSH hosts side by side, keep independent tabs per pane, " +
-            "jump with Quick Open, preview source and Markdown natively, and move through " +
-            "copy, archive, trash, restore, and Open With workflows without leaving the keyboard."
-    ].joined(separator: "\n")
+    nonisolated static let aboutCreditsText =
+        "Detours is a keyboard-first dual-pane file manager for macOS. Browse local folders and SSH hosts " +
+        "with tabs, Quick Open, previews, git status, and safe file operations."
 
     @objc func showRemoteTrashInfo(_ sender: Any?) {
         RemoteTrashExplainer.showFromHelp()

@@ -156,10 +156,12 @@ final class HousekeepingTests: XCTestCase {
     func testAboutPanelCreditsDescribeCurrentApp() {
         let text = AppDelegate.aboutCreditsText
 
+        XCTAssertTrue(text.contains("Detours is a keyboard-first"))
         XCTAssertTrue(text.contains("dual-pane"))
         XCTAssertTrue(text.contains("SSH hosts"))
         XCTAssertTrue(text.contains("Quick Open"))
-        XCTAssertTrue(text.contains("preview source and Markdown"))
-        XCTAssertTrue(text.contains("copy, archive, trash, restore, and Open With"))
+        XCTAssertTrue(text.contains("previews"))
+        XCTAssertTrue(text.contains("git status"))
+        XCTAssertTrue(text.contains("safe file operations"))
     }
 }
