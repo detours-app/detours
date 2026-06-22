@@ -439,7 +439,7 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func restoreSession() {
-        if let uiTestRoot = uiTestRootDirectory() {
+        if let uiTestRoot = UITestEnvironment.rootDirectory {
             resetUITestRootDirectory(uiTestRoot)
             SettingsManager.shared.folderExpansionEnabled = true
             leftPane.restoreTabs(from: [uiTestRoot], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
@@ -458,27 +458,6 @@ final class MainSplitViewController: NSSplitViewController {
 
         restorePane(leftPane, keys: .left)
         restorePane(rightPane, keys: .right)
-    }
-
-    private func uiTestRootDirectory() -> URL? {
-        guard let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"], !root.isEmpty else {
-            return nil
-        }
-
-        let url: URL
-        if root.hasPrefix("/") {
-            url = URL(fileURLWithPath: root)
-        } else {
-            url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(root)
-        }
-
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
-            return nil
-        }
-
-        return url
     }
 
     private func resetUITestRootDirectory(_ root: URL) {

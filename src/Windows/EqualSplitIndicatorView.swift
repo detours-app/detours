@@ -6,14 +6,14 @@ import AppKit
 /// as a permanent blue line. It does not move the divider, snap, or persist
 /// anything: it observes the panes' frame changes and toggles its own visibility.
 final class EqualSplitIndicatorView: NSView {
-    static let equalSplitTolerance: CGFloat = 2.0
-    static let thickness: CGFloat = 2.0
+    nonisolated static let equalSplitTolerance: CGFloat = 2.0
+    nonisolated static let thickness: CGFloat = 2.0
     private static let visibleDuration: TimeInterval = 0.45
 
     /// Pure decision used to toggle visibility and exercised by unit tests:
     /// whether the two content panes are close enough to equal width to flash the
     /// indicator, given their widths and the total content-pane count.
-    static func showsEqualSplitIndicator(
+    nonisolated static func showsEqualSplitIndicator(
         leftWidth: CGFloat,
         rightWidth: CGFloat,
         paneCount: Int,

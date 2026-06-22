@@ -333,9 +333,13 @@ rm -rf /Applications/Detours.app
 mv build/Detours.app /Applications/Detours.app
 log_ok "Installed"
 
-# Always relaunch after successful build
-log_info "Relaunch Detours"
-open -g /Applications/Detours.app
-log_ok "Relaunched"
+# Always relaunch after successful build unless a caller explicitly owns launch.
+if [ "${DETOURS_BUILD_SKIP_RELAUNCH:-}" = "1" ]; then
+    log_info "Skip relaunch"
+else
+    log_info "Relaunch Detours"
+    open -g /Applications/Detours.app
+    log_ok "Relaunched"
+fi
 
 log_ok "Done"
