@@ -152,4 +152,14 @@ final class HousekeepingTests: XCTestCase {
         let bundle = try XCTUnwrap(Bundle(url: bundleURL))
         XCTAssertEqual(AppDelegate.aboutApplicationVersion(bundle: bundle), "9.8.7")
     }
+
+    func testAboutPanelCreditsDescribeCurrentApp() {
+        let text = AppDelegate.aboutCreditsText
+
+        XCTAssertTrue(text.contains("dual-pane"))
+        XCTAssertTrue(text.contains("SSH hosts"))
+        XCTAssertTrue(text.contains("Quick Open"))
+        XCTAssertTrue(text.contains("preview source and Markdown"))
+        XCTAssertTrue(text.contains("copy, archive, trash, restore, and Open With"))
+    }
 }

@@ -177,11 +177,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showAbout(_ sender: Any?) {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+        paragraphStyle.lineSpacing = 3
+        paragraphStyle.paragraphSpacing = 8
+
         let credits = NSAttributedString(
-            string: "Dual-pane file manager with tabs, folder expansion, Quick Open, and git status. Keyboard-first, fully themeable.",
+            string: Self.aboutCreditsText,
             attributes: [
                 .font: ThemeManager.shared.currentTheme.uiFont(size: 11),
-                .foregroundColor: ThemeManager.shared.currentTheme.textSecondary
+                .foregroundColor: ThemeManager.shared.currentTheme.textSecondary,
+                .paragraphStyle: paragraphStyle
             ]
         )
 
@@ -197,6 +203,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     nonisolated static func aboutApplicationVersion(bundle: Bundle) -> String {
         bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
     }
+
+    nonisolated static let aboutCreditsText = [
+        "A fast, keyboard-driven dual-pane file manager for macOS.",
+        "",
+        "Browse local folders and SSH hosts side by side, keep independent tabs per pane, " +
+            "jump with Quick Open, preview source and Markdown natively, and move through " +
+            "copy, archive, trash, restore, and Open With workflows without leaving the keyboard."
+    ].joined(separator: "\n")
 
     @objc func showRemoteTrashInfo(_ sender: Any?) {
         RemoteTrashExplainer.showFromHelp()

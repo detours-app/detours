@@ -30,6 +30,9 @@
 - **Remote previews and editor entries are more reliable** - Remote Quick Look,
   remote host status refresh, and Open With entries now resolve through the
   expected helper-backed local materialization paths.
+- **About Detours reflects the current app** - The About panel now describes
+  the current dual-pane, SSH-host, Quick Open, native preview, and file-operation
+  workflows instead of the older short summary.
 
 ### Testing
 
