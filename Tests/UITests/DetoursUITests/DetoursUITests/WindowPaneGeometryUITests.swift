@@ -249,7 +249,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
     }
 
     private func setMainWindowSizeWithAccessibility(_ size: CGSize) throws {
-        let applicationElement = AXUIElementCreateApplication(app.processID)
+        let applicationElement = AXUIElementCreateApplication(try detoursProcessIdentifier())
         var windowsValue: CFTypeRef?
         let copyResult = AXUIElementCopyAttributeValue(
             applicationElement,
@@ -275,6 +275,16 @@ final class WindowPaneGeometryUITests: XCTestCase {
         guard setResult == .success else {
             throw NSError(domain: "WindowPaneGeometryUITests", code: 30 + Int(setResult.rawValue))
         }
+    }
+
+    private func detoursProcessIdentifier() throws -> pid_t {
+        if let process = NSRunningApplication
+            .runningApplications(withBundleIdentifier: appBundleIdentifier)
+            .first(where: { !$0.isTerminated }) {
+            return process.processIdentifier
+        }
+
+        throw NSError(domain: "WindowPaneGeometryUITests", code: 40)
     }
 
     @discardableResult
