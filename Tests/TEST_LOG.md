@@ -2,7 +2,12 @@
 
 ## Latest Run
 
-- Started: 2026-06-21 19:1x
+- Started: 2026-06-22 14:58
+- Command: `swift test --filter 'AppKitGeometrySanitizerTests|EqualSplitIndicatorViewTests|SplitPositionTests|DisconnectedQueueTests|FileOperationQueueTests|DetoursPreviewKindTests|DetoursPreviewGeneratorTests'` (Spectre)
+- Status: PASS
+- Notes: 101 focused tests passed in 6.291s. Covered AppKit geometry sanitizer, equal-split indicator, split autosave authority, disconnected remote queue pause handling, file operation queue regressions, and preview decoding/classification after lint cleanup.
+
+### Prior run 2026-06-21 19:1x
 - Command: `uitest.sh WindowPaneGeometryUITests` (Foundry) + `swift test` unit/regression (Spectre)
 - Status: PARTIAL on Foundry (see note), feature verified
 - Notes: 50/50 indicator changed from a persistent highlight to a transient flash (auto-clears ~0.45s after movement stops) and a "Equalize Panes" View-menu command (Ctrl-Cmd-=) added that sets the two content panes equal via setPosition on explicit user action. `testEqualizePanesCommandSetsFiftyFifty` PASSES on Foundry (menu click → panes equal), confirming the command. `testLaunchHasNoWindowFrameJump`, `testPaneDividerDragPersistsAcrossRelaunch`, `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` PASS. `testMainWindowResizePersistsAcrossRelaunch` and `testPoisonedSavedWindowFrameFallsBackWithoutJump` FAIL on Foundry ONLY: Foundry's display changed to 2560x1600 Retina (1280pt wide) and XCUI's synthetic window-corner resize gesture no longer grabs the resize handle (4 retries, both directions — never moves the frame). Not a product bug: the window-resize functionality is verified working on Spectre's real display (osascript resize to 1160x780 saved and restored across relaunch). EqualSplitIndicatorViewTests (3) and SplitPositionTests (4, T27 now allows setPosition only inside equalizePanes) pass on Spectre.

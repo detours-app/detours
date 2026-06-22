@@ -48,7 +48,7 @@ final class NetworkUITests: BaseUITest {
 
         XCTAssertTrue(fileServersText.exists, "FILE SERVERS section should be present")
         XCTAssertTrue(
-            placeholderText.exists || sidebar.cells.count > 0,
+            placeholderText.exists || sidebar.cells.firstMatch.exists,
             "Network section should render either the placeholder or discovered server rows"
         )
     }

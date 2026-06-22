@@ -325,6 +325,8 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         if let text = String(data: data, encoding: .utf8) {
             return (text, false)
         }
+        // Intentional lossy decode so previews can show replacements with a warning.
+        // swiftlint:disable:next optional_data_string_conversion
         return (String(decoding: data, as: UTF8.self), true)
     }
 

@@ -152,7 +152,7 @@ struct VolumeInfo {
 struct SyntheticServer: Equatable, Hashable {
     let host: String
 #if DETOURS_SCREENSHOT_FIXTURES
-    var protocolLabel: String? = nil
+    var protocolLabel: String?
 #endif
 
     var displayName: String {
