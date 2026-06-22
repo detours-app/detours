@@ -6,7 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A90D87902F23A0010044CCE6 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A90D878F2F23A0010044CCE6 /* AppIntents.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
+		A90D878F2F23A0010044CCE6 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		A90D87822F20E7C70044CCE6 /* DetoursUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DetoursUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -23,6 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A90D87902F23A0010044CCE6 /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -33,8 +39,17 @@
 			isa = PBXGroup;
 			children = (
 				A90D87842F20E7C70044CCE6 /* DetoursUITests */,
+				A90D87912F23A0010044CCE6 /* Frameworks */,
 				A90D87832F20E7C70044CCE6 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		A90D87912F23A0010044CCE6 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A90D878F2F23A0010044CCE6 /* AppIntents.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		A90D87832F20E7C70044CCE6 /* Products */ = {
@@ -128,12 +143,16 @@
 		A90D877C2F20E7630044CCE6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
 			};
 			name = Debug;
 		};
 		A90D877D2F20E7630044CCE6 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
 			};
 			name = Release;
 		};
@@ -192,7 +211,6 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				LM_FILTER_WARNINGS = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
@@ -262,7 +280,6 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				LM_FILTER_WARNINGS = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
