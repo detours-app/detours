@@ -315,11 +315,16 @@ log_info "Check for stale installations"
 STALE_FOUND=false
 BUILD_APP_PATH="$(cd "$(dirname "$APP_DIR")" && pwd)/$(basename "$APP_DIR")"
 while IFS= read -r app_path; do
-    if [ "$app_path" != "/Applications/Detours.app" ] && [ "$app_path" != "$BUILD_APP_PATH" ] && [ -d "$app_path" ]; then
-        log_info "Remove stale copy: $app_path"
-        rm -rf "$app_path"
-        STALE_FOUND=true
-    fi
+    [ -d "$app_path" ] || continue
+    # Use a same-file test (-ef compares device+inode) instead of string equality.
+    # On case-insensitive APFS, mdfind's indexed path casing can differ from the
+    # pwd-derived path, so a string compare would miss the self-exclusion and the
+    # sweep would delete the freshly-built bundle before it is installed.
+    [ "$app_path" -ef "$BUILD_APP_PATH" ] && continue
+    [ "$app_path" -ef "/Applications/Detours.app" ] && continue
+    log_info "Remove stale copy: $app_path"
+    rm -rf "$app_path"
+    STALE_FOUND=true
 done < <(mdfind "kMDItemCFBundleIdentifier == 'com.detours.app'" 2>/dev/null)
 if [ "$STALE_FOUND" = true ]; then
     log_ok "Stale copies removed"
