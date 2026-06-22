@@ -263,7 +263,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
             return URL(fileURLWithPath: root)
         }
 
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(uiTestRootName)
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(uiTestRootName)
     }
 
     private var resizeCommandURL: URL {
