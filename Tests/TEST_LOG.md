@@ -1127,6 +1127,14 @@ Spotlight search has no unit test (depends on the live, async-built system index
   substitution, destination exists error, year detection regex, model
   destination URL, and validation.
 
+- 2026-06-22: Cmd-T on a remote tab now opens the new tab on the same remote
+  host/path (reusing the connection) instead of local home. Fixed build.sh
+  stale-installation sweep self-deleting the freshly-built bundle on
+  case-insensitive APFS (string compare -> same-file -ef test). Verified on
+  Spectre: install landed (binary mtime matched the build, build/Detours.app
+  moved not deleted). Foundry: build signed/installed, XCUI SmokeTests PASS, app
+  launches clean.
+
 - 2026-06-22: Fixed Quick Look folder error and remote-tab Cmd-T. Added
   DetoursPreviewGeneratorTests/testDirectoryReturnsSourceURLForNativePreview
   (PASS on Foundry) proving a directory now hands back its own URL for the
