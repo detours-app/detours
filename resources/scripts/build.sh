@@ -26,6 +26,44 @@ log_info() { echo -e "${DIMMED}INFO  $1${NC}" >&2; }
 log_ok()   { echo -e "${GREEN}OK    $1${NC}" >&2; }
 log_error() { echo -e "${RED}ERROR $1${NC}" >&2; }
 
+send_quit_request() {
+    osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null 2>&1 &
+    local quit_pid=$!
+
+    for _ in {1..50}; do
+        if ! kill -0 "$quit_pid" >/dev/null 2>&1; then
+            wait "$quit_pid" || true
+            return
+        fi
+        sleep 0.1
+    done
+
+    log_info "Quit request timed out"
+    kill "$quit_pid" >/dev/null 2>&1 || true
+    wait "$quit_pid" >/dev/null 2>&1 || true
+}
+
+force_quit_running_instance() {
+    log_info "Force quit running instance"
+    pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+    for _ in {1..50}; do
+        if ! pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+            log_ok "Force quit complete"
+            return
+        fi
+        sleep 0.1
+    done
+
+    pkill -9 -x "$APP_NAME" >/dev/null 2>&1 || true
+    for _ in {1..50}; do
+        if ! pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+            log_ok "Force quit complete"
+            return
+        fi
+        sleep 0.1
+    done
+}
+
 check_preview_assets() {
     local required=(
         "$PREVIEW_ASSETS_DIR/manifest.json"
@@ -148,13 +186,18 @@ if [ "$UNIVERSAL" = true ] || [ "$NO_INSTALL" = true ]; then
     log_info "Distribution build: leaving any running instance untouched"
 elif pgrep -x "$APP_NAME" >/dev/null 2>&1; then
     log_info "Quit running instance"
-    osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
+    send_quit_request
     for _ in {1..50}; do
         if ! pgrep -x "$APP_NAME" >/dev/null 2>&1; then
             break
         fi
         sleep 0.1
     done
+    if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+        if [ "${DETOURS_BUILD_FORCE_QUIT:-}" = "1" ]; then
+            force_quit_running_instance
+        fi
+    fi
     if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
         log_error "Detours is still running; refusing to overwrite"
         exit 1
@@ -290,9 +333,13 @@ rm -rf /Applications/Detours.app
 mv build/Detours.app /Applications/Detours.app
 log_ok "Installed"
 
-# Always relaunch after successful build
-log_info "Relaunch Detours"
-open -g /Applications/Detours.app
-log_ok "Relaunched"
+# Always relaunch after successful build unless a caller explicitly owns launch.
+if [ "${DETOURS_BUILD_SKIP_RELAUNCH:-}" = "1" ]; then
+    log_info "Skip relaunch"
+else
+    log_info "Relaunch Detours"
+    open -g /Applications/Detours.app
+    log_ok "Relaunched"
+fi
 
 log_ok "Done"

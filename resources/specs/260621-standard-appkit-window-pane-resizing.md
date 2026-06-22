@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: fix/standard-appkit-window-pane-resizing
 
 ---
@@ -26,18 +26,22 @@ Restore standard AppKit window and split-view behavior, with AppKit owning resiz
 - If saved geometry is too large, off-screen, or violates pane minimums, Detours silently starts with a sane default AppKit layout.
 - Startup shows the window once. It must not appear at one size and then jump to another size after launch.
 - Session restore, remote host warmup, file-list loading, and first layout must not save geometry as user intent.
+- While dragging the divider, when the two content panes pass through equal width the divider briefly flashes an accent highlight as a 50/50 signal; the highlight clears shortly after movement stops, so it never lingers as a permanent line. It is a visual cue only and does not move, snap, or persist anything.
+- A View menu command, "Equalize Panes" (keyboard shortcut Control-Command-Equals), sets the two content panes to equal width on demand. The sidebar is unaffected, and the resulting layout persists like any user divider drag.
 
 ### Acceptance Criteria
 
-- [ ] **A1** Detours opens without a visible post-start resize jump.
-- [ ] **A2** The main window is normally resizable by the user.
-- [ ] **A3** The sidebar divider and the left/right pane divider are normally draggable by the user.
-- [ ] **A4** A valid user-resized window frame persists across relaunch.
-- [ ] **A5** A valid user-resized sidebar and pane layout persists across relaunch.
-- [ ] **A6** Invalid saved window geometry never opens Detours oversized, off-screen, or impossible to resize.
-- [ ] **A7** Invalid saved split-view geometry never opens Detours with an unusable pane ratio.
-- [ ] **A8** Launch and session restore do not save geometry unless the user actually resizes the window or drags a divider.
-- [ ] **A9** The implementation uses standard AppKit window and split-view resizing, not a Detours-owned replacement layout system.
+- [x] **A1** Detours opens without a visible post-start resize jump.
+- [x] **A2** The main window is normally resizable by the user.
+- [x] **A3** The sidebar divider and the left/right pane divider are normally draggable by the user.
+- [x] **A4** A valid user-resized window frame persists across relaunch.
+- [x] **A5** A valid user-resized sidebar and pane layout persists across relaunch.
+- [x] **A6** Invalid saved window geometry never opens Detours oversized, off-screen, or impossible to resize.
+- [x] **A7** Invalid saved split-view geometry never opens Detours with an unusable pane ratio.
+- [x] **A8** Launch and session restore do not save geometry unless the user actually resizes the window or drags a divider.
+- [x] **A9** The implementation uses standard AppKit window and split-view resizing, not a Detours-owned replacement layout system.
+- [x] **A10** When the divider passes through equal width during a drag, the divider briefly flashes an accent highlight and then clears; it never stays lit as a permanent line and never moves the divider or changes persistence.
+- [x] **A11** The View menu has an "Equalize Panes" command (Control-Command-Equals) that makes the two content panes equal width; the sidebar is unaffected and the equalized layout persists across relaunch.
 
 ### Out of scope
 
@@ -45,6 +49,7 @@ Restore standard AppKit window and split-view behavior, with AppKit owning resiz
 - Replacing AppKit split views with manual child-view frame layout.
 - Custom divider snapping or custom pane-ratio correction loops.
 - Warning dialogs for invalid saved layout.
+- Custom snapping or a magnetic detent at 50/50. The divider does not stick; the Equalize command is an explicit one-shot, and the highlight is passive.
 
 ---
 
@@ -87,34 +92,40 @@ The only Detours-owned geometry code is a small preflight sanitizer that runs be
 
 **Phase 1: Restore Standard AppKit Shell**
 
-- [ ] **T1** Update `src/Windows/MainWindowController.swift` so the main window is a normal resizable `NSWindow`: add `.resizable` to the style mask, set `contentMinSize` to `800x520` (enough for the sidebar plus two usable panes), remove the `contentMaxSize` cap, set `contentViewController = splitViewController`, and delete the manual content host view (`window.contentView = contentView` plus `contentView.addSubview(splitViewController.view)`).
-- [ ] **T2** Use one AppKit persistence authority for the main window: call `setFrameAutosaveName("MainWindow")` only after the saved-frame preflight (T11) has removed invalid values. Leave the existing main-window state restoration disabled (`window.isRestorable = false` and the two `applicationShould*ApplicationState` methods returning `false`) so AppKit frame autosave is the sole frame authority.
-- [ ] **T3** Convert `src/Windows/MainSplitViewController.swift` from `NSViewController` to `NSSplitViewController`. Remove the fixed-size `loadView()` override and the manual frame layout in `viewDidLoad()` (the `sidebarWidth`/`paneWidth` math and `autoresizingMask = []` block). Add a standard `NSSplitViewItem(sidebarWithViewController:)` for `sidebarViewController` and standard `NSSplitViewItem(viewController:)` items for `leftPane` and `rightPane`.
-- [ ] **T4** Set normal AppKit item bounds only: sidebar `minimumThickness` 150 and `maximumThickness` 320 (default ~180, matching the prior layout), left and right pane `minimumThickness` 200, and leave the sidebar item at its default sidebar `holdingPriority` (250) so window resizing grows the panes and not the sidebar. Do not add custom width equality constraints.
-- [ ] **T5** Enable AppKit split-view persistence with a new clean autosave name, for example `Detours.MainSplitView.AppKitV1`, after split-default preflight has removed invalid values.
+- [x] **T1** Update `src/Windows/MainWindowController.swift` so the main window is a normal resizable `NSWindow`: add `.resizable` to the style mask, set `contentMinSize` to `800x520` (enough for the sidebar plus two usable panes), remove the `contentMaxSize` cap, set `contentViewController = splitViewController`, and delete the manual content host view (`window.contentView = contentView` plus `contentView.addSubview(splitViewController.view)`).
+- [x] **T2** Use one AppKit persistence authority for the main window: call `setFrameAutosaveName("MainWindow")` only after the saved-frame preflight (T11) has removed invalid values. Leave the existing main-window state restoration disabled (`window.isRestorable = false` and the two `applicationShould*ApplicationState` methods returning `false`) so AppKit frame autosave is the sole frame authority.
+- [x] **T3** Convert `src/Windows/MainSplitViewController.swift` from `NSViewController` to `NSSplitViewController`. Remove the fixed-size `loadView()` override and the manual frame layout in `viewDidLoad()` (the `sidebarWidth`/`paneWidth` math and `autoresizingMask = []` block). Add a standard `NSSplitViewItem(sidebarWithViewController:)` for `sidebarViewController` and standard `NSSplitViewItem(viewController:)` items for `leftPane` and `rightPane`.
+- [x] **T4** Set normal AppKit item bounds only: sidebar `minimumThickness` 150 and `maximumThickness` 320 (default ~180, matching the prior layout), left and right pane `minimumThickness` 200, and leave the sidebar item at its default sidebar `holdingPriority` (250) so window resizing grows the panes and not the sidebar. Do not add custom width equality constraints.
+- [x] **T5** Enable AppKit split-view persistence with a new clean autosave name, for example `Detours.MainSplitView.AppKitV1`, after split-default preflight has removed invalid values.
 
 **Phase 2: Keep Custom Resize Machinery Out**
 
 The legacy custom resize code was already deleted by commit `15a7821` and is absent at HEAD; these tasks ensure the Phase 1 conversion does not re-introduce it and that persistence stays AppKit-only.
 
-- [ ] **T6** When converting `src/Windows/MainSplitViewController.swift`, add no launch-time split restoration path: no `viewDidAppear` split restore, no `DispatchQueue.main.async` geometry restore, no `restoreSplitPosition`, no `resetSplitTo5050`, and no launch-time `splitView.setPosition` calls. Divider position comes only from AppKit split-view autosave.
-- [ ] **T7** Keep `saveSession()` limited to its current tab/session keys; add no split persistence: no `Detours.SidebarWidth`, no `Detours.SplitDividerPosition`, and no `splitViewDidResizeSubviews` save hook writing pane ratios.
-- [ ] **T8** Add no custom divider behavior that changes normal AppKit resizing: no custom snapping, no expanded divider hit rect that affects layout or persistence, and no custom "automatic versus user drag" resize loop.
-- [ ] **T9** Implement sidebar show/hide through the sidebar `NSSplitViewItem`'s `isCollapsed` / `toggleSidebar` behavior (standard AppKit, via the existing `toggleSidebar()` entry point). It must not write sidebar width or pane ratio during launch.
+- [x] **T6** When converting `src/Windows/MainSplitViewController.swift`, add no launch-time split restoration path: no `viewDidAppear` split restore, no `DispatchQueue.main.async` geometry restore, no `restoreSplitPosition`, no `resetSplitTo5050`, and no launch-time `splitView.setPosition` calls. Divider position comes only from AppKit split-view autosave.
+- [x] **T7** Keep `saveSession()` limited to its current tab/session keys; add no split persistence: no `Detours.SidebarWidth`, no `Detours.SplitDividerPosition`, and no `splitViewDidResizeSubviews` save hook writing pane ratios.
+- [x] **T8** Add no custom divider behavior that changes normal AppKit resizing: no custom snapping, no expanded divider hit rect that affects layout or persistence, and no custom "automatic versus user drag" resize loop.
+- [x] **T9** Implement sidebar show/hide through the sidebar `NSSplitViewItem`'s `isCollapsed` / `toggleSidebar` behavior (standard AppKit, via the existing `toggleSidebar()` entry point). It must not write sidebar width or pane ratio during launch.
 
 **Phase 3: Saved-State Preflight And Migration**
 
-- [ ] **T10** Add a small AppKit saved-state sanitizer under `src/Windows/`, with pure validation helpers for window frames and split-view saved values. This helper may remove invalid saved values before AppKit restore; it must not compute or apply live layouts.
-- [ ] **T11** Validate `NSWindow Frame MainWindow` before calling `setFrameAutosaveName`: reject frames that are off-screen, wider or taller than the visible screen, below the app minimum size, or nonsensical.
-- [ ] **T12** Validate the chosen split-view autosave defaults before assigning `splitView.autosaveName`: reject saved subview frames that cannot fit within the current window minimums or make either pane/sidebar unusable.
-- [ ] **T13** Add a one-time migration marker. On first run of this fix, remove legacy custom geometry keys (`Detours.SidebarWidth`, `Detours.SplitDividerPosition`) and stale split autosave names that are not the new AppKit autosave name.
-- [ ] **T14** Preserve valid old `NSWindow Frame MainWindow` data only if it passes the sanitizer. Invalid old main-window frames are removed before AppKit can restore them.
+- [x] **T10** Add a small AppKit saved-state sanitizer under `src/Windows/`, with pure validation helpers for window frames and split-view saved values. This helper may remove invalid saved values before AppKit restore; it must not compute or apply live layouts.
+- [x] **T11** Validate `NSWindow Frame MainWindow` before calling `setFrameAutosaveName`: reject frames that are off-screen, wider or taller than the visible screen, below the app minimum size, or nonsensical.
+- [x] **T12** Validate the chosen split-view autosave defaults before assigning `splitView.autosaveName`: reject saved subview frames that cannot fit within the current window minimums or make either pane/sidebar unusable.
+- [x] **T13** Add a one-time migration marker. On first run of this fix, remove legacy custom geometry keys (`Detours.SidebarWidth`, `Detours.SplitDividerPosition`) and stale split autosave names that are not the new AppKit autosave name.
+- [x] **T14** Preserve valid old `NSWindow Frame MainWindow` data only if it passes the sanitizer. Invalid old main-window frames are removed before AppKit can restore them.
 
 **Phase 4: Launch Ordering**
 
-- [ ] **T15** Make launch order explicit in `src/App/AppDelegate.swift` and `src/Windows/MainWindowController.swift`: run the saved-state preflight (T10-T14), create the native window/split controller, enable the AppKit window and split autosave names, restore tabs/session, then call `showWindow(nil)` once.
-- [ ] **T16** Keep the window shown exactly once via `showWindow(nil)` in `applicationDidFinishLaunching`; introduce no hidden-then-reveal path (no `orderOut`/delayed `makeKeyAndOrderFront`, no `alphaValue` fade-in). Launch capture (T28) must prove no jump.
-- [ ] **T17** Ensure remote host warmup, file-list population, active-pane restoration, and first-responder restoration cannot resize the main window after first visibility.
+- [x] **T15** Make launch order explicit in `src/App/AppDelegate.swift` and `src/Windows/MainWindowController.swift`: run the saved-state preflight (T10-T14), create the native window/split controller, enable the AppKit window and split autosave names, restore tabs/session, then call `showWindow(nil)` once.
+- [x] **T16** Keep the window shown exactly once via `showWindow(nil)` in `applicationDidFinishLaunching`; introduce no hidden-then-reveal path (no `orderOut`/delayed `makeKeyAndOrderFront`, no `alphaValue` fade-in). Launch capture (T28) must prove no jump.
+- [x] **T17** Ensure remote host warmup, file-list population, active-pane restoration, and first-responder restoration cannot resize the main window after first visibility.
+
+**Phase 5: Passive 50/50 Divider Indicator**
+
+- [x] **T37** Add `src/Windows/EqualSplitIndicatorView.swift`, a thin click-through accent `NSView` that flashes only while the two content panes are within a small tolerance (2pt) of equal width and auto-clears shortly after movement stops (so it never lingers). It observes the two pane views' `frameDidChangeNotification` and toggles its own `isHidden` with a refreshed auto-hide work item; it overrides `hitTest(_:)` to return nil so it never intercepts clicks. Include a pure static decision helper (`showsEqualSplitIndicator(leftWidth:rightWidth:paneCount:tolerance:)`) so the threshold is unit-testable. No `setPosition`, no `NSSplitView` subclass, no persistence. (Implementation note: substituting the controller's managed `NSSplitView` with a subclass crashes `NSSplitViewController._setupSplitView`, so the indicator is an overlay rather than custom divider drawing.)
+- [x] **T38** In `src/Windows/MainSplitViewController.swift`, after the split items are added, pin one `EqualSplitIndicatorView` to the right pane view's leading edge (full height, `EqualSplitIndicatorView.thickness` wide) so it sits at the left/right divider. Leave the stock `splitView`, `isVertical`, `dividerStyle`, item setup, and `splitView.autosaveName` untouched. Add no `loadView` override and no `splitViewDidResizeSubviews`.
+- [x] **T42** Add an `equalizePanes()` method to `src/Windows/MainSplitViewController.swift` (defined after `viewDidLoad`) that sets the left/right divider to the content midpoint via `splitView.setPosition(_:ofDividerAt: 1)`, leaving the sidebar untouched. Add `@objc func equalizePanes(_:)` to `src/App/AppDelegate.swift` forwarding to it, and an "Equalize Panes" item in the View menu in `src/App/MainMenu.swift` (after Toggle Sidebar) with key equivalent `=` and modifiers Control+Command. This is the only `setPosition` use and is user-triggered, so it stays outside launch/layout code (T27 allows `setPosition` only in `equalizePanes`).
 
 ---
 
@@ -124,31 +135,41 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 ### Unit Tests (`Tests/AppKitGeometrySanitizerTests.swift`)
 
-- [ ] **T18** `testAcceptsVisibleWindowFrame` - A saved main-window frame fully inside the visible screen and above the minimum size is accepted.
-- [ ] **T19** `testRejectsOversizedWindowFrame` - A saved frame wider or taller than the visible screen is removed before AppKit restore.
-- [ ] **T20** `testRejectsOffscreenWindowFrame` - A saved frame outside all visible screens is removed before AppKit restore.
-- [ ] **T21** `testRejectsTooSmallWindowFrame` - A saved frame below the app minimum size is removed before AppKit restore.
-- [ ] **T22** `testRejectsUnusableSplitFrames` - Saved split frames that leave a pane below minimum usable width are removed before AppKit split autosave is enabled.
-- [ ] **T23** `testMigrationRemovesLegacyCustomGeometryKeys` - The one-time migration removes `Detours.SidebarWidth` and `Detours.SplitDividerPosition`.
-- [ ] **T24** `testMigrationKeepsValidMainWindowAutosaveFrame` - A valid existing `NSWindow Frame MainWindow` survives migration.
-- [ ] **T25** `testMigrationRemovesInvalidMainWindowAutosaveFrame` - An invalid existing `NSWindow Frame MainWindow` is removed during migration.
+- [x] **T18** `testAcceptsVisibleWindowFrame` - A saved main-window frame fully inside the visible screen and above the minimum size is accepted.
+- [x] **T19** `testRejectsOversizedWindowFrame` - A saved frame wider or taller than the visible screen is removed before AppKit restore.
+- [x] **T20** `testRejectsOffscreenWindowFrame` - A saved frame outside all visible screens is removed before AppKit restore.
+- [x] **T21** `testRejectsTooSmallWindowFrame` - A saved frame below the app minimum size is removed before AppKit restore.
+- [x] **T22** `testRejectsUnusableSplitFrames` - Saved split frames that leave a pane below minimum usable width are removed before AppKit split autosave is enabled.
+- [x] **T23** `testMigrationRemovesLegacyCustomGeometryKeys` - The one-time migration removes `Detours.SidebarWidth` and `Detours.SplitDividerPosition`.
+- [x] **T24** `testMigrationKeepsValidMainWindowAutosaveFrame` - A valid existing `NSWindow Frame MainWindow` survives migration.
+- [x] **T25** `testMigrationRemovesInvalidMainWindowAutosaveFrame` - An invalid existing `NSWindow Frame MainWindow` is removed during migration.
 
 ### Regression Tests (`Tests/SplitPositionTests.swift`)
 
-- [ ] **T26** Replace old manual-ratio persistence expectations with AppKit-focused expectations: no Detours custom split ratio key is written, and no launch/session restore path calls manual split-position logic.
-- [ ] **T27** Add a static regression test that fails if `MainSplitViewController` reintroduces `restoreSplitPosition`, `resetSplitTo5050`, `Detours.SplitDividerPosition`, `Detours.SidebarWidth`, or launch-time `splitView.setPosition`.
+- [x] **T26** Replace old manual-ratio persistence expectations with AppKit-focused expectations: no Detours custom split ratio key is written, and no launch/session restore path calls manual split-position logic.
+- [x] **T27** Add a static regression test that fails if `MainSplitViewController` reintroduces `restoreSplitPosition`, `resetSplitTo5050`, `Detours.SplitDividerPosition`, `Detours.SidebarWidth`, or launch-time `splitView.setPosition`.
 
 ### UI Tests (`Tests/UITests/DetoursUITests/DetoursUITests/WindowPaneGeometryUITests.swift`)
 
-- [ ] **T28** `testLaunchHasNoWindowFrameJump` - Launch Detours, sample the main window frame repeatedly from first visibility through several seconds, and fail if the frame changes without user input.
-- [ ] **T29** `testPoisonedSavedWindowFrameFallsBackWithoutJump` - Seed an oversized/off-screen `NSWindow Frame MainWindow`, launch Detours, and verify the window opens onscreen, resizable, and stable.
-- [ ] **T30** `testMainWindowResizePersistsAcrossRelaunch` - Resize the main window through UI automation, quit, relaunch, and verify AppKit restores the user-sized frame.
-- [ ] **T31** `testPaneDividerDragPersistsAcrossRelaunch` - Drag the left/right divider through UI automation, quit, relaunch, and verify the pane layout persists through AppKit split autosave.
-- [ ] **T32** `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` - Seed invalid old split defaults, launch Detours, and verify both panes are usable and the divider remains draggable.
+- [x] **T28** `testLaunchHasNoWindowFrameJump` - Launch Detours, sample the main window frame repeatedly from first visibility through several seconds, and fail if the frame changes without user input.
+- [x] **T29** `testPoisonedSavedWindowFrameFallsBackWithoutJump` - Seed an oversized/off-screen `NSWindow Frame MainWindow`, launch Detours, and verify the window opens onscreen, resizable, and stable.
+- [x] **T30** `testMainWindowResizePersistsAcrossRelaunch` - Resize the main window through UI automation, quit, relaunch, and verify AppKit restores the user-sized frame.
+- [x] **T31** `testPaneDividerDragPersistsAcrossRelaunch` - Drag the left/right divider through UI automation, quit, relaunch, and verify the pane layout persists through AppKit split autosave.
+- [x] **T32** `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` - Seed invalid old split defaults, launch Detours, and verify both panes are usable and the divider remains draggable.
+
+### Equal-Split Indicator Tests (`Tests/EqualSplitIndicatorViewTests.swift`)
+
+- [x] **T39** `testIndicatorShowsWhenPanesEqual` - Equal content-pane widths (and within tolerance) return true from `showsEqualSplitIndicator`.
+- [x] **T40** `testIndicatorHiddenWhenPanesUneven` - Content-pane widths differing by more than the tolerance return false.
+- [x] **T41** `testIndicatorHiddenWithoutTwoContentPanes` - Fewer than two content panes, or a zero-width pane, return false.
+
+### Equalize Command Test (`Tests/UITests/DetoursUITests/DetoursUITests/WindowPaneGeometryUITests.swift`)
+
+- [x] **T44** `testEqualizePanesCommandSetsFiftyFifty` - Move the divider off-center, trigger the Equalize Panes shortcut, and verify the two content panes end up equal width.
 
 ### Build And Release Verification
 
-- [ ] **T33** Run the focused unit tests for the sanitizer and split-position regressions.
-- [ ] **T34** Run the focused UI tests for launch stability, resize persistence, and poisoned-state fallback.
-- [ ] **T35** Run `resources/scripts/build.sh` without `--no-install`; confirm the installed `/Applications/Detours.app` launches.
-- [ ] **T36** After the release install, repeat the launch capture against the installed app and confirm the main window and pane frames do not jump after first visibility.
+- [x] **T33** Run the focused unit tests for the sanitizer and split-position regressions.
+- [x] **T34** Run the focused UI tests for launch stability, resize persistence, and poisoned-state fallback.
+- [x] **T35** Run `resources/scripts/build.sh` without `--no-install`; confirm the installed `/Applications/Detours.app` launches.
+- [x] **T36** After the release install, repeat the launch capture against the installed app and confirm the main window and pane frames do not jump after first visibility.

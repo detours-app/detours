@@ -5,6 +5,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var mainWindowController: MainWindowController?
     private var systemEventMonitor: Any?
     private var keyDownEventMonitor: Any?
+    private var uiTestCommandTimer: Timer?
+    private var lastUITestResizeCommandID: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Reduce tooltip delay from default ~1000ms to 200ms
@@ -25,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let splitVC = self?.mainWindowController?.splitViewController else { return event }
             return splitVC.handleGlobalKeyDown(event) ? nil : event
         }
+
+        installUITestHooks()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -48,13 +52,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         mainWindowController?.splitViewController.saveSession()
 
-        // Close any Finder info windows we opened
-        let script = NSAppleScript(source: """
-            tell application "Finder"
-                close every information window
-            end tell
-            """)
-        script?.executeAndReturnError(nil)
+        if !UITestEnvironment.isEnabled {
+            // Close any Finder info windows we opened.
+            let script = NSAppleScript(source: """
+                tell application "Finder"
+                    close every information window
+                end tell
+                """)
+            script?.executeAndReturnError(nil)
+        }
 
         if let monitor = systemEventMonitor {
             NSEvent.removeMonitor(monitor)
@@ -65,6 +71,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(monitor)
             keyDownEventMonitor = nil
         }
+
+        uiTestCommandTimer?.invalidate()
+        uiTestCommandTimer = nil
+    }
+
+    private func installUITestHooks() {
+        guard UITestEnvironment.isEnabled else { return }
+
+        uiTestCommandTimer = Timer.scheduledTimer(
+            timeInterval: 0.1,
+            target: self,
+            selector: #selector(pollUITestCommands),
+            userInfo: nil,
+            repeats: true
+        )
+        uiTestCommandTimer?.tolerance = 0.05
+        pollUITestCommands()
+    }
+
+    @objc private func pollUITestCommands() {
+        guard let command = UITestEnvironment.currentResizeMainWindowCommand(),
+              command.id != lastUITestResizeCommandID else {
+            return
+        }
+
+        lastUITestResizeCommandID = command.id
+        mainWindowController?.resizeForUITest(to: NSSize(width: command.width, height: command.height))
     }
 
     // MARK: - Tab Actions
@@ -137,6 +170,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func toggleSidebar(_ sender: Any?) {
         mainWindowController?.splitViewController.toggleSidebar()
+    }
+
+    @objc func equalizePanes(_ sender: Any?) {
+        mainWindowController?.splitViewController.equalizePanes()
     }
 
     @objc func showAbout(_ sender: Any?) {

@@ -25,9 +25,12 @@ final class DisconnectedQueueTests: XCTestCase {
         queue.registerRemoteFileProvider(provider, for: hostID, displayName: "devtest")
 
         postState(.failed(reason: .transport("link dropped")), for: hostID)
+        // The host is now marked down, but with no operation in flight there must be
+        // no pause status yet (it would be spurious).
         await waitUntil {
-            queue.operationPauseMessage == "Paused — waiting for devtest"
+            queue.isRemoteHostPausedForTesting(hostID)
         }
+        XCTAssertNil(queue.operationPauseMessage)
 
         let item = Location.remote(hostID: hostID, path: "/home/marco/project/a.txt")
         let destination = Location.remote(hostID: hostID, path: "/home/marco/target")
@@ -59,7 +62,7 @@ final class DisconnectedQueueTests: XCTestCase {
 
         postState(.failed(reason: .transport("link dropped")), for: hostID)
         await waitUntil {
-            queue.operationPauseMessage == "Paused — waiting for devtest"
+            queue.isRemoteHostPausedForTesting(hostID)
         }
 
         let item = Location.remote(hostID: hostID, path: "/home/marco/project/a.txt")
@@ -108,6 +111,23 @@ final class DisconnectedQueueTests: XCTestCase {
         let completedCopyCalls = await provider.completedCopyCallCount()
         XCTAssertEqual(copyCalls, 2)
         XCTAssertEqual(completedCopyCalls, 1)
+    }
+
+    func testFailedHostWithoutActiveOperationDoesNotPause() async throws {
+        // Reproduces the spurious "Paused — waiting for <host>" status: a saved remote
+        // host that fails to connect at launch warmup must not paint a pause when no
+        // file operation is running.
+        let hostID = UUID()
+        let provider = DisconnectedQueueProvider(hostID: hostID)
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(provider, for: hostID, displayName: "Wraith")
+
+        postState(.failed(reason: .transport("host offline")), for: hostID)
+        await waitUntil {
+            queue.isRemoteHostPausedForTesting(hostID)
+        }
+
+        XCTAssertNil(queue.operationPauseMessage, "Offline host with no operation must not show a pause status")
     }
 
     private static func postState(_ state: SSHConnectionState, for hostID: UUID) {

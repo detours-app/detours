@@ -1,24 +1,43 @@
 import AppKit
 
 final class MainWindowController: NSWindowController, NSWindowDelegate {
-    let splitViewController = MainSplitViewController()
+    static let frameAutosaveName = "MainWindow"
+    static let minimumContentSize = NSSize(width: 800, height: 520)
+
+    let splitViewController: MainSplitViewController
 
     init() {
+        AppKitGeometrySanitizer.preflight(
+            defaults: .standard,
+            visibleScreenFrames: NSScreen.screens.map(\.visibleFrame),
+            windowAutosaveName: Self.frameAutosaveName,
+            splitAutosaveName: MainSplitViewController.splitViewAutosaveName,
+            minimumWindowSize: Self.minimumContentSize
+        )
+
         let contentSize = NSSize(width: 1200, height: 700)
+        splitViewController = MainSplitViewController()
+
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: contentSize),
-            styleMask: [.titled, .closable, .miniaturizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
 
         window.title = "Detours"
-        window.contentMinSize = contentSize
-        window.contentMaxSize = contentSize
-        window.center()
         window.tabbingMode = .disallowed
         window.collectionBehavior = .fullScreenNone
         window.isRestorable = false
+
+        // Assign the content view controller before sizing. An NSSplitViewController
+        // otherwise drives the window down to its minimum content size at assignment
+        // time; with autosave already enabled that minimum gets written back to
+        // defaults and sticks the window at the minimum on every relaunch.
+        window.contentViewController = splitViewController
+        window.contentMinSize = Self.minimumContentSize
+        window.setContentSize(contentSize)
+        window.center()
 
         // Clean title bar: no title text, blends with content
         window.titlebarAppearsTransparent = true
@@ -27,13 +46,17 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         super.init(window: window)
 
+        // Engage AppKit frame autosave through the controller AFTER it adopts the
+        // window. Setting the window's frameAutosaveName before super.init(window:)
+        // is wiped when the controller takes ownership (its own empty
+        // windowFrameAutosaveName overrides it), so no frame was ever persisted and
+        // the window always reopened at its minimum size. The controller restores a
+        // previously saved (preflight-sanitized) frame on showWindow and saves user
+        // resizes back to "NSWindow Frame MainWindow".
+        shouldCascadeWindows = false
+        windowFrameAutosaveName = Self.frameAutosaveName
+
         window.delegate = self
-
-        let contentView = NSView(frame: NSRect(origin: .zero, size: contentSize))
-        window.contentView = contentView
-
-        splitViewController.view.frame = contentView.bounds
-        contentView.addSubview(splitViewController.view)
 
         // Apply theme background
         applyThemeBackground()
@@ -58,6 +81,15 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private func applyThemeBackground() {
         window?.backgroundColor = ThemeManager.shared.currentTheme.background
+    }
+
+    func resizeForUITest(to size: NSSize) {
+        guard UITestEnvironment.isEnabled, let window else { return }
+
+        var frame = window.frame
+        frame.size = size
+        window.setFrame(frame, display: true)
+        window.saveFrame(usingName: Self.frameAutosaveName)
     }
 
     // MARK: - NSWindowDelegate

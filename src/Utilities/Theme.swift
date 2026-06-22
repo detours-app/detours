@@ -85,6 +85,14 @@ extension Theme {
         NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
 
+    static func currentFolderAccentColor() -> NSColor {
+        var accentColor = currentSnapshot().accent
+        if currentDrawingAppearanceIsDark {
+            accentColor = accentColor.brighterForDarkMode()
+        }
+        return accentColor
+    }
+
     /// Light theme: neutral warm gray, teal accent, system font
     static let light = Theme(
         background: NSColor(hex: "#FAFAF8"),

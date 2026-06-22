@@ -70,7 +70,10 @@ enum DetoursPreviewKind: Equatable {
             return true
         }
 
-        let replacement = String(decoding: data, as: UTF8.self).filter { $0 == "\u{FFFD}" }.count
+        // Intentional lossy decode after failable UTF-8 decode rejected the data.
+        // swiftlint:disable:next optional_data_string_conversion
+        let lossyText = String(decoding: data, as: UTF8.self)
+        let replacement = lossyText.filter { $0 == "\u{FFFD}" }.count
         return replacement <= max(1, data.count / 100)
     }
 

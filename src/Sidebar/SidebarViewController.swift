@@ -276,7 +276,11 @@ final class SidebarViewController: NSViewController {
     }
 
     private func favoritesItems() -> [URL] {
-        SettingsManager.shared.favorites.compactMap { URL(fileURLWithPath: $0) }
+        if let uiTestRoot = UITestEnvironment.rootDirectory {
+            return [uiTestRoot]
+        }
+
+        return SettingsManager.shared.favorites.compactMap { URL(fileURLWithPath: $0) }
     }
 
     /// Build list of servers (discovered + synthetic) with their mounted volumes

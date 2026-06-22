@@ -241,6 +241,16 @@ func setupMainMenu(target: AppDelegate) {
     toggleSidebarItem.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: nil)
     viewMenu.addItem(toggleSidebarItem)
 
+    let equalizePanesItem = NSMenuItem(
+        title: "Equalize Panes",
+        action: #selector(AppDelegate.equalizePanes(_:)),
+        keyEquivalent: "="
+    )
+    equalizePanesItem.keyEquivalentModifierMask = [.control, .command]
+    equalizePanesItem.target = target
+    equalizePanesItem.image = NSImage(systemSymbolName: "rectangle.split.2x1", accessibilityDescription: nil)
+    viewMenu.addItem(equalizePanesItem)
+
     // Go menu
     let goMenu = NSMenu(title: "Go")
     let goMenuItem = NSMenuItem(title: "Go", action: nil, keyEquivalent: "")
