@@ -16,7 +16,7 @@ TEST_DIR="$HOME/DetoursUITests-Temp"
 
 # Build app first
 echo "Building Detours..."
-"$SCRIPT_DIR/build.sh"
+DETOURS_BUILD_FORCE_QUIT=1 "$SCRIPT_DIR/build.sh"
 
 echo ""
 echo "Setting up test directory..."
