@@ -444,6 +444,9 @@ final class MainSplitViewController: NSSplitViewController {
             SettingsManager.shared.folderExpansionEnabled = true
             leftPane.restoreTabs(from: [uiTestRoot], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
             rightPane.restoreTabs(from: [uiTestRoot], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
+            if let mode = UITestEnvironment.remoteMode {
+                installUITestRemoteTab(root: uiTestRoot, mode: mode)
+            }
             return
         }
 
@@ -458,6 +461,21 @@ final class MainSplitViewController: NSSplitViewController {
 
         restorePane(leftPane, keys: .left)
         restorePane(rightPane, keys: .right)
+    }
+
+    /// UI-test seam: turn the left pane's active tab into a remote tab backed by the test root,
+    /// so the remote-aware Quick Open tests can run without a live SSH server.
+    private func installUITestRemoteTab(root: URL, mode: UITestEnvironment.RemoteMode) {
+        let host = RemoteHost(displayName: UITestEnvironment.remoteHostDisplayName, sshTarget: "uitest@localhost")
+        let provider = UITestRemoteProvider(hostID: host.id, base: root)
+        guard let tab = leftPane.selectedTab else { return }
+        tab.fileListViewController.loadRemoteDirectory(host: host, path: "/", provider: provider)
+        switch mode {
+        case .connected:
+            RemoteConnectionStateStore.shared.setState(.connected, for: host.id)
+        case .disconnected:
+            RemoteConnectionStateStore.shared.setState(.disconnected, for: host.id)
+        }
     }
 
     private func resetUITestRootDirectory(_ root: URL) {

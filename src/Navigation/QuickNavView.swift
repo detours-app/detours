@@ -162,22 +162,27 @@ struct QuickNavView: View {
         return false
     }
 
+    private var scopeHeaderText: String {
+        if case .remote(let host, _, _) = scope {
+            return "Searching \(host.displayName) - entire host"
+        }
+        return "This Mac"
+    }
+
     private var scopeHeader: some View {
         HStack(spacing: 6) {
-            if case .remote(let host, _, _) = scope {
+            if isRemoteScope {
                 Image(systemName: "globe")
                     .font(.system(size: 11))
-                Text("Searching \(host.displayName) — entire host")
-            } else {
-                Text("This Mac")
             }
+            Text(scopeHeaderText)
+                .accessibilityIdentifier("quickNavScopeHeader")
             Spacer()
         }
         .font(Font(ThemeManager.shared.currentTheme.font(size: 11)))
         .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
         .padding(.horizontal, 16)
         .padding(.vertical, 7)
-        .accessibilityIdentifier("quickNavScopeHeader")
     }
 
     private var reconnectAffordance: some View {
