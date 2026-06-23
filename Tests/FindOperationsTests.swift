@@ -92,13 +92,14 @@ final class FindOperationsTests: XCTestCase {
             try createTestFile(in: root, name: "match_\(index)")
         }
 
-        let finder = FindOperations(priorityRoots: [], rootFilesystem: root.path)
+        let cap = 500
+        let finder = FindOperations(priorityRoots: [], rootFilesystem: root.path, resultCap: cap, timeBudget: 5)
 
         let start = Date()
         let hits = matchPaths(finder.find(query: "match"))
         let elapsed = Date().timeIntervalSince(start)
 
-        XCTAssertLessThanOrEqual(hits.count, FindOperations.defaultResultCap, "must not exceed the 500-match cap")
-        XCTAssertLessThan(elapsed, FindOperations.defaultTimeBudget + 2, "must return within the time budget")
+        XCTAssertLessThanOrEqual(hits.count, cap, "must not exceed the result cap")
+        XCTAssertLessThan(elapsed, 7, "must return within the time budget")
     }
 }

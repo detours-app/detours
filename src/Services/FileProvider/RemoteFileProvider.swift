@@ -278,6 +278,7 @@ actor RemoteFileProvider: FileProvider {
     private let rpcClient: RemoteRPCClient
     private let transferChannel: RemoteTransferChannel
     private let watcherClient: RemoteWatcherClient?
+    private let searchChannel: RemoteSearchChannel?
     private var watchers: [FileProviderWatch: UUID] = [:]
     private var rawPaths: [Location: RemotePath] = [:]
 
@@ -285,17 +286,45 @@ actor RemoteFileProvider: FileProvider {
         hostID: UUID,
         rpcClient: RemoteRPCClient,
         transferChannel: RemoteTransferChannel,
-        watcherClient: RemoteWatcherClient? = nil
+        watcherClient: RemoteWatcherClient? = nil,
+        searchChannel: RemoteSearchChannel? = nil
     ) {
         self.hostID = hostID
         self.rpcClient = rpcClient
         self.transferChannel = transferChannel
         self.watcherClient = watcherClient
+        self.searchChannel = searchChannel
     }
 
     nonisolated func find(query: String, cap: Int) -> AsyncThrowingStream<[FoundItem], Error> {
         let hostID = self.hostID
         let rpcClient = self.rpcClient
+
+        // Preferred path: a dedicated, killable search process that streams matches as they are found
+        // and never blocks the persistent connection.
+        if let searchChannel {
+            return AsyncThrowingStream { continuation in
+                let task = Task {
+                    do {
+                        for try await batch in searchChannel.search(query: Data(query.utf8), cap: Int64(cap)) {
+                            try Task.checkCancellation()
+                            continuation.yield(batch.map { match in
+                                FoundItem(
+                                    location: .remote(hostID: hostID, path: match.path.lossyDisplayString),
+                                    isDirectory: match.isDirectory
+                                )
+                            })
+                        }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+                continuation.onTermination = { _ in task.cancel() }
+            }
+        }
+
+        // Fallback (e.g. tests without a search channel): one-shot find over the shared RPC connection.
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {

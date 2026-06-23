@@ -27,7 +27,7 @@ struct QuickNavView: View {
     private let maxResults = 50
     private let emptyQueryLimit = 12
     private let spotlightDebounceInterval: UInt64 = 150_000_000
-    private let remoteSearchCap = 500
+    private let remoteSearchCap = 1_000
 
     var body: some View {
         VStack(spacing: 0) {
@@ -395,6 +395,8 @@ struct QuickNavView: View {
                     remoteLiveResults = collected
                     updateRemoteMergedResults()
                 }
+                // If a newer keystroke superseded this search, leave the in-flight state to it.
+                guard !Task.isCancelled else { return }
                 remoteSearchInFlight = false
                 updateRemoteMergedResults()
             } catch is CancellationError {

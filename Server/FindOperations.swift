@@ -20,8 +20,8 @@ struct FindOperations {
         let isDirectory: Bool
     }
 
-    static let defaultResultCap = 500
-    static let defaultTimeBudget: TimeInterval = 5
+    static let defaultResultCap = 1_000
+    static let defaultTimeBudget: TimeInterval = 20
     static let defaultBatchSize = 50
 
     private let homeDirectory: String
@@ -53,48 +53,68 @@ struct FindOperations {
         self.fileManager = fileManager
     }
 
-    /// Run the search and return the matches grouped into batches (one wire chunk each).
-    /// Always returns at least one (possibly empty) batch so the caller can mark a final chunk.
-    func find(query: Data) -> [[Match]] {
-        find(query: Self.lossyString(query))
+    /// Run the search, delivering matches in batches via `onBatch` as soon as they are found, so the
+    /// client can render results progressively instead of waiting for the whole walk to finish.
+    func find(query: Data, onBatch: ([Match]) -> Void) {
+        find(query: Self.lossyString(query), onBatch: onBatch)
     }
 
-    func find(query: String) -> [[Match]] {
+    func find(query: String, onBatch: ([Match]) -> Void) {
         let needle = query.lowercased()
-        guard !needle.isEmpty else { return [[]] }
+        guard !needle.isEmpty else { return }
 
         let deadline = Date().addingTimeInterval(timeBudget)
-        var matches: [Match] = []
+        var total = 0
+        var batch: [Match] = []
         var covered = Set<String>()
+
+        let emit: (Match) -> Void = { match in
+            batch.append(match)
+            total += 1
+            if batch.count >= self.batchSize {
+                onBatch(batch)
+                batch.removeAll(keepingCapacity: true)
+            }
+        }
+        let shouldStop: () -> Bool = { total >= self.resultCap || Date() >= deadline }
 
         for root in priorityRoots {
             let standardized = Self.standardized(root)
             guard !covered.contains(standardized) else { continue }
-            walk(root: root, needle: needle, deadline: deadline, skipping: [], into: &matches)
+            walk(root: root, needle: needle, skipping: [], emit: emit, shouldStop: shouldStop)
             covered.insert(standardized)
-            if shouldStop(matches, deadline: deadline) { break }
+            if shouldStop() { break }
         }
 
-        if !shouldStop(matches, deadline: deadline) {
-            walk(root: rootFilesystem, needle: needle, deadline: deadline, skipping: covered, into: &matches)
+        if !shouldStop() {
+            walk(root: rootFilesystem, needle: needle, skipping: covered, emit: emit, shouldStop: shouldStop)
         }
 
-        return batched(matches)
+        if !batch.isEmpty {
+            onBatch(batch)
+        }
+    }
+
+    /// Collecting convenience used by tests: returns every match grouped into batches.
+    func find(query: String) -> [[Match]] {
+        var batches: [[Match]] = []
+        find(query: query) { batches.append($0) }
+        return batches
     }
 
     private func walk(
         root: String,
         needle: String,
-        deadline: Date,
         skipping: Set<String>,
-        into matches: inout [Match]
+        emit: (Match) -> Void,
+        shouldStop: () -> Bool
     ) {
         guard let rootDevice = Self.deviceID(ofPath: root) else { return }
         let prunedAbsolutePaths = Self.pseudoPaths(under: rootFilesystem)
 
         var stack = [Self.standardized(root)]
         while let directory = stack.popLast() {
-            if shouldStop(matches, deadline: deadline) { return }
+            if shouldStop() { return }
 
             let names: [String]
             do {
@@ -105,7 +125,7 @@ struct FindOperations {
             }
 
             for name in names {
-                if shouldStop(matches, deadline: deadline) { return }
+                if shouldStop() { return }
                 let childPath = Self.join(directory, name)
 
                 guard let info = Self.lstatInfo(ofPath: childPath) else { continue }
@@ -117,27 +137,16 @@ struct FindOperations {
                         || skipping.contains(standardizedChild)
                         || info.deviceID != rootDevice
                     if name.lowercased().contains(needle) {
-                        matches.append(Match(path: ServerRemotePath(childPath), isDirectory: true))
-                        if shouldStop(matches, deadline: deadline) { return }
+                        emit(Match(path: ServerRemotePath(childPath), isDirectory: true))
+                        if shouldStop() { return }
                     }
                     if !isPruned {
                         stack.append(standardizedChild)
                     }
                 } else if name.lowercased().contains(needle) {
-                    matches.append(Match(path: ServerRemotePath(childPath), isDirectory: false))
+                    emit(Match(path: ServerRemotePath(childPath), isDirectory: false))
                 }
             }
-        }
-    }
-
-    private func shouldStop(_ matches: [Match], deadline: Date) -> Bool {
-        matches.count >= resultCap || Date() >= deadline
-    }
-
-    private func batched(_ matches: [Match]) -> [[Match]] {
-        guard !matches.isEmpty else { return [[]] }
-        return stride(from: 0, to: matches.count, by: batchSize).map { start in
-            Array(matches[start..<min(start + batchSize, matches.count)])
         }
     }
 

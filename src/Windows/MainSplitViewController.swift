@@ -1264,11 +1264,13 @@ extension MainSplitViewController: SidebarDelegate {
                     }
                 }
                 let transferChannel = RemoteTransferChannel(sshTarget: host.sshTarget)
+                let searchChannel = RemoteSearchChannel(sshTarget: host.sshTarget)
                 let provider = RemoteFileProvider(
                     hostID: host.id,
                     rpcClient: rpcClient,
                     transferChannel: transferChannel,
-                    watcherClient: watcherClient
+                    watcherClient: watcherClient,
+                    searchChannel: searchChannel
                 )
                 let initialPath = try await validateRemoteConnection(provider: provider, rpcClient: rpcClient, host: host)
 
