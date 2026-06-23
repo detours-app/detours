@@ -2,7 +2,20 @@
 
 ## Latest Run
 
-- Started: 2026-06-23 14:05
+- Started: 2026-06-23 14:55
+- Command: `swift test --filter FindOperationsTests|FindRPCCodecTests|FindHelperIntegrationTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (Foundry); live probe against wraith
+- Status: PASS
+- Notes: Remote search reworked to use the server's native `find` after the hand-rolled walk was
+  proven broken against the real host (wraith): a 20s budget was exhausted inside `~/Library` and
+  the uv caches before reaching the target, returning a false "No matches". Verified directly on
+  wraith that searching "PWNot" now returns
+  `/Users/ghost/engagement/m3/loot/dc-backup-exposure/CCSRV001-loot/utl/PWNotficationScript.csv`
+  and the first match streams to the client in ~1.1s (home/`/opt` pass first, whole-host pass
+  continuing in the background, killable). All find unit/codec/real-helper integration tests and all
+  four Quick Open UI tests PASS on Foundry.
+
+### Prior run 2026-06-23 14:05
+
 - Command: `swift test --filter FindOperationsTests|FindRPCCodecTests|FindHelperIntegrationTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (all Foundry)
 - Status: PASS
 - Notes: Reworked remote Quick Open search to stream on a dedicated, killable ssh process
