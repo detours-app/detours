@@ -2,7 +2,19 @@
 
 ## Latest Run
 
-- Started: 2026-06-23 12:44
+- Started: 2026-06-23 13:26
+- Command: `swift test --filter FindHelperIntegrationTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (all Foundry)
+- Status: PASS
+- Notes: After the live-server screenshot showed "No matches" with no searching indicator,
+  added a scope-header spinner, a "Searching..." state, and a distinct "Search unavailable"
+  state so an in-flight or failed search no longer reads as an empty result.
+  `FindHelperIntegrationTests` drives the real compiled `detours-server` binary over the framed
+  RPC protocol and confirms `find` returns top-level and nested name matches end to end, so the
+  search path is proven functional (the screenshot's miss was a correct substring result: the
+  file is `PWNotfication`, not `PWNotification`). All four Quick Open UI tests still PASS.
+
+### Prior run 2026-06-23 12:44
+
 - Command: `swift test --filter FindRPCCodecTests` / `--filter FindOperationsTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (all Foundry)
 - Status: PASS
 - Notes: Remote-aware Quick Open (spec 260623). Foundry build via `build.sh` green
