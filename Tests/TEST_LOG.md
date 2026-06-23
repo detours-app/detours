@@ -2,6 +2,23 @@
 
 ## Latest Run
 
+- Started: 2026-06-23 12:44
+- Command: `swift test --filter FindRPCCodecTests` and `--filter FindOperationsTests` (Foundry); `resources/scripts/uitest.sh RemoteQuickOpenUITests` (Foundry)
+- Status: Unit PASS; UI BLOCKED (Foundry automation mode)
+- Notes: Remote-aware Quick Open (spec 260623). Foundry build via `build.sh` is green
+  (app + Linux/Darwin helper compiled, signed, installed, relaunched clean).
+  `FindRPCCodecTests` (2) and `FindOperationsTests` (4) PASS on Foundry, covering the
+  find request/result-chunk codec round-trips (incl. non-UTF8 paths) and server traversal
+  (case-insensitive name match, priority roots first, pseudo/noise-dir pruning, survives
+  unreadable dirs, cap + time budget). UI tests `RemoteQuickOpenUITests` (T22) and
+  `RemoteScopeQuickOpenUITests` (T23-T25) compile and code-sign but could not execute:
+  the XCUI runner fails with "Timed out while enabling automation mode." The pre-existing
+  `SmokeTests` fails identically, so this is a Foundry automation-mode/GUI-session
+  environment condition (same class of issue the 2026-06-22 signing-identity restore
+  fixed), not a defect in the new tests.
+
+### Prior run 2026-06-22 16:18
+
 - Started: 2026-06-22 16:18
 - Command: `CODESIGN_IDENTITY=- resources/scripts/uitest.sh WindowPaneGeometryUITests` (Foundry)
 - Status: PASS
@@ -18,16 +35,19 @@
   scheme.
 
 ### Prior run 2026-06-22 14:58
+
 - Command: `swift test --filter 'AppKitGeometrySanitizerTests|EqualSplitIndicatorViewTests|SplitPositionTests|DisconnectedQueueTests|FileOperationQueueTests|DetoursPreviewKindTests|DetoursPreviewGeneratorTests'` (Spectre)
 - Status: PASS
 - Notes: 101 focused tests passed in 6.291s. Covered AppKit geometry sanitizer, equal-split indicator, split autosave authority, disconnected remote queue pause handling, file operation queue regressions, and preview decoding/classification after lint cleanup.
 
 ### Prior run 2026-06-21 19:1x
+
 - Command: `uitest.sh WindowPaneGeometryUITests` (Foundry) + `swift test` unit/regression (Spectre)
 - Status: PARTIAL on Foundry (see note), feature verified
 - Notes: 50/50 indicator changed from a persistent highlight to a transient flash (auto-clears ~0.45s after movement stops) and a "Equalize Panes" View-menu command (Ctrl-Cmd-=) added that sets the two content panes equal via setPosition on explicit user action. `testEqualizePanesCommandSetsFiftyFifty` PASSES on Foundry (menu click → panes equal), confirming the command. `testLaunchHasNoWindowFrameJump`, `testPaneDividerDragPersistsAcrossRelaunch`, `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` PASS. `testMainWindowResizePersistsAcrossRelaunch` and `testPoisonedSavedWindowFrameFallsBackWithoutJump` FAIL on Foundry ONLY: Foundry's display changed to 2560x1600 Retina (1280pt wide) and XCUI's synthetic window-corner resize gesture no longer grabs the resize handle (4 retries, both directions — never moves the frame). Not a product bug: the window-resize functionality is verified working on Spectre's real display (osascript resize to 1160x780 saved and restored across relaunch). EqualSplitIndicatorViewTests (3) and SplitPositionTests (4, T27 now allows setPosition only inside equalizePanes) pass on Spectre.
 
 ### Prior run 2026-06-21 18:4x
+
 - Command: `uitest.sh WindowPaneGeometryUITests` (Foundry) + `swift test --filter EqualSplitIndicatorViewTests/SplitPositionTests` (Spectre)
 - Status: PASS
 - Notes: Passive 50/50 pane-divider indicator added (EqualSplitIndicatorView: a thin click-through accent overlay at the divider that shows only when the two content panes are within 2pt of equal width). First tried an NSSplitView subclass with custom drawDivider, but substituting NSSplitViewController's managed split view crashed _setupSplitView on launch — the overlay approach replaced it. The geometry UI suite went red afterward, but isolation (env-gated indicator off) proved the indicator innocent: Foundry's display had changed to a 1280pt-wide screen, leaving the 1200pt default window no room to grow, so fixed-direction resize/divider drags clamped. Made resizeMainWindow and dragPaneDivider drag toward whichever side has room. All 5 WindowPaneGeometryUITests pass (TEST SUCCEEDED) with the indicator enabled; EqualSplitIndicatorViewTests (3) and SplitPositionTests (4, including the controller-autosave assertion update) pass on Spectre.

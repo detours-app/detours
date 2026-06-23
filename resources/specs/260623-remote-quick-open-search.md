@@ -31,13 +31,13 @@ When you press Command-P in a remote tab, Detours searches the whole remote serv
 
 - [ ] **A1** In a local tab, Command-P behaves exactly as before and the scope line reads "This Mac".
 - [ ] **A2** In a connected remote tab, the scope line shows a globe and "Searching <server name> — entire host" while the panel is empty and while typing.
-- [ ] **A3** Typing in a connected remote tab returns matching files and folders from across the server, with home-folder and `/opt` matches appearing first.
+- [x] **A3** Typing in a connected remote tab returns matching files and folders from across the server, with home-folder and `/opt` matches appearing first.
 - [ ] **A4** Matches appear progressively as the server finds them, and a long search does not freeze the panel or block other actions in the tab.
 - [ ] **A5** Choosing a remote file moves the current tab to its containing folder and selects it; choosing a remote folder enters it.
 - [ ] **A6** In a connected remote tab, recently visited remote locations for that server appear alongside live results.
 - [ ] **A7** In a remote tab whose connection has dropped, Command-P shows a "Reconnect to <server name>" action and performs no search; it never searches the Mac in this case.
-- [ ] **A8** Remote search matches file and folder names case-insensitively and does not search file contents.
-- [ ] **A9** Remote search never returns entries from `/proc`, `/sys`, or `/dev`, and never errors out when it encounters folders it cannot read.
+- [x] **A8** Remote search matches file and folder names case-insensitively and does not search file contents.
+- [x] **A9** Remote search never returns entries from `/proc`, `/sys`, or `/dev`, and never errors out when it encounters folders it cannot read.
 
 ### Out of scope
 
@@ -87,30 +87,30 @@ No meaningful external user-feedback corpus exists for "remote search in a niche
 
 **Phase 1: RPC protocol**
 
-- [ ] **T1** Add a `find(query:cap:)` case to `enum RPCMessage` in `src/Remote/Protocol/Messages.swift` with a new wire tag, plus binary encode/decode (query as UTF-8 `Data`, cap as `Int64`). Priority roots are not carried on the wire; the server derives them from its own environment.
-- [ ] **T2** Add the mirror `find(query:cap:)` case to `enum ServerRPCMessage` in `Server/ServerRPCProtocol.swift` with the same tag and matching binary encode/decode.
-- [ ] **T3** Define the find result chunk encoding (a batch of matched absolute paths with is-directory flags) reusing the existing file-entry/byte-exact path encoders so client and server agree; place shared shape alongside the existing entry encoders.
+- [x] **T1** Add a `find(query:cap:)` case to `enum RPCMessage` in `src/Remote/Protocol/Messages.swift` with a new wire tag, plus binary encode/decode (query as UTF-8 `Data`, cap as `Int64`). Priority roots are not carried on the wire; the server derives them from its own environment.
+- [x] **T2** Add the mirror `find(query:cap:)` case to `enum ServerRPCMessage` in `Server/ServerRPCProtocol.swift` with the same tag and matching binary encode/decode.
+- [x] **T3** Define the find result chunk encoding (a batch of matched absolute paths with is-directory flags) reusing the existing file-entry/byte-exact path encoders so client and server agree; place shared shape alongside the existing entry encoders.
 
 **Phase 2: Server-side traversal**
 
-- [ ] **T4** Create `Server/FindOperations.swift` implementing whole-host name search: read `$HOME` from the server environment, traverse `$HOME` then `/opt` first (each single-filesystem), then the remainder of the root filesystem, de-duplicating already-covered paths; case-insensitive substring match on the entry name; prune `/proc`, `/sys`, `/dev`, `.git`, `node_modules`; do not follow symlinks; swallow permission-denied errors; stop at the 500-match result cap or the 5-second internal time budget, whichever comes first; yield matches in batches.
-- [ ] **T5** Wire `find` into `Server/RPCHandler.swift` `handleChunks`/streaming path so each batch from `FindOperations` is written as a `ServerRPCEnvelope` chunk (`sequence` incrementing, `isFinal` on the last), keeping the daemon serving after completion or error.
+- [x] **T4** Create `Server/FindOperations.swift` implementing whole-host name search: read `$HOME` from the server environment, traverse `$HOME` then `/opt` first (each single-filesystem), then the remainder of the root filesystem, de-duplicating already-covered paths; case-insensitive substring match on the entry name; prune `/proc`, `/sys`, `/dev`, `.git`, `node_modules`; do not follow symlinks; swallow permission-denied errors; stop at the 500-match result cap or the 5-second internal time budget, whichever comes first; yield matches in batches.
+- [x] **T5** Wire `find` into `Server/RPCHandler.swift` `handleChunks`/streaming path so each batch from `FindOperations` is written as a `ServerRPCEnvelope` chunk (`sequence` incrementing, `isFinal` on the last), keeping the daemon serving after completion or error.
 
 **Phase 3: Client provider**
 
-- [ ] **T6** Add `func find(query:cap:) -> AsyncThrowingStream<[QuickNavResult]>` (or equivalent streamed-location result) to the `FileProvider` protocol in `src/Services/FileProvider/FileProvider.swift`.
-- [ ] **T7** Implement `find` in `src/Services/FileProvider/RemoteFileProvider.swift`: issue the `find` RPC for the provider's host, assemble streamed chunks, and yield batches of `.remote(location:host:isConnected:score)` results; map server paths to `Location.remote(hostID:path:)`.
-- [ ] **T8** Implement `find` in `src/Services/FileProvider/LocalFileProvider.swift` as an explicit unsupported/no-op (local Quick Open continues to use Spotlight + scoped walk; remote `find` is never invoked for local tabs).
+- [x] **T6** Add `func find(query:cap:) -> AsyncThrowingStream<[QuickNavResult]>` (or equivalent streamed-location result) to the `FileProvider` protocol in `src/Services/FileProvider/FileProvider.swift`.
+- [x] **T7** Implement `find` in `src/Services/FileProvider/RemoteFileProvider.swift`: issue the `find` RPC for the provider's host, assemble streamed chunks, and yield batches of `.remote(location:host:isConnected:score)` results; map server paths to `Location.remote(hostID:path:)`.
+- [x] **T8** Implement `find` in `src/Services/FileProvider/LocalFileProvider.swift` as an explicit unsupported/no-op (local Quick Open continues to use Spotlight + scoped walk; remote `find` is never invoked for local tabs).
 
 **Phase 4: Quick Open wiring and UI**
 
-- [ ] **T9** Add a scope descriptor (local vs. remote-with-host, plus connected/disconnected) and thread it, along with `onSelectLocation`, through `QuickNavController.show(...)` in `src/Navigation/QuickNavController.swift` (currently both are dropped).
-- [ ] **T10** Update `MainSplitViewController.showQuickNav()` in `src/Windows/MainSplitViewController.swift` to read the active tab's location via `fileListViewController.currentRemoteLocation`: for a remote tab pass the host, its `FileProvider`, the scope descriptor, and an `onSelectLocation` reveal callback; for a local tab keep the existing `searchRoots`/`onNavigate`/`onReveal` path.
-- [ ] **T11** Render the persistent scope header in `src/Navigation/QuickNavView.swift` under the search field: "This Mac" for local, a globe glyph + "Searching <host> — entire host" for remote, visible on empty and typing states. Give it an accessibility identifier (e.g. `quickNavScopeHeader`).
-- [ ] **T12** Branch `QuickNavView.performSearch()` for remote scope: debounce ~150ms, cancel the in-flight find task on each keystroke, call the provider's streaming `find` with a cap of 500, render chunks of the latest search only, and merge with `FrecencyStore.frecencyLocationMatches` scoped to the active host (pass `remoteHosts: [activeHost]` so only that server's recent locations appear, per A6); skip `localMatches()`/Spotlight when remote.
-- [ ] **T13** Implement remote result selection in `MainSplitViewController` (the `onSelectLocation` callback): for a file result, navigate the active pane to the parent path and select the item via the remote navigation path (`FileListViewController.loadRemoteDirectory(host:path:provider:)`); for a directory result, navigate into it; record the visit in `FrecencyStore` and return focus to the file list, mirroring `revealItemInActivePane`.
-- [ ] **T14** Render the disconnected-remote state in `QuickNavView`: when the active tab's host connection is down, show a single "Reconnect to <host>" affordance, run no search and show no history, and trigger the existing reconnect path (`RemoteConnectionRegistry.shared.reconnect(hostID:)`) on activation; never fall back to a local search.
-- [ ] **T15** Build the app and the helper with `resources/scripts/build.sh` and resolve all `swiftlint lint --quiet` findings.
+- [x] **T9** Add a scope descriptor (local vs. remote-with-host, plus connected/disconnected) and thread it, along with `onSelectLocation`, through `QuickNavController.show(...)` in `src/Navigation/QuickNavController.swift` (currently both are dropped).
+- [x] **T10** Update `MainSplitViewController.showQuickNav()` in `src/Windows/MainSplitViewController.swift` to read the active tab's location via `fileListViewController.currentRemoteLocation`: for a remote tab pass the host, its `FileProvider`, the scope descriptor, and an `onSelectLocation` reveal callback; for a local tab keep the existing `searchRoots`/`onNavigate`/`onReveal` path.
+- [x] **T11** Render the persistent scope header in `src/Navigation/QuickNavView.swift` under the search field: "This Mac" for local, a globe glyph + "Searching <host> — entire host" for remote, visible on empty and typing states. Give it an accessibility identifier (e.g. `quickNavScopeHeader`).
+- [x] **T12** Branch `QuickNavView.performSearch()` for remote scope: debounce ~150ms, cancel the in-flight find task on each keystroke, call the provider's streaming `find` with a cap of 500, render chunks of the latest search only, and merge with `FrecencyStore.frecencyLocationMatches` scoped to the active host (pass `remoteHosts: [activeHost]` so only that server's recent locations appear, per A6); skip `localMatches()`/Spotlight when remote.
+- [x] **T13** Implement remote result selection in `MainSplitViewController` (the `onSelectLocation` callback): for a file result, navigate the active pane to the parent path and select the item via the remote navigation path (`FileListViewController.loadRemoteDirectory(host:path:provider:)`); for a directory result, navigate into it; record the visit in `FrecencyStore` and return focus to the file list, mirroring `revealItemInActivePane`.
+- [x] **T14** Render the disconnected-remote state in `QuickNavView`: when the active tab's host connection is down, show a single "Reconnect to <host>" affordance, run no search and show no history, and trigger the existing reconnect path (`RemoteConnectionRegistry.shared.reconnect(hostID:)`) on activation; never fall back to a local search.
+- [x] **T15** Build the app and the helper with `resources/scripts/build.sh` and resolve all `swiftlint lint --quiet` findings.
 
 ---
 
@@ -120,12 +120,12 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. Use
 
 ### Unit Tests (`Tests/`)
 
-- [ ] **T16** `FindRPCCodecTests.testFindRequestRoundTrips` — `RPCMessage.find` and `ServerRPCMessage.find` encode and decode to identical fields (query, cap) across the client and server codecs.
-- [ ] **T17** `FindRPCCodecTests.testFindResultChunkRoundTrips` — a batch of matched paths with is-directory flags encodes and decodes byte-exactly, including a path containing non-UTF8 bytes.
-- [ ] **T18** `FindOperationsTests.testMatchesAreCaseInsensitiveNameSubstring` — given a real temp tree, a query matches file and folder names regardless of case and does not match on file contents.
-- [ ] **T19** `FindOperationsTests.testPriorityRootsComeFirst` — matches under the home/priority root and `/opt`-style root are yielded before matches elsewhere in the tree.
-- [ ] **T20** `FindOperationsTests.testPrunesPseudoAndNoiseDirsAndSurvivesUnreadable` — entries under `proc`/`sys`/`dev`-named roots and `.git`/`node_modules` are excluded, an unreadable subdirectory does not abort the search, and symlinks are not followed.
-- [ ] **T21** `FindOperationsTests.testStopsAtCapAndTimeBudget` — traversal yields no more than the 500-match cap and returns within the 5-second time budget on a large temp tree.
+- [x] **T16** `FindRPCCodecTests.testFindRequestRoundTrips` — `RPCMessage.find` and `ServerRPCMessage.find` encode and decode to identical fields (query, cap) across the client and server codecs.
+- [x] **T17** `FindRPCCodecTests.testFindResultChunkRoundTrips` — a batch of matched paths with is-directory flags encodes and decodes byte-exactly, including a path containing non-UTF8 bytes.
+- [x] **T18** `FindOperationsTests.testMatchesAreCaseInsensitiveNameSubstring` — given a real temp tree, a query matches file and folder names regardless of case and does not match on file contents.
+- [x] **T19** `FindOperationsTests.testPriorityRootsComeFirst` — matches under the home/priority root and `/opt`-style root are yielded before matches elsewhere in the tree.
+- [x] **T20** `FindOperationsTests.testPrunesPseudoAndNoiseDirsAndSurvivesUnreadable` — entries under `proc`/`sys`/`dev`-named roots and `.git`/`node_modules` are excluded, an unreadable subdirectory does not abort the search, and symlinks are not followed.
+- [x] **T21** `FindOperationsTests.testStopsAtCapAndTimeBudget` — traversal yields no more than the 500-match cap and returns within the 5-second time budget on a large temp tree.
 
 ### UI Tests (`Tests/UITests/DetoursUITests/`, run on Foundry)
 
