@@ -7,13 +7,13 @@ import Darwin
 
 /// Whole-host name search run inside the helper daemon.
 ///
-/// Traverses the priority roots (the server's `$HOME`, then `/opt`) first, each staying on its
-/// own filesystem, then the remainder of the root filesystem with the priority roots de-duplicated
-/// out. Matches a case-insensitive substring against each entry's name, never its contents. Pseudo
-/// filesystems (`/proc`, `/sys`, `/dev`) and common noise directories (`.git`, `node_modules`) are
-/// pruned, symlinks are never followed, and permission-denied errors are swallowed. The walk stops at
-/// the result cap or the time budget, whichever comes first, so a single find can never hold the
-/// sequential RPC connection open indefinitely.
+/// Delegates the traversal to the system `find` tool, which is far faster and more complete than a
+/// hand-rolled walk on a large host: it searches the priority roots (the server's `$HOME`, then
+/// `/opt`) first, then the rest of the root filesystem with the priority roots pruned out. Matches a
+/// case-insensitive substring of the entry name (never contents). Hidden entries (caches, dotdirs),
+/// `node_modules`, the pseudo filesystems (`/proc`, `/sys`, `/dev`) and external mounts are pruned,
+/// and symlinked directories are not followed. Results stream out via `onBatch` as `find` prints
+/// them; the search stops at the result cap or the time budget, whichever comes first.
 struct FindOperations {
     struct Match: Equatable {
         let path: ServerRemotePath
@@ -30,7 +30,6 @@ struct FindOperations {
     private let resultCap: Int
     private let timeBudget: TimeInterval
     private let batchSize: Int
-    private let fileManager: FileManager
 
     init(
         homeDirectory: String? = nil,
@@ -50,24 +49,20 @@ struct FindOperations {
         self.resultCap = max(1, resultCap)
         self.timeBudget = timeBudget
         self.batchSize = max(1, batchSize)
-        self.fileManager = fileManager
     }
 
-    /// Run the search, delivering matches in batches via `onBatch` as soon as they are found, so the
-    /// client can render results progressively instead of waiting for the whole walk to finish.
+    /// Run the search, delivering matches in batches via `onBatch` as soon as `find` reports them.
     func find(query: Data, onBatch: ([Match]) -> Void) {
         find(query: Self.lossyString(query), onBatch: onBatch)
     }
 
     func find(query: String, onBatch: ([Match]) -> Void) {
-        let needle = query.lowercased()
-        guard !needle.isEmpty else { return }
-
+        guard !query.isEmpty else { return }
+        let pattern = "*" + Self.globEscaped(query) + "*"
         let deadline = Date().addingTimeInterval(timeBudget)
+
         var total = 0
         var batch: [Match] = []
-        var covered = Set<String>()
-
         let emit: (Match) -> Void = { match in
             batch.append(match)
             total += 1
@@ -77,22 +72,35 @@ struct FindOperations {
             }
         }
         let shouldStop: () -> Bool = { total >= self.resultCap || Date() >= deadline }
-
-        for root in priorityRoots {
-            let standardized = Self.standardized(root)
-            guard !covered.contains(standardized) else { continue }
-            walk(root: root, needle: needle, skipping: [], emit: emit, shouldStop: shouldStop)
-            covered.insert(standardized)
-            if shouldStop() { break }
-        }
-
-        if !shouldStop() {
-            walk(root: rootFilesystem, needle: needle, skipping: covered, emit: emit, shouldStop: shouldStop)
-        }
-
-        if !batch.isEmpty {
+        func flushPending() {
+            guard !batch.isEmpty else { return }
             onBatch(batch)
+            batch.removeAll(keepingCapacity: true)
         }
+
+        // Priority roots first (home, /opt), in order. Flush after this pass so home matches reach
+        // the client immediately, before the whole-host pass runs.
+        let existingPriority = priorityRoots.filter { FileManager.default.fileExists(atPath: $0) }
+        if !existingPriority.isEmpty {
+            let pass = FindPass(startPoints: existingPriority, prunePaths: [], pattern: pattern)
+            runFind(pass, deadline: deadline, emit: emit, shouldStop: shouldStop)
+            flushPending()
+        }
+
+        // Then the rest of the root filesystem, with the priority roots pruned so they are not re-walked.
+        if !shouldStop() {
+            let prune = priorityRoots + Self.pseudoPaths(under: rootFilesystem) + Self.externalMountGlobs
+            let pass = FindPass(startPoints: [rootFilesystem], prunePaths: prune, pattern: pattern)
+            runFind(pass, deadline: deadline, emit: emit, shouldStop: shouldStop)
+        }
+
+        flushPending()
+    }
+
+    private struct FindPass {
+        let startPoints: [String]
+        let prunePaths: [String]
+        let pattern: String
     }
 
     /// Collecting convenience used by tests: returns every match grouped into batches.
@@ -102,52 +110,54 @@ struct FindOperations {
         return batches
     }
 
-    private func walk(
-        root: String,
-        needle: String,
-        skipping: Set<String>,
+    private func runFind(
+        _ pass: FindPass,
+        deadline: Date,
         emit: (Match) -> Void,
         shouldStop: () -> Bool
     ) {
-        guard let rootDevice = Self.deviceID(ofPath: root) else { return }
-        let prunedAbsolutePaths = Self.pseudoPaths(under: rootFilesystem)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/find")
+        process.arguments = pass.startPoints + Self.findExpression(prunePaths: pass.prunePaths, pattern: pass.pattern)
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            return
+        }
 
-        var stack = [Self.standardized(root)]
-        while let directory = stack.popLast() {
-            if shouldStop() { return }
+        // Watchdog: terminate find at the deadline even if it is blocked producing no output.
+        let remaining = deadline.timeIntervalSinceNow
+        let watchdog = DispatchWorkItem { if process.isRunning { process.terminate() } }
+        if remaining > 0 {
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + remaining, execute: watchdog)
+        } else {
+            process.terminate()
+        }
 
-            let names: [String]
-            do {
-                names = try fileManager.contentsOfDirectory(atPath: directory)
-            } catch {
-                // Unreadable directory (permission denied, vanished): skip it, never abort the walk.
-                continue
-            }
-
-            for name in names {
-                if shouldStop() { return }
-                let childPath = Self.join(directory, name)
-
-                guard let info = Self.lstatInfo(ofPath: childPath) else { continue }
-
-                if info.isDirectory, !info.isSymbolicLink {
-                    let standardizedChild = Self.standardized(childPath)
-                    let isPruned = Self.isNoiseDirectoryName(name)
-                        || prunedAbsolutePaths.contains(standardizedChild)
-                        || skipping.contains(standardizedChild)
-                        || info.deviceID != rootDevice
-                    if name.lowercased().contains(needle) {
-                        emit(Match(path: ServerRemotePath(childPath), isDirectory: true))
-                        if shouldStop() { return }
-                    }
-                    if !isPruned {
-                        stack.append(standardizedChild)
-                    }
-                } else if name.lowercased().contains(needle) {
-                    emit(Match(path: ServerRemotePath(childPath), isDirectory: false))
+        var buffer = Data()
+        let handle = output.fileHandleForReading
+        readLoop: while true {
+            let chunk = handle.availableData
+            if chunk.isEmpty { break }
+            buffer.append(chunk)
+            while let index = buffer.firstIndex(of: 0) {
+                let pathBytes = buffer.subdata(in: buffer.startIndex..<index)
+                buffer.removeSubrange(buffer.startIndex...index)
+                guard !pathBytes.isEmpty else { continue }
+                let isDirectory = Self.lstatInfo(ofPathBytes: pathBytes)?.isDirectory ?? false
+                emit(Match(path: ServerRemotePath(bytes: pathBytes), isDirectory: isDirectory))
+                if shouldStop() {
+                    process.terminate()
+                    break readLoop
                 }
             }
         }
+
+        watchdog.cancel()
+        process.waitUntilExit()
     }
 
     // MARK: - Wire encoding (mirrors the client's RemoteFindCodec byte-for-byte)
@@ -162,43 +172,58 @@ struct FindOperations {
         return writer.data
     }
 
-    // MARK: - Filesystem helpers
+    // MARK: - find expression
 
-    private static func isNoiseDirectoryName(_ name: String) -> Bool {
-        name == ".git" || name == "node_modules"
+    /// Build the `find` expression: prune hidden/noise/pruned paths, then match the name pattern.
+    private static func findExpression(prunePaths: [String], pattern: String) -> [String] {
+        var pruneClause: [String] = ["(", "-name", ".*", "-o", "-name", "node_modules"]
+        for path in prunePaths {
+            pruneClause += ["-o", "-path", path]
+        }
+        pruneClause += [")", "-prune"]
+        return pruneClause + ["-o", "-iname", pattern, "-print0"]
     }
+
+    /// Absolute mount points to prune on the whole-host pass so the search never wanders into
+    /// network shares, removable media, or pseudo filesystems. Expressed as globs covering the
+    /// mount and its contents.
+    private static let externalMountGlobs = [
+        "/Volumes", "/Volumes/*", "/mnt", "/mnt/*", "/media", "/media/*", "/net", "/net/*",
+    ]
 
     private static func pseudoPaths(under root: String) -> Set<String> {
-        let base = standardized(root)
-        return Set(["proc", "sys", "dev"].map { join(base, $0) })
+        let base = (root as NSString).standardizingPath
+        let normalized = base.isEmpty ? root : base
+        return Set(["proc", "sys", "dev"].map { join(normalized, $0) })
     }
+
+    private static func globEscaped(_ value: String) -> String {
+        var escaped = ""
+        for character in value {
+            if "*?[]\\".contains(character) {
+                escaped.append("\\")
+            }
+            escaped.append(character)
+        }
+        return escaped
+    }
+
+    // MARK: - Filesystem helpers
 
     private struct EntryInfo {
         let isDirectory: Bool
-        let isSymbolicLink: Bool
-        let deviceID: dev_t
     }
 
-    private static func lstatInfo(ofPath path: String) -> EntryInfo? {
+    private static func lstatInfo(ofPathBytes pathBytes: Data) -> EntryInfo? {
+        var cString = [CChar](repeating: 0, count: pathBytes.count + 1)
+        pathBytes.withUnsafeBytes { raw in
+            for (index, byte) in raw.enumerated() {
+                cString[index] = CChar(bitPattern: byte)
+            }
+        }
         var buffer = stat()
-        guard lstat(path, &buffer) == 0 else { return nil }
-        let mode = buffer.st_mode & S_IFMT
-        return EntryInfo(
-            isDirectory: mode == S_IFDIR,
-            isSymbolicLink: mode == S_IFLNK,
-            deviceID: buffer.st_dev
-        )
-    }
-
-    private static func deviceID(ofPath path: String) -> dev_t? {
-        var buffer = stat()
-        guard stat(path, &buffer) == 0 else { return nil }
-        return buffer.st_dev
-    }
-
-    private static func standardized(_ path: String) -> String {
-        let standardized = (path as NSString).standardizingPath
-        return standardized.isEmpty ? path : standardized
+        guard lstat(cString, &buffer) == 0 else { return nil }
+        return EntryInfo(isDirectory: (buffer.st_mode & S_IFMT) == S_IFDIR)
     }
 
     private static func join(_ directory: String, _ name: String) -> String {

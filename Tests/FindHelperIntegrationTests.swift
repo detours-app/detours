@@ -25,27 +25,29 @@ final class FindHelperIntegrationTests: XCTestCase {
         let sub = try createTestFolder(in: home, name: "engagement")
         try createTestFile(in: sub, name: "passwordNotificationMail.ps1", content: "body")
 
-        let matches = try runHelperFind(helper: helper, home: home, query: "notification")
-            .flatMap { try RemoteFindCodec.decode($0) }
-        let names = matches.map { ($0.path.lossyDisplayString as NSString).lastPathComponent }
+        let names = try runHelperFind(helper: helper, home: home, query: "notification")
+            .map { ($0.path.lossyDisplayString as NSString).lastPathComponent }
 
         XCTAssertTrue(names.contains("PWNotificationScript.csv"), "top-level name match returned; got \(names)")
         XCTAssertTrue(names.contains("passwordNotificationMail.ps1"), "nested name match returned; got \(names)")
     }
 
-    private func runHelperFind(helper: URL, home: URL, query: String) throws -> [Data] {
+    /// Reads the streamed response incrementally and stops as soon as the home-pass matches arrive,
+    /// terminating the helper instead of waiting for the whole-host pass. This both keeps the test
+    /// fast and confirms results stream progressively.
+    private func runHelperFind(helper: URL, home: URL, query: String) throws -> [RemoteFindMatch] {
         let process = Process()
         let stdin = Pipe()
         let stdout = Pipe()
-        let stderr = Pipe()
         process.executableURL = helper
         var environment = ProcessInfo.processInfo.environment
         environment["HOME"] = home.path
         process.environment = environment
         process.standardInput = stdin
         process.standardOutput = stdout
-        process.standardError = stderr
+        process.standardError = FileHandle.nullDevice
         try process.run()
+        defer { if process.isRunning { process.terminate() } }
 
         let request = RPCEnvelope(
             id: 1,
@@ -58,14 +60,24 @@ final class FindHelperIntegrationTests: XCTestCase {
         stdin.fileHandleForWriting.write(try RPCStreamHandler.encodeFrame(request.encodedPayload()))
         try stdin.fileHandleForWriting.close()
 
-        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
         var stream = RPCStreamHandler()
-        let frames: [Data] = try stream.append(outData)
-        var envelopes: [RPCEnvelope] = try frames.map { try RPCEnvelope(encodedPayload: $0) }
-        envelopes = envelopes.filter { $0.id == 1 && $0.kind == .response }
-        envelopes.sort { $0.sequence < $1.sequence }
-        return envelopes.map { $0.payload }
+        var matches: [RemoteFindMatch] = []
+        let handle = stdout.fileHandleForReading
+        let deadline = Date().addingTimeInterval(25)
+        while Date() < deadline {
+            let chunk = handle.availableData
+            if chunk.isEmpty { break }
+            for frame in try stream.append(chunk) {
+                let envelope = try RPCEnvelope(encodedPayload: frame)
+                guard envelope.id == 1, envelope.kind == .response else { continue }
+                matches.append(contentsOf: try RemoteFindCodec.decode(envelope.payload))
+            }
+            // Both home-pass matches in hand: stop without waiting for the whole-host pass.
+            let names = Set(matches.map { ($0.path.lossyDisplayString as NSString).lastPathComponent })
+            if names.isSuperset(of: ["PWNotificationScript.csv", "passwordNotificationMail.ps1"]) {
+                break
+            }
+        }
+        return matches
     }
 }
