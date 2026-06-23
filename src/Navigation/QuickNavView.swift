@@ -13,6 +13,8 @@ struct QuickNavView: View {
     @State private var scopedSearchTask: Task<Void, Never>?
     @State private var remoteSearchTask: Task<Void, Never>?
     @State private var remoteLiveResults: [QuickNavResult] = []
+    @State private var remoteSearchInFlight = false
+    @State private var remoteSearchFailed = false
     @FocusState private var isTextFieldFocused: Bool
 
     var scope: QuickNavScope = .local
@@ -55,10 +57,12 @@ struct QuickNavView: View {
             // Results list
             if isDisconnectedRemote {
                 reconnectAffordance
+            } else if results.isEmpty && remoteSearchInFlight {
+                searchingIndicator
+            } else if results.isEmpty && remoteSearchFailed {
+                centeredMessage("Search unavailable", systemImage: "exclamationmark.triangle")
             } else if results.isEmpty && !query.isEmpty {
-                Text("No matches")
-                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
-                    .padding(.vertical, 24)
+                centeredMessage("No matches", systemImage: nil)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -177,12 +181,43 @@ struct QuickNavView: View {
             }
             Text(scopeHeaderText)
                 .accessibilityIdentifier("quickNavScopeHeader")
+            if remoteSearchInFlight {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(.leading, 4)
+                    .accessibilityIdentifier("quickNavSearchSpinner")
+            }
             Spacer()
         }
         .font(Font(ThemeManager.shared.currentTheme.font(size: 11)))
         .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
         .padding(.horizontal, 16)
         .padding(.vertical, 7)
+    }
+
+    private var searchingIndicator: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Searching...")
+                .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
+        }
+        .frame(height: 600)
+        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("quickNavSearchingIndicator")
+    }
+
+    private func centeredMessage(_ text: String, systemImage: String?) -> some View {
+        VStack(spacing: 10) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: 24, weight: .light))
+            }
+            Text(text)
+        }
+        .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
+        .frame(height: 600)
+        .frame(maxWidth: .infinity)
     }
 
     private var reconnectAffordance: some View {
@@ -307,9 +342,11 @@ struct QuickNavView: View {
     /// search. Local Spotlight / scoped walk are never used here.
     private func performRemoteSearch(_ newQuery: String) {
         remoteSearchTask?.cancel()
+        remoteSearchFailed = false
 
         guard !isDisconnectedRemote, let host = remoteHost, let provider = remoteProvider else {
             results = []
+            remoteSearchInFlight = false
             return
         }
 
@@ -325,10 +362,17 @@ struct QuickNavView: View {
             return false
         }
         remoteLiveResults = []
-        updateRemoteMergedResults()
 
         let trimmed = newQuery.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else {
+            remoteSearchInFlight = false
+            updateRemoteMergedResults()
+            return
+        }
+
+        // Spinner shows immediately (including during the debounce) so it is clear a search is running.
+        remoteSearchInFlight = true
+        updateRemoteMergedResults()
 
         let cap = remoteSearchCap
         remoteSearchTask = Task { @MainActor in
@@ -351,8 +395,16 @@ struct QuickNavView: View {
                     remoteLiveResults = collected
                     updateRemoteMergedResults()
                 }
+                remoteSearchInFlight = false
+                updateRemoteMergedResults()
+            } catch is CancellationError {
+                // Superseded by a newer keystroke; the new search owns the in-flight state.
             } catch {
-                // A failed/cancelled whole-host walk leaves the frecency results in place; never fall back to local.
+                // The whole-host search failed (e.g. the helper rejected it); surface it instead of
+                // silently showing "No matches", and never fall back to a local search.
+                remoteSearchInFlight = false
+                remoteSearchFailed = true
+                updateRemoteMergedResults()
             }
         }
     }
