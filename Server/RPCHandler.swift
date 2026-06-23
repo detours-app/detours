@@ -142,8 +142,11 @@ struct RPCHandler {
         case .gitStatus(let directory):
             return [try fileOperations.gitStatus(directory: directory)]
         case .find(let query, let cap):
+            // Non-streaming fallback (the run loop normally streams find via streamFind).
             let finder = FindOperations(resultCap: Int(cap))
-            return finder.find(query: query).map(FindOperations.encode)
+            var chunks: [Data] = []
+            finder.find(query: query) { chunks.append(FindOperations.encode($0)) }
+            return chunks.isEmpty ? [FindOperations.encode([])] : chunks
         case .watch(let path, let token):
             try watcher.watchVisibleDirectory(path.string, token: token)
             return [Data()]
