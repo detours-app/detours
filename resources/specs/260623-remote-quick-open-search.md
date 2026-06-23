@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/remote-quick-open-search
 
 ---
@@ -29,13 +29,13 @@ When you press Command-P in a remote tab, Detours searches the whole remote serv
 
 ### Acceptance Criteria
 
-- [ ] **A1** In a local tab, Command-P behaves exactly as before and the scope line reads "This Mac".
-- [ ] **A2** In a connected remote tab, the scope line shows a globe and "Searching <server name> — entire host" while the panel is empty and while typing.
+- [x] **A1** In a local tab, Command-P behaves exactly as before and the scope line reads "This Mac".
+- [x] **A2** In a connected remote tab, the scope line shows a globe and "Searching <server name> — entire host" while the panel is empty and while typing.
 - [x] **A3** Typing in a connected remote tab returns matching files and folders from across the server, with home-folder and `/opt` matches appearing first.
-- [ ] **A4** Matches appear progressively as the server finds them, and a long search does not freeze the panel or block other actions in the tab.
-- [ ] **A5** Choosing a remote file moves the current tab to its containing folder and selects it; choosing a remote folder enters it.
-- [ ] **A6** In a connected remote tab, recently visited remote locations for that server appear alongside live results.
-- [ ] **A7** In a remote tab whose connection has dropped, Command-P shows a "Reconnect to <server name>" action and performs no search; it never searches the Mac in this case.
+- [x] **A4** Matches appear progressively as the server finds them, and a long search does not freeze the panel or block other actions in the tab.
+- [x] **A5** Choosing a remote file moves the current tab to its containing folder and selects it; choosing a remote folder enters it.
+- [x] **A6** In a connected remote tab, recently visited remote locations for that server appear alongside live results.
+- [x] **A7** In a remote tab whose connection has dropped, Command-P shows a "Reconnect to <server name>" action and performs no search; it never searches the Mac in this case.
 - [x] **A8** Remote search matches file and folder names case-insensitively and does not search file contents.
 - [x] **A9** Remote search never returns entries from `/proc`, `/sys`, or `/dev`, and never errors out when it encounters folders it cannot read.
 
@@ -129,7 +129,7 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. Use
 
 ### UI Tests (`Tests/UITests/DetoursUITests/`, run on Foundry)
 
-- [ ] **T22** `RemoteQuickOpenUITests.testLocalTabScopeHeader` — in a local tab, opening Quick Open shows the scope header reading "This Mac" (via `quickNavScopeHeader`) and local search behaves as before.
-- [ ] **T23** `RemoteQuickOpenUITests.testRemoteTabScopeHeader` — in a connected remote tab, the scope header shows the globe + "Searching <host> — entire host" on the empty and typing states.
-- [ ] **T24** `RemoteQuickOpenUITests.testRemoteResultRevealsInCurrentTab` — choosing a remote result navigates the current tab to the containing folder and selects the item.
-- [ ] **T25** `RemoteQuickOpenUITests.testDisconnectedRemoteShowsReconnect` — in a remote tab whose connection is down, Quick Open shows the "Reconnect to <host>" affordance and no results, and never shows local results.
+- [x] **T22** `RemoteQuickOpenUITests.testLocalTabScopeHeader` — in a local tab, opening Quick Open shows the scope header reading "This Mac" (via `quickNavScopeHeader`) and local search behaves as before.
+- [x] **T23** `RemoteQuickOpenUITests.testRemoteTabScopeHeader` — in a connected remote tab, the scope header shows the globe + "Searching <host> — entire host" on the empty and typing states.
+- [x] **T24** `RemoteQuickOpenUITests.testRemoteResultRevealsInCurrentTab` — choosing a remote result navigates the current tab to the containing folder and selects the item.
+- [x] **T25** `RemoteQuickOpenUITests.testDisconnectedRemoteShowsReconnect` — in a remote tab whose connection is down, Quick Open shows the "Reconnect to <host>" affordance and no results, and never shows local results.

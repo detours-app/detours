@@ -3,19 +3,19 @@
 ## Latest Run
 
 - Started: 2026-06-23 12:44
-- Command: `swift test --filter FindRPCCodecTests` and `--filter FindOperationsTests` (Foundry); `resources/scripts/uitest.sh RemoteQuickOpenUITests` (Foundry)
-- Status: Unit PASS; UI BLOCKED (Foundry automation mode)
-- Notes: Remote-aware Quick Open (spec 260623). Foundry build via `build.sh` is green
+- Command: `swift test --filter FindRPCCodecTests` / `--filter FindOperationsTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (all Foundry)
+- Status: PASS
+- Notes: Remote-aware Quick Open (spec 260623). Foundry build via `build.sh` green
   (app + Linux/Darwin helper compiled, signed, installed, relaunched clean).
-  `FindRPCCodecTests` (2) and `FindOperationsTests` (4) PASS on Foundry, covering the
-  find request/result-chunk codec round-trips (incl. non-UTF8 paths) and server traversal
+  `FindRPCCodecTests` (2) and `FindOperationsTests` (4) PASS, covering the find
+  request/result-chunk codec round-trips (incl. non-UTF8 paths) and server traversal
   (case-insensitive name match, priority roots first, pseudo/noise-dir pruning, survives
-  unreadable dirs, cap + time budget). UI tests `RemoteQuickOpenUITests` (T22) and
-  `RemoteScopeQuickOpenUITests` (T23-T25) compile and code-sign but could not execute:
-  the XCUI runner fails with "Timed out while enabling automation mode." The pre-existing
-  `SmokeTests` fails identically, so this is a Foundry automation-mode/GUI-session
-  environment condition (same class of issue the 2026-06-22 signing-identity restore
-  fixed), not a defect in the new tests.
+  unreadable dirs, cap + time budget). UI tests PASS once Foundry automation mode was
+  restored: `RemoteQuickOpenUITests.testLocalTabScopeHeader` (T22) and
+  `RemoteScopeQuickOpenUITests` testRemoteTabScopeHeader / testRemoteResultRevealsInCurrentTab /
+  testDisconnectedRemoteShowsReconnect (T23-T25) all green against a local-backed UI-test remote
+  seam. Also fixed: the directory-load error overlay was transparent and showed stale rows
+  through it; it now fills opaque so a failed load cleanly covers the list.
 
 ### Prior run 2026-06-22 16:18
 
