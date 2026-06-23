@@ -593,6 +593,7 @@ private struct ResultRow: View {
         .frame(height: Self.rowHeight)
         .background(isSelected ? Color(ThemeManager.shared.currentTheme.accent).opacity(0.2) : Color.clear)
         .contentShape(Rectangle())
+        .accessibilityIdentifier("quickNavResultRow")
     }
 
     static var height: CGFloat { rowHeight }

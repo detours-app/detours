@@ -107,11 +107,15 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
         XCTAssertTrue(reconnect.waitForExistence(timeout: 2), "Reconnect action should be shown")
         XCTAssertTrue(reconnect.label.contains("Reconnect to UITest Server"), "Reconnect action names the host")
 
-        // Typing performs no search and never falls back to local results.
+        // Typing performs no search: the Quick Open panel shows no result rows and never
+        // falls back to local results. (The remote tab's own listing behind the panel is not
+        // a Quick Open result, so we assert specifically on result rows.)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "quickNavResultRow").count, 0,
+                       "No Quick Open results before typing")
         searchField.typeText("Folder")
         sleep(1)
-        XCTAssertFalse(app.staticTexts["FolderA"].exists, "No local results in a disconnected remote tab")
-        XCTAssertFalse(app.staticTexts["Projects2025"].exists, "No local results in a disconnected remote tab")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "quickNavResultRow").count, 0,
+                       "Typing in a disconnected remote tab produces no results")
         XCTAssertTrue(reconnect.exists, "Reconnect action remains the only affordance")
 
         pressKey(.escape)
