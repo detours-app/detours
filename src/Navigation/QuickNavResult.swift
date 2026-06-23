@@ -37,7 +37,8 @@ struct QuickNavResult: Equatable, Identifiable {
         location: Location,
         host: RemoteHost?,
         isConnected: Bool,
-        score: Double
+        score: Double,
+        isDirectory: Bool = true
     ) -> QuickNavResult {
         QuickNavResult(
             location: location,
@@ -46,7 +47,7 @@ struct QuickNavResult: Equatable, Identifiable {
             hostLabel: host?.displayName ?? "Unknown Host",
             isConnected: isConnected,
             score: score,
-            isDirectory: true
+            isDirectory: isDirectory
         )
     }
 

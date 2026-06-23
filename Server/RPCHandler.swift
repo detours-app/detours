@@ -40,7 +40,14 @@ struct RPCHandler {
             guard request.kind == .request else { continue }
 
             do {
-                let payloads = try handleChunks(message: ServerRPCMessage(binaryEncoded: request.payload))
+                let message = try ServerRPCMessage(binaryEncoded: request.payload)
+                if case .find(let query, let cap) = message {
+                    // Find streams results as they are discovered so the client can render
+                    // progressively; each batch is its own response envelope.
+                    try Self.streamFind(query: query, cap: cap, request: request, outputLock: outputLock)
+                    continue
+                }
+                let payloads = try handleChunks(message: message)
                 for (index, payload) in payloads.enumerated() {
                     let response = ServerRPCEnvelope(
                         id: request.id,
@@ -134,6 +141,12 @@ struct RPCHandler {
             return [try fileOperations.folderSize(path: path)]
         case .gitStatus(let directory):
             return [try fileOperations.gitStatus(directory: directory)]
+        case .find(let query, let cap):
+            // Non-streaming fallback (the run loop normally streams find via streamFind).
+            let finder = FindOperations(resultCap: Int(cap))
+            var chunks: [Data] = []
+            finder.find(query: query) { chunks.append(FindOperations.encode($0)) }
+            return chunks.isEmpty ? [FindOperations.encode([])] : chunks
         case .watch(let path, let token):
             try watcher.watchVisibleDirectory(path.string, token: token)
             return [Data()]
@@ -145,6 +158,34 @@ struct RPCHandler {
             }
             return [Data()]
         }
+    }
+
+    private static func streamFind(query: Data, cap: Int64, request: ServerRPCEnvelope, outputLock: NSLock) throws {
+        let finder = FindOperations(resultCap: Int(cap))
+        var sequence: UInt32 = 0
+        finder.find(query: query) { batch in
+            let envelope = ServerRPCEnvelope(
+                id: request.id,
+                kind: .response,
+                messageType: request.messageType,
+                sequence: sequence,
+                isFinal: false,
+                payload: FindOperations.encode(batch)
+            )
+            try? Self.write(envelope: envelope, outputLock: outputLock)
+            sequence += 1
+        }
+        // Always send a terminating empty chunk so the client knows the search finished
+        // (and can distinguish "still searching" from "no matches").
+        let final = ServerRPCEnvelope(
+            id: request.id,
+            kind: .response,
+            messageType: request.messageType,
+            sequence: sequence,
+            isFinal: true,
+            payload: FindOperations.encode([])
+        )
+        try Self.write(envelope: final, outputLock: outputLock)
     }
 
     private static func encodeError(_ error: Error) -> Data {

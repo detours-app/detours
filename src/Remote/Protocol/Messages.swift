@@ -47,6 +47,7 @@ enum RPCMessage: Equatable, Sendable {
     case watch(path: RemotePath, token: UUID)
     case unwatch(token: UUID)
     case watchEvent(watch: UUID, kind: RemoteWatchEventKind, path: RemotePath)
+    case find(query: Data, cap: Int64)
 
     func binaryEncoded() throws -> Data {
         var writer = RPCBinaryWriter()
@@ -131,6 +132,10 @@ enum RPCMessage: Equatable, Sendable {
             writer.writeUUID(watch)
             writer.writeUInt8(kind.rawValue)
             writer.writeRemotePath(path)
+        case .find(let query, let cap):
+            writer.writeUInt8(22)
+            writer.writeData(query)
+            writer.writeInt64(cap)
         }
 
         return writer.data
@@ -202,6 +207,8 @@ enum RPCMessage: Equatable, Sendable {
                 throw RPCProtocolError.invalidMessage
             }
             self = .watchEvent(watch: watch, kind: kind, path: try reader.readRemotePath())
+        case 22:
+            self = .find(query: try reader.readData(), cap: try reader.readInt64())
         default:
             throw RPCProtocolError.unexpectedMessageTag(tag)
         }

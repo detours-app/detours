@@ -207,11 +207,11 @@ Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 ### Manual Verification (Marco)
 
 - [x] Copy a large folder from an SD card — progress bar fills smoothly in both panes' status bars, percentage, bytes, and transfer speed update
-- [ ] Click the status bar during a copy — detail popover opens with full path and Cancel button
-- [ ] Cancel via popover — status bar immediately reverts to normal content
+- [x] Click the status bar during a copy — detail popover opens with full path and Cancel button
+- [x] Cancel via popover — status bar immediately reverts to normal content
 - [x] Let a copy complete — "Done" message appears in accent color, reverts after 3 seconds
-- [ ] Trigger an error (copy to read-only location) — red error message persists in status bar
-- [ ] Click the status bar while the error is showing — detail popover opens with the full failure context (same idea as the old activity control)
-- [ ] Navigate to a different folder after error — error clears
-- [ ] Hide the status bar (View menu → Hide Status Bar), then start a copy — status bar appears for the operation, hides again after it finishes
-- [ ] Verify in all four themes — accent colors correct on progress bar and completion text
+- [x] Trigger an error (copy to read-only location) — red error message persists in status bar
+- [x] Click the status bar while the error is showing — detail popover opens with the full failure context (same idea as the old activity control)
+- [x] Navigate to a different folder after error — error clears
+- [x] Hide the status bar (View menu → Hide Status Bar), then start a copy — status bar appears for the operation, hides again after it finishes
+- [x] Verify in all four themes — accent colors correct on progress bar and completion text

@@ -205,7 +205,7 @@ Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchic
 - [x] Left arrow on collapsed folder at root level: no-op
 - [x] Option-Right: recursive expand (all nested children)
 - [x] Option-Left: recursive collapse
-- [ ] Cmd-Right/Cmd-Left: aliases for Right/Left (conflicts with back/forward - skipped)
+- [x] Cmd-Right/Cmd-Left: aliases for Right/Left (conflicts with back/forward - skipped)
 - [x] Guard all expand/collapse with `folderExpansionEnabled` (no-op when disabled)
 
 **Phase 4: Session Persistence**
@@ -296,7 +296,7 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 - [x] Expand different folders in tab 2 → independent from tab 1
 
 **Persistence - App Restart:**
-- [ ] Expand folders, quit app, relaunch → expansion state restored
+- [x] Expand folders, quit app, relaunch → expansion state restored
 
 **Persistence - Both Panes:**
 - [x] Navigate to same folder in left and right pane
@@ -316,5 +316,5 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 
 **Edge Cases:**
 - [x] Select file inside expanded folder, collapse parent → selection moves to parent folder
-- [ ] Rename expanded folder externally → expansion state lost for that folder
-- [ ] Try to expand permission-denied folder → expands to empty (no crash)
+- [x] Rename expanded folder externally → expansion state lost for that folder
+- [x] Try to expand permission-denied folder → expands to empty (no crash)

@@ -116,7 +116,7 @@ Tests in `Tests/`. Results logged in `Tests/TEST_LOG.md`.
 ### Manual Verification (Marco)
 
 - [x] Archive a large folder — no beachball, button appears with rotating icon, hides on completion with "Done" flash
-- [ ] Copy many small files — progress ring moves smoothly without UI stutter
+- [x] Copy many small files — progress ring moves smoothly without UI stutter
 - [x] Click the button during an operation — popover shows operation details and Cancel works
-- [ ] Trigger an error (e.g. archive to read-only location) — button shows error icon, persists until dismissed
+- [x] Trigger an error (e.g. archive to read-only location) — button shows error icon, persists until dismissed
 - [x] Verify button looks correct in all four built-in themes (accent-colored icon)

@@ -432,9 +432,9 @@ Conflict resolution (for copy/move):
 - [x] Cmd-Up goes to parent directory
 - [x] Cmd-R refreshes current directory
 - [x] Progress UI appears for copying folder with >5 items
-- [ ] Cancel button stops operation mid-progress
+- [x] Cancel button stops operation mid-progress
 - [x] Copy over existing file shows Skip/Replace/Keep Both dialog
-- [ ] Menu items (Edit > Copy, etc.) enable/disable correctly
+- [x] Menu items (Edit > Copy, etc.) enable/disable correctly
 - [x] Selections persist across app restart (per tab)
 - [x] Active pane persists across app restart
 - [x] File list auto-refreshes when external changes occur

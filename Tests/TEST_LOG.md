@@ -2,6 +2,60 @@
 
 ## Latest Run
 
+- Started: 2026-06-23 14:55
+- Command: `swift test --filter FindOperationsTests|FindRPCCodecTests|FindHelperIntegrationTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (Foundry); live probe against wraith
+- Status: PASS
+- Notes: Remote search reworked to use the server's native `find` after the hand-rolled walk was
+  proven broken against the real host (wraith): a 20s budget was exhausted inside `~/Library` and
+  the uv caches before reaching the target, returning a false "No matches". Verified directly on
+  wraith that searching "PWNot" now returns
+  `/Users/ghost/engagement/m3/loot/dc-backup-exposure/CCSRV001-loot/utl/PWNotficationScript.csv`
+  and the first match streams to the client in ~1.1s (home/`/opt` pass first, whole-host pass
+  continuing in the background, killable). All find unit/codec/real-helper integration tests and all
+  four Quick Open UI tests PASS on Foundry.
+
+### Prior run 2026-06-23 14:05
+
+- Command: `swift test --filter FindOperationsTests|FindRPCCodecTests|FindHelperIntegrationTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (all Foundry)
+- Status: PASS
+- Notes: Reworked remote Quick Open search to stream on a dedicated, killable ssh process
+  (RemoteSearchChannel) so a whole-host search never blocks the persistent connection and is
+  abandoned instantly when a newer keystroke supersedes it. The helper now streams matches in
+  batches as it finds them (raised time budget and cap), so results appear progressively and a
+  long search no longer reads as a premature "No matches". Unit + codec + real-helper
+  integration tests PASS; the helper integration test now exercises the streamed batch path. All
+  four Quick Open UI tests PASS.
+
+### Prior run 2026-06-23 13:26
+
+- Command: `swift test --filter FindHelperIntegrationTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (all Foundry)
+- Status: PASS
+- Notes: After the live-server screenshot showed "No matches" with no searching indicator,
+  added a scope-header spinner, a "Searching..." state, and a distinct "Search unavailable"
+  state so an in-flight or failed search no longer reads as an empty result.
+  `FindHelperIntegrationTests` drives the real compiled `detours-server` binary over the framed
+  RPC protocol and confirms `find` returns top-level and nested name matches end to end, so the
+  search path is proven functional (the screenshot's miss was a correct substring result: the
+  file is `PWNotfication`, not `PWNotification`). All four Quick Open UI tests still PASS.
+
+### Prior run 2026-06-23 12:44
+
+- Command: `swift test --filter FindRPCCodecTests` / `--filter FindOperationsTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (all Foundry)
+- Status: PASS
+- Notes: Remote-aware Quick Open (spec 260623). Foundry build via `build.sh` green
+  (app + Linux/Darwin helper compiled, signed, installed, relaunched clean).
+  `FindRPCCodecTests` (2) and `FindOperationsTests` (4) PASS, covering the find
+  request/result-chunk codec round-trips (incl. non-UTF8 paths) and server traversal
+  (case-insensitive name match, priority roots first, pseudo/noise-dir pruning, survives
+  unreadable dirs, cap + time budget). UI tests PASS once Foundry automation mode was
+  restored: `RemoteQuickOpenUITests.testLocalTabScopeHeader` (T22) and
+  `RemoteScopeQuickOpenUITests` testRemoteTabScopeHeader / testRemoteResultRevealsInCurrentTab /
+  testDisconnectedRemoteShowsReconnect (T23-T25) all green against a local-backed UI-test remote
+  seam. Also fixed: the directory-load error overlay was transparent and showed stale rows
+  through it; it now fills opaque so a failed load cleanly covers the list.
+
+### Prior run 2026-06-22 16:18
+
 - Started: 2026-06-22 16:18
 - Command: `CODESIGN_IDENTITY=- resources/scripts/uitest.sh WindowPaneGeometryUITests` (Foundry)
 - Status: PASS
@@ -18,16 +72,19 @@
   scheme.
 
 ### Prior run 2026-06-22 14:58
+
 - Command: `swift test --filter 'AppKitGeometrySanitizerTests|EqualSplitIndicatorViewTests|SplitPositionTests|DisconnectedQueueTests|FileOperationQueueTests|DetoursPreviewKindTests|DetoursPreviewGeneratorTests'` (Spectre)
 - Status: PASS
 - Notes: 101 focused tests passed in 6.291s. Covered AppKit geometry sanitizer, equal-split indicator, split autosave authority, disconnected remote queue pause handling, file operation queue regressions, and preview decoding/classification after lint cleanup.
 
 ### Prior run 2026-06-21 19:1x
+
 - Command: `uitest.sh WindowPaneGeometryUITests` (Foundry) + `swift test` unit/regression (Spectre)
 - Status: PARTIAL on Foundry (see note), feature verified
 - Notes: 50/50 indicator changed from a persistent highlight to a transient flash (auto-clears ~0.45s after movement stops) and a "Equalize Panes" View-menu command (Ctrl-Cmd-=) added that sets the two content panes equal via setPosition on explicit user action. `testEqualizePanesCommandSetsFiftyFifty` PASSES on Foundry (menu click → panes equal), confirming the command. `testLaunchHasNoWindowFrameJump`, `testPaneDividerDragPersistsAcrossRelaunch`, `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` PASS. `testMainWindowResizePersistsAcrossRelaunch` and `testPoisonedSavedWindowFrameFallsBackWithoutJump` FAIL on Foundry ONLY: Foundry's display changed to 2560x1600 Retina (1280pt wide) and XCUI's synthetic window-corner resize gesture no longer grabs the resize handle (4 retries, both directions — never moves the frame). Not a product bug: the window-resize functionality is verified working on Spectre's real display (osascript resize to 1160x780 saved and restored across relaunch). EqualSplitIndicatorViewTests (3) and SplitPositionTests (4, T27 now allows setPosition only inside equalizePanes) pass on Spectre.
 
 ### Prior run 2026-06-21 18:4x
+
 - Command: `uitest.sh WindowPaneGeometryUITests` (Foundry) + `swift test --filter EqualSplitIndicatorViewTests/SplitPositionTests` (Spectre)
 - Status: PASS
 - Notes: Passive 50/50 pane-divider indicator added (EqualSplitIndicatorView: a thin click-through accent overlay at the divider that shows only when the two content panes are within 2pt of equal width). First tried an NSSplitView subclass with custom drawDivider, but substituting NSSplitViewController's managed split view crashed _setupSplitView on launch — the overlay approach replaced it. The geometry UI suite went red afterward, but isolation (env-gated indicator off) proved the indicator innocent: Foundry's display had changed to a 1280pt-wide screen, leaving the 1200pt default window no room to grow, so fixed-direction resize/divider drags clamped. Made resizeMainWindow and dragPaneDivider drag toward whichever side has room. All 5 WindowPaneGeometryUITests pass (TEST SUCCEEDED) with the indicator enabled; EqualSplitIndicatorViewTests (3) and SplitPositionTests (4, including the controller-autosave assertion update) pass on Spectre.

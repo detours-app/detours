@@ -205,7 +205,7 @@ Colors (from overview):
 ### Phase 1: Tab Model
 - [x] Create `PaneTab.swift` with properties and navigation methods
 - [x] Move navigation history logic from `PaneViewController` to `PaneTab`
-- [ ] Unit test navigation methods (back/forward/up)
+- [x] Unit test navigation methods (back/forward/up)
 
 ### Phase 2: Tab Bar UI
 - [x] Create `PaneTabBar.swift` with layout
@@ -213,14 +213,14 @@ Colors (from overview):
 - [x] Implement hover states and close button visibility
 - [x] Implement new tab (+) button
 - [x] Create `PaneTabBarDelegate` protocol
-- [ ] Test visual appearance matches spec
+- [x] Test visual appearance matches spec
 
 ### Phase 3: Pane Integration
 - [x] Refactor `PaneViewController` to use tabs array
 - [x] Add tab bar to pane layout (32px top)
 - [x] Implement tab selection (show/hide file list views)
 - [x] Wire up `PaneTabBarDelegate` methods
-- [ ] Ensure single tab works identically to Stage 1
+- [x] Ensure single tab works identically to Stage 1
 
 ### Phase 4: Tab Operations
 - [x] Implement `createTab()` - new tab at current directory
