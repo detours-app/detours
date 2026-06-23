@@ -191,10 +191,10 @@ struct FindOperations {
         "/Volumes", "/Volumes/*", "/mnt", "/mnt/*", "/media", "/media/*", "/net", "/net/*",
     ]
 
-    private static func pseudoPaths(under root: String) -> Set<String> {
+    private static func pseudoPaths(under root: String) -> [String] {
         let base = (root as NSString).standardizingPath
         let normalized = base.isEmpty ? root : base
-        return Set(["proc", "sys", "dev"].map { join(normalized, $0) })
+        return ["proc", "sys", "dev"].map { join(normalized, $0) }
     }
 
     private static func globEscaped(_ value: String) -> String {
