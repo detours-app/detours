@@ -7,11 +7,16 @@ import XCTest
 /// result-chunk decode) against the real binary, not just the unit-level pieces.
 final class FindHelperIntegrationTests: XCTestCase {
     func testFindReturnsMatchesFromRealHelperBinary() throws {
-        let helper = URL(fileURLWithPath: "resources/Servers/detours-server-x86_64-darwin")
-        try XCTSkipUnless(
-            FileManager.default.isExecutableFile(atPath: helper.path),
-            "Bundled darwin helper not present; run resources/scripts/build.sh first"
-        )
+        // Prefer the natively-built helper (matches the test host's architecture); fall back to the
+        // bundled cross-compiled copies only if a native build product is not present.
+        let candidates = [
+            ".build/debug/detours-server",
+            ".build/release/detours-server",
+        ]
+        guard let helperPath = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            throw XCTSkip("No native detours-server build product found; run swift test from the package root")
+        }
+        let helper = URL(fileURLWithPath: helperPath)
 
         // The helper derives its priority root from $HOME, so point it at a temp tree we control.
         let home = try createTempDirectory()
