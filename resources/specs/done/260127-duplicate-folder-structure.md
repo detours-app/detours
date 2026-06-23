@@ -133,7 +133,7 @@ Tests go in `Tests/DuplicateStructureTests.swift`. Log results in `Tests/TEST_LO
 
 ### User Verification
 
-- [ ] Right-click folder → "Duplicate Structure..." appears (not shown for files)
-- [ ] Dialog pre-fills destination with year incremented (e.g., `2025` → `2026`)
-- [ ] Created structure has all folders, no files
-- [ ] New folder is selected after creation
+- [x] Right-click folder → "Duplicate Structure..." appears (not shown for files)
+- [x] Dialog pre-fills destination with year incremented (e.g., `2025` → `2026`)
+- [x] Created structure has all folders, no files
+- [x] New folder is selected after creation

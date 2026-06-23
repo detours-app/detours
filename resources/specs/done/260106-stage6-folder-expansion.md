@@ -109,34 +109,34 @@ Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchic
 ### Implementation Plan
 
 **Phase 1: Core Outline View Conversion**
-- [ ] Rename `BandedTableView` → `BandedOutlineView`, change superclass
-- [ ] Add `children`, `parent`, `loadChildren()` to `FileItem`
-- [ ] Update `FileListDataSource` to `NSOutlineViewDataSource`/`NSOutlineViewDelegate`
-- [ ] Update `FileListViewController` to use `BandedOutlineView`
-- [ ] Build and verify disclosure triangles appear and work
+- [x] Rename `BandedTableView` → `BandedOutlineView`, change superclass
+- [x] Add `children`, `parent`, `loadChildren()` to `FileItem`
+- [x] Update `FileListDataSource` to `NSOutlineViewDataSource`/`NSOutlineViewDelegate`
+- [x] Update `FileListViewController` to use `BandedOutlineView`
+- [x] Build and verify disclosure triangles appear and work
 
 **Phase 2: Multi-Directory Watching**
-- [ ] Create `MultiDirectoryWatcher` class
-- [ ] Implement expansion tracking in `FileListDataSource`
-- [ ] Start/stop watching directories on expand/collapse
-- [ ] Update `FileListViewController` to use `MultiDirectoryWatcher`
+- [x] Create `MultiDirectoryWatcher` class
+- [x] Implement expansion tracking in `FileListDataSource`
+- [x] Start/stop watching directories on expand/collapse
+- [x] Update `FileListViewController` to use `MultiDirectoryWatcher`
 
 **Phase 3: Keyboard Navigation**
-- [ ] Right arrow: expand collapsed folder
-- [ ] Left arrow: collapse expanded folder
-- [ ] Left arrow: select parent when inside expanded folder
-- [ ] Option-Right/Option-Left: recursive expand/collapse
-- [ ] Cmd-Right/Cmd-Left: aliases
+- [x] Right arrow: expand collapsed folder
+- [x] Left arrow: collapse expanded folder
+- [x] Left arrow: select parent when inside expanded folder
+- [x] Option-Right/Option-Left: recursive expand/collapse
+- [x] Cmd-Right/Cmd-Left: aliases
 
 **Phase 4: Session Persistence**
-- [ ] Add `tabExpansions` to `PaneViewController`
-- [ ] Save/restore expansion on tab switch
-- [ ] Add expansion keys to `MainSplitViewController.saveSession()`/`restoreSession()`
+- [x] Add `tabExpansions` to `PaneViewController`
+- [x] Save/restore expansion on tab switch
+- [x] Add expansion keys to `MainSplitViewController.saveSession()`/`restoreSession()`
 
 **Phase 5: Polish**
-- [ ] Verify all customizations (teal, banding, cut dimming, iCloud badges)
-- [ ] Test edge cases (collapse with selection, external delete)
-- [ ] Fix any warnings
+- [x] Verify all customizations (teal, banding, cut dimming, iCloud badges)
+- [x] Test edge cases (collapse with selection, external delete)
+- [x] Fix any warnings
 
 ---
 
@@ -146,12 +146,12 @@ Replace `NSTableView` with `NSOutlineView` (its subclass designed for hierarchic
 
 Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these tests, updating the test log after each run.
 
-- [ ] `testFileItemLoadChildren` - `FileItem.loadChildren()` populates children array for directory
-- [ ] `testFileItemLoadChildrenEmpty` - Empty directory returns empty children array (not nil)
-- [ ] `testFileItemLoadChildrenFile` - Calling on file returns nil children
-- [ ] `testMultiDirectoryWatcherWatchUnwatch` - Can watch/unwatch multiple directories without crash
-- [ ] `testMultiDirectoryWatcherCallback` - Callback fires with correct URL when watched directory changes
-- [ ] `testExpansionStateSerialization` - `Set<URL>` encodes to `[String]` and decodes back correctly
+- [x] `testFileItemLoadChildren` - `FileItem.loadChildren()` populates children array for directory
+- [x] `testFileItemLoadChildrenEmpty` - Empty directory returns empty children array (not nil)
+- [x] `testFileItemLoadChildrenFile` - Calling on file returns nil children
+- [x] `testMultiDirectoryWatcherWatchUnwatch` - Can watch/unwatch multiple directories without crash
+- [x] `testMultiDirectoryWatcherCallback` - Callback fires with correct URL when watched directory changes
+- [x] `testExpansionStateSerialization` - `Set<URL>` encodes to `[String]` and decodes back correctly
 
 ### Test Log
 
@@ -163,12 +163,12 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 
 After implementation, manually verify:
 
-- [ ] Click disclosure triangle expands/collapses
-- [ ] Option-click expands all nested children
-- [ ] Right/Left arrow keyboard navigation works
-- [ ] Teal selection highlight displays correctly
-- [ ] Teal folder icons display correctly
-- [ ] Banded row backgrounds work
-- [ ] Expansion persists across tab switches
-- [ ] Expansion persists across app restart
-- [ ] External changes in expanded folders trigger refresh
+- [x] Click disclosure triangle expands/collapses
+- [x] Option-click expands all nested children
+- [x] Right/Left arrow keyboard navigation works
+- [x] Teal selection highlight displays correctly
+- [x] Teal folder icons display correctly
+- [x] Banded row backgrounds work
+- [x] Expansion persists across tab switches
+- [x] Expansion persists across app restart
+- [x] External changes in expanded folders trigger refresh

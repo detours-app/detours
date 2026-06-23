@@ -141,7 +141,7 @@ Add Quick Look (Space to preview), context menus, file drag-drop with external a
 - [x] Add `QLPreviewPanelDelegate` conformance to `FileListViewController`
 - [x] Add Space key handling to toggle Quick Look
 - [x] Update selection change to refresh Quick Look panel
-- [ ] Test with various file types (images, PDFs, text, videos)
+- [x] Test with various file types (images, PDFs, text, videos)
 
 **Phase 2: Context Menu**
 - [x] Add `contextMenuDelegate` to `BandedTableView`
@@ -157,9 +157,9 @@ Add Quick Look (Space to preview), context menus, file drag-drop with external a
 **Phase 3: Drag Source**
 - [x] Create `FileListViewController+DragDrop.swift`
 - [x] Implement `tableView(_:pasteboardWriterForRow:)`
-- [ ] Test dragging single file to Terminal, Mail, Finder
-- [ ] Test dragging multiple files
-- [ ] Verify drag image shows file icons
+- [x] Test dragging single file to Terminal, Mail, Finder
+- [x] Test dragging multiple files
+- [x] Verify drag image shows file icons
 
 **Phase 4: Drop Target**
 - [x] Register table view for file URL drop types
@@ -167,7 +167,7 @@ Add Quick Look (Space to preview), context menus, file drag-drop with external a
 - [x] Implement drop acceptance (copy/move files)
 - [x] Add drop target highlight to folder rows
 - [x] Add Option key detection for force-copy
-- [ ] Test dropping from Finder, other apps
+- [x] Test dropping from Finder, other apps
 
 **Phase 5: Polish**
 - [x] Verify all context menu items work correctly

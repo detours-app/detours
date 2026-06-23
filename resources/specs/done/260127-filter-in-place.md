@@ -128,7 +128,7 @@ Tests go in `Tests/FilterTests.swift`. Log results in `Tests/TEST_LOG.md`.
 
 ### User Verification
 
-- [ ] Press `/` or `Cmd-F` → filter bar appears with cursor in text field
-- [ ] Type query → list filters in real-time, count updates
-- [ ] Press Esc → clears text first, then hides bar on second press
-- [ ] Navigate to new directory → filter bar closes automatically
+- [x] Press `/` or `Cmd-F` → filter bar appears with cursor in text field
+- [x] Type query → list filters in real-time, count updates
+- [x] Press Esc → clears text first, then hides bar on second press
+- [x] Navigate to new directory → filter bar closes automatically
