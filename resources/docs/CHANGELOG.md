@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.7.0 - 2026-06-23
+
+### New Features
+
+- **Remote-aware Quick Open (Command-P)** - In a remote tab, Command-P now searches the whole remote server by file and folder name instead of the Mac, beginning with your home folder and `/opt`, with matches streaming in as the server finds them. A local tab searches the Mac exactly as before.
+- **Search scope is always shown** - The Quick Open panel shows whether it is searching "This Mac" or a specific server, with a spinner while a remote search runs.
+- **Open remote results in place** - Choosing a remote file moves the current tab to its containing folder and selects it; choosing a folder enters it; recent remote places for that server appear alongside live results.
+- **Reconnect from Quick Open** - When the active tab's server connection has dropped, Command-P offers a single Reconnect action instead of searching, and never silently falls back to searching the Mac.
+
+### Bug Fixes
+
+- **Directory-load error no longer shows through to the list** - A failed directory load now cleanly covers the file list instead of floating its message over stale rows.
+
 ## 1.6.1 - 2026-06-22
 
 ### Bug Fixes
