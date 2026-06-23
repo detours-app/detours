@@ -1,5 +1,12 @@
 import XCTest
 
+/// Reads a static text's displayed string. AppKit-hosted SwiftUI exposes Text content via the
+/// accessibility value rather than the label, so prefer whichever is non-empty.
+private func scopeText(_ element: XCUIElement) -> String {
+    if !element.label.isEmpty { return element.label }
+    return (element.value as? String) ?? ""
+}
+
 /// T22 / A1: in a local tab, Quick Open shows the "This Mac" scope header and local search works.
 final class RemoteQuickOpenUITests: BaseUITest {
 
@@ -12,13 +19,13 @@ final class RemoteQuickOpenUITests: BaseUITest {
 
         let scopeHeader = app.staticTexts["quickNavScopeHeader"]
         XCTAssertTrue(scopeHeader.waitForExistence(timeout: 2), "Scope header should be visible on open")
-        XCTAssertEqual(scopeHeader.label, "This Mac", "Local tab scope header reads 'This Mac'")
+        XCTAssertEqual(scopeText(scopeHeader), "This Mac", "Local tab scope header reads 'This Mac'")
 
         // Header stays visible while typing, and local search still returns matches.
         searchField.typeText("FolderB")
         sleep(1)
         XCTAssertTrue(scopeHeader.exists, "Scope header stays visible while typing")
-        XCTAssertEqual(scopeHeader.label, "This Mac")
+        XCTAssertEqual(scopeText(scopeHeader), "This Mac")
 
         pressKey(.escape)
     }
@@ -59,12 +66,12 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
 
         let header = app.staticTexts["quickNavScopeHeader"]
         XCTAssertTrue(header.waitForExistence(timeout: 2), "Remote scope header should be visible on open")
-        XCTAssertEqual(header.label, remoteHeaderLabel, "Empty-state remote scope header")
+        XCTAssertEqual(scopeText(header), remoteHeaderLabel, "Empty-state remote scope header")
 
         searchField.typeText("Folder")
         sleep(1)
         XCTAssertTrue(header.exists, "Header stays visible while typing")
-        XCTAssertEqual(header.label, remoteHeaderLabel, "Typing-state remote scope header")
+        XCTAssertEqual(scopeText(header), remoteHeaderLabel, "Typing-state remote scope header")
 
         pressKey(.escape)
     }

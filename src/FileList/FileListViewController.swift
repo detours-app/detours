@@ -882,6 +882,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
+        // Opaque fill so the error cleanly covers the list area; without it the overlay is
+        // transparent and stale rows show through behind the message, which looks broken.
+        container.wantsLayer = true
+        container.layer?.backgroundColor = theme.background.cgColor
 
         let stack = NSStackView()
         stack.orientation = .vertical
