@@ -57,10 +57,10 @@ final class FindHelperIntegrationTests: XCTestCase {
         process.waitUntilExit()
 
         var stream = RPCStreamHandler()
-        let envelopes = try stream.append(outData)
-            .map { try RPCEnvelope(encodedPayload: $0) }
-            .filter { $0.id == 1 && $0.kind == .response }
-            .sorted { $0.sequence < $1.sequence }
+        let frames: [Data] = try stream.append(outData)
+        var envelopes: [RPCEnvelope] = try frames.map { try RPCEnvelope(encodedPayload: $0) }
+        envelopes = envelopes.filter { $0.id == 1 && $0.kind == .response }
+        envelopes.sort { $0.sequence < $1.sequence }
         return envelopes.map { $0.payload }
     }
 }
