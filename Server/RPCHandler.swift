@@ -134,6 +134,9 @@ struct RPCHandler {
             return [try fileOperations.folderSize(path: path)]
         case .gitStatus(let directory):
             return [try fileOperations.gitStatus(directory: directory)]
+        case .find(let query, let cap):
+            let finder = FindOperations(resultCap: Int(cap))
+            return finder.find(query: query).map(FindOperations.encode)
         case .watch(let path, let token):
             try watcher.watchVisibleDirectory(path.string, token: token)
             return [Data()]

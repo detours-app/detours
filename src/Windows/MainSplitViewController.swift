@@ -625,16 +625,64 @@ final class MainSplitViewController: NSSplitViewController {
             quickNavController = QuickNavController()
         }
 
+        let fileList = activePane.selectedTab?.fileListViewController
+        let scope = quickNavScope(for: fileList)
+        // A remote tab searches its server; a local tab searches the Mac under the current directory.
+        let searchRoots: [URL]
+        if case .remote = scope {
+            searchRoots = []
+        } else {
+            searchRoots = activePane.selectedTab.map { [$0.currentDirectory] } ?? []
+        }
+
         quickNavController?.show(
             in: window,
-            searchRoots: activePane.selectedTab.map { [$0.currentDirectory] } ?? [],
+            scope: scope,
+            searchRoots: searchRoots,
             onNavigate: { [weak self] url in
                 self?.navigateActivePane(to: url)
             },
             onReveal: { [weak self] folder, itemToSelect in
                 self?.revealItemInActivePane(folder: folder, itemToSelect: itemToSelect)
+            },
+            onSelectLocation: { [weak self] location, isDirectory in
+                self?.revealRemoteLocationInActivePane(location, isDirectory: isDirectory)
             }
         )
+    }
+
+    /// Determine Quick Open scope from the active tab: remote (with its host/provider and live
+    /// connection state) when the tab is showing a server, otherwise local.
+    private func quickNavScope(for fileList: FileListViewController?) -> QuickNavScope {
+        guard let fileList,
+              case .remote(let hostID, _)? = fileList.currentRemoteLocation,
+              let host = fileList.currentRemoteHost,
+              let provider = fileList.currentRemoteProvider else {
+            return .local
+        }
+        let isConnected = RemoteConnectionStateStore.shared.state(for: hostID) == .connected
+        return .remote(host: host, provider: provider, isConnected: isConnected)
+    }
+
+    /// Open a remote Quick Open result in the active tab (A5): a file navigates to its containing
+    /// folder and selects it; a folder is entered directly.
+    private func revealRemoteLocationInActivePane(_ location: Location, isDirectory: Bool) {
+        guard let fileList = activePane.selectedTab?.fileListViewController,
+              let host = fileList.currentRemoteHost,
+              let provider = fileList.currentRemoteProvider,
+              case .remote(let hostID, let path) = location,
+              hostID == host.id else {
+            return
+        }
+
+        if isDirectory {
+            fileList.loadRemoteDirectory(host: host, path: path, provider: provider)
+        } else {
+            let parentPath = location.deletingLastPathComponent().path
+            fileList.loadRemoteDirectory(host: host, path: parentPath, provider: provider, selectingItemPath: path)
+        }
+        FrecencyStore.shared.recordVisit(location)
+        view.window?.makeFirstResponder(fileList.tableView)
     }
 
     private func revealItemInActivePane(folder: URL, itemToSelect: URL) {

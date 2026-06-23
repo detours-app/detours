@@ -238,6 +238,40 @@ struct RemotePathListResponse: Equatable, Sendable {
     let paths: [RemotePath]
 }
 
+/// A single name-search hit: a byte-exact remote path plus whether it is a directory.
+/// The wire shape (count, then per-match length-prefixed path bytes + is-directory bool)
+/// is mirrored byte-for-byte by the server's FindOperations encoder.
+struct RemoteFindMatch: Equatable, Sendable {
+    let path: RemotePath
+    let isDirectory: Bool
+}
+
+enum RemoteFindCodec {
+    static func encode(_ matches: [RemoteFindMatch]) -> Data {
+        var writer = RPCBinaryWriter()
+        writer.writeUInt32(UInt32(matches.count))
+        for match in matches {
+            writer.writeData(match.path.bytes)
+            writer.writeBool(match.isDirectory)
+        }
+        return writer.data
+    }
+
+    static func decode(_ data: Data) throws -> [RemoteFindMatch] {
+        var reader = RPCBinaryReader(data: data)
+        let count = Int(try reader.readUInt32())
+        var matches: [RemoteFindMatch] = []
+        matches.reserveCapacity(count)
+        for _ in 0..<count {
+            let path = RemotePath(bytes: try reader.readData())
+            let isDirectory = try reader.readBool()
+            matches.append(RemoteFindMatch(path: path, isDirectory: isDirectory))
+        }
+        try reader.requireComplete()
+        return matches
+    }
+}
+
 actor RemoteFileProvider: FileProvider {
     let hostID: UUID
 
@@ -257,6 +291,33 @@ actor RemoteFileProvider: FileProvider {
         self.rpcClient = rpcClient
         self.transferChannel = transferChannel
         self.watcherClient = watcherClient
+    }
+
+    nonisolated func find(query: String, cap: Int) -> AsyncThrowingStream<[FoundItem], Error> {
+        let hostID = self.hostID
+        let rpcClient = self.rpcClient
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let chunks = try await rpcClient.send(.find(query: Data(query.utf8), cap: Int64(cap)))
+                    for chunk in chunks {
+                        let items = try RemoteFindCodec.decode(chunk).map { match in
+                            FoundItem(
+                                location: .remote(hostID: hostID, path: match.path.lossyDisplayString),
+                                isDirectory: match.isDirectory
+                            )
+                        }
+                        if !items.isEmpty {
+                            continuation.yield(items)
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
@@ -652,6 +713,7 @@ extension RPCMessage {
         case .watch: return "Watch"
         case .unwatch: return "Unwatch"
         case .watchEvent: return "WatchEvent"
+        case .find: return "Find"
         }
     }
 }

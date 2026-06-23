@@ -47,6 +47,7 @@ enum ServerRPCMessage {
     case readSymlink(path: ServerRemotePath)
     case folderSize(path: ServerRemotePath)
     case gitStatus(directory: ServerRemotePath)
+    case find(query: Data, cap: Int64)
 
     init(binaryEncoded data: Data) throws {
         var reader = ServerRPCBinaryReader(data: data)
@@ -107,6 +108,8 @@ enum ServerRPCMessage {
                 expectedByteCount: try reader.readInt64(),
                 maximumRPCBytes: try reader.readInt64()
             )
+        case 22:
+            self = .find(query: try reader.readData(), cap: try reader.readInt64())
         default:
             throw ServerRPCProtocolError.unexpectedMessageTag(tag)
         }

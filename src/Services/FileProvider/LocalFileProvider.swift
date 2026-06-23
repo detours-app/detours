@@ -115,6 +115,12 @@ actor LocalFileProvider: FileProvider {
         )
     }
 
+    /// Local Quick Open uses Spotlight + the scoped walk in QuickNavView, never this remote find.
+    /// Implemented explicitly as a no-op so a local tab can never accidentally issue a whole-host search.
+    nonisolated func find(query: String, cap: Int) -> AsyncThrowingStream<[FoundItem], Error> {
+        AsyncThrowingStream { $0.finish() }
+    }
+
     private func localURL(from location: Location) throws -> URL {
         guard case .local(let url) = location else {
             throw FileProviderError.expectedLocal(location)

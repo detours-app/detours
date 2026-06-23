@@ -15,6 +15,12 @@ struct RemoteFileVersion: Equatable, Sendable {
     let modificationDate: Date
 }
 
+/// A single Quick Open name-search hit, location plus whether it is a directory.
+struct FoundItem: Equatable, Sendable {
+    let location: Location
+    let isDirectory: Bool
+}
+
 protocol FileProvider: Sendable {
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry]
     func stat(_ location: Location) async throws -> LoadedFileEntry
@@ -35,6 +41,7 @@ protocol FileProvider: Sendable {
     func download(_ location: Location, to localURL: URL) async throws
     func upload(_ localURL: URL, to location: Location) async throws
     func version(of location: Location) async throws -> RemoteFileVersion
+    func find(query: String, cap: Int) -> AsyncThrowingStream<[FoundItem], Error>
 }
 
 enum FileProviderError: Error, Equatable {
@@ -54,5 +61,11 @@ extension FileProvider {
 
     func version(of location: Location) async throws -> RemoteFileVersion {
         throw FileProviderError.unsupportedOperation("version")
+    }
+
+    /// Default: providers that do not support whole-host name search yield nothing.
+    /// Local Quick Open keeps using Spotlight + the scoped walk; remote find is never invoked for local tabs.
+    func find(query: String, cap: Int) -> AsyncThrowingStream<[FoundItem], Error> {
+        AsyncThrowingStream { $0.finish() }
     }
 }

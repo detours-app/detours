@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+/// What Quick Open is searching: the Mac, or a specific remote host (which may be disconnected).
+enum QuickNavScope {
+    case local
+    case remote(host: RemoteHost, provider: any FileProvider, isConnected: Bool)
+}
+
 /// Borderless floating panel that can receive keyboard input.
 private class FloatingPanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -13,25 +19,33 @@ final class QuickNavController {
     private var panel: FloatingPanel?
     private var onNavigate: ((URL) -> Void)?
     private var onReveal: ((_ folder: URL, _ itemToSelect: URL) -> Void)?
+    private var onSelectLocation: ((Location, Bool) -> Void)?
     private var eventMonitor: Any?
 
     /// Show the quick navigation panel centered in the window.
     func show(
         in window: NSWindow,
+        scope: QuickNavScope = .local,
         searchRoots: [URL],
         onNavigate: @escaping (URL) -> Void,
-        onReveal: @escaping (_ folder: URL, _ itemToSelect: URL) -> Void
+        onReveal: @escaping (_ folder: URL, _ itemToSelect: URL) -> Void,
+        onSelectLocation: @escaping (Location, Bool) -> Void = { _, _ in }
     ) {
         // Dismiss any existing panel
         dismiss()
 
         self.onNavigate = onNavigate
         self.onReveal = onReveal
+        self.onSelectLocation = onSelectLocation
 
         let quickNavView = QuickNavView(
+            scope: scope,
             searchRoots: searchRoots,
             onSelect: { [weak self] url in
                 self?.handleSelection(url)
+            },
+            onSelectLocation: { [weak self] location, isDirectory in
+                self?.handleSelectLocation(location, isDirectory: isDirectory)
             },
             onReveal: { [weak self] folder, itemToSelect in
                 self?.handleReveal(folder: folder, itemToSelect: itemToSelect)
@@ -108,12 +122,19 @@ final class QuickNavController {
         panel = nil
         onNavigate = nil
         onReveal = nil
+        onSelectLocation = nil
     }
 
     private func handleSelection(_ url: URL) {
         let navigate = onNavigate
         dismiss()
         navigate?(url)
+    }
+
+    private func handleSelectLocation(_ location: Location, isDirectory: Bool) {
+        let selectLocation = onSelectLocation
+        dismiss()
+        selectLocation?(location, isDirectory)
     }
 
     private func handleReveal(folder: URL, itemToSelect: URL) {

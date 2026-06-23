@@ -692,6 +692,35 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
+    /// Load a remote directory and, after the load completes, select the item at `selectingItemPath`.
+    /// Used by Quick Open to reveal a remote file in its containing folder (A5).
+    func loadRemoteDirectory(
+        host: RemoteHost,
+        path: String,
+        provider: any FileProvider,
+        selectingItemPath: String
+    ) {
+        pendingPostLoadAction = { [weak self] in
+            self?.selectRemoteItem(atPath: selectingItemPath)
+        }
+        loadRemoteDirectory(host: host, path: path, provider: provider)
+    }
+
+    /// Select a remote row by its absolute path. Remote `FileItem`s have no local file URL, so
+    /// selection matches on the standardized path rather than going through `findItem(withURL:)`.
+    private func selectRemoteItem(atPath path: String) {
+        let target = URL(fileURLWithPath: path).standardizedFileURL
+        for item in dataSource.items where item.isRemote {
+            guard item.expansionURL == target else { continue }
+            let row = tableView.row(forItem: item)
+            if row >= 0 {
+                tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                tableView.scrollRowToVisible(row)
+            }
+            return
+        }
+    }
+
     private func loadRemoteDirectory(_ location: Location, provider: any FileProvider, preserveExpansion: Bool) {
         dataSource.cancelCurrentLoad()
         hideLoadingIndicator()
