@@ -2,7 +2,19 @@
 
 ## Latest Run
 
-- Started: 2026-06-23 13:26
+- Started: 2026-06-23 14:05
+- Command: `swift test --filter FindOperationsTests|FindRPCCodecTests|FindHelperIntegrationTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (all Foundry)
+- Status: PASS
+- Notes: Reworked remote Quick Open search to stream on a dedicated, killable ssh process
+  (RemoteSearchChannel) so a whole-host search never blocks the persistent connection and is
+  abandoned instantly when a newer keystroke supersedes it. The helper now streams matches in
+  batches as it finds them (raised time budget and cap), so results appear progressively and a
+  long search no longer reads as a premature "No matches". Unit + codec + real-helper
+  integration tests PASS; the helper integration test now exercises the streamed batch path. All
+  four Quick Open UI tests PASS.
+
+### Prior run 2026-06-23 13:26
+
 - Command: `swift test --filter FindHelperIntegrationTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (all Foundry)
 - Status: PASS
 - Notes: After the live-server screenshot showed "No matches" with no searching indicator,
