@@ -169,7 +169,7 @@ extension BaseUITest {
         chooseGoMenuItem("Quick Open")
         let dialog = app.dialogs.firstMatch
         XCTAssertTrue(dialog.waitForExistence(timeout: 3), "Quick Open dialog should appear")
-        dialog.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).click()
+        dialog.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.92)).click()
         usleep(300_000)
     }
 
