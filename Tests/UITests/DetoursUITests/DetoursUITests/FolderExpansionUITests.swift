@@ -569,10 +569,9 @@ final class FolderExpansionUITests: BaseUITest {
         renameMenuItem.click()
         sleep(1)
 
-        // Select all (Cmd+A) and type new name - the field has "file" selected by default
-        // so we need to select all to replace the entire filename including extension
-        pressCharKey("a", modifiers: .command)
-        app.typeText("renamed.txt")
+        // The inline editor selects the basename by default, so typing replaces
+        // "file" while preserving the extension.
+        app.typeText("renamed")
         pressKey(.return)
         sleep(2)
 
@@ -586,8 +585,7 @@ final class FolderExpansionUITests: BaseUITest {
         sleep(1)
         app.menuItems["Rename"].click()
         sleep(1)
-        pressCharKey("a", modifiers: .command)
-        app.typeText("file.txt")
+        app.typeText("file")
         pressKey(.return)
         sleep(1)
     }
