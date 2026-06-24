@@ -11,19 +11,19 @@ private func scopeText(_ element: XCUIElement) -> String {
 final class RemoteQuickOpenUITests: BaseUITest {
 
     func testLocalTabScopeHeader() throws {
-        openQuickNav()
+        let searchField = openQuickNav()
 
         let scopeHeader = app.staticTexts["quickNavScopeHeader"]
         XCTAssertTrue(scopeHeader.waitForExistence(timeout: 2), "Scope header should be visible on open")
         XCTAssertEqual(scopeText(scopeHeader), "This Mac", "Local tab scope header reads 'This Mac'")
 
         // Header stays visible while typing, and local search still returns matches.
-        postTextKeyEvents("FolderB")
+        searchField.typeText("FolderB")
         sleep(1)
         XCTAssertTrue(scopeHeader.exists, "Scope header stays visible while typing")
         XCTAssertEqual(scopeText(scopeHeader), "This Mac")
 
-        postEscapeKeyEvent()
+        pressKey(.escape)
     }
 }
 
@@ -57,30 +57,30 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
     func testRemoteTabScopeHeader() throws {
         launchRemote("connected")
 
-        openQuickNav()
+        let searchField = openQuickNav()
 
         let header = app.staticTexts["quickNavScopeHeader"]
         XCTAssertTrue(header.waitForExistence(timeout: 2), "Remote scope header should be visible on open")
         XCTAssertEqual(scopeText(header), remoteHeaderLabel, "Empty-state remote scope header")
 
-        postTextKeyEvents("Folder")
+        searchField.typeText("Folder")
         sleep(1)
         XCTAssertTrue(header.exists, "Header stays visible while typing")
         XCTAssertEqual(scopeText(header), remoteHeaderLabel, "Typing-state remote scope header")
 
-        postEscapeKeyEvent()
+        pressKey(.escape)
     }
 
     /// T24 / A5: choosing a remote file moves the current tab to its containing folder and selects it.
     func testRemoteResultRevealsInCurrentTab() throws {
         launchRemote("connected")
 
-        openQuickNav()
+        let searchField = openQuickNav()
 
-        postTextKeyEvents("unique-in-B")
+        searchField.typeText("unique-in-B")
         sleep(2)
 
-        postReturnKeyEvent()
+        pressKey(.return)
         sleep(2)
 
         XCTAssertTrue(waitForRow(named: "SubfolderB1", timeout: 3), "Current tab navigated into FolderB")
@@ -92,7 +92,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
     func testDisconnectedRemoteShowsReconnect() throws {
         launchRemote("disconnected")
 
-        openQuickNav()
+        let searchField = openQuickNav()
 
         let reconnect = app.buttons["quickNavReconnectButton"]
         XCTAssertTrue(reconnect.waitForExistence(timeout: 2), "Reconnect action should be shown")
@@ -103,12 +103,12 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
         // a Quick Open result, so we assert specifically on result rows.)
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "quickNavResultRow").count, 0,
                        "No Quick Open results before typing")
-        postTextKeyEvents("Folder")
+        searchField.typeText("Folder")
         sleep(1)
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "quickNavResultRow").count, 0,
                        "Typing in a disconnected remote tab produces no results")
         XCTAssertTrue(reconnect.exists, "Reconnect action remains the only affordance")
 
-        postEscapeKeyEvent()
+        pressKey(.escape)
     }
 }
