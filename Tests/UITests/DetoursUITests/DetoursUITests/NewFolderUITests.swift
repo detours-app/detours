@@ -59,7 +59,7 @@ final class NewFolderUITests: BaseUITest {
         XCTAssertTrue(rowExists(named: "CCC_Third"), "CCC_Third should still exist at root")
 
         // Step 7: Press Escape to cancel rename
-        pressKey(.escape)
+        postEscapeKeyEvent()
         usleep(500_000)
 
         // Step 8: Verify original folders are intact
@@ -86,7 +86,7 @@ final class NewFolderUITests: BaseUITest {
         }
 
         // Cancel
-        pressKey(.escape)
+        postEscapeKeyEvent()
         usleep(500_000)
 
         // Verify file1.txt still exists
@@ -112,7 +112,7 @@ final class NewFolderUITests: BaseUITest {
             print("DEBUG: Create/cancel iteration \(i)")
             pressCharKey("n", modifiers: [.command, .shift])
             usleep(800_000)
-            pressKey(.escape)
+            postEscapeKeyEvent()
             usleep(500_000)
         }
 

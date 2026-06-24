@@ -1,4 +1,5 @@
 import XCTest
+import CoreGraphics
 
 enum DetoursUITestApp {
     static func make() -> XCUIApplication {
@@ -56,6 +57,16 @@ extension BaseUITest {
     /// Press a special key with optional modifiers
     func pressKey(_ key: XCUIKeyboardKey, modifiers: XCUIElement.KeyModifierFlags = []) {
         app.typeKey(key, modifierFlags: modifiers)
+    }
+
+    /// Post Escape as a real HID event without XCUITest's typeKey idle snapshot.
+    func postEscapeKeyEvent() {
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let keyCode: CGKeyCode = 53
+        CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)?
+            .post(tap: .cghidEventTap)
+        CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)?
+            .post(tap: .cghidEventTap)
     }
 
     /// Press a character key with optional modifiers
