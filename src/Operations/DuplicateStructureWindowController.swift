@@ -1,6 +1,22 @@
 import AppKit
 import SwiftUI
 
+private final class DuplicateStructureSheetWindow: NSWindow {
+    var onCancel: (() -> Void)?
+
+    override func cancelOperation(_ sender: Any?) {
+        onCancel?()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 {
+            onCancel?()
+            return
+        }
+        super.keyDown(with: event)
+    }
+}
+
 final class DuplicateStructureWindowController: NSWindowController {
     private let model: DuplicateStructureModel
     private var onComplete: ((URL, (String, String)?) -> Void)?
@@ -13,7 +29,7 @@ final class DuplicateStructureWindowController: NSWindowController {
         self.model = DuplicateStructureModel(sourceURL: sourceURL)
         self.onComplete = completion
 
-        let window = NSWindow(
+        let window = DuplicateStructureSheetWindow(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
             styleMask: [.titled],
             backing: .buffered,
@@ -23,6 +39,10 @@ final class DuplicateStructureWindowController: NSWindowController {
         window.title = "Duplicate Structure"
 
         super.init(window: window)
+
+        window.onCancel = { [weak self] in
+            self?.cancelDuplicate()
+        }
 
         let hostingView = NSHostingView(rootView: DuplicateStructureDialog(
             model: model,
