@@ -19,6 +19,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         try clearGeometryDefaults()
+        try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
         clearResizeCommand()
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
@@ -257,7 +258,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
     }
 
     private var uiTestRootURL: URL {
-        return URL(fileURLWithPath: "/Users").appendingPathComponent(NSUserName()).appendingPathComponent(uiTestRootName)
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(uiTestRootName)
     }
 
     private var resizeCommandURL: URL {

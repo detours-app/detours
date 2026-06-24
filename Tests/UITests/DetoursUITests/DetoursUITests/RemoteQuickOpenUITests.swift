@@ -47,6 +47,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
     }
 
     private func launchRemote(_ mode: String) {
+        XCTAssertNoThrow(try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true))
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
         app.launchEnvironment["DETOURS_UI_TEST_REMOTE"] = mode

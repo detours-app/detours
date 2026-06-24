@@ -7,14 +7,13 @@ class BaseUITest: XCTestCase {
     let testFolderName = "DetoursUITests-Temp"
 
     var uiTestRootURL: URL {
-        realUserHomeDirectory().appendingPathComponent(testFolderName)
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(testFolderName)
     }
 
     override func setUpWithError() throws {
         continueAfterFailure = false
 
-        // Note: Test directory is created by uitest.sh at ~/DetoursUITests-Temp
-        // We can't verify from here due to sandbox, but the script guarantees it exists
+        try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
 
         // Launch the installed app targeted by the UI test runner.
         app = DetoursUITestApp.make()
@@ -120,9 +119,5 @@ class BaseUITest: XCTestCase {
         let folderName = testFolderRow.staticTexts[testFolderName]
         folderName.doubleClick()
         XCTAssertTrue(waitForLeftPaneReady(), "Temp directory should load in the left pane")
-    }
-
-    private func realUserHomeDirectory() -> URL {
-        return URL(fileURLWithPath: "/Users").appendingPathComponent(NSUserName())
     }
 }
