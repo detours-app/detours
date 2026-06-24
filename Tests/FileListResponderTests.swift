@@ -718,7 +718,7 @@ final class FileListResponderTests: XCTestCase {
         ClipboardManager.shared.copy(items: [location])
         XCTAssertTrue(viewController.validateMenuItem(pasteItem))
         XCTAssertTrue(viewController.validateMenuItem(copyPathItem))
-        XCTAssertFalse(viewController.validateMenuItem(getInfoItem))
+        XCTAssertTrue(viewController.validateMenuItem(getInfoItem))
 
         let menu = try XCTUnwrap(viewController.buildContextMenu(for: IndexSet(integer: 0), clickedRow: 0))
         XCTAssertNotNil(menu.item(withTitle: "Move to Trash"))
@@ -729,7 +729,7 @@ final class FileListResponderTests: XCTestCase {
         XCTAssertNotNil(menu.item(withTitle: "Copy"))
         XCTAssertNotNil(menu.item(withTitle: "Cut"))
         XCTAssertNotNil(menu.item(withTitle: "Paste"))
-        XCTAssertNil(menu.item(withTitle: "Get Info"))
+        XCTAssertNotNil(menu.item(withTitle: "Get Info"))
     }
 
     func testRemoteF8DeleteRoutesToTrashProvider() async throws {

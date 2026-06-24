@@ -46,6 +46,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var currentRemoteHost: RemoteHost?
     var currentRemoteLocation: Location?
     var currentRemoteProvider: (any FileProvider)?
+    private var remoteInfoWindows: [RemoteInfoWindowController] = []
     private var directoryWatchTask: Task<Void, Never>?
     private var directoryChangeDebounce: DispatchWorkItem?
     /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
@@ -2848,7 +2849,22 @@ extension FileListViewController {
     }
 
     @objc func getInfo(_ sender: Any?) {
-        let urls = selectedURLs
+        let items = selectedItems
+        let urls = items.compactMap { item -> URL? in
+            guard case .local(let url) = item.location else { return nil }
+            return url
+        }
+        let remoteItems = items.filter(\.isRemote)
+
+        if !urls.isEmpty {
+            openLocalInfoWindows(for: urls)
+        }
+        if !remoteItems.isEmpty {
+            openRemoteInfoWindows(for: remoteItems)
+        }
+    }
+
+    private func openLocalInfoWindows(for urls: [URL]) {
         guard !urls.isEmpty else { return }
 
         // Get window position to place info window to the left of Detours
@@ -2891,6 +2907,99 @@ extension FileListViewController {
             let positionScript = "tell application \"Finder\"\n" + positionLines.map { "    " + $0 }.joined(separator: "\n") + "\nend tell"
             NSAppleScript(source: positionScript)?.executeAndReturnError(nil)
         }
+    }
+
+    private func openRemoteInfoWindows(for items: [FileItem]) {
+        guard let provider = currentRemoteProvider else { return }
+        let hostName = currentRemoteHost?.displayName ?? "Remote Host"
+
+        for (index, item) in items.enumerated() {
+            Task { @MainActor in
+                do {
+                    let snapshot = try await makeRemoteInfoSnapshot(for: item, hostName: hostName, provider: provider)
+                    showRemoteInfoWindow(snapshot: snapshot, icon: item.icon, offset: index)
+                } catch {
+                    FileOperationQueue.shared.presentError(error)
+                }
+            }
+        }
+    }
+
+    private func makeRemoteInfoSnapshot(
+        for item: FileItem,
+        hostName: String,
+        provider: any FileProvider
+    ) async throws -> RemoteInfoSnapshot {
+        let entry = try await provider.stat(item.location)
+        let sizeText: String
+        if entry.isDirectory {
+            if let size = try? await provider.folderSize(for: item.location) {
+                sizeText = formatInfoByteCount(size)
+            } else {
+                sizeText = "—"
+            }
+        } else if let fileSize = entry.fileSize {
+            sizeText = formatInfoByteCount(fileSize)
+        } else {
+            sizeText = "—"
+        }
+
+        let symlinkTarget: String?
+        if entry.isSymbolicLink {
+            symlinkTarget = (try? await provider.readSymlink(item.location).path) ?? "Unavailable"
+        } else {
+            symlinkTarget = nil
+        }
+
+        return RemoteInfoSnapshot(
+            name: entry.name,
+            kind: remoteInfoKind(for: entry),
+            host: hostName,
+            path: entry.location.path,
+            size: sizeText,
+            modified: formatInfoDate(entry.contentModificationDate),
+            hidden: entry.isHidden ? "Yes" : "No",
+            readable: entry.isReadable ? "Yes" : "No",
+            symlinkTarget: symlinkTarget
+        )
+    }
+
+    private func showRemoteInfoWindow(snapshot: RemoteInfoSnapshot, icon: NSImage, offset: Int) {
+        let controller = RemoteInfoWindowController(snapshot: snapshot, icon: icon)
+        controller.onClose = { [weak self] closedController in
+            self?.remoteInfoWindows.removeAll { $0 === closedController }
+        }
+        remoteInfoWindows.append(controller)
+
+        if let window = controller.window {
+            let parentFrame = view.window?.frame ?? NSRect(x: 100, y: 100, width: 800, height: 600)
+            let x = max(20, parentFrame.minX - window.frame.width - 20 - CGFloat(offset * 25))
+            let y = max(20, parentFrame.midY - window.frame.height / 2 + CGFloat(offset * 25))
+            window.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+
+        controller.showWindow(self)
+        controller.window?.makeKeyAndOrderFront(self)
+    }
+
+    private func remoteInfoKind(for entry: LoadedFileEntry) -> String {
+        if entry.isSymbolicLink { return "Symbolic Link" }
+        if entry.isPackage { return "Package" }
+        if entry.isDirectory { return "Folder" }
+        return "File"
+    }
+
+    private func formatInfoByteCount(_ byteCount: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: byteCount)
+    }
+
+    private func formatInfoDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .medium
+        return formatter.string(from: date)
     }
 
     @objc func copyPath(_ sender: Any?) {
@@ -2936,7 +3045,9 @@ extension FileListViewController: NSMenuItemValidation {
         switch menuItem.action {
         case #selector(copy(_:)):
             return !selectedLocations.isEmpty
-        case #selector(getInfo(_:)), #selector(showInFinder(_:)), #selector(shareViaService(_:)):
+        case #selector(getInfo(_:)):
+            return !selectedLocations.isEmpty
+        case #selector(showInFinder(_:)), #selector(shareViaService(_:)):
             return !selectedURLs.isEmpty
         case #selector(copyPath(_:)):
             return !selectedLocations.isEmpty

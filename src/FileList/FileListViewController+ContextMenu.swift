@@ -141,13 +141,11 @@ extension FileListViewController: FileListContextMenuDelegate {
 
         // Get Info, Copy Path
         if hasSelection {
-            if !hasRemoteSelection {
-                let infoItem = NSMenuItem(title: "Get Info", action: #selector(getInfo(_:)), keyEquivalent: "i")
-                infoItem.keyEquivalentModifierMask = .command
-                infoItem.target = self
-                infoItem.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
-                menu.addItem(infoItem)
-            }
+            let infoItem = NSMenuItem(title: "Get Info", action: #selector(getInfo(_:)), keyEquivalent: "i")
+            infoItem.keyEquivalentModifierMask = .command
+            infoItem.target = self
+            infoItem.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
+            menu.addItem(infoItem)
 
             let copyPathItem = NSMenuItem(title: "Copy Path", action: #selector(copyPath(_:)), keyEquivalent: "c")
             copyPathItem.keyEquivalentModifierMask = [.command, .option]
