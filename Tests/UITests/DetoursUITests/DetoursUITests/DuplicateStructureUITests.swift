@@ -89,7 +89,7 @@ final class DuplicateStructureUITests: BaseUITest {
         try? FileManager.default.removeItem(
             at: uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
         )
-        postEscapeKeyEvent()
+        app.typeKey(.escape, modifierFlags: [])
         try waitForDuplicateStructureDismissed()
     }
 }
