@@ -2,7 +2,17 @@
 
 ## Latest Run
 
-### 2026-06-24 12:36
+### 2026-06-24 12:39
+
+- Command: `swift test --filter "RemoteHostTests|RemoteFileCacheTests|OpenWithConflictTests|RemoteIntegrationTests/testRemoteOpenWithSessionUploadsBackToRealRemoteFile"` (Foundry); `resources/scripts/build.sh` (Foundry); `resources/scripts/build.sh` (Spectre)
+- Status: PASS
+- Notes: Foundry proof passed 9/9 after fast-forwarding Foundry to Spectre's commit
+  `efd3028e0360f99c2ffa5621eb7a8ca0bede99a0`. The real remote Open With integration test again
+  created a `devtest` SSH fixture, edited the materialised `notes.md`, and verified the edited bytes
+  on the remote host. Foundry build installed and relaunched cleanly before the Spectre build
+  installed and relaunched cleanly.
+
+### Prior run 2026-06-24 12:36
 
 - Command: `swift test --filter 'RemoteHostTests|RemoteFileCacheTests|OpenWithConflictTests|RemoteIntegrationTests/testRemoteOpenWithSessionUploadsBackToRealRemoteFile'` (Spectre)
 - Status: PASS
