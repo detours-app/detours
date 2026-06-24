@@ -254,7 +254,15 @@ final class DarwinServerSmokeTests: XCTestCase {
         process.standardInput = stdin
         process.standardOutput = stdout
         process.standardError = stderr
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSPOSIXErrorDomain, nsError.code == 86 {
+                throw XCTSkip("Darwin x86_64 helper cannot run on this host without Rosetta")
+            }
+            throw error
+        }
 
         let request = ServerRPCEnvelope(
             id: 1,
