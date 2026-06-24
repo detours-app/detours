@@ -320,6 +320,39 @@ final class FileListResponderTests: XCTestCase {
                        "New folder should not be created alongside the selected folder")
     }
 
+    func testCancelNewFolderOnlyRemovesCreatedDefaultFolderAcrossCycles() async throws {
+        let temp = try createTempDirectory()
+        let keepFirst = try createTestFolder(in: temp, name: "AAA_First")
+        let keepSecond = try createTestFolder(in: temp, name: "BBB_Second")
+        let keepThird = try createTestFolder(in: temp, name: "FolderA")
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        await loadDirectoryAndWaitAsync(temp, in: viewController)
+
+        defer { cleanupTempDirectory(temp) }
+
+        for index in 1...3 {
+            let name = index == 1 ? "Folder" : "Folder \(index)"
+            let folder = try createTestFolder(in: temp, name: name)
+            let item = FileItem(
+                name: name,
+                url: folder,
+                isDirectory: true,
+                size: nil,
+                dateModified: Date(),
+                icon: NSImage()
+            )
+
+            viewController.renameControllerDidCancelNewItem(RenameController(), item: item)
+
+            let removed = await waitForFile(at: folder, exists: false)
+            XCTAssertTrue(removed, "\(name) should be removed after cancelling new-folder rename")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: keepFirst.path), "AAA_First should remain")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: keepSecond.path), "BBB_Second should remain")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: keepThird.path), "FolderA should remain")
+        }
+    }
+
     func testHandleKeyDownHandlesCmdUpParentNavigation() throws {
         let spy = NavigationDelegateSpy()
         let (viewController, _, cleanup) = try makeViewControllerWithSelection(delegate: spy)
