@@ -24,6 +24,7 @@ final class DuplicateStructureWindowController: NSWindowController {
     private var uiTestPresentationID: String?
     private var uiTestDismissalID: String?
     private var lastUITestActionID: String?
+    private var escapeMonitor: Any?
 
     init(sourceURL: URL, completion: @escaping (URL, (String, String)?) -> Void) {
         self.model = DuplicateStructureModel(sourceURL: sourceURL)
@@ -66,14 +67,33 @@ final class DuplicateStructureWindowController: NSWindowController {
         // Retain self while sheet is presented
         objc_setAssociatedObject(parentWindow, "duplicateStructureController", self, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         installUITestHooksIfNeeded()
+        installEscapeMonitorIfNeeded()
         parentWindow.beginSheet(window) { [weak self, weak parentWindow] _ in
             // Release when sheet ends
             if let parentWindow {
                 objc_setAssociatedObject(parentWindow, "duplicateStructureController", nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
             }
+            self?.removeEscapeMonitor()
             self?.acknowledgeUITestDismissalIfNeeded()
             self?.onComplete = nil
         }
+    }
+
+    private func installEscapeMonitorIfNeeded() {
+        guard escapeMonitor == nil else { return }
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.keyCode == 53, self.window?.sheetParent != nil else {
+                return event
+            }
+            self.cancelDuplicate()
+            return nil
+        }
+    }
+
+    private func removeEscapeMonitor() {
+        guard let escapeMonitor else { return }
+        NSEvent.removeMonitor(escapeMonitor)
+        self.escapeMonitor = nil
     }
 
     private func installUITestHooksIfNeeded() {
@@ -138,6 +158,7 @@ final class DuplicateStructureWindowController: NSWindowController {
 
     private func dismissSheet() {
         guard let window, let parent = window.sheetParent else { return }
+        removeEscapeMonitor()
         uiTestPollingTask?.cancel()
         uiTestPollingTask = nil
         parent.endSheet(window)
