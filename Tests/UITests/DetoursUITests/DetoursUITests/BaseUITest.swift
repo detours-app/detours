@@ -18,6 +18,7 @@ class BaseUITest: XCTestCase {
         // Launch the installed app targeted by the UI test runner.
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
+        configureLaunchEnvironment(&app.launchEnvironment)
         app.launch()
 
         // Wait for app to be ready
@@ -33,6 +34,8 @@ class BaseUITest: XCTestCase {
         // assert Cmd-1/Cmd-2 tab behavior can use stable indexes.
         navigateToTempDirectory()
     }
+
+    func configureLaunchEnvironment(_ environment: inout [String: String]) {}
 
     override func tearDownWithError() throws {
         // IMPORTANT: Activate LEFT pane before closing tab

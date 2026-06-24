@@ -1769,10 +1769,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                        case .local(let currentURL) = currentLocation,
                        destinationURL != currentURL,
                        let parentItem = self.dataSource.findItem(withURL: destinationURL, in: self.dataSource.items) {
-                            self.tableView.expandItem(parentItem)
+                        self.tableView.expandItem(parentItem)
                     }
                     self.selectLocation(newFolder)
-                    self.renameSelection(isNewItem: true)
+                    if !UITestEnvironment.disablesInlineRename {
+                        self.renameSelection(isNewItem: true)
+                    }
                 }
 
                 refresh()
@@ -1821,10 +1823,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                        case .local(let currentURL) = currentLocation,
                        destinationURL != currentURL,
                        let parentItem = self.dataSource.findItem(withURL: destinationURL, in: self.dataSource.items) {
-                            self.tableView.expandItem(parentItem)
+                        self.tableView.expandItem(parentItem)
                     }
                     self.selectLocation(newFile)
-                    self.renameSelection(isNewItem: true)
+                    if !UITestEnvironment.disablesInlineRename {
+                        self.renameSelection(isNewItem: true)
+                    }
                 }
 
                 refresh()

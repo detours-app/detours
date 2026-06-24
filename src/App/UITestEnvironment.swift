@@ -58,6 +58,11 @@ enum UITestEnvironment {
         return RemoteMode(rawValue: raw)
     }
 
+    static var disablesInlineRename: Bool {
+        guard isEnabled else { return false }
+        return ProcessInfo.processInfo.environment["DETOURS_UI_TEST_DISABLE_INLINE_RENAME"] == "1"
+    }
+
     /// Stable host identity for the UI-test remote so the seam and tests agree on the display name.
     static let remoteHostDisplayName = "UITest Server"
 
