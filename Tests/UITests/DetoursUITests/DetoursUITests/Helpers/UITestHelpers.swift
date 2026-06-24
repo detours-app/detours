@@ -1,13 +1,75 @@
 import XCTest
 
 enum DetoursUITestApp {
+    private static let bundleIdentifier = "com.detours.app"
+
+    private static var appPath: String {
+        if let appPath = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_APP_PATH"],
+           !appPath.isEmpty {
+            return appPath
+        }
+
+        return "/Applications/Detours.app"
+    }
+
+    private static var usesOpenLaunch: Bool {
+        ProcessInfo.processInfo.environment["DETOURS_UI_TEST_LAUNCH_MODE"] == "open"
+    }
+
     static func make() -> XCUIApplication {
+        if usesOpenLaunch {
+            return XCUIApplication(bundleIdentifier: bundleIdentifier)
+        }
+
         if let appPath = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_APP_PATH"],
            !appPath.isEmpty {
             return XCUIApplication(url: URL(fileURLWithPath: appPath))
         }
 
-        return XCUIApplication(bundleIdentifier: "com.detours.app")
+        return XCUIApplication(bundleIdentifier: bundleIdentifier)
+    }
+
+    static func launch(environment: [String: String] = [:]) -> XCUIApplication {
+        let app = make()
+        launch(app, environment: environment)
+        return app
+    }
+
+    static func launch(_ app: XCUIApplication, environment: [String: String] = [:]) {
+        guard usesOpenLaunch else {
+            for (key, value) in environment {
+                app.launchEnvironment[key] = value
+            }
+            app.launch()
+            return
+        }
+
+        app.terminate()
+        _ = app.wait(for: .notRunning, timeout: 5)
+
+        for key in ["DETOURS_UI_TEST_ROOT", "DETOURS_UI_TEST_REMOTE"] {
+            run("/bin/launchctl", arguments: ["unsetenv", key])
+        }
+        for (key, value) in environment {
+            run("/bin/launchctl", arguments: ["setenv", key, value])
+        }
+
+        run("/usr/bin/open", arguments: [appPath])
+        run("/usr/bin/osascript", arguments: ["-e", "tell application \"Detours\" to activate"])
+    }
+
+    static func relaunch(_ app: XCUIApplication, environment: [String: String] = [:]) {
+        app.terminate()
+        _ = app.wait(for: .notRunning, timeout: 5)
+        launch(app, environment: environment)
+    }
+
+    private static func run(_ executable: String, arguments: [String]) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        try? process.run()
+        process.waitUntilExit()
     }
 }
 

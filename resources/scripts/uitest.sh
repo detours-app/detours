@@ -71,14 +71,14 @@ trap cleanup EXIT
 
 if [ -n "$1" ]; then
     # Run specific test
-    DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" xcodebuild test \
+    DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" DETOURS_UI_TEST_LAUNCH_MODE="open" xcodebuild test \
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
         -only-testing:"DetoursUITests/$1"
 else
     # Run all tests
-    DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" xcodebuild test \
+    DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" DETOURS_UI_TEST_LAUNCH_MODE="open" xcodebuild test \
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION"

@@ -752,9 +752,7 @@ final class FolderExpansionUITests: BaseUITest {
         sleep(1)
 
         // Terminate and relaunch the app
-        app.terminate()
-        sleep(1)
-        app.launch()
+        DetoursUITestApp.relaunch(app, environment: ["DETOURS_UI_TEST_ROOT": testFolderName])
 
         // Wait for app to fully load
         let window = app.windows.firstMatch

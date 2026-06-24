@@ -13,9 +13,7 @@ class BaseUITest: XCTestCase {
         // We can't verify from here due to sandbox, but the script guarantees it exists
 
         // Launch the installed app targeted by the UI test runner.
-        app = DetoursUITestApp.make()
-        app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = testFolderName
-        app.launch()
+        app = DetoursUITestApp.launch(environment: ["DETOURS_UI_TEST_ROOT": testFolderName])
 
         // Wait for app to be ready
         let window = app.windows.firstMatch

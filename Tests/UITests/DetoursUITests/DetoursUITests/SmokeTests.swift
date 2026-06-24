@@ -8,8 +8,7 @@ final class SmokeTests: XCTestCase {
         continueAfterFailure = false
 
         // Launch the installed app targeted by the UI test runner.
-        app = DetoursUITestApp.make()
-        app.launch()
+        app = DetoursUITestApp.launch()
     }
 
     override func tearDownWithError() throws {
