@@ -39,6 +39,15 @@ final class FileListDataSourceTests: XCTestCase {
         dataSource.onLoadCompleted = nil
     }
 
+    private func waitUntil(_ condition: @escaping @MainActor () -> Bool, timeout: TimeInterval = 2) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Timed out waiting for condition")
+    }
+
     func testLoadDirectory() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -551,6 +560,73 @@ final class FileListDataSourceTests: XCTestCase {
         XCTAssertTrue(dataSource.items.isEmpty)
     }
 
+    func testLoadRemoteDirectoryCompletesBeforeGitStatusReturns() async {
+        let hostID = UUID()
+        let root = Location.remote(hostID: hostID, path: "/repo")
+        let file = Location.remote(hostID: hostID, path: "/repo/changed.txt")
+        let provider = SlowGitStatusRemoteProvider(
+            listings: [
+                "/repo": [
+                    .remoteFile(hostID: hostID, path: "/repo/changed.txt", name: "changed.txt"),
+                ],
+            ],
+            statuses: [file: .modified],
+            gitStatusDelay: 5_000_000_000
+        )
+        let dataSource = FileListDataSource()
+        defer { dataSource.cancelCurrentLoad() }
+
+        let completed = expectation(description: "remote directory load completed")
+        dataSource.onLoadCompleted = { result in
+            if case .failure(let error) = result {
+                XCTFail("Remote load failed: \(error)")
+            }
+            completed.fulfill()
+        }
+
+        dataSource.loadRemoteDirectory(root, provider: provider)
+        await fulfillment(of: [completed], timeout: 0.5)
+
+        XCTAssertEqual(dataSource.items.map(\.name), ["changed.txt"])
+        XCTAssertNil(dataSource.items.first?.gitStatus)
+    }
+
+    func testRemoteGitStatusAppliesAfterLoadCompletion() async {
+        let originalGitStatusEnabled = SettingsManager.shared.gitStatusEnabled
+        SettingsManager.shared.gitStatusEnabled = true
+        defer {
+            SettingsManager.shared.gitStatusEnabled = originalGitStatusEnabled
+        }
+
+        let hostID = UUID()
+        let root = Location.remote(hostID: hostID, path: "/repo")
+        let file = Location.remote(hostID: hostID, path: "/repo/changed.txt")
+        let provider = SlowGitStatusRemoteProvider(
+            listings: [
+                "/repo": [
+                    .remoteFile(hostID: hostID, path: "/repo/changed.txt", name: "changed.txt"),
+                ],
+            ],
+            statuses: [file: .modified],
+            gitStatusDelay: 200_000_000
+        )
+        let dataSource = FileListDataSource()
+        defer { dataSource.cancelCurrentLoad() }
+
+        let completed = expectation(description: "remote directory load completed")
+        dataSource.onLoadCompleted = { _ in
+            completed.fulfill()
+        }
+
+        dataSource.loadRemoteDirectory(root, provider: provider)
+        await fulfillment(of: [completed], timeout: 0.5)
+
+        XCTAssertNil(dataSource.items.first?.gitStatus)
+        await waitUntil({
+            dataSource.items.first?.gitStatus == .modified
+        }, timeout: 1)
+    }
+
     private func makeRemoteItem(name: String, path: String, isDirectory: Bool) -> FileItem {
         FileItem(
             name: name,
@@ -593,5 +669,96 @@ final class FileListDataSourceTests: XCTestCase {
 
         XCTAssertTrue(foundLocal === local)
         XCTAssertTrue(foundRemote === remote)
+    }
+}
+
+private actor SlowGitStatusRemoteProvider: FileProvider {
+    private let listings: [String: [LoadedFileEntry]]
+    private let statuses: [Location: GitStatus]
+    private let gitStatusDelay: UInt64
+
+    init(listings: [String: [LoadedFileEntry]], statuses: [Location: GitStatus], gitStatusDelay: UInt64) {
+        self.listings = listings
+        self.statuses = statuses
+        self.gitStatusDelay = gitStatusDelay
+    }
+
+    func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
+        listings[location.path] ?? []
+    }
+
+    func stat(_ location: Location) async throws -> LoadedFileEntry {
+        throw FileProviderError.unsupportedOperation("stat")
+    }
+
+    func copy(_ sources: [Location], to destination: Location) async throws -> [Location] {
+        throw FileProviderError.unsupportedOperation("copy")
+    }
+
+    func move(_ sources: [Location], to destination: Location) async throws -> [Location] {
+        throw FileProviderError.unsupportedOperation("move")
+    }
+
+    func delete(_ items: [Location]) async throws {
+        throw FileProviderError.unsupportedOperation("delete")
+    }
+
+    func trash(_ items: [Location]) async throws -> [TrashedItem] {
+        throw FileProviderError.unsupportedOperation("trash")
+    }
+
+    func restoreFromTrash(_ items: [TrashedItem]) async throws -> [Location] {
+        throw FileProviderError.unsupportedOperation("restoreFromTrash")
+    }
+
+    func rename(_ item: Location, to newName: String) async throws -> Location {
+        throw FileProviderError.unsupportedOperation("rename")
+    }
+
+    func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location {
+        throw FileProviderError.unsupportedOperation("archiveCreate")
+    }
+
+    func archiveExtract(_ archive: Location, password: String?) async throws -> Location {
+        throw FileProviderError.unsupportedOperation("archiveExtract")
+    }
+
+    func createDirectory(at location: Location, withIntermediateDirectories: Bool) async throws {
+        throw FileProviderError.unsupportedOperation("createDirectory")
+    }
+
+    func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        throw FileProviderError.unsupportedOperation("watch")
+    }
+
+    func unwatch(_ watch: FileProviderWatch) async {}
+
+    func gitStatus(for directory: Location) async -> [Location: GitStatus] {
+        try? await Task.sleep(nanoseconds: gitStatusDelay)
+        return statuses
+    }
+
+    func folderSize(for location: Location) async throws -> Int64 {
+        throw FileProviderError.unsupportedOperation("folderSize")
+    }
+
+    func readSymlink(_ location: Location) async throws -> Location {
+        throw FileProviderError.unsupportedOperation("readSymlink")
+    }
+
+    func openForQuickLook(_ location: Location) async throws -> URL {
+        throw FileProviderError.unsupportedOperation("openForQuickLook")
+    }
+}
+
+private extension LoadedFileEntry {
+    static func remoteFile(hostID: UUID, path: String, name: String) -> LoadedFileEntry {
+        LoadedFileEntry(
+            location: .remote(hostID: hostID, path: path),
+            url: URL(fileURLWithPath: path),
+            name: name,
+            isDirectory: false,
+            fileSize: 10
+        )
     }
 }

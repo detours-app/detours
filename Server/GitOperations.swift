@@ -14,6 +14,8 @@ struct ServerGitStatusEntry: Equatable, Sendable {
 }
 
 struct GitOperations {
+    private let gitCommandTimeout: TimeInterval = 5
+
     func status(in directory: String) throws -> [ServerGitStatusEntry] {
         guard isGitRepository(directory) else { return [] }
 
@@ -56,7 +58,9 @@ struct GitOperations {
         process.standardError = FileHandle.nullDevice
 
         try process.run()
-        process.waitUntilExit()
+        guard waitUntilExit(process, timeout: gitCommandTimeout) else {
+            throw ServerRPCError.unsupportedCommand("git \(arguments.joined(separator: " ")) timed out")
+        }
 
         guard process.terminationStatus == 0 else {
             throw ServerRPCError.unsupportedCommand("git \(arguments.joined(separator: " "))")
@@ -64,6 +68,22 @@ struct GitOperations {
 
         let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
         return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    private func waitUntilExit(_ process: Process, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+
+        guard process.isRunning else { return true }
+        process.terminate()
+
+        let terminationDeadline = Date().addingTimeInterval(1)
+        while process.isRunning && Date() < terminationDeadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        return !process.isRunning
     }
 
     private func normalizeFilename(_ filename: String) -> String {

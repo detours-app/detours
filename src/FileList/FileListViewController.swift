@@ -774,10 +774,16 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         host: RemoteHost,
         path: String = "/",
         provider: any FileProvider,
-        preserveExpansion: Bool = false
+        preserveExpansion: Bool = false,
+        showSpinner: Bool = true
     ) {
         let previousRemoteHost = currentRemoteHost
-        loadRemoteDirectory(.remote(hostID: host.id, path: path), provider: provider, preserveExpansion: preserveExpansion)
+        loadRemoteDirectory(
+            .remote(hostID: host.id, path: path),
+            provider: provider,
+            preserveExpansion: preserveExpansion,
+            showSpinner: showSpinner
+        )
         currentRemoteHost = host
         currentRemoteProvider = provider
         if previousRemoteHost?.id != host.id {
@@ -819,7 +825,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
-    private func loadRemoteDirectory(_ location: Location, provider: any FileProvider, preserveExpansion: Bool) {
+    private func loadRemoteDirectory(
+        _ location: Location,
+        provider: any FileProvider,
+        preserveExpansion: Bool,
+        showSpinner: Bool = true
+    ) {
         dataSource.cancelCurrentLoad()
         hideLoadingIndicator()
         hideErrorOverlay()
@@ -841,6 +852,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         dataSource.onLoadCompleted = { [weak self] result in
             guard let self else { return }
             self.hideLoadingIndicator()
+            self.suppressLoadingSpinner = false
             switch result {
             case .success:
                 self.hideErrorOverlay()
@@ -873,6 +885,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
 
         startWatching(location, provider: provider)
+        suppressLoadingSpinner = !showSpinner
         dataSource.loadRemoteDirectory(location, provider: provider, preserveExpansion: preserveExpansion)
         hasLoadedDirectory = true
         FrecencyStore.shared.recordVisit(location)
@@ -1186,6 +1199,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func performDirectoryReload() {
+        if let currentRemoteLocation, let currentRemoteProvider {
+            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true, showSpinner: false)
+            return
+        }
         guard let currentDirectory else { return }
         loadDirectory(currentDirectory, preserveExpansion: true, showSpinner: false)
     }

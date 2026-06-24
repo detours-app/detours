@@ -317,9 +317,14 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     var showHiddenFiles: Bool = false
     var sortDescriptor: SortDescriptor = .defaultSort
     private var currentDirectoryForGit: URL?
+    private var currentRemoteDirectoryForGit: Location?
     private var currentRemoteProvider: (any FileProvider)?
     private var currentICloudListingMode: ICloudListingMode = .normal
     private var gitStatuses: [URL: GitStatus] = [:]
+    private var localGitStatusTask: Task<Void, Never>?
+    private var remoteGitStatuses: [Location: GitStatus] = [:]
+    private var remoteGitStatusesByDirectory: [Location: [Location: GitStatus]] = [:]
+    private var remoteGitStatusTasks: [Location: Task<Void, Never>] = [:]
 
     /// Active directory load task (cancelled when navigating away)
     private(set) var currentLoadTask: Task<Void, Never>?
@@ -355,6 +360,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         onLoadStarted?()
 
         currentRemoteProvider = nil
+        currentRemoteDirectoryForGit = nil
+        remoteGitStatuses = [:]
+        remoteGitStatusesByDirectory = [:]
         currentICloudListingMode = iCloudListingMode
         let showHidden = showHiddenFiles
         let normalizedURL = url.standardizedFileURL
@@ -413,6 +421,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 self.items = []
                 self.currentDirectoryForGit = nil
                 self.gitStatuses = [:]
+                self.currentRemoteDirectoryForGit = nil
+                self.remoteGitStatuses = [:]
+                self.remoteGitStatusesByDirectory = [:]
                 self.expandedFolders = previousExpanded
                 self.outlineView?.reloadData()
                 self.outlineView?.needsLayout = true
@@ -437,29 +448,33 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
         let showHidden = showHiddenFiles
         currentRemoteProvider = provider
+        currentRemoteDirectoryForGit = location
+        currentDirectoryForGit = nil
+        gitStatuses = [:]
+        remoteGitStatuses = [:]
+        remoteGitStatusesByDirectory = [:]
 
         currentLoadTask = Task { @MainActor [weak self] in
             guard let self else { return }
 
             do {
                 let entries = try await provider.list(location, showHidden: showHidden)
-                let statuses = await provider.gitStatus(for: location)
 
                 guard !Task.isCancelled else { return }
 
                 let fileItems = self.baseFileItems(for: entries)
-                for item in fileItems {
-                    item.gitStatus = statuses[item.location]
-                }
 
                 self.items = FileItem.sorted(fileItems, by: self.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
                 self.currentDirectoryForGit = nil
-                self.gitStatuses = [:]
                 self.expandedFolders = previousExpanded
                 self.outlineView?.reloadData()
                 self.outlineView?.needsLayout = true
                 self.suppressCollapseNotifications = false
                 self.onLoadCompleted?(.success(()))
+
+                if SettingsManager.shared.settings.gitStatusEnabled {
+                    self.fetchRemoteGitStatus(for: location, provider: provider)
+                }
             } catch is CancellationError {
                 return
             } catch let error as DirectoryLoadError {
@@ -467,6 +482,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 self.items = []
                 self.currentDirectoryForGit = nil
                 self.gitStatuses = [:]
+                self.currentRemoteDirectoryForGit = nil
+                self.remoteGitStatuses = [:]
+                self.remoteGitStatusesByDirectory = [:]
                 self.expandedFolders = previousExpanded
                 self.outlineView?.reloadData()
                 self.outlineView?.needsLayout = true
@@ -477,6 +495,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
                 self.items = []
                 self.currentDirectoryForGit = nil
                 self.gitStatuses = [:]
+                self.currentRemoteDirectoryForGit = nil
+                self.remoteGitStatuses = [:]
+                self.remoteGitStatusesByDirectory = [:]
                 self.expandedFolders = previousExpanded
                 self.outlineView?.reloadData()
                 self.outlineView?.needsLayout = true
@@ -490,6 +511,12 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     func cancelCurrentLoad() {
         currentLoadTask?.cancel()
         currentLoadTask = nil
+        localGitStatusTask?.cancel()
+        localGitStatusTask = nil
+        for task in remoteGitStatusTasks.values {
+            task.cancel()
+        }
+        remoteGitStatusTasks.removeAll()
         for task in iconLoadTasks {
             task.cancel()
         }
@@ -1016,12 +1043,14 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     }
 
     private func fetchGitStatus(for directory: URL) {
-        Task {
+        localGitStatusTask?.cancel()
+        localGitStatusTask = Task {
             let providerStatuses = await LocalFileProvider.shared.gitStatus(for: .local(directory))
             let statuses: [URL: GitStatus] = Dictionary(uniqueKeysWithValues: providerStatuses.compactMap { location, status in
                 guard case .local(let url) = location else { return nil }
                 return (url, status)
             })
+            guard !Task.isCancelled else { return }
 
             // Update on main thread
             await MainActor.run {
@@ -1083,6 +1112,92 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         }
     }
 
+    private func fetchRemoteGitStatus(for directory: Location, provider: any FileProvider) {
+        guard case .remote = directory else { return }
+        remoteGitStatusTasks[directory]?.cancel()
+        let task = Task { [weak self] in
+            let statuses = await provider.gitStatus(for: directory)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.remoteGitStatusTasks[directory] = nil
+                guard self.shouldApplyRemoteGitStatus(for: directory) else { return }
+
+                self.setRemoteGitStatuses(statuses, for: directory)
+                self.updateRemoteGitStatus(for: self.items, statuses: self.remoteGitStatuses)
+                self.reloadAfterRemoteGitStatusUpdate()
+            }
+        }
+        remoteGitStatusTasks[directory] = task
+    }
+
+    private func shouldApplyRemoteGitStatus(for directory: Location) -> Bool {
+        guard case .remote(let statusHostID, let statusPath) = directory,
+              case .remote(let currentHostID, let currentPath) = currentRemoteDirectoryForGit else {
+            return false
+        }
+        guard statusHostID == currentHostID else { return false }
+        return Self.remotePath(statusPath, isEqualToOrDescendantOf: currentPath)
+    }
+
+    private static func remotePath(_ path: String, isEqualToOrDescendantOf parent: String) -> Bool {
+        let normalizedPath = normalizeRemotePath(path)
+        let normalizedParent = normalizeRemotePath(parent)
+        if normalizedParent == "/" {
+            return true
+        }
+        return normalizedPath == normalizedParent || normalizedPath.hasPrefix(normalizedParent + "/")
+    }
+
+    private static func normalizeRemotePath(_ path: String) -> String {
+        let components = path.split(separator: "/").filter { !$0.isEmpty }
+        guard !components.isEmpty else { return "/" }
+        return "/" + components.joined(separator: "/")
+    }
+
+    private func setRemoteGitStatuses(_ statuses: [Location: GitStatus], for directory: Location) {
+        remoteGitStatusesByDirectory[directory] = statuses
+        remoteGitStatuses = remoteGitStatusesByDirectory.values.reduce(into: [:]) { partial, directoryStatuses in
+            partial.merge(directoryStatuses) { _, new in new }
+        }
+    }
+
+    private func reloadAfterRemoteGitStatusUpdate() {
+        guard let outlineView else { return }
+
+        let selectedLocations = outlineView.selectedRowIndexes.compactMap { row -> Location? in
+            (outlineView.item(atRow: row) as? FileItem)?.location
+        }
+        let expanded = expandedFolders
+
+        suppressCollapseNotifications = true
+        outlineView.reloadData()
+
+        let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
+        for url in sortedExpanded {
+            if let item = findItem(withURL: url, in: items), item.isNavigableFolder {
+                outlineView.expandItem(item)
+            }
+        }
+        expandedFolders = expanded
+        suppressCollapseNotifications = false
+
+        guard !selectedLocations.isEmpty else { return }
+        var rowIndexes = IndexSet()
+        for location in selectedLocations {
+            if let item = findItem(withLocation: location, in: items) {
+                let row = outlineView.row(forItem: item)
+                if row >= 0 {
+                    rowIndexes.insert(row)
+                }
+            }
+        }
+        if !rowIndexes.isEmpty {
+            outlineView.selectRowIndexes(rowIndexes, byExtendingSelection: false)
+        }
+    }
+
     /// Find an item by URL in the item tree (searches recursively through children)
     func findItem(withURL url: URL, in items: [FileItem]) -> FileItem? {
         // Use path comparison because directory URLs may have trailing slashes
@@ -1100,6 +1215,19 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         return nil
     }
 
+    private func findItem(withLocation location: Location, in items: [FileItem]) -> FileItem? {
+        for item in items {
+            if item.location == location {
+                return item
+            }
+            if let children = item.children,
+               let found = findItem(withLocation: location, in: children) {
+                return found
+            }
+        }
+        return nil
+    }
+
     private func updateGitStatus(for items: [FileItem], statuses: [URL: GitStatus]) {
         for item in items {
             // Remote items get git status from the remote provider, keyed by
@@ -1108,6 +1236,16 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             item.gitStatus = statuses[url]
             if let children = item.children {
                 updateGitStatus(for: children, statuses: statuses)
+            }
+        }
+    }
+
+    private func updateRemoteGitStatus(for items: [FileItem], statuses: [Location: GitStatus]) {
+        for item in items {
+            guard item.isRemote else { continue }
+            item.gitStatus = statuses[item.location]
+            if let children = item.children {
+                updateRemoteGitStatus(for: children, statuses: statuses)
             }
         }
     }
@@ -1331,7 +1469,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         if fileItem.children != nil {
             // Apply git status to children
             if let children = fileItem.children {
-                updateGitStatus(for: children, statuses: gitStatuses)
+                if fileItem.isRemote {
+                    updateRemoteGitStatus(for: children, statuses: remoteGitStatuses)
+                } else {
+                    updateGitStatus(for: children, statuses: gitStatuses)
+                }
             }
             return true
         }
@@ -1428,15 +1570,17 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             do {
                 guard let self else { return }
                 let entries = try await provider.list(item.location, showHidden: showHidden)
-                let statuses = await provider.gitStatus(for: item.location)
                 let children = FileItem.sorted(self.baseFileItems(for: entries), by: sort, foldersOnTop: foldersTop)
                 for child in children {
                     child.parent = item
-                    child.gitStatus = statuses[child.location]
+                    child.gitStatus = self.remoteGitStatuses[child.location]
                 }
                 item.children = children
                 outlineView.reloadItem(item, reloadChildren: true)
                 outlineView.expandItem(item)
+                if SettingsManager.shared.settings.gitStatusEnabled {
+                    self.fetchRemoteGitStatus(for: item.location, provider: provider)
+                }
             } catch {
                 item.children = []
                 outlineView.reloadItem(item, reloadChildren: true)
@@ -1448,7 +1592,6 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         guard let provider = currentRemoteProvider, item.children == nil else { return }
         do {
             let entries = try await provider.list(item.location, showHidden: showHiddenFiles)
-            let statuses = await provider.gitStatus(for: item.location)
             let children = FileItem.sorted(
                 baseFileItems(for: entries),
                 by: sortDescriptor,
@@ -1456,9 +1599,12 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             )
             for child in children {
                 child.parent = item
-                child.gitStatus = statuses[child.location]
+                child.gitStatus = remoteGitStatuses[child.location]
             }
             item.children = children
+            if SettingsManager.shared.settings.gitStatusEnabled {
+                fetchRemoteGitStatus(for: item.location, provider: provider)
+            }
         } catch {
             item.children = []
         }
