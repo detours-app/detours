@@ -2,7 +2,6 @@ import AppKit
 import XCTest
 
 final class WindowPaneGeometryUITests: XCTestCase {
-    private let appBundleIdentifier = "com.detours.app"
     private let defaultsDomain = "com.detours.app"
     private let uiTestRootName = "DetoursUITests-Temp"
     private let resizeCommandFileName = ".detours-resize-main-window.json"
@@ -21,7 +20,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
         continueAfterFailure = false
         try clearGeometryDefaults()
         clearResizeCommand()
-        app = XCUIApplication(bundleIdentifier: appBundleIdentifier)
+        app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
     }
 

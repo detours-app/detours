@@ -1,5 +1,16 @@
 import XCTest
 
+enum DetoursUITestApp {
+    static func make() -> XCUIApplication {
+        if let appPath = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_APP_PATH"],
+           !appPath.isEmpty {
+            return XCUIApplication(url: URL(fileURLWithPath: appPath))
+        }
+
+        return XCUIApplication(bundleIdentifier: "com.detours.app")
+    }
+}
+
 extension XCUIApplication {
     /// Find an outline row containing a static text element with the specified text
     /// Uses .containing() which is lazily evaluated during waitForExistence

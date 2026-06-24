@@ -7,8 +7,8 @@ final class SmokeTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
 
-        // Launch app by bundle identifier
-        app = XCUIApplication(bundleIdentifier: "com.detours.app")
+        // Launch the installed app targeted by the UI test runner.
+        app = DetoursUITestApp.make()
         app.launch()
     }
 

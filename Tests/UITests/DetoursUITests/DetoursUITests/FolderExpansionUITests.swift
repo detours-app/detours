@@ -527,59 +527,12 @@ final class FolderExpansionUITests: BaseUITest {
     /// The directory watching feature is tested via unit tests in MultiDirectoryWatcherTests.
     func testDirectoryWatchingDetectsNewFile() throws {
         throw XCTSkip("XCUITest sandbox prevents external file system modifications")
-        // Expand FolderA
-        let folderARow = outlineRow(named: "FolderA")
-        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
-        folderARow.disclosureTriangles.firstMatch.click()
-        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
-
-        // Verify WatchTestFile.txt doesn't exist yet
-        XCTAssertFalse(rowExists(named: "WatchTestFile.txt"), "WatchTestFile.txt should not exist initially")
-
-        // Create a file externally in FolderA using shell
-        // The test directory is at ~/DetoursUITests-Temp (real home, not sandboxed)
-        let homeDir = realHomeDirectory()
-        let filePath = "\(homeDir)/\(testFolderName)/FolderA/WatchTestFile.txt"
-        let result = shell("touch '\(filePath)'")
-        XCTAssertTrue(result, "Should be able to create test file")
-
-        // Wait for FSEvents to detect the change and UI to update
-        sleep(3)
-
-        // Verify file appears in the list
-        XCTAssertTrue(waitForRow(named: "WatchTestFile.txt", timeout: 5), "WatchTestFile.txt should appear after creation")
-
-        // Cleanup: delete the test file
-        _ = shell("rm '\(filePath)'")
     }
 
     /// Delete an expanded folder externally, verify list refreshes
     /// NOTE: This test requires filesystem access that the XCUITest sandbox does not allow.
     func testDirectoryWatchingDetectsDeletedFolder() throws {
         throw XCTSkip("XCUITest sandbox prevents external file system modifications")
-        // Create a test folder to delete
-        let homeDir = realHomeDirectory()
-        let folderPath = "\(homeDir)/\(testFolderName)/FolderA/TempDeleteFolder"
-        _ = shell("mkdir '\(folderPath)'")
-        sleep(2)
-
-        // Expand FolderA
-        let folderARow = outlineRow(named: "FolderA")
-        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
-        folderARow.disclosureTriangles.firstMatch.click()
-        sleep(2)
-
-        // Verify TempDeleteFolder exists
-        XCTAssertTrue(waitForRow(named: "TempDeleteFolder", timeout: 3), "TempDeleteFolder should exist")
-
-        // Delete the folder externally
-        _ = shell("rm -rf '\(folderPath)'")
-
-        // Wait for FSEvents to detect and UI to update
-        sleep(3)
-
-        // Verify folder is gone from the list
-        XCTAssertFalse(rowExists(named: "TempDeleteFolder"), "TempDeleteFolder should disappear after deletion")
     }
 
     // MARK: - Edge Case Tests
@@ -588,39 +541,6 @@ final class FolderExpansionUITests: BaseUITest {
     /// NOTE: This test requires filesystem access that the XCUITest sandbox does not allow.
     func testExternalRenameLosesExpansionState() throws {
         throw XCTSkip("XCUITest sandbox prevents external file system modifications")
-        // Create a temporary folder we can rename
-        let homeDir = realHomeDirectory()
-        let originalPath = "\(homeDir)/\(testFolderName)/RenameTestFolder"
-        let renamedPath = "\(homeDir)/\(testFolderName)/RenamedFolder"
-        let subfolderPath = "\(originalPath)/SubInRename"
-
-        // Create the folder with a subfolder
-        _ = shell("mkdir -p '\(subfolderPath)'")
-        sleep(2)
-
-        // Refresh to see the new folder (Cmd+R)
-        pressCharKey("r", modifiers: .command)
-        sleep(1)
-
-        // Expand RenameTestFolder
-        let testFolderRow = outlineRow(named: "RenameTestFolder")
-        XCTAssertTrue(testFolderRow.waitForExistence(timeout: 2), "RenameTestFolder should exist")
-        testFolderRow.disclosureTriangles.firstMatch.click()
-        XCTAssertTrue(waitForRow(named: "SubInRename", timeout: 2), "SubInRename should appear")
-
-        // Rename the folder externally
-        _ = shell("mv '\(originalPath)' '\(renamedPath)'")
-        sleep(3)
-
-        // The old folder is gone, new one appeared
-        XCTAssertFalse(rowExists(named: "RenameTestFolder"), "RenameTestFolder should no longer exist")
-        XCTAssertTrue(waitForRow(named: "RenamedFolder", timeout: 3), "RenamedFolder should appear")
-
-        // The renamed folder should be collapsed (expansion state lost, keyed by URL)
-        XCTAssertFalse(rowExists(named: "SubInRename"), "SubInRename should not be visible (expansion state lost)")
-
-        // Cleanup
-        _ = shell("rm -rf '\(renamedPath)'")
     }
 
     // MARK: - Bug Fix Verification Tests

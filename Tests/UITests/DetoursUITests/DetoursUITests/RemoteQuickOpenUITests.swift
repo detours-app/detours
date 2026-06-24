@@ -47,7 +47,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
     }
 
     private func launchRemote(_ mode: String) {
-        app = XCUIApplication(bundleIdentifier: "com.detours.app")
+        app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = testFolderName
         app.launchEnvironment["DETOURS_UI_TEST_REMOTE"] = mode
         app.launch()

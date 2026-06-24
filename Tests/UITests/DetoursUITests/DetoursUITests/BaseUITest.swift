@@ -12,8 +12,8 @@ class BaseUITest: XCTestCase {
         // Note: Test directory is created by uitest.sh at ~/DetoursUITests-Temp
         // We can't verify from here due to sandbox, but the script guarantees it exists
 
-        // Launch app by bundle identifier
-        app = XCUIApplication(bundleIdentifier: "com.detours.app")
+        // Launch the installed app targeted by the UI test runner.
+        app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = testFolderName
         app.launch()
 
