@@ -18,12 +18,12 @@ final class RemoteQuickOpenUITests: BaseUITest {
         XCTAssertEqual(scopeText(scopeHeader), "This Mac", "Local tab scope header reads 'This Mac'")
 
         // Header stays visible while typing, and local search still returns matches.
-        app.typeText("FolderB")
+        postTextKeyEvents("FolderB")
         sleep(1)
         XCTAssertTrue(scopeHeader.exists, "Scope header stays visible while typing")
         XCTAssertEqual(scopeText(scopeHeader), "This Mac")
 
-        pressKey(.escape)
+        postEscapeKeyEvent()
     }
 }
 
@@ -63,12 +63,12 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
         XCTAssertTrue(header.waitForExistence(timeout: 2), "Remote scope header should be visible on open")
         XCTAssertEqual(scopeText(header), remoteHeaderLabel, "Empty-state remote scope header")
 
-        app.typeText("Folder")
+        postTextKeyEvents("Folder")
         sleep(1)
         XCTAssertTrue(header.exists, "Header stays visible while typing")
         XCTAssertEqual(scopeText(header), remoteHeaderLabel, "Typing-state remote scope header")
 
-        pressKey(.escape)
+        postEscapeKeyEvent()
     }
 
     /// T24 / A5: choosing a remote file moves the current tab to its containing folder and selects it.
@@ -77,10 +77,10 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
 
         openQuickNav()
 
-        app.typeText("unique-in-B")
+        postTextKeyEvents("unique-in-B")
         sleep(2)
 
-        pressKey(.return)
+        postReturnKeyEvent()
         sleep(2)
 
         XCTAssertTrue(waitForRow(named: "SubfolderB1", timeout: 3), "Current tab navigated into FolderB")
@@ -103,12 +103,12 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
         // a Quick Open result, so we assert specifically on result rows.)
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "quickNavResultRow").count, 0,
                        "No Quick Open results before typing")
-        app.typeText("Folder")
+        postTextKeyEvents("Folder")
         sleep(1)
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "quickNavResultRow").count, 0,
                        "Typing in a disconnected remote tab produces no results")
         XCTAssertTrue(reconnect.exists, "Reconnect action remains the only affordance")
 
-        pressKey(.escape)
+        postEscapeKeyEvent()
     }
 }
