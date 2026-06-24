@@ -37,7 +37,7 @@ final class NewFolderUITests: BaseUITest {
 
         // Step 4: Create a new folder with Cmd-Shift-N (should create INSIDE BBB_Second)
         print("DEBUG: Creating new folder inside BBB_Second")
-        pressCharKey("n", modifiers: [.command, .shift])
+        postNewFolderShortcut()
         usleep(1_500_000)
 
         // Step 5: Verify rename field shows "Folder"
@@ -75,7 +75,7 @@ final class NewFolderUITests: BaseUITest {
         usleep(300_000)
 
         // Create new folder
-        pressCharKey("n", modifiers: [.command, .shift])
+        postNewFolderShortcut()
         usleep(1_000_000)
 
         // Verify rename field shows "Folder"
@@ -110,7 +110,7 @@ final class NewFolderUITests: BaseUITest {
         // Create and cancel multiple new folders
         for i in 1...3 {
             print("DEBUG: Create/cancel iteration \(i)")
-            pressCharKey("n", modifiers: [.command, .shift])
+            postNewFolderShortcut()
             usleep(800_000)
             postEscapeKeyEvent()
             usleep(500_000)

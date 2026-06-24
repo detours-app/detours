@@ -59,14 +59,25 @@ extension BaseUITest {
         app.typeKey(key, modifierFlags: modifiers)
     }
 
+    private func postKeyEvent(keyCode: CGKeyCode, flags: CGEventFlags = []) {
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
+        keyDown?.flags = flags
+        keyDown?.post(tap: .cghidEventTap)
+
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
+        keyUp?.flags = flags
+        keyUp?.post(tap: .cghidEventTap)
+    }
+
     /// Post Escape as a real HID event without XCUITest's typeKey idle snapshot.
     func postEscapeKeyEvent() {
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let keyCode: CGKeyCode = 53
-        CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)?
-            .post(tap: .cghidEventTap)
-        CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)?
-            .post(tap: .cghidEventTap)
+        postKeyEvent(keyCode: 53)
+    }
+
+    /// Post Cmd-Shift-N without XCUITest's typeKey idle snapshot.
+    func postNewFolderShortcut() {
+        postKeyEvent(keyCode: 45, flags: [.maskCommand, .maskShift])
     }
 
     /// Press a character key with optional modifiers
