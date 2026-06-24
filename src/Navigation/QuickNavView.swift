@@ -628,15 +628,12 @@ private struct QuickNavSearchField: NSViewRepresentable {
         }
 
         func requestInitialFocus(for field: NSTextField) {
-            guard focusAttempts < 5 else { return }
-            focusAttempts += 1
-            DispatchQueue.main.async { [weak self, weak field] in
-                guard let self, let field else { return }
-                if let window = field.window {
+            guard focusAttempts == 0 else { return }
+            focusAttempts = 1
+            for delay in [0.0, 0.05, 0.15] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak field] in
+                    guard let field, let window = field.window else { return }
                     window.makeFirstResponder(field)
-                    self.focusAttempts = 5
-                } else {
-                    self.requestInitialFocus(for: field)
                 }
             }
         }
