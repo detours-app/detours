@@ -190,6 +190,36 @@ extension BaseUITest {
         XCTAssertNoThrow(try JSONEncoder().encode(command).write(to: url, options: .atomic))
     }
 
+    func requestUndoMenuTitle(timeout: TimeInterval = 3) throws -> String {
+        struct Request: Encodable {
+            let id: String
+        }
+
+        struct Response: Decodable {
+            let id: String
+            let title: String
+        }
+
+        let request = Request(id: UUID().uuidString)
+        let requestURL = uiTestRootURL.appendingPathComponent(".detours-undo-menu-title-request.json")
+        let responseURL = uiTestRootURL.appendingPathComponent(".detours-undo-menu-title-response.json")
+        try? FileManager.default.removeItem(at: responseURL)
+        try JSONEncoder().encode(request).write(to: requestURL, options: .atomic)
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: responseURL),
+               let response = try? JSONDecoder().decode(Response.self, from: data),
+               response.id == request.id {
+                return response.title
+            }
+            usleep(50_000)
+        }
+
+        XCTFail("Timed out waiting for undo menu title response")
+        return ""
+    }
+
     /// Press a character key with optional modifiers
     func pressCharKey(_ key: String, modifiers: XCUIElement.KeyModifierFlags = []) {
         app.typeKey(key, modifierFlags: modifiers)

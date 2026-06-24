@@ -8,6 +8,8 @@ enum UITestEnvironment {
     static let dismissNetworkShareDialogCommandFileName = ".detours-dismiss-network-share-dialog.json"
     static let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
     static let quickNavCommandFileName = ".detours-quick-nav-command.json"
+    static let undoMenuTitleRequestFileName = ".detours-undo-menu-title-request.json"
+    static let undoMenuTitleResponseFileName = ".detours-undo-menu-title-response.json"
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
@@ -36,12 +38,21 @@ enum UITestEnvironment {
         let action: String?
     }
 
+    struct UndoMenuTitleRequest: Decodable {
+        let id: String
+    }
+
     struct ShowNetworkShareDialogAcknowledgement: Encodable {
         let id: String
     }
 
     struct ShowNetworkShareDialogDismissalAcknowledgement: Encodable {
         let id: String
+    }
+
+    struct UndoMenuTitleResponse: Encodable {
+        let id: String
+        let title: String
     }
 
     static var isEnabled: Bool {
@@ -122,6 +133,14 @@ enum UITestEnvironment {
         rootDirectory?.appendingPathComponent(quickNavCommandFileName)
     }
 
+    static var undoMenuTitleRequestURL: URL? {
+        rootDirectory?.appendingPathComponent(undoMenuTitleRequestFileName)
+    }
+
+    static var undoMenuTitleResponseURL: URL? {
+        rootDirectory?.appendingPathComponent(undoMenuTitleResponseFileName)
+    }
+
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
         guard let url = resizeMainWindowCommandURL,
               let data = try? Data(contentsOf: url),
@@ -172,6 +191,16 @@ enum UITestEnvironment {
         return try? JSONDecoder().decode(QuickNavCommand.self, from: data)
     }
 
+    static func currentUndoMenuTitleRequest() -> UndoMenuTitleRequest? {
+        guard let url = undoMenuTitleRequestURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(UndoMenuTitleRequest.self, from: data)
+    }
+
     static func acknowledgeShowNetworkShareDialogCommand(id: String) {
         guard let url = showNetworkShareDialogAcknowledgementURL,
               let data = try? JSONEncoder().encode(ShowNetworkShareDialogAcknowledgement(id: id)) else {
@@ -184,6 +213,15 @@ enum UITestEnvironment {
     static func acknowledgeShowNetworkShareDialogDismissed(id: String) {
         guard let url = showNetworkShareDialogDismissedURL,
               let data = try? JSONEncoder().encode(ShowNetworkShareDialogDismissalAcknowledgement(id: id)) else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func writeUndoMenuTitleResponse(id: String, title: String) {
+        guard let url = undoMenuTitleResponseURL,
+              let data = try? JSONEncoder().encode(UndoMenuTitleResponse(id: id, title: title)) else {
             return
         }
 

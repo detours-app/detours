@@ -106,19 +106,11 @@ final class UndoUITests: BaseUITest {
         pressKey(.delete, modifiers: .command) // Delete
         usleep(1_000_000)
 
-        // Open Edit menu and check for "Undo Delete" menu item
-        let menuBar = app.menuBars.firstMatch
-        let editMenu = menuBar.menuBarItems["Edit"]
-        XCTAssertTrue(editMenu.exists, "Edit menu should exist")
-        editMenu.click()
-        usleep(300_000)
-
-        // Look for menu item starting with "Undo Delete"
-        let undoMenuItem = app.menuItems.matching(NSPredicate(format: "title BEGINSWITH 'Undo Delete'")).firstMatch
-        XCTAssertTrue(undoMenuItem.exists, "Edit menu should show 'Undo Delete...' menu item")
-
-        // Dismiss menu
-        pressKey(.escape)
+        let undoMenuTitle = try requestUndoMenuTitle()
+        XCTAssertTrue(
+            undoMenuTitle.hasPrefix("Undo Delete"),
+            "Edit menu should show 'Undo Delete...' menu item, got '\(undoMenuTitle)'"
+        )
     }
 
     func testMultipleUndoOrder() throws {
