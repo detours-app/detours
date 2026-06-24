@@ -112,6 +112,11 @@ struct QuickNavView: View {
             try? await Task.sleep(nanoseconds: 50_000_000)
             isTextFieldFocused = true
         }
+        .onAppear {
+            DispatchQueue.main.async {
+                isTextFieldFocused = true
+            }
+        }
         .onKeyPress(.upArrow) {
             moveSelection(by: -1)
             return .handled

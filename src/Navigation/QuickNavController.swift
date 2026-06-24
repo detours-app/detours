@@ -64,7 +64,7 @@ final class QuickNavController {
         // Create borderless floating panel
         let panel = FloatingPanel(
             contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
-            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            styleMask: [.borderless, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -93,11 +93,6 @@ final class QuickNavController {
         // Show as child window
         window.addChildWindow(panel, ordered: .above)
         panel.makeKeyAndOrderFront(nil)
-
-        // Ensure the panel's content view can receive keyboard input
-        if let contentView = panel.contentView {
-            panel.makeFirstResponder(contentView)
-        }
 
         // Monitor for clicks outside to dismiss
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
