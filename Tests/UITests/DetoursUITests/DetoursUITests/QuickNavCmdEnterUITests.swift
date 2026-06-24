@@ -1,4 +1,5 @@
 import XCTest
+import CoreGraphics
 
 final class QuickNavCmdEnterUITests: BaseUITest {
 
@@ -8,11 +9,11 @@ final class QuickNavCmdEnterUITests: BaseUITest {
     func testCmdEnterSelectsSearchedItem() throws {
         // Open QuickNav and search for unique-in-B (a file that's NOT first in its folder)
         openQuickNavForKeyboardInput()
-        app.typeText("unique-in-B")
+        postTextKeyEvents("unique-in-B")
         sleep(1)
 
         // Press Cmd-Enter - should go to FolderB AND select unique-in-B.txt
-        pressKey(.return, modifiers: .command)
+        postReturnKeyEvent(modifiers: .maskCommand)
         sleep(1)
 
         // Verify we're in FolderB (parent of unique-in-B.txt)
@@ -29,9 +30,9 @@ final class QuickNavCmdEnterUITests: BaseUITest {
     func testEnterVsCmdEnter() throws {
         // Test 1: Plain Enter navigates INTO FolderB
         openQuickNavForKeyboardInput()
-        app.typeText("FolderB")
+        postTextKeyEvents("FolderB")
         sleep(1)
-        pressKey(.return) // Plain Enter - go INTO FolderB
+        postReturnKeyEvent() // Plain Enter - go INTO FolderB
         sleep(1)
 
         // Verify we're inside FolderB
@@ -40,9 +41,9 @@ final class QuickNavCmdEnterUITests: BaseUITest {
         // Test 2: Cmd-Enter on SubfolderB2 goes to parent (FolderB) and selects it
         // SubfolderB2 is NOT first in FolderB (SubfolderB1 is first)
         openQuickNavForKeyboardInput()
-        app.typeText("SubfolderB2")
+        postTextKeyEvents("SubfolderB2")
         sleep(1)
-        pressKey(.return, modifiers: .command) // Cmd-Enter
+        postReturnKeyEvent(modifiers: .maskCommand) // Cmd-Enter
         sleep(1)
 
         // Verify SubfolderB2 is selected (not SubfolderB1 which is first)

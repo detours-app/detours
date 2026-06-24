@@ -70,6 +70,65 @@ extension BaseUITest {
         keyUp?.post(tap: .cghidEventTap)
     }
 
+    private func keyCode(for character: Character) -> CGKeyCode? {
+        switch character {
+        case "a": return 0
+        case "b": return 11
+        case "c": return 8
+        case "d": return 2
+        case "e": return 14
+        case "f": return 3
+        case "g": return 5
+        case "h": return 4
+        case "i": return 34
+        case "j": return 38
+        case "k": return 40
+        case "l": return 37
+        case "m": return 46
+        case "n": return 45
+        case "o": return 31
+        case "p": return 35
+        case "q": return 12
+        case "r": return 15
+        case "s": return 1
+        case "t": return 17
+        case "u": return 32
+        case "v": return 9
+        case "w": return 13
+        case "x": return 7
+        case "y": return 16
+        case "z": return 6
+        case "-": return 27
+        case "0": return 29
+        case "1": return 18
+        case "2": return 19
+        case "3": return 20
+        case "4": return 21
+        case "5": return 23
+        case "6": return 22
+        case "7": return 26
+        case "8": return 28
+        case "9": return 25
+        case " ": return 49
+        default: return nil
+        }
+    }
+
+    func postTextKeyEvents(_ text: String) {
+        for character in text.lowercased() {
+            guard let keyCode = keyCode(for: character) else {
+                XCTFail("No key code mapping for '\(character)'")
+                return
+            }
+            postKeyEvent(keyCode: keyCode)
+            usleep(40_000)
+        }
+    }
+
+    func postReturnKeyEvent(modifiers: CGEventFlags = []) {
+        postKeyEvent(keyCode: 36, flags: modifiers)
+    }
+
     /// Post Escape as a real HID event without XCUITest's typeKey idle snapshot.
     func postEscapeKeyEvent() {
         postKeyEvent(keyCode: 53)
