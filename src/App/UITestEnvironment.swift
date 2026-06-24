@@ -2,11 +2,18 @@ import Foundation
 
 enum UITestEnvironment {
     static let resizeMainWindowCommandFileName = ".detours-resize-main-window.json"
+    static let renameItemCommandFileName = ".detours-rename-item.json"
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
         let width: Double
         let height: Double
+    }
+
+    struct RenameItemCommand: Decodable {
+        let id: String
+        let relativePath: String
+        let newName: String
     }
 
     static var isEnabled: Bool {
@@ -58,6 +65,10 @@ enum UITestEnvironment {
         rootDirectory?.appendingPathComponent(resizeMainWindowCommandFileName)
     }
 
+    static var renameItemCommandURL: URL? {
+        rootDirectory?.appendingPathComponent(renameItemCommandFileName)
+    }
+
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
         guard let url = resizeMainWindowCommandURL,
               let data = try? Data(contentsOf: url),
@@ -66,5 +77,15 @@ enum UITestEnvironment {
         }
 
         return try? JSONDecoder().decode(ResizeMainWindowCommand.self, from: data)
+    }
+
+    static func currentRenameItemCommand() -> RenameItemCommand? {
+        guard let url = renameItemCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(RenameItemCommand.self, from: data)
     }
 }

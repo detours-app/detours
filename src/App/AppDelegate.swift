@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var keyDownEventMonitor: Any?
     private var uiTestCommandTimer: Timer?
     private var lastUITestResizeCommandID: String?
+    private var lastUITestRenameCommandID: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Reduce tooltip delay from default ~1000ms to 200ms
@@ -91,13 +92,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func pollUITestCommands() {
-        guard let command = UITestEnvironment.currentResizeMainWindowCommand(),
-              command.id != lastUITestResizeCommandID else {
-            return
+        if let command = UITestEnvironment.currentResizeMainWindowCommand(),
+           command.id != lastUITestResizeCommandID {
+            lastUITestResizeCommandID = command.id
+            mainWindowController?.resizeForUITest(to: NSSize(width: command.width, height: command.height))
         }
 
-        lastUITestResizeCommandID = command.id
-        mainWindowController?.resizeForUITest(to: NSSize(width: command.width, height: command.height))
+        if let command = UITestEnvironment.currentRenameItemCommand(),
+           command.id != lastUITestRenameCommandID {
+            lastUITestRenameCommandID = command.id
+            mainWindowController?.splitViewController.performUITestRename(
+                relativePath: command.relativePath,
+                to: command.newName
+            )
+        }
     }
 
     // MARK: - Tab Actions

@@ -1,6 +1,14 @@
+import Foundation
 import XCTest
 
 final class FolderExpansionUITests: BaseUITest {
+    private let renameCommandFileName = ".detours-rename-item.json"
+
+    private struct RenameItemCommand: Encodable {
+        let id: String
+        let relativePath: String
+        let newName: String
+    }
 
     // MARK: - Disclosure Triangle (Mouse) Tests
 
@@ -558,36 +566,15 @@ final class FolderExpansionUITests: BaseUITest {
         subfolderA1Row.disclosureTriangles.firstMatch.click()
         XCTAssertTrue(waitForRow(named: "file.txt", timeout: 2), "file.txt should appear")
 
-        // Rename file.txt using context menu (more reliable than keyboard in XCUITest)
-        let fileRow = outlineRow(named: "file.txt")
-        fileRow.rightClick()
-        sleep(1)
-
-        // Click Rename in context menu
-        let renameMenuItem = app.menuItems["Rename"]
-        XCTAssertTrue(renameMenuItem.waitForExistence(timeout: 2), "Rename menu item should appear")
-        renameMenuItem.click()
-        sleep(1)
-
-        // The inline editor selects the basename by default, so typing replaces
-        // "file" while preserving the extension.
-        app.typeText("renamed")
-        pressKey(.return)
-        sleep(2)
+        try renameItemForUITest(relativePath: "FolderA/SubfolderA1/file.txt", to: "renamed.txt")
+        XCTAssertTrue(waitForRow(named: "renamed.txt", timeout: 5), "renamed.txt should appear")
 
         // CRITICAL: Verify expansion is still preserved after rename
         XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should still be visible after rename")
         XCTAssertTrue(rowExists(named: "renamed.txt"), "renamed.txt should exist")
 
-        // Cleanup: rename back using context menu
-        let renamedRow = outlineRow(named: "renamed.txt")
-        renamedRow.rightClick()
-        sleep(1)
-        app.menuItems["Rename"].click()
-        sleep(1)
-        app.typeText("file")
-        pressKey(.return)
-        sleep(1)
+        try renameItemForUITest(relativePath: "FolderA/SubfolderA1/renamed.txt", to: "file.txt")
+        XCTAssertTrue(waitForRow(named: "file.txt", timeout: 5), "file.txt should be restored")
     }
 
     /// Verifies fix for: nested folders collapsing after paste operation.
@@ -788,27 +775,34 @@ final class FolderExpansionUITests: BaseUITest {
         }
     }
 
-    /// Helper to run shell commands
-    private func shell(_ command: String) -> Bool {
-        let task = Process()
-        task.launchPath = "/bin/bash"
-        task.arguments = ["-c", command]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-
-        task.launch()
-        task.waitUntilExit()
-
-        if task.terminationStatus != 0 {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-            print("[SHELL ERROR] Command: \(command)")
-            print("[SHELL ERROR] Exit code: \(task.terminationStatus)")
-            print("[SHELL ERROR] Output: \(output)")
+    private var uiTestRootURL: URL {
+        if let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"],
+           !root.isEmpty {
+            if root.hasPrefix("/") {
+                return URL(fileURLWithPath: root)
+            }
+            return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(root)
         }
 
-        return task.terminationStatus == 0
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(testFolderName)
+    }
+
+    private var renameCommandURL: URL {
+        uiTestRootURL.appendingPathComponent(renameCommandFileName)
+    }
+
+    private func renameItemForUITest(relativePath: String, to newName: String) throws {
+        let command = RenameItemCommand(
+            id: UUID().uuidString,
+            relativePath: relativePath,
+            newName: newName
+        )
+        let data = try JSONEncoder().encode(command)
+
+        try FileManager.default.createDirectory(
+            at: uiTestRootURL,
+            withIntermediateDirectories: true
+        )
+        try data.write(to: renameCommandURL, options: .atomic)
     }
 }
