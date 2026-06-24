@@ -2,6 +2,41 @@
 
 ## Latest Run
 
+### 2026-06-24 14:25
+
+- Command: Full Foundry batch run:
+  `swift test --filter "<batch 1 local/model suites>"`;
+  `swift test --filter "<batch 2 local IO/watchers/queue suites>"`;
+  `swift test --filter "<batch 3 AppKit/file-list suites>"`;
+  `swift test --filter "<batch 4 server/helper suites>"`;
+  `swift test --filter "<batch 5 remote provider/unit suites>"`;
+  `swift test --filter RemoteIntegrationTests`;
+  unfiltered `swift test`;
+  `resources/scripts/uitest.sh` (interrupted after first UI red to isolate);
+  `resources/scripts/uitest.sh SmokeTests/testAppLaunchesWithWindow` (Foundry).
+- Status: PARTIAL
+- Notes: Swift suite is green on Foundry: unfiltered run executed 633 XCTest tests
+  with 1 explicit skip and 0 failures, plus 42 Swift Testing tests in 12 suites.
+  Fixes committed and pushed during the run: disconnected-queue test provider
+  updated for the current transfer contract, Darwin helper smoke test skips on
+  Foundry without Rosetta, UI tests target `/Applications/Detours.app`, and two
+  sandbox-incompatible open-launch harness commits were reverted. The broad UI
+  run reached `FolderExpansionUITests.testRenamePreservesExpansion` after
+  `DuplicateStructureUITests` and `FilterUITests` passed, then failed with a
+  30s main-run-loop busy snapshot error. Focused UI repro now fails earlier at
+  app activation: `Failed to activate application 'com.detours.app at
+  /Applications/Detours.app' (current state: Running Background)`.
+  Foundry host state after repro: `/usr/bin/automationmodetool` reports
+  `Automation Mode is disabled` and `This device DOES NOT REQUIRE user
+  authentication to enable Automation Mode`; `/var/db/com.apple.dt.automationmode`
+  contains `no-auth-required` but not `automation-enabled`. Non-Xcode repair
+  attempts are blocked by macOS security: the entitled writer XPC rejects a
+  private caller with Cocoa 4097, direct root creation of `automation-enabled`
+  returns `Operation not permitted`, and `launchctl` restart of the automation
+  writer/UI is blocked by SIP. Next smallest action is an operator-approved
+  Foundry GUI/session reboot or local approval of the Automation Mode prompt,
+  then rerun the focused Smoke UI test followed by the full UI suite.
+
 ### 2026-06-24 12:39
 
 - Command: `swift test --filter "RemoteHostTests|RemoteFileCacheTests|OpenWithConflictTests|RemoteIntegrationTests/testRemoteOpenWithSessionUploadsBackToRealRemoteFile"` (Foundry); `resources/scripts/build.sh` (Foundry); `resources/scripts/build.sh` (Spectre)
