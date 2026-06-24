@@ -13,7 +13,7 @@ enum DetoursUITestApp {
     }
 
     private static var usesOpenLaunch: Bool {
-        ProcessInfo.processInfo.environment["DETOURS_UI_TEST_LAUNCH_MODE"] == "open"
+        ProcessInfo.processInfo.environment["DETOURS_UI_TEST_LAUNCH_MODE"] != "xctest"
     }
 
     static func make() -> XCUIApplication {
@@ -44,8 +44,8 @@ enum DetoursUITestApp {
             return
         }
 
-        app.terminate()
-        _ = app.wait(for: .notRunning, timeout: 5)
+        run("/usr/bin/pkill", arguments: ["-x", "Detours"])
+        Thread.sleep(forTimeInterval: 0.5)
 
         for key in ["DETOURS_UI_TEST_ROOT", "DETOURS_UI_TEST_REMOTE"] {
             run("/bin/launchctl", arguments: ["unsetenv", key])
@@ -59,8 +59,6 @@ enum DetoursUITestApp {
     }
 
     static func relaunch(_ app: XCUIApplication, environment: [String: String] = [:]) {
-        app.terminate()
-        _ = app.wait(for: .notRunning, timeout: 5)
         launch(app, environment: environment)
     }
 

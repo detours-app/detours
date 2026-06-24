@@ -12,7 +12,7 @@ final class SmokeTests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        app.terminate()
+        app?.terminate()
     }
 
     /// Verify app launches and window exists
