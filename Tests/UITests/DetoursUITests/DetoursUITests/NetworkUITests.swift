@@ -25,7 +25,7 @@ final class NetworkUITests: BaseUITest {
     }
 
     override func setUpWithError() throws {
-        try clearNetworkShareDialogCommandFiles()
+        try Self.clearNetworkShareDialogCommandFilesBeforeLaunch()
         try super.setUpWithError()
     }
 
@@ -235,18 +235,18 @@ final class NetworkUITests: BaseUITest {
         return acknowledgement.id == id
     }
 
-    private func clearNetworkShareDialogCommandFiles() throws {
-        try FileManager.default.createDirectory(
-            at: uiTestRootURL,
-            withIntermediateDirectories: true
-        )
-        for url in [
-            showNetworkShareDialogCommandURL,
-            showNetworkShareDialogAcknowledgementURL,
-            dismissNetworkShareDialogCommandURL,
-            showNetworkShareDialogDismissedURL
+    nonisolated private static func clearNetworkShareDialogCommandFilesBeforeLaunch() throws {
+        let uiTestRootURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("DetoursUITests-Temp")
+        try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
+
+        for fileName in [
+            ".detours-show-network-share-dialog.json",
+            ".detours-show-network-share-dialog-presented.json",
+            ".detours-dismiss-network-share-dialog.json",
+            ".detours-show-network-share-dialog-dismissed.json"
         ] {
-            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: uiTestRootURL.appendingPathComponent(fileName))
         }
     }
 }
