@@ -194,12 +194,14 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         isNewItem = false
         currentUndoManager = nil
 
-        // Remove delegate before removing field to prevent controlTextDidEndEditing callback
+        // End AppKit's field-editor session before removing the temporary field.
+        // Removing an actively edited field can leave text input/AX state wedged.
         field?.delegate = nil
-        field?.removeFromSuperview()
+        field?.abortEditing()
 
-        // Restore focus to tableView so selection shows blue
+        // Restore focus to tableView so selection shows blue, then remove the editor.
         tv?.window?.makeFirstResponder(tv)
+        field?.removeFromSuperview()
 
         // Delete newly created item if user cancelled before committing
         if wasNewItem, let item = item {
