@@ -541,8 +541,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func expandRemoteAncestorChain(to folderPath: String) async {
-        guard case .remote(_, let basePath)? = currentRemoteLocation else { return }
-        let baseURL = URL(fileURLWithPath: basePath).standardizedFileURL
+        guard case .remote(_, let currentRemotePath)? = currentRemoteLocation else { return }
+        let baseURL = URL(fileURLWithPath: currentRemotePath).standardizedFileURL
         let targetURL = URL(fileURLWithPath: folderPath).standardizedFileURL
         let basePath = baseURL.path
         let targetPath = targetURL.path
