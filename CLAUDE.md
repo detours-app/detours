@@ -1,6 +1,6 @@
 # Detours - Project Instructions
 
-Native macOS file manager. Swift 5.9+, AppKit, SwiftUI (dialogs), macOS 14.0+.
+Native macOS file manager. Swift tools 6.2, AppKit, SwiftUI (dialogs), macOS 14.0+.
 
 ---
 
@@ -34,10 +34,11 @@ The script:
 2. Creates fresh app bundle with Info.plist, icons
 3. Code signs to preserve macOS TCC permissions
 4. Installs to /Applications (removes build copy to avoid Spotlight duplicates)
+5. Relaunches `/Applications/Detours.app` unless `--no-install` is used
 
 **NEVER bypass the script.** Manual codesigning or app bundle manipulation will reset TCC permissions, causing Marco to see permission prompts again.
 
-Don't launch the app after building - Marco will do that.
+Do not separately launch the app after building. The script owns relaunch when it installs.
 
 **Always build after making changes** - never just edit files and call it done. Run the build script to verify changes work.
 
@@ -64,39 +65,6 @@ swift test --filter SomeTestClass
 - Update `Tests/TEST_LOG.md` immediately after EVERY test run
 - If a test fails, fix it. No "pre-existing" excuses.
 - **Any test marked FAIL in TEST_LOG.md must have a comment in the same table row explaining why** - no unexplained failures allowed
-
-### UI Testing with MCP
-
-Use the `macos-ui-automation` MCP server to automate UI verification instead of manual testing.
-
-**Launch app in background** to avoid disturbing Marco's work:
-
-```bash
-open -g /Applications/Detours.app
-```
-
-**MCP workflow:**
-
-1. Build the app with `resources/scripts/build.sh`
-2. Launch in background: `open -g /Applications/Detours.app`
-3. Use `find_elements_in_app` to locate UI elements by accessibility identifier
-4. Use `click_element_by_selector` to interact with buttons, menu items
-5. Use `type_text_to_element_by_selector` for text input
-6. Verify expected UI state with `find_elements` or `get_element_details`
-
-**Example selectors:**
-
-```text
-$..[?(@.ax_identifier=='toggleSidebarButton')]
-$..[?(@.role=='button' && @.title=='Eject')]
-$..[?(@.role=='outlinerow')]
-```
-
-**Tips:**
-
-- Set accessibility identifiers on custom views for reliable selection
-- Use `list_running_applications` to verify app is running
-- Keep tests focused - one verification per MCP interaction sequence
 
 ### UI Testing with XCUITest
 
@@ -211,7 +179,8 @@ A change is not complete until it is proven on Foundry AND installed on Spectre.
 
 ### Swift
 
-- Swift 5.9+ features (macros, `@Observable`)
+- Swift 6.2 package/toolchain
+- Swift 5.9+ language features such as macros and `@Observable`
 - `async/await` over completion handlers
 - `@MainActor` for all UI code
 - No force unwrapping except IBOutlets
@@ -236,14 +205,18 @@ src/
 ├── FileList/      # File list view and data
 ├── Navigation/    # Cmd-P, history, frecency
 ├── Operations/    # Copy, move, delete
-├── Services/      # FSEvents, Quick Look
+├── Remote/        # SSH connections, helper deploy, remote channels
+├── Services/      # File providers, git status, local filesystem services
+├── Sidebar/       # Favorites, volumes, network shares, remote hosts
+├── QuickLook/     # Detours-native preview generation
 ├── Preferences/   # Settings UI
 └── Utilities/     # Helpers, extensions
+Server/            # Remote helper source
 Tests/             # XCTest files
 ├── UITests/       # XCUITest project
 resources/
 ├── specs/         # Feature specifications
-├── docs/          # CHANGELOG.md, scratch.md
+├── docs/          # User guide, changelog, process docs
 └── scripts/       # Build scripts
 build/             # Temp build output (deleted after install)
 ```

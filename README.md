@@ -9,10 +9,10 @@ Dual-pane file manager with tabs, folder expansion, SSH remote browsing, Quick O
 - **Dual-pane layout** - Two independent file browsers, side by side
 - **Tabs per pane** - Finder-style tabs within each pane
 - **Folder expansion** - Disclosure triangles to expand folders inline (like Finder list view)
-- **Quick Open** - Spotlight search with frecency ranking (Cmd-P)
+- **Quick Open** - Spotlight locally, whole-host name search on remote tabs, with frecency ranking (Cmd-P)
 - **Git status indicators** - See modified, staged, and untracked files at a glance
 - **SSH remote browsing** - Browse supported remote hosts directly in Detours panes
-- **Remote file workflows** - Copy, move, trash, restore, archive, extract, Quick Look, Open With, and drag out remote files
+- **Remote file workflows** - Copy, move, trash, restore, new file/folder, Get Info, Quick Look, Open With, and drag out remote files
 - **Inline operation progress** - Status bars show progress, transfer speed, completion, and error states
 - **Fast lane operations** - Small independent operations stay responsive while large transfers run
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
@@ -48,7 +48,7 @@ cd detours
 ./resources/scripts/build.sh --no-install
 ```
 
-Requires Xcode Command Line Tools (Swift 5.9+).
+Requires Xcode Command Line Tools with Swift 6.2+.
 
 ## Keyboard Shortcuts
 

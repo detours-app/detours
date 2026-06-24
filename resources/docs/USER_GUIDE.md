@@ -93,7 +93,11 @@ The sidebar shows remote hosts, mounted volumes, network shares, and favorite fo
 
 ### Quick Open (Cmd-P)
 
-Quick Open searches your entire disk using Spotlight:
+Quick Open follows the active tab:
+
+- Local tabs search the Mac with Spotlight plus Detours' active-pane folder search.
+- Remote tabs search the active SSH host by file and folder name through the Detours helper.
+- Disconnected remote tabs show a Reconnect action instead of silently searching the Mac.
 
 1. Press **Cmd-P** to open
 2. Type to search (substring matching)
@@ -104,7 +108,7 @@ Results are ranked by "frecency" - frequently and recently visited directories a
 
 **Tip:** Quick Open searches Documents, Downloads, Desktop, dev folders, and iCloud Drive. Enable "Include hidden files in Quick Open" in Preferences to also search hidden files.
 
-Quick Open also remembers recently visited remote folders. Remote results show their host so they can be distinguished from local paths.
+Remote Quick Open shows the scope line "Searching <host> - entire host", searches names case-insensitively, starts with the remote home folder and `/opt`, streams results as the helper finds them, and keeps recent places scoped to the active host.
 
 ### Selection
 
@@ -134,6 +138,8 @@ Quick Open also remembers recently visited remote folders. Remote results show t
 | New Folder | Cmd-Shift-N or F7 |
 | New Text File | Cmd-Option-N |
 
+The File menu and context menu also include New File choices for Text File, Markdown File, and Empty File.
+
 **Duplicate Structure** creates a copy of a folder's entire directory hierarchy without copying files. Ideal for year-based folder templates (e.g., `Clients/2025/` → `Clients/2026/`). Auto-detects years in folder names and offers to substitute them.
 
 ### Cross-Pane Operations
@@ -146,6 +152,8 @@ Move or copy files directly to the other pane:
 | Move to other pane | F6 |
 
 After the operation, the moved/copied files are automatically selected in the destination pane.
+
+Cross-pane copy and move work between local panes, a local pane and a remote pane, and remote panes. Transfers that cross providers are staged through Detours' operation queue with progress and cancellation.
 
 ### Operation Progress
 
@@ -163,6 +171,8 @@ Small independent operations such as rename, new file, new folder, move to Trash
 | Open in Editor | F4 (opens in TextEdit) |
 | Reveal in Finder | File menu → Reveal in Finder |
 | Show Package Contents | File menu (for .app bundles etc.) |
+
+On remote selections, Get Info opens a Detours info window with host, path, kind, size, modified date, hidden/readable state, and symlink target when applicable. Reveal in Finder and Share are local-only because Finder and macOS sharing services require local files.
 
 ### Archives
 
@@ -186,6 +196,8 @@ Create and extract archives directly from the file list.
 - Select an archive, then File > Extract Here (or right-click > Extract Here, or double-click)
 - Password-protected archives prompt for password
 - Conflict dialog when extracting over existing items (Skip/Replace/Keep Both)
+
+Archive and Extract Here are currently local-only. Remote helper support exists below the app layer, but the app's archive dialog and extraction command still use local URL selections and are disabled for remote rows until those command paths are routed through provider-backed locations.
 
 ### Share
 
@@ -255,20 +267,30 @@ On first connect, Detours installs a small helper on the remote host:
 ~/.detours-server/detours-server
 ```
 
-The helper powers remote listings, file operations, folder sizes, git status, archive/extract, watching, and transfers. Detours silently redeploys it when the bundled helper changes.
+The helper powers remote listings, file operations, folder sizes, git status, watching, Quick Open search, and transfers. Detours silently redeploys it when the bundled helper changes.
 
 ### Remote File Workflows
 
 Remote panes support normal Detours workflows:
 
 - Browse folders, tabs, breadcrumbs, and folder expansion
-- Copy, move, rename, duplicate, archive, and extract
-- Quick Look and Open With
+- Copy, cut, paste, F5 copy-to-other-pane, and F6 move-to-other-pane across Mac and remote panes
+- Move to Trash, Undo restore, and Delete Immediately after confirmation
+- New Folder and New File
+- Rename
+- Get Info and Copy Path
+- Quick Look and Open With round trips
 - Drag files out to Finder or other apps
 - Git status markers
 - File watching with polling fallback when needed
 
-Large transfers use a second SSH channel so listings, git status, and watch events can continue on the metadata channel.
+Current remote exceptions:
+
+- Duplicate, Duplicate Structure, Archive, and Extract Here are local-only because those app commands still operate on local URL selections instead of provider-backed locations.
+- Reveal in Finder and Share are local-only because Finder and macOS sharing services need local files. Use drag-out or Open With when you need a local materialized copy.
+- Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported because this release bundles only `x86_64 Linux` and `x86_64 macOS` helpers.
+
+Large transfers use a second SSH channel so listings, git status, Quick Open search, and watch events can continue on the metadata channel. Remote git status runs after the directory listing completes; a slow repository should not block the list refresh.
 
 ### Remote Trash
 

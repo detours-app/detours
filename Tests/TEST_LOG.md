@@ -2,6 +2,14 @@
 
 ## Latest Run
 
+### 2026-06-24 12:21
+
+- Command: `swift test --filter "FileListDataSourceTests|GitOperationsServerTests|FileListResponderTests"` (Foundry); `resources/scripts/build.sh` (Foundry); `resources/scripts/build.sh` (Spectre)
+- Status: PASS
+- Notes: Remote refresh and remote-host parity regression coverage. The focused tests passed 67/67, including remote directory load completing before git status returns, delayed remote git status applying after load completion, helper-side git timeout behavior, remote context-menu enablement for supported operations, and remote Delete/Cmd-Delete/F8 routing. Foundry build installed and relaunched cleanly before the Spectre build installed and relaunched cleanly.
+
+### Prior run 2026-06-23 14:55
+
 - Started: 2026-06-23 14:55
 - Command: `swift test --filter FindOperationsTests|FindRPCCodecTests|FindHelperIntegrationTests`; `uitest.sh RemoteQuickOpenUITests` and `RemoteScopeQuickOpenUITests` (Foundry); live probe against wraith
 - Status: PASS

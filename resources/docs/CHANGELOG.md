@@ -108,8 +108,8 @@
   browse them as first-class Detours locations, with remote tabs, breadcrumbs,
   sidebar status, and session restore.
 - **Transparent remote file workflows** — Browse, copy, move, rename, trash,
-  restore, archive, extract, drag out, Quick Look, and Open With remote files
-  through the Detours helper without mounting a network share.
+  restore, new file/folder, Get Info, Copy Path, drag out, Quick Look, and Open
+  With remote files through the Detours helper without mounting a network share.
 - **Helper-backed transfers and watching** — Detours deploys its own helper to
   supported x86_64 Linux and Intel macOS hosts, keeps a persistent SSH helper
   connection, uses transfer channels for large files, and watches remote
