@@ -11,11 +11,7 @@ private func scopeText(_ element: XCUIElement) -> String {
 final class RemoteQuickOpenUITests: BaseUITest {
 
     func testLocalTabScopeHeader() throws {
-        pressCharKey("p", modifiers: .command)
-        sleep(1)
-
-        let searchField = app.textFields["quickNavSearchField"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 2), "Quick Open should open")
+        let searchField = openQuickNav()
 
         let scopeHeader = app.staticTexts["quickNavScopeHeader"]
         XCTAssertTrue(scopeHeader.waitForExistence(timeout: 2), "Scope header should be visible on open")
@@ -61,9 +57,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
     func testRemoteTabScopeHeader() throws {
         launchRemote("connected")
 
-        pressCharKey("p", modifiers: .command)
-        let searchField = app.textFields["quickNavSearchField"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 3), "Quick Open should open in remote tab")
+        let searchField = openQuickNav()
 
         let header = app.staticTexts["quickNavScopeHeader"]
         XCTAssertTrue(header.waitForExistence(timeout: 2), "Remote scope header should be visible on open")
@@ -81,9 +75,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
     func testRemoteResultRevealsInCurrentTab() throws {
         launchRemote("connected")
 
-        pressCharKey("p", modifiers: .command)
-        let searchField = app.textFields["quickNavSearchField"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 3), "Quick Open should open in remote tab")
+        let searchField = openQuickNav()
 
         searchField.typeText("unique-in-B")
         sleep(2)
@@ -100,9 +92,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
     func testDisconnectedRemoteShowsReconnect() throws {
         launchRemote("disconnected")
 
-        pressCharKey("p", modifiers: .command)
-        let searchField = app.textFields["quickNavSearchField"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 3), "Quick Open should open in remote tab")
+        let searchField = openQuickNav()
 
         let reconnect = app.buttons["quickNavReconnectButton"]
         XCTAssertTrue(reconnect.waitForExistence(timeout: 2), "Reconnect action should be shown")

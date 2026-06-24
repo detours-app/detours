@@ -7,11 +7,7 @@ final class QuickNavCmdEnterUITests: BaseUITest {
     /// FolderB order: SubfolderB1, SubfolderB2, beta-file.txt, unique-in-B.txt
     func testCmdEnterSelectsSearchedItem() throws {
         // Open QuickNav and search for unique-in-B (a file that's NOT first in its folder)
-        pressCharKey("p", modifiers: .command)
-        sleep(1)
-
-        let searchField = app.textFields["quickNavSearchField"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 2), "QuickNav should open")
+        let searchField = openQuickNav()
 
         searchField.typeText("unique-in-B")
         sleep(1)
@@ -33,10 +29,7 @@ final class QuickNavCmdEnterUITests: BaseUITest {
     /// Test Enter navigates into folder, Cmd-Enter reveals in parent
     func testEnterVsCmdEnter() throws {
         // Test 1: Plain Enter navigates INTO FolderB
-        pressCharKey("p", modifiers: .command)
-        sleep(1)
-        let searchField = app.textFields["quickNavSearchField"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 2), "QuickNav should open")
+        let searchField = openQuickNav()
         searchField.typeText("FolderB")
         sleep(1)
         pressKey(.return) // Plain Enter - go INTO FolderB
@@ -47,10 +40,7 @@ final class QuickNavCmdEnterUITests: BaseUITest {
 
         // Test 2: Cmd-Enter on SubfolderB2 goes to parent (FolderB) and selects it
         // SubfolderB2 is NOT first in FolderB (SubfolderB1 is first)
-        pressCharKey("p", modifiers: .command)
-        sleep(1)
-        let searchField2 = app.textFields["quickNavSearchField"]
-        XCTAssertTrue(searchField2.waitForExistence(timeout: 2), "QuickNav should open again")
+        let searchField2 = openQuickNav()
         searchField2.typeText("SubfolderB2")
         sleep(1)
         pressKey(.return, modifiers: .command) // Cmd-Enter

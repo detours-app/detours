@@ -86,6 +86,24 @@ extension BaseUITest {
         item.click()
     }
 
+    func chooseGoMenuItem(_ title: String, timeout: TimeInterval = 2) {
+        let goMenu = app.menuBars.firstMatch.menuBarItems["Go"]
+        XCTAssertTrue(goMenu.exists, "Go menu should exist")
+        goMenu.click()
+
+        let item = goMenu.menuItems[title]
+        XCTAssertTrue(item.waitForExistence(timeout: timeout), "\(title) menu item should exist")
+        XCTAssertTrue(item.isEnabled, "\(title) menu item should be enabled")
+        item.click()
+    }
+
+    func openQuickNav(timeout: TimeInterval = 3) -> XCUIElement {
+        chooseGoMenuItem("Quick Open")
+        let searchField = app.textFields["quickNavSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: timeout), "Quick Open should open")
+        return searchField
+    }
+
     /// Press a character key with optional modifiers
     func pressCharKey(_ key: String, modifiers: XCUIElement.KeyModifierFlags = []) {
         app.typeKey(key, modifierFlags: modifiers)
