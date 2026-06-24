@@ -1,5 +1,6 @@
 import XCTest
 import CoreGraphics
+import AppKit
 
 enum DetoursUITestApp {
     static func make() -> XCUIApplication {
@@ -63,11 +64,21 @@ extension BaseUITest {
         let source = CGEventSource(stateID: .combinedSessionState)
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
         keyDown?.flags = flags
-        keyDown?.postToPid(app.processID)
+        postEventToDetours(keyDown)
 
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         keyUp?.flags = flags
-        keyUp?.postToPid(app.processID)
+        postEventToDetours(keyUp)
+    }
+
+    private func postEventToDetours(_ event: CGEvent?) {
+        guard let event else { return }
+        if let pid = NSRunningApplication.runningApplications(withBundleIdentifier: "com.detours.app")
+            .first?.processIdentifier {
+            event.postToPid(pid)
+        } else {
+            event.post(tap: .cghidEventTap)
+        }
     }
 
     private func keyCode(for character: Character) -> CGKeyCode? {
