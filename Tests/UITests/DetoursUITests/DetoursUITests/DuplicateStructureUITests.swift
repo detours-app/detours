@@ -62,7 +62,7 @@ final class DuplicateStructureUITests: BaseUITest {
         XCTAssertFalse(rowExists(named: "FolderA copy"), "FolderA copy should not exist after cancel")
     }
 
-    /// Test that ESC key dismisses dialog
+    /// Test that the sheet's Escape/cancelOperation path dismisses the dialog
     func testDuplicateStructureEscapeDismisses() throws {
         resetDuplicateStructureUITestFiles()
 
@@ -85,11 +85,6 @@ final class DuplicateStructureUITests: BaseUITest {
         let presentation = try waitForDuplicateStructurePresented()
         XCTAssertEqual(presentation.sourceName, "FolderB")
 
-        // Press Escape
-        try? FileManager.default.removeItem(
-            at: uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
-        )
-        app.typeKey(.escape, modifierFlags: [])
-        try waitForDuplicateStructureDismissed()
+        try sendDuplicateStructureAction("escape")
     }
 }

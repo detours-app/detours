@@ -134,6 +134,8 @@ final class DuplicateStructureWindowController: NSWindowController {
             confirmDuplicate(destinationURL: model.destinationURL, substitution: yearSubstitution)
         case "cancel":
             cancelDuplicate()
+        case "escape":
+            window?.cancelOperation(nil)
         default:
             break
         }
