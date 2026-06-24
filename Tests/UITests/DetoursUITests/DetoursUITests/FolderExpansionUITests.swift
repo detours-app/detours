@@ -565,16 +565,25 @@ final class FolderExpansionUITests: BaseUITest {
         let subfolderA1Row = outlineRow(named: "SubfolderA1")
         subfolderA1Row.disclosureTriangles.firstMatch.click()
         XCTAssertTrue(waitForRow(named: "file.txt", timeout: 2), "file.txt should appear")
+        sleep(1)
 
         try renameItemForUITest(relativePath: "FolderA/SubfolderA1/file.txt", to: "renamed.txt")
-        XCTAssertTrue(waitForRow(named: "renamed.txt", timeout: 5), "renamed.txt should appear")
+        XCTAssertTrue(
+            waitForUITestFile(relativePath: "FolderA/SubfolderA1/renamed.txt", timeout: 10),
+            "renamed.txt should exist on disk"
+        )
+        XCTAssertTrue(waitForRow(named: "renamed.txt", timeout: 10), "renamed.txt should appear")
 
         // CRITICAL: Verify expansion is still preserved after rename
         XCTAssertTrue(rowExists(named: "SubfolderA1"), "SubfolderA1 should still be visible after rename")
         XCTAssertTrue(rowExists(named: "renamed.txt"), "renamed.txt should exist")
 
         try renameItemForUITest(relativePath: "FolderA/SubfolderA1/renamed.txt", to: "file.txt")
-        XCTAssertTrue(waitForRow(named: "file.txt", timeout: 5), "file.txt should be restored")
+        XCTAssertTrue(
+            waitForUITestFile(relativePath: "FolderA/SubfolderA1/file.txt", timeout: 10),
+            "file.txt should be restored on disk"
+        )
+        XCTAssertTrue(waitForRow(named: "file.txt", timeout: 10), "file.txt should be restored")
     }
 
     /// Verifies fix for: nested folders collapsing after paste operation.
@@ -804,5 +813,19 @@ final class FolderExpansionUITests: BaseUITest {
             withIntermediateDirectories: true
         )
         try data.write(to: renameCommandURL, options: .atomic)
+    }
+
+    private func waitForUITestFile(relativePath: String, timeout: TimeInterval) -> Bool {
+        let url = uiTestRootURL.appendingPathComponent(relativePath)
+        let deadline = Date().addingTimeInterval(timeout)
+
+        repeat {
+            if FileManager.default.fileExists(atPath: url.path) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+
+        return false
     }
 }

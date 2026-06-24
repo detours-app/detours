@@ -3106,11 +3106,11 @@ extension FileListViewController: NSMenuItemValidation {
 extension FileListViewController: RenameControllerDelegate {
     func performUITestRename(relativePath: String, to newName: String) {
         guard UITestEnvironment.isEnabled,
-              let currentDirectory else {
+              let commandRoot = UITestEnvironment.rootDirectory else {
             return
         }
 
-        let itemURL = currentDirectory
+        let itemURL = commandRoot
             .appendingPathComponent(relativePath)
             .standardizedFileURL
         let item = FileItem(url: itemURL)
