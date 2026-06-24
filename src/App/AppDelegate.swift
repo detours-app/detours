@@ -5,7 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var mainWindowController: MainWindowController?
     private var systemEventMonitor: Any?
     private var keyDownEventMonitor: Any?
-    private var uiTestCommandTimer: Timer?
+    private var uiTestCommandPollingTask: Task<Void, Never>?
     private var lastUITestResizeCommandID: String?
     private var lastUITestRenameCommandID: String?
     private var lastUITestShowNetworkShareDialogCommandID: String?
@@ -74,25 +74,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyDownEventMonitor = nil
         }
 
-        uiTestCommandTimer?.invalidate()
-        uiTestCommandTimer = nil
+        uiTestCommandPollingTask?.cancel()
+        uiTestCommandPollingTask = nil
     }
 
     private func installUITestHooks() {
         guard UITestEnvironment.isEnabled else { return }
 
-        uiTestCommandTimer = Timer.scheduledTimer(
-            timeInterval: 0.1,
-            target: self,
-            selector: #selector(pollUITestCommands),
-            userInfo: nil,
-            repeats: true
-        )
-        uiTestCommandTimer?.tolerance = 0.05
-        pollUITestCommands()
+        uiTestCommandPollingTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                self?.pollUITestCommands()
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
     }
 
-    @objc private func pollUITestCommands() {
+    private func pollUITestCommands() {
         if let command = UITestEnvironment.currentResizeMainWindowCommand(),
            command.id != lastUITestResizeCommandID {
             lastUITestResizeCommandID = command.id
