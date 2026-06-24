@@ -98,12 +98,14 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         if newName == item.name {
             if wasNewItem, let undoManager = currentUndoManager {
                 // Register undo for "New Folder" with original name
-                let folderURL = item.url
+                let createdLocation = item.location
                 undoManager.registerUndo(withTarget: FileOperationQueue.shared) { target in
-                    do {
-                        try FileManager.default.trashItem(at: folderURL, resultingItemURL: nil)
-                    } catch {
-                        target.presentError(error)
+                    Task { @MainActor in
+                        do {
+                            try await target.delete(items: [createdLocation], undoManager: nil)
+                        } catch {
+                            target.presentError(error)
+                        }
                     }
                 }
                 undoManager.setActionName("New Folder")
@@ -112,14 +114,21 @@ final class RenameController: NSObject, NSTextFieldDelegate {
             return
         }
 
-        let destination = item.url.deletingLastPathComponent().appendingPathComponent(newName)
-        if FileManager.default.fileExists(atPath: destination.path) {
-            NSSound.beep()
-            return
+        if case .local(let itemURL) = item.location {
+            let destination = itemURL.deletingLastPathComponent().appendingPathComponent(newName)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                NSSound.beep()
+                return
+            }
         }
 
         let oldLocation = item.location
-        let oldURL = item.url
+        let oldURL: URL?
+        if case .local(let url) = oldLocation {
+            oldURL = url
+        } else {
+            oldURL = nil
+        }
         let undoManager = currentUndoManager
         cancelRename()
 
@@ -130,11 +139,14 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
                 if wasNewItem {
                     // For new folders: undo trashes the folder (synchronous)
+                    let createdLocation = newLocation
                     undoManager?.registerUndo(withTarget: FileOperationQueue.shared) { target in
-                        do {
-                            try FileManager.default.trashItem(at: newURL, resultingItemURL: nil)
-                        } catch {
-                            target.presentError(error)
+                        Task { @MainActor in
+                            do {
+                                try await target.delete(items: [createdLocation], undoManager: nil)
+                            } catch {
+                                target.presentError(error)
+                            }
                         }
                     }
                     undoManager?.setActionName("New Folder")
@@ -150,6 +162,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
                                 }
                             }
                         } else {
+                            guard let oldURL else { return }
                             do {
                                 try FileManager.default.moveItem(at: newURL, to: oldURL)
                             } catch {

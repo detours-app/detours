@@ -32,6 +32,7 @@ protocol FileProvider: Sendable {
     func rename(_ item: Location, to newName: String) async throws -> Location
     func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location
     func archiveExtract(_ archive: Location, password: String?) async throws -> Location
+    func createDirectory(at location: Location, withIntermediateDirectories: Bool) async throws
     func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch
     func unwatch(_ watch: FileProviderWatch) async
     func gitStatus(for directory: Location) async -> [Location: GitStatus]
@@ -51,6 +52,10 @@ enum FileProviderError: Error, Equatable {
 }
 
 extension FileProvider {
+    func createDirectory(at location: Location, withIntermediateDirectories: Bool = false) async throws {
+        throw FileProviderError.unsupportedOperation("createDirectory")
+    }
+
     func download(_ location: Location, to localURL: URL) async throws {
         throw FileProviderError.unsupportedOperation("download")
     }

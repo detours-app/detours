@@ -58,6 +58,13 @@ actor LocalFileProvider: FileProvider {
         return .local(extracted)
     }
 
+    func createDirectory(at location: Location, withIntermediateDirectories: Bool) async throws {
+        try FileManager.default.createDirectory(
+            at: localURL(from: location),
+            withIntermediateDirectories: withIntermediateDirectories
+        )
+    }
+
     func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
         let url = try localURL(from: location)
         let token = FileProviderWatch(id: UUID(), location: location)

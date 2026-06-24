@@ -61,7 +61,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         menu.addItem(NSMenuItem.separator())
 
         // Copy, Cut, Paste
-        if hasSelection {
+        if hasSelection && !hasRemoteSelection {
             let copyItem = NSMenuItem(title: "Copy", action: #selector(copy(_:)), keyEquivalent: "c")
             copyItem.keyEquivalentModifierMask = .command
             copyItem.target = self
@@ -75,13 +75,15 @@ extension FileListViewController: FileListContextMenuDelegate {
             menu.addItem(cutItem)
         }
 
-        let pasteItem = NSMenuItem(title: "Paste", action: #selector(paste(_:)), keyEquivalent: "v")
-        pasteItem.keyEquivalentModifierMask = .command
-        pasteItem.target = self
-        pasteItem.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)
-        menu.addItem(pasteItem)
+        if !hasRemoteSelection {
+            let pasteItem = NSMenuItem(title: "Paste", action: #selector(paste(_:)), keyEquivalent: "v")
+            pasteItem.keyEquivalentModifierMask = .command
+            pasteItem.target = self
+            pasteItem.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)
+            menu.addItem(pasteItem)
+        }
 
-        if hasSelection {
+        if hasSelection && !hasRemoteSelection {
             let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(duplicate(_:)), keyEquivalent: "d")
             duplicateItem.keyEquivalentModifierMask = .command
             duplicateItem.target = self
@@ -141,11 +143,13 @@ extension FileListViewController: FileListContextMenuDelegate {
 
         // Get Info, Copy Path
         if hasSelection {
-            let infoItem = NSMenuItem(title: "Get Info", action: #selector(getInfo(_:)), keyEquivalent: "i")
-            infoItem.keyEquivalentModifierMask = .command
-            infoItem.target = self
-            infoItem.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
-            menu.addItem(infoItem)
+            if !hasRemoteSelection {
+                let infoItem = NSMenuItem(title: "Get Info", action: #selector(getInfo(_:)), keyEquivalent: "i")
+                infoItem.keyEquivalentModifierMask = .command
+                infoItem.target = self
+                infoItem.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
+                menu.addItem(infoItem)
+            }
 
             let copyPathItem = NSMenuItem(title: "Copy Path", action: #selector(copyPath(_:)), keyEquivalent: "c")
             copyPathItem.keyEquivalentModifierMask = [.command, .option]
@@ -189,15 +193,17 @@ extension FileListViewController: FileListContextMenuDelegate {
         newFileMenuItem.image = NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: nil)
         menu.addItem(newFileMenuItem)
 
-        menu.addItem(NSMenuItem.separator())
+        if !hasRemoteSelection {
+            menu.addItem(NSMenuItem.separator())
 
-        // Services submenu
-        let servicesMenu = NSMenu(title: "Services")
-        NSApp.servicesMenu = servicesMenu
-        let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
-        servicesItem.submenu = servicesMenu
-        servicesItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
-        menu.addItem(servicesItem)
+            // Services submenu
+            let servicesMenu = NSMenu(title: "Services")
+            NSApp.servicesMenu = servicesMenu
+            let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
+            servicesItem.submenu = servicesMenu
+            servicesItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
+            menu.addItem(servicesItem)
+        }
 
         return menu
     }
@@ -288,7 +294,7 @@ extension FileListViewController: FileListContextMenuDelegate {
 
     // MARK: - Context Menu Actions
 
-    @objc private func openFromContextMenu(_ sender: Any?) {
+    @objc func openFromContextMenu(_ sender: Any?) {
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
 
@@ -303,11 +309,11 @@ extension FileListViewController: FileListContextMenuDelegate {
         }
     }
 
-    @objc private func showPackageContentsFromContextMenu(_ sender: Any?) {
+    @objc func showPackageContentsFromContextMenu(_ sender: Any?) {
         showPackageContents()
     }
 
-    @objc private func openWithApp(_ sender: NSMenuItem) {
+    @objc func openWithApp(_ sender: NSMenuItem) {
         guard let appURL = sender.representedObject as? URL else { return }
         if openSelectedRemoteFile(applicationURL: appURL) {
             return
@@ -323,7 +329,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         ) { _, _ in }
     }
 
-    @objc private func openRemoteWithEditor(_ sender: NSMenuItem) {
+    @objc func openRemoteWithEditor(_ sender: NSMenuItem) {
         guard let request = sender.representedObject as? RemoteEditorOpenRequest else { return }
         guard case .remote(let hostID, let path) = request.location,
               let host = RemoteHostStore.shared.host(id: hostID),
@@ -433,7 +439,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         return apps
     }
 
-    @objc private func openWithOtherApp(_ sender: NSMenuItem) {
+    @objc func openWithOtherApp(_ sender: NSMenuItem) {
         let selectedRemoteItem = selectedSingleRemoteFile()
         let fileURL: URL
         if let representedURL = sender.representedObject as? URL {
@@ -467,7 +473,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         }
     }
 
-    @objc private func renameFromContextMenu(_ sender: Any?) {
+    @objc func renameFromContextMenu(_ sender: Any?) {
         guard tableView.selectedRowIndexes.count == 1 else { return }
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }

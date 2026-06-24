@@ -772,22 +772,20 @@ final class MainSplitViewController: NSSplitViewController {
         toPane.insertTab(removed, at: atIndex)
     }
 
-    func moveItems(_ items: [URL], toOtherPaneFrom pane: PaneViewController) {
+    func moveItems(_ items: [Location], toOtherPaneFrom pane: PaneViewController) {
         guard !items.isEmpty else { return }
         let destinationPane = otherPane(from: pane)
         // Use effective destination: if a folder is selected, move into it
-        guard let destination = destinationPane.effectiveDestination else { return }
-
-        let isSubfolder = destination != destinationPane.currentDirectory
+        guard let destination = destinationPane.effectiveDestinationLocation else { return }
 
         Task { @MainActor in
             do {
-                let actualURLs = try await FileOperationQueue.shared.move(items: items, to: destination)
+                let actualLocations = try await FileOperationQueue.shared.move(items: items, to: destination)
                 pane.refresh()
 
                 // Refresh target pane, expand subfolder if needed, select moved files, then focus
                 if let flvc = destinationPane.selectedTab?.fileListViewController {
-                    flvc.refreshSelectingItems(at: actualURLs, expandingTo: isSubfolder ? destination : nil) { [weak self] in
+                    flvc.refreshSelectingLocations(actualLocations) { [weak self] in
                         // Activate destination pane AFTER data loads and selection is set
                         self?.setActivePaneFromChild(destinationPane)
                         self?.view.window?.makeFirstResponder(flvc.tableView)
@@ -799,21 +797,19 @@ final class MainSplitViewController: NSSplitViewController {
         }
     }
 
-    func copyItems(_ items: [URL], toOtherPaneFrom pane: PaneViewController) {
+    func copyItems(_ items: [Location], toOtherPaneFrom pane: PaneViewController) {
         guard !items.isEmpty else { return }
         let destinationPane = otherPane(from: pane)
         // Use effective destination: if a folder is selected, copy into it
-        guard let destination = destinationPane.effectiveDestination else { return }
-
-        let isSubfolder = destination != destinationPane.currentDirectory
+        guard let destination = destinationPane.effectiveDestinationLocation else { return }
 
         Task { @MainActor in
             do {
-                let actualURLs = try await FileOperationQueue.shared.copy(items: items, to: destination)
+                let actualLocations = try await FileOperationQueue.shared.copy(items: items, to: destination)
 
                 // Refresh target pane, expand subfolder if needed, select copied files
                 if let flvc = destinationPane.selectedTab?.fileListViewController {
-                    flvc.refreshSelectingItems(at: actualURLs, expandingTo: isSubfolder ? destination : nil) { [weak self] in
+                    flvc.refreshSelectingLocations(actualLocations) { [weak self] in
                         self?.setActivePaneFromChild(destinationPane)
                         self?.view.window?.makeFirstResponder(flvc.tableView)
                     }
@@ -879,7 +875,7 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func copySelectedItemsToOtherPane() {
-        copyItems(activePane.selectedTab?.fileListViewController.selectedURLs ?? [], toOtherPaneFrom: activePane)
+        copyItems(activePane.selectedTab?.fileListViewController.selectedLocations ?? [], toOtherPaneFrom: activePane)
     }
 
     func otherPane(from pane: PaneViewController) -> PaneViewController {

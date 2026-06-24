@@ -19,8 +19,8 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestSwitchPane()
     func fileListDidBecomeActive()
     func fileListDidRequestOpenInNewTab(url: URL)
-    func fileListDidRequestMoveToOtherPane(items: [URL])
-    func fileListDidRequestCopyToOtherPane(items: [URL])
+    func fileListDidRequestMoveToOtherPane(items: [Location])
+    func fileListDidRequestCopyToOtherPane(items: [Location])
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>)
     func fileListDidChangeSelection()
     func fileListDidLoadDirectory(_ controller: FileListViewController)
@@ -476,6 +476,41 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     func refreshSelectingItems(at urls: [URL], expandingTo subfolder: URL? = nil, completion: (() -> Void)? = nil) {
         guard currentDirectory != nil else { return }
         setPendingSelection(at: urls, expandingTo: subfolder, completion: completion)
+        refresh()
+    }
+
+    func refreshSelectingLocations(_ locations: [Location], completion: (() -> Void)? = nil) {
+        guard !locations.isEmpty else {
+            refresh()
+            completion?()
+            return
+        }
+        pendingPostLoadAction = { [weak self] in
+            guard let self else { return }
+            var indexes = IndexSet()
+            for location in locations {
+                switch location {
+                case .local(let url):
+                    if let item = self.dataSource.findItem(withURL: url, in: self.dataSource.items) {
+                        let row = self.tableView.row(forItem: item)
+                        if row >= 0 { indexes.insert(row) }
+                    }
+                case .remote(_, let path):
+                    let target = URL(fileURLWithPath: path).standardizedFileURL
+                    for item in self.dataSource.items where item.isRemote && item.expansionURL == target {
+                        let row = self.tableView.row(forItem: item)
+                        if row >= 0 { indexes.insert(row) }
+                    }
+                }
+            }
+            if !indexes.isEmpty {
+                self.tableView.selectRowIndexes(indexes, byExtendingSelection: false)
+                if let first = indexes.first {
+                    self.tableView.scrollRowToVisible(first)
+                }
+            }
+            completion?()
+        }
         refresh()
     }
 
@@ -1129,6 +1164,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
+    var selectedLocations: [Location] {
+        selectedItems.map(\.location)
+    }
+
     var restorableSelectedURLs: [URL] {
         selectedItems.map { URL(fileURLWithPath: $0.location.path) }
     }
@@ -1146,6 +1185,20 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             }
         }
         return currentDirectory
+    }
+
+    var effectivePasteDestinationLocation: Location? {
+        if let currentRemoteLocation {
+            if let selectedItem = selectedItems.first {
+                if selectedItem.isDirectory {
+                    return selectedItem.location
+                }
+                return selectedItem.location.deletingLastPathComponent()
+            }
+            return currentRemoteLocation
+        }
+
+        return effectivePasteDestination.map(Location.local)
     }
 
     func restoreSelection(_ urls: [URL], scrollToVisible: Bool = true) {
@@ -1352,17 +1405,18 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func deleteSelection() {
         guard !isSharedTopLevelView else { return }
-        let urls = selectedURLs
-        guard !urls.isEmpty else { return }
+        let locations = selectedLocations
+        guard !locations.isEmpty else { return }
 
-        if Self.requiresPermanentDeleteWarning(urls: urls) {
+        let localURLs = selectedURLs
+        if localURLs.count == locations.count, Self.requiresPermanentDeleteWarning(urls: localURLs) {
             // Remote volumes can't use Trash — warn and offer permanent deletion
             let alert = NSAlert()
             alert.alertStyle = .warning
-            if urls.count == 1 {
-                alert.messageText = "Delete \"\(urls[0].lastPathComponent)\" permanently?"
+            if localURLs.count == 1 {
+                alert.messageText = "Delete \"\(localURLs[0].lastPathComponent)\" permanently?"
             } else {
-                alert.messageText = "Delete \(urls.count) items permanently?"
+                alert.messageText = "Delete \(localURLs.count) items permanently?"
             }
             alert.informativeText = "This volume doesn't support Trash. Items will be deleted immediately and can't be recovered."
             alert.addButton(withTitle: "Delete")
@@ -1372,25 +1426,18 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             let response = alert.runModal()
             guard response == .alertFirstButtonReturn else { return }
 
-            performDeleteImmediately(urls: urls)
+            performDeleteImmediately(locations: locations)
             return
         }
 
         // Remember selection index to restore after delete
         let selectedIndex = tableView.selectedRow
+        let fallbackLocation = locations[0]
 
         Task { @MainActor in
             do {
-                try await FileOperationQueue.shared.delete(items: urls, undoManager: undoManager)
-                dataSource.invalidateGitStatus()
-                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
-                // Select next file at same row position (accounting for expanded folders)
-                let rowCount = tableView.numberOfRows
-                if rowCount > 0 && selectedIndex >= 0 {
-                    let newIndex = min(selectedIndex, rowCount - 1)
-                    tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
-                    tableView.scrollRowToVisible(newIndex)
-                }
+                try await FileOperationQueue.shared.delete(items: locations, undoManager: undoManager)
+                reloadAfterDeleting(fallbackLocation: fallbackLocation, selectedIndex: selectedIndex)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -1399,16 +1446,16 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func deleteSelectionImmediately() {
         guard !isSharedTopLevelView else { return }
-        let urls = selectedURLs
-        guard !urls.isEmpty else { return }
+        let locations = selectedLocations
+        guard !locations.isEmpty else { return }
 
         // Show confirmation dialog
         let alert = NSAlert()
         alert.alertStyle = .warning
-        if urls.count == 1 {
-            alert.messageText = "Delete \"\(urls[0].lastPathComponent)\" immediately?"
+        if locations.count == 1 {
+            alert.messageText = "Delete \"\(locations[0].lastPathComponent)\" immediately?"
         } else {
-            alert.messageText = "Delete \(urls.count) items immediately?"
+            alert.messageText = "Delete \(locations.count) items immediately?"
         }
         alert.informativeText = "This item will be deleted immediately. You can't undo this action."
         alert.addButton(withTitle: "Delete")
@@ -1420,7 +1467,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let response = alert.runModal()
         guard response == .alertFirstButtonReturn else { return }
 
-        performDeleteImmediately(urls: urls)
+        performDeleteImmediately(locations: locations)
     }
 
     nonisolated static func requiresPermanentDeleteWarning(
@@ -1432,24 +1479,39 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         urls.contains { volumeIsLocal($0) == false }
     }
 
-    private func performDeleteImmediately(urls: [URL]) {
+    private func performDeleteImmediately(locations: [Location]) {
         let selectedIndex = tableView.selectedRow
+        let fallbackLocation = locations[0]
 
         Task { @MainActor in
             do {
-                try await FileOperationQueue.shared.deleteImmediately(items: urls)
-                dataSource.invalidateGitStatus()
-                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
-                let rowCount = tableView.numberOfRows
-                if rowCount > 0 && selectedIndex >= 0 {
-                    let newIndex = min(selectedIndex, rowCount - 1)
-                    tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
-                    tableView.scrollRowToVisible(newIndex)
-                }
+                try await FileOperationQueue.shared.deleteImmediately(items: locations)
+                reloadAfterDeleting(fallbackLocation: fallbackLocation, selectedIndex: selectedIndex)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
         }
+    }
+
+    private func reloadAfterDeleting(fallbackLocation: Location, selectedIndex: Int) {
+        dataSource.invalidateGitStatus()
+        pendingPostLoadAction = { [weak self] in
+            guard let self else { return }
+            let rowCount = self.tableView.numberOfRows
+            if rowCount > 0 && selectedIndex >= 0 {
+                let newIndex = min(selectedIndex, rowCount - 1)
+                self.tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                self.tableView.scrollRowToVisible(newIndex)
+            }
+        }
+
+        if let currentRemoteLocation, let currentRemoteProvider {
+            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
+            return
+        }
+
+        let fallbackURL = URL(fileURLWithPath: fallbackLocation.path).deletingLastPathComponent()
+        loadDirectory(currentDirectory ?? fallbackURL, preserveExpansion: true)
     }
 
     private func duplicateSelection() {
@@ -1549,23 +1611,23 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func createNewFolder() {
         guard !isSharedTopLevelView else { return }
-        guard let currentDirectory else { return }
+        guard let currentLocation = currentRemoteLocation ?? currentDirectory.map(Location.local) else { return }
 
         // Save current selection so we can restore it if user cancels
-        selectionBeforeNewItem = selectedItems.first?.url
+        selectionBeforeNewItem = selectedURLs.first
 
         // Determine where to create the new folder based on selection
-        let destination: URL
+        let destination: Location
         if let selectedItem = selectedItems.first {
             if selectedItem.isDirectory {
                 // Create INSIDE the selected folder
-                destination = selectedItem.url
+                destination = selectedItem.location
             } else {
                 // Create in the same folder as the selected file
-                destination = selectedItem.url.deletingLastPathComponent()
+                destination = selectedItem.location.deletingLastPathComponent()
             }
         } else {
-            destination = currentDirectory
+            destination = currentLocation
         }
 
         Task { @MainActor in
@@ -1584,16 +1646,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 pendingPostLoadAction = { [weak self] in
                     guard let self else { return }
                     // If we created inside a subfolder, expand it so the new folder is visible
-                    if destination != currentDirectory {
-                        if let parentItem = self.dataSource.findItem(withURL: destination, in: self.dataSource.items) {
+                    if case .local(let destinationURL) = destination,
+                       case .local(let currentURL) = currentLocation,
+                       destinationURL != currentURL,
+                       let parentItem = self.dataSource.findItem(withURL: destinationURL, in: self.dataSource.items) {
                             self.tableView.expandItem(parentItem)
-                        }
                     }
-                    self.selectItem(at: newFolder)
+                    self.selectLocation(newFolder)
                     self.renameSelection(isNewItem: true)
                 }
 
-                loadDirectory(currentDirectory, preserveExpansion: true)
+                refresh()
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -1602,23 +1665,23 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func createNewFile(name: String) {
         guard !isSharedTopLevelView else { return }
-        guard let currentDirectory else { return }
+        guard let currentLocation = currentRemoteLocation ?? currentDirectory.map(Location.local) else { return }
 
         // Save current selection so we can restore it if user cancels
-        selectionBeforeNewItem = selectedItems.first?.url
+        selectionBeforeNewItem = selectedURLs.first
 
         // Determine where to create the new file based on selection
-        let destination: URL
+        let destination: Location
         if let selectedItem = selectedItems.first {
             if selectedItem.isDirectory {
                 // Create INSIDE the selected folder
-                destination = selectedItem.url
+                destination = selectedItem.location
             } else {
                 // Create in the same folder as the selected file
-                destination = selectedItem.url.deletingLastPathComponent()
+                destination = selectedItem.location.deletingLastPathComponent()
             }
         } else {
-            destination = currentDirectory
+            destination = currentLocation
         }
 
         Task { @MainActor in
@@ -1635,16 +1698,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 // Schedule post-load action to select and rename the new file
                 pendingPostLoadAction = { [weak self] in
                     guard let self else { return }
-                    if destination != currentDirectory {
-                        if let parentItem = self.dataSource.findItem(withURL: destination, in: self.dataSource.items) {
+                    if case .local(let destinationURL) = destination,
+                       case .local(let currentURL) = currentLocation,
+                       destinationURL != currentURL,
+                       let parentItem = self.dataSource.findItem(withURL: destinationURL, in: self.dataSource.items) {
                             self.tableView.expandItem(parentItem)
-                        }
                     }
-                    self.selectItem(at: newFile)
+                    self.selectLocation(newFile)
                     self.renameSelection(isNewItem: true)
                 }
 
-                loadDirectory(currentDirectory, preserveExpansion: true)
+                refresh()
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -1652,7 +1716,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func promptForNewFile() {
-        guard let currentDirectory else { return }
+        guard let destination = currentRemoteLocation ?? currentDirectory.map(Location.local) else { return }
         guard let window = view.window else { return }
 
         let alert = NSAlert()
@@ -1672,11 +1736,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
             Task { @MainActor in
                 do {
-                    let newFile = try await FileOperationQueue.shared.createFile(in: currentDirectory, name: fileName, undoManager: self.undoManager)
+                    let newFile = try await FileOperationQueue.shared.createFile(in: destination, name: fileName, undoManager: self.undoManager)
                     self.pendingPostLoadAction = { [weak self] in
-                        self?.selectItem(at: newFile)
+                        self?.selectLocation(newFile)
                     }
-                    self.loadDirectory(currentDirectory, preserveExpansion: true)
+                    self.refresh()
                 } catch {
                     FileOperationQueue.shared.presentError(error)
                 }
@@ -1694,15 +1758,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func moveSelectionToOtherPane() {
         guard !isSharedTopLevelView else { return }
-        let urls = selectedURLs
-        guard !urls.isEmpty else { return }
-        navigationDelegate?.fileListDidRequestMoveToOtherPane(items: urls)
+        let locations = selectedLocations
+        guard !locations.isEmpty else { return }
+        navigationDelegate?.fileListDidRequestMoveToOtherPane(items: locations)
     }
 
     private func copySelectionToOtherPane() {
-        let urls = selectedURLs
-        guard !urls.isEmpty else { return }
-        navigationDelegate?.fileListDidRequestCopyToOtherPane(items: urls)
+        let locations = selectedLocations
+        guard !locations.isEmpty else { return }
+        navigationDelegate?.fileListDidRequestCopyToOtherPane(items: locations)
     }
 
     /// Selects the item at the given URL. Returns true if found and selected, false otherwise.
@@ -1718,6 +1782,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             }
         }
         return false
+    }
+
+    @discardableResult
+    private func selectLocation(_ location: Location) -> Bool {
+        switch location {
+        case .local(let url):
+            return selectItem(at: url)
+        case .remote(_, let path):
+            selectRemoteItem(atPath: path)
+            return tableView.selectedRow >= 0
+        }
     }
 
     func showDuplicateStructureDialog(for url: URL) {
@@ -1807,6 +1882,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         if isSlashKey {
             showFilterBar()
             return true
+        }
+
+        if event.keyCode == 51 || event.keyCode == 117 {
+            if modifiers == [.command, .option] {
+                deleteSelectionImmediately()
+                return true
+            }
+            if modifiers.isEmpty || modifiers == .command {
+                deleteSelection()
+                return true
+            }
         }
 
         // Cmd-Enter: open containing folder (check before other Cmd shortcuts)
@@ -2755,9 +2841,9 @@ extension FileListViewController {
     }
 
     @objc func copyPath(_ sender: Any?) {
-        let urls = selectedURLs
-        guard !urls.isEmpty else { return }
-        let paths = urls.map { $0.path.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: "\n")
+        let locations = selectedLocations
+        guard !locations.isEmpty else { return }
+        let paths = locations.map { $0.path.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: "\n")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(paths, forType: .string)
     }
@@ -2795,11 +2881,21 @@ extension FileListViewController {
 extension FileListViewController: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(copy(_:)), #selector(getInfo(_:)), #selector(copyPath(_:)), #selector(showInFinder(_:)),
-             #selector(shareViaService(_:)):
+        case #selector(copy(_:)), #selector(getInfo(_:)), #selector(showInFinder(_:)), #selector(shareViaService(_:)):
             return !selectedURLs.isEmpty
-        case #selector(cut(_:)), #selector(delete(_:)), #selector(deleteImmediately(_:)),
-             #selector(duplicate(_:)), #selector(archive(_:)):
+        case #selector(copyPath(_:)):
+            return !selectedLocations.isEmpty
+        case #selector(cut(_:)), #selector(duplicate(_:)), #selector(archive(_:)):
+            return !selectedURLs.isEmpty && !isSharedTopLevelView
+        case #selector(delete(_:)), #selector(deleteImmediately(_:)):
+            return !selectedLocations.isEmpty && !isSharedTopLevelView
+        case #selector(renameFromContextMenu(_:)):
+            return selectedLocations.count == 1 && !isSharedTopLevelView
+        case #selector(openFromContextMenu(_:)):
+            return !selectedLocations.isEmpty
+        case #selector(openWithApp(_:)), #selector(openRemoteWithEditor(_:)), #selector(openWithOtherApp(_:)):
+            return !selectedLocations.isEmpty && !isSharedTopLevelView
+        case #selector(duplicateStructureFromContextMenu(_:)):
             return !selectedURLs.isEmpty && !isSharedTopLevelView
         case #selector(extractArchive(_:)):
             let urls = selectedURLs
@@ -2807,7 +2903,7 @@ extension FileListViewController: NSMenuItemValidation {
         case #selector(paste(_:)):
             return ClipboardManager.shared.hasValidItems && currentDirectory != nil && !isSharedTopLevelView
         case #selector(newFolder(_:)), #selector(newTextFile(_:)), #selector(newMarkdownFile(_:)), #selector(newEmptyFile(_:)):
-            return currentDirectory != nil && !isSharedTopLevelView
+            return (currentDirectory != nil || currentRemoteLocation != nil) && !isSharedTopLevelView
         case #selector(showPackageContents):
             let row = tableView.selectedRow
             guard row >= 0, let item = dataSource.item(at: row) else { return false }
@@ -2822,22 +2918,32 @@ extension FileListViewController: NSMenuItemValidation {
 
 extension FileListViewController: RenameControllerDelegate {
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL) {
-        guard let currentDirectory else { return }
         selectionBeforeNewItem = nil
         dataSource.invalidateGitStatus()
         pendingPostLoadAction = { [weak self] in
-            self?.selectItem(at: newURL)
+            if case .remote = item.location {
+                self?.selectRemoteItem(atPath: newURL.path)
+            } else {
+                self?.selectItem(at: newURL)
+            }
         }
-        loadDirectory(currentDirectory, preserveExpansion: true)
+        if let currentRemoteLocation, let currentRemoteProvider {
+            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
+        } else if let currentDirectory {
+            loadDirectory(currentDirectory, preserveExpansion: true)
+        }
     }
 
     func renameControllerDidCancelNewItem(_ controller: RenameController, item: FileItem) {
-        guard let currentDirectory else { return }
-
         // SAFETY CHECK: Only trash if this looks like a newly created item
         // This prevents catastrophic data loss if the wrong item was selected
         let isLikelyNewItem: Bool
-        if item.isDirectory {
+        if item.isRemote {
+            isLikelyNewItem = item.name.hasPrefix("Folder") ||
+                item.name.hasPrefix("Text File") ||
+                item.name.hasPrefix("Document") ||
+                item.name.hasPrefix("Untitled")
+        } else if item.isDirectory {
             // New folders are empty and named "Folder" or "Folder N"
             let contents = try? FileManager.default.contentsOfDirectory(atPath: item.url.path)
             let isEmpty = contents?.isEmpty ?? false
@@ -2862,8 +2968,8 @@ extension FileListViewController: RenameControllerDelegate {
             do {
                 // Move to trash (not permanent delete) so user can recover if needed
                 // Don't register undo since user cancelled the creation - nothing to undo
-                try await FileOperationQueue.shared.delete(items: [item.url], undoManager: nil)
-                loadDirectory(currentDirectory, preserveExpansion: true)
+                try await FileOperationQueue.shared.delete(items: [item.location], undoManager: nil)
+                refresh()
                 if let restoreSelection {
                     selectItem(at: restoreSelection)
                 }

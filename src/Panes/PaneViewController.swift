@@ -1169,6 +1169,11 @@ final class PaneViewController: NSViewController {
         return tab.fileListViewController.effectivePasteDestination ?? tab.currentDirectory
     }
 
+    var effectiveDestinationLocation: Location? {
+        guard let tab = selectedTab, tab.iCloudListingMode != .sharedTopLevel else { return nil }
+        return tab.fileListViewController.effectivePasteDestinationLocation
+    }
+
     func refresh() {
         selectedTab?.refresh()
         updateNavigationControls()
@@ -1874,13 +1879,13 @@ extension PaneViewController: FileListNavigationDelegate {
         createTab(at: url, iCloudListingMode: mode, select: true)
     }
 
-    func fileListDidRequestMoveToOtherPane(items: [URL]) {
+    func fileListDidRequestMoveToOtherPane(items: [Location]) {
         if let splitVC = parent as? MainSplitViewController {
             splitVC.moveItems(items, toOtherPaneFrom: self)
         }
     }
 
-    func fileListDidRequestCopyToOtherPane(items: [URL]) {
+    func fileListDidRequestCopyToOtherPane(items: [Location]) {
         if let splitVC = parent as? MainSplitViewController {
             splitVC.copyItems(items, toOtherPaneFrom: self)
         }

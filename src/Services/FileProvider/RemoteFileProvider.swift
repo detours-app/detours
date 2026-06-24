@@ -455,6 +455,26 @@ actor RemoteFileProvider: FileProvider {
         return .remote(hostID: hostID, path: path.lossyDisplayString)
     }
 
+    func createDirectory(at location: Location, withIntermediateDirectories: Bool) async throws {
+        if withIntermediateDirectories {
+            var current = Location.remote(hostID: hostID, path: "/")
+            let components = remotePath(from: location).lossyDisplayString
+                .split(separator: "/")
+                .map(String.init)
+            for component in components {
+                current = current.appendingPathComponent(component)
+                do {
+                    _ = try await rpcClient.send(.mkDir(path: remotePath(from: current)))
+                } catch {
+                    _ = try await stat(current)
+                }
+            }
+            return
+        }
+
+        _ = try await rpcClient.send(.mkDir(path: remotePath(from: location)))
+    }
+
     func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
         if let watcherClient {
             return try await watcherClient.watch(location, onChange: onChange)

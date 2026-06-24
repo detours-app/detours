@@ -142,7 +142,7 @@ final class FileOperationQueue {
         guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
             let hostIDs = remoteHostIDs(from: items, destination: destination)
             return try await enqueue(remoteHosts: hostIDs) {
-                try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager)
+                try await self.performProviderTransfer(items: items, to: destination, isMove: false, undoManager: undoManager)
             }
         }
         return try await enqueue {
@@ -167,7 +167,10 @@ final class FileOperationQueue {
         guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
             let hostIDs = remoteHostIDs(from: items, destination: destination)
             return try await enqueue(remoteHosts: hostIDs) {
-                try await self.performRemoteMove(items: items, to: destination, undoManager: undoManager)
+                if self.isSingleRemoteHostOperation(items: items, destination: destination) {
+                    return try await self.performRemoteMove(items: items, to: destination, undoManager: undoManager)
+                }
+                return try await self.performProviderTransfer(items: items, to: destination, isMove: true, undoManager: undoManager)
             }
         }
         return try await enqueue {
@@ -203,12 +206,29 @@ final class FileOperationQueue {
     /// NEVER call this from undo handlers, cleanup code, or any automated flow.
     /// Use `delete(items:undoManager:)` instead for trash with undo support.
     func deleteImmediately(items: [URL]) async throws {
+        try await deleteImmediately(items: items.map(Location.local))
+    }
+
+    /// DANGER: Permanently deletes files with NO recovery.
+    /// This method should ONLY be called after explicit user confirmation via a dialog.
+    /// NEVER call this from undo handlers, cleanup code, or any automated flow.
+    /// Use `delete(items:undoManager:)` instead for trash with undo support.
+    func deleteImmediately(items: [Location]) async throws {
         // Log every call for debugging - permanent deletion should be rare
         for item in items {
             print("⚠️ PERMANENT DELETE (no recovery): \(item.path)")
         }
+
+        guard let urls = localURLs(from: items) else {
+            let hostIDs = remoteHostIDs(from: items)
+            try await enqueue(remoteHosts: hostIDs) {
+                try await self.performRemoteDeleteImmediately(items: items)
+            }
+            return
+        }
+
         try await enqueue {
-            try await self.performDeleteImmediately(items: items)
+            try await self.performDeleteImmediately(items: urls)
         }
     }
 
@@ -257,12 +277,34 @@ final class FileOperationQueue {
         }
     }
 
+    @discardableResult
+    func createFolder(in directory: Location, name: String, undoManager: UndoManager? = nil) async throws -> Location {
+        if case .local(let directoryURL) = directory {
+            return .local(try await createFolder(in: directoryURL, name: name, undoManager: undoManager))
+        }
+
+        return try await enqueue(remoteHosts: remoteHostIDs(from: [directory])) {
+            try await self.performProviderCreateFolder(in: directory, name: name, undoManager: undoManager)
+        }
+    }
+
     func createFile(in directory: URL, name: String, content: Data = Data(), undoManager: UndoManager? = nil) async throws -> URL {
         if !conflictsWithActiveHeavyOperation(sources: [directory], destination: nil) {
             return try await performFastCreateFile(in: directory, name: name, content: content, undoManager: undoManager)
         }
         return try await enqueue {
             try await self.performCreateFile(in: directory, name: name, content: content, undoManager: undoManager)
+        }
+    }
+
+    @discardableResult
+    func createFile(in directory: Location, name: String, content: Data = Data(), undoManager: UndoManager? = nil) async throws -> Location {
+        if case .local(let directoryURL) = directory {
+            return .local(try await createFile(in: directoryURL, name: name, content: content, undoManager: undoManager))
+        }
+
+        return try await enqueue(remoteHosts: remoteHostIDs(from: [directory])) {
+            try await self.performProviderCreateFile(in: directory, name: name, content: content, undoManager: undoManager)
         }
     }
 
@@ -545,6 +587,25 @@ final class FileOperationQueue {
             throw FileProviderError.unsupportedRemote(.remote(hostID: hostID, path: "/"))
         }
         return provider
+    }
+
+    private func provider(for location: Location) throws -> any FileProvider {
+        switch location {
+        case .local:
+            return LocalFileProvider.shared
+        case .remote(let hostID, _):
+            return try remoteProvider(for: hostID)
+        }
+    }
+
+    private func isSingleRemoteHostOperation(items: [Location], destination: Location) -> Bool {
+        guard case .remote(let destinationHostID, _) = destination,
+              let groups = remoteGroups(from: items),
+              groups.count == 1,
+              groups[destinationHostID] != nil else {
+            return false
+        }
+        return true
     }
 
     // MARK: - Queue
@@ -1033,6 +1094,184 @@ final class FileOperationQueue {
         try handleFailures(successes: successes.map { $0.original }, failures: failures)
     }
 
+    private func performProviderTransfer(
+        items: [Location],
+        to destination: Location,
+        isMove: Bool,
+        undoManager: UndoManager? = nil
+    ) async throws -> [Location] {
+        let operation = isMove
+            ? FileOperation.move(
+                sources: items.map { URL(fileURLWithPath: $0.path) },
+                destination: URL(fileURLWithPath: destination.path)
+            )
+            : FileOperation.copy(
+                sources: items.map { URL(fileURLWithPath: $0.path) },
+                destination: URL(fileURLWithPath: destination.path)
+            )
+        startOperation(operation, totalCount: items.count)
+        defer { finishOperation() }
+
+        let destinationProvider = try provider(for: destination)
+        let stagingRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("detours-transfer-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: stagingRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: stagingRoot) }
+
+        var successes: [Location] = []
+        var failures: [(URL, Error)] = []
+
+        for (index, item) in items.enumerated() {
+            try checkCancelled()
+            let displayURL = URL(fileURLWithPath: item.path)
+            updateProgress(operation: operation, currentItem: displayURL, completed: index, total: items.count)
+
+            do {
+                let sourceProvider = try provider(for: item)
+                let finalLocation = try await uniqueDestinationLocation(
+                    for: item,
+                    in: destination,
+                    provider: destinationProvider
+                )
+                let itemStagingDirectory = stagingRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
+                let stagedURL = itemStagingDirectory.appendingPathComponent(item.lastPathComponent)
+                try FileManager.default.createDirectory(at: itemStagingDirectory, withIntermediateDirectories: true)
+
+                try await stageLocation(item, provider: sourceProvider, to: stagedURL)
+                try await uploadStagedItem(stagedURL, to: finalLocation, provider: destinationProvider)
+
+                if isMove {
+                    try await trashSourceAfterProviderMove(item, provider: sourceProvider)
+                }
+
+                successes.append(finalLocation)
+            } catch {
+                failures.append((displayURL, mapError(error, url: displayURL)))
+            }
+
+            updateProgress(operation: operation, currentItem: displayURL, completed: index + 1, total: items.count)
+        }
+
+        if failures.isEmpty, !successes.isEmpty, let undoManager {
+            let createdItems = successes
+            undoManager.registerUndo(withTarget: self) { target in
+                Task { @MainActor in
+                    do {
+                        try await target.delete(items: createdItems, undoManager: nil)
+                    } catch {
+                        target.presentError(error)
+                    }
+                }
+            }
+            let firstName = successes.first?.lastPathComponent ?? ""
+            let actionName = successes.count == 1
+                ? "\(isMove ? "Move" : "Copy") \"\(firstName)\""
+                : "\(isMove ? "Move" : "Copy") \(successes.count) Items"
+            undoManager.setActionName(actionName)
+        }
+
+        try handleFailures(successes: successes.map { URL(fileURLWithPath: $0.path) }, failures: failures)
+        return successes
+    }
+
+    private func stageLocation(_ location: Location, provider: any FileProvider, to localURL: URL) async throws {
+        let entry = try await provider.stat(location)
+        if entry.isDirectory {
+            try FileManager.default.createDirectory(at: localURL, withIntermediateDirectories: true)
+            let children = try await provider.list(location, showHidden: true)
+            for child in children {
+                try await stageLocation(
+                    child.location,
+                    provider: provider,
+                    to: localURL.appendingPathComponent(child.name)
+                )
+            }
+            return
+        }
+
+        try FileManager.default.createDirectory(at: localURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try await provider.download(location, to: localURL)
+    }
+
+    private func uploadStagedItem(_ localURL: URL, to location: Location, provider: any FileProvider) async throws {
+        let values = try localURL.resourceValues(forKeys: [.isDirectoryKey])
+        if values.isDirectory == true {
+            try await provider.createDirectory(at: location, withIntermediateDirectories: true)
+            let children = try FileManager.default.contentsOfDirectory(
+                at: localURL,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: []
+            )
+            for child in children {
+                try await uploadStagedItem(
+                    child,
+                    to: location.appendingPathComponent(child.lastPathComponent),
+                    provider: provider
+                )
+            }
+            return
+        }
+
+        try await provider.upload(localURL, to: location)
+    }
+
+    private func trashSourceAfterProviderMove(_ location: Location, provider: any FileProvider) async throws {
+        switch location {
+        case .local(let url):
+            _ = try await recycle(item: url)
+        case .remote:
+            _ = try await provider.trash([location])
+        }
+    }
+
+    private func uniqueDestinationLocation(
+        for source: Location,
+        in directory: Location,
+        provider: any FileProvider
+    ) async throws -> Location {
+        let originalName = source.lastPathComponent.isEmpty ? "Untitled" : source.lastPathComponent
+        var candidate = directory.appendingPathComponent(originalName)
+        var index = 2
+        while await locationExists(candidate, provider: provider) {
+            candidate = directory.appendingPathComponent(Self.numberedName(originalName, index: index))
+            index += 1
+        }
+        return candidate
+    }
+
+    private func uniqueCreatedLocation(
+        in directory: Location,
+        name: String,
+        provider: any FileProvider
+    ) async -> Location {
+        var candidate = directory.appendingPathComponent(name)
+        var index = 2
+        while await locationExists(candidate, provider: provider) {
+            candidate = directory.appendingPathComponent(Self.numberedName(name, index: index))
+            index += 1
+        }
+        return candidate
+    }
+
+    private func locationExists(_ location: Location, provider: any FileProvider) async -> Bool {
+        do {
+            _ = try await provider.stat(location)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private nonisolated static func numberedName(_ name: String, index: Int) -> String {
+        let nsName = name as NSString
+        let ext = nsName.pathExtension
+        let stem = ext.isEmpty ? name : nsName.deletingPathExtension
+        guard !ext.isEmpty else {
+            return "\(stem) \(index)"
+        }
+        return "\(stem) \(index).\(ext)"
+    }
+
     private func performRemoteCopy(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
         guard case .remote(let destinationHostID, _) = destination,
               let groups = remoteGroups(from: items),
@@ -1196,6 +1435,42 @@ final class FileOperationQueue {
         let firstName = trashedItems.first?.originalLocation.lastPathComponent ?? ""
         let actionName = trashedItems.count == 1 ? "Delete \"\(firstName)\"" : "Delete \(trashedItems.count) Items"
         undoManager.setActionName(actionName)
+    }
+
+    private func performRemoteDeleteImmediately(items: [Location]) async throws {
+        guard let groups = remoteGroups(from: items) else {
+            throw FileProviderError.unsupportedOperation("Mixed local and remote delete is not implemented yet")
+        }
+
+        let operation = FileOperation.deleteImmediately(items: items.map { URL(fileURLWithPath: $0.path) })
+        startOperation(operation, totalCount: items.count)
+        defer { finishOperation() }
+
+        var completed = 0
+        for (hostID, hostItems) in groups {
+            try checkCancelled()
+            if let current = hostItems.first {
+                updateProgress(
+                    operation: operation,
+                    currentItem: URL(fileURLWithPath: current.path),
+                    completed: completed,
+                    total: items.count
+                )
+            }
+
+            let provider = try remoteProvider(for: hostID)
+            try await provider.delete(hostItems)
+            completed += hostItems.count
+
+            if let current = hostItems.last {
+                updateProgress(
+                    operation: operation,
+                    currentItem: URL(fileURLWithPath: current.path),
+                    completed: completed,
+                    total: items.count
+                )
+            }
+        }
     }
 
     private func performDeleteImmediately(items: [URL]) async throws {
@@ -1388,6 +1663,95 @@ final class FileOperationQueue {
 
         try handleFailures(successes: successes, failures: failures)
         return successes
+    }
+
+    private func performProviderCreateFolder(
+        in directory: Location,
+        name: String,
+        undoManager: UndoManager? = nil
+    ) async throws -> Location {
+        let operation = FileOperation.createFolder(directory: URL(fileURLWithPath: directory.path), name: name)
+        startOperation(operation, totalCount: 1)
+        defer { finishOperation() }
+
+        let provider = try provider(for: directory)
+        let destination = await uniqueCreatedLocation(in: directory, name: name, provider: provider)
+
+        do {
+            try await provider.createDirectory(at: destination, withIntermediateDirectories: false)
+            updateProgress(
+                operation: operation,
+                currentItem: URL(fileURLWithPath: destination.path),
+                completed: 1,
+                total: 1
+            )
+
+            if let undoManager {
+                let created = destination
+                undoManager.registerUndo(withTarget: self) { target in
+                    Task { @MainActor in
+                        do {
+                            try await target.delete(items: [created], undoManager: nil)
+                        } catch {
+                            target.presentError(error)
+                        }
+                    }
+                }
+                undoManager.setActionName("New Folder")
+            }
+
+            return destination
+        } catch {
+            throw mapError(error, url: URL(fileURLWithPath: destination.path))
+        }
+    }
+
+    private func performProviderCreateFile(
+        in directory: Location,
+        name: String,
+        content: Data,
+        undoManager: UndoManager? = nil
+    ) async throws -> Location {
+        let operation = FileOperation.createFile(directory: URL(fileURLWithPath: directory.path), name: name)
+        startOperation(operation, totalCount: 1)
+        defer { finishOperation() }
+
+        let provider = try provider(for: directory)
+        let destination = await uniqueCreatedLocation(in: directory, name: name, provider: provider)
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("detours-create-\(UUID().uuidString)", isDirectory: true)
+        let tempFile = tempDirectory.appendingPathComponent(name)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        do {
+            try content.write(to: tempFile)
+            try await provider.upload(tempFile, to: destination)
+            updateProgress(
+                operation: operation,
+                currentItem: URL(fileURLWithPath: destination.path),
+                completed: 1,
+                total: 1
+            )
+
+            if let undoManager {
+                let created = destination
+                undoManager.registerUndo(withTarget: self) { target in
+                    Task { @MainActor in
+                        do {
+                            try await target.delete(items: [created], undoManager: nil)
+                        } catch {
+                            target.presentError(error)
+                        }
+                    }
+                }
+                undoManager.setActionName("New File")
+            }
+
+            return destination
+        } catch {
+            throw mapError(error, url: URL(fileURLWithPath: destination.path))
+        }
     }
 
     private func performCreateFolder(in directory: URL, name: String, undoManager: UndoManager? = nil) async throws -> URL {

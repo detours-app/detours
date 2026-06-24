@@ -11,6 +11,7 @@ final class RemoteTrashUndoTests: XCTestCase {
     private actor RecordingRemoteFileProvider: FileProvider {
         private let hostID: UUID
         private var trashCalls: [[Location]] = []
+        private var deleteCalls: [[Location]] = []
         private var restoreCalls: [[TrashedItem]] = []
         private var renameCalls: [(Location, String)] = []
 
@@ -20,6 +21,10 @@ final class RemoteTrashUndoTests: XCTestCase {
 
         func recordedTrashCalls() -> [[Location]] {
             trashCalls
+        }
+
+        func recordedDeleteCalls() -> [[Location]] {
+            deleteCalls
         }
 
         func recordedRestoreCalls() -> [[TrashedItem]] {
@@ -47,7 +52,7 @@ final class RemoteTrashUndoTests: XCTestCase {
         }
 
         func delete(_ items: [Location]) async throws {
-            throw FileProviderError.unsupportedOperation("delete")
+            deleteCalls.append(items)
         }
 
         func trash(_ items: [Location]) async throws -> [TrashedItem] {
@@ -171,5 +176,22 @@ final class RemoteTrashUndoTests: XCTestCase {
         } catch let error as FileProviderError {
             XCTAssertEqual(error, .unsupportedRemote(.remote(hostID: hostID, path: "/")))
         }
+    }
+
+    func testRemoteDeleteImmediatelyRoutesThroughProviderDelete() async throws {
+        let hostID = UUID()
+        let provider = RecordingRemoteFileProvider(hostID: hostID)
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(provider, for: hostID)
+        defer { queue.unregisterRemoteFileProvider(for: hostID) }
+
+        let item = Location.remote(hostID: hostID, path: "/home/marco/project/file.txt")
+
+        try await queue.deleteImmediately(items: [item])
+
+        let deleteCalls = await provider.recordedDeleteCalls()
+        XCTAssertEqual(deleteCalls, [[item]])
+        let trashCalls = await provider.recordedTrashCalls()
+        XCTAssertTrue(trashCalls.isEmpty)
     }
 }

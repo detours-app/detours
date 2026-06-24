@@ -190,8 +190,8 @@ final class FileListResponderTests: XCTestCase {
 
         let event = makeFunctionKeyEvent(keyCode: 96, functionKey: NSF5FunctionKey)
         XCTAssertTrue(viewController.handleKeyDown(event))
-        let copiedItems = spy.copyToOtherPaneItems.map { $0.standardizedFileURL }
-        XCTAssertEqual(copiedItems, [fileURL.standardizedFileURL])
+        let copiedItems = spy.copyToOtherPaneItems.map(\.path)
+        XCTAssertEqual(copiedItems, [fileURL.path])
     }
 
     func testHandleKeyDownHandlesF6MoveToOtherPaneShortcut() throws {
@@ -201,8 +201,8 @@ final class FileListResponderTests: XCTestCase {
 
         let event = makeFunctionKeyEvent(keyCode: 97, functionKey: NSF6FunctionKey)
         XCTAssertTrue(viewController.handleKeyDown(event))
-        let movedItems = spy.moveToOtherPaneItems.map { $0.standardizedFileURL }
-        XCTAssertEqual(movedItems, [fileURL.standardizedFileURL])
+        let movedItems = spy.moveToOtherPaneItems.map(\.path)
+        XCTAssertEqual(movedItems, [fileURL.path])
     }
 
     func testHandleKeyDownHandlesF2RenameShortcut() throws {
@@ -682,6 +682,64 @@ final class FileListResponderTests: XCTestCase {
         XCTAssertTrue(deleted)
     }
 
+    func testRemoteSelectionEnablesSupportedContextMenuItems() async throws {
+        let hostID = UUID()
+        let location = Location.remote(hostID: hostID, path: "/home/marco/file.txt")
+        let provider = FileListRemoteProvider(
+            hostID: hostID,
+            listings: [
+                "/home/marco": [
+                    .remoteFile(hostID: hostID, path: location.path, name: "file.txt"),
+                ],
+            ]
+        )
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        let host = RemoteHost(id: hostID, displayName: "Dev VM", sshTarget: "dev")
+
+        viewController.loadRemoteDirectory(host: host, path: "/home/marco", provider: provider)
+        let loaded = await waitForRowCount(1, in: viewController.tableView)
+        XCTAssertTrue(loaded)
+        viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        let deleteItem = NSMenuItem(title: "Move to Trash", action: #selector(FileListViewController.delete(_:)), keyEquivalent: "")
+        let deleteImmediatelyItem = NSMenuItem(title: "Delete Immediately", action: #selector(FileListViewController.deleteImmediately(_:)), keyEquivalent: "")
+        let copyPathItem = NSMenuItem(title: "Copy Path", action: #selector(FileListViewController.copyPath(_:)), keyEquivalent: "")
+        let getInfoItem = NSMenuItem(title: "Get Info", action: #selector(FileListViewController.getInfo(_:)), keyEquivalent: "")
+
+        XCTAssertTrue(viewController.validateMenuItem(deleteItem))
+        XCTAssertTrue(viewController.validateMenuItem(deleteImmediatelyItem))
+        XCTAssertTrue(viewController.validateMenuItem(copyPathItem))
+        XCTAssertFalse(viewController.validateMenuItem(getInfoItem))
+
+        let menu = try XCTUnwrap(viewController.buildContextMenu(for: IndexSet(integer: 0), clickedRow: 0))
+        XCTAssertNotNil(menu.item(withTitle: "Move to Trash"))
+        XCTAssertNotNil(menu.item(withTitle: "Delete Immediately"))
+        XCTAssertNotNil(menu.item(withTitle: "Copy Path"))
+        XCTAssertNotNil(menu.item(withTitle: "New Folder"))
+        XCTAssertNotNil(menu.item(withTitle: "New File"))
+        XCTAssertNil(menu.item(withTitle: "Copy"))
+        XCTAssertNil(menu.item(withTitle: "Get Info"))
+    }
+
+    func testRemoteF8DeleteRoutesToTrashProvider() async throws {
+        try await assertRemoteDeleteShortcutRoutesToTrash(
+            makeFunctionKeyEvent(keyCode: 100, functionKey: NSF8FunctionKey)
+        )
+    }
+
+    func testRemoteCmdBackspaceRoutesToTrashProvider() async throws {
+        try await assertRemoteDeleteShortcutRoutesToTrash(
+            makeKeyEvent(characters: "\u{7F}", keyCode: 51, modifiers: [.command])
+        )
+    }
+
+    func testRemotePlainDeleteRoutesToTrashProvider() async throws {
+        try await assertRemoteDeleteShortcutRoutesToTrash(
+            makeKeyEvent(characters: "\u{7F}", keyCode: 51)
+        )
+    }
+
     func testPasteNotifiesRefreshSourceDirectoriesAfterCut() async throws {
         let temp = try createTempDirectory()
         let source = try createTestFolder(in: temp, name: "source")
@@ -887,15 +945,154 @@ final class FileListResponderTests: XCTestCase {
         return tableView.numberOfRows >= minimumRowCount
     }
 
+    private func assertRemoteDeleteShortcutRoutesToTrash(
+        _ event: NSEvent,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        RemoteTrashExplainer.markDismissed()
+        let hostID = UUID()
+        let location = Location.remote(hostID: hostID, path: "/home/marco/file.txt")
+        let provider = FileListRemoteProvider(
+            hostID: hostID,
+            listings: [
+                "/home/marco": [
+                    .remoteFile(hostID: hostID, path: location.path, name: "file.txt"),
+                ],
+            ]
+        )
+        FileOperationQueue.shared.registerRemoteFileProvider(provider, for: hostID)
+        defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: hostID) }
+
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        let host = RemoteHost(id: hostID, displayName: "Dev VM", sshTarget: "dev")
+
+        viewController.loadRemoteDirectory(host: host, path: "/home/marco", provider: provider)
+        let loaded = await waitForRowCount(1, in: viewController.tableView)
+        XCTAssertTrue(loaded, file: file, line: line)
+        viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        XCTAssertTrue(viewController.handleKeyDown(event), file: file, line: line)
+        let routed = await waitForTrashCalls(in: provider, expectedCount: 1)
+        XCTAssertTrue(routed, file: file, line: line)
+        let calls = await provider.recordedTrashCalls()
+        XCTAssertEqual(calls, [[location]], file: file, line: line)
+    }
+
+    private func waitForTrashCalls(
+        in provider: FileListRemoteProvider,
+        expectedCount: Int,
+        timeout: TimeInterval = 2.0
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if await provider.recordedTrashCalls().count >= expectedCount {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        return await provider.recordedTrashCalls().count >= expectedCount
+    }
+
     private func borderedTextFieldCount(in tableView: NSTableView) -> Int {
         tableView.subviews.compactMap { $0 as? NSTextField }.filter { $0.isBordered }.count
     }
 }
 
+private actor FileListRemoteProvider: FileProvider {
+    private let hostID: UUID
+    private let listings: [String: [LoadedFileEntry]]
+    private var trashCalls: [[Location]] = []
+    private var deleteCalls: [[Location]] = []
+
+    init(hostID: UUID, listings: [String: [LoadedFileEntry]]) {
+        self.hostID = hostID
+        self.listings = listings
+    }
+
+    func recordedTrashCalls() -> [[Location]] {
+        trashCalls
+    }
+
+    func recordedDeleteCalls() -> [[Location]] {
+        deleteCalls
+    }
+
+    func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
+        listings[location.path] ?? []
+    }
+
+    func stat(_ location: Location) async throws -> LoadedFileEntry {
+        for entries in listings.values {
+            if let entry = entries.first(where: { $0.location == location }) {
+                return entry
+            }
+        }
+        throw FileProviderError.unsupportedOperation("stat")
+    }
+
+    func copy(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+    func move(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+
+    func delete(_ items: [Location]) async throws {
+        deleteCalls.append(items)
+    }
+
+    func trash(_ items: [Location]) async throws -> [TrashedItem] {
+        trashCalls.append(items)
+        return items.map { item in
+            TrashedItem(
+                originalLocation: item,
+                trashLocation: .remote(hostID: hostID, path: "/home/marco/.local/share/Trash/files/\(item.lastPathComponent)")
+            )
+        }
+    }
+
+    func restoreFromTrash(_ items: [TrashedItem]) async throws -> [Location] {
+        items.map(\.originalLocation)
+    }
+
+    func rename(_ item: Location, to newName: String) async throws -> Location {
+        item.deletingLastPathComponent().appendingPathComponent(newName)
+    }
+
+    func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location {
+        items[0]
+    }
+
+    func archiveExtract(_ archive: Location, password: String?) async throws -> Location {
+        archive
+    }
+
+    func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        FileProviderWatch(id: UUID(), location: location)
+    }
+
+    func unwatch(_ watch: FileProviderWatch) async {}
+    func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
+    func folderSize(for location: Location) async throws -> Int64 { 0 }
+    func readSymlink(_ location: Location) async throws -> Location { location }
+    func openForQuickLook(_ location: Location) async throws -> URL { URL(fileURLWithPath: "/tmp/unused") }
+}
+
+private extension LoadedFileEntry {
+    static func remoteFile(hostID: UUID, path: String, name: String) -> LoadedFileEntry {
+        LoadedFileEntry(
+            location: .remote(hostID: hostID, path: path),
+            url: URL(fileURLWithPath: path),
+            name: name,
+            isDirectory: false
+        )
+    }
+}
+
 @MainActor
 private final class NavigationDelegateSpy: FileListNavigationDelegate {
-    var moveToOtherPaneItems: [URL] = []
-    var copyToOtherPaneItems: [URL] = []
+    var moveToOtherPaneItems: [Location] = []
+    var copyToOtherPaneItems: [Location] = []
     var refreshSourceDirectories: Set<URL> = []
     var navigatedTo: URL?
     var parentNavigationRequested = false
@@ -923,11 +1120,11 @@ private final class NavigationDelegateSpy: FileListNavigationDelegate {
     func fileListDidBecomeActive() {}
     func fileListDidRequestOpenInNewTab(url: URL) {}
 
-    func fileListDidRequestMoveToOtherPane(items: [URL]) {
+    func fileListDidRequestMoveToOtherPane(items: [Location]) {
         moveToOtherPaneItems = items
     }
 
-    func fileListDidRequestCopyToOtherPane(items: [URL]) {
+    func fileListDidRequestCopyToOtherPane(items: [Location]) {
         copyToOtherPaneItems = items
     }
 
