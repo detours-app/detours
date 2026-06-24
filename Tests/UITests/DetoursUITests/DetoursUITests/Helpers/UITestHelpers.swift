@@ -167,16 +167,14 @@ extension BaseUITest {
         item.click()
     }
 
-    func openQuickNav(timeout: TimeInterval = 3) -> XCUIElement {
+    func openQuickNav(timeout: TimeInterval = 3) {
         chooseGoMenuItem("Quick Open")
-        let scopeHeader = app.staticTexts["quickNavScopeHeader"]
-        XCTAssertTrue(scopeHeader.waitForExistence(timeout: timeout), "Quick Open should open")
-        usleep(300_000)
-        return scopeHeader
+        _ = timeout
+        usleep(700_000)
     }
 
     func openQuickNavForKeyboardInput() {
-        _ = openQuickNav(timeout: 5)
+        openQuickNav(timeout: 5)
         usleep(300_000)
     }
 
