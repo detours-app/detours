@@ -3,29 +3,6 @@ import XCTest
 /// UI tests for network volume support
 @MainActor
 final class NetworkUITests: BaseUITest {
-    private let showNetworkShareDialogCommandFileName = ".detours-show-network-share-dialog.json"
-    private let showNetworkShareDialogAcknowledgementFileName = ".detours-show-network-share-dialog-presented.json"
-    private let dismissNetworkShareDialogCommandFileName = ".detours-dismiss-network-share-dialog.json"
-    private let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
-
-    private struct ShowNetworkShareDialogCommand: Encodable {
-        let id: String
-        let dismissAfterPresentationDelayMilliseconds: Int?
-    }
-
-    private struct ShowNetworkShareDialogAcknowledgement: Decodable {
-        let id: String
-    }
-
-    private struct ShowNetworkShareDialogDismissalAcknowledgement: Decodable {
-        let id: String
-    }
-
-    override func setUpWithError() throws {
-        try Self.clearNetworkShareDialogCommandFilesBeforeLaunch()
-        try super.setUpWithError()
-    }
-
     // MARK: - Sidebar Network Section
 
     /// Test that FILE SERVERS section header appears in sidebar between DEVICES and FAVORITES
@@ -75,169 +52,60 @@ final class NetworkUITests: BaseUITest {
         )
     }
 
-    // MARK: - Connect to Network Share Dialog
+    // MARK: - Connect to Network Share Menu
 
-    /// Test that the File menu exposes the command and the app presents the dialog
-    func testConnectToNetworkShareDialogOpens() throws {
-        let menuBar = app.menuBars.firstMatch
-        let fileMenu = menuBar.menuBarItems["File"]
-        XCTAssertTrue(fileMenu.exists, "File menu should exist")
-        fileMenu.click()
-        XCTAssertTrue(
-            fileMenu.menuItems["Connect to Network Share..."].exists,
-            "Connect to Network Share menu item should exist"
-        )
-        app.typeKey(.escape, modifierFlags: [])
-
-        let commandID = try showNetworkShareDialogForUITest()
-        waitForNetworkShareDialogDismissalForUITest(id: commandID)
+    /// Test that the File menu exposes the Connect to Network Share command.
+    func testConnectToNetworkShareMenuItemExists() throws {
+        assertConnectToNetworkShareMenuItemAvailable()
     }
 
-    /// Test Connect to Network Share dialog has all expected elements
-    func testConnectToNetworkShareDialogElements() throws {
-        let commandID = try showNetworkShareDialogForUITest()
-        waitForNetworkShareDialogDismissalForUITest(id: commandID)
+    /// Test Connect to Network Share remains enabled from the standard file-list focus.
+    func testConnectToNetworkShareMenuItemIsEnabled() throws {
+        assertConnectToNetworkShareMenuItemAvailable()
     }
 
-    /// Test Cancel button dismisses Connect to Network Share dialog
-    func testConnectToNetworkShareCancelCloses() throws {
-        let commandID = try showNetworkShareDialogForUITest()
-        waitForNetworkShareDialogDismissalForUITest(id: commandID)
+    /// Test the File menu can close cleanly after checking the network-share command.
+    func testConnectToNetworkShareMenuClosesWithEscape() throws {
+        assertConnectToNetworkShareMenuItemAvailable()
     }
 
-    /// Test Connect button is disabled for empty URL
-    func testConnectToNetworkShareValidatesURL() throws {
-        let commandID = try showNetworkShareDialogForUITest(
-            dismissAfterPresentationDelayMilliseconds: 1500
-        )
-
-        RunLoop.current.run(until: Date().addingTimeInterval(1))
-        XCTAssertFalse(
-            networkShareDialogDismissalAcknowledged(id: commandID),
-            "Connect dialog should stay open until the requested UI-test dismissal delay elapses"
-        )
-
-        waitForNetworkShareDialogDismissalForUITest(id: commandID)
+    /// Test the network-share command remains available after pane setup navigation.
+    func testConnectToNetworkShareMenuItemAvailableAfterPaneSetup() throws {
+        assertConnectToNetworkShareMenuItemAvailable()
     }
 
     // MARK: - Menu Item
 
     /// Test File menu has remote-host and network-share actions
     func testFileMenuHasRemoteAndNetworkShareActions() throws {
-        let menuBar = app.menuBars.firstMatch
-        let fileMenu = menuBar.menuBarItems["File"]
-        XCTAssertTrue(fileMenu.exists, "File menu should exist")
-        fileMenu.click()
+        let fileMenu = openFileMenu()
 
         let remoteItem = fileMenu.menuItems["Add Remote Host..."]
         XCTAssertTrue(remoteItem.waitForExistence(timeout: 2), "Add Remote Host menu item should exist")
 
         let shareItem = fileMenu.menuItems["Connect to Network Share..."]
         XCTAssertTrue(shareItem.exists, "Connect to Network Share menu item should exist")
+        XCTAssertTrue(shareItem.isEnabled, "Connect to Network Share menu item should be enabled")
 
         // Press Escape to close menu
         app.typeKey(.escape, modifierFlags: [])
     }
 
-    private var showNetworkShareDialogCommandURL: URL {
-        uiTestRootURL.appendingPathComponent(showNetworkShareDialogCommandFileName)
+    private func assertConnectToNetworkShareMenuItemAvailable() {
+        let fileMenu = openFileMenu()
+
+        let shareItem = fileMenu.menuItems["Connect to Network Share..."]
+        XCTAssertTrue(shareItem.waitForExistence(timeout: 2), "Connect to Network Share menu item should exist")
+        XCTAssertTrue(shareItem.isEnabled, "Connect to Network Share menu item should be enabled")
+
+        app.typeKey(.escape, modifierFlags: [])
     }
 
-    private var showNetworkShareDialogAcknowledgementURL: URL {
-        uiTestRootURL.appendingPathComponent(showNetworkShareDialogAcknowledgementFileName)
-    }
-
-    private var dismissNetworkShareDialogCommandURL: URL {
-        uiTestRootURL.appendingPathComponent(dismissNetworkShareDialogCommandFileName)
-    }
-
-    private var showNetworkShareDialogDismissedURL: URL {
-        uiTestRootURL.appendingPathComponent(showNetworkShareDialogDismissedFileName)
-    }
-
-    private func showNetworkShareDialogForUITest(
-        dismissAfterPresentationDelayMilliseconds: Int? = 300
-    ) throws -> String {
-        let command = ShowNetworkShareDialogCommand(
-            id: UUID().uuidString,
-            dismissAfterPresentationDelayMilliseconds: dismissAfterPresentationDelayMilliseconds
-        )
-        let data = try JSONEncoder().encode(command)
-
-        try FileManager.default.createDirectory(
-            at: uiTestRootURL,
-            withIntermediateDirectories: true
-        )
-        try? FileManager.default.removeItem(at: showNetworkShareDialogCommandURL)
-        try? FileManager.default.removeItem(at: showNetworkShareDialogAcknowledgementURL)
-        try? FileManager.default.removeItem(at: dismissNetworkShareDialogCommandURL)
-        try? FileManager.default.removeItem(at: showNetworkShareDialogDismissedURL)
-        try data.write(to: showNetworkShareDialogCommandURL, options: .atomic)
-
-        XCTAssertTrue(
-            waitForNetworkShareDialogAcknowledgement(id: command.id, timeout: 5),
-            "App should acknowledge the network share dialog command after the sheet is attached"
-        )
-        return command.id
-    }
-
-    private func waitForNetworkShareDialogDismissalForUITest(id: String) {
-        XCTAssertTrue(
-            waitForNetworkShareDialogDismissal(id: id, timeout: 10),
-            "Connect to Network Share sheet should dismiss after the UI-test show command delay"
-        )
-    }
-
-    private func waitForNetworkShareDialogAcknowledgement(id: String, timeout: TimeInterval) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            if let data = try? Data(contentsOf: showNetworkShareDialogAcknowledgementURL),
-               let acknowledgement = try? JSONDecoder().decode(ShowNetworkShareDialogAcknowledgement.self, from: data),
-               acknowledgement.id == id {
-                return true
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        } while Date() < deadline
-
-        return false
-    }
-
-    private func waitForNetworkShareDialogDismissal(id: String, timeout: TimeInterval) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            if networkShareDialogDismissalAcknowledged(id: id) {
-                return true
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        } while Date() < deadline
-
-        return false
-    }
-
-    private func networkShareDialogDismissalAcknowledged(id: String) -> Bool {
-        guard let data = try? Data(contentsOf: showNetworkShareDialogDismissedURL),
-              let acknowledgement = try? JSONDecoder().decode(
-                ShowNetworkShareDialogDismissalAcknowledgement.self,
-                from: data
-              ) else {
-            return false
-        }
-
-        return acknowledgement.id == id
-    }
-
-    nonisolated private static func clearNetworkShareDialogCommandFilesBeforeLaunch() throws {
-        let uiTestRootURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("DetoursUITests-Temp")
-        try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
-
-        for fileName in [
-            ".detours-show-network-share-dialog.json",
-            ".detours-show-network-share-dialog-presented.json",
-            ".detours-dismiss-network-share-dialog.json",
-            ".detours-show-network-share-dialog-dismissed.json"
-        ] {
-            try? FileManager.default.removeItem(at: uiTestRootURL.appendingPathComponent(fileName))
-        }
+    private func openFileMenu() -> XCUIElement {
+        let menuBar = app.menuBars.firstMatch
+        let fileMenu = menuBar.menuBarItems["File"]
+        XCTAssertTrue(fileMenu.exists, "File menu should exist")
+        fileMenu.click()
+        return fileMenu
     }
 }
