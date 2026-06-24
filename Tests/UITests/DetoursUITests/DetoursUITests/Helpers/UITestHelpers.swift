@@ -106,6 +106,11 @@ extension BaseUITest {
         return searchField
     }
 
+    func openQuickNavForKeyboardInput() {
+        chooseGoMenuItem("Quick Open")
+        usleep(500_000)
+    }
+
     /// Press a character key with optional modifiers
     func pressCharKey(_ key: String, modifiers: XCUIElement.KeyModifierFlags = []) {
         app.typeKey(key, modifierFlags: modifiers)
