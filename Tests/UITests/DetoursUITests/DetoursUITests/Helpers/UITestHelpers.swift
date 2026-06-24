@@ -171,11 +171,24 @@ extension BaseUITest {
         chooseGoMenuItem("Quick Open")
         _ = timeout
         usleep(700_000)
+        focusQuickNavSearchField()
     }
 
     func openQuickNavForKeyboardInput() {
         openQuickNav(timeout: 5)
         usleep(300_000)
+    }
+
+    private func focusQuickNavSearchField() {
+        let quickNavPanel = app.windows.allElementsBoundByIndex.first { window in
+            let frame = window.frame
+            return frame.width >= 820 && frame.width <= 980 &&
+                frame.height >= 620 && frame.height <= 780
+        }
+
+        let target = quickNavPanel ?? app.windows.firstMatch
+        target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).click()
+        usleep(200_000)
     }
 
     /// Press a character key with optional modifiers
