@@ -679,6 +679,24 @@ final class FolderExpansionUITests: BaseUITest {
         XCTAssertEqual(selectedRowName(), "SubfolderA2", "Focused pane should keep handling arrow keys after refresh")
     }
 
+    /// Verifies fix for: menu/toolbar refresh moved focus away from the refreshed pane.
+    func testSelectionAndFocusPreservedAfterMenuRefresh() throws {
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "SubfolderA1 should appear")
+
+        selectRow(named: "SubfolderA1")
+        XCTAssertEqual(selectedRowName(), "SubfolderA1", "SubfolderA1 should be selected")
+
+        chooseGoMenuItem("Refresh")
+        sleep(2)
+
+        XCTAssertEqual(selectedRowName(), "SubfolderA1", "Selection should be preserved after menu refresh")
+        pressKey(.downArrow)
+        XCTAssertEqual(selectedRowName(), "SubfolderA2", "Refreshed pane should keep keyboard focus")
+    }
+
     /// Verifies fix for: delete file causes all folders to collapse.
     /// Bug: loadDirectory was called without preserveExpansion: true
     func testDeletePreservesExpansion() throws {

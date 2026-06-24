@@ -274,6 +274,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         view.window?.firstResponder === tableView
     }
 
+    private func shouldKeepTableViewFocusedAfterRefresh() -> Bool {
+        tableViewHasKeyboardFocus() || dataSource.isActive
+    }
+
     private func restoreTableViewKeyboardFocusIfNeeded(_ shouldRestore: Bool) {
         guard shouldRestore else { return }
         view.window?.makeFirstResponder(tableView)
@@ -698,7 +702,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
         let pendingItemToSelect = itemToSelect
         let shouldPreserveExpansion = preserveExpansion
-        let shouldRestoreTableViewFocus = preserveExpansion && tableViewHasKeyboardFocus()
+        let shouldRestoreTableViewFocus = preserveExpansion && shouldKeepTableViewFocusedAfterRefresh()
         // Pin scroll position across same-directory reloads (FSEvent debounce,
         // file operations, undo) so background churn doesn't yank the viewport.
         let preservedScrollOrigin: NSPoint? = preserveExpansion
@@ -864,7 +868,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
         let previousSelectedLocations = preserveExpansion ? selectedLocations : []
         let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
-        let shouldRestoreTableViewFocus = preserveExpansion && tableViewHasKeyboardFocus()
+        let shouldRestoreTableViewFocus = preserveExpansion && shouldKeepTableViewFocusedAfterRefresh()
         dataSource.onLoadCompleted = { [weak self] result in
             guard let self else { return }
             self.hideLoadingIndicator()
