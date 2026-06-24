@@ -220,6 +220,70 @@ extension BaseUITest {
         return ""
     }
 
+    struct DuplicateStructurePresentation: Decodable {
+        let id: String
+        let sourceName: String
+        let folderName: String
+    }
+
+    private struct DuplicateStructureAction: Encodable {
+        let id: String
+        let action: String
+    }
+
+    private struct DuplicateStructureDismissal: Decodable {
+        let id: String
+    }
+
+    func resetDuplicateStructureUITestFiles() {
+        for fileName in [
+            ".detours-duplicate-structure-presented.json",
+            ".detours-duplicate-structure-action.json",
+            ".detours-duplicate-structure-dismissed.json"
+        ] {
+            try? FileManager.default.removeItem(at: uiTestRootURL.appendingPathComponent(fileName))
+        }
+    }
+
+    func waitForDuplicateStructurePresented(timeout: TimeInterval = 3) throws -> DuplicateStructurePresentation {
+        let url = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-presented.json")
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: url),
+               let response = try? JSONDecoder().decode(DuplicateStructurePresentation.self, from: data) {
+                return response
+            }
+            usleep(50_000)
+        }
+
+        XCTFail("Timed out waiting for duplicate structure sheet presentation")
+        return DuplicateStructurePresentation(id: "", sourceName: "", folderName: "")
+    }
+
+    func sendDuplicateStructureAction(_ action: String, timeout: TimeInterval = 3) throws {
+        let command = DuplicateStructureAction(id: UUID().uuidString, action: action)
+        let commandURL = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-action.json")
+        let dismissedURL = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
+        try? FileManager.default.removeItem(at: dismissedURL)
+        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
+        try waitForDuplicateStructureDismissed(matching: command.id, timeout: timeout)
+    }
+
+    func waitForDuplicateStructureDismissed(matching id: String? = nil, timeout: TimeInterval = 3) throws {
+        let url = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: url),
+               let response = try? JSONDecoder().decode(DuplicateStructureDismissal.self, from: data),
+               id == nil || response.id == id {
+                return
+            }
+            usleep(50_000)
+        }
+
+        XCTFail("Timed out waiting for duplicate structure sheet dismissal")
+    }
+
     /// Press a character key with optional modifiers
     func pressCharKey(_ key: String, modifiers: XCUIElement.KeyModifierFlags = []) {
         app.typeKey(key, modifierFlags: modifiers)

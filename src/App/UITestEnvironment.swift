@@ -10,6 +10,9 @@ enum UITestEnvironment {
     static let quickNavCommandFileName = ".detours-quick-nav-command.json"
     static let undoMenuTitleRequestFileName = ".detours-undo-menu-title-request.json"
     static let undoMenuTitleResponseFileName = ".detours-undo-menu-title-response.json"
+    static let duplicateStructurePresentedFileName = ".detours-duplicate-structure-presented.json"
+    static let duplicateStructureActionFileName = ".detours-duplicate-structure-action.json"
+    static let duplicateStructureDismissedFileName = ".detours-duplicate-structure-dismissed.json"
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
@@ -42,6 +45,11 @@ enum UITestEnvironment {
         let id: String
     }
 
+    struct DuplicateStructureAction: Decodable {
+        let id: String
+        let action: String
+    }
+
     struct ShowNetworkShareDialogAcknowledgement: Encodable {
         let id: String
     }
@@ -53,6 +61,16 @@ enum UITestEnvironment {
     struct UndoMenuTitleResponse: Encodable {
         let id: String
         let title: String
+    }
+
+    struct DuplicateStructurePresentation: Encodable {
+        let id: String
+        let sourceName: String
+        let folderName: String
+    }
+
+    struct DuplicateStructureDismissal: Encodable {
+        let id: String
     }
 
     static var isEnabled: Bool {
@@ -141,6 +159,18 @@ enum UITestEnvironment {
         rootDirectory?.appendingPathComponent(undoMenuTitleResponseFileName)
     }
 
+    static var duplicateStructurePresentedURL: URL? {
+        rootDirectory?.appendingPathComponent(duplicateStructurePresentedFileName)
+    }
+
+    static var duplicateStructureActionURL: URL? {
+        rootDirectory?.appendingPathComponent(duplicateStructureActionFileName)
+    }
+
+    static var duplicateStructureDismissedURL: URL? {
+        rootDirectory?.appendingPathComponent(duplicateStructureDismissedFileName)
+    }
+
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
         guard let url = resizeMainWindowCommandURL,
               let data = try? Data(contentsOf: url),
@@ -201,6 +231,16 @@ enum UITestEnvironment {
         return try? JSONDecoder().decode(UndoMenuTitleRequest.self, from: data)
     }
 
+    static func currentDuplicateStructureAction() -> DuplicateStructureAction? {
+        guard let url = duplicateStructureActionURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(DuplicateStructureAction.self, from: data)
+    }
+
     static func acknowledgeShowNetworkShareDialogCommand(id: String) {
         guard let url = showNetworkShareDialogAcknowledgementURL,
               let data = try? JSONEncoder().encode(ShowNetworkShareDialogAcknowledgement(id: id)) else {
@@ -222,6 +262,28 @@ enum UITestEnvironment {
     static func writeUndoMenuTitleResponse(id: String, title: String) {
         guard let url = undoMenuTitleResponseURL,
               let data = try? JSONEncoder().encode(UndoMenuTitleResponse(id: id, title: title)) else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func writeDuplicateStructurePresented(id: String, sourceName: String, folderName: String) {
+        guard let url = duplicateStructurePresentedURL,
+              let data = try? JSONEncoder().encode(DuplicateStructurePresentation(
+                id: id,
+                sourceName: sourceName,
+                folderName: folderName
+              )) else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func writeDuplicateStructureDismissed(id: String) {
+        guard let url = duplicateStructureDismissedURL,
+              let data = try? JSONEncoder().encode(DuplicateStructureDismissal(id: id)) else {
             return
         }
 
