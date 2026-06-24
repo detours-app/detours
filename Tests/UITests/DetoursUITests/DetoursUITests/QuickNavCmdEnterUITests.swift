@@ -10,7 +10,7 @@ final class QuickNavCmdEnterUITests: BaseUITest {
         pressCharKey("p", modifiers: .command)
         sleep(1)
 
-        let searchField = app.textFields.firstMatch
+        let searchField = app.textFields["quickNavSearchField"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 2), "QuickNav should open")
 
         searchField.typeText("unique-in-B")
@@ -35,7 +35,7 @@ final class QuickNavCmdEnterUITests: BaseUITest {
         // Test 1: Plain Enter navigates INTO FolderB
         pressCharKey("p", modifiers: .command)
         sleep(1)
-        let searchField = app.textFields.firstMatch
+        let searchField = app.textFields["quickNavSearchField"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 2), "QuickNav should open")
         searchField.typeText("FolderB")
         sleep(1)
@@ -49,7 +49,7 @@ final class QuickNavCmdEnterUITests: BaseUITest {
         // SubfolderB2 is NOT first in FolderB (SubfolderB1 is first)
         pressCharKey("p", modifiers: .command)
         sleep(1)
-        let searchField2 = app.textFields.firstMatch
+        let searchField2 = app.textFields["quickNavSearchField"]
         XCTAssertTrue(searchField2.waitForExistence(timeout: 2), "QuickNav should open again")
         searchField2.typeText("SubfolderB2")
         sleep(1)

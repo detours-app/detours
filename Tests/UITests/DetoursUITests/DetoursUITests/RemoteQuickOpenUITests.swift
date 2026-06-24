@@ -14,7 +14,7 @@ final class RemoteQuickOpenUITests: BaseUITest {
         pressCharKey("p", modifiers: .command)
         sleep(1)
 
-        let searchField = app.textFields.firstMatch
+        let searchField = app.textFields["quickNavSearchField"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 2), "Quick Open should open")
 
         let scopeHeader = app.staticTexts["quickNavScopeHeader"]
@@ -62,7 +62,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
         launchRemote("connected")
 
         pressCharKey("p", modifiers: .command)
-        let searchField = app.textFields.firstMatch
+        let searchField = app.textFields["quickNavSearchField"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 3), "Quick Open should open in remote tab")
 
         let header = app.staticTexts["quickNavScopeHeader"]
@@ -82,7 +82,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
         launchRemote("connected")
 
         pressCharKey("p", modifiers: .command)
-        let searchField = app.textFields.firstMatch
+        let searchField = app.textFields["quickNavSearchField"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 3), "Quick Open should open in remote tab")
 
         searchField.typeText("unique-in-B")
@@ -101,7 +101,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
         launchRemote("disconnected")
 
         pressCharKey("p", modifiers: .command)
-        let searchField = app.textFields.firstMatch
+        let searchField = app.textFields["quickNavSearchField"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 3), "Quick Open should open in remote tab")
 
         let reconnect = app.buttons["quickNavReconnectButton"]
