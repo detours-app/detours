@@ -110,8 +110,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             lastUITestShowNetworkShareDialogCommandID = command.id
             NSApp.activate(ignoringOtherApps: true)
             mainWindowController?.window?.makeKeyAndOrderFront(nil)
-            if mainWindowController?.splitViewController.showConnectToServer() == true {
-                UITestEnvironment.acknowledgeShowNetworkShareDialogCommand(id: command.id)
+            if let window = mainWindowController?.splitViewController.showConnectToServer() {
+                acknowledgeNetworkShareDialogWhenPresented(commandID: command.id, parentWindow: window)
+            }
+        }
+    }
+
+    private func acknowledgeNetworkShareDialogWhenPresented(commandID: String, parentWindow: NSWindow) {
+        Task { @MainActor in
+            for _ in 0..<60 {
+                if let sheet = parentWindow.attachedSheet,
+                   sheet.isVisible,
+                   sheet.title == "Connect to Network Share" {
+                    UITestEnvironment.acknowledgeShowNetworkShareDialogCommand(id: commandID)
+                    return
+                }
+
+                try? await Task.sleep(nanoseconds: 50_000_000)
             }
         }
     }

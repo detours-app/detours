@@ -45,6 +45,7 @@ struct ConnectToServerView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect to Network Share")
                         .font(.headline)
+                        .accessibilityIdentifier("connectToServerTitle")
                     Text("Enter an SMB or NFS share URL")
                         .font(.subheadline)
                         .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
@@ -63,6 +64,7 @@ struct ConnectToServerView: View {
 
                 TextField("smb://server/share or nfs://server/export", text: $model.urlString)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("connectToServerURLField")
                     .onSubmit {
                         if let url = model.url {
                             onConnect(url)
@@ -123,6 +125,7 @@ struct ConnectToServerView: View {
                     onCancel()
                 }
                 .keyboardShortcut(.cancelAction)
+                .accessibilityIdentifier("connectToServerCancelButton")
 
                 Button("Connect") {
                     if let url = model.url {
@@ -131,6 +134,7 @@ struct ConnectToServerView: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.isValidURL)
+                .accessibilityIdentifier("connectToServerConnectButton")
             }
         }
         .padding(20)

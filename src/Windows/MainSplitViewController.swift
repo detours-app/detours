@@ -1175,8 +1175,8 @@ extension MainSplitViewController: SidebarDelegate {
     // MARK: - Network Server Mounting
 
     @discardableResult
-    func showConnectToServer() -> Bool {
-        guard let window = view.window ?? NSApp.keyWindow ?? NSApp.mainWindow else { return false }
+    func showConnectToServer() -> NSWindow? {
+        guard let window = view.window ?? NSApp.keyWindow ?? NSApp.mainWindow else { return nil }
 
         let controller = ConnectToServerWindowController()
         controller.present(over: window) { [weak self] url in
@@ -1185,7 +1185,7 @@ extension MainSplitViewController: SidebarDelegate {
                 await self.mountNetworkURL(url)
             }
         }
-        return true
+        return window
     }
 
     func showAddRemoteHost() {

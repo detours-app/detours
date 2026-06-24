@@ -79,17 +79,12 @@ final class NetworkUITests: BaseUITest {
 
         let sheet = try showNetworkShareDialogForUITest()
 
-        // Verify dialog title
-        let title = sheet.staticTexts["Connect to Network Share"]
-        XCTAssertTrue(title.exists, "Dialog should have 'Connect to Network Share' title")
+        // The app acknowledges this command only after AppKit reports the sheet is attached.
+        let cancelButton = sheet.buttons["connectToServerCancelButton"]
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "Dialog Cancel button should exist")
 
         // Close dialog
-        let cancelButton = sheet.buttons["Cancel"]
-        if cancelButton.exists {
-            cancelButton.click()
-        } else {
-            app.typeKey(.escape, modifierFlags: [])
-        }
+        cancelButton.click()
     }
 
     /// Test Connect to Network Share dialog has all expected elements
@@ -97,15 +92,15 @@ final class NetworkUITests: BaseUITest {
         let sheet = try showNetworkShareDialogForUITest()
 
         // Check for URL text field
-        let urlField = sheet.textFields.firstMatch
-        XCTAssertTrue(urlField.exists, "URL text field should exist")
+        let urlField = sheet.textFields["connectToServerURLField"]
+        XCTAssertTrue(urlField.waitForExistence(timeout: 5), "URL text field should exist")
 
         // Check for Connect button
-        let connectButton = sheet.buttons["Connect"]
+        let connectButton = sheet.buttons["connectToServerConnectButton"]
         XCTAssertTrue(connectButton.exists, "Connect button should exist")
 
         // Check for Cancel button
-        let cancelButton = sheet.buttons["Cancel"]
+        let cancelButton = sheet.buttons["connectToServerCancelButton"]
         XCTAssertTrue(cancelButton.exists, "Cancel button should exist")
 
         // Close dialog
@@ -117,27 +112,28 @@ final class NetworkUITests: BaseUITest {
         let sheet = try showNetworkShareDialogForUITest()
 
         // Click Cancel
-        let cancelButton = sheet.buttons["Cancel"]
-        XCTAssertTrue(cancelButton.exists)
+        let cancelButton = sheet.buttons["connectToServerCancelButton"]
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5))
         cancelButton.click()
         sleep(1)
 
         // Verify dialog is gone
-        XCTAssertFalse(sheet.staticTexts["Connect to Network Share"].exists, "Dialog should be dismissed after Cancel")
+        XCTAssertFalse(cancelButton.exists, "Dialog should be dismissed after Cancel")
     }
 
     /// Test Connect button is disabled for empty URL
     func testConnectToNetworkShareValidatesURL() throws {
         let sheet = try showNetworkShareDialogForUITest()
 
-        let connectButton = sheet.buttons["Connect"]
+        let connectButton = sheet.buttons["connectToServerConnectButton"]
 
         // Initially empty - Connect should be disabled
         // This is the key validation test - empty field should disable button
+        XCTAssertTrue(connectButton.waitForExistence(timeout: 5), "Connect button should exist")
         XCTAssertFalse(connectButton.isEnabled, "Connect should be disabled for empty URL")
 
         // Close dialog
-        sheet.buttons["Cancel"].click()
+        sheet.buttons["connectToServerCancelButton"].click()
     }
 
     // MARK: - Menu Item
@@ -180,11 +176,7 @@ final class NetworkUITests: BaseUITest {
 
         XCTAssertTrue(
             waitForNetworkShareDialogAcknowledgement(id: command.id, timeout: 5),
-            "App should acknowledge the network share dialog command"
-        )
-        XCTAssertTrue(
-            app.staticTexts["Connect to Network Share"].waitForExistence(timeout: 5),
-            "Connect to Network Share sheet should appear"
+            "App should acknowledge the network share dialog command after the sheet is attached"
         )
         return app
     }
