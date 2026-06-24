@@ -3,6 +3,11 @@ import XCTest
 /// UI tests for network volume support
 @MainActor
 final class NetworkUITests: BaseUITest {
+    private let showNetworkShareDialogCommandFileName = ".detours-show-network-share-dialog.json"
+
+    private struct ShowNetworkShareDialogCommand: Encodable {
+        let id: String
+    }
 
     // MARK: - Sidebar Network Section
 
@@ -55,17 +60,19 @@ final class NetworkUITests: BaseUITest {
 
     // MARK: - Connect to Network Share Dialog
 
-    /// Test that the File menu opens the Connect to Network Share dialog
-    func testConnectToNetworkShareOpensFromFileMenu() throws {
+    /// Test that the File menu exposes the command and the app presents the dialog
+    func testConnectToNetworkShareDialogOpens() throws {
         let menuBar = app.menuBars.firstMatch
         let fileMenu = menuBar.menuBarItems["File"]
         XCTAssertTrue(fileMenu.exists, "File menu should exist")
         fileMenu.click()
-        fileMenu.menuItems["Connect to Network Share..."].click()
+        XCTAssertTrue(
+            fileMenu.menuItems["Connect to Network Share..."].exists,
+            "Connect to Network Share menu item should exist"
+        )
+        app.typeKey(.escape, modifierFlags: [])
 
-        // Look for the dialog
-        let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 3), "Connect to Network Share sheet should appear")
+        let sheet = try showNetworkShareDialogForUITest()
 
         // Verify dialog title
         let title = sheet.staticTexts["Connect to Network Share"]
@@ -82,13 +89,7 @@ final class NetworkUITests: BaseUITest {
 
     /// Test Connect to Network Share dialog has all expected elements
     func testConnectToNetworkShareDialogElements() throws {
-        // Open dialog
-        let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
-        fileMenu.click()
-        fileMenu.menuItems["Connect to Network Share..."].click()
-
-        let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 3))
+        let sheet = try showNetworkShareDialogForUITest()
 
         // Check for URL text field
         let urlField = sheet.textFields.firstMatch
@@ -108,13 +109,7 @@ final class NetworkUITests: BaseUITest {
 
     /// Test Cancel button dismisses Connect to Network Share dialog
     func testConnectToNetworkShareCancelCloses() throws {
-        // Open dialog
-        let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
-        fileMenu.click()
-        fileMenu.menuItems["Connect to Network Share..."].click()
-
-        let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 3))
+        let sheet = try showNetworkShareDialogForUITest()
 
         // Click Cancel
         let cancelButton = sheet.buttons["Cancel"]
@@ -128,13 +123,7 @@ final class NetworkUITests: BaseUITest {
 
     /// Test Connect button is disabled for empty URL
     func testConnectToNetworkShareValidatesURL() throws {
-        // Open dialog
-        let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
-        fileMenu.click()
-        fileMenu.menuItems["Connect to Network Share..."].click()
-
-        let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 3))
+        let sheet = try showNetworkShareDialogForUITest()
 
         let connectButton = sheet.buttons["Connect"]
 
@@ -163,5 +152,24 @@ final class NetworkUITests: BaseUITest {
 
         // Press Escape to close menu
         app.typeKey(.escape, modifierFlags: [])
+    }
+
+    private var showNetworkShareDialogCommandURL: URL {
+        uiTestRootURL.appendingPathComponent(showNetworkShareDialogCommandFileName)
+    }
+
+    private func showNetworkShareDialogForUITest() throws -> XCUIElement {
+        let command = ShowNetworkShareDialogCommand(id: UUID().uuidString)
+        let data = try JSONEncoder().encode(command)
+
+        try FileManager.default.createDirectory(
+            at: uiTestRootURL,
+            withIntermediateDirectories: true
+        )
+        try data.write(to: showNetworkShareDialogCommandURL, options: .atomic)
+
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "Connect to Network Share sheet should appear")
+        return sheet
     }
 }

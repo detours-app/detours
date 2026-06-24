@@ -3,6 +3,7 @@ import Foundation
 enum UITestEnvironment {
     static let resizeMainWindowCommandFileName = ".detours-resize-main-window.json"
     static let renameItemCommandFileName = ".detours-rename-item.json"
+    static let showNetworkShareDialogCommandFileName = ".detours-show-network-share-dialog.json"
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
@@ -14,6 +15,10 @@ enum UITestEnvironment {
         let id: String
         let relativePath: String
         let newName: String
+    }
+
+    struct ShowNetworkShareDialogCommand: Decodable {
+        let id: String
     }
 
     static var isEnabled: Bool {
@@ -69,6 +74,10 @@ enum UITestEnvironment {
         rootDirectory?.appendingPathComponent(renameItemCommandFileName)
     }
 
+    static var showNetworkShareDialogCommandURL: URL? {
+        rootDirectory?.appendingPathComponent(showNetworkShareDialogCommandFileName)
+    }
+
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
         guard let url = resizeMainWindowCommandURL,
               let data = try? Data(contentsOf: url),
@@ -87,5 +96,15 @@ enum UITestEnvironment {
         }
 
         return try? JSONDecoder().decode(RenameItemCommand.self, from: data)
+    }
+
+    static func currentShowNetworkShareDialogCommand() -> ShowNetworkShareDialogCommand? {
+        guard let url = showNetworkShareDialogCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(ShowNetworkShareDialogCommand.self, from: data)
     }
 }
