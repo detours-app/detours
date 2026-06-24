@@ -2,7 +2,17 @@
 
 ## Latest Run
 
-### 2026-06-24 12:21
+### 2026-06-24 12:36
+
+- Command: `swift test --filter 'RemoteHostTests|RemoteFileCacheTests|OpenWithConflictTests|RemoteIntegrationTests/testRemoteOpenWithSessionUploadsBackToRealRemoteFile'` (Spectre)
+- Status: PASS
+- Notes: Focused remote Open With cache-path and sync coverage passed 9/9. The new
+  `RemoteIntegrationTests.testRemoteOpenWithSessionUploadsBackToRealRemoteFile` creates a real
+  `devtest` SSH fixture file, prepares the Open With session through `RemoteFileProvider`, edits the
+  materialised `notes.md`, finishes the session, and verifies the real remote file contains the
+  edited bytes via `cat` over SSH.
+
+### Prior run 2026-06-24 12:21
 
 - Command: `swift test --filter "FileListDataSourceTests|GitOperationsServerTests|FileListResponderTests"` (Foundry); `resources/scripts/build.sh` (Foundry); `resources/scripts/build.sh` (Spectre)
 - Status: PASS

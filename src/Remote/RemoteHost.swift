@@ -27,7 +27,7 @@ struct RemoteHost: Codable, Equatable, Hashable, Identifiable, Sendable {
     }
 
     static func cacheDirectoryName(hostID: UUID) -> String {
-        "remote-\(hostID.uuidString.lowercased())"
+        "remote-\(shortCacheToken(for: hostID, length: 8))"
     }
 
     static func cacheDirectoryName(hostID: UUID, sshTarget: String) -> String {
@@ -35,17 +35,12 @@ struct RemoteHost: Codable, Equatable, Hashable, Identifiable, Sendable {
             .prefix(8)
             .map { String(format: "%02x", $0) }
             .joined()
-        return "remote-\(hostID.uuidString.lowercased())-\(digest)"
+        return "remote-\(shortCacheToken(for: hostID, length: 8))-\(digest)"
     }
 
     static func cacheFileName(remotePath: String) -> String {
-        let digest = SHA256.hash(data: Data(remotePath.utf8))
-            .prefix(8)
-            .map { String(format: "%02x", $0) }
-            .joined()
         let rawName = URL(fileURLWithPath: remotePath).lastPathComponent
-        let sanitized = sanitizedCacheComponent(rawName.isEmpty ? "remote-file" : rawName)
-        return "\(digest)-\(sanitized)"
+        return sanitizedCacheComponent(rawName.isEmpty ? "remote-file" : rawName)
     }
 
     private static func sanitizedCacheComponent(_ value: String) -> String {
@@ -58,5 +53,9 @@ struct RemoteHost: Codable, Equatable, Hashable, Identifiable, Sendable {
             .joined(separator: "-")
             .trimmingCharacters(in: CharacterSet(charactersIn: ".-_"))
         return collapsed.isEmpty ? "remote-file" : collapsed
+    }
+
+    private static func shortCacheToken(for id: UUID, length: Int) -> String {
+        String(id.uuidString.replacingOccurrences(of: "-", with: "").prefix(length)).lowercased()
     }
 }

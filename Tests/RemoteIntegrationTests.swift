@@ -41,6 +41,35 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(remoteRoot + "/upload.txt"))"), "local-body")
     }
 
+    @MainActor
+    func testRemoteOpenWithSessionUploadsBackToRealRemoteFile() async throws {
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH("printf original > \(Self.shellQuote(remoteRoot + "/notes.md"))")
+        let location = Location.remote(hostID: session.hostID, path: remoteRoot + "/notes.md")
+        var openedURL: URL?
+
+        let openSession = try await FileOpenHelper.prepareRemoteOpenWith(
+            location: location,
+            provider: session.provider,
+            hostID: session.hostID,
+            opener: { openedURL = $0 }
+        )
+
+        XCTAssertEqual(openedURL?.lastPathComponent, "notes.md")
+        XCTAssertEqual(try String(contentsOf: openSession.localURL, encoding: .utf8), "original")
+
+        try Data("edited".utf8).write(to: openSession.localURL)
+        let choice = try await FileOpenHelper.finishRemoteOpenWith(openSession, provider: session.provider) { _ in
+            XCTFail("Unexpected remote conflict")
+            return .cancel
+        }
+
+        XCTAssertNil(choice)
+        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(remoteRoot + "/notes.md"))"), "edited")
+    }
+
     func testLargeTransferUsesRemoteTransferChannel() async throws {
         let session = try RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()

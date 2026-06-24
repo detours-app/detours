@@ -32,7 +32,7 @@ final class RemoteHostTests: XCTestCase {
         XCTAssertFalse(cacheName.contains(";"))
         XCTAssertFalse(cacheName.contains("&"))
         XCTAssertFalse(cacheName.contains("/"))
-        XCTAssertTrue(cacheName.hasSuffix("-evil-touch-nope.txt"))
+        XCTAssertEqual(cacheName, "evil-touch-nope.txt")
     }
 
     func testFrecencyAnchorsOnHostID() throws {
