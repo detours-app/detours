@@ -21,6 +21,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
         try clearGeometryDefaults()
         clearResizeCommand()
         app = DetoursUITestApp.make()
+        app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
     }
 
     override func tearDownWithError() throws {
@@ -125,12 +126,14 @@ final class WindowPaneGeometryUITests: XCTestCase {
     }
 
     private func launchApp() {
-        DetoursUITestApp.launch(app, environment: ["DETOURS_UI_TEST_ROOT": uiTestRootURL.path])
+        app.launch()
         XCTAssertTrue(mainWindow().waitForExistence(timeout: 8), "Main Detours window should exist")
     }
 
     private func relaunchApp() {
-        DetoursUITestApp.relaunch(app, environment: ["DETOURS_UI_TEST_ROOT": uiTestRootURL.path])
+        app.terminate()
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 5))
+        app.launch()
         XCTAssertTrue(mainWindow().waitForExistence(timeout: 8), "Main Detours window should exist after relaunch")
     }
 
