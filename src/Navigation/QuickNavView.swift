@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// SwiftUI view for the Cmd-P quick navigation popover.
@@ -15,7 +16,6 @@ struct QuickNavView: View {
     @State private var remoteLiveResults: [QuickNavResult] = []
     @State private var remoteSearchInFlight = false
     @State private var remoteSearchFailed = false
-    @FocusState private var isTextFieldFocused: Bool
 
     var scope: QuickNavScope = .local
     var searchRoots: [URL] = []
@@ -32,20 +32,33 @@ struct QuickNavView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Search field
-            TextField("Quick Open...", text: $query)
-                .textFieldStyle(.plain)
-                .font(Font(ThemeManager.shared.currentTheme.font(size: 15)))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .focused($isTextFieldFocused)
-                .accessibilityIdentifier("quickNavSearchField")
-                .onSubmit {
+            QuickNavSearchField(
+                text: $query,
+                placeholder: "Quick Open...",
+                font: ThemeManager.shared.currentTheme.font(size: 15),
+                textColor: ThemeManager.shared.currentTheme.textPrimary,
+                onSubmit: {
                     if isDisconnectedRemote {
                         reconnect()
                     } else {
                         selectCurrent()
                     }
+                },
+                onCommandSubmit: {
+                    revealCurrent()
+                },
+                onMoveSelection: { delta in
+                    moveSelection(by: delta)
+                },
+                onEscape: {
+                    onDismiss()
+                },
+                onTab: {
+                    autocomplete()
                 }
+            )
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
                 .onChange(of: query) { _, newValue in
                     performSearch(newValue)
                 }
@@ -108,14 +121,6 @@ struct QuickNavView: View {
         .background(Color(ThemeManager.shared.currentTheme.background))
         .task {
             loadInitialResults()
-            // Delay focus slightly to ensure window is ready
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            isTextFieldFocused = true
-        }
-        .onAppear {
-            DispatchQueue.main.async {
-                isTextFieldFocused = true
-            }
         }
         .onKeyPress(.upArrow) {
             moveSelection(by: -1)
@@ -564,6 +569,108 @@ struct QuickNavView: View {
         guard !results.isEmpty && selectedIndex < results.count else { return }
         let selected = results[selectedIndex]
         query = selected.subtitle
+    }
+}
+
+// MARK: - Search Field
+
+private struct QuickNavSearchField: NSViewRepresentable {
+    @Binding var text: String
+
+    let placeholder: String
+    let font: NSFont
+    let textColor: NSColor
+    let onSubmit: () -> Void
+    let onCommandSubmit: () -> Void
+    let onMoveSelection: (Int) -> Void
+    let onEscape: () -> Void
+    let onTab: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField()
+        field.isBordered = false
+        field.isBezeled = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.font = font
+        field.textColor = textColor
+        field.placeholderString = placeholder
+        field.lineBreakMode = .byTruncatingTail
+        field.delegate = context.coordinator
+        field.setAccessibilityIdentifier("quickNavSearchField")
+        field.setAccessibilityLabel(placeholder)
+        context.coordinator.requestInitialFocus(for: field)
+        return field
+    }
+
+    func updateNSView(_ field: NSTextField, context: Context) {
+        context.coordinator.parent = self
+        if field.stringValue != text {
+            field.stringValue = text
+        }
+        field.font = font
+        field.textColor = textColor
+        field.placeholderString = placeholder
+        field.delegate = context.coordinator
+        context.coordinator.requestInitialFocus(for: field)
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: QuickNavSearchField
+        private var focusAttempts = 0
+
+        init(parent: QuickNavSearchField) {
+            self.parent = parent
+        }
+
+        func requestInitialFocus(for field: NSTextField) {
+            guard focusAttempts < 5 else { return }
+            focusAttempts += 1
+            DispatchQueue.main.async { [weak self, weak field] in
+                guard let self, let field else { return }
+                if let window = field.window {
+                    window.makeFirstResponder(field)
+                    self.focusAttempts = 5
+                } else {
+                    self.requestInitialFocus(for: field)
+                }
+            }
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField else { return }
+            parent.text = field.stringValue
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            switch commandSelector {
+            case #selector(NSResponder.insertNewline(_:)):
+                if NSApp.currentEvent?.modifierFlags.contains(.command) == true {
+                    parent.onCommandSubmit()
+                } else {
+                    parent.onSubmit()
+                }
+                return true
+            case #selector(NSResponder.moveUp(_:)):
+                parent.onMoveSelection(-1)
+                return true
+            case #selector(NSResponder.moveDown(_:)):
+                parent.onMoveSelection(1)
+                return true
+            case #selector(NSResponder.cancelOperation(_:)):
+                parent.onEscape()
+                return true
+            case #selector(NSResponder.insertTab(_:)):
+                parent.onTab()
+                return true
+            default:
+                return false
+            }
+        }
     }
 }
 

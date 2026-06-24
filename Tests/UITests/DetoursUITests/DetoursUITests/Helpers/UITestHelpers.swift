@@ -169,9 +169,7 @@ extension BaseUITest {
 
     func openQuickNav(timeout: TimeInterval = 3) -> XCUIElement {
         chooseGoMenuItem("Quick Open")
-        let searchField = app.descendants(matching: .any)
-            .matching(identifier: "quickNavSearchField")
-            .firstMatch
+        let searchField = app.textFields["quickNavSearchField"]
         XCTAssertTrue(searchField.waitForExistence(timeout: timeout), "Quick Open should open")
         return searchField
     }
