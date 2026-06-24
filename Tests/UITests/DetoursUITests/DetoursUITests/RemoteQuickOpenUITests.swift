@@ -23,7 +23,8 @@ final class RemoteQuickOpenUITests: BaseUITest {
         XCTAssertTrue(scopeHeader.exists, "Scope header stays visible while typing")
         XCTAssertEqual(scopeText(scopeHeader), "This Mac")
 
-        pressKey(.escape)
+        sendQuickNavCommand(query: "", action: "dismiss")
+        sleep(1)
     }
 }
 
@@ -68,7 +69,8 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
         XCTAssertTrue(header.exists, "Header stays visible while typing")
         XCTAssertEqual(scopeText(header), remoteHeaderLabel, "Typing-state remote scope header")
 
-        pressKey(.escape)
+        sendQuickNavCommand(query: "", action: "dismiss")
+        sleep(1)
     }
 
     /// T24 / A5: choosing a remote file moves the current tab to its containing folder and selects it.
@@ -106,6 +108,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
                        "Typing in a disconnected remote tab produces no results")
         XCTAssertTrue(reconnect.exists, "Reconnect action remains the only affordance")
 
-        pressKey(.escape)
+        sendQuickNavCommand(query: "", action: "dismiss")
+        sleep(1)
     }
 }

@@ -354,6 +354,11 @@ struct QuickNavView: View {
         performSearch(command.query)
 
         guard let action = command.action else { return }
+        if action == "dismiss" {
+            onDismiss()
+            return
+        }
+
         await waitForUITestQuickNavMatch(query: command.query)
         selectUITestQuickNavMatch(query: command.query)
 
