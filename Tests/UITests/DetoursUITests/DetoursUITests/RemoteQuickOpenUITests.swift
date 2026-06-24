@@ -18,7 +18,7 @@ final class RemoteQuickOpenUITests: BaseUITest {
         XCTAssertEqual(scopeText(scopeHeader), "This Mac", "Local tab scope header reads 'This Mac'")
 
         // Header stays visible while typing, and local search still returns matches.
-        app.typeText("FolderB")
+        pasteText("FolderB")
         sleep(1)
         XCTAssertTrue(scopeHeader.exists, "Scope header stays visible while typing")
         XCTAssertEqual(scopeText(scopeHeader), "This Mac")
@@ -63,7 +63,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
         XCTAssertTrue(header.waitForExistence(timeout: 2), "Remote scope header should be visible on open")
         XCTAssertEqual(scopeText(header), remoteHeaderLabel, "Empty-state remote scope header")
 
-        app.typeText("Folder")
+        pasteText("Folder")
         sleep(1)
         XCTAssertTrue(header.exists, "Header stays visible while typing")
         XCTAssertEqual(scopeText(header), remoteHeaderLabel, "Typing-state remote scope header")
@@ -77,7 +77,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
 
         openQuickNav()
 
-        app.typeText("unique-in-B")
+        pasteText("unique-in-B")
         sleep(2)
 
         pressKey(.return)
@@ -103,7 +103,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
         // a Quick Open result, so we assert specifically on result rows.)
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "quickNavResultRow").count, 0,
                        "No Quick Open results before typing")
-        app.typeText("Folder")
+        pasteText("Folder")
         sleep(1)
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "quickNavResultRow").count, 0,
                        "Typing in a disconnected remote tab produces no results")

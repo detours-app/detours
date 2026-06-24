@@ -178,6 +178,13 @@ extension BaseUITest {
         usleep(300_000)
     }
 
+    func pasteText(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.setString(text, forType: .string), "Test pasteboard should accept text")
+        pressCharKey("v", modifiers: .command)
+    }
+
     /// Press a character key with optional modifiers
     func pressCharKey(_ key: String, modifiers: XCUIElement.KeyModifierFlags = []) {
         app.typeKey(key, modifierFlags: modifiers)
