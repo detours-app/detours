@@ -270,6 +270,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
     }
 
+    private func tableViewHasKeyboardFocus() -> Bool {
+        view.window?.firstResponder === tableView
+    }
+
+    private func restoreTableViewKeyboardFocusIfNeeded(_ shouldRestore: Bool) {
+        guard shouldRestore else { return }
+        view.window?.makeFirstResponder(tableView)
+    }
+
     @objc private func tableViewSelectionDidChange(_ notification: Notification) {
         // Note: fileListDidBecomeActive() is NOT called here because selection can change
         // programmatically (git status, refresh, session restore) and we only want to
@@ -689,6 +698,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
         let pendingItemToSelect = itemToSelect
         let shouldPreserveExpansion = preserveExpansion
+        let shouldRestoreTableViewFocus = preserveExpansion && tableViewHasKeyboardFocus()
         // Pin scroll position across same-directory reloads (FSEvent debounce,
         // file operations, undo) so background churn doesn't yank the viewport.
         let preservedScrollOrigin: NSPoint? = preserveExpansion
@@ -740,6 +750,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     self.scrollView.reflectScrolledClipView(self.scrollView.contentView)
                 }
 
+                self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
 
                 // Run one-shot post-load action (e.g. select + rename newly created item)
@@ -749,6 +760,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
             case .failure(let error):
                 self.showErrorOverlay(for: error)
+                self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
             }
         }
@@ -849,6 +861,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
 
         let shouldPreserveExpansion = preserveExpansion
+        let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
+        let previousSelectedLocations = preserveExpansion ? selectedLocations : []
+        let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
+        let shouldRestoreTableViewFocus = preserveExpansion && tableViewHasKeyboardFocus()
         dataSource.onLoadCompleted = { [weak self] result in
             guard let self else { return }
             self.hideLoadingIndicator()
@@ -861,25 +877,31 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     self.pendingExpansionRestore = nil
                     expansionToRestore = pending
                 } else if shouldPreserveExpansion {
-                    expansionToRestore = self.dataSource.expandedFolders
+                    expansionToRestore = previousExpanded
                 } else {
                     expansionToRestore = []
                 }
                 if !expansionToRestore.isEmpty {
                     Task { @MainActor in
                         await self.restoreRemoteExpansion(expansionToRestore)
+                        self.restoreRemoteSelection(
+                            previousSelectedLocations: previousSelectedLocations,
+                            previousSelectedRow: previousSelectedRow,
+                            shouldPreserveExpansion: shouldPreserveExpansion
+                        )
+                        self.finishRemoteLoad(restoreTableViewFocus: shouldRestoreTableViewFocus)
                     }
+                    return
                 }
-                if !self.dataSource.items.isEmpty {
-                    self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-                }
-                self.navigationDelegate?.fileListDidLoadDirectory(self)
-
-                let action = self.pendingPostLoadAction
-                self.pendingPostLoadAction = nil
-                action?()
+                self.restoreRemoteSelection(
+                    previousSelectedLocations: previousSelectedLocations,
+                    previousSelectedRow: previousSelectedRow,
+                    shouldPreserveExpansion: shouldPreserveExpansion
+                )
+                self.finishRemoteLoad(restoreTableViewFocus: shouldRestoreTableViewFocus)
             case .failure(let error):
                 self.showErrorOverlay(for: error)
+                self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
             }
         }
@@ -889,6 +911,32 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         dataSource.loadRemoteDirectory(location, provider: provider, preserveExpansion: preserveExpansion)
         hasLoadedDirectory = true
         FrecencyStore.shared.recordVisit(location)
+    }
+
+    private func restoreRemoteSelection(
+        previousSelectedLocations: [Location],
+        previousSelectedRow: Int,
+        shouldPreserveExpansion: Bool
+    ) {
+        if shouldPreserveExpansion && !previousSelectedLocations.isEmpty {
+            tableView.deselectAll(nil)
+            selectLocations(previousSelectedLocations)
+            if tableView.selectedRow < 0 && previousSelectedRow >= 0 && tableView.numberOfRows > 0 {
+                let newIndex = min(previousSelectedRow, tableView.numberOfRows - 1)
+                tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+            }
+        } else if !dataSource.items.isEmpty {
+            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        }
+    }
+
+    private func finishRemoteLoad(restoreTableViewFocus shouldRestoreTableViewFocus: Bool) {
+        restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
+        navigationDelegate?.fileListDidLoadDirectory(self)
+
+        let action = pendingPostLoadAction
+        pendingPostLoadAction = nil
+        action?()
     }
 
     @discardableResult

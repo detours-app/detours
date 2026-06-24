@@ -4,6 +4,7 @@ enum UITestEnvironment {
     static let resizeMainWindowCommandFileName = ".detours-resize-main-window.json"
     static let renameItemCommandFileName = ".detours-rename-item.json"
     static let showNetworkShareDialogCommandFileName = ".detours-show-network-share-dialog.json"
+    static let showNetworkShareDialogAcknowledgementFileName = ".detours-show-network-share-dialog-presented.json"
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
@@ -18,6 +19,10 @@ enum UITestEnvironment {
     }
 
     struct ShowNetworkShareDialogCommand: Decodable {
+        let id: String
+    }
+
+    struct ShowNetworkShareDialogAcknowledgement: Encodable {
         let id: String
     }
 
@@ -78,6 +83,10 @@ enum UITestEnvironment {
         rootDirectory?.appendingPathComponent(showNetworkShareDialogCommandFileName)
     }
 
+    static var showNetworkShareDialogAcknowledgementURL: URL? {
+        rootDirectory?.appendingPathComponent(showNetworkShareDialogAcknowledgementFileName)
+    }
+
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
         guard let url = resizeMainWindowCommandURL,
               let data = try? Data(contentsOf: url),
@@ -106,5 +115,14 @@ enum UITestEnvironment {
         }
 
         return try? JSONDecoder().decode(ShowNetworkShareDialogCommand.self, from: data)
+    }
+
+    static func acknowledgeShowNetworkShareDialogCommand(id: String) {
+        guard let url = showNetworkShareDialogAcknowledgementURL,
+              let data = try? JSONEncoder().encode(ShowNetworkShareDialogAcknowledgement(id: id)) else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
     }
 }

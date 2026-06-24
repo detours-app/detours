@@ -673,6 +673,10 @@ final class FolderExpansionUITests: BaseUITest {
         // This tests the selection-by-URL restoration
         let afterRefresh = selectedRowName()
         XCTAssertEqual(afterRefresh, "SubfolderA1", "Selection should be preserved after refresh")
+
+        // Arrow-key navigation proves the refreshed pane kept keyboard focus.
+        pressKey(.downArrow)
+        XCTAssertEqual(selectedRowName(), "SubfolderA2", "Focused pane should keep handling arrow keys after refresh")
     }
 
     /// Verifies fix for: delete file causes all folders to collapse.

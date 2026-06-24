@@ -528,6 +528,37 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertEqual(pane.tabSelections, [[selectedFile]])
     }
 
+    func testRemoteRefreshPreservesSelectedItem() throws {
+        let host = RemoteHost(displayName: "Wraith", sshTarget: "wraith")
+        let remoteDirectory = "/home/marco/projects/api"
+        let selectedFile = URL(fileURLWithPath: "\(remoteDirectory)/database.py")
+        let provider = PaneRemoteProvider(listings: [
+            remoteDirectory: [
+                .remoteFile(hostID: host.id, path: "\(remoteDirectory)/app.py", name: "app.py"),
+                .remoteFile(hostID: host.id, path: selectedFile.path, name: "database.py"),
+            ],
+        ])
+
+        let fileList = FileListViewController()
+        fileList.loadViewIfNeeded()
+        fileList.loadRemoteDirectory(host: host, path: remoteDirectory, provider: provider)
+
+        waitUntil(fileList.tableView.numberOfRows == 2)
+        let selectedItem = try XCTUnwrap(fileList.dataSource.items.first { $0.location.path == selectedFile.path })
+        let selectedRow = fileList.tableView.row(forItem: selectedItem)
+        XCTAssertGreaterThanOrEqual(selectedRow, 0)
+        fileList.tableView.selectRowIndexes(IndexSet(integer: selectedRow), byExtendingSelection: false)
+
+        fileList.refresh()
+
+        waitUntil(
+            fileList.tableView.selectedRow >= 0 &&
+                (fileList.tableView.item(atRow: fileList.tableView.selectedRow) as? FileItem)?.location.path == selectedFile.path
+        )
+        let refreshedSelection = try XCTUnwrap(fileList.tableView.item(atRow: fileList.tableView.selectedRow) as? FileItem)
+        XCTAssertEqual(refreshedSelection.location.path, selectedFile.path)
+    }
+
     func testConnectingRemoteHostClearsLocalRowsBeforeConnectionCompletes() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

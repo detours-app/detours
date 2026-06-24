@@ -110,7 +110,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             lastUITestShowNetworkShareDialogCommandID = command.id
             NSApp.activate(ignoringOtherApps: true)
             mainWindowController?.window?.makeKeyAndOrderFront(nil)
-            mainWindowController?.splitViewController.showConnectToServer()
+            if mainWindowController?.splitViewController.showConnectToServer() == true {
+                UITestEnvironment.acknowledgeShowNetworkShareDialogCommand(id: command.id)
+            }
         }
     }
 

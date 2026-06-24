@@ -4,8 +4,13 @@ import XCTest
 @MainActor
 final class NetworkUITests: BaseUITest {
     private let showNetworkShareDialogCommandFileName = ".detours-show-network-share-dialog.json"
+    private let showNetworkShareDialogAcknowledgementFileName = ".detours-show-network-share-dialog-presented.json"
 
     private struct ShowNetworkShareDialogCommand: Encodable {
+        let id: String
+    }
+
+    private struct ShowNetworkShareDialogAcknowledgement: Decodable {
         let id: String
     }
 
@@ -118,7 +123,7 @@ final class NetworkUITests: BaseUITest {
         sleep(1)
 
         // Verify dialog is gone
-        XCTAssertFalse(sheet.exists, "Dialog should be dismissed after Cancel")
+        XCTAssertFalse(sheet.staticTexts["Connect to Network Share"].exists, "Dialog should be dismissed after Cancel")
     }
 
     /// Test Connect button is disabled for empty URL
@@ -158,7 +163,11 @@ final class NetworkUITests: BaseUITest {
         uiTestRootURL.appendingPathComponent(showNetworkShareDialogCommandFileName)
     }
 
-    private func showNetworkShareDialogForUITest() throws -> XCUIElement {
+    private var showNetworkShareDialogAcknowledgementURL: URL {
+        uiTestRootURL.appendingPathComponent(showNetworkShareDialogAcknowledgementFileName)
+    }
+
+    private func showNetworkShareDialogForUITest() throws -> XCUIApplication {
         let command = ShowNetworkShareDialogCommand(id: UUID().uuidString)
         let data = try JSONEncoder().encode(command)
 
@@ -166,10 +175,31 @@ final class NetworkUITests: BaseUITest {
             at: uiTestRootURL,
             withIntermediateDirectories: true
         )
+        try? FileManager.default.removeItem(at: showNetworkShareDialogAcknowledgementURL)
         try data.write(to: showNetworkShareDialogCommandURL, options: .atomic)
 
-        let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "Connect to Network Share sheet should appear")
-        return sheet
+        XCTAssertTrue(
+            waitForNetworkShareDialogAcknowledgement(id: command.id, timeout: 5),
+            "App should acknowledge the network share dialog command"
+        )
+        XCTAssertTrue(
+            app.staticTexts["Connect to Network Share"].waitForExistence(timeout: 5),
+            "Connect to Network Share sheet should appear"
+        )
+        return app
+    }
+
+    private func waitForNetworkShareDialogAcknowledgement(id: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let data = try? Data(contentsOf: showNetworkShareDialogAcknowledgementURL),
+               let acknowledgement = try? JSONDecoder().decode(ShowNetworkShareDialogAcknowledgement.self, from: data),
+               acknowledgement.id == id {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+
+        return false
     }
 }
