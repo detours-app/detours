@@ -257,10 +257,6 @@ final class WindowPaneGeometryUITests: XCTestCase {
     }
 
     private var uiTestRootURL: URL {
-        if let home = NSHomeDirectoryForUser(NSUserName()) {
-            return URL(fileURLWithPath: home).appendingPathComponent(uiTestRootName)
-        }
-
         return URL(fileURLWithPath: "/Users").appendingPathComponent(NSUserName()).appendingPathComponent(uiTestRootName)
     }
 

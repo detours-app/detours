@@ -123,10 +123,6 @@ class BaseUITest: XCTestCase {
     }
 
     private func realUserHomeDirectory() -> URL {
-        if let home = NSHomeDirectoryForUser(NSUserName()) {
-            return URL(fileURLWithPath: home)
-        }
-
         return URL(fileURLWithPath: "/Users").appendingPathComponent(NSUserName())
     }
 }
