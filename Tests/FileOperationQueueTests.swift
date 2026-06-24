@@ -1323,7 +1323,8 @@ final class FileOperationQueueTests: XCTestCase {
         let expectedURL = destination.appendingPathComponent("a.txt")
         XCTAssertEqual(copied, [.local(expectedURL)])
         XCTAssertEqual(try Data(contentsOf: expectedURL), Data("remote payload".utf8))
-        XCTAssertEqual(await provider.downloadedLocations(), [source])
+        let downloaded = await provider.downloadedLocations()
+        XCTAssertEqual(downloaded, [source])
     }
 
     func testProviderCopyFromLocalToRemoteUploadsFile() async throws {
@@ -1340,7 +1341,8 @@ final class FileOperationQueueTests: XCTestCase {
         let copied = try await FileOperationQueue.shared.copy(items: [.local(source)], to: destination)
 
         XCTAssertEqual(copied, [expectedLocation])
-        XCTAssertEqual(await provider.uploadedData(at: expectedLocation), Data("local payload".utf8))
+        let uploadedData = await provider.uploadedData(at: expectedLocation)
+        XCTAssertEqual(uploadedData, Data("local payload".utf8))
     }
 
     func testProviderMoveFromRemoteToLocalTrashesRemoteSource() async throws {
@@ -1358,7 +1360,8 @@ final class FileOperationQueueTests: XCTestCase {
         let expectedURL = destination.appendingPathComponent("a.txt")
         XCTAssertEqual(moved, [.local(expectedURL)])
         XCTAssertEqual(try Data(contentsOf: expectedURL), Data("move payload".utf8))
-        XCTAssertEqual(await provider.trashedLocations(), [[source]])
+        let trashed = await provider.trashedLocations()
+        XCTAssertEqual(trashed, [[source]])
     }
 }
 
