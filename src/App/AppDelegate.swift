@@ -131,30 +131,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         window.endSheet(sheet)
-        UITestEnvironment.acknowledgeShowNetworkShareDialogDismissed(id: commandID)
+        Task { @MainActor in
+            for _ in 0..<60 {
+                if window.attachedSheet == nil {
+                    NSApp.activate(ignoringOtherApps: true)
+                    window.makeKeyAndOrderFront(nil)
+                    try? await Task.sleep(nanoseconds: 250_000_000)
+                    UITestEnvironment.acknowledgeShowNetworkShareDialogDismissed(id: commandID)
+                    return
+                }
+
+                try? await Task.sleep(nanoseconds: 50_000_000)
+            }
+        }
     }
 
     private func acknowledgeNetworkShareDialogWhenPresented(commandID: String, parentWindow: NSWindow) {
         Task { @MainActor in
-            var didAcknowledgePresentation = false
-
             for _ in 0..<60 {
                 if let sheet = parentWindow.attachedSheet,
                    sheet.isVisible,
                    sheet.title == "Connect to Network Share" {
                     UITestEnvironment.acknowledgeShowNetworkShareDialogCommand(id: commandID)
-                    didAcknowledgePresentation = true
-                    break
-                }
-
-                try? await Task.sleep(nanoseconds: 50_000_000)
-            }
-
-            guard didAcknowledgePresentation else { return }
-
-            for _ in 0..<120 {
-                if parentWindow.attachedSheet == nil {
-                    UITestEnvironment.acknowledgeShowNetworkShareDialogDismissed(id: commandID)
                     return
                 }
 
