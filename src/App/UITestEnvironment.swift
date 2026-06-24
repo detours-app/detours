@@ -7,6 +7,7 @@ enum UITestEnvironment {
     static let showNetworkShareDialogAcknowledgementFileName = ".detours-show-network-share-dialog-presented.json"
     static let dismissNetworkShareDialogCommandFileName = ".detours-dismiss-network-share-dialog.json"
     static let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
+    static let quickNavCommandFileName = ".detours-quick-nav-command.json"
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
@@ -27,6 +28,12 @@ enum UITestEnvironment {
 
     struct DismissNetworkShareDialogCommand: Decodable {
         let id: String
+    }
+
+    struct QuickNavCommand: Decodable {
+        let id: String
+        let query: String
+        let action: String?
     }
 
     struct ShowNetworkShareDialogAcknowledgement: Encodable {
@@ -111,6 +118,10 @@ enum UITestEnvironment {
         rootDirectory?.appendingPathComponent(showNetworkShareDialogDismissedFileName)
     }
 
+    static var quickNavCommandURL: URL? {
+        rootDirectory?.appendingPathComponent(quickNavCommandFileName)
+    }
+
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
         guard let url = resizeMainWindowCommandURL,
               let data = try? Data(contentsOf: url),
@@ -149,6 +160,16 @@ enum UITestEnvironment {
         }
 
         return try? JSONDecoder().decode(DismissNetworkShareDialogCommand.self, from: data)
+    }
+
+    static func currentQuickNavCommand() -> QuickNavCommand? {
+        guard let url = quickNavCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(QuickNavCommand.self, from: data)
     }
 
     static func acknowledgeShowNetworkShareDialogCommand(id: String) {

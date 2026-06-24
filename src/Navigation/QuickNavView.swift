@@ -15,6 +15,7 @@ struct QuickNavView: View {
     @State private var remoteLiveResults: [QuickNavResult] = []
     @State private var remoteSearchInFlight = false
     @State private var remoteSearchFailed = false
+    @State private var lastUITestQuickNavCommandID: String?
     @FocusState private var isTextFieldFocused: Bool
 
     var scope: QuickNavScope = .local
@@ -108,13 +109,20 @@ struct QuickNavView: View {
         .background(Color(ThemeManager.shared.currentTheme.background))
         .task {
             loadInitialResults()
-            // Delay focus slightly to ensure window is ready
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            isTextFieldFocused = true
+            if UITestEnvironment.isEnabled {
+                lastUITestQuickNavCommandID = UITestEnvironment.currentQuickNavCommand()?.id
+                await runUITestQuickNavCommandLoop()
+            } else {
+                // Delay focus slightly to ensure window is ready
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                isTextFieldFocused = true
+            }
         }
         .onAppear {
-            DispatchQueue.main.async {
-                isTextFieldFocused = true
+            if !UITestEnvironment.isEnabled {
+                DispatchQueue.main.async {
+                    isTextFieldFocused = true
+                }
             }
         }
         .onKeyPress(.upArrow) {
@@ -328,6 +336,62 @@ struct QuickNavView: View {
                 updateMergedResults()
             }
         }
+    }
+
+    private func runUITestQuickNavCommandLoop() async {
+        while !Task.isCancelled {
+            if let command = UITestEnvironment.currentQuickNavCommand(),
+               command.id != lastUITestQuickNavCommandID {
+                lastUITestQuickNavCommandID = command.id
+                await applyUITestQuickNavCommand(command)
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+
+    private func applyUITestQuickNavCommand(_ command: UITestEnvironment.QuickNavCommand) async {
+        query = command.query
+        performSearch(command.query)
+
+        guard let action = command.action else { return }
+        await waitForUITestQuickNavMatch(query: command.query)
+        selectUITestQuickNavMatch(query: command.query)
+
+        switch action {
+        case "enter":
+            selectCurrent()
+        case "commandEnter":
+            revealCurrent()
+        default:
+            break
+        }
+    }
+
+    private func waitForUITestQuickNavMatch(query: String) async {
+        for _ in 0..<50 {
+            if quickNavResultsContainUITestMatch(query: query) || (!results.isEmpty && query.isEmpty) {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+
+    private func selectUITestQuickNavMatch(query: String) {
+        guard !query.isEmpty,
+              let index = results.firstIndex(where: { quickNavResult($0, matches: query) }) else {
+            return
+        }
+        selectedIndex = index
+    }
+
+    private func quickNavResultsContainUITestMatch(query: String) -> Bool {
+        guard !query.isEmpty else { return !results.isEmpty }
+        return results.contains { quickNavResult($0, matches: query) }
+    }
+
+    private func quickNavResult(_ result: QuickNavResult, matches query: String) -> Bool {
+        result.title.localizedCaseInsensitiveContains(query) ||
+            result.subtitle.localizedCaseInsensitiveContains(query)
     }
 
     /// IDs of remote hosts with a live connection right now.

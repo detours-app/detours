@@ -178,11 +178,16 @@ extension BaseUITest {
         usleep(300_000)
     }
 
-    func pasteText(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        XCTAssertTrue(pasteboard.setString(text, forType: .string), "Test pasteboard should accept text")
-        pressCharKey("v", modifiers: .command)
+    func sendQuickNavCommand(query: String, action: String? = nil) {
+        struct Command: Encodable {
+            let id: String
+            let query: String
+            let action: String?
+        }
+
+        let command = Command(id: UUID().uuidString, query: query, action: action)
+        let url = uiTestRootURL.appendingPathComponent(".detours-quick-nav-command.json")
+        XCTAssertNoThrow(try JSONEncoder().encode(command).write(to: url, options: .atomic))
     }
 
     /// Press a character key with optional modifiers
