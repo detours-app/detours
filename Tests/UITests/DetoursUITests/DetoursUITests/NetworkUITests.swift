@@ -24,6 +24,11 @@ final class NetworkUITests: BaseUITest {
         let id: String
     }
 
+    override func setUpWithError() throws {
+        try clearNetworkShareDialogCommandFiles()
+        try super.setUpWithError()
+    }
+
     // MARK: - Sidebar Network Section
 
     /// Test that FILE SERVERS section header appears in sidebar between DEVICES and FAVORITES
@@ -159,6 +164,7 @@ final class NetworkUITests: BaseUITest {
             at: uiTestRootURL,
             withIntermediateDirectories: true
         )
+        try? FileManager.default.removeItem(at: showNetworkShareDialogCommandURL)
         try? FileManager.default.removeItem(at: showNetworkShareDialogAcknowledgementURL)
         try? FileManager.default.removeItem(at: dismissNetworkShareDialogCommandURL)
         try? FileManager.default.removeItem(at: showNetworkShareDialogDismissedURL)
@@ -227,5 +233,20 @@ final class NetworkUITests: BaseUITest {
         }
 
         return acknowledgement.id == id
+    }
+
+    private func clearNetworkShareDialogCommandFiles() throws {
+        try FileManager.default.createDirectory(
+            at: uiTestRootURL,
+            withIntermediateDirectories: true
+        )
+        for url in [
+            showNetworkShareDialogCommandURL,
+            showNetworkShareDialogAcknowledgementURL,
+            dismissNetworkShareDialogCommandURL,
+            showNetworkShareDialogDismissedURL
+        ] {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 }

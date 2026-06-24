@@ -82,12 +82,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func installUITestHooks() {
         guard UITestEnvironment.isEnabled else { return }
 
+        seedUITestCommandStateFromExistingFiles()
         uiTestCommandPollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 self?.pollUITestCommands()
                 try? await Task.sleep(nanoseconds: 100_000_000)
             }
         }
+    }
+
+    private func seedUITestCommandStateFromExistingFiles() {
+        lastUITestResizeCommandID = UITestEnvironment.currentResizeMainWindowCommand()?.id
+        lastUITestRenameCommandID = UITestEnvironment.currentRenameItemCommand()?.id
+        lastUITestShowNetworkShareDialogCommandID = UITestEnvironment.currentShowNetworkShareDialogCommand()?.id
+        lastUITestDismissNetworkShareDialogCommandID = UITestEnvironment.currentDismissNetworkShareDialogCommand()?.id
     }
 
     private func pollUITestCommands() {
