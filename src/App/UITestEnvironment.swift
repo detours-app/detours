@@ -7,9 +7,6 @@ enum UITestEnvironment {
     static let showNetworkShareDialogAcknowledgementFileName = ".detours-show-network-share-dialog-presented.json"
     static let dismissNetworkShareDialogCommandFileName = ".detours-dismiss-network-share-dialog.json"
     static let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
-    static let dismissNetworkShareDialogNotificationName = Notification.Name(
-        "com.detours.uiTest.dismissNetworkShareDialog"
-    )
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
@@ -25,6 +22,7 @@ enum UITestEnvironment {
 
     struct ShowNetworkShareDialogCommand: Decodable {
         let id: String
+        let dismissAfterPresentationDelayMilliseconds: Int?
     }
 
     struct DismissNetworkShareDialogCommand: Decodable {

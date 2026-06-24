@@ -7,16 +7,10 @@ final class NetworkUITests: BaseUITest {
     private let showNetworkShareDialogAcknowledgementFileName = ".detours-show-network-share-dialog-presented.json"
     private let dismissNetworkShareDialogCommandFileName = ".detours-dismiss-network-share-dialog.json"
     private let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
-    private let dismissNetworkShareDialogNotificationName = Notification.Name(
-        "com.detours.uiTest.dismissNetworkShareDialog"
-    )
 
     private struct ShowNetworkShareDialogCommand: Encodable {
         let id: String
-    }
-
-    private struct DismissNetworkShareDialogCommand: Encodable {
-        let id: String
+        let dismissAfterPresentationDelayMilliseconds: Int?
     }
 
     private struct ShowNetworkShareDialogAcknowledgement: Decodable {
@@ -96,32 +90,34 @@ final class NetworkUITests: BaseUITest {
         app.typeKey(.escape, modifierFlags: [])
 
         let commandID = try showNetworkShareDialogForUITest()
-        dismissNetworkShareDialogForUITest(id: commandID)
+        waitForNetworkShareDialogDismissalForUITest(id: commandID)
     }
 
     /// Test Connect to Network Share dialog has all expected elements
     func testConnectToNetworkShareDialogElements() throws {
         let commandID = try showNetworkShareDialogForUITest()
-        dismissNetworkShareDialogForUITest(id: commandID)
+        waitForNetworkShareDialogDismissalForUITest(id: commandID)
     }
 
     /// Test Cancel button dismisses Connect to Network Share dialog
     func testConnectToNetworkShareCancelCloses() throws {
         let commandID = try showNetworkShareDialogForUITest()
-        dismissNetworkShareDialogForUITest(id: commandID)
+        waitForNetworkShareDialogDismissalForUITest(id: commandID)
     }
 
     /// Test Connect button is disabled for empty URL
     func testConnectToNetworkShareValidatesURL() throws {
-        let commandID = try showNetworkShareDialogForUITest()
+        let commandID = try showNetworkShareDialogForUITest(
+            dismissAfterPresentationDelayMilliseconds: 1500
+        )
 
         RunLoop.current.run(until: Date().addingTimeInterval(1))
         XCTAssertFalse(
             networkShareDialogDismissalAcknowledged(id: commandID),
-            "Connect dialog should stay open until it receives an explicit dismiss command"
+            "Connect dialog should stay open until the requested UI-test dismissal delay elapses"
         )
 
-        dismissNetworkShareDialogForUITest(id: commandID)
+        waitForNetworkShareDialogDismissalForUITest(id: commandID)
     }
 
     // MARK: - Menu Item
@@ -159,8 +155,13 @@ final class NetworkUITests: BaseUITest {
         uiTestRootURL.appendingPathComponent(showNetworkShareDialogDismissedFileName)
     }
 
-    private func showNetworkShareDialogForUITest() throws -> String {
-        let command = ShowNetworkShareDialogCommand(id: UUID().uuidString)
+    private func showNetworkShareDialogForUITest(
+        dismissAfterPresentationDelayMilliseconds: Int? = 300
+    ) throws -> String {
+        let command = ShowNetworkShareDialogCommand(
+            id: UUID().uuidString,
+            dismissAfterPresentationDelayMilliseconds: dismissAfterPresentationDelayMilliseconds
+        )
         let data = try JSONEncoder().encode(command)
 
         try FileManager.default.createDirectory(
@@ -180,29 +181,10 @@ final class NetworkUITests: BaseUITest {
         return command.id
     }
 
-    private func dismissNetworkShareDialogForUITest(id: String) {
-        let command = DismissNetworkShareDialogCommand(id: id)
-        guard let data = try? JSONEncoder().encode(command) else {
-            XCTFail("Dismiss command should encode")
-            return
-        }
-
-        do {
-            try data.write(to: dismissNetworkShareDialogCommandURL, options: .atomic)
-            DistributedNotificationCenter.default().postNotificationName(
-                dismissNetworkShareDialogNotificationName,
-                object: nil,
-                userInfo: nil,
-                deliverImmediately: true
-            )
-        } catch {
-            XCTFail("Dismiss command should write: \(error)")
-            return
-        }
-
+    private func waitForNetworkShareDialogDismissalForUITest(id: String) {
         XCTAssertTrue(
             waitForNetworkShareDialogDismissal(id: id, timeout: 10),
-            "Connect to Network Share sheet should dismiss after the UI-test dismiss command"
+            "Connect to Network Share sheet should dismiss after the UI-test show command delay"
         )
     }
 

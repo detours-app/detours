@@ -6,7 +6,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var systemEventMonitor: Any?
     private var keyDownEventMonitor: Any?
     private var uiTestCommandPollingTask: Task<Void, Never>?
-    private var uiTestDismissNetworkShareDialogObserver: NSObjectProtocol?
     private var lastUITestResizeCommandID: String?
     private var lastUITestRenameCommandID: String?
     private var lastUITestShowNetworkShareDialogCommandID: String?
@@ -76,11 +75,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyDownEventMonitor = nil
         }
 
-        if let observer = uiTestDismissNetworkShareDialogObserver {
-            DistributedNotificationCenter.default().removeObserver(observer)
-            uiTestDismissNetworkShareDialogObserver = nil
-        }
-
         uiTestCommandPollingTask?.cancel()
         uiTestCommandPollingTask = nil
     }
@@ -89,16 +83,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard UITestEnvironment.isEnabled else { return }
 
         seedUITestCommandStateFromExistingFiles()
-        uiTestDismissNetworkShareDialogObserver = DistributedNotificationCenter.default().addObserver(
-            forName: UITestEnvironment.dismissNetworkShareDialogNotificationName,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.handleUITestDismissNetworkShareDialogNotification()
-            }
-        }
-
         uiTestCommandPollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 self?.pollUITestCommands()
@@ -136,7 +120,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.activate(ignoringOtherApps: true)
             mainWindowController?.window?.makeKeyAndOrderFront(nil)
             if let window = mainWindowController?.splitViewController.showConnectToServer() {
-                acknowledgeNetworkShareDialogWhenPresented(commandID: command.id, parentWindow: window)
+                acknowledgeNetworkShareDialogWhenPresented(
+                    commandID: command.id,
+                    parentWindow: window,
+                    dismissAfterPresentationDelayMilliseconds: command.dismissAfterPresentationDelayMilliseconds
+                )
             }
         }
 
@@ -147,20 +135,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func handleUITestDismissNetworkShareDialogNotification() {
-        guard let command = UITestEnvironment.currentDismissNetworkShareDialogCommand() else {
-            return
-        }
-
-        lastUITestDismissNetworkShareDialogCommandID = command.id
-        dismissNetworkShareDialogForUITest(commandID: command.id)
-    }
-
     private func dismissNetworkShareDialogForUITest(
         commandID: String,
         preferredParentWindow: NSWindow? = nil
     ) {
         guard let (window, sheet) = networkShareDialogSheet(preferredParentWindow: preferredParentWindow) else {
+            let window = preferredParentWindow ?? mainWindowController?.window
+            acknowledgeNetworkShareDialogDismissalAfterAppKitSettles(commandID: commandID, parentWindow: window)
             return
         }
 
@@ -200,23 +181,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func acknowledgeNetworkShareDialogDismissalAfterAppKitSettles(
         commandID: String,
-        parentWindow: NSWindow
+        parentWindow: NSWindow?
     ) {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 300_000_000)
             NSApp.activate(ignoringOtherApps: true)
-            parentWindow.makeKeyAndOrderFront(nil)
+            parentWindow?.makeKeyAndOrderFront(nil)
             UITestEnvironment.acknowledgeShowNetworkShareDialogDismissed(id: commandID)
         }
     }
 
-    private func acknowledgeNetworkShareDialogWhenPresented(commandID: String, parentWindow: NSWindow) {
+    private func acknowledgeNetworkShareDialogWhenPresented(
+        commandID: String,
+        parentWindow: NSWindow,
+        dismissAfterPresentationDelayMilliseconds: Int?
+    ) {
         Task { @MainActor in
             for _ in 0..<60 {
                 if let sheet = parentWindow.attachedSheet,
                    sheet.isVisible,
                    sheet.title == "Connect to Network Share" {
                     UITestEnvironment.acknowledgeShowNetworkShareDialogCommand(id: commandID)
+                    if let dismissAfterPresentationDelayMilliseconds {
+                        let delayNanoseconds = max(dismissAfterPresentationDelayMilliseconds, 0) * 1_000_000
+                        try? await Task.sleep(nanoseconds: UInt64(delayNanoseconds))
+                        dismissNetworkShareDialogForUITest(
+                            commandID: commandID,
+                            preferredParentWindow: parentWindow
+                        )
+                        return
+                    }
+
                     await waitForNetworkShareDialogDismissCommand(
                         commandID: commandID,
                         parentWindow: parentWindow
