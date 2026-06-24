@@ -683,6 +683,8 @@ final class FileListResponderTests: XCTestCase {
     func testRemoteSelectionEnablesSupportedContextMenuItems() async throws {
         let hostID = UUID()
         let location = Location.remote(hostID: hostID, path: "/home/marco/file.txt")
+        ClipboardManager.shared.clear()
+        defer { ClipboardManager.shared.clear() }
         let provider = FileListRemoteProvider(
             hostID: hostID,
             listings: [
@@ -702,11 +704,19 @@ final class FileListResponderTests: XCTestCase {
 
         let deleteItem = NSMenuItem(title: "Move to Trash", action: #selector(FileListViewController.delete(_:)), keyEquivalent: "")
         let deleteImmediatelyItem = NSMenuItem(title: "Delete Immediately", action: #selector(FileListViewController.deleteImmediately(_:)), keyEquivalent: "")
+        let copyItem = NSMenuItem(title: "Copy", action: #selector(FileListViewController.copy(_:)), keyEquivalent: "")
+        let cutItem = NSMenuItem(title: "Cut", action: #selector(FileListViewController.cut(_:)), keyEquivalent: "")
+        let pasteItem = NSMenuItem(title: "Paste", action: #selector(FileListViewController.paste(_:)), keyEquivalent: "")
         let copyPathItem = NSMenuItem(title: "Copy Path", action: #selector(FileListViewController.copyPath(_:)), keyEquivalent: "")
         let getInfoItem = NSMenuItem(title: "Get Info", action: #selector(FileListViewController.getInfo(_:)), keyEquivalent: "")
 
         XCTAssertTrue(viewController.validateMenuItem(deleteItem))
         XCTAssertTrue(viewController.validateMenuItem(deleteImmediatelyItem))
+        XCTAssertTrue(viewController.validateMenuItem(copyItem))
+        XCTAssertTrue(viewController.validateMenuItem(cutItem))
+        XCTAssertFalse(viewController.validateMenuItem(pasteItem))
+        ClipboardManager.shared.copy(items: [location])
+        XCTAssertTrue(viewController.validateMenuItem(pasteItem))
         XCTAssertTrue(viewController.validateMenuItem(copyPathItem))
         XCTAssertFalse(viewController.validateMenuItem(getInfoItem))
 
@@ -716,7 +726,9 @@ final class FileListResponderTests: XCTestCase {
         XCTAssertNotNil(menu.item(withTitle: "Copy Path"))
         XCTAssertNotNil(menu.item(withTitle: "New Folder"))
         XCTAssertNotNil(menu.item(withTitle: "New File"))
-        XCTAssertNil(menu.item(withTitle: "Copy"))
+        XCTAssertNotNil(menu.item(withTitle: "Copy"))
+        XCTAssertNotNil(menu.item(withTitle: "Cut"))
+        XCTAssertNotNil(menu.item(withTitle: "Paste"))
         XCTAssertNil(menu.item(withTitle: "Get Info"))
     }
 
@@ -1092,6 +1104,7 @@ private final class NavigationDelegateSpy: FileListNavigationDelegate {
     var moveToOtherPaneItems: [Location] = []
     var copyToOtherPaneItems: [Location] = []
     var refreshSourceDirectories: Set<URL> = []
+    var refreshSourceLocations: Set<Location> = []
     var navigatedTo: URL?
     var parentNavigationRequested = false
     var backRequested = false
@@ -1128,6 +1141,10 @@ private final class NavigationDelegateSpy: FileListNavigationDelegate {
 
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>) {
         refreshSourceDirectories = directories
+    }
+
+    func fileListDidRequestRefreshSourceLocations(_ locations: Set<Location>) {
+        refreshSourceLocations = locations
     }
 
     func fileListDidChangeSelection() {}

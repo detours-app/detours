@@ -22,6 +22,7 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestMoveToOtherPane(items: [Location])
     func fileListDidRequestCopyToOtherPane(items: [Location])
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>)
+    func fileListDidRequestRefreshSourceLocations(_ locations: Set<Location>)
     func fileListDidChangeSelection()
     func fileListDidLoadDirectory(_ controller: FileListViewController)
 }
@@ -479,7 +480,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         refresh()
     }
 
-    func refreshSelectingLocations(_ locations: [Location], completion: (() -> Void)? = nil) {
+    func refreshSelectingLocations(
+        _ locations: [Location],
+        expandingTo expandedLocation: Location? = nil,
+        completion: (() -> Void)? = nil
+    ) {
         guard !locations.isEmpty else {
             refresh()
             completion?()
@@ -487,31 +492,88 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
         pendingPostLoadAction = { [weak self] in
             guard let self else { return }
-            var indexes = IndexSet()
-            for location in locations {
-                switch location {
-                case .local(let url):
-                    if let item = self.dataSource.findItem(withURL: url, in: self.dataSource.items) {
-                        let row = self.tableView.row(forItem: item)
-                        if row >= 0 { indexes.insert(row) }
-                    }
-                case .remote(_, let path):
-                    let target = URL(fileURLWithPath: path).standardizedFileURL
-                    for item in self.dataSource.items where item.isRemote && item.expansionURL == target {
-                        let row = self.tableView.row(forItem: item)
-                        if row >= 0 { indexes.insert(row) }
-                    }
+            Task { @MainActor in
+                if let expandedLocation {
+                    await self.expandAncestorChain(to: expandedLocation)
                 }
+                self.selectLocations(locations)
+                completion?()
             }
-            if !indexes.isEmpty {
-                self.tableView.selectRowIndexes(indexes, byExtendingSelection: false)
-                if let first = indexes.first {
-                    self.tableView.scrollRowToVisible(first)
-                }
-            }
-            completion?()
         }
         refresh()
+    }
+
+    @discardableResult
+    private func selectLocations(_ locations: [Location]) -> Bool {
+        var indexes = IndexSet()
+        for location in locations {
+            switch location {
+            case .local(let url):
+                if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
+                    let row = tableView.row(forItem: item)
+                    if row >= 0 { indexes.insert(row) }
+                }
+            case .remote(_, let path):
+                let target = URL(fileURLWithPath: path).standardizedFileURL
+                for item in dataSource.items where item.isRemote && item.expansionURL == target {
+                    let row = tableView.row(forItem: item)
+                    if row >= 0 { indexes.insert(row) }
+                }
+            }
+        }
+        if !indexes.isEmpty {
+            tableView.selectRowIndexes(indexes, byExtendingSelection: false)
+            if let first = indexes.first {
+                tableView.scrollRowToVisible(first)
+            }
+            return true
+        }
+        return false
+    }
+
+    private func expandAncestorChain(to location: Location) async {
+        switch location {
+        case .local(let url):
+            expandAncestorChain(to: url)
+        case .remote(_, let path):
+            await expandRemoteAncestorChain(to: path)
+        }
+    }
+
+    private func expandRemoteAncestorChain(to folderPath: String) async {
+        guard case .remote(_, let basePath)? = currentRemoteLocation else { return }
+        let baseURL = URL(fileURLWithPath: basePath).standardizedFileURL
+        let targetURL = URL(fileURLWithPath: folderPath).standardizedFileURL
+        let basePath = baseURL.path
+        let targetPath = targetURL.path
+        guard targetPath.hasPrefix(basePath) else { return }
+
+        let relativePath = String(targetPath.dropFirst(basePath.count))
+        let components = relativePath.split(separator: "/").map(String.init)
+        guard !components.isEmpty else { return }
+
+        var urlToItem: [URL: FileItem] = [:]
+        for item in dataSource.items {
+            urlToItem[item.expansionURL] = item
+        }
+
+        var current = baseURL
+        for component in components {
+            current = current.appendingPathComponent(component).standardizedFileURL
+            if let item = urlToItem[current], item.isNavigableFolder {
+                if item.isRemote {
+                    await dataSource.loadRemoteChildrenForExpansionRestore(item)
+                } else {
+                    loadChildrenIfNeededForExpansion(item)
+                }
+                tableView.expandItem(item)
+                if let children = item.children {
+                    for child in children {
+                        urlToItem[child.expansionURL] = child
+                    }
+                }
+            }
+        }
     }
 
     /// Set a pending action to select items after the next load completes.
@@ -1329,72 +1391,63 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     private func copySelection() {
-        let urls = selectedURLs
-        logger.warning("copySelection called, urls=\(urls)")
-        guard !urls.isEmpty else {
-            logger.error("copySelection: no URLs selected")
+        let locations = selectedLocations
+        logger.warning("copySelection called, locations=\(locations)")
+        guard !locations.isEmpty else {
+            logger.error("copySelection: no locations selected")
             return
         }
-        ClipboardManager.shared.copy(items: urls)
-        logger.warning("copySelection: copied \(urls.count) items to clipboard")
+        ClipboardManager.shared.copy(items: locations)
+        logger.warning("copySelection: copied \(locations.count) items to clipboard")
     }
 
     private func cutSelection() {
         guard !isSharedTopLevelView else { return }
-        let urls = selectedURLs
-        guard !urls.isEmpty else { return }
-        ClipboardManager.shared.cut(items: urls)
+        let locations = selectedLocations
+        guard !locations.isEmpty else { return }
+        ClipboardManager.shared.cut(items: locations)
     }
 
     private func pasteHere() {
         guard !isSharedTopLevelView else { return }
-        guard let currentDirectory else { return }
+        guard let pasteDestination = effectivePasteDestinationLocation else { return }
         let wasCut = ClipboardManager.shared.isCut
-
-        // Determine paste destination based on selection:
-        // - If a folder is selected: paste INTO that folder
-        // - If a file is selected: paste to its parent directory (same folder)
-        // - If nothing selected: paste to currentDirectory (root of view)
-        let pasteDestination: URL
-        if let selectedItem = selectedItems.first {
-            if selectedItem.isDirectory {
-                pasteDestination = selectedItem.url
-            } else {
-                pasteDestination = selectedItem.url.deletingLastPathComponent()
-            }
-        } else {
-            pasteDestination = currentDirectory
-        }
+        let clipboardLocations = ClipboardManager.shared.locations
 
         // Collect directories to refresh: source dirs for cut, destination for both
-        var directoriesToRefresh = Set<URL>()
+        var locationsToRefresh = Set<Location>()
         if wasCut {
-            for item in ClipboardManager.shared.items {
-                directoriesToRefresh.insert(item.deletingLastPathComponent().standardizedFileURL)
+            for item in clipboardLocations {
+                locationsToRefresh.insert(item.deletingLastPathComponent())
             }
         }
         // Also refresh destination in other pane (if viewing same directory)
-        directoriesToRefresh.insert(pasteDestination.standardizedFileURL)
+        locationsToRefresh.insert(pasteDestination)
+
+        let localDirectoriesToRefresh = Set(locationsToRefresh.compactMap { location -> URL? in
+            if case .local(let url) = location {
+                return url.standardizedFileURL
+            }
+            return nil
+        })
+        let hasRemoteRefreshLocation = locationsToRefresh.contains { location in
+            if case .remote = location { return true }
+            return false
+        }
+        let currentLocation = currentRemoteLocation ?? currentDirectory.map(Location.local)
+        let locationToExpand = pasteDestination == currentLocation ? nil : pasteDestination
 
         Task { @MainActor in
             do {
-                let pastedURLs = try await ClipboardManager.shared.paste(to: pasteDestination, undoManager: undoManager)
-                pendingPostLoadAction = { [weak self] in
-                    guard let self else { return }
-                    // Expand the destination folder so pasted items are visible
-                    if pasteDestination != currentDirectory {
-                        if let parentItem = self.dataSource.findItem(withURL: pasteDestination, in: self.dataSource.items) {
-                            self.tableView.expandItem(parentItem)
-                        }
-                    }
-                    // Select the first pasted file
-                    if let firstURL = pastedURLs.first {
-                        self.selectItem(at: firstURL)
-                    }
-                }
-                loadDirectory(currentDirectory, preserveExpansion: true)
+                let pastedLocations = try await ClipboardManager.shared.paste(to: pasteDestination, undoManager: undoManager)
+                refreshSelectingLocations(pastedLocations, expandingTo: locationToExpand)
                 // Refresh other pane if showing affected directories
-                navigationDelegate?.fileListDidRequestRefreshSourceDirectories(directoriesToRefresh)
+                if !localDirectoriesToRefresh.isEmpty {
+                    navigationDelegate?.fileListDidRequestRefreshSourceDirectories(localDirectoriesToRefresh)
+                }
+                if hasRemoteRefreshLocation {
+                    navigationDelegate?.fileListDidRequestRefreshSourceLocations(locationsToRefresh)
+                }
                 // Keep focus on destination pane (where we pasted)
                 view.window?.makeFirstResponder(tableView)
             } catch {
@@ -2881,11 +2934,15 @@ extension FileListViewController {
 extension FileListViewController: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(copy(_:)), #selector(getInfo(_:)), #selector(showInFinder(_:)), #selector(shareViaService(_:)):
+        case #selector(copy(_:)):
+            return !selectedLocations.isEmpty
+        case #selector(getInfo(_:)), #selector(showInFinder(_:)), #selector(shareViaService(_:)):
             return !selectedURLs.isEmpty
         case #selector(copyPath(_:)):
             return !selectedLocations.isEmpty
-        case #selector(cut(_:)), #selector(duplicate(_:)), #selector(archive(_:)):
+        case #selector(cut(_:)):
+            return !selectedLocations.isEmpty && !isSharedTopLevelView
+        case #selector(duplicate(_:)), #selector(archive(_:)):
             return !selectedURLs.isEmpty && !isSharedTopLevelView
         case #selector(delete(_:)), #selector(deleteImmediately(_:)):
             return !selectedLocations.isEmpty && !isSharedTopLevelView
@@ -2901,7 +2958,9 @@ extension FileListViewController: NSMenuItemValidation {
             let urls = selectedURLs
             return urls.count == 1 && CompressionTools.isExtractable(urls[0])
         case #selector(paste(_:)):
-            return ClipboardManager.shared.hasValidItems && currentDirectory != nil && !isSharedTopLevelView
+            return ClipboardManager.shared.hasValidLocations
+                && (currentDirectory != nil || currentRemoteLocation != nil)
+                && !isSharedTopLevelView
         case #selector(newFolder(_:)), #selector(newTextFile(_:)), #selector(newMarkdownFile(_:)), #selector(newEmptyFile(_:)):
             return (currentDirectory != nil || currentRemoteLocation != nil) && !isSharedTopLevelView
         case #selector(showPackageContents):

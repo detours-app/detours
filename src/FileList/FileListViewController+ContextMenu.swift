@@ -61,7 +61,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         menu.addItem(NSMenuItem.separator())
 
         // Copy, Cut, Paste
-        if hasSelection && !hasRemoteSelection {
+        if hasSelection {
             let copyItem = NSMenuItem(title: "Copy", action: #selector(copy(_:)), keyEquivalent: "c")
             copyItem.keyEquivalentModifierMask = .command
             copyItem.target = self
@@ -75,13 +75,11 @@ extension FileListViewController: FileListContextMenuDelegate {
             menu.addItem(cutItem)
         }
 
-        if !hasRemoteSelection {
-            let pasteItem = NSMenuItem(title: "Paste", action: #selector(paste(_:)), keyEquivalent: "v")
-            pasteItem.keyEquivalentModifierMask = .command
-            pasteItem.target = self
-            pasteItem.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)
-            menu.addItem(pasteItem)
-        }
+        let pasteItem = NSMenuItem(title: "Paste", action: #selector(paste(_:)), keyEquivalent: "v")
+        pasteItem.keyEquivalentModifierMask = .command
+        pasteItem.target = self
+        pasteItem.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)
+        menu.addItem(pasteItem)
 
         if hasSelection && !hasRemoteSelection {
             let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(duplicate(_:)), keyEquivalent: "d")

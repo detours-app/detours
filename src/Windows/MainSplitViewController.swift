@@ -835,6 +835,21 @@ final class MainSplitViewController: NSSplitViewController {
         }
     }
 
+    func refreshPanes(matching locations: Set<Location>) {
+        guard !locations.isEmpty else { return }
+        let normalized = Set(locations.map { normalizeLocation($0) })
+
+        if let leftLocation = currentLocation(for: leftPane),
+           normalized.contains(leftLocation) {
+            refreshPanePreservingSelection(leftPane)
+        }
+
+        if let rightLocation = currentLocation(for: rightPane),
+           normalized.contains(rightLocation) {
+            refreshPanePreservingSelection(rightPane)
+        }
+    }
+
     private func refreshPanePreservingSelection(_ pane: PaneViewController) {
         guard let tab = pane.selectedTab else {
             pane.refresh()
@@ -884,6 +899,22 @@ final class MainSplitViewController: NSSplitViewController {
 
     private func normalizeDirectory(_ url: URL) -> URL {
         URL(fileURLWithPath: url.standardizedFileURL.path)
+    }
+
+    private func normalizeLocation(_ location: Location) -> Location {
+        switch location {
+        case .local(let url):
+            return .local(normalizeDirectory(url))
+        case .remote(let hostID, let path):
+            return .remote(hostID: hostID, path: URL(fileURLWithPath: path).standardizedFileURL.path)
+        }
+    }
+
+    private func currentLocation(for pane: PaneViewController) -> Location? {
+        if let remoteLocation = pane.selectedTab?.fileListViewController.currentRemoteLocation {
+            return normalizeLocation(remoteLocation)
+        }
+        return pane.currentDirectory.map { .local(normalizeDirectory($0)) }
     }
 
     // MARK: - Keyboard Handling

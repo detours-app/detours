@@ -105,4 +105,38 @@ final class ClipboardManagerTests: XCTestCase {
         XCTAssertTrue(ClipboardManager.shared.isItemCut(file))
         XCTAssertFalse(ClipboardManager.shared.isItemCut(temp))
     }
+
+    func testCopyRemoteLocationsKeepsInternalClipboardState() {
+        let location = Location.remote(hostID: UUID(), path: "/home/marco/file.txt")
+
+        ClipboardManager.shared.copy(items: [location])
+
+        XCTAssertEqual(ClipboardManager.shared.locations, [location])
+        XCTAssertTrue(ClipboardManager.shared.hasItems)
+        XCTAssertTrue(ClipboardManager.shared.hasValidLocations)
+        XCTAssertTrue(ClipboardManager.shared.items.isEmpty)
+        XCTAssertFalse(ClipboardManager.shared.isCut)
+    }
+
+    func testCutRemoteLocationsSetsCutFlagWithoutLocalURLs() {
+        let location = Location.remote(hostID: UUID(), path: "/home/marco/file.txt")
+
+        ClipboardManager.shared.cut(items: [location])
+
+        XCTAssertEqual(ClipboardManager.shared.locations, [location])
+        XCTAssertTrue(ClipboardManager.shared.isCut)
+        XCTAssertTrue(ClipboardManager.shared.cutItemURLs.isEmpty)
+    }
+
+    func testExternalPasteboardWriteInvalidatesRemoteClipboardState() {
+        let location = Location.remote(hostID: UUID(), path: "/home/marco/file.txt")
+        ClipboardManager.shared.cut(items: [location])
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString("external", forType: .string)
+
+        XCTAssertFalse(ClipboardManager.shared.isCut)
+        XCTAssertFalse(ClipboardManager.shared.hasItems)
+        XCTAssertTrue(ClipboardManager.shared.locations.isEmpty)
+    }
 }
