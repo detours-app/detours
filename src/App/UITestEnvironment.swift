@@ -10,6 +10,7 @@ enum UITestEnvironment {
     static let quickNavCommandFileName = ".detours-quick-nav-command.json"
     static let undoMenuTitleRequestFileName = ".detours-undo-menu-title-request.json"
     static let undoMenuTitleResponseFileName = ".detours-undo-menu-title-response.json"
+    static let duplicateStructureShowRequestFileName = ".detours-duplicate-structure-show-request.json"
     static let duplicateStructurePresentedFileName = ".detours-duplicate-structure-presented.json"
     static let duplicateStructureActionFileName = ".detours-duplicate-structure-action.json"
     static let duplicateStructureDismissedFileName = ".detours-duplicate-structure-dismissed.json"
@@ -43,6 +44,11 @@ enum UITestEnvironment {
 
     struct UndoMenuTitleRequest: Decodable {
         let id: String
+    }
+
+    struct DuplicateStructureShowRequest: Decodable {
+        let id: String
+        let relativePath: String
     }
 
     struct DuplicateStructureAction: Decodable {
@@ -159,6 +165,10 @@ enum UITestEnvironment {
         rootDirectory?.appendingPathComponent(undoMenuTitleResponseFileName)
     }
 
+    static var duplicateStructureShowRequestURL: URL? {
+        rootDirectory?.appendingPathComponent(duplicateStructureShowRequestFileName)
+    }
+
     static var duplicateStructurePresentedURL: URL? {
         rootDirectory?.appendingPathComponent(duplicateStructurePresentedFileName)
     }
@@ -229,6 +239,16 @@ enum UITestEnvironment {
         }
 
         return try? JSONDecoder().decode(UndoMenuTitleRequest.self, from: data)
+    }
+
+    static func currentDuplicateStructureShowRequest() -> DuplicateStructureShowRequest? {
+        guard let url = duplicateStructureShowRequestURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(DuplicateStructureShowRequest.self, from: data)
     }
 
     static func currentDuplicateStructureAction() -> DuplicateStructureAction? {

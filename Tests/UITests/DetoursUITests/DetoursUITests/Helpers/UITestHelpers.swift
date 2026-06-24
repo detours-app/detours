@@ -226,6 +226,11 @@ extension BaseUITest {
         let folderName: String
     }
 
+    private struct DuplicateStructureShowRequest: Encodable {
+        let id: String
+        let relativePath: String
+    }
+
     private struct DuplicateStructureAction: Encodable {
         let id: String
         let action: String
@@ -238,11 +243,18 @@ extension BaseUITest {
     func resetDuplicateStructureUITestFiles() {
         for fileName in [
             ".detours-duplicate-structure-presented.json",
+            ".detours-duplicate-structure-show-request.json",
             ".detours-duplicate-structure-action.json",
             ".detours-duplicate-structure-dismissed.json"
         ] {
             try? FileManager.default.removeItem(at: uiTestRootURL.appendingPathComponent(fileName))
         }
+    }
+
+    func showDuplicateStructureForUITest(relativePath: String) throws {
+        let request = DuplicateStructureShowRequest(id: UUID().uuidString, relativePath: relativePath)
+        let url = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-show-request.json")
+        try JSONEncoder().encode(request).write(to: url, options: .atomic)
     }
 
     func waitForDuplicateStructurePresented(timeout: TimeInterval = 3) throws -> DuplicateStructurePresentation {

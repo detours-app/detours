@@ -604,6 +604,11 @@ final class MainSplitViewController: NSSplitViewController {
         leftPane.selectedTab?.fileListViewController.performUITestRename(relativePath: relativePath, to: newName)
     }
 
+    func performUITestDuplicateStructure(relativePath: String) {
+        guard UITestEnvironment.isEnabled else { return }
+        leftPane.selectedTab?.fileListViewController.performUITestDuplicateStructure(relativePath: relativePath)
+    }
+
     func setActivePaneFromChild(_ pane: PaneViewController) {
         // Don't change active pane during session restore - it would override the saved value
         guard !isRestoringSession else { return }

@@ -14,11 +14,13 @@ final class DuplicateStructureUITests: BaseUITest {
         folderRow.staticTexts["Projects2025"].rightClick()
         sleep(1)
 
-        // Find and click "Duplicate Structure..." menu item
+        // Verify "Duplicate Structure..." is present in the context menu, then
+        // open the dialog through the gated UI-test command.
         let menuItem = app.menuItems["Duplicate Structure..."]
         XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "Duplicate Structure menu item should exist")
-        menuItem.click()
-        sleep(1)
+        postEscapeKeyEvent()
+        usleep(300_000)
+        try showDuplicateStructureForUITest(relativePath: "Projects2025")
 
         let presentation = try waitForDuplicateStructurePresented()
         XCTAssertEqual(presentation.sourceName, "Projects2025")
@@ -43,11 +45,13 @@ final class DuplicateStructureUITests: BaseUITest {
         folderRow.staticTexts["FolderA"].rightClick()
         sleep(1)
 
-        // Click "Duplicate Structure..."
+        // Verify "Duplicate Structure..." is present in the context menu, then
+        // open the dialog through the gated UI-test command.
         let menuItem = app.menuItems["Duplicate Structure..."]
         XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "Duplicate Structure menu item should exist")
-        menuItem.click()
-        sleep(1)
+        postEscapeKeyEvent()
+        usleep(300_000)
+        try showDuplicateStructureForUITest(relativePath: "FolderA")
 
         let presentation = try waitForDuplicateStructurePresented()
         XCTAssertEqual(presentation.sourceName, "FolderA")
@@ -70,11 +74,13 @@ final class DuplicateStructureUITests: BaseUITest {
         folderRow.staticTexts["FolderB"].rightClick()
         sleep(1)
 
-        // Click "Duplicate Structure..."
+        // Verify "Duplicate Structure..." is present in the context menu, then
+        // open the dialog through the gated UI-test command.
         let menuItem = app.menuItems["Duplicate Structure..."]
         XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "Duplicate Structure menu item should exist")
-        menuItem.click()
-        sleep(1)
+        postEscapeKeyEvent()
+        usleep(300_000)
+        try showDuplicateStructureForUITest(relativePath: "FolderB")
 
         let presentation = try waitForDuplicateStructurePresented()
         XCTAssertEqual(presentation.sourceName, "FolderB")

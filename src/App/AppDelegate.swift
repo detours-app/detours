@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUITestShowNetworkShareDialogCommandID: String?
     private var lastUITestDismissNetworkShareDialogCommandID: String?
     private var lastUITestUndoMenuTitleRequestID: String?
+    private var lastUITestDuplicateStructureShowRequestID: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Reduce tooltip delay from default ~1000ms to 200ms
@@ -98,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lastUITestShowNetworkShareDialogCommandID = UITestEnvironment.currentShowNetworkShareDialogCommand()?.id
         lastUITestDismissNetworkShareDialogCommandID = UITestEnvironment.currentDismissNetworkShareDialogCommand()?.id
         lastUITestUndoMenuTitleRequestID = UITestEnvironment.currentUndoMenuTitleRequest()?.id
+        lastUITestDuplicateStructureShowRequestID = UITestEnvironment.currentDuplicateStructureShowRequest()?.id
     }
 
     private func pollUITestCommands() {
@@ -140,6 +142,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            request.id != lastUITestUndoMenuTitleRequestID {
             lastUITestUndoMenuTitleRequestID = request.id
             writeUndoMenuTitleForUITest(requestID: request.id)
+        }
+
+        if let request = UITestEnvironment.currentDuplicateStructureShowRequest(),
+           request.id != lastUITestDuplicateStructureShowRequestID {
+            lastUITestDuplicateStructureShowRequestID = request.id
+            mainWindowController?.splitViewController.performUITestDuplicateStructure(relativePath: request.relativePath)
         }
     }
 

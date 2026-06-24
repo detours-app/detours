@@ -3186,6 +3186,25 @@ extension FileListViewController: RenameControllerDelegate {
         }
     }
 
+    func performUITestDuplicateStructure(relativePath: String) {
+        guard UITestEnvironment.isEnabled,
+              let commandRoot = UITestEnvironment.rootDirectory else {
+            return
+        }
+
+        let sourceURL = commandRoot
+            .appendingPathComponent(relativePath)
+            .standardizedFileURL
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return
+        }
+
+        showDuplicateStructureDialog(for: sourceURL)
+    }
+
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL) {
         selectionBeforeNewItem = nil
         dataSource.invalidateGitStatus()
