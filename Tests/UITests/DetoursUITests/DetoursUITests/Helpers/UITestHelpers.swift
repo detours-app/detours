@@ -63,11 +63,11 @@ extension BaseUITest {
         let source = CGEventSource(stateID: .combinedSessionState)
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
         keyDown?.flags = flags
-        keyDown?.post(tap: .cghidEventTap)
+        keyDown?.postToPid(app.processID)
 
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         keyUp?.flags = flags
-        keyUp?.post(tap: .cghidEventTap)
+        keyUp?.postToPid(app.processID)
     }
 
     private func keyCode(for character: Character) -> CGKeyCode? {
