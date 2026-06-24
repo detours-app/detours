@@ -190,8 +190,7 @@ final class FileListResponderTests: XCTestCase {
 
         let event = makeFunctionKeyEvent(keyCode: 96, functionKey: NSF5FunctionKey)
         XCTAssertTrue(viewController.handleKeyDown(event))
-        let copiedItems = spy.copyToOtherPaneItems.map(\.path)
-        XCTAssertEqual(copiedItems, [fileURL.path])
+        XCTAssertEqual(spy.copyToOtherPaneItems, [.local(fileURL)])
     }
 
     func testHandleKeyDownHandlesF6MoveToOtherPaneShortcut() throws {
@@ -201,8 +200,7 @@ final class FileListResponderTests: XCTestCase {
 
         let event = makeFunctionKeyEvent(keyCode: 97, functionKey: NSF6FunctionKey)
         XCTAssertTrue(viewController.handleKeyDown(event))
-        let movedItems = spy.moveToOtherPaneItems.map(\.path)
-        XCTAssertEqual(movedItems, [fileURL.path])
+        XCTAssertEqual(spy.moveToOtherPaneItems, [.local(fileURL)])
     }
 
     func testHandleKeyDownHandlesF2RenameShortcut() throws {
