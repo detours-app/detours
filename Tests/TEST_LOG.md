@@ -2,6 +2,29 @@
 
 ## Latest Run
 
+### 2026-06-24 23:44
+
+- Command: `resources/scripts/uitest.sh FolderExpansionUITests/testDirectoryWatchingDetectsNewFile`
+  (Foundry, commit `6aa5f9183ec9888474679c6e43f0b4febc06a615`)
+- Status: PASS
+- Notes: Focused current-commit UI verification compiled the touched
+  `FolderExpansionUITests.swift`, built/installed Detours on Foundry, and
+  reported the corrected intentional skip text:
+  `Out-of-process filesystem mutation is covered below the UI layer`. Result:
+  1 selected test, 1 intentional skip, 0 failures. Result bundle:
+  `/Users/smith/Library/Developer/Xcode/DerivedData/DetoursUITests-bstcapyzkhhequfysyauzgapcfsy/Logs/Test/Test-DetoursUITests-2026.06.24_23-44-41-+0200.xcresult`.
+
+### 2026-06-24 23:43
+
+- Command: `swift test` (Foundry, commit
+  `6aa5f9183ec9888474679c6e43f0b4febc06a615`)
+- Status: PASS
+- Notes: Non-UI suite passed on Foundry: 635 XCTest tests, 1 expected Darwin
+  x86_64 helper skip, 0 failures; 42 Swift Testing tests in 12 suites, 0
+  failures. The run includes the real remote integration coverage against the
+  configured SSH fixtures, including remote copy, trash/restore, watcher, and
+  Open With round-trip upload checks.
+
 ### 2026-06-24 23:16
 
 - Command: `resources/scripts/uitest.sh` (Foundry, commit
