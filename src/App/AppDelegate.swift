@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var systemEventMonitor: Any?
     private var keyDownEventMonitor: Any?
     private var uiTestCommandPollingTask: Task<Void, Never>?
+    private var uiTestDismissNetworkShareDialogObserver: NSObjectProtocol?
     private var lastUITestResizeCommandID: String?
     private var lastUITestRenameCommandID: String?
     private var lastUITestShowNetworkShareDialogCommandID: String?
@@ -75,6 +76,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyDownEventMonitor = nil
         }
 
+        if let observer = uiTestDismissNetworkShareDialogObserver {
+            DistributedNotificationCenter.default().removeObserver(observer)
+            uiTestDismissNetworkShareDialogObserver = nil
+        }
+
         uiTestCommandPollingTask?.cancel()
         uiTestCommandPollingTask = nil
     }
@@ -83,6 +89,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard UITestEnvironment.isEnabled else { return }
 
         seedUITestCommandStateFromExistingFiles()
+        uiTestDismissNetworkShareDialogObserver = DistributedNotificationCenter.default().addObserver(
+            forName: UITestEnvironment.dismissNetworkShareDialogNotificationName,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handleUITestDismissNetworkShareDialogNotification()
+            }
+        }
+
         uiTestCommandPollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 self?.pollUITestCommands()
@@ -129,6 +145,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             lastUITestDismissNetworkShareDialogCommandID = command.id
             dismissNetworkShareDialogForUITest(commandID: command.id)
         }
+    }
+
+    private func handleUITestDismissNetworkShareDialogNotification() {
+        guard let command = UITestEnvironment.currentDismissNetworkShareDialogCommand() else {
+            return
+        }
+
+        lastUITestDismissNetworkShareDialogCommandID = command.id
+        dismissNetworkShareDialogForUITest(commandID: command.id)
     }
 
     private func dismissNetworkShareDialogForUITest(

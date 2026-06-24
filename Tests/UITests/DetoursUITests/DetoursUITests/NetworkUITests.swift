@@ -7,6 +7,9 @@ final class NetworkUITests: BaseUITest {
     private let showNetworkShareDialogAcknowledgementFileName = ".detours-show-network-share-dialog-presented.json"
     private let dismissNetworkShareDialogCommandFileName = ".detours-dismiss-network-share-dialog.json"
     private let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
+    private let dismissNetworkShareDialogNotificationName = Notification.Name(
+        "com.detours.uiTest.dismissNetworkShareDialog"
+    )
 
     private struct ShowNetworkShareDialogCommand: Encodable {
         let id: String
@@ -186,6 +189,12 @@ final class NetworkUITests: BaseUITest {
 
         do {
             try data.write(to: dismissNetworkShareDialogCommandURL, options: .atomic)
+            DistributedNotificationCenter.default().postNotificationName(
+                dismissNetworkShareDialogNotificationName,
+                object: nil,
+                userInfo: nil,
+                deliverImmediately: true
+            )
         } catch {
             XCTFail("Dismiss command should write: \(error)")
             return
