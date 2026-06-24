@@ -159,6 +159,8 @@ private actor DisconnectedQueueProvider: FileProvider {
     private let hostID: UUID
     private let dropsFirstOperation: Bool
     private let onFirstDrop: (@Sendable () async -> Void)?
+    private var files: [Location: Data]
+    private var directories: Set<Location>
     private var copyCalls = 0
     private var completedCopyCalls = 0
 
@@ -170,6 +172,13 @@ private actor DisconnectedQueueProvider: FileProvider {
         self.hostID = hostID
         self.dropsFirstOperation = dropsFirstOperation
         self.onFirstDrop = onFirstDrop
+        self.files = [
+            .remote(hostID: hostID, path: "/home/marco/project/a.txt"): Data("remote-body".utf8)
+        ]
+        self.directories = [
+            .remote(hostID: hostID, path: "/home/marco/project"),
+            .remote(hostID: hostID, path: "/home/marco/target"),
+        ]
     }
 
     func copyCallCount() -> Int {
@@ -181,24 +190,23 @@ private actor DisconnectedQueueProvider: FileProvider {
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
-        throw FileProviderError.unsupportedOperation("list")
+        guard directories.contains(location) else {
+            throw FileProviderError.unsupportedOperation("list")
+        }
+        return files.keys
+            .filter { $0.deletingLastPathComponent() == location }
+            .map(entry)
     }
 
     func stat(_ location: Location) async throws -> LoadedFileEntry {
+        if files[location] != nil || directories.contains(location) {
+            return entry(for: location)
+        }
         throw FileProviderError.unsupportedOperation("stat")
     }
 
     func copy(_ sources: [Location], to destination: Location) async throws -> [Location] {
-        copyCalls += 1
-        if dropsFirstOperation, copyCalls == 1 {
-            await onFirstDrop?()
-            throw FileProviderError.unsupportedOperation("connection dropped")
-        }
-
-        completedCopyCalls += 1
-        return sources.map { source in
-            destination.appendingPathComponent(source.lastPathComponent)
-        }
+        throw FileProviderError.unsupportedOperation("copy")
     }
 
     func move(_ sources: [Location], to destination: Location) async throws -> [Location] {
@@ -257,5 +265,37 @@ private actor DisconnectedQueueProvider: FileProvider {
 
     func openForQuickLook(_ location: Location) async throws -> URL {
         throw FileProviderError.unsupportedOperation("quickLook")
+    }
+
+    func download(_ location: Location, to localURL: URL) async throws {
+        guard let data = files[location] else {
+            throw FileProviderError.unsupportedOperation("download")
+        }
+
+        copyCalls += 1
+        if dropsFirstOperation, copyCalls == 1 {
+            await onFirstDrop?()
+            throw FileProviderError.unsupportedOperation("connection dropped")
+        }
+
+        try FileManager.default.createDirectory(at: localURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: localURL)
+    }
+
+    func upload(_ localURL: URL, to location: Location) async throws {
+        let data = try Data(contentsOf: localURL)
+        files[location] = data
+        completedCopyCalls += 1
+    }
+
+    private func entry(for location: Location) -> LoadedFileEntry {
+        let isDirectory = directories.contains(location)
+        return LoadedFileEntry(
+            location: location,
+            url: URL(fileURLWithPath: location.path),
+            name: location.lastPathComponent,
+            isDirectory: isDirectory,
+            fileSize: isDirectory ? nil : Int64(files[location]?.count ?? 0)
+        )
     }
 }
