@@ -48,7 +48,7 @@ final class RemoteScopeQuickOpenUITests: BaseUITest {
 
     private func launchRemote(_ mode: String) {
         app = DetoursUITestApp.make()
-        app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = testFolderName
+        app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
         app.launchEnvironment["DETOURS_UI_TEST_REMOTE"] = mode
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5), "App window should exist")

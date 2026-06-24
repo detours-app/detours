@@ -713,22 +713,6 @@ final class FolderExpansionUITests: BaseUITest {
         XCTAssertTrue(rowExists(named: "file.txt"), "file.txt should still be visible after delete")
     }
 
-    /// Get the real user home directory (not the sandboxed one)
-    private func realHomeDirectory() -> String {
-        // XCUITests run in a sandbox, so FileManager.homeDirectoryForCurrentUser returns sandboxed path
-        // Get the real username and construct the path
-        let task = Process()
-        task.launchPath = "/usr/bin/id"
-        task.arguments = ["-un"]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.launch()
-        task.waitUntilExit()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let username = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "marco"
-        return "/Users/\(username)"
-    }
-
     /// Verifies fix for: active pane jumps from left to right on app launch.
     /// Bug: tableViewSelectionDidChange called fileListDidBecomeActive for programmatic changes,
     /// causing async git status to steal focus to whichever pane loaded last.
@@ -782,18 +766,6 @@ final class FolderExpansionUITests: BaseUITest {
             firstRowAfter.click()
             XCTAssertTrue(firstRowAfter.isSelected, "Left pane row should be selectable after Tab cycle")
         }
-    }
-
-    private var uiTestRootURL: URL {
-        if let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"],
-           !root.isEmpty {
-            if root.hasPrefix("/") {
-                return URL(fileURLWithPath: root)
-            }
-            return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(root)
-        }
-
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(testFolderName)
     }
 
     private var renameCommandURL: URL {

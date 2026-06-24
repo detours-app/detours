@@ -6,6 +6,10 @@ class BaseUITest: XCTestCase {
     /// Name of test directory (created by uitest.sh in home before tests run)
     let testFolderName = "DetoursUITests-Temp"
 
+    var uiTestRootURL: URL {
+        realUserHomeDirectory().appendingPathComponent(testFolderName)
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
 
@@ -14,7 +18,7 @@ class BaseUITest: XCTestCase {
 
         // Launch the installed app targeted by the UI test runner.
         app = DetoursUITestApp.make()
-        app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = testFolderName
+        app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
         app.launch()
 
         // Wait for app to be ready
@@ -116,5 +120,13 @@ class BaseUITest: XCTestCase {
         let folderName = testFolderRow.staticTexts[testFolderName]
         folderName.doubleClick()
         XCTAssertTrue(waitForLeftPaneReady(), "Temp directory should load in the left pane")
+    }
+
+    private func realUserHomeDirectory() -> URL {
+        if let home = NSHomeDirectoryForUser(NSUserName()) {
+            return URL(fileURLWithPath: home)
+        }
+
+        return URL(fileURLWithPath: "/Users").appendingPathComponent(NSUserName())
     }
 }

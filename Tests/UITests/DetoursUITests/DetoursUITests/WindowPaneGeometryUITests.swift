@@ -257,12 +257,11 @@ final class WindowPaneGeometryUITests: XCTestCase {
     }
 
     private var uiTestRootURL: URL {
-        if let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"],
-           !root.isEmpty {
-            return URL(fileURLWithPath: root)
+        if let home = NSHomeDirectoryForUser(NSUserName()) {
+            return URL(fileURLWithPath: home).appendingPathComponent(uiTestRootName)
         }
 
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(uiTestRootName)
+        return URL(fileURLWithPath: "/Users").appendingPathComponent(NSUserName()).appendingPathComponent(uiTestRootName)
     }
 
     private var resizeCommandURL: URL {
