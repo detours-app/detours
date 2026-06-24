@@ -92,6 +92,7 @@ extension FileListViewController: FileListContextMenuDelegate {
             if let singleFile = singleItem, singleFile.isNavigableFolder {
                 let duplicateStructureItem = NSMenuItem(title: "Duplicate Structure...", action: #selector(duplicateStructureFromContextMenu(_:)), keyEquivalent: "")
                 duplicateStructureItem.target = self
+                duplicateStructureItem.representedObject = singleFile
                 duplicateStructureItem.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: nil)
                 menu.addItem(duplicateStructureItem)
             }
@@ -477,6 +478,13 @@ extension FileListViewController: FileListContextMenuDelegate {
     }
 
     @objc func duplicateStructureFromContextMenu(_ sender: Any?) {
+        if let item = (sender as? NSMenuItem)?.representedObject as? FileItem,
+           item.isLocal,
+           item.isNavigableFolder {
+            showDuplicateStructureDialog(for: item.url)
+            return
+        }
+
         guard tableView.selectedRowIndexes.count == 1 else { return }
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row), item.isLocal, item.isNavigableFolder else { return }

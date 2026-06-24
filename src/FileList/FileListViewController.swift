@@ -3133,7 +3133,14 @@ extension FileListViewController: NSMenuItemValidation {
         case #selector(openWithApp(_:)), #selector(openRemoteWithEditor(_:)), #selector(openWithOtherApp(_:)):
             return !selectedLocations.isEmpty && !isSharedTopLevelView
         case #selector(duplicateStructureFromContextMenu(_:)):
-            return !selectedURLs.isEmpty && !isSharedTopLevelView
+            if let item = menuItem.representedObject as? FileItem {
+                return item.isLocal && item.isNavigableFolder && !isSharedTopLevelView
+            }
+            let items = selectedItems
+            return items.count == 1
+                && items[0].isLocal
+                && items[0].isNavigableFolder
+                && !isSharedTopLevelView
         case #selector(extractArchive(_:)):
             let urls = selectedURLs
             return urls.count == 1 && CompressionTools.isExtractable(urls[0])
