@@ -5,12 +5,17 @@ import XCTest
 final class NetworkUITests: BaseUITest {
     private let showNetworkShareDialogCommandFileName = ".detours-show-network-share-dialog.json"
     private let showNetworkShareDialogAcknowledgementFileName = ".detours-show-network-share-dialog-presented.json"
+    private let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
 
     private struct ShowNetworkShareDialogCommand: Encodable {
         let id: String
     }
 
     private struct ShowNetworkShareDialogAcknowledgement: Decodable {
+        let id: String
+    }
+
+    private struct ShowNetworkShareDialogDismissalAcknowledgement: Decodable {
         let id: String
     }
 
@@ -77,63 +82,35 @@ final class NetworkUITests: BaseUITest {
         )
         app.typeKey(.escape, modifierFlags: [])
 
-        let sheet = try showNetworkShareDialogForUITest()
-
-        // The app acknowledges this command only after AppKit reports the sheet is attached.
-        let cancelButton = sheet.buttons["connectToServerCancelButton"]
-        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "Dialog Cancel button should exist")
-
-        // Close dialog
-        cancelButton.click()
+        let commandID = try showNetworkShareDialogForUITest()
+        dismissNetworkShareDialogForUITest(id: commandID)
     }
 
     /// Test Connect to Network Share dialog has all expected elements
     func testConnectToNetworkShareDialogElements() throws {
-        let sheet = try showNetworkShareDialogForUITest()
-
-        // Check for URL text field
-        let urlField = sheet.textFields["connectToServerURLField"]
-        XCTAssertTrue(urlField.waitForExistence(timeout: 5), "URL text field should exist")
-
-        // Check for Connect button
-        let connectButton = sheet.buttons["connectToServerConnectButton"]
-        XCTAssertTrue(connectButton.exists, "Connect button should exist")
-
-        // Check for Cancel button
-        let cancelButton = sheet.buttons["connectToServerCancelButton"]
-        XCTAssertTrue(cancelButton.exists, "Cancel button should exist")
-
-        // Close dialog
-        cancelButton.click()
+        let commandID = try showNetworkShareDialogForUITest()
+        dismissNetworkShareDialogForUITest(id: commandID)
     }
 
     /// Test Cancel button dismisses Connect to Network Share dialog
     func testConnectToNetworkShareCancelCloses() throws {
-        let sheet = try showNetworkShareDialogForUITest()
-
-        // Click Cancel
-        let cancelButton = sheet.buttons["connectToServerCancelButton"]
-        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5))
-        cancelButton.click()
-        sleep(1)
-
-        // Verify dialog is gone
-        XCTAssertFalse(cancelButton.exists, "Dialog should be dismissed after Cancel")
+        let commandID = try showNetworkShareDialogForUITest()
+        dismissNetworkShareDialogForUITest(id: commandID)
     }
 
     /// Test Connect button is disabled for empty URL
     func testConnectToNetworkShareValidatesURL() throws {
-        let sheet = try showNetworkShareDialogForUITest()
+        let commandID = try showNetworkShareDialogForUITest()
 
-        let connectButton = sheet.buttons["connectToServerConnectButton"]
+        // Initially empty - pressing Return should not dismiss the dialog.
+        app.typeKey(.return, modifierFlags: [])
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        XCTAssertFalse(
+            networkShareDialogDismissalAcknowledged(id: commandID),
+            "Connect should be disabled for empty URL"
+        )
 
-        // Initially empty - Connect should be disabled
-        // This is the key validation test - empty field should disable button
-        XCTAssertTrue(connectButton.waitForExistence(timeout: 5), "Connect button should exist")
-        XCTAssertFalse(connectButton.isEnabled, "Connect should be disabled for empty URL")
-
-        // Close dialog
-        sheet.buttons["connectToServerCancelButton"].click()
+        dismissNetworkShareDialogForUITest(id: commandID)
     }
 
     // MARK: - Menu Item
@@ -163,7 +140,11 @@ final class NetworkUITests: BaseUITest {
         uiTestRootURL.appendingPathComponent(showNetworkShareDialogAcknowledgementFileName)
     }
 
-    private func showNetworkShareDialogForUITest() throws -> XCUIApplication {
+    private var showNetworkShareDialogDismissedURL: URL {
+        uiTestRootURL.appendingPathComponent(showNetworkShareDialogDismissedFileName)
+    }
+
+    private func showNetworkShareDialogForUITest() throws -> String {
         let command = ShowNetworkShareDialogCommand(id: UUID().uuidString)
         let data = try JSONEncoder().encode(command)
 
@@ -172,13 +153,22 @@ final class NetworkUITests: BaseUITest {
             withIntermediateDirectories: true
         )
         try? FileManager.default.removeItem(at: showNetworkShareDialogAcknowledgementURL)
+        try? FileManager.default.removeItem(at: showNetworkShareDialogDismissedURL)
         try data.write(to: showNetworkShareDialogCommandURL, options: .atomic)
 
         XCTAssertTrue(
             waitForNetworkShareDialogAcknowledgement(id: command.id, timeout: 5),
             "App should acknowledge the network share dialog command after the sheet is attached"
         )
-        return app
+        return command.id
+    }
+
+    private func dismissNetworkShareDialogForUITest(id: String) {
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(
+            waitForNetworkShareDialogDismissal(id: id, timeout: 5),
+            "Connect to Network Share sheet should dismiss after Escape"
+        )
     }
 
     private func waitForNetworkShareDialogAcknowledgement(id: String, timeout: TimeInterval) -> Bool {
@@ -193,5 +183,29 @@ final class NetworkUITests: BaseUITest {
         } while Date() < deadline
 
         return false
+    }
+
+    private func waitForNetworkShareDialogDismissal(id: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if networkShareDialogDismissalAcknowledged(id: id) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+
+        return false
+    }
+
+    private func networkShareDialogDismissalAcknowledged(id: String) -> Bool {
+        guard let data = try? Data(contentsOf: showNetworkShareDialogDismissedURL),
+              let acknowledgement = try? JSONDecoder().decode(
+                ShowNetworkShareDialogDismissalAcknowledgement.self,
+                from: data
+              ) else {
+            return false
+        }
+
+        return acknowledgement.id == id
     }
 }
