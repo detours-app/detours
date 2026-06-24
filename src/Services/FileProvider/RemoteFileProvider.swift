@@ -458,7 +458,7 @@ actor RemoteFileProvider: FileProvider {
     func createDirectory(at location: Location, withIntermediateDirectories: Bool) async throws {
         if withIntermediateDirectories {
             var current = Location.remote(hostID: hostID, path: "/")
-            let components = remotePath(from: location).lossyDisplayString
+            let components = try remotePath(from: location).lossyDisplayString
                 .split(separator: "/")
                 .map(String.init)
             for component in components {
