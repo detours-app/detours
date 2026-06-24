@@ -70,29 +70,20 @@ extension BaseUITest {
         keyUp?.post(tap: .cghidEventTap)
     }
 
-    private func postModifierKey(keyCode: CGKeyCode, keyDown: Bool, flags: CGEventFlags) {
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: keyDown)
-        event?.flags = flags
-        event?.post(tap: .cghidEventTap)
-    }
-
     /// Post Escape as a real HID event without XCUITest's typeKey idle snapshot.
     func postEscapeKeyEvent() {
         postKeyEvent(keyCode: 53)
     }
 
-    /// Post Cmd-Shift-N without XCUITest's typeKey idle snapshot.
-    func postNewFolderShortcut() {
-        postModifierKey(keyCode: 56, keyDown: true, flags: .maskShift)
-        usleep(20_000)
-        postModifierKey(keyCode: 55, keyDown: true, flags: [.maskCommand, .maskShift])
-        usleep(20_000)
-        postKeyEvent(keyCode: 45, flags: [.maskCommand, .maskShift])
-        usleep(20_000)
-        postModifierKey(keyCode: 55, keyDown: false, flags: .maskShift)
-        usleep(20_000)
-        postModifierKey(keyCode: 56, keyDown: false, flags: [])
+    func chooseFileMenuItem(_ title: String, timeout: TimeInterval = 2) {
+        let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
+        XCTAssertTrue(fileMenu.exists, "File menu should exist")
+        fileMenu.click()
+
+        let item = fileMenu.menuItems[title]
+        XCTAssertTrue(item.waitForExistence(timeout: timeout), "\(title) menu item should exist")
+        XCTAssertTrue(item.isEnabled, "\(title) menu item should be enabled")
+        item.click()
     }
 
     /// Press a character key with optional modifiers

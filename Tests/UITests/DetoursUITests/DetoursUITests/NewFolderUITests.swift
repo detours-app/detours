@@ -11,7 +11,7 @@ final class NewFolderUITests: BaseUITest {
     /// Test that creating a new folder INSIDE a selected folder works correctly
     /// Expected behavior:
     /// 1. User selects a folder (e.g., BBB_Second)
-    /// 2. User creates a new folder (Cmd-Shift-N)
+    /// 2. User creates a new folder
     /// 3. New folder is created INSIDE BBB_Second (not alongside it)
     /// 4. The new folder is selected and rename field appears
     func testNewFolderSelectsNewFolderNotExisting() throws {
@@ -35,9 +35,9 @@ final class NewFolderUITests: BaseUITest {
         selectRow(named: "BBB_Second")
         usleep(300_000)
 
-        // Step 4: Create a new folder with Cmd-Shift-N (should create INSIDE BBB_Second)
+        // Step 4: Create a new folder (should create INSIDE BBB_Second)
         print("DEBUG: Creating new folder inside BBB_Second")
-        postNewFolderShortcut()
+        chooseFileMenuItem("New Folder")
         usleep(1_500_000)
 
         // Step 5: Verify rename field shows "Folder"
@@ -75,7 +75,7 @@ final class NewFolderUITests: BaseUITest {
         usleep(300_000)
 
         // Create new folder
-        postNewFolderShortcut()
+        chooseFileMenuItem("New Folder")
         usleep(1_000_000)
 
         // Verify rename field shows "Folder"
@@ -110,7 +110,7 @@ final class NewFolderUITests: BaseUITest {
         // Create and cancel multiple new folders
         for i in 1...3 {
             print("DEBUG: Create/cancel iteration \(i)")
-            postNewFolderShortcut()
+            chooseFileMenuItem("New Folder")
             usleep(800_000)
             postEscapeKeyEvent()
             usleep(500_000)
