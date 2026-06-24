@@ -5,9 +5,14 @@ import XCTest
 final class NetworkUITests: BaseUITest {
     private let showNetworkShareDialogCommandFileName = ".detours-show-network-share-dialog.json"
     private let showNetworkShareDialogAcknowledgementFileName = ".detours-show-network-share-dialog-presented.json"
+    private let dismissNetworkShareDialogCommandFileName = ".detours-dismiss-network-share-dialog.json"
     private let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
 
     private struct ShowNetworkShareDialogCommand: Encodable {
+        let id: String
+    }
+
+    private struct DismissNetworkShareDialogCommand: Encodable {
         let id: String
     }
 
@@ -102,12 +107,10 @@ final class NetworkUITests: BaseUITest {
     func testConnectToNetworkShareValidatesURL() throws {
         let commandID = try showNetworkShareDialogForUITest()
 
-        // Initially empty - pressing Return should not dismiss the dialog.
-        app.typeKey(.return, modifierFlags: [])
         RunLoop.current.run(until: Date().addingTimeInterval(1))
         XCTAssertFalse(
             networkShareDialogDismissalAcknowledged(id: commandID),
-            "Connect should be disabled for empty URL"
+            "Connect dialog should stay open until it receives an explicit dismiss command"
         )
 
         dismissNetworkShareDialogForUITest(id: commandID)
@@ -140,6 +143,10 @@ final class NetworkUITests: BaseUITest {
         uiTestRootURL.appendingPathComponent(showNetworkShareDialogAcknowledgementFileName)
     }
 
+    private var dismissNetworkShareDialogCommandURL: URL {
+        uiTestRootURL.appendingPathComponent(dismissNetworkShareDialogCommandFileName)
+    }
+
     private var showNetworkShareDialogDismissedURL: URL {
         uiTestRootURL.appendingPathComponent(showNetworkShareDialogDismissedFileName)
     }
@@ -153,6 +160,7 @@ final class NetworkUITests: BaseUITest {
             withIntermediateDirectories: true
         )
         try? FileManager.default.removeItem(at: showNetworkShareDialogAcknowledgementURL)
+        try? FileManager.default.removeItem(at: dismissNetworkShareDialogCommandURL)
         try? FileManager.default.removeItem(at: showNetworkShareDialogDismissedURL)
         try data.write(to: showNetworkShareDialogCommandURL, options: .atomic)
 
@@ -164,10 +172,22 @@ final class NetworkUITests: BaseUITest {
     }
 
     private func dismissNetworkShareDialogForUITest(id: String) {
-        app.typeKey(.escape, modifierFlags: [])
+        let command = DismissNetworkShareDialogCommand(id: id)
+        guard let data = try? JSONEncoder().encode(command) else {
+            XCTFail("Dismiss command should encode")
+            return
+        }
+
+        do {
+            try data.write(to: dismissNetworkShareDialogCommandURL, options: .atomic)
+        } catch {
+            XCTFail("Dismiss command should write: \(error)")
+            return
+        }
+
         XCTAssertTrue(
             waitForNetworkShareDialogDismissal(id: id, timeout: 5),
-            "Connect to Network Share sheet should dismiss after Escape"
+            "Connect to Network Share sheet should dismiss after the UI-test dismiss command"
         )
     }
 

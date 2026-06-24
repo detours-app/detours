@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUITestResizeCommandID: String?
     private var lastUITestRenameCommandID: String?
     private var lastUITestShowNetworkShareDialogCommandID: String?
+    private var lastUITestDismissNetworkShareDialogCommandID: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Reduce tooltip delay from default ~1000ms to 200ms
@@ -114,6 +115,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 acknowledgeNetworkShareDialogWhenPresented(commandID: command.id, parentWindow: window)
             }
         }
+
+        if let command = UITestEnvironment.currentDismissNetworkShareDialogCommand(),
+           command.id != lastUITestDismissNetworkShareDialogCommandID {
+            lastUITestDismissNetworkShareDialogCommandID = command.id
+            dismissNetworkShareDialogForUITest(commandID: command.id)
+        }
+    }
+
+    private func dismissNetworkShareDialogForUITest(commandID: String) {
+        guard let window = mainWindowController?.window,
+              let sheet = window.attachedSheet,
+              sheet.title == "Connect to Network Share" else {
+            return
+        }
+
+        window.endSheet(sheet)
+        UITestEnvironment.acknowledgeShowNetworkShareDialogDismissed(id: commandID)
     }
 
     private func acknowledgeNetworkShareDialogWhenPresented(commandID: String, parentWindow: NSWindow) {
