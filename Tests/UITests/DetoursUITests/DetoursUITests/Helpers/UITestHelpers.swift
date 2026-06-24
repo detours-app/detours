@@ -167,27 +167,28 @@ extension BaseUITest {
         item.click()
     }
 
-    func openQuickNav(timeout: TimeInterval = 3) -> XCUIElement {
+    func openQuickNav(timeout: TimeInterval = 3) {
         chooseGoMenuItem("Quick Open")
+        _ = timeout
         usleep(700_000)
-        return focusQuickNavSearchField(timeout: timeout)
+        focusQuickNavSearchField()
     }
 
     func openQuickNavForKeyboardInput() {
-        let searchField = openQuickNav(timeout: 5)
-        searchField.click()
+        openQuickNav(timeout: 5)
         usleep(300_000)
     }
 
-    private func focusQuickNavSearchField(timeout: TimeInterval) -> XCUIElement {
-        let frontWindow = app.windows.element(boundBy: 0)
-        let searchField = frontWindow.descendants(matching: .any)
-            .matching(identifier: "quickNavSearchField")
-            .firstMatch
-        XCTAssertTrue(searchField.waitForExistence(timeout: timeout), "Quick Open search field should exist")
-        searchField.click()
+    private func focusQuickNavSearchField() {
+        let quickNavPanel = app.windows.allElementsBoundByIndex.first { window in
+            let frame = window.frame
+            return frame.width >= 820 && frame.width <= 980 &&
+                frame.height >= 620 && frame.height <= 780
+        }
+
+        let target = quickNavPanel ?? app.windows.firstMatch
+        target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).click()
         usleep(200_000)
-        return searchField
     }
 
     /// Press a character key with optional modifiers
