@@ -167,7 +167,10 @@ extension BaseUITest {
 
     func openQuickNavForKeyboardInput() {
         chooseGoMenuItem("Quick Open")
-        usleep(500_000)
+        let dialog = app.dialogs.firstMatch
+        XCTAssertTrue(dialog.waitForExistence(timeout: 3), "Quick Open dialog should appear")
+        dialog.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).click()
+        usleep(300_000)
     }
 
     /// Press a character key with optional modifiers
