@@ -169,9 +169,8 @@ extension BaseUITest {
 
     func openQuickNav(timeout: TimeInterval = 3) {
         chooseGoMenuItem("Quick Open")
-        _ = timeout
         usleep(700_000)
-        focusQuickNavSearchField()
+        focusQuickNavSearchField(timeout: timeout)
     }
 
     func openQuickNavForKeyboardInput() {
@@ -179,15 +178,18 @@ extension BaseUITest {
         usleep(300_000)
     }
 
-    private func focusQuickNavSearchField() {
-        let quickNavPanel = app.windows.allElementsBoundByIndex.first { window in
-            let frame = window.frame
-            return frame.width >= 820 && frame.width <= 980 &&
-                frame.height >= 620 && frame.height <= 780
+    private func focusQuickNavSearchField(timeout: TimeInterval) {
+        let frontWindow = app.windows.element(boundBy: 0)
+        let searchField = frontWindow.descendants(matching: .any)
+            .matching(identifier: "quickNavSearchField")
+            .firstMatch
+        if searchField.waitForExistence(timeout: min(timeout, 2)) {
+            searchField.click()
+            usleep(200_000)
+            return
         }
 
-        let target = quickNavPanel ?? app.windows.firstMatch
-        target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).click()
+        frontWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).click()
         usleep(200_000)
     }
 
