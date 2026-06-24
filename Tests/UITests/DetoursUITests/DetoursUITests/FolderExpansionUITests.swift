@@ -531,24 +531,24 @@ final class FolderExpansionUITests: BaseUITest {
     // MARK: - Directory Watching Tests
 
     /// Expand folder, create file externally, verify file list updates automatically
-    /// NOTE: This test requires filesystem access that the XCUITest sandbox does not allow.
+    /// NOTE: This out-of-process filesystem mutation is covered below the UI layer.
     /// The directory watching feature is tested via unit tests in MultiDirectoryWatcherTests.
     func testDirectoryWatchingDetectsNewFile() throws {
-        throw XCTSkip("XCUITest sandbox prevents external file system modifications")
+        throw XCTSkip("Out-of-process filesystem mutation is covered below the UI layer")
     }
 
     /// Delete an expanded folder externally, verify list refreshes
-    /// NOTE: This test requires filesystem access that the XCUITest sandbox does not allow.
+    /// NOTE: This out-of-process filesystem mutation is covered below the UI layer.
     func testDirectoryWatchingDetectsDeletedFolder() throws {
-        throw XCTSkip("XCUITest sandbox prevents external file system modifications")
+        throw XCTSkip("Out-of-process filesystem mutation is covered below the UI layer")
     }
 
     // MARK: - Edge Case Tests
 
     /// Expand folder, rename it externally, verify expansion state is lost
-    /// NOTE: This test requires filesystem access that the XCUITest sandbox does not allow.
+    /// NOTE: This out-of-process filesystem mutation is covered below the UI layer.
     func testExternalRenameLosesExpansionState() throws {
-        throw XCTSkip("XCUITest sandbox prevents external file system modifications")
+        throw XCTSkip("Out-of-process filesystem mutation is covered below the UI layer")
     }
 
     // MARK: - Bug Fix Verification Tests

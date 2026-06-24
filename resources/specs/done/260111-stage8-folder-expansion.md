@@ -263,7 +263,7 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 
 ### UI Verification
 
-**XCUITest Coverage (2026-01-21):** 23 UI tests in `Tests/UITests/DetoursUITests/DetoursUITests/FolderExpansionUITests.swift`. Core mouse/keyboard interactions, settings toggle, tab persistence, pane independence, and visual customization functionality all verified. 3 directory watching tests skipped (XCUITest sandbox prevents external filesystem modifications - covered by unit tests instead).
+**XCUITest Coverage (2026-01-21):** 23 UI tests in `Tests/UITests/DetoursUITests/DetoursUITests/FolderExpansionUITests.swift`. Core mouse/keyboard interactions, settings toggle, tab persistence, pane independence, and visual customization functionality all verified. 3 directory watching tests skip out-of-process filesystem mutation in the UI harness and are covered by watcher/unit tests instead.
 
 **Disclosure Triangles (Mouse):**
 - [x] Find outline view rows with disclosure triangles (folders only)
@@ -303,9 +303,9 @@ Tests go in `Tests/FolderExpansionTests.swift`. I will write, run, and fix these
 - [x] Expand different subfolders in each → independent expansion state
 
 **Directory Watching:**
-- [~] Expand a folder, create file in that folder externally (Finder/terminal) (skipped - XCUITest sandbox)
-- [~] Verify file list updates to show new file without manual refresh (skipped - XCUITest sandbox)
-- [~] Delete expanded folder externally → expansion entry removed, list refreshes (skipped - XCUITest sandbox)
+- [~] Expand a folder, create file in that folder externally (Finder/terminal) (covered below the UI layer)
+- [~] Verify file list updates to show new file without manual refresh (covered below the UI layer)
+- [~] Delete expanded folder externally -> expansion entry removed, list refreshes (covered below the UI layer)
 
 **Settings Toggle:**
 - [x] Disable "Enable folder expansion" in Settings

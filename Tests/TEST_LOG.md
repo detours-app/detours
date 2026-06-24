@@ -2,6 +2,19 @@
 
 ## Latest Run
 
+### 2026-06-24 23:16
+
+- Command: `resources/scripts/uitest.sh` (Foundry, commit
+  `3b8a631fb9c3b9c1dae2fd104b326a7d6c7df9fd`)
+- Status: PASS
+- Notes: Full Foundry UI suite passed: 76 tests executed, 3 intentional
+  FolderExpansion watcher skips, 0 failures, 1504.614s. Result bundle:
+  `/Users/smith/Library/Developer/Xcode/DerivedData/DetoursUITests-bstcapyzkhhequfysyauzgapcfsy/Logs/Test/Test-DetoursUITests-2026.06.24_23-16-57-+0200.xcresult`.
+  This run includes `FolderExpansionUITests/testSelectionAndFocusPreservedAfterMenuRefresh`
+  (refresh keeps selection and keyboard focus), `DuplicateStructureUITests`
+  (3/3), and `UndoUITests/testUndoMenuLabel`, the earlier full-suite failure
+  point.
+
 ### 2026-06-24 14:25
 
 - Command: Full Foundry batch run:
@@ -35,7 +48,9 @@
   returns `Operation not permitted`, and `launchctl` restart of the automation
   writer/UI is blocked by SIP. Next smallest action is an operator-approved
   Foundry GUI/session reboot or local approval of the Automation Mode prompt,
-  then rerun the focused Smoke UI test followed by the full UI suite.
+  then rerun the focused Smoke UI test followed by the full UI suite. Resolved
+  later the same day after the operator allowed the prompt; the 23:16 full
+  Foundry UI run passed.
 
 ### 2026-06-24 12:39
 
