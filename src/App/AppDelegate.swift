@@ -140,7 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         window.endSheet(sheet)
-        acknowledgeNetworkShareDialogDismissalWhenDetached(commandID: commandID, parentWindow: window)
+        acknowledgeNetworkShareDialogDismissalAfterAppKitSettles(commandID: commandID, parentWindow: window)
     }
 
     private func networkShareDialogSheet(preferredParentWindow: NSWindow?) -> (NSWindow, NSWindow)? {
@@ -173,22 +173,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return nil
     }
 
-    private func acknowledgeNetworkShareDialogDismissalWhenDetached(
+    private func acknowledgeNetworkShareDialogDismissalAfterAppKitSettles(
         commandID: String,
         parentWindow: NSWindow
     ) {
         Task { @MainActor in
-            for _ in 0..<60 {
-                if parentWindow.attachedSheet == nil {
-                    NSApp.activate(ignoringOtherApps: true)
-                    parentWindow.makeKeyAndOrderFront(nil)
-                    try? await Task.sleep(nanoseconds: 250_000_000)
-                    UITestEnvironment.acknowledgeShowNetworkShareDialogDismissed(id: commandID)
-                    return
-                }
-
-                try? await Task.sleep(nanoseconds: 50_000_000)
-            }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            NSApp.activate(ignoringOtherApps: true)
+            parentWindow.makeKeyAndOrderFront(nil)
+            UITestEnvironment.acknowledgeShowNetworkShareDialogDismissed(id: commandID)
         }
     }
 
