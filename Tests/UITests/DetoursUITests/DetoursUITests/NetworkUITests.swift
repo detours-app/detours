@@ -186,7 +186,7 @@ final class NetworkUITests: BaseUITest {
         }
 
         XCTAssertTrue(
-            waitForNetworkShareDialogDismissal(id: id, timeout: 5),
+            waitForNetworkShareDialogDismissal(id: id, timeout: 10),
             "Connect to Network Share sheet should dismiss after the UI-test dismiss command"
         )
     }

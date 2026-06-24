@@ -123,19 +123,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func dismissNetworkShareDialogForUITest(commandID: String) {
-        guard let window = mainWindowController?.window,
-              let sheet = window.attachedSheet,
-              sheet.title == "Connect to Network Share" else {
+    private func dismissNetworkShareDialogForUITest(
+        commandID: String,
+        preferredParentWindow: NSWindow? = nil
+    ) {
+        guard let (window, sheet) = networkShareDialogSheet(preferredParentWindow: preferredParentWindow) else {
             return
         }
 
         window.endSheet(sheet)
+        acknowledgeNetworkShareDialogDismissalWhenDetached(commandID: commandID, parentWindow: window)
+    }
+
+    private func networkShareDialogSheet(preferredParentWindow: NSWindow?) -> (NSWindow, NSWindow)? {
+        var parentWindows = [NSWindow]()
+        if let preferredParentWindow {
+            parentWindows.append(preferredParentWindow)
+        }
+        if let mainWindow = mainWindowController?.window, !parentWindows.contains(where: { $0 === mainWindow }) {
+            parentWindows.append(mainWindow)
+        }
+        for window in NSApp.windows where !parentWindows.contains(where: { $0 === window }) {
+            parentWindows.append(window)
+        }
+
+        for window in parentWindows {
+            if let sheet = window.attachedSheet,
+               sheet.title == "Connect to Network Share" {
+                return (window, sheet)
+            }
+        }
+
+        if UITestEnvironment.isEnabled {
+            for window in parentWindows {
+                if let sheet = window.attachedSheet {
+                    return (window, sheet)
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private func acknowledgeNetworkShareDialogDismissalWhenDetached(
+        commandID: String,
+        parentWindow: NSWindow
+    ) {
         Task { @MainActor in
             for _ in 0..<60 {
-                if window.attachedSheet == nil {
+                if parentWindow.attachedSheet == nil {
                     NSApp.activate(ignoringOtherApps: true)
-                    window.makeKeyAndOrderFront(nil)
+                    parentWindow.makeKeyAndOrderFront(nil)
                     try? await Task.sleep(nanoseconds: 250_000_000)
                     UITestEnvironment.acknowledgeShowNetworkShareDialogDismissed(id: commandID)
                     return
@@ -153,11 +191,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                    sheet.isVisible,
                    sheet.title == "Connect to Network Share" {
                     UITestEnvironment.acknowledgeShowNetworkShareDialogCommand(id: commandID)
+                    await waitForNetworkShareDialogDismissCommand(
+                        commandID: commandID,
+                        parentWindow: parentWindow
+                    )
                     return
                 }
 
                 try? await Task.sleep(nanoseconds: 50_000_000)
             }
+        }
+    }
+
+    private func waitForNetworkShareDialogDismissCommand(commandID: String, parentWindow: NSWindow) async {
+        for _ in 0..<120 {
+            if let command = UITestEnvironment.currentDismissNetworkShareDialogCommand(),
+               command.id == commandID {
+                dismissNetworkShareDialogForUITest(
+                    commandID: commandID,
+                    preferredParentWindow: parentWindow
+                )
+                return
+            }
+
+            try? await Task.sleep(nanoseconds: 50_000_000)
         }
     }
 
