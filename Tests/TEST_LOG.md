@@ -2,6 +2,16 @@
 
 ## Latest Run
 
+### 2026-06-25 14:31
+
+- Command: `resources/scripts/uitest.sh SmokeTests` (Foundry, commit
+  `d369542b13d209bea1438f016235176e2b39231f`)
+- Status: PASS
+- Notes: Launch-crash guard after adding a dismiss button to the remote
+  connection-lost banner in `PaneViewController`. All 4 SmokeTests passed
+  (window, home button, file list outline, outline rows), 0 failures,
+  15.1s. App built and relaunched cleanly via `build.sh`.
+
 ### 2026-06-25 08:35
 
 - Command: `resources/scripts/uitest.sh` (Foundry, commit
