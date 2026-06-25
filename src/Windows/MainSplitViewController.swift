@@ -1303,7 +1303,7 @@ extension MainSplitViewController: SidebarDelegate {
                 if route.usesWindowsProvider {
                     let channel = PowerShellChannel(sshTarget: host.sshTarget)
                     try await channel.forceReconnect()
-                    let provider = WindowsRemoteProvider(hostID: host.id, channel: channel)
+                    let provider = WindowsRemoteProvider(hostID: host.id, sshTarget: host.sshTarget, channel: channel)
                     let initialPath = try await validateWindowsRemoteConnection(provider: provider, host: host)
 
                     await RemoteConnectionRegistry.shared.register(channel, for: host.id)

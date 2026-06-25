@@ -4,11 +4,19 @@ actor WindowsRemoteProvider: FileProvider {
     let hostID: UUID
 
     private let channel: PowerShellChannel
+    private let transferChannel: WindowsTransferChannel
     private var rawPaths: [Location: String] = [:]
 
-    init(hostID: UUID, channel: PowerShellChannel) {
+    init(hostID: UUID, channel: PowerShellChannel, transferChannel: WindowsTransferChannel) {
         self.hostID = hostID
         self.channel = channel
+        self.transferChannel = transferChannel
+    }
+
+    init(hostID: UUID, sshTarget: String, channel: PowerShellChannel) {
+        self.hostID = hostID
+        self.channel = channel
+        self.transferChannel = WindowsTransferChannel(sshTarget: sshTarget, powerShellChannel: channel)
     }
 
     func homeDirectory() async throws -> String {
@@ -113,15 +121,43 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func openForQuickLook(_ location: Location) async throws -> URL {
-        throw FileProviderError.unsupportedOperation("Windows Quick Look")
+        let entry = try await stat(location)
+        guard let size = entry.fileSize else {
+            throw FileProviderError.unsupportedOperation("quick look directory")
+        }
+        guard size <= RemoteFileCache.quickLookMaximumBytes else {
+            throw FileProviderError.unsupportedOperation("Remote Quick Look supports files up to 100 MB")
+        }
+        let remotePath = try windowsPath(from: location)
+        let destination = try RemoteFileCache.makeSessionFile(hostID: hostID, remotePath: remotePath.remotePath)
+        try await transferChannel.download(
+            remotePath: try nativePath(from: remotePath),
+            expectedByteCount: size,
+            to: destination
+        )
+        return destination
     }
 
     func download(_ location: Location, to localURL: URL) async throws {
-        throw FileProviderError.unsupportedOperation("Windows download")
+        let entry = try await stat(location)
+        let size = entry.fileSize ?? 0
+        let remotePath = try windowsPath(from: location)
+        try await transferChannel.download(
+            remotePath: try nativePath(from: remotePath),
+            expectedByteCount: size,
+            to: localURL
+        )
     }
 
     func upload(_ localURL: URL, to location: Location) async throws {
-        throw FileProviderError.unsupportedOperation("Windows upload")
+        let values = try localURL.resourceValues(forKeys: [.fileSizeKey])
+        let byteCount = Int64(values.fileSize ?? 0)
+        let remotePath = try windowsPath(from: location)
+        try await transferChannel.upload(
+            localURL: localURL,
+            remotePath: try nativePath(from: remotePath),
+            byteCount: byteCount
+        )
     }
 
     func version(of location: Location) async throws -> RemoteFileVersion {
@@ -156,6 +192,17 @@ actor WindowsRemoteProvider: FileProvider {
         }
     }
 
+    private func windowsPath(from location: Location) throws -> WindowsPath {
+        try WindowsPath(location: location, hostID: hostID)
+    }
+
+    private func nativePath(from path: WindowsPath) throws -> String {
+        guard let nativePath = path.nativePath else {
+            throw WindowsPathError.nativePathRequired(path.remotePath)
+        }
+        return nativePath
+    }
+
     private func loadedEntry(_ entry: WindowsDirectoryEntry) throws -> LoadedFileEntry {
         let remotePath = try WindowsPath.remotePath(fromNative: entry.nativePath)
         let location = Location.remote(hostID: hostID, path: remotePath)
@@ -173,7 +220,7 @@ actor WindowsRemoteProvider: FileProvider {
     }
 }
 
-private struct PathArguments: Encodable {
+struct PathArguments: Encodable {
     let path: String
     let showHidden: Bool?
 

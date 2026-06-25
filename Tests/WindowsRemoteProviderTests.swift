@@ -11,7 +11,15 @@ final class WindowsRemoteProviderTests: XCTestCase {
             "Version": #"{"SHA256":"abcdef","LastWriteTimeUtc":1782390896000}"#,
             "FolderSize": #"42"#,
         ])
-        let provider = WindowsRemoteProvider(hostID: hostID, channel: PowerShellChannel(transport: transport))
+        let channel = PowerShellChannel(transport: transport)
+        let provider = WindowsRemoteProvider(
+            hostID: hostID,
+            channel: channel,
+            transferChannel: WindowsTransferChannel(
+                powerShellChannel: channel,
+                sftpClient: FakeWindowsSFTPClient()
+            )
+        )
 
         let home = try await provider.homeDirectory()
         let list = try await provider.list(.remote(hostID: hostID, path: home), showHidden: true)
@@ -34,7 +42,15 @@ final class WindowsRemoteProviderTests: XCTestCase {
         let transport = ProviderScriptTransport(responses: [
             "DriveList": #"[{"Name":"C","Root":"C:\\","Free":1000,"Used":2000}]"#,
         ])
-        let provider = WindowsRemoteProvider(hostID: hostID, channel: PowerShellChannel(transport: transport))
+        let channel = PowerShellChannel(transport: transport)
+        let provider = WindowsRemoteProvider(
+            hostID: hostID,
+            channel: channel,
+            transferChannel: WindowsTransferChannel(
+                powerShellChannel: channel,
+                sftpClient: FakeWindowsSFTPClient()
+            )
+        )
 
         let drives = try await provider.list(.remote(hostID: hostID, path: "/"), showHidden: false)
 
@@ -91,4 +107,9 @@ private actor ProviderScriptTransport: PowerShellChannelTransport {
     }
 
     func stop() async {}
+}
+
+private struct FakeWindowsSFTPClient: WindowsSFTPClient {
+    func download(remotePath: String, to localURL: URL) async throws {}
+    func upload(localURL: URL, remotePath: String) async throws {}
 }

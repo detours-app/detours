@@ -114,8 +114,8 @@ Archive creation and extraction use a PowerShell/.NET ZIP implementation, not `C
 
 **Phase 4: Transfers, Quick Look**
 
-- [ ] **T11** Create `src/Remote/Windows/WindowsTransferChannel.swift` using the OpenSSH SFTP subsystem over the host ControlMaster against normalized `C:/...` paths, with byte-count verification, `.detours-partial` local cleanup, and a base64-over-`PowerShellChannel` fallback up to `RemoteTransferChannel.rpcThresholdBytes` (1,048,576 bytes) when SFTP is unavailable.
-- [ ] **T12** Implement `download` and `upload` in `WindowsRemoteProvider` via the transfer channel; implement `openForQuickLook` by downloading to a temp file and previewing through the existing remote Quick Look path; return a clear unsupported-large-transfer error when SFTP is unavailable and the file exceeds 1,048,576 bytes.
+- [x] **T11** Create `src/Remote/Windows/WindowsTransferChannel.swift` using the OpenSSH SFTP subsystem over the host ControlMaster against normalized `C:/...` paths, with byte-count verification, `.detours-partial` local cleanup, and a base64-over-`PowerShellChannel` fallback up to `RemoteTransferChannel.rpcThresholdBytes` (1,048,576 bytes) when SFTP is unavailable.
+- [x] **T12** Implement `download` and `upload` in `WindowsRemoteProvider` via the transfer channel; implement `openForQuickLook` by downloading to a temp file and previewing through the existing remote Quick Look path; return a clear unsupported-large-transfer error when SFTP is unavailable and the file exceeds 1,048,576 bytes.
 
 **Phase 5: Write operations**
 
@@ -165,7 +165,7 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. Uni
 - [x] **T32** `RemoteHostKindRoutingTests.testWindowsProbeSkipsDeployAndPicksWindowsProvider` — a Windows probe result routes to `WindowsRemoteProvider` and never calls `deployIfNeeded`; a Unix result routes to the existing deploy + `RemoteFileProvider` path; the kind is cached on `RemoteHost` and reused on reconnect.
 - [ ] **T33** `WindowsFindContractTests.testStreamsCappedTimeBoxedCurrentDriveMatches` — `find` yields streamed batches, stops at 1,000 results or 20 seconds, restricts to the active drive, and prunes `Windows`, `Program Files`, `ProgramData`, and `AppData` noise unless the active directory is inside one of those trees (validated against a temp tree with the same traversal logic).
 - [ ] **T34** `WindowsArchiveScriptTests.testZipArchiveIncludesHiddenEntries` — the built-in ZIP script enumerates selected hidden files and folders with `-Force`, preserves relative paths, and does not call `Compress-Archive`.
-- [ ] **T35** `WindowsTransferChannelTests.testSFTPUnavailableFallbackThreshold` — when SFTP is unavailable, a transfer at 1,048,576 bytes uses the PowerShell fallback and a larger transfer returns the unsupported-large-transfer error.
+- [x] **T35** `WindowsTransferChannelTests.testSFTPUnavailableFallbackThreshold` — when SFTP is unavailable, a transfer at 1,048,576 bytes uses the PowerShell fallback and a larger transfer returns the unsupported-large-transfer error.
 
 ### Integration Tests (`Tests/`, live Windows host — `win-carriercall`)
 
