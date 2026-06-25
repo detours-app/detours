@@ -5,12 +5,14 @@ enum PowerShellChannelError: Error, Equatable, LocalizedError {
     case remoteError(String)
     case invalidResponse(String)
     case processFailed(String)
+    case timeout(String)
 
     var errorDescription: String? {
         switch self {
         case .responseIDMismatch(let expected, let actual):
             return "PowerShell response id \(actual) did not match request id \(expected)."
-        case .remoteError(let message), .invalidResponse(let message), .processFailed(let message):
+        case .remoteError(let message), .invalidResponse(let message), .processFailed(let message),
+             .timeout(let message):
             return message
         }
     }
@@ -39,6 +41,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
     }
 
     private let transport: any PowerShellChannelTransport
+    private static let requestTimeoutNanoseconds: UInt64 = 30_000_000_000
     private var nextRequestID: UInt64 = 1
     private var isStarted = false
     private var activePaneCount = 0
@@ -75,7 +78,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
         try await transport.sendFrame(try RPCStreamHandler.encodeFrame(payload))
 
         do {
-            let responsePayload = try await transport.readFrame()
+            let responsePayload = try await readFrameWithTimeout(operation: operation)
             let response = try JSONDecoder.detoursWindows.decode(Response.self, from: responsePayload)
             guard response.id == requestID else {
                 throw PowerShellChannelError.responseIDMismatch(expected: requestID, actual: response.id)
@@ -126,6 +129,27 @@ actor PowerShellChannel: RemoteConnectionHandle {
         isStarted = false
         if activePaneCount > 0 {
             try? await startIfNeeded()
+        }
+    }
+
+    private func readFrameWithTimeout(operation: String) async throws -> Data {
+        let transport = transport
+        return try await withThrowingTaskGroup(of: Data.self) { group in
+            group.addTask {
+                try await transport.readFrame()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: Self.requestTimeoutNanoseconds)
+                throw PowerShellChannelError.timeout(
+                    "Timed out waiting for Windows PowerShell response to \(operation)."
+                )
+            }
+
+            guard let result = try await group.next() else {
+                throw PowerShellChannelError.invalidResponse("PowerShell channel produced no response.")
+            }
+            group.cancelAll()
+            return result
         }
     }
 
@@ -198,7 +222,6 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
     private var process: Process?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
-    private var stderrPipe: Pipe?
 
     init(
         sshTarget: String,
@@ -219,18 +242,16 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         let process = processFactory()
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
         process.arguments = sshArguments(dispatcherBase64: dispatcherBase64)
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        process.standardError = FileHandle.nullDevice
         try process.run()
 
         self.process = process
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
-        self.stderrPipe = stderrPipe
     }
 
     func sendFrame(_ frame: Data) async throws {
@@ -259,7 +280,6 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         process = nil
         stdinPipe = nil
         stdoutPipe = nil
-        stderrPipe = nil
     }
 
     private func sshArguments(dispatcherBase64: String) -> [String] {
