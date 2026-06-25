@@ -178,6 +178,31 @@ final class WindowsRemoteProviderTests: XCTestCase {
         XCTAssertTrue(requests[1].decodedScript.contains("ZipFile]::ExtractToDirectory"))
         XCTAssertTrue(requests[3].decodedScript.contains("Resolve-ArchiveTool @('7z.exe', '7z')"))
     }
+
+    func testGitStatusParsesHostPorcelainResults() async throws {
+        let hostID = UUID()
+        let transport = ProviderScriptTransport(responses: [
+            "GitStatus": #"[{"FullName":"C:\\Users\\sans\\repo\\changed.txt","Status":"modified"},{"FullName":"C:\\Users\\sans\\repo\\new.txt","Status":"untracked"}]"#,
+        ])
+        let channel = PowerShellChannel(transport: transport)
+        let provider = WindowsRemoteProvider(
+            hostID: hostID,
+            channel: channel,
+            transferChannel: WindowsTransferChannel(
+                powerShellChannel: channel,
+                sftpClient: FakeWindowsSFTPClient()
+            )
+        )
+
+        let statuses = await provider.gitStatus(for: .remote(hostID: hostID, path: "/C:/Users/sans/repo"))
+        let requests = await transport.requests
+
+        XCTAssertEqual(statuses[.remote(hostID: hostID, path: "/C:/Users/sans/repo/changed.txt")], .modified)
+        XCTAssertEqual(statuses[.remote(hostID: hostID, path: "/C:/Users/sans/repo/new.txt")], .untracked)
+        XCTAssertEqual(requests.map(\.operation), ["GitStatus"])
+        XCTAssertTrue(requests[0].decodedScript.contains("Get-Command -Name 'git.exe', 'git'"))
+        XCTAssertTrue(requests[0].decodedScript.contains("status --porcelain=v1"))
+    }
 }
 
 private actor ProviderScriptTransport: PowerShellChannelTransport {

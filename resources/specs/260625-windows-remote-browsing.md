@@ -138,8 +138,8 @@ Archive creation and extraction use a PowerShell/.NET ZIP implementation, not `C
 
 **Phase 9: Search and git status**
 
-- [ ] **T20** Implement `find(query:cap:)` in `WindowsRemoteProvider`: recurse the active directory's drive only via `Get-ChildItem -Recurse -Force`, case-insensitive name match, prune `C:\Windows`, `C:\Program Files`, `C:\Program Files (x86)`, `C:\ProgramData`, and user `AppData` unless the active directory is inside one of those trees, stream `FoundItem` batches, and stop at 1,000 results or 20 seconds.
-- [ ] **T21** Implement `gitStatus` returning results only when `git` is on the host PATH (porcelain parse), otherwise an empty result.
+- [x] **T20** Implement `find(query:cap:)` in `WindowsRemoteProvider`: recurse the active directory's drive only via `Get-ChildItem -Recurse -Force`, case-insensitive name match, prune `C:\Windows`, `C:\Program Files`, `C:\Program Files (x86)`, `C:\ProgramData`, and user `AppData` unless the active directory is inside one of those trees, stream `FoundItem` batches, and stop at 1,000 results or 20 seconds.
+- [x] **T21** Implement `gitStatus` returning results only when `git` is on the host PATH (porcelain parse), otherwise an empty result.
 
 **Phase 10: Coexistence and build**
 
@@ -163,7 +163,7 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. Uni
 - [x] **T30** `PowerShellChannelTests.testFramesRequestsAndCorrelatesReplies` — against a scripted stand-in transport, framed requests and replies correlate in order and a reply with embedded newlines/Unicode is reassembled intact.
 - [x] **T31** `PowerShellChannelTests.testMalformedFrameRestartsSessionAndFailsRequest` — a malformed dispatcher response fails the in-flight request, restarts the channel, and allows a later request to succeed.
 - [x] **T32** `RemoteHostKindRoutingTests.testWindowsProbeSkipsDeployAndPicksWindowsProvider` — a Windows probe result routes to `WindowsRemoteProvider` and never calls `deployIfNeeded`; a Unix result routes to the existing deploy + `RemoteFileProvider` path; the kind is cached on `RemoteHost` and reused on reconnect.
-- [ ] **T33** `WindowsFindContractTests.testStreamsCappedTimeBoxedCurrentDriveMatches` — `find` yields streamed batches, stops at 1,000 results or 20 seconds, restricts to the active drive, and prunes `Windows`, `Program Files`, `ProgramData`, and `AppData` noise unless the active directory is inside one of those trees (validated against a temp tree with the same traversal logic).
+- [x] **T33** `WindowsFindContractTests.testStreamsCappedTimeBoxedCurrentDriveMatches` — `find` yields streamed batches, stops at 1,000 results or 20 seconds, restricts to the active drive, and prunes `Windows`, `Program Files`, `ProgramData`, and `AppData` noise unless the active directory is inside one of those trees (validated against a temp tree with the same traversal logic).
 - [x] **T34** `WindowsArchiveScriptTests.testZipArchiveIncludesHiddenEntries` — the built-in ZIP script enumerates selected hidden files and folders with `-Force`, preserves relative paths, and does not call `Compress-Archive`.
 - [x] **T35** `WindowsTransferChannelTests.testSFTPUnavailableFallbackThreshold` — when SFTP is unavailable, a transfer at 1,048,576 bytes uses the PowerShell fallback and a larger transfer returns the unsupported-large-transfer error.
 

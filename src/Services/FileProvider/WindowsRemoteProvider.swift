@@ -6,6 +6,7 @@ actor WindowsRemoteProvider: FileProvider {
     private let channel: PowerShellChannel
     private let transferChannel: WindowsTransferChannel
     private let watchChannel: WindowsWatchChannel?
+    private let searchScope = WindowsSearchScope()
     private var rawPaths: [Location: String] = [:]
     private var archiveToolAvailability: WindowsArchiveToolAvailability?
 
@@ -32,6 +33,7 @@ actor WindowsRemoteProvider: FileProvider {
         let script = PowerShellScript(source: Self.homeDirectoryScript)
         let data = try await channel.run(script, operation: "HomeDirectory")
         let nativePath = try JSONDecoder.detoursWindows.decode(String.self, from: data)
+        searchScope.setActiveDirectory(nativePath)
         return try WindowsPath.remotePath(fromNative: nativePath)
     }
 
@@ -44,6 +46,7 @@ actor WindowsRemoteProvider: FileProvider {
         guard let nativePath = windowsPath.nativePath else {
             throw WindowsPathError.nativePathRequired(windowsPath.remotePath)
         }
+        searchScope.setActiveDirectory(nativePath)
         let arguments = PathArguments(path: nativePath, showHidden: showHidden)
         let script = try PowerShellScript(source: Self.listScript, arguments: arguments)
         let data = try await channel.run(script, operation: "List")
@@ -200,7 +203,29 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func gitStatus(for directory: Location) async -> [Location: GitStatus] {
-        [:]
+        guard let windowsPath = try? windowsPath(from: directory),
+              let nativePath = windowsPath.nativePath else {
+            return [:]
+        }
+        let script: PowerShellScript
+        do {
+            script = try PowerShellScript(source: WindowsFindScripts.gitStatus, arguments: PathArguments(path: nativePath))
+        } catch {
+            return [:]
+        }
+        guard let data = try? await channel.run(script, operation: "GitStatus"),
+              let replies = try? WindowsReplyDecoder.decodeArrayOrSingle(WindowsGitStatusReply.self, from: data) else {
+            return [:]
+        }
+        var statuses: [Location: GitStatus] = [:]
+        for reply in replies {
+            guard let status = GitStatus(rawValue: reply.status),
+                  let location = try? WindowsPath.location(fromNative: reply.nativePath, hostID: hostID) else {
+                continue
+            }
+            statuses[location] = status
+        }
+        return statuses
     }
 
     func folderSize(for location: Location) async throws -> Int64 {
@@ -276,7 +301,40 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     nonisolated func find(query: String, cap: Int) -> AsyncThrowingStream<[FoundItem], Error> {
-        AsyncThrowingStream { $0.finish() }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hostID = self.hostID
+        let channel = self.channel
+        let root = searchScope.activeDirectory
+
+        return AsyncThrowingStream { continuation in
+            guard !trimmed.isEmpty, let root else {
+                continuation.finish()
+                return
+            }
+            let task = Task {
+                do {
+                    let arguments = WindowsFindArguments(root: root, query: trimmed, cap: min(max(cap, 1), 1_000))
+                    let script = try PowerShellScript(source: WindowsFindScripts.find, arguments: arguments)
+                    let data = try await channel.run(script, operation: "Find")
+                    let replies = try WindowsReplyDecoder.decodeArrayOrSingle(WindowsFindReply.self, from: data)
+                    let items = replies.compactMap { reply -> FoundItem? in
+                        guard let location = try? WindowsPath.location(fromNative: reply.nativePath, hostID: hostID) else {
+                            return nil
+                        }
+                        return FoundItem(location: location, isDirectory: reply.isDirectory)
+                    }
+                    let chunkSize = 100
+                    for start in stride(from: 0, to: items.count, by: chunkSize) {
+                        try Task.checkCancellation()
+                        continuation.yield(Array(items[start..<min(start + chunkSize, items.count)]))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     private func listDrives() async throws -> [LoadedFileEntry] {
@@ -406,6 +464,32 @@ private struct ArchiveExtractArguments: Encodable {
     let password: String?
 }
 
+private struct WindowsFindArguments: Encodable {
+    let root: String
+    let query: String
+    let cap: Int
+}
+
+private struct WindowsFindReply: Decodable {
+    let nativePath: String
+    let isDirectory: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case nativePath = "FullName"
+        case isDirectory = "PSIsContainer"
+    }
+}
+
+private struct WindowsGitStatusReply: Decodable {
+    let nativePath: String
+    let status: String
+
+    private enum CodingKeys: String, CodingKey {
+        case nativePath = "FullName"
+        case status = "Status"
+    }
+}
+
 private struct WindowsArchiveToolAvailability: Decodable {
     let sevenZip: Bool
     let tar: Bool
@@ -441,6 +525,21 @@ private enum WindowsTrashLocation {
             throw FileProviderError.unsupportedOperation("Invalid Windows trash token")
         }
         return String(path.dropFirst(prefix.count))
+    }
+}
+
+private final class WindowsSearchScope: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: String?
+
+    var activeDirectory: String? {
+        lock.withLock { storage }
+    }
+
+    func setActiveDirectory(_ path: String) {
+        lock.withLock {
+            storage = path
+        }
     }
 }
 
