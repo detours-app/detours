@@ -7,6 +7,7 @@ enum PowerShellChannelError: Error, Equatable, LocalizedError {
     case invalidResponse(String)
     case processFailed(String)
     case timeout(String)
+    case unexpectedEOF
 
     var errorDescription: String? {
         switch self {
@@ -15,6 +16,8 @@ enum PowerShellChannelError: Error, Equatable, LocalizedError {
         case .remoteError(let message), .invalidResponse(let message), .processFailed(let message),
              .timeout(let message):
             return message
+        case .unexpectedEOF:
+            return "The Windows PowerShell channel closed before sending a complete response."
         }
     }
 }
@@ -301,8 +304,10 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
     }
 
     private func stopProcess() {
-        if process?.isRunning == true {
-            process?.terminate()
+        let runningProcess = process
+        if runningProcess?.isRunning == true {
+            runningProcess?.terminate()
+            runningProcess?.waitUntilExit()
         }
         process = nil
         stdinPipe = nil
@@ -337,7 +342,7 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
                 throw PowerShellChannelError.processFailed(String(cString: strerror(errno)))
             }
             if descriptor.revents & Int16(POLLIN) == 0 {
-                throw SSHConnectionError.unexpectedEOF
+                throw PowerShellChannelError.unexpectedEOF
             }
 
             let remaining = count - result.count
@@ -346,7 +351,7 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
             if byteCount > 0 {
                 result.append(buffer, count: byteCount)
             } else if byteCount == 0 {
-                throw SSHConnectionError.unexpectedEOF
+                throw PowerShellChannelError.unexpectedEOF
             } else if errno != EINTR {
                 throw PowerShellChannelError.processFailed(String(cString: strerror(errno)))
             }

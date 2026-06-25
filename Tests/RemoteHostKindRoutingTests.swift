@@ -39,6 +39,26 @@ final class RemoteHostKindRoutingTests: XCTestCase {
         XCTAssertTrue(RemoteHostKindProbe.windowsProbeCommand().contains("-EncodedCommand"))
     }
 
+    func testStaleCachedUnixHostCanBeReclassifiedAsWindows() async {
+        let probe = RemoteHostKindProbe(client: FakeProbeClient(outputs: [
+            "DETOURS_WINDOWS_PROBE\tWin32NT\n",
+        ]))
+
+        let kind = await probe.resolve(cachedKind: .unix)
+
+        XCTAssertEqual(kind, .windows)
+    }
+
+    func testCachedWindowsHostDoesNotReprobe() async {
+        let probe = RemoteHostKindProbe(client: FakeProbeClient(outputs: [
+            "",
+        ]))
+
+        let kind = await probe.resolve(cachedKind: .windows)
+
+        XCTAssertEqual(kind, .windows)
+    }
+
     func testWindowsProbeSkipsDeployAndPicksWindowsProvider() {
         let windowsRoute = RemoteConnectionRoute(kind: .windows)
         let unixRoute = RemoteConnectionRoute(kind: .unix)

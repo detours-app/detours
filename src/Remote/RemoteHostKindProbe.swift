@@ -15,6 +15,15 @@ struct RemoteHostKindProbe: Sendable {
         return .unix
     }
 
+    func resolve(cachedKind: RemoteHostKind?) async -> RemoteHostKind {
+        switch cachedKind {
+        case .windows:
+            return .windows
+        case .unix, nil:
+            return await probe()
+        }
+    }
+
     static func windowsProbeCommand() -> String {
         let script = """
         [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)

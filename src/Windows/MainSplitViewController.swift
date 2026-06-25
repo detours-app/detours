@@ -1303,13 +1303,10 @@ extension MainSplitViewController: SidebarDelegate {
             defer { remoteConnectTasks[host.id] = nil }
             Self.postRemoteConnectionState(.connecting, for: host.id)
             do {
-                let kind: RemoteHostKind
-                if let cachedKind = host.kind {
-                    kind = cachedKind
-                } else {
-                    kind = await RemoteHostKindProbe(
-                        client: SSHRemoteHostKindProbeClient(sshTarget: host.sshTarget)
-                    ).probe()
+                let kind = await RemoteHostKindProbe(
+                    client: SSHRemoteHostKindProbeClient(sshTarget: host.sshTarget)
+                ).resolve(cachedKind: host.kind)
+                if host.kind != kind {
                     RemoteHostStore.shared.updateKind(id: host.id, kind: kind)
                 }
 
