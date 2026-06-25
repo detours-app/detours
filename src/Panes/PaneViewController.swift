@@ -619,6 +619,7 @@ final class PaneViewController: NSViewController {
         reconnectButton.bezelStyle = .rounded
         reconnectButton.controlSize = .small
         reconnectButton.setAccessibilityIdentifier("remoteReconnectButton")
+        reconnectButton.setAccessibilityLabel("Reconnect")
         reconnectButton.target = self
         reconnectButton.action = #selector(reconnectRemoteHost)
 
@@ -633,6 +634,7 @@ final class PaneViewController: NSViewController {
         reconnectDismissButton.contentTintColor = ThemeManager.shared.currentTheme.textSecondary
         reconnectDismissButton.toolTip = "Dismiss"
         reconnectDismissButton.setAccessibilityIdentifier("remoteReconnectDismiss")
+        reconnectDismissButton.setAccessibilityLabel("Dismiss")
         reconnectDismissButton.target = self
         reconnectDismissButton.action = #selector(dismissReconnectBanner)
 
