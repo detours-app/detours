@@ -531,24 +531,77 @@ final class FolderExpansionUITests: BaseUITest {
     // MARK: - Directory Watching Tests
 
     /// Expand folder, create file externally, verify file list updates automatically
-    /// NOTE: This out-of-process filesystem mutation is covered below the UI layer.
-    /// The directory watching feature is tested via unit tests in MultiDirectoryWatcherTests.
     func testDirectoryWatchingDetectsNewFile() throws {
-        throw XCTSkip("Out-of-process filesystem mutation is covered below the UI layer")
+        let fileName = uniqueUITestItemName(prefix: "watcher-created", fileExtension: "txt")
+        let relativePath = "FolderA/\(fileName)"
+        defer { removeUITestItem(relativePath: relativePath) }
+
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: "SubfolderA1", timeout: 2), "FolderA children should appear")
+
+        sleep(1) // Give the expanded FolderA watcher time to attach.
+        try writeUITestFile(relativePath: relativePath, contents: "created by UI watcher test")
+
+        XCTAssertTrue(waitForRow(named: fileName, timeout: 10), "External file creation should appear without refresh")
     }
 
     /// Delete an expanded folder externally, verify list refreshes
-    /// NOTE: This out-of-process filesystem mutation is covered below the UI layer.
     func testDirectoryWatchingDetectsDeletedFolder() throws {
-        throw XCTSkip("Out-of-process filesystem mutation is covered below the UI layer")
+        let folderName = uniqueUITestItemName(prefix: "watcher-delete-target")
+        let childName = uniqueUITestItemName(prefix: "watcher-delete-child", fileExtension: "txt")
+        let folderPath = "FolderA/\(folderName)"
+        defer { removeUITestItem(relativePath: folderPath) }
+
+        try createUITestDirectory(relativePath: folderPath)
+        try writeUITestFile(relativePath: "\(folderPath)/\(childName)", contents: "delete watcher child")
+
+        let folderARow = outlineRow(named: "FolderA")
+        XCTAssertTrue(folderARow.waitForExistence(timeout: 2), "FolderA should exist")
+        folderARow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: folderName, timeout: 2), "Folder to delete should be visible")
+
+        let targetRow = outlineRow(named: folderName)
+        targetRow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: childName, timeout: 2), "Folder to delete should be expanded")
+
+        sleep(1) // Give the expanded folder watcher time to attach.
+        try FileManager.default.removeItem(at: uiTestURL(relativePath: folderPath))
+
+        XCTAssertTrue(waitForRowToDisappear(named: folderName, timeout: 10), "Externally deleted folder should disappear")
+        XCTAssertFalse(rowExists(named: childName), "Deleted folder's child should disappear")
     }
 
     // MARK: - Edge Case Tests
 
     /// Expand folder, rename it externally, verify expansion state is lost
-    /// NOTE: This out-of-process filesystem mutation is covered below the UI layer.
     func testExternalRenameLosesExpansionState() throws {
-        throw XCTSkip("Out-of-process filesystem mutation is covered below the UI layer")
+        let sourceName = uniqueUITestItemName(prefix: "watcher-rename-source")
+        let renamedName = uniqueUITestItemName(prefix: "watcher-rename-renamed")
+        let childName = uniqueUITestItemName(prefix: "watcher-rename-child", fileExtension: "txt")
+        defer {
+            removeUITestItem(relativePath: sourceName)
+            removeUITestItem(relativePath: renamedName)
+        }
+
+        try createUITestDirectory(relativePath: sourceName)
+        try writeUITestFile(relativePath: "\(sourceName)/\(childName)", contents: "rename watcher child")
+        XCTAssertTrue(waitForRow(named: sourceName, timeout: 10), "Externally created folder should appear")
+
+        let sourceRow = outlineRow(named: sourceName)
+        sourceRow.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(waitForRow(named: childName, timeout: 2), "Folder should be expanded before external rename")
+
+        sleep(1) // Give the expanded folder watcher time to attach.
+        try FileManager.default.moveItem(
+            at: uiTestURL(relativePath: sourceName),
+            to: uiTestURL(relativePath: renamedName)
+        )
+
+        XCTAssertTrue(waitForRowToDisappear(named: sourceName, timeout: 10), "Old folder name should disappear")
+        XCTAssertTrue(waitForRow(named: renamedName, timeout: 10), "Externally renamed folder should appear")
+        XCTAssertFalse(rowExists(named: childName), "Renamed folder should not retain expansion keyed to the old URL")
     }
 
     // MARK: - Bug Fix Verification Tests
@@ -821,5 +874,48 @@ final class FolderExpansionUITests: BaseUITest {
         } while Date() < deadline
 
         return false
+    }
+
+    private func uniqueUITestItemName(prefix: String, fileExtension: String? = nil) -> String {
+        let name = "\(prefix)-\(UUID().uuidString.prefix(8))"
+        guard let fileExtension else { return name }
+        return "\(name).\(fileExtension)"
+    }
+
+    private func uiTestURL(relativePath: String) -> URL {
+        uiTestRootURL.appendingPathComponent(relativePath)
+    }
+
+    private func createUITestDirectory(relativePath: String) throws {
+        try FileManager.default.createDirectory(
+            at: uiTestURL(relativePath: relativePath),
+            withIntermediateDirectories: true
+        )
+    }
+
+    private func writeUITestFile(relativePath: String, contents: String) throws {
+        let url = uiTestURL(relativePath: relativePath)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func removeUITestItem(relativePath: String) {
+        try? FileManager.default.removeItem(at: uiTestURL(relativePath: relativePath))
+    }
+
+    private func waitForRowToDisappear(named name: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        repeat {
+            if !rowExists(named: name) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+
+        return !rowExists(named: name)
     }
 }
