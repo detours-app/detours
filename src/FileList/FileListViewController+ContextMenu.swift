@@ -423,6 +423,25 @@ extension FileListViewController: FileListContextMenuDelegate {
         return nil
     }
 
+    static func defaultRemoteEditorApplication(forFileName fileName: String) -> RemoteEditorApplication? {
+        let lookupFileName = RemoteHost.cacheFileName(remotePath: fileName)
+        let lookupDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("DetoursRemoteOpenLookup", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let lookupURL = lookupDirectory.appendingPathComponent(lookupFileName, isDirectory: false)
+
+        do {
+            try FileManager.default.createDirectory(at: lookupDirectory, withIntermediateDirectories: true)
+            try Data().write(to: lookupURL, options: .atomic)
+            defer { try? FileManager.default.removeItem(at: lookupDirectory) }
+            return NSWorkspace.shared.urlForApplication(toOpen: lookupURL)
+                .flatMap(Self.remoteEditorApplication(for:))
+        } catch {
+            try? FileManager.default.removeItem(at: lookupDirectory)
+            return nil
+        }
+    }
+
     private static func remoteEditorApplication(for appURL: URL, candidate: RemoteEditorCandidate) -> RemoteEditorApplication {
         let appName = (try? appURL.resourceValues(forKeys: [.localizedNameKey]).localizedName)
             ?? candidate.displayName

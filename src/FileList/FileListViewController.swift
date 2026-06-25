@@ -438,8 +438,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         if let applicationURL {
             editor = Self.remoteEditorApplication(for: applicationURL)
         } else {
-            let lookupURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(item.name)
-            editor = NSWorkspace.shared.urlForApplication(toOpen: lookupURL).flatMap(Self.remoteEditorApplication(for:))
+            editor = Self.defaultRemoteEditorApplication(forFileName: item.name)
         }
 
         guard let editor,

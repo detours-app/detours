@@ -196,6 +196,25 @@ final class SystemIntegrationTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testDefaultRemoteEditorLookupUsesRealPlaceholderFile() throws {
+        let lookupDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("DetoursSystemIntegrationLookup", isDirectory: true)
+        let lookupURL = lookupDirectory.appendingPathComponent("probe.md")
+        try FileManager.default.createDirectory(at: lookupDirectory, withIntermediateDirectories: true)
+        try Data().write(to: lookupURL)
+        defer { try? FileManager.default.removeItem(at: lookupDirectory) }
+
+        guard let defaultApp = NSWorkspace.shared.urlForApplication(toOpen: lookupURL),
+              Bundle(url: defaultApp)?.bundleIdentifier == "com.redmargin.app" else {
+            throw XCTSkip("RedMargin is not the default Markdown opener on this machine")
+        }
+
+        let editor = FileListViewController.defaultRemoteEditorApplication(forFileName: "probe.md")
+        XCTAssertEqual(editor?.appURL.standardizedFileURL, defaultApp.standardizedFileURL)
+        XCTAssertEqual(editor?.scheme, .redmargin)
+    }
+
     // MARK: - Open With Tests
 
     @MainActor
