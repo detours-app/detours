@@ -104,7 +104,7 @@ enum WindowsArchiveScripts {
         \#(extractionHelpers)
 
         $archivePath = (Get-Item -LiteralPath $Arguments.archive -Force).FullName
-        $parent = Split-Path -LiteralPath $archivePath -Parent
+        $parent = [System.IO.Path]::GetDirectoryName($archivePath)
         $tempDirectory = New-ExtractTempDirectory -Parent $parent
         try {
             [System.IO.Compression.ZipFile]::ExtractToDirectory($archivePath, $tempDirectory)
@@ -124,7 +124,7 @@ enum WindowsArchiveScripts {
         \#(extractionHelpers)
 
         $archivePath = (Get-Item -LiteralPath $Arguments.archive -Force).FullName
-        $parent = Split-Path -LiteralPath $archivePath -Parent
+        $parent = [System.IO.Path]::GetDirectoryName($archivePath)
         $tempDirectory = New-ExtractTempDirectory -Parent $parent
         $format = [string]$Arguments.format
         try {
@@ -318,7 +318,7 @@ enum WindowsArchiveScripts {
     function Materialize-ExtractionResult([string]$TempDirectory, [string]$ArchivePath, [string]$Format) {
         $items = @(Get-ChildItem -LiteralPath $TempDirectory -Force)
         if ($items.Count -eq 0) { throw "Archive appears to be empty: $ArchivePath" }
-        $parent = Split-Path -LiteralPath $ArchivePath -Parent
+        $parent = [System.IO.Path]::GetDirectoryName($ArchivePath)
 
         if ($items.Count -eq 1) {
             $destination = New-UniqueChildPath -Directory $parent -Name $items[0].Name

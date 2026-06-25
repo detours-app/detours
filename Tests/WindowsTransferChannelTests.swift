@@ -2,6 +2,13 @@ import XCTest
 @testable import Detours
 
 final class WindowsTransferChannelTests: XCTestCase {
+    func testSFTPPathUsesWindowsOpenSSHDriveRoot() {
+        XCTAssertEqual(
+            ProcessWindowsSFTPClient.sftpPath(fromNativePath: #"C:\Users\sans\file.txt"#),
+            "/C:/Users/sans/file.txt"
+        )
+    }
+
     func testSFTPUnavailableFallbackThreshold() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

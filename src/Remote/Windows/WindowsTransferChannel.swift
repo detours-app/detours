@@ -142,13 +142,13 @@ final class ProcessWindowsSFTPClient: WindowsSFTPClient, @unchecked Sendable {
 
     func download(remotePath: String, to localURL: URL) async throws {
         try await runBatch(commands: [
-            "get \(Self.quote(remotePath)) \(Self.quote(localURL.path))",
+            "get \(Self.quote(Self.sftpPath(fromNativePath: remotePath))) \(Self.quote(localURL.path))",
         ])
     }
 
     func upload(localURL: URL, remotePath: String) async throws {
         try await runBatch(commands: [
-            "put \(Self.quote(localURL.path)) \(Self.quote(remotePath))",
+            "put \(Self.quote(localURL.path)) \(Self.quote(Self.sftpPath(fromNativePath: remotePath)))",
         ])
     }
 
@@ -179,6 +179,14 @@ final class ProcessWindowsSFTPClient: WindowsSFTPClient, @unchecked Sendable {
 
     private static func quote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    static func sftpPath(fromNativePath nativePath: String) -> String {
+        let normalized = nativePath.replacingOccurrences(of: "\\", with: "/")
+        guard normalized.count >= 2 else { return normalized }
+        let driveSeparator = normalized.index(after: normalized.startIndex)
+        guard normalized[driveSeparator] == ":" else { return normalized }
+        return "/" + normalized
     }
 }
 

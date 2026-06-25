@@ -185,6 +185,11 @@ actor PowerShellChannel: RemoteConnectionHandle {
             $arguments = $request.argumentsJSON | ConvertFrom-Json
             $result = & ([scriptblock]::Create($script)) $arguments
             $resultJson = $result | ConvertTo-Json -Compress -Depth 8
+            if ($null -eq $resultJson) {
+                $resultJson = 'null'
+            } else {
+                $resultJson = [string]$resultJson
+            }
             Write-Frame (@{ id = [uint64]$request.id; ok = $true; resultJSON = $resultJson } | ConvertTo-Json -Compress -Depth 4)
         } catch {
             Write-Frame (@{ id = [uint64]$request.id; ok = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress -Depth 4)

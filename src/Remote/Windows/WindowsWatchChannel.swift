@@ -234,14 +234,7 @@ actor WindowsWatchChannel {
         $subscriptions = @()
         foreach ($eventName in @('Changed', 'Created', 'Deleted', 'Renamed')) {
             $sourceID = "detours-$watchID-$eventName"
-            $subscriptions += Register-ObjectEvent -InputObject $watcher -EventName $eventName -SourceIdentifier $sourceID -MessageData $watchID -Action {
-                $eventPath = $Event.SourceEventArgs.FullPath
-                Write-Frame (@{
-                    type = 'event'
-                    watchID = [string]$Event.MessageData
-                    path = [string]$eventPath
-                } | ConvertTo-Json -Compress)
-            }
+            $subscriptions += Register-ObjectEvent -InputObject $watcher -EventName $eventName -SourceIdentifier $sourceID -MessageData $watchID
         }
         $watchers[$watchID] = @{
             Watcher = $watcher
@@ -261,6 +254,16 @@ actor WindowsWatchChannel {
         $watchers.Remove($WatchID)
     }
 
+    function Send-WatchEvent($EventRecord) {
+        $eventPath = $EventRecord.SourceEventArgs.FullPath
+        Write-Frame (@{
+            type = 'event'
+            watchID = [string]$EventRecord.MessageData
+            path = [string]$eventPath
+        } | ConvertTo-Json -Compress)
+        Remove-Event -EventIdentifier $EventRecord.EventIdentifier -ErrorAction SilentlyContinue
+    }
+
     try {
         while ($true) {
             $lengthBytes = Read-Exact 4
@@ -271,7 +274,14 @@ actor WindowsWatchChannel {
             $request = [System.Text.Encoding]::UTF8.GetString($payloadBytes) | ConvertFrom-Json
             try {
                 switch ([string]$request.command) {
-                    'watch' { Register-Watch $request; Send-Ack ([uint64]$request.id) }
+                    'watch' {
+                        Register-Watch $request
+                        Send-Ack ([uint64]$request.id)
+                        while ($watchers.Count -gt 0) {
+                            $eventRecord = Wait-Event -Timeout 1
+                            if ($null -ne $eventRecord) { Send-WatchEvent $eventRecord }
+                        }
+                    }
                     'unwatch' { Unregister-Watch ([string]$request.watchID); Send-Ack ([uint64]$request.id) }
                     default { throw "Unknown Windows watch command: $($request.command)" }
                 }

@@ -624,7 +624,7 @@ private extension WindowsRemoteProvider {
         operationBody: """
         param($Arguments)
         $item = Get-Item -LiteralPath $Arguments.path -Force
-        $parent = Split-Path -LiteralPath $item.FullName -Parent
+        $parent = [System.IO.Path]::GetDirectoryName($item.FullName)
         $destination = Join-Path -Path $parent -ChildPath $Arguments.newName
         Rename-Item -LiteralPath $item.FullName -NewName $Arguments.newName -ErrorAction Stop
         (Get-Item -LiteralPath $destination -Force).FullName
@@ -679,8 +679,8 @@ private extension WindowsRemoteProvider {
         foreach ($path in $Arguments.paths) {
             $item = Get-Item -LiteralPath $path -Force
             $originalPath = $item.FullName
-            $deletedFrom = Split-Path -LiteralPath $originalPath -Parent
-            $name = Split-Path -LiteralPath $originalPath -Leaf
+            $deletedFrom = [System.IO.Path]::GetDirectoryName($originalPath)
+            $name = [System.IO.Path]::GetFileName($originalPath)
             Send-ToRecycleBin -Path $originalPath
             Start-Sleep -Milliseconds 150
             $recycleItem = Find-RecycleItem -Name $name -DeletedFrom $deletedFrom -DateDeletedUtc 0
