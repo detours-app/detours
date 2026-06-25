@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 enum PowerShellChannelError: Error, Equatable, LocalizedError {
@@ -41,7 +42,6 @@ actor PowerShellChannel: RemoteConnectionHandle {
     }
 
     private let transport: any PowerShellChannelTransport
-    private static let requestTimeoutNanoseconds: UInt64 = 30_000_000_000
     private var nextRequestID: UInt64 = 1
     private var isStarted = false
     private var activePaneCount = 0
@@ -78,7 +78,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
         try await transport.sendFrame(try RPCStreamHandler.encodeFrame(payload))
 
         do {
-            let responsePayload = try await readFrameWithTimeout(operation: operation)
+            let responsePayload = try await transport.readFrame()
             let response = try JSONDecoder.detoursWindows.decode(Response.self, from: responsePayload)
             guard response.id == requestID else {
                 throw PowerShellChannelError.responseIDMismatch(expected: requestID, actual: response.id)
@@ -129,27 +129,6 @@ actor PowerShellChannel: RemoteConnectionHandle {
         isStarted = false
         if activePaneCount > 0 {
             try? await startIfNeeded()
-        }
-    }
-
-    private func readFrameWithTimeout(operation: String) async throws -> Data {
-        let transport = transport
-        return try await withThrowingTaskGroup(of: Data.self) { group in
-            group.addTask {
-                try await transport.readFrame()
-            }
-            group.addTask {
-                try await Task.sleep(nanoseconds: Self.requestTimeoutNanoseconds)
-                throw PowerShellChannelError.timeout(
-                    "Timed out waiting for Windows PowerShell response to \(operation)."
-                )
-            }
-
-            guard let result = try await group.next() else {
-                throw PowerShellChannelError.invalidResponse("PowerShell channel produced no response.")
-            }
-            group.cancelAll()
-            return result
         }
     }
 
@@ -214,6 +193,8 @@ actor PowerShellChannel: RemoteConnectionHandle {
 }
 
 final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked Sendable {
+    private static let readTimeoutMilliseconds: Int32 = 30_000
+
     private let sshTarget: String
     private let controlDirectory: URL
     private let hostTrust: SSHHostTrust
@@ -298,12 +279,31 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
 
     private static func readExact(_ count: Int, from handle: FileHandle) throws -> Data {
         var result = Data()
+        let fileDescriptor = handle.fileDescriptor
         while result.count < count {
-            let chunk = handle.readData(ofLength: count - result.count)
-            guard !chunk.isEmpty else {
+            var descriptor = pollfd(fd: fileDescriptor, events: Int16(POLLIN), revents: 0)
+            let pollResult = poll(&descriptor, 1, readTimeoutMilliseconds)
+            if pollResult == 0 {
+                throw PowerShellChannelError.timeout("Timed out waiting for Windows PowerShell response.")
+            }
+            if pollResult < 0 {
+                if errno == EINTR { continue }
+                throw PowerShellChannelError.processFailed(String(cString: strerror(errno)))
+            }
+            if descriptor.revents & Int16(POLLIN) == 0 {
                 throw SSHConnectionError.unexpectedEOF
             }
-            result.append(chunk)
+
+            let remaining = count - result.count
+            var buffer = [UInt8](repeating: 0, count: remaining)
+            let byteCount = Darwin.read(fileDescriptor, &buffer, remaining)
+            if byteCount > 0 {
+                result.append(buffer, count: byteCount)
+            } else if byteCount == 0 {
+                throw SSHConnectionError.unexpectedEOF
+            } else if errno != EINTR {
+                throw PowerShellChannelError.processFailed(String(cString: strerror(errno)))
+            }
         }
         return result
     }
