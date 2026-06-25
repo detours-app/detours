@@ -169,13 +169,13 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. Uni
 
 ### Integration Tests (`Tests/`, live Windows host — `win-carriercall`)
 
-- [ ] **T36** `WindowsRemoteLiveTests.testConnectListsProfileAndDrives` — connecting recognizes Windows, lands in the profile folder, lists it correctly, and the synthetic root lists drives (A1, A2, A3).
-- [ ] **T37** `WindowsRemoteLiveTests.testCreateRenameCopyMoveDelete` — create folder, rename, copy, move, and delete-to-Recycle-Bin succeed and are reflected in listings; the deleted item is in the Recycle Bin, not permanently removed (A4, A5).
-- [ ] **T38** `WindowsRemoteLiveTests.testTrashRestoreBestEffort` — trash returns trash locations; restore returns the item to its original path when Windows allows, and returns a clear error otherwise (A5).
-- [ ] **T39** `WindowsRemoteLiveTests.testZipCreateExtractAndToolGating` — ZIP create and extract round-trip, hidden selected entries survive the round trip, and 7z/tar are offered only when present on the host (A6).
-- [ ] **T40** `WindowsRemoteLiveTests.testDownloadUploadLargeBinary` — download and upload of a large binary file preserve byte-exact contents (A7).
-- [ ] **T41** `WindowsRemoteLiveTests.testQuickLookAndFind` — Quick Look downloads and previews a file; `find` streams matching names from the active drive (A8).
-- [ ] **T42** `WindowsRemoteLiveTests.testWatchEmitsChangeOnServerSideModification` — a folder open via the provider receives a change event when its contents change on the host (A9).
+- [x] **T36** `WindowsRemoteLiveTests.testConnectListsProfileAndDrives` — connecting recognizes Windows, lands in the profile folder, lists it correctly, and the synthetic root lists drives (A1, A2, A3); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
+- [x] **T37** `WindowsRemoteLiveTests.testCreateRenameCopyMoveDelete` — create folder, rename, copy, move, and delete-to-Recycle-Bin succeed and are reflected in listings; the deleted item is in the Recycle Bin, not permanently removed (A4, A5); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
+- [x] **T38** `WindowsRemoteLiveTests.testTrashRestoreBestEffort` — trash returns trash locations; restore returns the item to its original path when Windows allows, and returns a clear error otherwise (A5); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
+- [x] **T39** `WindowsRemoteLiveTests.testZipCreateExtractAndToolGating` — ZIP create and extract round-trip, hidden selected entries survive the round trip, and 7z/tar are offered only when present on the host (A6); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
+- [x] **T40** `WindowsRemoteLiveTests.testDownloadUploadLargeBinary` — download and upload of a large binary file preserve byte-exact contents (A7); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
+- [x] **T41** `WindowsRemoteLiveTests.testQuickLookAndFind` — Quick Look downloads and previews a file; `find` streams matching names from the active drive (A8); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
+- [x] **T42** `WindowsRemoteLiveTests.testWatchEmitsChangeOnServerSideModification` — a folder open via the provider receives a change event when its contents change on the host (A9); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
 
 ### UI Tests (`Tests/UITests/DetoursUITests/`, run on Foundry)
 
