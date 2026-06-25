@@ -5,19 +5,27 @@ actor WindowsRemoteProvider: FileProvider {
 
     private let channel: PowerShellChannel
     private let transferChannel: WindowsTransferChannel
+    private let watchChannel: WindowsWatchChannel?
     private var rawPaths: [Location: String] = [:]
     private var archiveToolAvailability: WindowsArchiveToolAvailability?
 
-    init(hostID: UUID, channel: PowerShellChannel, transferChannel: WindowsTransferChannel) {
+    init(
+        hostID: UUID,
+        channel: PowerShellChannel,
+        transferChannel: WindowsTransferChannel,
+        watchChannel: WindowsWatchChannel? = nil
+    ) {
         self.hostID = hostID
         self.channel = channel
         self.transferChannel = transferChannel
+        self.watchChannel = watchChannel
     }
 
     init(hostID: UUID, sshTarget: String, channel: PowerShellChannel) {
         self.hostID = hostID
         self.channel = channel
         self.transferChannel = WindowsTransferChannel(sshTarget: sshTarget, powerShellChannel: channel)
+        self.watchChannel = WindowsWatchChannel(hostID: hostID, sshTarget: sshTarget)
     }
 
     func homeDirectory() async throws -> String {
@@ -176,10 +184,20 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
-        throw FileProviderError.unsupportedOperation("Windows watch")
+        guard let watchChannel else {
+            throw WindowsWatchChannelError.missingChannel
+        }
+        let windowsPath = try windowsPath(from: location)
+        return try await watchChannel.watch(
+            location,
+            nativePath: try nativePath(from: windowsPath),
+            onChange: onChange
+        )
     }
 
-    func unwatch(_ watch: FileProviderWatch) async {}
+    func unwatch(_ watch: FileProviderWatch) async {
+        await watchChannel?.unwatch(watch)
+    }
 
     func gitStatus(for directory: Location) async -> [Location: GitStatus] {
         [:]

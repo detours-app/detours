@@ -133,8 +133,8 @@ Archive creation and extraction use a PowerShell/.NET ZIP implementation, not `C
 
 **Phase 8: Directory watching**
 
-- [ ] **T18** Create `src/Remote/Windows/WindowsWatchChannel.swift`: exactly one additional long-lived PowerShell channel per host that registers one .NET `FileSystemWatcher` per watched directory and streams change events tagged by directory id as framed JSON, independent of the command channel.
-- [ ] **T19** Implement `watch`/`unwatch` in `WindowsRemoteProvider` against the watch channel: `watch` registers a directory and invokes `onChange` per event, `unwatch` tears down a single watcher, and the watch channel closes when no watches remain.
+- [x] **T18** Create `src/Remote/Windows/WindowsWatchChannel.swift`: exactly one additional long-lived PowerShell channel per host that registers one .NET `FileSystemWatcher` per watched directory and streams change events tagged by directory id as framed JSON, independent of the command channel.
+- [x] **T19** Implement `watch`/`unwatch` in `WindowsRemoteProvider` against the watch channel: `watch` registers a directory and invokes `onChange` per event, `unwatch` tears down a single watcher, and the watch channel closes when no watches remain.
 
 **Phase 9: Search and git status**
 
