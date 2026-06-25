@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindowController = MainWindowController()
         mainWindowController?.showWindow(nil)
         mainWindowController?.window?.makeKeyAndOrderFront(nil)
-        NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        NSRunningApplication.current.activate(options: [.activateAllWindows])
 
         systemEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .systemDefined) { [weak self] event in
             guard let splitVC = self?.mainWindowController?.splitViewController else { return event }
