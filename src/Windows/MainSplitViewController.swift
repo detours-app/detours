@@ -618,15 +618,9 @@ final class MainSplitViewController: NSSplitViewController {
         leftPane.selectedTab?.fileListViewController.performUITestDuplicateStructure(relativePath: relativePath)
     }
 
-    func performUITestRemoteFailure() {
-        guard UITestEnvironment.isEnabled,
-              let host = leftPane.selectedTab?.fileListViewController.currentRemoteHost else {
-            return
-        }
-        RemoteConnectionStateStore.shared.setState(
-            .failed(reason: .transport("UI test connection dropped")),
-            for: host.id
-        )
+    func performUITestRemoteFailure() -> Bool {
+        guard UITestEnvironment.isEnabled else { return false }
+        return leftPane.performUITestRemoteFailureForSelectedHost()
     }
 
     func setActivePaneFromChild(_ pane: PaneViewController) {

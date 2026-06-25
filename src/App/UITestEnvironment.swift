@@ -9,6 +9,7 @@ enum UITestEnvironment {
     static let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
     static let quickNavCommandFileName = ".detours-quick-nav-command.json"
     static let remoteFailureCommandFileName = ".detours-remote-failure.json"
+    static let remoteFailureAcknowledgementFileName = ".detours-remote-failure-ack.json"
     static let undoMenuTitleRequestFileName = ".detours-undo-menu-title-request.json"
     static let undoMenuTitleResponseFileName = ".detours-undo-menu-title-response.json"
     static let duplicateStructureShowRequestFileName = ".detours-duplicate-structure-show-request.json"
@@ -67,6 +68,11 @@ enum UITestEnvironment {
 
     struct NetworkShareDismissalAck: Encodable {
         let id: String
+    }
+
+    struct RemoteFailureAcknowledgement: Encodable {
+        let id: String
+        let handled: Bool
     }
 
     struct UndoMenuTitleResponse: Encodable {
@@ -167,6 +173,10 @@ enum UITestEnvironment {
 
     static var remoteFailureCommandURL: URL? {
         rootDirectory?.appendingPathComponent(remoteFailureCommandFileName)
+    }
+
+    static var remoteFailureAcknowledgementURL: URL? {
+        rootDirectory?.appendingPathComponent(remoteFailureAcknowledgementFileName)
     }
 
     static var undoMenuTitleRequestURL: URL? {
@@ -295,6 +305,15 @@ enum UITestEnvironment {
     static func acknowledgeShowNetworkShareDialogDismissed(id: String) {
         guard let url = showNetworkShareDialogDismissedURL,
               let data = try? JSONEncoder().encode(NetworkShareDismissalAck(id: id)) else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func acknowledgeRemoteFailureCommand(id: String, handled: Bool) {
+        guard let url = remoteFailureAcknowledgementURL,
+              let data = try? JSONEncoder().encode(RemoteFailureAcknowledgement(id: id, handled: handled)) else {
             return
         }
 

@@ -144,7 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let command = UITestEnvironment.currentRemoteFailureCommand(),
            command.id != lastUITestRemoteFailureCommandID {
             lastUITestRemoteFailureCommandID = command.id
-            mainWindowController?.splitViewController.performUITestRemoteFailure()
+            let handled = mainWindowController?.splitViewController.performUITestRemoteFailure() ?? false
+            UITestEnvironment.acknowledgeRemoteFailureCommand(id: command.id, handled: handled)
         }
 
         if let request = UITestEnvironment.currentUndoMenuTitleRequest(),

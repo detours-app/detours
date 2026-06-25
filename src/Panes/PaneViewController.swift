@@ -694,6 +694,20 @@ final class PaneViewController: NSViewController {
         return selectedTab?.fileListViewController.currentRemoteHost
     }
 
+    func performUITestRemoteFailureForSelectedHost() -> Bool {
+        guard UITestEnvironment.isEnabled,
+              let host = selectedReconnectHost() else {
+            return false
+        }
+
+        RemoteConnectionStateStore.shared.setState(
+            .failed(reason: .transport("UI test connection dropped")),
+            for: host.id
+        )
+        showReconnectBanner(for: host)
+        return true
+    }
+
     @objc private func dismissReconnectBanner() {
         dismissedReconnectHostID = selectedReconnectHost()?.id
         hideReconnectBanner()

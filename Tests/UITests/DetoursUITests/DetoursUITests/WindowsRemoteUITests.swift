@@ -56,14 +56,34 @@ final class WindowsRemoteUITests: BaseUITest {
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5), "App window should exist")
     }
 
-    private func sendRemoteFailureCommand() throws {
+    private struct RemoteFailureAcknowledgement: Decodable {
+        let id: String
+        let handled: Bool
+    }
+
+    private func sendRemoteFailureCommand(timeout: TimeInterval = 3) throws {
         struct Command: Encodable {
             let id: String
         }
 
         let command = Command(id: UUID().uuidString)
         let url = uiTestRootURL.appendingPathComponent(".detours-remote-failure.json")
+        let acknowledgementURL = uiTestRootURL.appendingPathComponent(".detours-remote-failure-ack.json")
+        try? FileManager.default.removeItem(at: acknowledgementURL)
         try JSONEncoder().encode(command).write(to: url, options: .atomic)
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: acknowledgementURL),
+               let acknowledgement = try? JSONDecoder().decode(RemoteFailureAcknowledgement.self, from: data),
+               acknowledgement.id == command.id {
+                XCTAssertTrue(acknowledgement.handled, "Remote failure command should target the fake Windows host")
+                return
+            }
+            usleep(50_000)
+        }
+
+        XCTFail("Timed out waiting for remote failure acknowledgement")
     }
 
     private func waitForNonExistence(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
