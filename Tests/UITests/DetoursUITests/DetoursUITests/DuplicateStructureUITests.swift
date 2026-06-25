@@ -18,7 +18,7 @@ final class DuplicateStructureUITests: BaseUITest {
         // open the dialog through the gated UI-test command.
         let menuItem = app.menuItems["Duplicate Structure..."]
         XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "Duplicate Structure menu item should exist")
-        app.typeKey(.escape, modifierFlags: [])
+        postEscapeKeyEvent()
         usleep(300_000)
         try showDuplicateStructureForUITest(relativePath: "Projects2025")
 
@@ -27,6 +27,7 @@ final class DuplicateStructureUITests: BaseUITest {
         XCTAssertEqual(presentation.folderName, "Projects2026", "Folder name should default to Projects2026")
 
         try sendDuplicateStructureAction("duplicate")
+        app.typeKey(.escape, modifierFlags: [])
         sleep(2)
 
         // Verify the new folder was created
@@ -49,7 +50,7 @@ final class DuplicateStructureUITests: BaseUITest {
         // open the dialog through the gated UI-test command.
         let menuItem = app.menuItems["Duplicate Structure..."]
         XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "Duplicate Structure menu item should exist")
-        app.typeKey(.escape, modifierFlags: [])
+        postEscapeKeyEvent()
         usleep(300_000)
         try showDuplicateStructureForUITest(relativePath: "FolderA")
 
@@ -57,6 +58,7 @@ final class DuplicateStructureUITests: BaseUITest {
         XCTAssertEqual(presentation.sourceName, "FolderA")
         XCTAssertEqual(presentation.folderName, "FolderA copy")
         try sendDuplicateStructureAction("cancel")
+        app.typeKey(.escape, modifierFlags: [])
 
         // No "FolderA copy" should exist
         XCTAssertFalse(rowExists(named: "FolderA copy"), "FolderA copy should not exist after cancel")
@@ -78,7 +80,7 @@ final class DuplicateStructureUITests: BaseUITest {
         // open the dialog through the gated UI-test command.
         let menuItem = app.menuItems["Duplicate Structure..."]
         XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "Duplicate Structure menu item should exist")
-        app.typeKey(.escape, modifierFlags: [])
+        postEscapeKeyEvent()
         usleep(300_000)
         try showDuplicateStructureForUITest(relativePath: "FolderB")
 
@@ -86,5 +88,6 @@ final class DuplicateStructureUITests: BaseUITest {
         XCTAssertEqual(presentation.sourceName, "FolderB")
 
         try sendDuplicateStructureAction("escape")
+        app.typeKey(.escape, modifierFlags: [])
     }
 }
