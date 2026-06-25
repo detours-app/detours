@@ -27,6 +27,7 @@ final class WindowsRemoteProviderTests: XCTestCase {
         let version = try await provider.version(of: .remote(hostID: hostID, path: "/C:/Users/sans/Résumé.txt"))
         let size = try await provider.folderSize(for: .remote(hostID: hostID, path: "/C:/Users/sans/Résumé.txt"))
         let operations = await transport.operations
+        let requests = await transport.requests
 
         XCTAssertEqual(home, "/C:/Users/sans")
         XCTAssertEqual(list.map(\.name), ["Résumé.txt"])
@@ -35,6 +36,11 @@ final class WindowsRemoteProviderTests: XCTestCase {
         XCTAssertEqual(version.sha256, "abcdef")
         XCTAssertEqual(size, 42)
         XCTAssertEqual(operations, ["HomeDirectory", "List", "Stat", "Version", "FolderSize"])
+        let listScript = try XCTUnwrap(requests.first { $0.operation == "List" }?.decodedScript)
+        XCTAssertLessThan(
+            try XCTUnwrap(listScript.range(of: "function Convert-Item")?.lowerBound),
+            try XCTUnwrap(listScript.range(of: "ForEach-Object { Convert-Item $_ }")?.lowerBound)
+        )
     }
 
     func testSyntheticRootListsDrives() async throws {

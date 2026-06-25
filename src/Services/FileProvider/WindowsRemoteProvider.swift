@@ -576,10 +576,6 @@ private extension WindowsRemoteProvider {
     static let listScript = PowerShellScript.prelude(
         operationBody: """
         param($Arguments)
-        Get-ChildItem -LiteralPath $Arguments.path -Force | Where-Object {
-            [bool]$Arguments.showHidden -or -not ($_.Attributes -band [System.IO.FileAttributes]::Hidden)
-        } | ForEach-Object { Convert-Item $_ }
-
         function Convert-Item($Item) {
             [pscustomobject]@{
                 Name = $Item.Name
@@ -590,6 +586,10 @@ private extension WindowsRemoteProvider {
                 LastWriteTimeUtc = [int64]([DateTimeOffset]$Item.LastWriteTimeUtc).ToUnixTimeMilliseconds()
             }
         }
+
+        Get-ChildItem -LiteralPath $Arguments.path -Force | Where-Object {
+            [bool]$Arguments.showHidden -or -not ($_.Attributes -band [System.IO.FileAttributes]::Hidden)
+        } | ForEach-Object { Convert-Item $_ }
         """
     )
 
