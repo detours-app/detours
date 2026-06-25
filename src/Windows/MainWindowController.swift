@@ -1,5 +1,18 @@
 import AppKit
 
+final class MainWindow: NSWindow {
+    weak var splitViewController: MainSplitViewController?
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if ShortcutManager.shared.matches(event: event, action: .filter) {
+            splitViewController?.filter(nil)
+            return true
+        }
+
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
 final class MainWindowController: NSWindowController, NSWindowDelegate {
     static let frameAutosaveName = "MainWindow"
     static let minimumContentSize = NSSize(width: 800, height: 520)
@@ -18,12 +31,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         let contentSize = NSSize(width: 1200, height: 700)
         splitViewController = MainSplitViewController()
 
-        let window = NSWindow(
+        let window = MainWindow(
             contentRect: NSRect(origin: .zero, size: contentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
+        window.splitViewController = splitViewController
 
         window.title = "Detours"
         window.tabbingMode = .disallowed
