@@ -147,6 +147,37 @@ final class WindowsRemoteProviderTests: XCTestCase {
         XCTAssertTrue(requests[2].decodedScript.contains("InvokeVerb('RESTORE')"))
         XCTAssertTrue(requests[2].argumentsJSON.contains(#""trashToken":"restore-token""#))
     }
+
+    func testArchiveRoutesZipBuiltInAndToolBackedFormats() async throws {
+        let hostID = UUID()
+        let transport = ProviderScriptTransport(responses: [
+            "ArchiveTools": #"{"SevenZip":true,"Tar":true}"#,
+            "ArchiveCreate": #""C:\\Users\\sans\\bundle.zip""#,
+            "ArchiveExtract": #""C:\\Users\\sans\\bundle""#,
+        ])
+        let channel = PowerShellChannel(transport: transport)
+        let provider = WindowsRemoteProvider(
+            hostID: hostID,
+            channel: channel,
+            transferChannel: WindowsTransferChannel(
+                powerShellChannel: channel,
+                sftpClient: FakeWindowsSFTPClient()
+            )
+        )
+        let source = Location.remote(hostID: hostID, path: "/C:/Users/sans/source")
+
+        let zip = try await provider.archiveCreate([source], format: .zip, archiveName: "bundle", password: nil)
+        let extracted = try await provider.archiveExtract(zip, password: nil)
+        _ = try await provider.archiveCreate([source], format: .sevenZ, archiveName: "bundle", password: nil)
+        let requests = await transport.requests
+
+        XCTAssertEqual(zip, .remote(hostID: hostID, path: "/C:/Users/sans/bundle.zip"))
+        XCTAssertEqual(extracted, .remote(hostID: hostID, path: "/C:/Users/sans/bundle"))
+        XCTAssertEqual(requests.map(\.operation), ["ArchiveCreate", "ArchiveExtract", "ArchiveTools", "ArchiveCreate"])
+        XCTAssertTrue(requests[0].decodedScript.contains("System.IO.Compression.ZipArchive"))
+        XCTAssertTrue(requests[1].decodedScript.contains("ZipFile]::ExtractToDirectory"))
+        XCTAssertTrue(requests[3].decodedScript.contains("Resolve-ArchiveTool @('7z.exe', '7z')"))
+    }
 }
 
 private actor ProviderScriptTransport: PowerShellChannelTransport {

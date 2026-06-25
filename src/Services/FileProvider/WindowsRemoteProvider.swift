@@ -6,6 +6,7 @@ actor WindowsRemoteProvider: FileProvider {
     private let channel: PowerShellChannel
     private let transferChannel: WindowsTransferChannel
     private var rawPaths: [Location: String] = [:]
+    private var archiveToolAvailability: WindowsArchiveToolAvailability?
 
     init(hostID: UUID, channel: PowerShellChannel, transferChannel: WindowsTransferChannel) {
         self.hostID = hostID
@@ -117,11 +118,52 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location {
-        throw FileProviderError.unsupportedOperation("Windows archiveCreate")
+        guard !items.isEmpty else {
+            throw FileOperationError.archiveProcessFailed("No items selected for archive.")
+        }
+        let arguments = try ArchiveCreateArguments(
+            items: items.map { try nativePath(from: windowsPath(from: $0)) },
+            format: format.rawValue,
+            archiveName: archiveName,
+            password: password
+        )
+        let usesBuiltInZip = format == .zip && (password?.isEmpty ?? true)
+        if !usesBuiltInZip {
+            try await requireHostArchiveTool(format: format, password: password)
+        }
+        let script = try PowerShellScript(
+            source: usesBuiltInZip ? WindowsArchiveScripts.zipCreate : WindowsArchiveScripts.externalCreate,
+            arguments: arguments
+        )
+        let data = try await channel.run(script, operation: "ArchiveCreate")
+        guard let archive = try decodeNativeLocations(from: data).first else {
+            throw RemoteFileProviderError.invalidResponse("archiveCreate")
+        }
+        return archive
     }
 
     func archiveExtract(_ archive: Location, password: String?) async throws -> Location {
-        throw FileProviderError.unsupportedOperation("Windows archiveExtract")
+        guard let format = ArchiveFormat.detect(from: URL(fileURLWithPath: archive.path)) else {
+            throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.lastPathComponent)")
+        }
+        let usesBuiltInZip = format == .zip && (password?.isEmpty ?? true)
+        if !usesBuiltInZip {
+            try await requireHostArchiveTool(format: format, password: password)
+        }
+        let arguments = try ArchiveExtractArguments(
+            archive: nativePath(from: windowsPath(from: archive)),
+            format: format.rawValue,
+            password: password
+        )
+        let script = try PowerShellScript(
+            source: usesBuiltInZip ? WindowsArchiveScripts.zipExtract : WindowsArchiveScripts.externalExtract,
+            arguments: arguments
+        )
+        let data = try await channel.run(script, operation: "ArchiveExtract")
+        guard let extracted = try decodeNativeLocations(from: data).first else {
+            throw RemoteFileProviderError.invalidResponse("archiveExtract")
+        }
+        return extracted
     }
 
     func createDirectory(at location: Location, withIntermediateDirectories: Bool) async throws {
@@ -253,6 +295,31 @@ actor WindowsRemoteProvider: FileProvider {
         }
     }
 
+    private func requireHostArchiveTool(format: ArchiveFormat, password: String?) async throws {
+        let tools = try await hostArchiveTools()
+        switch format {
+        case .zip:
+            if !(password?.isEmpty ?? true), !tools.sevenZip {
+                throw FileOperationError.archiveToolNotFound("7z")
+            }
+        case .sevenZ:
+            guard tools.sevenZip else { throw FileOperationError.archiveToolNotFound("7z") }
+        case .tarGz, .tarBz2, .tarXz:
+            guard tools.tar else { throw FileOperationError.archiveToolNotFound("tar") }
+        }
+    }
+
+    private func hostArchiveTools() async throws -> WindowsArchiveToolAvailability {
+        if let archiveToolAvailability {
+            return archiveToolAvailability
+        }
+        let script = PowerShellScript(source: WindowsArchiveScripts.toolAvailability)
+        let data = try await channel.run(script, operation: "ArchiveTools")
+        let tools = try JSONDecoder.detoursWindows.decode(WindowsArchiveToolAvailability.self, from: data)
+        archiveToolAvailability = tools
+        return tools
+    }
+
     private func loadedEntry(_ entry: WindowsDirectoryEntry) throws -> LoadedFileEntry {
         let remotePath = try WindowsPath.remotePath(fromNative: entry.nativePath)
         let location = Location.remote(hostID: hostID, path: remotePath)
@@ -306,6 +373,29 @@ private struct RestoreTrashArguments: Encodable {
 private struct RestoreTrashItemArgument: Encodable {
     let originalPath: String
     let trashToken: String
+}
+
+private struct ArchiveCreateArguments: Encodable {
+    let items: [String]
+    let format: String
+    let archiveName: String
+    let password: String?
+}
+
+private struct ArchiveExtractArguments: Encodable {
+    let archive: String
+    let format: String
+    let password: String?
+}
+
+private struct WindowsArchiveToolAvailability: Decodable {
+    let sevenZip: Bool
+    let tar: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case sevenZip = "SevenZip"
+        case tar = "Tar"
+    }
 }
 
 private struct WindowsTrashReply: Decodable {

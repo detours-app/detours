@@ -129,7 +129,7 @@ Archive creation and extraction use a PowerShell/.NET ZIP implementation, not `C
 
 **Phase 7: Archive**
 
-- [ ] **T17** Implement `archiveCreate`/`archiveExtract` for ZIP via `System.IO.Compression.ZipArchive` PowerShell scripts that enumerate selected files with `-Force`, preserve relative paths, include hidden files and folders, and return a clear large-entry error for entries the built-in API cannot write; add a host tool-availability probe that enables 7z and tar.* only when `7z.exe`/`tar.exe` are on the host PATH (mirroring `CompressionTools.isFormatAvailable` gating), and route 7z/tar through those tools when present. Encrypted ZIP requires a host 7z tool (built-in ZIP cannot encrypt).
+- [x] **T17** Implement `archiveCreate`/`archiveExtract` for ZIP via `System.IO.Compression.ZipArchive` PowerShell scripts that enumerate selected files with `-Force`, preserve relative paths, include hidden files and folders, and return a clear large-entry error for entries the built-in API cannot write; add a host tool-availability probe that enables 7z and tar.* only when `7z.exe`/`tar.exe` are on the host PATH (mirroring `CompressionTools.isFormatAvailable` gating), and route 7z/tar through those tools when present. Encrypted ZIP requires a host 7z tool (built-in ZIP cannot encrypt).
 
 **Phase 8: Directory watching**
 
@@ -164,7 +164,7 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. Uni
 - [x] **T31** `PowerShellChannelTests.testMalformedFrameRestartsSessionAndFailsRequest` — a malformed dispatcher response fails the in-flight request, restarts the channel, and allows a later request to succeed.
 - [x] **T32** `RemoteHostKindRoutingTests.testWindowsProbeSkipsDeployAndPicksWindowsProvider` — a Windows probe result routes to `WindowsRemoteProvider` and never calls `deployIfNeeded`; a Unix result routes to the existing deploy + `RemoteFileProvider` path; the kind is cached on `RemoteHost` and reused on reconnect.
 - [ ] **T33** `WindowsFindContractTests.testStreamsCappedTimeBoxedCurrentDriveMatches` — `find` yields streamed batches, stops at 1,000 results or 20 seconds, restricts to the active drive, and prunes `Windows`, `Program Files`, `ProgramData`, and `AppData` noise unless the active directory is inside one of those trees (validated against a temp tree with the same traversal logic).
-- [ ] **T34** `WindowsArchiveScriptTests.testZipArchiveIncludesHiddenEntries` — the built-in ZIP script enumerates selected hidden files and folders with `-Force`, preserves relative paths, and does not call `Compress-Archive`.
+- [x] **T34** `WindowsArchiveScriptTests.testZipArchiveIncludesHiddenEntries` — the built-in ZIP script enumerates selected hidden files and folders with `-Force`, preserves relative paths, and does not call `Compress-Archive`.
 - [x] **T35** `WindowsTransferChannelTests.testSFTPUnavailableFallbackThreshold` — when SFTP is unavailable, a transfer at 1,048,576 bytes uses the PowerShell fallback and a larger transfer returns the unsupported-large-transfer error.
 
 ### Integration Tests (`Tests/`, live Windows host — `win-carriercall`)
