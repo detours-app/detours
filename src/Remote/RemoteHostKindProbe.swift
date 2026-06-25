@@ -1,0 +1,80 @@
+import Foundation
+
+protocol RemoteHostKindProbeClient: Sendable {
+    func run(_ command: String) async throws -> String
+}
+
+struct RemoteHostKindProbe: Sendable {
+    let client: any RemoteHostKindProbeClient
+
+    init(client: any RemoteHostKindProbeClient) {
+        self.client = client
+    }
+
+    func probe() async -> RemoteHostKind {
+        if let output = try? await client.run(Self.windowsProbeCommand()),
+           Self.isWindowsProbeOutput(output) {
+            return .windows
+        }
+        return .unix
+    }
+
+    static func windowsProbeCommand() -> String {
+        let script = """
+        [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+        if ($PSVersionTable.PSEdition -or $PSVersionTable.PSVersion) {
+            "DETOURS_WINDOWS_PROBE\t$([System.Environment]::OSVersion.Platform)"
+        }
+        """
+        let encoded = Data(script.utf16LittleEndian).base64EncodedString()
+        return "powershell.exe -NoProfile -NonInteractive -EncodedCommand \(encoded)"
+    }
+
+    static func isWindowsProbeOutput(_ output: String) -> Bool {
+        output
+            .split(whereSeparator: \.isNewline)
+            .contains { line in
+                let parts = line.split(separator: "\t", omittingEmptySubsequences: false)
+                return parts.count == 2
+                    && parts[0] == "DETOURS_WINDOWS_PROBE"
+                    && parts[1].lowercased().contains("win")
+            }
+    }
+}
+
+struct SSHRemoteHostKindProbeClient: RemoteHostKindProbeClient {
+    let sshTarget: String
+    var processFactory: @Sendable () -> Process = { Process() }
+
+    func run(_ command: String) async throws -> String {
+        let process = processFactory()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = [sshTarget, command]
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        try process.run()
+        process.waitUntilExit()
+
+        let stdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        let stderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        guard process.terminationStatus == 0 else {
+            throw ServerDeployerError.commandFailed(
+                command: command,
+                status: process.terminationStatus,
+                stderr: String(data: stderr, encoding: .utf8) ?? ""
+            )
+        }
+        return String(data: stdout, encoding: .utf8) ?? ""
+    }
+}
+
+private extension String {
+    var utf16LittleEndian: [UInt8] {
+        Array(utf16.flatMap { codeUnit in
+            [UInt8(codeUnit & 0x00ff), UInt8(codeUnit >> 8)]
+        })
+    }
+}
