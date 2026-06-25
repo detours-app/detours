@@ -97,7 +97,7 @@ Archive creation and extraction use a PowerShell/.NET ZIP implementation, not `C
 
 - [x] **T1** Add a `RemoteHostKind` (`unix`, `windows`) and persist it as an optional cached field on `RemoteHost` in `src/Remote/RemoteHost.swift` (Codable, defaulting to absent for existing saved hosts).
 - [x] **T2** Add `RemoteHostKindProbe` in `src/Remote/`: first run `powershell.exe -NoProfile -NonInteractive -EncodedCommand <UTF-16LE marker script>` over SSH and classify Windows only when stdout contains the Detours marker plus a Windows platform value; when that command fails or the marker is absent, run the existing `uname -sm` Unix architecture probe.
-- [ ] **T3** In the connect path in `src/Windows/MainSplitViewController.swift` (current `deployIfNeeded()` call site), branch on the probe: for Windows construct `WindowsRemoteProvider` and skip `deployIfNeeded()` entirely; for Unix keep today's deploy + `RemoteFileProvider`. Generalize `RemoteConnectionRegistry` from storing only `SSHConnection` to storing a `RemoteConnectionHandle` that supports pane-count updates, reconnect, disconnect state publication, and optional RPC reconnect preparation; register the Windows channel through that handle. Cache the detected `RemoteHostKind` on the `RemoteHost` and route reconnects/session restore by the cached kind, re-probing only when absent.
+- [x] **T3** In the connect path in `src/Windows/MainSplitViewController.swift` (current `deployIfNeeded()` call site), branch on the probe: for Windows construct `WindowsRemoteProvider` and skip `deployIfNeeded()` entirely; for Unix keep today's deploy + `RemoteFileProvider`. Generalize `RemoteConnectionRegistry` from storing only `SSHConnection` to storing a `RemoteConnectionHandle` that supports pane-count updates, reconnect, disconnect state publication, and optional RPC reconnect preparation; register the Windows channel through that handle. Cache the detected `RemoteHostKind` on the `RemoteHost` and route reconnects/session restore by the cached kind, re-probing only when absent.
 
 **Phase 2: PowerShell command channel and script construction**
 
@@ -108,9 +108,9 @@ Archive creation and extraction use a PowerShell/.NET ZIP implementation, not `C
 
 **Phase 3: WindowsRemoteProvider read operations and drive model**
 
-- [ ] **T8** Create `src/Services/FileProvider/WindowsRemoteProvider.swift` as an actor conforming to `FileProvider`, holding the host id, `PowerShellChannel`, and SFTP transfer helper; route every `Location` through `WindowsPath`.
-- [ ] **T9** Implement `list` (via `Get-ChildItem -Force`, mapping to `LoadedFileEntry` with size, dates, directory flag, hidden/system attributes, reparse-point flag) and the synthetic host-root listing of drives (via `Get-PSDrive -PSProvider FileSystem`/`Get-Volume`); landing location on connect is the user profile.
-- [ ] **T10** Implement `stat`, `folderSize` (recursive measure), `readSymlink` (resolve reparse points/junctions best-effort), and `version` (SHA-256 via `Get-FileHash` plus modification date) in `WindowsRemoteProvider`.
+- [x] **T8** Create `src/Services/FileProvider/WindowsRemoteProvider.swift` as an actor conforming to `FileProvider`, holding the host id and `PowerShellChannel`; `WindowsTransferChannel` is added in T11, and every implemented `Location` path routes through `WindowsPath`.
+- [x] **T9** Implement `list` (via `Get-ChildItem -Force`, mapping to `LoadedFileEntry` with size, dates, directory flag, hidden/system attributes, reparse-point flag) and the synthetic host-root listing of drives (via `Get-PSDrive -PSProvider FileSystem`/`Get-Volume`); landing location on connect is the user profile.
+- [x] **T10** Implement `stat`, `folderSize` (recursive measure), `readSymlink` (resolve reparse points/junctions best-effort), and `version` (SHA-256 via `Get-FileHash` plus modification date) in `WindowsRemoteProvider`.
 
 **Phase 4: Transfers, Quick Look**
 
@@ -162,7 +162,7 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. Uni
 - [x] **T29** `WindowsRepliesTests.testParsesDriveListAndErrorEnvelope` — drive-list JSON and a PowerShell error envelope decode into the expected models.
 - [x] **T30** `PowerShellChannelTests.testFramesRequestsAndCorrelatesReplies` — against a scripted stand-in transport, framed requests and replies correlate in order and a reply with embedded newlines/Unicode is reassembled intact.
 - [x] **T31** `PowerShellChannelTests.testMalformedFrameRestartsSessionAndFailsRequest` — a malformed dispatcher response fails the in-flight request, restarts the channel, and allows a later request to succeed.
-- [ ] **T32** `RemoteHostKindRoutingTests.testWindowsProbeSkipsDeployAndPicksWindowsProvider` — a Windows probe result routes to `WindowsRemoteProvider` and never calls `deployIfNeeded`; a Unix result routes to the existing deploy + `RemoteFileProvider` path; the kind is cached on `RemoteHost` and reused on reconnect.
+- [x] **T32** `RemoteHostKindRoutingTests.testWindowsProbeSkipsDeployAndPicksWindowsProvider` — a Windows probe result routes to `WindowsRemoteProvider` and never calls `deployIfNeeded`; a Unix result routes to the existing deploy + `RemoteFileProvider` path; the kind is cached on `RemoteHost` and reused on reconnect.
 - [ ] **T33** `WindowsFindContractTests.testStreamsCappedTimeBoxedCurrentDriveMatches` — `find` yields streamed batches, stops at 1,000 results or 20 seconds, restricts to the active drive, and prunes `Windows`, `Program Files`, `ProgramData`, and `AppData` noise unless the active directory is inside one of those trees (validated against a temp tree with the same traversal logic).
 - [ ] **T34** `WindowsArchiveScriptTests.testZipArchiveIncludesHiddenEntries` — the built-in ZIP script enumerates selected hidden files and folders with `-Force`, preserves relative paths, and does not call `Compress-Archive`.
 - [ ] **T35** `WindowsTransferChannelTests.testSFTPUnavailableFallbackThreshold` — when SFTP is unavailable, a transfer at 1,048,576 bytes uses the PowerShell fallback and a larger transfer returns the unsupported-large-transfer error.

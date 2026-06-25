@@ -42,6 +42,18 @@ struct RemoteHostKindProbe: Sendable {
     }
 }
 
+struct RemoteConnectionRoute: Equatable, Sendable {
+    let kind: RemoteHostKind
+
+    var deploysHelper: Bool {
+        kind == .unix
+    }
+
+    var usesWindowsProvider: Bool {
+        kind == .windows
+    }
+}
+
 struct SSHRemoteHostKindProbeClient: RemoteHostKindProbeClient {
     let sshTarget: String
     var processFactory: @Sendable () -> Process = { Process() }

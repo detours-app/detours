@@ -38,6 +38,16 @@ final class RemoteHostKindRoutingTests: XCTestCase {
         XCTAssertEqual(failedProbeKind, .unix)
         XCTAssertTrue(RemoteHostKindProbe.windowsProbeCommand().contains("-EncodedCommand"))
     }
+
+    func testWindowsProbeSkipsDeployAndPicksWindowsProvider() {
+        let windowsRoute = RemoteConnectionRoute(kind: .windows)
+        let unixRoute = RemoteConnectionRoute(kind: .unix)
+
+        XCTAssertTrue(windowsRoute.usesWindowsProvider)
+        XCTAssertFalse(windowsRoute.deploysHelper)
+        XCTAssertFalse(unixRoute.usesWindowsProvider)
+        XCTAssertTrue(unixRoute.deploysHelper)
+    }
 }
 
 private actor FakeProbeClient: RemoteHostKindProbeClient {

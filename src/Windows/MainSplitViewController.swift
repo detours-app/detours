@@ -1208,7 +1208,7 @@ extension MainSplitViewController: SidebarDelegate {
     }
 
     struct RemoteConnectionResources {
-        let provider: RemoteFileProvider
+        let provider: any FileProvider
         let homePath: String
     }
 
@@ -1289,6 +1289,35 @@ extension MainSplitViewController: SidebarDelegate {
             defer { remoteConnectTasks[host.id] = nil }
             Self.postRemoteConnectionState(.connecting, for: host.id)
             do {
+                let kind: RemoteHostKind
+                if let cachedKind = host.kind {
+                    kind = cachedKind
+                } else {
+                    kind = await RemoteHostKindProbe(
+                        client: SSHRemoteHostKindProbeClient(sshTarget: host.sshTarget)
+                    ).probe()
+                    RemoteHostStore.shared.updateKind(id: host.id, kind: kind)
+                }
+
+                let route = RemoteConnectionRoute(kind: kind)
+                if route.usesWindowsProvider {
+                    let channel = PowerShellChannel(sshTarget: host.sshTarget)
+                    try await channel.forceReconnect()
+                    let provider = WindowsRemoteProvider(hostID: host.id, channel: channel)
+                    let initialPath = try await validateWindowsRemoteConnection(provider: provider, host: host)
+
+                    await RemoteConnectionRegistry.shared.register(channel, for: host.id)
+                    FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
+                    RemoteHostStore.shared.markConnected(id: host.id)
+                    Self.postRemoteConnectionState(.connected, for: host.id)
+                    let resources = RemoteConnectionResources(provider: provider, homePath: initialPath)
+                    remoteConnectionResources[host.id] = resources
+                    return resources
+                }
+
+                guard route.deploysHelper else {
+                    throw RemoteFileProviderError.invalidResponse("Unsupported remote host kind.")
+                }
                 let bundledBinaryDirectory = Self.detoursServerBinaryDirectoryURL()
                 let deploymentClient = SSHServerDeploymentClient(sshTarget: host.sshTarget)
                 let deployer = ServerDeployer(client: deploymentClient, bundledBinaryDirectoryURL: bundledBinaryDirectory)
@@ -1353,6 +1382,15 @@ extension MainSplitViewController: SidebarDelegate {
             throw RemoteFileProviderError.invalidResponse("\(host.sshTarget) protocol version")
         }
         let initialPath = try await Self.remoteHomeDirectory(sshTarget: host.sshTarget)
+        _ = try await provider.list(.remote(hostID: host.id, path: initialPath), showHidden: false)
+        return initialPath
+    }
+
+    private func validateWindowsRemoteConnection(
+        provider: WindowsRemoteProvider,
+        host: RemoteHost
+    ) async throws -> String {
+        let initialPath = try await provider.homeDirectory()
         _ = try await provider.list(.remote(hostID: host.id, path: initialPath), showHidden: false)
         return initialPath
     }
