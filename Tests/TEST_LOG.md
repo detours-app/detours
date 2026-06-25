@@ -2,6 +2,32 @@
 
 ## Latest Run
 
+### 2026-06-25 07:00
+
+- Command: `swift test --filter SystemIntegrationTests`; `resources/scripts/build.sh`
+  (Spectre and Foundry, commit `c0989a816234c5091b114f17584c6b8d194b12be`)
+- Status: PASS
+- Notes: RedMargin remote-open regression coverage is green on both machines.
+  `testRemoteEditorURLsUseSSHTargetAndPath` now covers RedMargin's
+  `redmargin://open?host=...&path=...&kind=file` launch URL in addition to
+  VS Code, Cursor, and Zed. The full `SystemIntegrationTests` suite passed 8/8
+  on Spectre and Foundry. `resources/scripts/build.sh` installed and relaunched
+  Detours cleanly on both machines.
+
+### 2026-06-25 06:52
+
+- Command: `resources/scripts/uitest.sh FolderExpansionUITests`
+  (Foundry, commit `0fb0db59fdfe00655927114c88bab599d251957e`)
+- Status: FAIL
+- Notes: The three directory-watcher XCUITest skips were replaced with real
+  filesystem mutation tests, but the Foundry class run failed in
+  `BaseUITest.setUpWithError` before reaching them. XCUITest reported
+  `Failed to activate application 'com.detours.app at /Applications/Detours.app'
+  (current state: Running Background)` for
+  `testActivePanePreservedOnRelaunch`, then repeated the same activation failure
+  for `testBothPanesIndependentExpansion`. The run was stopped after confirming
+  the failure was systemic to app activation; no XCUITest process remained.
+
 ### 2026-06-24 23:44
 
 - Command: `resources/scripts/uitest.sh FolderExpansionUITests/testDirectoryWatchingDetectsNewFile`
