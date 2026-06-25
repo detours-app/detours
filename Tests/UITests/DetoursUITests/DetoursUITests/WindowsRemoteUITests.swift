@@ -29,7 +29,7 @@ final class WindowsRemoteUITests: BaseUITest {
 
         try sendRemoteFailureCommand()
 
-        let banner = app.otherElements["remoteReconnectBanner"]
+        let banner = app.groups["remoteReconnectBanner"]
         XCTAssertTrue(banner.waitForExistence(timeout: 5), "Dropped Windows host should show reconnect banner")
 
         let label = app.staticTexts["remoteReconnectBannerLabel"]
