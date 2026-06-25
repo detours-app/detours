@@ -348,6 +348,7 @@ final class PaneViewController: NSViewController {
     private let reconnectBanner = NSView()
     private let reconnectBannerLabel = NSTextField(labelWithString: "")
     private let reconnectButton = NSButton(title: "Reconnect", target: nil, action: nil)
+    private let reconnectDismissButton = NSButton(title: "", target: nil, action: nil)
     private let tabContainer = NSView()
     private let statusBar = StatusBarView()
     private var detailPopover: OperationDetailPopover?
@@ -365,6 +366,7 @@ final class PaneViewController: NSViewController {
     private var pathControlTrailingConstraint: NSLayoutConstraint?
     private var reconnectBannerHeightConstraint: NSLayoutConstraint?
     private var remoteBreadcrumbHostsByTabID: [UUID: RemoteHost] = [:]
+    private var dismissedReconnectHostID: UUID?
     private var pendingRemoteTabTargetsByTabID: [UUID: RemoteTabSessionTarget] = [:]
 
     var selectedTab: PaneTab? {
@@ -616,8 +618,23 @@ final class PaneViewController: NSViewController {
         reconnectButton.target = self
         reconnectButton.action = #selector(reconnectRemoteHost)
 
+        reconnectDismissButton.bezelStyle = .circular
+        reconnectDismissButton.controlSize = .small
+        reconnectDismissButton.isBordered = false
+        reconnectDismissButton.image = NSImage(
+            systemSymbolName: "xmark.circle.fill",
+            accessibilityDescription: "Dismiss"
+        )
+        reconnectDismissButton.imagePosition = .imageOnly
+        reconnectDismissButton.contentTintColor = ThemeManager.shared.currentTheme.textSecondary
+        reconnectDismissButton.toolTip = "Dismiss"
+        reconnectDismissButton.setAccessibilityIdentifier("remoteReconnectDismiss")
+        reconnectDismissButton.target = self
+        reconnectDismissButton.action = #selector(dismissReconnectBanner)
+
         reconnectBanner.addSubview(reconnectBannerLabel)
         reconnectBanner.addSubview(reconnectButton)
+        reconnectBanner.addSubview(reconnectDismissButton)
         view.addSubview(reconnectBanner)
     }
 
@@ -631,11 +648,17 @@ final class PaneViewController: NSViewController {
         if case .failed = change.newState {
             showReconnectBanner(for: host)
         } else if change.newState == .connected {
+            // A successful connection clears any prior dismissal for this host.
+            if dismissedReconnectHostID == host.id {
+                dismissedReconnectHostID = nil
+            }
             hideReconnectBanner()
         }
     }
 
     private func showReconnectBanner(for host: RemoteHost) {
+        // Honor a manual dismissal until the host actually reconnects.
+        guard dismissedReconnectHostID != host.id else { return }
         reconnectBannerLabel.stringValue = "Connection lost for \(host.displayName)"
         reconnectBanner.isHidden = false
         reconnectBannerHeightConstraint?.constant = 30
@@ -644,6 +667,11 @@ final class PaneViewController: NSViewController {
     private func hideReconnectBanner() {
         reconnectBanner.isHidden = true
         reconnectBannerHeightConstraint?.constant = 0
+    }
+
+    @objc private func dismissReconnectBanner() {
+        dismissedReconnectHostID = selectedTab.flatMap { remoteBreadcrumbHostsByTabID[$0.id] }?.id
+        hideReconnectBanner()
     }
 
     @objc private func reconnectRemoteHost() {
@@ -808,6 +836,7 @@ final class PaneViewController: NSViewController {
         reconnectBanner.translatesAutoresizingMaskIntoConstraints = false
         reconnectBannerLabel.translatesAutoresizingMaskIntoConstraints = false
         reconnectButton.translatesAutoresizingMaskIntoConstraints = false
+        reconnectDismissButton.translatesAutoresizingMaskIntoConstraints = false
         tabContainer.translatesAutoresizingMaskIntoConstraints = false
         statusBar.translatesAutoresizingMaskIntoConstraints = false
 
@@ -846,8 +875,13 @@ final class PaneViewController: NSViewController {
             reconnectBannerLabel.leadingAnchor.constraint(equalTo: reconnectBanner.leadingAnchor, constant: 10),
             reconnectBannerLabel.centerYAnchor.constraint(equalTo: reconnectBanner.centerYAnchor),
             reconnectButton.leadingAnchor.constraint(greaterThanOrEqualTo: reconnectBannerLabel.trailingAnchor, constant: 8),
-            reconnectButton.trailingAnchor.constraint(equalTo: reconnectBanner.trailingAnchor, constant: -10),
+            reconnectButton.trailingAnchor.constraint(equalTo: reconnectDismissButton.leadingAnchor, constant: -8),
             reconnectButton.centerYAnchor.constraint(equalTo: reconnectBanner.centerYAnchor),
+
+            reconnectDismissButton.trailingAnchor.constraint(equalTo: reconnectBanner.trailingAnchor, constant: -10),
+            reconnectDismissButton.centerYAnchor.constraint(equalTo: reconnectBanner.centerYAnchor),
+            reconnectDismissButton.widthAnchor.constraint(equalToConstant: 16),
+            reconnectDismissButton.heightAnchor.constraint(equalToConstant: 16),
 
             // Tab container fills remaining space (bottom constraint handled dynamically)
             tabContainer.topAnchor.constraint(equalTo: reconnectBanner.bottomAnchor),
