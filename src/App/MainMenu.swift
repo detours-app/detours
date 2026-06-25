@@ -182,6 +182,15 @@ func setupMainMenu(target: AppDelegate) {
     editMenu.addItem(pasteItem)
     editMenu.addItem(NSMenuItem.separator())
 
+    let filterItem = createDynamicMenuItem(
+        title: "Filter",
+        action: #selector(FileListViewController.filter(_:)),
+        shortcutAction: .filter
+    )
+    filterItem.image = NSImage(systemSymbolName: "line.3.horizontal.decrease.circle", accessibilityDescription: nil)
+    editMenu.addItem(filterItem)
+    editMenu.addItem(NSMenuItem.separator())
+
     let copyPathItem = NSMenuItem(title: "Copy Path", action: #selector(FileListViewController.copyPath(_:)), keyEquivalent: "c")
     copyPathItem.keyEquivalentModifierMask = [.command, .option]
     copyPathItem.image = NSImage(systemSymbolName: "link", accessibilityDescription: nil)

@@ -2907,6 +2907,10 @@ extension FileListViewController {
         pasteHere()
     }
 
+    @objc func filter(_ sender: Any?) {
+        showFilterBar()
+    }
+
     @objc func delete(_ sender: Any?) {
         deleteSelection()
     }
