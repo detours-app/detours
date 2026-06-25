@@ -18,7 +18,7 @@ final class DuplicateStructureUITests: BaseUITest {
         // open the dialog through the gated UI-test command.
         let menuItem = app.menuItems["Duplicate Structure..."]
         XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "Duplicate Structure menu item should exist")
-        postEscapeKeyEvent()
+        app.typeKey(.escape, modifierFlags: [])
         usleep(300_000)
         try showDuplicateStructureForUITest(relativePath: "Projects2025")
 
@@ -49,7 +49,7 @@ final class DuplicateStructureUITests: BaseUITest {
         // open the dialog through the gated UI-test command.
         let menuItem = app.menuItems["Duplicate Structure..."]
         XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "Duplicate Structure menu item should exist")
-        postEscapeKeyEvent()
+        app.typeKey(.escape, modifierFlags: [])
         usleep(300_000)
         try showDuplicateStructureForUITest(relativePath: "FolderA")
 
@@ -78,7 +78,7 @@ final class DuplicateStructureUITests: BaseUITest {
         // open the dialog through the gated UI-test command.
         let menuItem = app.menuItems["Duplicate Structure..."]
         XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "Duplicate Structure menu item should exist")
-        postEscapeKeyEvent()
+        app.typeKey(.escape, modifierFlags: [])
         usleep(300_000)
         try showDuplicateStructureForUITest(relativePath: "FolderB")
 
