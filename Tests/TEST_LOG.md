@@ -2,6 +2,21 @@
 
 ## Latest Run
 
+### 2026-06-25 08:35
+
+- Command: `resources/scripts/uitest.sh` (Foundry, commit
+  `005a087d80f19cab24b171b9ee381d9477eaca0d`); `swift test` (Spectre, same
+  commit)
+- Status: PASS
+- Notes: Full Foundry UI suite passed: 76 tests executed, 0 failures,
+  1597.781s. Result bundle:
+  `/Users/smith/Library/Developer/Xcode/DerivedData/DetoursUITests-bstcapyzkhhequfysyauzgapcfsy/Logs/Test/Test-DetoursUITests-2026.06.25_08-08-50-+0200.xcresult`.
+  This run includes `DuplicateStructureUITests` (3/3), `FilterUITests` (6/6),
+  `FolderExpansionUITests` (30/30), the refresh focus/selection tests, the
+  unskipped directory-watcher UI tests, remote quick-open scope tests, undo
+  tests, and window geometry tests. Local SwiftPM verification passed: 636
+  XCTest tests plus 42 Swift Testing tests, 0 failures.
+
 ### 2026-06-25 07:10
 
 - Command: `swift test --filter "SystemIntegrationTests/testRemoteEditorURLsUseSSHTargetAndPath|SystemIntegrationTests/testDefaultRemoteEditorLookupUsesRealPlaceholderFile"`;
