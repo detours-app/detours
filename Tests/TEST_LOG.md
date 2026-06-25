@@ -2,6 +2,21 @@
 
 ## Latest Run
 
+### 2026-06-25 07:10
+
+- Command: `swift test --filter "SystemIntegrationTests/testRemoteEditorURLsUseSSHTargetAndPath|SystemIntegrationTests/testDefaultRemoteEditorLookupUsesRealPlaceholderFile"`;
+  `resources/scripts/build.sh` (Foundry, commit
+  `33780fb185898427a7a98290e5f3ee3fee297078`)
+- Status: PASS
+- Notes: Installed RedMargin on Foundry from the local RedMargin checkout
+  synced over SSH, signed ad-hoc because Foundry lacks the `Detour Dev`
+  RedMargin signing identity. The focused Detours regression passed 2/2 with
+  `/Applications/Redmargin.app` installed: LaunchServices resolved a real
+  placeholder `.md` file to RedMargin, and Detours mapped that default editor to
+  the RedMargin remote URL path instead of the cache-file Open With session.
+  Detours then built, installed to `/Applications`, and relaunched cleanly on
+  Foundry.
+
 ### 2026-06-25 07:00
 
 - Command: `swift test --filter SystemIntegrationTests`; `resources/scripts/build.sh`
