@@ -646,6 +646,10 @@ final class MainSplitViewController: NSSplitViewController {
         showQuickNav()
     }
 
+    @objc func filter(_ sender: Any?) {
+        activePane.selectedTab?.fileListViewController.showFilterBar()
+    }
+
     private func showQuickNav() {
         guard let window = view.window else { return }
 

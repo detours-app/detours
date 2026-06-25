@@ -184,8 +184,9 @@ func setupMainMenu(target: AppDelegate) {
 
     let filterItem = createDynamicMenuItem(
         title: "Filter",
-        action: #selector(FileListViewController.filter(_:)),
-        shortcutAction: .filter
+        action: #selector(AppDelegate.filter(_:)),
+        shortcutAction: .filter,
+        target: target
     )
     filterItem.image = NSImage(systemSymbolName: "line.3.horizontal.decrease.circle", accessibilityDescription: nil)
     editMenu.addItem(filterItem)

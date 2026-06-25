@@ -312,6 +312,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindowController?.splitViewController.quickOpen(sender)
     }
 
+    @objc func filter(_ sender: Any?) {
+        mainWindowController?.splitViewController.filter(sender)
+    }
+
     @objc func addRemoteHost(_ sender: Any?) {
         mainWindowController?.splitViewController.showAddRemoteHost()
     }
