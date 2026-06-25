@@ -24,7 +24,23 @@ struct PowerShellScript: Equatable, Sendable {
     }
 
     static func prelude(operationBody: String) -> String {
-        """
+        let lines = operationBody.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        if let parameterIndex = lines.firstIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) {
+            let candidate = lines[parameterIndex].trimmingCharacters(in: .whitespaces)
+            if candidate.hasPrefix("param(") || candidate.hasPrefix("param (") {
+                var bodyLines = lines
+                bodyLines.remove(at: parameterIndex)
+                return """
+                \(candidate)
+                $ErrorActionPreference = 'Stop'
+                [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+                $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+                \(bodyLines.joined(separator: "\n"))
+                """
+            }
+        }
+
+        return """
         $ErrorActionPreference = 'Stop'
         [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
         $OutputEncoding = [System.Text.UTF8Encoding]::new($false)

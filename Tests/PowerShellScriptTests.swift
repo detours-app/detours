@@ -7,6 +7,7 @@ final class PowerShellScriptTests: XCTestCase {
         let script = try PowerShellScript(source: source, arguments: ["Name": "Résumé.txt"])
 
         XCTAssertEqual(script.decodedSourceForTesting, source)
+        XCTAssertTrue(script.decodedSourceForTesting.hasPrefix("param($Arguments)"))
         XCTAssertTrue(script.decodedSourceForTesting.contains("[Console]::OutputEncoding"))
         XCTAssertTrue(script.decodedSourceForTesting.contains("$OutputEncoding"))
     }

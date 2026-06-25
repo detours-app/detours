@@ -59,14 +59,97 @@ final class WindowsRemoteProviderTests: XCTestCase {
         XCTAssertEqual(drives[0].location, .remote(hostID: hostID, path: "/C:"))
         XCTAssertTrue(drives[0].isDirectory)
     }
+
+    func testWriteOperationsUsePowerShellAndReturnWindowsLocations() async throws {
+        let hostID = UUID()
+        let transport = ProviderScriptTransport(responses: [
+            "CreateDirectory": #""C:\\Users\\sans\\New Folder""#,
+            "Rename": #""C:\\Users\\sans\\Renamed.txt""#,
+            "Copy": #"["C:\\Users\\sans\\Dest\\A.txt","C:\\Users\\sans\\Dest\\B"]"#,
+            "Move": #""C:\\Users\\sans\\Dest\\Move.txt""#,
+        ])
+        let channel = PowerShellChannel(transport: transport)
+        let provider = WindowsRemoteProvider(
+            hostID: hostID,
+            channel: channel,
+            transferChannel: WindowsTransferChannel(
+                powerShellChannel: channel,
+                sftpClient: FakeWindowsSFTPClient()
+            )
+        )
+
+        try await provider.createDirectory(
+            at: .remote(hostID: hostID, path: "/C:/Users/sans/New Folder"),
+            withIntermediateDirectories: false
+        )
+        let renamed = try await provider.rename(
+            .remote(hostID: hostID, path: "/C:/Users/sans/Old.txt"),
+            to: "Renamed.txt"
+        )
+        let copied = try await provider.copy(
+            [
+                .remote(hostID: hostID, path: "/C:/Users/sans/A.txt"),
+                .remote(hostID: hostID, path: "/C:/Users/sans/B"),
+            ],
+            to: .remote(hostID: hostID, path: "/C:/Users/sans/Dest")
+        )
+        let moved = try await provider.move(
+            [.remote(hostID: hostID, path: "/C:/Users/sans/Move.txt")],
+            to: .remote(hostID: hostID, path: "/C:/Users/sans/Dest")
+        )
+        let requests = await transport.requests
+
+        XCTAssertEqual(requests.map(\.operation), ["CreateDirectory", "Rename", "Copy", "Move"])
+        XCTAssertTrue(requests[0].decodedScript.hasPrefix("param($Arguments)"))
+        XCTAssertTrue(requests[1].decodedScript.contains("Rename-Item"))
+        XCTAssertTrue(requests[2].decodedScript.contains("Copy-Item"))
+        XCTAssertTrue(requests[3].decodedScript.contains("Move-Item"))
+        XCTAssertTrue(requests[2].argumentsJSON.contains(#""destination":"C:\\Users\\sans\\Dest""#))
+        XCTAssertEqual(renamed, .remote(hostID: hostID, path: "/C:/Users/sans/Renamed.txt"))
+        XCTAssertEqual(copied, [
+            .remote(hostID: hostID, path: "/C:/Users/sans/Dest/A.txt"),
+            .remote(hostID: hostID, path: "/C:/Users/sans/Dest/B"),
+        ])
+        XCTAssertEqual(moved, [.remote(hostID: hostID, path: "/C:/Users/sans/Dest/Move.txt")])
+    }
+
+    func testTrashDeleteAndRestoreUseRecycleBinContract() async throws {
+        let hostID = UUID()
+        let transport = ProviderScriptTransport(responses: [
+            "Trash": #"{"OriginalPath":"C:\\Users\\sans\\Old.txt","TrashToken":"restore-token"}"#,
+            "RestoreFromTrash": #""C:\\Users\\sans\\Old.txt""#,
+        ])
+        let channel = PowerShellChannel(transport: transport)
+        let provider = WindowsRemoteProvider(
+            hostID: hostID,
+            channel: channel,
+            transferChannel: WindowsTransferChannel(
+                powerShellChannel: channel,
+                sftpClient: FakeWindowsSFTPClient()
+            )
+        )
+        let original = Location.remote(hostID: hostID, path: "/C:/Users/sans/Old.txt")
+
+        let trashed = try await provider.trash([original])
+        try await provider.delete([original])
+        let restored = try await provider.restoreFromTrash(trashed)
+        let requests = await transport.requests
+
+        XCTAssertEqual(trashed, [
+            TrashedItem(
+                originalLocation: original,
+                trashLocation: .remote(hostID: hostID, path: "/.detours-trash/restore-token")
+            ),
+        ])
+        XCTAssertEqual(restored, [original])
+        XCTAssertEqual(requests.map(\.operation), ["Trash", "Trash", "RestoreFromTrash"])
+        XCTAssertTrue(requests[0].decodedScript.contains("Microsoft.VisualBasic.FileIO.FileSystem"))
+        XCTAssertTrue(requests[2].decodedScript.contains("InvokeVerb('RESTORE')"))
+        XCTAssertTrue(requests[2].argumentsJSON.contains(#""trashToken":"restore-token""#))
+    }
 }
 
 private actor ProviderScriptTransport: PowerShellChannelTransport {
-    private struct Request: Decodable {
-        let id: UInt64
-        let operation: String
-    }
-
     private struct Response: Encodable {
         let id: UInt64
         let ok: Bool
@@ -78,6 +161,7 @@ private actor ProviderScriptTransport: PowerShellChannelTransport {
     private let responses: [String: String]
     private var queued: [Data] = []
     private(set) var operations: [String] = []
+    private(set) var requests: [ProviderScriptRequest] = []
 
     init(responses: [String: String]) {
         self.responses = responses
@@ -87,8 +171,9 @@ private actor ProviderScriptTransport: PowerShellChannelTransport {
 
     func sendFrame(_ frame: Data) async throws {
         for payload in try handler.append(frame) {
-            let request = try JSONDecoder.detoursWindows.decode(Request.self, from: payload)
+            let request = try JSONDecoder.detoursWindows.decode(ProviderScriptRequest.self, from: payload)
             operations.append(request.operation)
+            requests.append(request)
             let response = Response(
                 id: request.id,
                 ok: responses[request.operation] != nil,
@@ -107,6 +192,17 @@ private actor ProviderScriptTransport: PowerShellChannelTransport {
     }
 
     func stop() async {}
+}
+
+private struct ProviderScriptRequest: Decodable {
+    let id: UInt64
+    let operation: String
+    let script: String
+    let argumentsJSON: String
+
+    var decodedScript: String {
+        String(data: Data(base64Encoded: script) ?? Data(), encoding: .utf16LittleEndian) ?? ""
+    }
 }
 
 private struct FakeWindowsSFTPClient: WindowsSFTPClient {

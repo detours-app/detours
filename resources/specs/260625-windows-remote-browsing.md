@@ -119,13 +119,13 @@ Archive creation and extraction use a PowerShell/.NET ZIP implementation, not `C
 
 **Phase 5: Write operations**
 
-- [ ] **T13** Implement `createDirectory`, `rename`, `copy`, and `move` in `WindowsRemoteProvider` via PowerShell (`New-Item`, `Rename-Item`, `Copy-Item`, `Move-Item`), returning the resulting `Location`s and honoring within-host vs cross-host semantics consistent with `RemoteFileProvider`.
-- [ ] **T14** Implement `delete` in `WindowsRemoteProvider` as a Recycle-Bin send via `Microsoft.VisualBasic.FileIO.FileSystem` (never a permanent delete), matching the protocol's `delete` contract used by callers.
+- [x] **T13** Implement `createDirectory`, `rename`, `copy`, and `move` in `WindowsRemoteProvider` via PowerShell (`New-Item`, `Rename-Item`, `Copy-Item`, `Move-Item`), returning the resulting `Location`s and honoring within-host vs cross-host semantics consistent with `RemoteFileProvider`.
+- [x] **T14** Implement `delete` in `WindowsRemoteProvider` as a Recycle-Bin send via `Microsoft.VisualBasic.FileIO.FileSystem` (never a permanent delete), matching the protocol's `delete` contract used by callers.
 
 **Phase 6: Trash and restore**
 
-- [ ] **T15** Implement `trash` returning `TrashedItem`s by sending items to the Recycle Bin via `Microsoft.VisualBasic.FileIO.FileSystem` with no dialogs, recording original and trash locations.
-- [ ] **T16** Implement `restoreFromTrash` best-effort via the Recycle Bin Shell folder (`0xA`) Restore verb matched to the original path; on failure, surface a clear error rather than silently losing data.
+- [x] **T15** Implement `trash` returning `TrashedItem`s by sending items to the Recycle Bin via `Microsoft.VisualBasic.FileIO.FileSystem` with no dialogs, recording original and trash locations.
+- [x] **T16** Implement `restoreFromTrash` best-effort via the Recycle Bin Shell folder (`0xA`) Restore verb matched to the original path; on failure, surface a clear error rather than silently losing data.
 
 **Phase 7: Archive**
 
