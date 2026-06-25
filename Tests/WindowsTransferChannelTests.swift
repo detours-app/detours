@@ -117,6 +117,7 @@ private actor TransferScriptTransport: PowerShellChannelTransport {
 
 private extension JSONEncoder {
     func encodeString(_ value: String) throws -> String {
-        String(decoding: try encode(value), as: UTF8.self)
+        let data = try encode(value)
+        return try XCTUnwrap(String(bytes: data, encoding: .utf8))
     }
 }

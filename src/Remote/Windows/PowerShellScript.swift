@@ -7,7 +7,13 @@ struct PowerShellScript: Equatable, Sendable {
     init<Arguments: Encodable>(source: String, arguments: Arguments) throws {
         self.source = source
         let data = try JSONEncoder.detoursWindows.encode(arguments)
-        argumentsJSON = String(decoding: data, as: UTF8.self)
+        guard let json = String(bytes: data, encoding: .utf8) else {
+            throw EncodingError.invalidValue(arguments, EncodingError.Context(
+                codingPath: [],
+                debugDescription: "PowerShell arguments JSON was not valid UTF-8."
+            ))
+        }
+        argumentsJSON = json
     }
 
     init(source: String) {
@@ -20,7 +26,8 @@ struct PowerShellScript: Equatable, Sendable {
     }
 
     var decodedSourceForTesting: String {
-        String(data: Data(base64Encoded: sourceBase64UTF16LE) ?? Data(), encoding: .utf16LittleEndian) ?? ""
+        guard let data = Data(base64Encoded: sourceBase64UTF16LE) else { return "" }
+        return String(bytes: data, encoding: .utf16LittleEndian) ?? ""
     }
 
     static func prelude(operationBody: String) -> String {

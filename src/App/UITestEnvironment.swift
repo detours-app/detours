@@ -60,7 +60,7 @@ enum UITestEnvironment {
         let id: String
     }
 
-    struct ShowNetworkShareDialogDismissalAcknowledgement: Encodable {
+    struct NetworkShareDismissalAck: Encodable {
         let id: String
     }
 
@@ -272,7 +272,7 @@ enum UITestEnvironment {
 
     static func acknowledgeShowNetworkShareDialogDismissed(id: String) {
         guard let url = showNetworkShareDialogDismissedURL,
-              let data = try? JSONEncoder().encode(ShowNetworkShareDialogDismissalAcknowledgement(id: id)) else {
+              let data = try? JSONEncoder().encode(NetworkShareDismissalAck(id: id)) else {
             return
         }
 

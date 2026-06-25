@@ -15,6 +15,10 @@ struct WindowsPath: Equatable, Sendable {
         self.remotePath = try Self.normalizedRemotePath(remotePath)
     }
 
+    private init(validatedRemotePath: String) {
+        remotePath = validatedRemotePath
+    }
+
     init(location: Location, hostID: UUID) throws {
         guard case .remote(let locationHostID, let path) = location, locationHostID == hostID else {
             throw WindowsPathError.expectedRemote(location)
@@ -43,11 +47,11 @@ struct WindowsPath: Equatable, Sendable {
 
     var parent: WindowsPath {
         if isSyntheticRoot || isDriveRoot {
-            return try! WindowsPath(remotePath: Self.syntheticRoot)
+            return WindowsPath(validatedRemotePath: Self.syntheticRoot)
         }
         let parentComponents = components.dropLast()
         let parent = parentComponents.isEmpty ? Self.syntheticRoot : "/" + parentComponents.joined(separator: "/")
-        return try! WindowsPath(remotePath: parent)
+        return WindowsPath(validatedRemotePath: parent)
     }
 
     func appending(_ component: String) throws -> WindowsPath {

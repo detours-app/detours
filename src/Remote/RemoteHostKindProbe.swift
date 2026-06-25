@@ -7,10 +7,6 @@ protocol RemoteHostKindProbeClient: Sendable {
 struct RemoteHostKindProbe: Sendable {
     let client: any RemoteHostKindProbeClient
 
-    init(client: any RemoteHostKindProbeClient) {
-        self.client = client
-    }
-
     func probe() async -> RemoteHostKind {
         if let output = try? await client.run(Self.windowsProbeCommand()),
            Self.isWindowsProbeOutput(output) {

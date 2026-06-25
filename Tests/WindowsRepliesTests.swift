@@ -52,7 +52,13 @@ final class WindowsRepliesTests: XCTestCase {
         )
         let error = try JSONDecoder.detoursWindows.decode(WindowsErrorEnvelope.self, from: Data(errorJSON.utf8))
 
-        XCTAssertEqual(drives, [WindowsDriveEntryForTest(name: "C", nativeRoot: "C:\\", freeBytes: 1000, usedBytes: 2000).entry])
+        let expectedDrive = try WindowsDriveEntryForTest(
+            name: "C",
+            nativeRoot: "C:\\",
+            freeBytes: 1000,
+            usedBytes: 2000
+        ).entry
+        XCTAssertEqual(drives, [expectedDrive])
         XCTAssertEqual(error.message, "Access denied")
         XCTAssertEqual(error.category, "PermissionDenied")
         XCTAssertEqual(error.fullyQualifiedErrorID, "UnauthorizedAccess")
@@ -62,10 +68,10 @@ final class WindowsRepliesTests: XCTestCase {
 private struct WindowsDriveEntryForTest {
     let entry: WindowsDriveEntry
 
-    init(name: String, nativeRoot: String, freeBytes: Int64?, usedBytes: Int64?) {
+    init(name: String, nativeRoot: String, freeBytes: Int64?, usedBytes: Int64?) throws {
         let json = """
         {"Name":"\(name)","Root":"\(nativeRoot.replacingOccurrences(of: "\\", with: "\\\\"))","Free":\(freeBytes ?? 0),"Used":\(usedBytes ?? 0)}
         """
-        entry = try! JSONDecoder.detoursWindows.decode(WindowsDriveEntry.self, from: Data(json.utf8))
+        entry = try JSONDecoder.detoursWindows.decode(WindowsDriveEntry.self, from: Data(json.utf8))
     }
 }

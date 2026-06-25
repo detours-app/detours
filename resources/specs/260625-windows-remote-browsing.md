@@ -143,8 +143,8 @@ Archive creation and extraction use a PowerShell/.NET ZIP implementation, not `C
 
 **Phase 10: Coexistence and build**
 
-- [ ] **T22** Ensure the sidebar (`src/Sidebar/`), Quick Open scope header, and the dismissable reconnect banner treat Windows hosts identically to other remote hosts (no helper-cache assumptions for Windows hosts); guard any code that assumes a deployed helper exists so it is skipped for `RemoteHostKind.windows`.
-- [ ] **T23** Build the app and helper with `resources/scripts/build.sh` and resolve all `swiftlint lint --quiet` findings.
+- [x] **T22** Ensure the sidebar (`src/Sidebar/`), Quick Open scope header, and the dismissable reconnect banner treat Windows hosts identically to other remote hosts (no helper-cache assumptions for Windows hosts); guard any code that assumes a deployed helper exists so it is skipped for `RemoteHostKind.windows`.
+- [x] **T23** Build the app and helper with `resources/scripts/build.sh` and resolve all `swiftlint lint --quiet` findings.
 
 ---
 
