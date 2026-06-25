@@ -168,7 +168,8 @@ enum WindowsArchiveScripts {
     function Get-ArchiveParent($Items) {
         $itemsArray = @($Items)
         if ($itemsArray.Count -eq 0) { throw "No items selected for archive." }
-        (Get-Item -LiteralPath $itemsArray[0] -Force).DirectoryName
+        $firstItem = Get-Item -LiteralPath $itemsArray[0] -Force
+        [System.IO.Path]::GetDirectoryName($firstItem.FullName)
     }
 
     function Assert-ArchiveName([string]$BaseName) {
