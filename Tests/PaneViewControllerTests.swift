@@ -335,6 +335,47 @@ final class PaneViewControllerTests: XCTestCase {
         )
     }
 
+    func testRemoteBreadcrumbDriveSegmentNavigatesToDriveRoot() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        pane.view.frame = NSRect(x: 0, y: 0, width: 900, height: 500)
+        pane.view.layoutSubtreeIfNeeded()
+        let host = RemoteHost(displayName: "win-carriercall", sshTarget: "win-carriercall")
+        let provider = PaneRemoteProvider(listings: [
+            "/C:": [.remoteDirectory(hostID: host.id, path: "/C:/Users", name: "Users")],
+            "/C:/Users/sans": [],
+        ])
+
+        pane.loadRemoteHost(host, provider: provider, path: "/C:/Users/sans")
+        waitUntil(breadcrumbTitles(in: pane.view).contains("C:"))
+
+        pane.pathControlDidClick(at: 1)
+
+        waitUntil(pane.selectedTab?.fileListViewController.currentRemoteLocation == .remote(hostID: host.id, path: "/C:"))
+        waitUntil(pane.selectedTab?.title == "C:")
+    }
+
+    func testRemoteBreadcrumbHostSegmentNavigatesToRemoteRoot() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        pane.view.frame = NSRect(x: 0, y: 0, width: 900, height: 500)
+        pane.view.layoutSubtreeIfNeeded()
+        let host = RemoteHost(displayName: "win-carriercall", sshTarget: "win-carriercall")
+        let provider = PaneRemoteProvider(listings: [
+            "/": [.remoteDirectory(hostID: host.id, path: "/C:", name: "C:")],
+            "/C:/Users/sans": [],
+        ])
+
+        pane.loadRemoteHost(host, provider: provider, path: "/C:/Users/sans")
+        waitUntil(breadcrumbTitles(in: pane.view).first == "win-carriercall"
+            && breadcrumbTitles(in: pane.view).contains("C:"))
+
+        pane.pathControlDidClick(at: 0)
+
+        waitUntil(pane.selectedTab?.fileListViewController.currentRemoteLocation == .remote(hostID: host.id, path: "/"))
+        waitUntil(pane.selectedTab?.title == "win-carriercall")
+    }
+
     func testRemoteTabUsesPlainFolderIcon() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()

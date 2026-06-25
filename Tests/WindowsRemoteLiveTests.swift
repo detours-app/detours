@@ -9,10 +9,13 @@ final class WindowsRemoteLiveTests: XCTestCase {
             let home = try await fixture.provider.homeDirectory()
             let homeItems = try await fixture.provider.list(.remote(hostID: fixture.hostID, path: home), showHidden: false)
             let drives = try await fixture.provider.list(.remote(hostID: fixture.hostID, path: "/"), showHidden: false)
+            let cDrive = try XCTUnwrap(drives.first { $0.name == "C:" && $0.isDirectory })
+            let cDriveItems = try await fixture.provider.list(cDrive.location, showHidden: false)
 
             XCTAssertTrue(home.hasPrefix("/C:/Users/"))
             XCTAssertFalse(homeItems.isEmpty)
-            XCTAssertTrue(drives.contains { $0.name == "C:" && $0.isDirectory })
+            XCTAssertEqual(cDrive.location, .remote(hostID: fixture.hostID, path: "/C:"))
+            XCTAssertFalse(cDriveItems.isEmpty)
         }
     }
 

@@ -23,6 +23,8 @@ final class WindowsPathTests: XCTestCase {
         let syntheticRoot = try WindowsPath(remotePath: "/")
 
         XCTAssertTrue(driveRoot.isDriveRoot)
+        XCTAssertEqual(driveRoot.nativePath, "C:\\")
+        XCTAssertEqual(driveRoot.sftpPath, "C:/")
         XCTAssertFalse(profile.isDriveRoot)
         XCTAssertTrue(syntheticRoot.isSyntheticRoot)
         XCTAssertNil(syntheticRoot.nativePath)

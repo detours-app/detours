@@ -37,12 +37,14 @@ struct WindowsPath: Equatable, Sendable {
     var nativePath: String? {
         guard !isSyntheticRoot else { return nil }
         let trimmed = remotePath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return trimmed.replacingOccurrences(of: "/", with: "\\")
+        let native = trimmed.replacingOccurrences(of: "/", with: "\\")
+        return isDriveRoot ? native + "\\" : native
     }
 
     var sftpPath: String? {
         guard !isSyntheticRoot else { return nil }
-        return remotePath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let trimmed = remotePath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return isDriveRoot ? trimmed + "/" : trimmed
     }
 
     var parent: WindowsPath {

@@ -187,10 +187,13 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        let windowsPath = try windowsPath(from: location)
+        if windowsPath.isSyntheticRoot {
+            return FileProviderWatch(id: UUID(), location: location)
+        }
         guard let watchChannel else {
             throw WindowsWatchChannelError.missingChannel
         }
-        let windowsPath = try windowsPath(from: location)
         return try await watchChannel.watch(
             location,
             nativePath: try nativePath(from: windowsPath),

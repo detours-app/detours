@@ -66,6 +66,51 @@ final class WindowsRemoteProviderTests: XCTestCase {
         XCTAssertTrue(drives[0].isDirectory)
     }
 
+    func testDriveRootListsNativeDriveRoot() async throws {
+        let hostID = UUID()
+        let transport = ProviderScriptTransport(responses: [
+            "List": #"[{"Name":"Users","FullName":"C:\\Users","PSIsContainer":true,"Attributes":"Directory","Length":0,"LastWriteTimeUtc":1782390896000}]"#,
+        ])
+        let channel = PowerShellChannel(transport: transport)
+        let provider = WindowsRemoteProvider(
+            hostID: hostID,
+            channel: channel,
+            transferChannel: WindowsTransferChannel(
+                powerShellChannel: channel,
+                sftpClient: FakeWindowsSFTPClient()
+            )
+        )
+
+        let entries = try await provider.list(.remote(hostID: hostID, path: "/C:"), showHidden: false)
+        let requests = await transport.requests
+
+        XCTAssertEqual(entries.map(\.location), [.remote(hostID: hostID, path: "/C:/Users")])
+        XCTAssertEqual(requests.map(\.operation), ["List"])
+        XCTAssertTrue(requests[0].argumentsJSON.contains(#""path":"C:\\""#))
+    }
+
+    func testSyntheticRootWatchIsNoop() async throws {
+        let hostID = UUID()
+        let transport = ProviderScriptTransport(responses: [:])
+        let channel = PowerShellChannel(transport: transport)
+        let provider = WindowsRemoteProvider(
+            hostID: hostID,
+            channel: channel,
+            transferChannel: WindowsTransferChannel(
+                powerShellChannel: channel,
+                sftpClient: FakeWindowsSFTPClient()
+            )
+        )
+        let location = Location.remote(hostID: hostID, path: "/")
+
+        let watch = try await provider.watch(location) { _ in }
+        await provider.unwatch(watch)
+        let operations = await transport.operations
+
+        XCTAssertEqual(watch.location, location)
+        XCTAssertTrue(operations.isEmpty)
+    }
+
     func testWriteOperationsUsePowerShellAndReturnWindowsLocations() async throws {
         let hostID = UUID()
         let transport = ProviderScriptTransport(responses: [

@@ -1487,9 +1487,11 @@ final class PaneViewController: NSViewController {
         let breadcrumbHost = remoteBreadcrumbHostsByTabID[tab.id]
         var titles: [String] = []
         var itemURLs: [URL?] = []
+        let isRemoteBreadcrumb = breadcrumbHost != nil
+            && tab.fileListViewController.currentRemoteLocation != nil
         if let breadcrumbHost {
             titles.append(breadcrumbHost.displayName)
-            itemURLs.append(nil)
+            itemURLs.append(isRemoteBreadcrumb ? URL(fileURLWithPath: "/") : nil)
         }
         titles.append(contentsOf: components.map { $0.0 })
         itemURLs.append(contentsOf: components.map { Optional($0.1) })
