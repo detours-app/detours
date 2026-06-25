@@ -420,9 +420,39 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             }
         } else {
             if case .remote(let hostID, _) = item.location {
+                if openRemoteInNativeEditorIfAvailable(item, hostID: hostID, applicationURL: applicationURL) {
+                    return
+                }
                 RemoteOpenWithCoordinator.shared.open(location: item.location, provider: provider, hostID: hostID, applicationURL: applicationURL)
             }
         }
+    }
+
+    private func openRemoteInNativeEditorIfAvailable(_ item: FileItem, hostID: UUID, applicationURL: URL?) -> Bool {
+        guard case .remote(_, let path) = item.location,
+              let host = RemoteHostStore.shared.host(id: hostID) else {
+            return false
+        }
+
+        let editor: RemoteEditorApplication?
+        if let applicationURL {
+            editor = Self.remoteEditorApplication(for: applicationURL)
+        } else {
+            let lookupURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(item.name)
+            editor = NSWorkspace.shared.urlForApplication(toOpen: lookupURL).flatMap(Self.remoteEditorApplication(for:))
+        }
+
+        guard let editor,
+              let remoteURL = editor.remoteURL(sshTarget: host.sshTarget, path: path) else {
+            return false
+        }
+
+        NSWorkspace.shared.open(
+            [remoteURL],
+            withApplicationAt: editor.appURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        ) { _, _ in }
+        return true
     }
 
     nonisolated static func remoteBrokenSymlinkMessage(fileName: String) -> String {

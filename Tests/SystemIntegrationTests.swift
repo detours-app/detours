@@ -172,6 +172,11 @@ final class SystemIntegrationTests: XCTestCase {
             sshTarget: "foundry",
             path: "/Users/smith/dev/detours/remote file.txt"
         ))
+        let redmarginURL = try XCTUnwrap(FileListViewController.remoteEditorURL(
+            scheme: .redmargin,
+            sshTarget: "foundry",
+            path: "/Users/smith/dev/detours/remote file.txt"
+        ))
 
         XCTAssertEqual(
             codeURL.absoluteString,
@@ -184,6 +189,10 @@ final class SystemIntegrationTests: XCTestCase {
         XCTAssertEqual(
             zedURL.absoluteString,
             "zed://ssh/foundry/Users/smith/dev/detours/remote%20file.txt"
+        )
+        XCTAssertEqual(
+            redmarginURL.absoluteString,
+            "redmargin://open?host=foundry&path=/Users/smith/dev/detours/remote%20file.txt&kind=file"
         )
     }
 
