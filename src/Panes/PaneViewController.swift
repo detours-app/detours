@@ -607,7 +607,9 @@ final class PaneViewController: NSViewController {
         reconnectBanner.isHidden = true
         reconnectBanner.wantsLayer = true
         reconnectBanner.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.18).cgColor
+        reconnectBanner.setAccessibilityElement(true)
         reconnectBanner.setAccessibilityIdentifier("remoteReconnectBanner")
+        reconnectBanner.setAccessibilityRole(.group)
 
         reconnectBannerLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 12)
         reconnectBannerLabel.textColor = ThemeManager.shared.currentTheme.textPrimary

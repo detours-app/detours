@@ -27,6 +27,8 @@ final class WindowsRemoteUITests: BaseUITest {
         let rightFolder = rightOutline.outlineRows.containing(.staticText, identifier: "FolderA").firstMatch
         XCTAssertTrue(rightFolder.waitForExistence(timeout: 3), "Right pane should stay on the local test root")
 
+        try sendRemoteFailureCommand()
+
         let banner = app.otherElements["remoteReconnectBanner"]
         XCTAssertTrue(banner.waitForExistence(timeout: 5), "Dropped Windows host should show reconnect banner")
 
@@ -52,6 +54,16 @@ final class WindowsRemoteUITests: BaseUITest {
         app.launchEnvironment["DETOURS_UI_TEST_REMOTE"] = mode
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5), "App window should exist")
+    }
+
+    private func sendRemoteFailureCommand() throws {
+        struct Command: Encodable {
+            let id: String
+        }
+
+        let command = Command(id: UUID().uuidString)
+        let url = uiTestRootURL.appendingPathComponent(".detours-remote-failure.json")
+        try JSONEncoder().encode(command).write(to: url, options: .atomic)
     }
 
     private func waitForNonExistence(_ element: XCUIElement, timeout: TimeInterval) -> Bool {

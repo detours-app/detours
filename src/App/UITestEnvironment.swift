@@ -8,6 +8,7 @@ enum UITestEnvironment {
     static let dismissNetworkShareDialogCommandFileName = ".detours-dismiss-network-share-dialog.json"
     static let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
     static let quickNavCommandFileName = ".detours-quick-nav-command.json"
+    static let remoteFailureCommandFileName = ".detours-remote-failure.json"
     static let undoMenuTitleRequestFileName = ".detours-undo-menu-title-request.json"
     static let undoMenuTitleResponseFileName = ".detours-undo-menu-title-response.json"
     static let duplicateStructureShowRequestFileName = ".detours-duplicate-structure-show-request.json"
@@ -40,6 +41,10 @@ enum UITestEnvironment {
         let id: String
         let query: String
         let action: String?
+    }
+
+    struct RemoteFailureCommand: Decodable {
+        let id: String
     }
 
     struct UndoMenuTitleRequest: Decodable {
@@ -160,6 +165,10 @@ enum UITestEnvironment {
         rootDirectory?.appendingPathComponent(quickNavCommandFileName)
     }
 
+    static var remoteFailureCommandURL: URL? {
+        rootDirectory?.appendingPathComponent(remoteFailureCommandFileName)
+    }
+
     static var undoMenuTitleRequestURL: URL? {
         rootDirectory?.appendingPathComponent(undoMenuTitleRequestFileName)
     }
@@ -232,6 +241,16 @@ enum UITestEnvironment {
         }
 
         return try? JSONDecoder().decode(QuickNavCommand.self, from: data)
+    }
+
+    static func currentRemoteFailureCommand() -> RemoteFailureCommand? {
+        guard let url = remoteFailureCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(RemoteFailureCommand.self, from: data)
     }
 
     static func currentUndoMenuTitleRequest() -> UndoMenuTitleRequest? {

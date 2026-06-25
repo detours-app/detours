@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUITestRenameCommandID: String?
     private var lastUITestShowNetworkShareDialogCommandID: String?
     private var lastUITestDismissNetworkShareDialogCommandID: String?
+    private var lastUITestRemoteFailureCommandID: String?
     private var lastUITestUndoMenuTitleRequestID: String?
     private var lastUITestDuplicateStructureShowRequestID: String?
 
@@ -99,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lastUITestRenameCommandID = UITestEnvironment.currentRenameItemCommand()?.id
         lastUITestShowNetworkShareDialogCommandID = UITestEnvironment.currentShowNetworkShareDialogCommand()?.id
         lastUITestDismissNetworkShareDialogCommandID = UITestEnvironment.currentDismissNetworkShareDialogCommand()?.id
+        lastUITestRemoteFailureCommandID = UITestEnvironment.currentRemoteFailureCommand()?.id
         lastUITestUndoMenuTitleRequestID = UITestEnvironment.currentUndoMenuTitleRequest()?.id
         lastUITestDuplicateStructureShowRequestID = UITestEnvironment.currentDuplicateStructureShowRequest()?.id
     }
@@ -137,6 +139,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            command.id != lastUITestDismissNetworkShareDialogCommandID {
             lastUITestDismissNetworkShareDialogCommandID = command.id
             dismissNetworkShareDialogForUITest(commandID: command.id)
+        }
+
+        if let command = UITestEnvironment.currentRemoteFailureCommand(),
+           command.id != lastUITestRemoteFailureCommandID {
+            lastUITestRemoteFailureCommandID = command.id
+            mainWindowController?.splitViewController.performUITestRemoteFailure()
         }
 
         if let request = UITestEnvironment.currentUndoMenuTitleRequest(),

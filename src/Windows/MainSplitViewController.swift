@@ -484,13 +484,6 @@ final class MainSplitViewController: NSSplitViewController {
             RemoteConnectionStateStore.shared.setState(.disconnected, for: host.id)
         case .windowsFailed:
             RemoteConnectionStateStore.shared.setState(.connected, for: host.id)
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 250_000_000)
-                RemoteConnectionStateStore.shared.setState(
-                    .failed(reason: .transport("UI test connection dropped")),
-                    for: host.id
-                )
-            }
         }
     }
 
@@ -623,6 +616,17 @@ final class MainSplitViewController: NSSplitViewController {
     func performUITestDuplicateStructure(relativePath: String) {
         guard UITestEnvironment.isEnabled else { return }
         leftPane.selectedTab?.fileListViewController.performUITestDuplicateStructure(relativePath: relativePath)
+    }
+
+    func performUITestRemoteFailure() {
+        guard UITestEnvironment.isEnabled,
+              let host = leftPane.selectedTab?.fileListViewController.currentRemoteHost else {
+            return
+        }
+        RemoteConnectionStateStore.shared.setState(
+            .failed(reason: .transport("UI test connection dropped")),
+            for: host.id
+        )
     }
 
     func setActivePaneFromChild(_ pane: PaneViewController) {
