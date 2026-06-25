@@ -1,0 +1,171 @@
+# Windows Remote-Host Browsing (PowerShell over SSH)
+
+## Meta
+
+- Status: Draft
+- Branch: feature/windows-remote-browsing
+
+---
+
+## Business
+
+### Goal
+
+Let Detours browse and work with files on a Windows server the same way it already does with Mac and Linux servers. Today, connecting to a Windows machine over SSH fails immediately with an unhelpful error, because Detours assumes every server behaves like a Unix machine. After this change, a Windows server connects, opens to the user's home folder, and supports the full set of file operations Detours offers everywhere else.
+
+### Proposal
+
+Add first-class support for Windows servers: when a connected server turns out to be Windows, Detours talks to it in its native language (PowerShell) instead of trying to run Unix commands, and every file operation, listing, navigation, copy, move, rename, trash, archive, search, live updates, and previews, works against that Windows server.
+
+### Behaviors
+
+- **Connecting to a Windows server just works.** Adding and connecting to a Windows host (an OpenSSH server whose default shell is PowerShell) succeeds. Detours recognizes it is Windows automatically; the user does not declare the operating system.
+- **You land in your home folder.** A freshly connected Windows host opens in the signed-in user's profile folder (for example `C:\Users\sans`).
+- **All drives are reachable.** Navigating up out of a drive (for example up from `C:\`) shows a top-level view of the machine listing every drive (C:, D:, mapped network drives) as entries you can open.
+- **Everything you can do on a Mac/Linux server, you can do here.** Listing, opening folders, file sizes and dates, copy, move, rename, new folder, delete to the Recycle Bin (with undo where Windows allows it), create and extract archives, Quick Look previews, drag in/out transfers, Quick Open search, and live refresh when the folder changes, all function against the Windows host.
+- **Deleting is safe.** Deleting a file on a Windows host sends it to the Windows Recycle Bin, never a permanent erase. Undo restores it where Windows permits; if Windows cannot restore it cleanly, Detours says so plainly instead of pretending it worked.
+- **Names with accents and symbols are correct.** Files and folders with non-English characters, spaces, or punctuation display and operate correctly.
+- **Connection loss behaves like any other server.** If a Windows host disconnects, the same "Connection lost" banner and reconnect behavior used for other servers applies, and it can be dismissed.
+
+### Acceptance Criteria
+
+- [ ] **A1** Connecting to a Windows OpenSSH host (default shell PowerShell) succeeds and opens in the signed-in user's profile folder, with no operating-system choice required from the user.
+- [ ] **A2** Navigating up past a drive root shows a top-level machine view listing all drives, and opening a drive enters it.
+- [ ] **A3** Listing a Windows folder shows correct names, sizes, modification dates, and folder/file distinction, including entries whose names contain spaces, quotes, semicolons, and non-English characters.
+- [ ] **A4** Creating a folder, renaming, copying, and moving items on a Windows host all succeed and the result is reflected in the listing.
+- [ ] **A5** Deleting an item on a Windows host sends it to the Recycle Bin (never a permanent delete); undo restores it when Windows allows, and reports a clear failure when it cannot.
+- [ ] **A6** Creating a ZIP archive and extracting a ZIP archive on a Windows host both succeed; 7z and tar formats are offered only when those tools exist on the host and are hidden otherwise.
+- [ ] **A7** Downloading a file from, and uploading a file to, a Windows host both succeed for large and binary files with intact contents.
+- [ ] **A8** Quick Look preview of a Windows file works, and Quick Open search returns matching names from the active drive, streaming results as they are found.
+- [ ] **A9** A folder open on a Windows host refreshes automatically when its contents change on the server.
+- [ ] **A10** When a Windows host connection drops, the dismissable "Connection lost" banner and reconnect path behave exactly as they do for Mac/Linux hosts.
+- [ ] **A11** Connecting to a Mac or Linux host is unchanged in every respect.
+
+### Out of scope
+
+- Running the native Detours helper binary on Windows (Windows uses the PowerShell backend instead; no helper is deployed there).
+- Windows hosts whose SSH server is configured with a Unix-style shell (bash/WSL) as the default; this spec targets the standard PowerShell-default OpenSSH setup.
+- Password-protected ZIP creation on Windows where only the built-in ZIP tool is present (the built-in tool cannot encrypt; encrypted archives require a 7z tool on the host, consistent with the separate secure-password-archives work).
+- Per-host manual operating-system override UI (detection is automatic).
+
+---
+
+## Technical
+
+### Approach
+
+Detours already abstracts file access behind the `FileProvider` protocol (`src/Services/FileProvider/FileProvider.swift`), with `LocalFileProvider` for the Mac and `RemoteFileProvider` (an actor, `src/Services/FileProvider/RemoteFileProvider.swift`) for Unix hosts. `RemoteFileProvider` speaks a binary RPC (`RPCMessage`) to the deployed `detours-server` helper over an `SSHConnection` actor (`src/Remote/SSHConnection.swift`) that manages a multiplexed OpenSSH ControlMaster. This work adds a third provider, `WindowsRemoteProvider` (an actor implementing the same `FileProvider` protocol), which drives PowerShell over the same `SSHConnection` transport, plus the connect-time routing that selects it.
+
+The Windows backend never deploys a binary. Instead it opens one persistent `powershell -` session per host on the existing ControlMaster connection and treats it as a line/length-framed JSON RPC: each request is a complete PowerShell script (with the operation's path and arguments embedded as data, not interpolated into a command line), base64-encoded as UTF-16LE and run via `-EncodedCommand`, and each reply is a single `ConvertTo-Json` document emitted with `[Console]::OutputEncoding` forced to UTF-8 and read back through a `JSONDecoder`. Because every argument travels inside the encoded script as a PowerShell variable rather than on a shell-parsed line, file names containing spaces, quotes, semicolons, backticks, or `$` cannot break framing or inject commands. Windows paths map into the existing `Location.remote(hostID:path:)` model with no change to `Location`: paths are stored forward-slash with a drive letter (`C:\Users\sans` becomes `/C:/Users/sans`) so the existing `/`-based join/split logic keeps working, and the provider translates to native backslash only at the PowerShell boundary. Navigating up past a drive root (`/C:/`) yields a synthetic host root (`/`) whose listing is the machine's drives, produced from `Get-PSDrive`/`Get-Volume`.
+
+Connect-time routing (`src/Windows/MainSplitViewController.swift` connect flow near the current `deployIfNeeded()` call, plus `RemoteConnectionRegistry` and `src/Remote/ServerDeployer.swift`) gains a single OS probe that runs regardless of remote shell and reports whether the host is Windows/PowerShell; on Windows it constructs `WindowsRemoteProvider` and skips helper deployment entirely, otherwise it runs today's `uname`-based Unix path. The detected OS is cached on `RemoteHost` (`src/Remote/RemoteHost.swift`) so reconnects and session restore route to the right backend without re-probing blindly. Transfers use the OpenSSH SFTP subsystem over the host's ControlMaster against forward-slash paths (`download`/`upload`), with a base64-over-session fallback for tiny files only. Directory watching uses exactly one additional long-lived PowerShell channel per host that hosts one .NET `FileSystemWatcher` per watched directory and streams change events tagged by directory id, independent of the command channel; `unwatch` tears down a single watcher and the channel closes when no watches remain. Trash uses `Microsoft.VisualBasic.FileIO.FileSystem` delete-to-Recycle-Bin (never permanent), with restore attempted via the Recycle Bin Shell folder's Restore verb and a clear failure surfaced when it cannot. Archive uses built-in `Compress-Archive`/`Expand-Archive` for ZIP and only offers 7z/tar when those tools are on the host PATH. Quick Open `find` recurses the active drive only, streaming `FoundItem` matches under the same result cap and time budget as the Unix find. The reconnect banner and Quick Open scope header already present for remote tabs apply to Windows hosts unchanged.
+
+### Approach Validation
+
+- **PowerShell over SSH is the supported, documented path for non-interactive Windows automation.** Microsoft's OpenSSH-for-Windows ships PowerShell as the default subsystem shell and supports `powershell -EncodedCommand` for passing scripts free of quoting hazards; `ConvertTo-Json`/`ConvertFrom-Json` are the standard structured-output mechanism. Base64 `-EncodedCommand` is Microsoft's own recommendation for scripts that contain complex quoting, which is exactly our injection-safety requirement. Sources: Microsoft Learn "OpenSSH in Windows", `about_PowerShell_exe`/`pwsh` `-EncodedCommand`, `ConvertTo-Json`.
+- **Encoding is the classic failure mode and is designed out.** PowerShell's default console output encoding varies by Windows codepage and mangles non-ASCII; forcing `[Console]::OutputEncoding` (and `$OutputEncoding`) to UTF-8 and decoding JSON as UTF-8 is the well-documented fix, which is why every reply is JSON, not parsed text. This removes the locale/codepage class of bugs entirely.
+- **Recycle Bin restore is genuinely only best-effort programmatically**, which is why restore is specified as best-effort with an explicit failure path rather than a guarantee: the Shell Recycle Bin Restore verb is the practical mechanism but is not contractually reliable across Windows versions. Deletion to the Recycle Bin via `Microsoft.VisualBasic.FileIO.FileSystem` is reliable and is the hard guarantee (never a permanent delete), satisfying the project's no-permanent-deletion rule.
+- **Persistent session vs per-operation spawning:** PowerShell cold start is ~200-700ms; a per-op model makes listing sluggish and makes a live `FileSystemWatcher` impossible. Reusing the existing ControlMaster + a long-lived `powershell -` session mirrors the proven `detours-server` RPC design already in the codebase, so the concurrency/reconnect machinery (`SSHConnection`, `RPCResponseAssembler`, reconnect banner) is reused rather than reinvented.
+- **Drive model:** Windows has no single filesystem root, so a synthetic host-root listing drives (from `Get-PSDrive -PSProvider FileSystem`/`Get-Volume`) is the standard way file managers expose multiple volumes; landing in the user profile matches Explorer-like expectations.
+
+### Risks
+
+| Risk | Mitigation |
+| ---- | ---------- |
+| PowerShell cold-start latency makes browsing feel slow | One persistent `powershell -` session per host over the existing ControlMaster; startup paid once per connection, not per operation |
+| Non-ASCII / codepage corruption of names | All replies are `ConvertTo-Json` with `[Console]::OutputEncoding`/`$OutputEncoding` forced to UTF-8, decoded as UTF-8; never parse formatted text |
+| Command injection / framing breakage from names with quotes, `;`, backtick, `$` | Scripts are built with arguments as embedded data and run via base64 `-EncodedCommand`; nothing is concatenated onto a shell-parsed line |
+| Windows path semantics leaking into shared `/`-based path logic | Paths stored normalized as `/C:/...`; backslash translation confined to the provider's PowerShell boundary; `Location` and shared join/split untouched |
+| Recycle Bin restore unreliable across Windows versions | Restore is best-effort via the Shell Restore verb and surfaces a clear failure when it cannot restore; deletion-to-Recycle-Bin (never permanent) is the hard guarantee |
+| A blocking `FileSystemWatcher` ties up the command channel | Watching runs on a separate dedicated PowerShell channel per host, multiplexing all watched directories; the command RPC session is never blocked |
+| SFTP subsystem disabled on some Windows hosts | Detect at connect; fall back to base64-over-session transfer for small files and surface a clear error for large transfers when SFTP is unavailable |
+| Wrong backend chosen after reconnect/session restore | Detected OS cached on `RemoteHost`; routing reads the cached kind and re-probes only when absent |
+| Long-running `find`/`folderSize` on huge drives | `find` is bounded by the same result cap and time budget as the Unix path and is current-drive-only; streamed so partial results appear immediately |
+| Existing Unix remote behavior regressed by the routing change | OS routing is additive: absent/Unix detection runs the unchanged `uname` + helper path; covered by routing tests and the unchanged Unix provider tests |
+
+### Implementation Plan
+
+**Phase 1: OS detection and provider routing**
+
+- [ ] **T1** Add a `RemoteHostKind` (`unix`, `windows`) and persist it as an optional cached field on `RemoteHost` in `src/Remote/RemoteHost.swift` (Codable, defaulting to absent for existing saved hosts).
+- [ ] **T2** Add an OS-probe step to the connect flow that runs one shell-agnostic command over `SSHConnection` and classifies the host as Windows (PowerShell present, e.g. `$PSVersionTable` resolves / `ver`-style marker) or Unix; implement it alongside `ServerDeployer` in `src/Remote/` so it can run before helper deployment.
+- [ ] **T3** In the connect path in `src/Windows/MainSplitViewController.swift` (current `deployIfNeeded()` call site) and `RemoteConnectionRegistry`, branch on the probe: for Windows construct `WindowsRemoteProvider` and skip `deployIfNeeded()` entirely; for Unix keep today's deploy + `RemoteFileProvider`. Cache the detected `RemoteHostKind` on the `RemoteHost` and route reconnects/session restore by the cached kind, re-probing only when absent.
+
+**Phase 2: PowerShell command channel and script construction**
+
+- [ ] **T4** Create `src/Remote/Windows/PowerShellChannel.swift`: an actor that opens and owns one persistent `powershell -` session per host over the host's `SSHConnection` ControlMaster, writes length-framed base64 `-EncodedCommand` requests, reads framed UTF-8 JSON replies, correlates request/response, and handles session teardown and reconnect (mirroring `SSHRemoteRPCClient`/`RPCResponseAssembler`).
+- [ ] **T5** Create `src/Remote/Windows/PowerShellScript.swift`: builders that assemble each operation's PowerShell script with arguments bound as `$args`-style data (never string-concatenated), force `[Console]::OutputEncoding`/`$OutputEncoding` to UTF-8, emit `ConvertTo-Json`, and produce the UTF-16LE base64 `-EncodedCommand` payload.
+- [ ] **T6** Create `src/Remote/Windows/WindowsPath.swift`: bidirectional normalization between `Location.remote` forward-slash form (`/C:/Users/sans`, synthetic root `/`) and native Windows paths (`C:\Users\sans`), plus drive-root detection and the synthetic-host-root concept.
+- [ ] **T7** Define the Codable reply models (`src/Remote/Windows/WindowsReplies.swift`) for directory entries, stat, drive list, hashes, archive/tool availability, transfer results, and error envelopes, decoded from the JSON replies.
+
+**Phase 3: WindowsRemoteProvider read operations and drive model**
+
+- [ ] **T8** Create `src/Services/FileProvider/WindowsRemoteProvider.swift` as an actor conforming to `FileProvider`, holding the host id, `PowerShellChannel`, and SFTP transfer helper; route every `Location` through `WindowsPath`.
+- [ ] **T9** Implement `list` (via `Get-ChildItem -Force`, mapping to `LoadedFileEntry` with size, dates, directory flag, hidden/system attributes, reparse-point flag) and the synthetic host-root listing of drives (via `Get-PSDrive -PSProvider FileSystem`/`Get-Volume`); landing location on connect is the user profile.
+- [ ] **T10** Implement `stat`, `folderSize` (recursive measure), `readSymlink` (resolve reparse points/junctions best-effort), and `version` (SHA-256 via `Get-FileHash` plus modification date) in `WindowsRemoteProvider`.
+
+**Phase 4: Transfers, Quick Look**
+
+- [ ] **T11** Create `src/Remote/Windows/WindowsTransferChannel.swift` using the OpenSSH SFTP subsystem over the host ControlMaster against forward-slash paths, with a base64-over-`PowerShellChannel` fallback for tiny files when SFTP is unavailable.
+- [ ] **T12** Implement `download` and `upload` in `WindowsRemoteProvider` via the transfer channel; implement `openForQuickLook` by downloading to a temp file and previewing through the existing remote Quick Look path.
+
+**Phase 5: Write operations**
+
+- [ ] **T13** Implement `createDirectory`, `rename`, `copy`, and `move` in `WindowsRemoteProvider` via PowerShell (`New-Item`, `Rename-Item`, `Copy-Item`, `Move-Item`), returning the resulting `Location`s and honoring within-host vs cross-host semantics consistent with `RemoteFileProvider`.
+- [ ] **T14** Implement `delete` in `WindowsRemoteProvider` as a Recycle-Bin send via `Microsoft.VisualBasic.FileIO.FileSystem` (never a permanent delete), matching the protocol's `delete` contract used by callers.
+
+**Phase 6: Trash and restore**
+
+- [ ] **T15** Implement `trash` returning `TrashedItem`s by sending items to the Recycle Bin via `Microsoft.VisualBasic.FileIO.FileSystem` with no dialogs, recording original and trash locations.
+- [ ] **T16** Implement `restoreFromTrash` best-effort via the Recycle Bin Shell folder (`0xA`) Restore verb matched to the original path; on failure, surface a clear error rather than silently losing data.
+
+**Phase 7: Archive**
+
+- [ ] **T17** Implement `archiveCreate`/`archiveExtract` for ZIP via `Compress-Archive`/`Expand-Archive`, plus a host tool-availability probe that enables 7z and tar.* only when `7z.exe`/`tar.exe` are on the host PATH (mirroring `CompressionTools.isFormatAvailable` gating); route 7z/tar through those tools when present. Encrypted ZIP requires a host 7z tool (built-in ZIP cannot encrypt).
+
+**Phase 8: Directory watching**
+
+- [ ] **T18** Create `src/Remote/Windows/WindowsWatchChannel.swift`: exactly one additional long-lived PowerShell channel per host that registers one .NET `FileSystemWatcher` per watched directory and streams change events tagged by directory id as framed JSON, independent of the command channel.
+- [ ] **T19** Implement `watch`/`unwatch` in `WindowsRemoteProvider` against the watch channel: `watch` registers a directory and invokes `onChange` per event, `unwatch` tears down a single watcher, and the watch channel closes when no watches remain.
+
+**Phase 9: Search and git status**
+
+- [ ] **T20** Implement `find(query:cap:)` in `WindowsRemoteProvider`: recurse the active directory's drive only via `Get-ChildItem -Recurse -Force`, case-insensitive name match, prune Windows/system and AppData noise, stream `FoundItem` batches, bounded by the same result cap and time budget as the Unix find.
+- [ ] **T21** Implement `gitStatus` returning results only when `git` is on the host PATH (porcelain parse), otherwise an empty result.
+
+**Phase 10: Coexistence and build**
+
+- [ ] **T22** Ensure the sidebar (`src/Sidebar/`), Quick Open scope header, and the dismissable reconnect banner treat Windows hosts identically to other remote hosts (no helper-cache assumptions for Windows hosts); guard any code that assumes a deployed helper exists so it is skipped for `RemoteHostKind.windows`.
+- [ ] **T23** Build the app and helper with `resources/scripts/build.sh` and resolve all `swiftlint lint --quiet` findings.
+
+---
+
+## Testing
+
+Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. Unit tests use real temp data and deterministic fixtures, no mocks, per project rules. Integration tests that require a live Windows host run against `win-carriercall` (10.250.55.49, user `sans`) and are marked so they skip cleanly when the host is unreachable.
+
+### Unit Tests (`Tests/`)
+
+- [ ] **T24** `WindowsPathTests.testRoundTripsDriveAndProfilePaths` — `/C:/Users/sans` maps to `C:\Users\sans` and back; the synthetic root `/` maps to the drive-list view; join/split via `Location` stays correct for Windows paths.
+- [ ] **T25** `WindowsPathTests.testDriveRootDetectionAndUpNavigation` — navigating up from `/C:/` yields the synthetic host root, and the host root lists drives, not a parent path.
+- [ ] **T26** `PowerShellScriptTests.testEncodedCommandIsUTF16LEBase64` — built scripts decode back to the expected UTF-16LE PowerShell source and set UTF-8 output encoding.
+- [ ] **T27** `PowerShellScriptTests.testArgumentsAreDataNotConcatenated` — names containing spaces, single and double quotes, semicolons, backticks, and `$(...)` are carried as data and cannot alter the script's command structure (injection-safety).
+- [ ] **T28** `WindowsRepliesTests.testParsesGetChildItemJson` — a representative `Get-ChildItem | ConvertTo-Json` document (including non-ASCII names, sizes, dates, directory/hidden/reparse flags, and the single-item-not-array case) decodes into the expected entries.
+- [ ] **T29** `WindowsRepliesTests.testParsesDriveListAndErrorEnvelope` — drive-list JSON and a PowerShell error envelope decode into the expected models.
+- [ ] **T30** `PowerShellChannelTests.testFramesRequestsAndCorrelatesReplies` — against a scripted stand-in transport, framed requests and replies correlate in order and a reply with embedded newlines/Unicode is reassembled intact.
+- [ ] **T31** `RemoteHostKindRoutingTests.testWindowsProbeSkipsDeployAndPicksWindowsProvider` — a Windows probe result routes to `WindowsRemoteProvider` and never calls `deployIfNeeded`; a Unix result routes to the existing deploy + `RemoteFileProvider` path; the kind is cached on `RemoteHost` and reused on reconnect.
+- [ ] **T32** `WindowsFindContractTests.testStreamsCappedTimeBoxedCurrentDriveMatches` — `find` yields streamed batches, stops at the cap and time budget, restricts to the active drive, and prunes system/AppData noise (validated against a temp tree with the same traversal logic).
+
+### Integration Tests (`Tests/`, live Windows host — `win-carriercall`)
+
+- [ ] **T33** `WindowsRemoteLiveTests.testConnectListsProfileAndDrives` — connecting recognizes Windows, lands in the profile folder, lists it correctly, and the synthetic root lists drives (A1, A2, A3).
+- [ ] **T34** `WindowsRemoteLiveTests.testCreateRenameCopyMoveDelete` — create folder, rename, copy, move, and delete-to-Recycle-Bin succeed and are reflected in listings; the deleted item is in the Recycle Bin, not permanently removed (A4, A5).
+- [ ] **T35** `WindowsRemoteLiveTests.testTrashRestoreBestEffort` — trash returns trash locations; restore returns the item to its original path when Windows allows, and returns a clear error otherwise (A5).
+- [ ] **T36** `WindowsRemoteLiveTests.testZipCreateExtractAndToolGating` — ZIP create and extract round-trip; 7z/tar are offered only when present on the host (A6).
+- [ ] **T37** `WindowsRemoteLiveTests.testDownloadUploadLargeBinary` — download and upload of a large binary file preserve byte-exact contents (A7).
+- [ ] **T38** `WindowsRemoteLiveTests.testQuickLookAndFind` — Quick Look downloads and previews a file; `find` streams matching names from the active drive (A8).
+- [ ] **T39** `WindowsRemoteLiveTests.testWatchEmitsChangeOnServerSideModification` — a folder open via the provider receives a change event when its contents change on the host (A9).
+
+### UI Tests (`Tests/UITests/DetoursUITests/`, run on Foundry)
+
+- [ ] **T40** `WindowsRemoteUITests.testReconnectBannerForWindowsHost` — a dropped Windows host shows the dismissable "Connection lost" banner and reconnect affordance identical to other remote hosts (A10), and a local/Unix tab is unaffected (A11).
