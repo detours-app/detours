@@ -119,7 +119,7 @@ final class WindowsRemoteProviderTests: XCTestCase {
         XCTAssertEqual(moved, [.remote(hostID: hostID, path: "/C:/Users/sans/Dest/Move.txt")])
     }
 
-    func testTrashDeleteAndRestoreUseRecycleBinContract() async throws {
+    func testTrashDeleteAndRestoreUseDetoursTrashContract() async throws {
         let hostID = UUID()
         let transport = ProviderScriptTransport(responses: [
             "Trash": #"{"OriginalPath":"C:\\Users\\sans\\Old.txt","TrashToken":"restore-token"}"#,
@@ -149,8 +149,9 @@ final class WindowsRemoteProviderTests: XCTestCase {
         ])
         XCTAssertEqual(restored, [original])
         XCTAssertEqual(requests.map(\.operation), ["Trash", "Trash", "RestoreFromTrash"])
-        XCTAssertTrue(requests[0].decodedScript.contains("Microsoft.VisualBasic.FileIO.FileSystem"))
-        XCTAssertTrue(requests[2].decodedScript.contains("InvokeVerb('RESTORE')"))
+        XCTAssertTrue(requests[0].decodedScript.contains(".detours-trash"))
+        XCTAssertTrue(requests[0].decodedScript.contains("Move-Item -LiteralPath $item.FullName"))
+        XCTAssertTrue(requests[2].decodedScript.contains("Move-Item -LiteralPath $trashPath -Destination"))
         XCTAssertTrue(requests[2].argumentsJSON.contains(#""trashToken":"restore-token""#))
     }
 

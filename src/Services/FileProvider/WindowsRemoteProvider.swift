@@ -679,19 +679,10 @@ private extension WindowsRemoteProvider {
         foreach ($path in $Arguments.paths) {
             $item = Get-Item -LiteralPath $path -Force
             $originalPath = $item.FullName
-            $deletedFrom = [System.IO.Path]::GetDirectoryName($originalPath)
-            $name = [System.IO.Path]::GetFileName($originalPath)
-            Send-ToRecycleBin -Path $originalPath
-            Start-Sleep -Milliseconds 150
-            $recycleItem = Find-RecycleItem -Name $name -DeletedFrom $deletedFrom -DateDeletedUtc 0
-            if ($null -eq $recycleItem) {
-                throw "Moved item to the Recycle Bin, but Windows did not expose a restore token for: $originalPath"
-            }
+            $trashPath = Send-ToRecycleBin -Path $originalPath
             $token = ConvertTo-Base64UrlJson @{
-                Name = [string]$recycleItem.Name
-                DeletedFrom = [string]$recycleItem.ExtendedProperty('System.Recycle.DeletedFrom')
-                DateDeletedUtc = [int64](Get-RecycleDateMillis -Item $recycleItem)
                 OriginalPath = $originalPath
+                TrashPath = $trashPath
             }
             [pscustomobject]@{
                 OriginalPath = $originalPath
@@ -711,35 +702,17 @@ private extension WindowsRemoteProvider {
             if (Test-Path -LiteralPath $entry.originalPath) {
                 throw "Restore destination already exists: $($entry.originalPath)"
             }
-
-            $recycleItem = Find-RecycleItem `
-                -Name ([string]$token.Name) `
-                -DeletedFrom ([string]$token.DeletedFrom) `
-                -DateDeletedUtc ([int64]$token.DateDeletedUtc)
-            if ($null -eq $recycleItem) {
-                throw "Could not find matching Recycle Bin item for: $($entry.originalPath)"
+            $trashPath = [string]$token.TrashPath
+            if ([string]::IsNullOrWhiteSpace($trashPath) -or -not (Test-Path -LiteralPath $trashPath)) {
+                throw "Could not find matching trash item for: $($entry.originalPath)"
             }
 
-            $restoreVerb = $recycleItem.Verbs() | Where-Object {
-                ($_.Name -replace '&', '').Trim() -eq 'Restore'
-            } | Select-Object -First 1
-            if ($null -ne $restoreVerb) {
-                $restoreVerb.DoIt()
-            } else {
-                $recycleItem.InvokeVerb('RESTORE')
+            $parent = [System.IO.Path]::GetDirectoryName([string]$entry.originalPath)
+            if (-not [string]::IsNullOrWhiteSpace($parent)) {
+                [System.IO.Directory]::CreateDirectory($parent) | Out-Null
             }
-
-            $deadline = [DateTime]::UtcNow.AddSeconds(5)
-            while ([DateTime]::UtcNow -lt $deadline) {
-                if (Test-Path -LiteralPath $entry.originalPath) {
-                    $entry.originalPath
-                    break
-                }
-                Start-Sleep -Milliseconds 100
-            }
-            if (-not (Test-Path -LiteralPath $entry.originalPath)) {
-                throw "Windows did not restore the item to: $($entry.originalPath)"
-            }
+            Move-Item -LiteralPath $trashPath -Destination $entry.originalPath -Force -ErrorAction Stop
+            $entry.originalPath
         }
         """
     )
@@ -780,55 +753,27 @@ private extension WindowsRemoteProvider {
     )
 
     static let recycleBinHelpers = """
-    Add-Type -AssemblyName Microsoft.VisualBasic
+    function Get-DetoursTrashRoot {
+        $profile = [Environment]::GetFolderPath('UserProfile')
+        if ([string]::IsNullOrWhiteSpace($profile)) { throw "Windows user profile is unavailable." }
+        $root = Join-Path -Path $profile -ChildPath '.detours-trash'
+        [System.IO.Directory]::CreateDirectory($root) | Out-Null
+        $root
+    }
+
+    function New-DetoursTrashPath([string]$Name) {
+        $root = Get-DetoursTrashRoot
+        while ($true) {
+            $candidate = Join-Path -Path $root -ChildPath "$([guid]::NewGuid().ToString())-$Name"
+            if (-not (Test-Path -LiteralPath $candidate)) { return $candidate }
+        }
+    }
 
     function Send-ToRecycleBin([string]$Path) {
         $item = Get-Item -LiteralPath $Path -Force
-        if ($item.PSIsContainer) {
-            [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(
-                $item.FullName,
-                [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
-                [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
-            )
-        } else {
-            [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(
-                $item.FullName,
-                [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
-                [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
-            )
-        }
-    }
-
-    function Get-RecycleBinItems {
-        $shell = New-Object -ComObject Shell.Application
-        $bin = $shell.NameSpace(0xA)
-        if ($null -eq $bin) { throw "Recycle Bin is unavailable." }
-        @($bin.Items())
-    }
-
-    function Get-RecycleDateMillis($Item) {
-        $value = $Item.ExtendedProperty('System.Recycle.DateDeleted')
-        if ($null -eq $value) { return [int64]0 }
-        try {
-            return [int64]([DateTimeOffset]([datetime]$value).ToUniversalTime()).ToUnixTimeMilliseconds()
-        } catch {
-            return [int64]0
-        }
-    }
-
-    function Find-RecycleItem([string]$Name, [string]$DeletedFrom, [int64]$DateDeletedUtc) {
-        $matches = @(Get-RecycleBinItems | Where-Object {
-            $_.Name -eq $Name -and [string]$_.ExtendedProperty('System.Recycle.DeletedFrom') -eq $DeletedFrom
-        })
-        if ($matches.Count -eq 0) { return $null }
-        if ($DateDeletedUtc -gt 0) {
-            $matches = @($matches | Sort-Object {
-                [Math]::Abs([int64](Get-RecycleDateMillis -Item $_) - $DateDeletedUtc)
-            })
-        } else {
-            $matches = @($matches | Sort-Object { Get-RecycleDateMillis -Item $_ } -Descending)
-        }
-        $matches | Select-Object -First 1
+        $trashPath = New-DetoursTrashPath -Name $item.Name
+        Move-Item -LiteralPath $item.FullName -Destination $trashPath -Force -ErrorAction Stop
+        $trashPath
     }
 
     function ConvertTo-Base64UrlJson($Value) {

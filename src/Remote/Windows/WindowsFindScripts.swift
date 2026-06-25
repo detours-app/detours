@@ -24,7 +24,7 @@ enum WindowsFindScripts {
         $active = Get-Item -LiteralPath $Arguments.root -Force
         $activePath = if ($active.PSIsContainer) { $active.FullName } else { $active.DirectoryName }
         $driveRoot = [System.IO.Path]::GetPathRoot($activePath)
-        $root = Get-Item -LiteralPath $driveRoot -Force
+        $root = Get-Item -LiteralPath $activePath -Force
         $noiseRoots = @(
             (Join-Path -Path $driveRoot -ChildPath 'Windows'),
             (Join-Path -Path $driveRoot -ChildPath 'Program Files'),

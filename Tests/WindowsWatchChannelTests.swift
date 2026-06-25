@@ -27,7 +27,7 @@ final class WindowsWatchChannelTests: XCTestCase {
         let locations = await recorder.locations
         let stopCount = await transport.stopCount
 
-        XCTAssertEqual(requests.map(\.command), ["watch", "unwatch"])
+        XCTAssertEqual(requests.map(\.command), ["watch"])
         XCTAssertEqual(requests[0].path, #"C:\Users\sans\watched"#)
         XCTAssertEqual(locations, [.remote(hostID: hostID, path: "/C:/Users/sans/watched/new.txt")])
         XCTAssertEqual(stopCount, 1)

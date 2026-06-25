@@ -39,6 +39,7 @@ actor WindowsWatchChannel {
     private var pending: [UInt64: CheckedContinuation<Void, Error>] = [:]
     private var callbacks: [UUID: @Sendable (Location) -> Void] = [:]
     private var watches: [UUID: FileProviderWatch] = [:]
+    private var recentEventTimestamps: [String: Date] = [:]
 
     init(
         hostID: UUID,
@@ -82,6 +83,7 @@ actor WindowsWatchChannel {
     func unwatch(_ watch: FileProviderWatch) async {
         callbacks.removeValue(forKey: watch.id)
         watches.removeValue(forKey: watch.id)
+        recentEventTimestamps = recentEventTimestamps.filter { !$0.key.hasPrefix("\(watch.id.uuidString)|") }
         // Windows OpenSSH on this host does not reliably deliver a second stdin
         // frame to the long-lived PowerShell watcher process. Drop callbacks
         // locally and terminate the watcher process when the final watch closes.
@@ -97,6 +99,7 @@ actor WindowsWatchChannel {
         pending.removeAll()
         callbacks.removeAll()
         watches.removeAll()
+        recentEventTimestamps.removeAll()
         await transport.stop()
         isStarted = false
     }
@@ -161,6 +164,12 @@ actor WindowsWatchChannel {
             guard let watchID = response.watchID, let nativePath = response.path else {
                 throw WindowsWatchChannelError.invalidFrame("Missing watch event fields.")
             }
+            let eventKey = "\(watchID.uuidString)|\(nativePath)"
+            let now = Date()
+            if let lastEvent = recentEventTimestamps[eventKey], now.timeIntervalSince(lastEvent) < 0.5 {
+                return
+            }
+            recentEventTimestamps[eventKey] = now
             let location = (try? WindowsPath.location(fromNative: nativePath, hostID: hostID))
                 ?? watches[watchID]?.location
             if let location {

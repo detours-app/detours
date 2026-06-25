@@ -96,6 +96,9 @@ struct WindowsErrorEnvelope: Decodable, Equatable, Sendable {
 enum WindowsReplyDecoder {
     static func decodeArrayOrSingle<T: Decodable>(_ type: T.Type, from data: Data) throws -> [T] {
         let decoder = JSONDecoder.detoursWindows
+        if case .some(.none) = try? decoder.decode(Optional<T>.self, from: data) {
+            return []
+        }
         if let array = try? decoder.decode([T].self, from: data) {
             return array
         }
