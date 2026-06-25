@@ -642,7 +642,7 @@ final class PaneViewController: NSViewController {
 
     @objc private func handleSSHConnectionStateChange(_ notification: Notification) {
         guard let change = notification.object as? SSHConnectionStateChange,
-              let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }),
+              let host = selectedReconnectHost(),
               host.id == change.hostID else {
             return
         }
@@ -672,7 +672,7 @@ final class PaneViewController: NSViewController {
     }
 
     private func syncReconnectBannerForSelectedTab() {
-        guard let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }) else {
+        guard let host = selectedReconnectHost() else {
             hideReconnectBanner()
             return
         }
@@ -684,13 +684,21 @@ final class PaneViewController: NSViewController {
         }
     }
 
+    private func selectedReconnectHost() -> RemoteHost? {
+        if let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }) {
+            return host
+        }
+
+        return selectedTab?.fileListViewController.currentRemoteHost
+    }
+
     @objc private func dismissReconnectBanner() {
-        dismissedReconnectHostID = selectedTab.flatMap { remoteBreadcrumbHostsByTabID[$0.id] }?.id
+        dismissedReconnectHostID = selectedReconnectHost()?.id
         hideReconnectBanner()
     }
 
     @objc private func reconnectRemoteHost() {
-        guard let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }) else { return }
+        guard let host = selectedReconnectHost() else { return }
 
         // Tabs restored from a previous session have no live connection yet;
         // they need the full connect flow, not a registry reconnect.

@@ -475,7 +475,8 @@ final class MainSplitViewController: NSSplitViewController {
             kind: isWindowsFailureMode ? .windows : nil
         )
         let provider = UITestRemoteProvider(hostID: host.id, base: root)
-        leftPane.loadRemoteHost(host, provider: provider, path: "/")
+        guard let tab = leftPane.selectedTab else { return }
+        tab.fileListViewController.loadRemoteDirectory(host: host, path: "/", provider: provider)
         switch mode {
         case .connected:
             RemoteConnectionStateStore.shared.setState(.connected, for: host.id)
