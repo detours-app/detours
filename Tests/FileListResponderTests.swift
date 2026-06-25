@@ -61,6 +61,34 @@ final class FileListResponderTests: XCTestCase {
         )
     }
 
+    func testLocalQuickLookTitleUsesOriginalFileNameNotGeneratedPreview() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "note.txt")
+        let generated = temp.appendingPathComponent("preview.html")
+        let viewController = FileListViewController()
+        viewController.quickLookPreviewGenerator = FakeQuickLookPreviewGenerator(results: [source: generated])
+
+        viewController.startLocalQuickLookGenerationForTesting(urls: [source])
+        let completed = await waitForQuickLookGeneration(in: viewController)
+
+        XCTAssertTrue(completed)
+        XCTAssertEqual(viewController.quickLookPreviewTitlesForTesting, ["note.txt"])
+    }
+
+    func testRemoteQuickLookTitleUsesRemoteFileNameNotGeneratedPreview() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let downloaded = try createTestFile(in: temp, name: "downloaded-cache-file")
+        let generated = temp.appendingPathComponent("preview.html")
+        let viewController = FileListViewController()
+        viewController.quickLookPreviewGenerator = FakeQuickLookPreviewGenerator(results: [downloaded: generated])
+
+        try await viewController.prepareRemoteQuickLookPreviewForTesting(downloadedURL: downloaded, displayName: "notes.txt")
+
+        XCTAssertEqual(viewController.quickLookPreviewTitlesForTesting, ["notes.txt"])
+    }
+
     func testLocalQuickLookKeepsOriginalURLForUnsupportedFile() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

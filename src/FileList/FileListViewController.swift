@@ -70,7 +70,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     // Loading state
     private var loadingSpinner: NSProgressIndicator?
     private var errorOverlay: NSView?
-    private var quickLookPreviewURLs: [URL] = []
+    private var quickLookPreviewItems: [DetoursQuickLookItem] = []
     private var quickLookGenerationTask: Task<Void, Never>?
     private var quickLookRequestID = UUID()
     var quickLookPreviewGenerator: any DetoursPreviewGenerating = DetoursPreviewGenerator.shared
@@ -2565,7 +2565,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let requestID = UUID()
         quickLookRequestID = requestID
         quickLookGenerationTask?.cancel()
-        quickLookPreviewURLs = []
+        quickLookPreviewItems = []
         panel?.reloadData()
 
         let generator = quickLookPreviewGenerator
@@ -2573,7 +2573,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         let fontSize = ThemeManager.shared.fontSize
         quickLookGenerationTask = Task { @MainActor in
             do {
-                var previews: [URL] = []
+                var previews: [DetoursQuickLookItem] = []
                 previews.reserveCapacity(urls.count)
                 for url in urls {
                     try Task.checkCancellation()
@@ -2584,10 +2584,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                         fontSize: fontSize,
                         context: .local
                     ))
-                    previews.append(preview)
+                    previews.append(DetoursQuickLookItem(url: preview, title: url.lastPathComponent))
                 }
                 guard self.quickLookRequestID == requestID else { return }
-                self.quickLookPreviewURLs = previews
+                self.quickLookPreviewItems = previews
                 self.quickLookGenerationTask = nil
                 panel?.makeKeyAndOrderFront(nil)
                 panel?.reloadData()
@@ -2627,7 +2627,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
         remoteQuickLookTask?.cancel()
         quickLookGenerationTask?.cancel()
-        quickLookPreviewURLs = []
+        quickLookPreviewItems = []
         quickLookRequestID = UUID()
         remoteQuickLookRequestLocation = item.location
         hideRemoteQuickLookProgressOverlay()
@@ -2666,7 +2666,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 try Task.checkCancellation()
                 guard remoteQuickLookRequestLocation == item.location else { return }
 
-                quickLookPreviewURLs = [generatedPreviewURL]
+                quickLookPreviewItems = [DetoursQuickLookItem(url: generatedPreviewURL, title: item.name)]
                 remoteQuickLookTask = nil
                 hideRemoteQuickLookProgressOverlay()
                 panel.makeKeyAndOrderFront(nil)
@@ -2698,7 +2698,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
         quickLookGenerationTask = nil
         quickLookRequestID = UUID()
-        quickLookPreviewURLs = []
+        quickLookPreviewItems = []
         clearRemoteQuickLookState(cancelTask: cancelTasks)
     }
 
@@ -2785,9 +2785,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         MainActor.assumeIsolated {
             Self.quickLookPreviewItemCount(
                 remoteRequestActive: remoteQuickLookRequestLocation != nil,
-                remotePreviewReady: !quickLookPreviewURLs.isEmpty,
+                remotePreviewReady: !quickLookPreviewItems.isEmpty,
                 selectedURLCount: selectedURLs.count,
-                generatedPreviewCount: quickLookPreviewURLs.count,
+                generatedPreviewCount: quickLookPreviewItems.count,
                 generationActive: quickLookGenerationTask != nil
             )
         }
@@ -2795,9 +2795,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     nonisolated func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
         MainActor.assumeIsolated {
-            if !quickLookPreviewURLs.isEmpty {
-                guard index >= 0 && index < quickLookPreviewURLs.count else { return nil }
-                return quickLookPreviewURLs[index] as NSURL
+            if !quickLookPreviewItems.isEmpty {
+                guard index >= 0 && index < quickLookPreviewItems.count else { return nil }
+                return quickLookPreviewItems[index]
             }
             if remoteQuickLookRequestLocation != nil {
                 return nil
@@ -2872,19 +2872,22 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     func prepareRemoteQuickLookPreviewForTesting(downloadedURL: URL, displayName: String) async throws {
-        quickLookPreviewURLs = [
-            try await quickLookPreviewGenerator.previewURL(for: DetoursPreviewRequest(
-                sourceURL: downloadedURL,
-                displayName: displayName,
-                theme: ThemeManager.shared.currentTheme,
-                fontSize: ThemeManager.shared.fontSize,
-                context: .remote
-            ))
-        ]
+        let generated = try await quickLookPreviewGenerator.previewURL(for: DetoursPreviewRequest(
+            sourceURL: downloadedURL,
+            displayName: displayName,
+            theme: ThemeManager.shared.currentTheme,
+            fontSize: ThemeManager.shared.fontSize,
+            context: .remote
+        ))
+        quickLookPreviewItems = [DetoursQuickLookItem(url: generated, title: displayName)]
     }
 
     var quickLookPreviewURLsForTesting: [URL] {
-        quickLookPreviewURLs
+        quickLookPreviewItems.compactMap(\.previewItemURL)
+    }
+
+    var quickLookPreviewTitlesForTesting: [String] {
+        quickLookPreviewItems.compactMap(\.previewItemTitle)
     }
 
     var quickLookGenerationTaskIsActiveForTesting: Bool {
