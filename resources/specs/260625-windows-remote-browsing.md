@@ -38,8 +38,8 @@ Add first-class support for Windows servers: when a connected server turns out t
 - [ ] **A7** Downloading a file from, and uploading a file to, a Windows host both succeed for large and binary files with intact contents.
 - [ ] **A8** Quick Look preview of a Windows file works, and Quick Open search returns matching names from the active drive, streaming results as they are found.
 - [ ] **A9** A folder open on a Windows host refreshes automatically when its contents change on the server.
-- [ ] **A10** When a Windows host connection drops, the dismissable "Connection lost" banner and reconnect path behave exactly as they do for Mac/Linux hosts.
-- [ ] **A11** Connecting to a Mac or Linux host is unchanged in every respect.
+- [x] **A10** When a Windows host connection drops, the dismissable "Connection lost" banner and reconnect path behave exactly as they do for Mac/Linux hosts.
+- [x] **A11** Connecting to a Mac or Linux host is unchanged in every respect.
 - [ ] **A12** If a Windows host does not expose SFTP, small transfers still work and large transfers report a clear limitation instead of hanging, truncating the file, or pretending the transfer succeeded.
 
 ### Out of scope
@@ -179,4 +179,4 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. Uni
 
 ### UI Tests (`Tests/UITests/DetoursUITests/`, run on Foundry)
 
-- [ ] **T43** `WindowsRemoteUITests.testReconnectBannerForWindowsHost` — a dropped Windows host shows the dismissable "Connection lost" banner and reconnect affordance identical to other remote hosts (A10), and a local/Unix tab is unaffected (A11).
+- [x] **T43** `WindowsRemoteUITests.testReconnectBannerForWindowsHost` — a dropped Windows host shows the dismissable "Connection lost" banner and reconnect affordance identical to other remote hosts (A10), and a local/Unix tab is unaffected (A11).
