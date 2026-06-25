@@ -220,15 +220,21 @@ private struct WindowsLiveFixture {
     }
 
     func cleanup() async throws {
-        try await run(
-            operation: "Cleanup",
-            source: """
-            param($Arguments)
-            Remove-Item -LiteralPath $Arguments.path -Recurse -Force -ErrorAction SilentlyContinue
-            $true
-            """,
-            arguments: PathArguments(path: try nativePath(root))
-        )
+        do {
+            try await run(
+                operation: "Cleanup",
+                source: """
+                param($Arguments)
+                Remove-Item -LiteralPath $Arguments.path -Recurse -Force -ErrorAction SilentlyContinue
+                $true
+                """,
+                arguments: PathArguments(path: try nativePath(root))
+            )
+            await channel.disconnect()
+        } catch {
+            await channel.disconnect()
+            throw error
+        }
     }
 
     func upload(_ data: Data, to location: Location) async throws {

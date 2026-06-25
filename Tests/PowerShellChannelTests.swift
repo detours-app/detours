@@ -38,6 +38,17 @@ final class PowerShellChannelTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(starts, 2)
         XCTAssertEqual(String(data: payload, encoding: .utf8), #"{"ok":true}"#)
     }
+
+    func testDisconnectStopsTransport() async throws {
+        let transport = ScriptedPowerShellTransport()
+        let channel = PowerShellChannel(transport: transport)
+
+        _ = try await channel.run(PowerShellScript(source: "1"), operation: "Start")
+        await channel.disconnect()
+
+        let stopCount = await transport.stopCount
+        XCTAssertEqual(stopCount, 1)
+    }
 }
 
 private actor ScriptedPowerShellTransport: PowerShellChannelTransport {
@@ -60,6 +71,7 @@ private actor ScriptedPowerShellTransport: PowerShellChannelTransport {
     private var responses: [Data] = []
     private var malformedResponseCount: Int
     private(set) var startCount = 0
+    private(set) var stopCount = 0
 
     init(malformedResponseCount: Int = 0) {
         self.malformedResponseCount = malformedResponseCount
@@ -91,7 +103,9 @@ private actor ScriptedPowerShellTransport: PowerShellChannelTransport {
         return responses.removeFirst()
     }
 
-    func stop() async {}
+    func stop() async {
+        stopCount += 1
+    }
 
     func sentRequests() -> [SentRequest] {
         requests

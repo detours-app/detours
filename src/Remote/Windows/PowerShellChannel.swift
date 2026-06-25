@@ -103,6 +103,12 @@ actor PowerShellChannel: RemoteConnectionHandle {
         try await startIfNeeded()
     }
 
+    func disconnect() async {
+        await transport.stop()
+        isStarted = false
+        activePaneCount = 0
+    }
+
     #if DEBUG
     func isStartedForTesting() -> Bool {
         isStarted
