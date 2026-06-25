@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.8.0 - 2026-06-25
+
+### Remote Quick Open
+
+- **Command-P searches the right place on remote tabs** - Quick Open now
+  understands whether the active tab is local or remote. On a remote tab, it
+  searches that remote host instead of falling back to the Mac.
+- **Remote Quick Open shows its scope clearly** - The panel now shows whether
+  results are coming from This Mac or a specific remote host, with reconnect
+  handling when the host is offline.
+- **Open remote results directly in the current tab** - Choosing a remote file
+  reveals it in its containing folder and selects it; choosing a remote folder
+  navigates into it.
+
+### Remote File Management
+
+- **Remote tabs now have full file-operation parity** - Remote hosts support
+  the same core file actions as local Mac folders, including new files and
+  folders, delete/trash flows, undoable remote operations, copy/cut/paste,
+  duplicate structure, Get Info, and cross-pane transfers.
+- **Transfer files between remote hosts and the Mac** - Copy and move workflows
+  now cover remote-to-local, local-to-remote, and remote-to-remote paths through
+  Detours' helper and transfer channel.
+- **Remote refresh preserves your place** - Refreshing a remote pane now keeps
+  focus, selection, and expansion state instead of dropping the active file and
+  making keyboard navigation restart from the top.
+- **Remote Open With uses real remote files** - Remote Markdown and editor
+  handoff now use native remote editor URLs when supported, including RedMargin,
+  so editing happens against the real remote file instead of exposing Detours
+  cache paths.
+
+### Keyboard and Menu Reliability
+
+- **Filter shortcuts work consistently** - Command-F and slash now open the
+  file-list filter from the active pane across normal app focus, menu dispatch,
+  and window-level event handling.
+- **Duplicate Structure closes correctly** - Escape and Cancel now dismiss the
+  Duplicate Structure sheet reliably without leaving context menus or modal
+  state behind.
+- **Remote context menus expose the right actions** - Remote selections now
+  enable the expected file-management actions instead of leaving most of the
+  menu disabled.
+
 ## 1.7.0 - 2026-06-23
 
 ### New Features
