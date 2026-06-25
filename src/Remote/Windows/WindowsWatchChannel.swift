@@ -82,7 +82,9 @@ actor WindowsWatchChannel {
     func unwatch(_ watch: FileProviderWatch) async {
         callbacks.removeValue(forKey: watch.id)
         watches.removeValue(forKey: watch.id)
-        try? await send(command: "unwatch", watchID: watch.id, path: nil)
+        // Windows OpenSSH on this host does not reliably deliver a second stdin
+        // frame to the long-lived PowerShell watcher process. Drop callbacks
+        // locally and terminate the watcher process when the final watch closes.
         if watches.isEmpty {
             await stop()
         }

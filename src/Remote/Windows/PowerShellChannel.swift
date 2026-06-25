@@ -55,7 +55,8 @@ actor PowerShellChannel: RemoteConnectionHandle {
         transport = PowerShellProcessTransport(
             sshTarget: sshTarget,
             controlDirectory: controlDirectory,
-            hostTrust: hostTrust
+            hostTrust: hostTrust,
+            executionMode: .oneShot
         )
     }
 
@@ -193,33 +194,47 @@ actor PowerShellChannel: RemoteConnectionHandle {
 }
 
 final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked Sendable {
+    enum ExecutionMode: Equatable {
+        case persistent
+        case oneShot
+    }
+
     private static let readTimeoutMilliseconds: Int32 = 30_000
 
     private let sshTarget: String
     private let controlDirectory: URL
     private let hostTrust: SSHHostTrust
     private let processFactory: @Sendable () -> Process
+    private let executionMode: ExecutionMode
 
     private var process: Process?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
+    private var dispatcherBase64: String?
 
     init(
         sshTarget: String,
         controlDirectory: URL,
         hostTrust: SSHHostTrust,
+        executionMode: ExecutionMode = .persistent,
         processFactory: @escaping @Sendable () -> Process = { Process() }
     ) {
         self.sshTarget = sshTarget
         self.controlDirectory = controlDirectory
         self.hostTrust = hostTrust
+        self.executionMode = executionMode
         self.processFactory = processFactory
     }
 
     func start(dispatcherBase64: String) async throws {
-        guard process == nil else { return }
         try hostTrust.prepareKnownHostsFile()
+        self.dispatcherBase64 = dispatcherBase64
+        guard executionMode == .persistent else { return }
+        try startProcess(dispatcherBase64: dispatcherBase64)
+    }
 
+    private func startProcess(dispatcherBase64: String) throws {
+        guard process == nil else { return }
         let process = processFactory()
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
@@ -236,10 +251,20 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
     }
 
     func sendFrame(_ frame: Data) async throws {
+        if executionMode == .oneShot {
+            guard let dispatcherBase64 else {
+                throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
+            }
+            try startProcess(dispatcherBase64: dispatcherBase64)
+        }
         guard let process, process.isRunning, let stdinPipe else {
             throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
         }
         stdinPipe.fileHandleForWriting.write(frame)
+        if executionMode == .oneShot {
+            stdinPipe.fileHandleForWriting.closeFile()
+            self.stdinPipe = nil
+        }
     }
 
     func readFrame() async throws -> Data {
@@ -247,14 +272,30 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
             throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
         }
         let output = stdoutPipe.fileHandleForReading
-        return try await Task.detached(priority: .userInitiated) {
-            let lengthData = try Self.readExact(4, from: output)
-            let length = Int(UInt32(detoursBigEndianData: lengthData.prefix(4)))
-            return try Self.readExact(length, from: output)
-        }.value
+        defer {
+            if executionMode == .oneShot {
+                stopProcess()
+            }
+        }
+        do {
+            return try await Task.detached(priority: .userInitiated) {
+                let lengthData = try Self.readExact(4, from: output)
+                let length = Int(UInt32(detoursBigEndianData: lengthData.prefix(4)))
+                return try Self.readExact(length, from: output)
+            }.value
+        } catch {
+            if executionMode == .persistent {
+                stopProcess()
+            }
+            throw error
+        }
     }
 
     func stop() async {
+        stopProcess()
+    }
+
+    private func stopProcess() {
         if process?.isRunning == true {
             process?.terminate()
         }
