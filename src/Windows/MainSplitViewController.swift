@@ -466,15 +466,30 @@ final class MainSplitViewController: NSSplitViewController {
     /// UI-test seam: turn the left pane's active tab into a remote tab backed by the test root,
     /// so the remote-aware Quick Open tests can run without a live SSH server.
     private func installUITestRemoteTab(root: URL, mode: UITestEnvironment.RemoteMode) {
-        let host = RemoteHost(displayName: UITestEnvironment.remoteHostDisplayName, sshTarget: "uitest@localhost")
+        let isWindowsFailureMode = mode == .windowsFailed
+        let host = RemoteHost(
+            displayName: isWindowsFailureMode
+                ? UITestEnvironment.windowsRemoteHostDisplayName
+                : UITestEnvironment.remoteHostDisplayName,
+            sshTarget: isWindowsFailureMode ? "uitest-windows@localhost" : "uitest@localhost",
+            kind: isWindowsFailureMode ? .windows : nil
+        )
         let provider = UITestRemoteProvider(hostID: host.id, base: root)
-        guard let tab = leftPane.selectedTab else { return }
-        tab.fileListViewController.loadRemoteDirectory(host: host, path: "/", provider: provider)
+        leftPane.loadRemoteHost(host, provider: provider, path: "/")
         switch mode {
         case .connected:
             RemoteConnectionStateStore.shared.setState(.connected, for: host.id)
         case .disconnected:
             RemoteConnectionStateStore.shared.setState(.disconnected, for: host.id)
+        case .windowsFailed:
+            RemoteConnectionStateStore.shared.setState(.connected, for: host.id)
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                RemoteConnectionStateStore.shared.setState(
+                    .failed(reason: .transport("UI test connection dropped")),
+                    for: host.id
+                )
+            }
         }
     }
 

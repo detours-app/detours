@@ -87,10 +87,12 @@ enum UITestEnvironment {
     }
 
     /// Remote-tab seam for the remote-aware Quick Open UI tests. `DETOURS_UI_TEST_REMOTE` is
-    /// `connected` or `disconnected`; absent means the standard local-only test session.
+    /// `connected`, `disconnected`, or `windows-failed`; absent means the standard local-only
+    /// test session.
     enum RemoteMode: String {
         case connected
         case disconnected
+        case windowsFailed = "windows-failed"
     }
 
     static var remoteMode: RemoteMode? {
@@ -107,6 +109,7 @@ enum UITestEnvironment {
 
     /// Stable host identity for the UI-test remote so the seam and tests agree on the display name.
     static let remoteHostDisplayName = "UITest Server"
+    static let windowsRemoteHostDisplayName = "UITest Windows"
 
     static var rootDirectory: URL? {
         guard let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"], !root.isEmpty else {

@@ -612,9 +612,11 @@ final class PaneViewController: NSViewController {
         reconnectBannerLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 12)
         reconnectBannerLabel.textColor = ThemeManager.shared.currentTheme.textPrimary
         reconnectBannerLabel.lineBreakMode = .byTruncatingTail
+        reconnectBannerLabel.setAccessibilityIdentifier("remoteReconnectBannerLabel")
 
         reconnectButton.bezelStyle = .rounded
         reconnectButton.controlSize = .small
+        reconnectButton.setAccessibilityIdentifier("remoteReconnectButton")
         reconnectButton.target = self
         reconnectButton.action = #selector(reconnectRemoteHost)
 
@@ -667,6 +669,19 @@ final class PaneViewController: NSViewController {
     private func hideReconnectBanner() {
         reconnectBanner.isHidden = true
         reconnectBannerHeightConstraint?.constant = 0
+    }
+
+    private func syncReconnectBannerForSelectedTab() {
+        guard let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }) else {
+            hideReconnectBanner()
+            return
+        }
+
+        if case .failed = RemoteConnectionStateStore.shared.state(for: host.id) {
+            showReconnectBanner(for: host)
+        } else {
+            hideReconnectBanner()
+        }
     }
 
     @objc private func dismissReconnectBanner() {
@@ -981,6 +996,7 @@ final class PaneViewController: NSViewController {
             selected.fileListViewController.view.isHidden = false
         }
 
+        syncReconnectBannerForSelectedTab()
         reloadTabBar()
         scheduleSessionSave()
     }
@@ -991,14 +1007,15 @@ final class PaneViewController: NSViewController {
         if index == selectedTabIndex {
             let tab = tabs[index]
             if tab.fileListViewController.view.isHidden {
-            tab.fileListViewController.view.isHidden = false
-            tabBar.updateSelectedIndex(index)
-            updateNavigationControls()
-            updateRemoteHostBadge()
-            updatePathControl()
-            loadTabIfNeeded(tab)
+                tab.fileListViewController.view.isHidden = false
+                tabBar.updateSelectedIndex(index)
+                updateNavigationControls()
+                updateRemoteHostBadge()
+                updatePathControl()
+                loadTabIfNeeded(tab)
             }
 
+            syncReconnectBannerForSelectedTab()
             if isActive {
                 view.window?.makeFirstResponder(tab.fileListViewController.tableView)
             }
@@ -1021,6 +1038,7 @@ final class PaneViewController: NSViewController {
         updateNavigationControls()
         updateRemoteHostBadge()
         updatePathControl()
+        syncReconnectBannerForSelectedTab()
 
         // Make first responder if this pane is active
         if isActive {
