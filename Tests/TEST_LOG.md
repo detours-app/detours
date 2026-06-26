@@ -2,6 +2,42 @@
 
 ## Latest Run
 
+### 2026-06-26 18:54 (Spectre live + Foundry XCUI)
+
+- Command: unit suites + a 99-test regression (Spectre);
+  `resources/scripts/wintest.sh WindowsRemoteLiveTests` x4 (Spectre, live
+  win-carriercall); `resources/scripts/uitest.sh` full suite (Foundry). Branch
+  `fix/windows-remote-hardening` at `5a92af3`.
+- Status: PASS
+- Notes: Three remote-hardening fixes proven end to end. (1) Quit teardown:
+  `RemoteConnectionRegistry.disconnectAll()` from `applicationWillTerminate`
+  closes each Windows host's shared SSH control master so command, transfer, and
+  watch sessions end at once instead of lingering via ControlPersist. (2)
+  Non-blocking, descriptive errors: `presentError` no longer runs a modal during
+  tests (a modal there deadlocked unattended runs and leaked xctest processes,
+  the surface cause of the suite "hang"); a remote copy/move/undo failure now
+  reads like "Couldn't copy A.txt on win-carriercall" with the host's own reason
+  and a next step, and the generic "Operation Failed" is retired;
+  FileProviderError and PowerShellChannelError are descriptive LocalizedErrors.
+  (3) Bounded process termination: `PowerShellProcessTransport.stopProcess()` no
+  longer calls an unbounded `waitUntilExit()` (which deadlocked the channel
+  forever when a wedged ssh ignored SIGTERM on a degraded host, the deeper suite
+  hang); it escalates SIGTERM to SIGKILL with bounded waits.
+- Verification: 12 new unit tests (RemoteConnectionTeardown, PresentErrorModal,
+  RemoteErrorMessaging, ProcessTermination) plus a 99-test regression of the
+  operation, Windows-transfer, conflict, and undo paths, all green; swiftlint
+  clean. WindowsRemoteLiveTests 11/11 green four times (including once on a host
+  already degraded with leaked processes), 0 failures, ~44s each, no hang. Full
+  Foundry XCUI suite: 79 tests, 1 skip, 0 failures (~22 min), all 13 UI suites
+  including WindowsRemoteUITests.
+- Known residual: a watch leaves a remote PowerShell orphaned on the host (~9
+  per run). Under ControlMaster multiplexing the remote watcher's Wait-Event
+  loop never sees its torn-down ssh (its heartbeat write does not fail and stdin
+  never EOFs), so it keeps running. Non-functional (re-runs stay green, even on
+  an already-degraded host) and cleared on host reboot; a watcher self-terminate
+  is a noted follow-up. Deterministic `unwatch` in the live watch tests reduced
+  but did not eliminate it.
+
 ### 2026-06-26 14:48 (Foundry)
 
 - Command: `resources/scripts/uitest.sh SmokeTests`;
