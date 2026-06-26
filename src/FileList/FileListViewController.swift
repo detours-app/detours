@@ -933,6 +933,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 )
                 self.finishRemoteLoad(restoreTableViewFocus: shouldRestoreTableViewFocus)
             case .failure(let error):
+                logger.error("Remote directory load failed for \(location.path, privacy: .public): \(String(describing: error), privacy: .public)")
                 self.showErrorOverlay(for: error)
                 self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
@@ -1154,10 +1155,25 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     @objc private func retryLoad() {
+        retryCurrentLoad()
+    }
+
+    private func retryCurrentLoad() {
+        if let currentRemoteLocation, let currentRemoteProvider {
+            hideErrorOverlay()
+            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
+            return
+        }
         guard let currentDirectory else { return }
         hideErrorOverlay()
         loadDirectory(currentDirectory, preserveExpansion: true)
     }
+
+    #if DEBUG
+    func retryCurrentLoadForTesting() {
+        retryCurrentLoad()
+    }
+    #endif
 
     @objc private func goToNearestParent() {
         guard let currentDirectory else { return }

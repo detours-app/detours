@@ -600,6 +600,28 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertEqual(refreshedSelection.location.path, selectedFile.path)
     }
 
+    func testRemoteRetryReloadsCurrentRemoteDirectory() throws {
+        let host = RemoteHost(displayName: "win-carriercall", sshTarget: "win-carriercall")
+        let remoteDirectory = "/C:"
+        let provider = PaneRemoteProvider(listings: [
+            remoteDirectory: [
+                .remoteDirectory(hostID: host.id, path: "/C:/Users", name: "Users"),
+            ],
+        ])
+        let fileList = FileListViewController()
+        fileList.loadViewIfNeeded()
+        fileList.currentDirectory = nil
+        fileList.currentRemoteHost = host
+        fileList.currentRemoteLocation = .remote(hostID: host.id, path: remoteDirectory)
+        fileList.currentRemoteProvider = provider
+
+        fileList.retryCurrentLoadForTesting()
+
+        waitUntil(fileList.tableView.numberOfRows == 1)
+        let item = try XCTUnwrap(fileList.tableView.item(atRow: 0) as? FileItem)
+        XCTAssertEqual(item.location, .remote(hostID: host.id, path: "/C:/Users"))
+    }
+
     func testConnectingRemoteHostClearsLocalRowsBeforeConnectionCompletes() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -754,7 +776,7 @@ private actor PaneRemoteProvider: FileProvider {
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
-        listings[location.path] ?? []
+        return listings[location.path] ?? []
     }
 
     func stat(_ location: Location) async throws -> LoadedFileEntry { throw FileProviderError.unsupportedOperation("stat") }
