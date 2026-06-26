@@ -59,6 +59,41 @@ final class RemoteHostKindRoutingTests: XCTestCase {
         XCTAssertEqual(kind, .windows)
     }
 
+    @MainActor
+    func testProbeUsesTimeoutAndCacheInvalidatesOnTargetChange() async {
+        // The probe runs ssh with a connect timeout and batch mode so a hung or
+        // password-prompting target cannot stall it.
+        let args = SSHRemoteHostKindProbeClient.sshArguments(sshTarget: "sans@win-host", command: "probe")
+        XCTAssertTrue(args.contains("ConnectTimeout=5"))
+        XCTAssertTrue(args.contains("BatchMode=yes"))
+        XCTAssertEqual(args.last, "probe")
+
+        // Cached Windows results are reused; absent and Unix results re-probe.
+        let windowsProbe = RemoteHostKindProbe(client: FakeProbeClient(outputs: [""]))
+        let reclassifyProbe = RemoteHostKindProbe(client: FakeProbeClient(outputs: ["DETOURS_WINDOWS_PROBE\tWin32NT\n"]))
+        let cachedWindows = await windowsProbe.resolve(cachedKind: .windows)
+        let reclassified = await reclassifyProbe.resolve(cachedKind: .unix)
+        XCTAssertEqual(cachedWindows, .windows)
+        XCTAssertEqual(reclassified, .windows)
+
+        // Changing an existing host's ssh target clears the cached kind so the next
+        // connect re-probes; an unchanged target keeps it.
+        let store = RemoteHostStore(defaults: UserDefaults(suiteName: "ProbeCacheInvalidation-\(UUID().uuidString)")!)
+        let original = store.add(displayName: "Box", sshTarget: "sans@win-host")
+        store.updateKind(id: original.id, kind: .windows)
+
+        var repointed = store.host(id: original.id)!
+        repointed.sshTarget = "sans@other-host"
+        _ = store.upsert(repointed)
+        XCTAssertNil(store.host(id: original.id)?.kind)
+
+        store.updateKind(id: original.id, kind: .windows)
+        var renamedOnly = store.host(id: original.id)!
+        renamedOnly.displayName = "Renamed"
+        _ = store.upsert(renamedOnly)
+        XCTAssertEqual(store.host(id: original.id)?.kind, .windows)
+    }
+
     func testWindowsProbeSkipsDeployAndPicksWindowsProvider() {
         let windowsRoute = RemoteConnectionRoute(kind: .windows)
         let unixRoute = RemoteConnectionRoute(kind: .unix)

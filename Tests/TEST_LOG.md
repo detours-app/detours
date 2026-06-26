@@ -2,6 +2,15 @@
 
 ## Latest Run
 
+### 2026-06-26 12:53
+
+- Command: `swift test --filter RemoteHostKindRoutingTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Host-kind probe hardening T16 with test T38. 6 tests, 0 failures.
+  Verifies ConnectTimeout/BatchMode ssh flags, cached-kind reuse vs re-probe,
+  and clearing a cached kind when a host's ssh target changes.
+
 ### 2026-06-26 12:50
 
 - Command: `swift test --filter WindowsPathTests --filter WindowsRepliesTests

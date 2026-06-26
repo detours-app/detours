@@ -63,27 +63,52 @@ struct SSHRemoteHostKindProbeClient: RemoteHostKindProbeClient {
     let sshTarget: String
     var processFactory: @Sendable () -> Process = { Process() }
 
+    static func sshArguments(sshTarget: String, command: String) -> [String] {
+        // ConnectTimeout bounds a hung target; BatchMode prevents an interactive
+        // password/passphrase prompt from stalling the probe indefinitely.
+        [
+            "-o", "ConnectTimeout=5",
+            "-o", "BatchMode=yes",
+            sshTarget,
+            command,
+        ]
+    }
+
     func run(_ command: String) async throws -> String {
-        let process = processFactory()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = [sshTarget, command]
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        let factory = processFactory
+        let sshTarget = sshTarget
+        // The blocking process wait runs on a background queue, never on a Swift
+        // concurrency executor thread, so a slow or hung target cannot stall the pool.
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = factory()
+                let stdoutPipe = Pipe()
+                let stderrPipe = Pipe()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+                process.arguments = Self.sshArguments(sshTarget: sshTarget, command: command)
+                process.standardOutput = stdoutPipe
+                process.standardError = stderrPipe
 
-        try process.run()
-        process.waitUntilExit()
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                process.waitUntilExit()
 
-        let stdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        guard process.terminationStatus == 0 else {
-            throw ServerDeployerError.commandFailed(
-                command: command,
-                status: process.terminationStatus,
-                stderr: String(data: stderr, encoding: .utf8) ?? ""
-            )
+                let stdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                let stderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                guard process.terminationStatus == 0 else {
+                    continuation.resume(throwing: ServerDeployerError.commandFailed(
+                        command: command,
+                        status: process.terminationStatus,
+                        stderr: String(data: stderr, encoding: .utf8) ?? ""
+                    ))
+                    return
+                }
+                continuation.resume(returning: String(data: stdout, encoding: .utf8) ?? "")
+            }
         }
-        return String(data: stdout, encoding: .utf8) ?? ""
     }
 }
