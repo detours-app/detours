@@ -339,7 +339,12 @@ final class WindowPaneGeometryUITests: XCTestCase {
         // back to moving left.
         for dx in [CGFloat(90), CGFloat(-90)] {
             let divider = paneDivider()
-            let start = divider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            let windowFrame = mainWindow().frame
+            let normalized = CGVector(
+                dx: (divider.frame.midX - windowFrame.minX) / windowFrame.width,
+                dy: (divider.frame.midY - windowFrame.minY) / windowFrame.height
+            )
+            let start = mainWindow().coordinate(withNormalizedOffset: normalized)
             let end = start.withOffset(CGVector(dx: dx, dy: 0))
 
             start.press(forDuration: 0.2, thenDragTo: end)

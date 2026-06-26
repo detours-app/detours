@@ -93,6 +93,11 @@ final class MainSplitViewController: NSSplitViewController {
     private let contentPaneBalanceDelay: TimeInterval = 0.05
     private let splitResizeEpsilon: CGFloat = 0.5
 
+    private enum SplitLayout {
+        static let sidebarPreferredFraction: CGFloat = 0.25
+        static let contentPanePreferredFraction: CGFloat = 0.375
+    }
+
     private enum SessionKeys {
         static let leftTabs = "Detours.LeftPaneTabs"
         static let leftSelectedIndex = "Detours.LeftPaneSelectedIndex"
@@ -152,12 +157,15 @@ final class MainSplitViewController: NSSplitViewController {
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
         sidebarItem.minimumThickness = 150
         sidebarItem.maximumThickness = 320
+        sidebarItem.preferredThicknessFraction = SplitLayout.sidebarPreferredFraction
 
         let leftPaneItem = NSSplitViewItem(viewController: leftPane)
         leftPaneItem.minimumThickness = contentPaneMinimumThickness
+        leftPaneItem.preferredThicknessFraction = SplitLayout.contentPanePreferredFraction
 
         let rightPaneItem = NSSplitViewItem(viewController: rightPane)
         rightPaneItem.minimumThickness = contentPaneMinimumThickness
+        rightPaneItem.preferredThicknessFraction = SplitLayout.contentPanePreferredFraction
 
         addSplitViewItem(sidebarItem)
         addSplitViewItem(leftPaneItem)
@@ -458,14 +466,13 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func preserveContentPaneRatioAfterResize() {
-        let subviews = splitView.subviews
-        let frames = subviews.map(\.frame)
+        let frames = splitViewItemFrames()
         guard isSplitResizePolicyActive else {
             recordCurrentSplitState(frames: frames)
             return
         }
 
-        guard subviews.count >= 3 else {
+        guard frames.count >= 3 else {
             recordCurrentSplitState(frames: frames)
             return
         }
@@ -528,7 +535,7 @@ final class MainSplitViewController: NSSplitViewController {
 
     private func applyContentPaneBalance(paneDividerPosition: CGFloat) {
         pendingContentPaneBalanceWorkItem = nil
-        guard isSplitResizePolicyActive, splitView.subviews.count >= 3 else {
+        guard isSplitResizePolicyActive, splitViewItemFrames().count >= 3 else {
             recordCurrentSplitState()
             return
         }
@@ -540,7 +547,11 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func recordCurrentSplitState(frames: [NSRect]? = nil) {
-        previousSplitSubviewFrames = frames ?? splitView.subviews.map(\.frame)
+        previousSplitSubviewFrames = frames ?? splitViewItemFrames()
+    }
+
+    private func splitViewItemFrames() -> [NSRect] {
+        splitViewItems.map { $0.viewController.view.frame }
     }
 
     // MARK: - Sidebar

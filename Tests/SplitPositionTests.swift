@@ -53,6 +53,33 @@ final class SplitPositionTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testEqualizePanesMovesContentDividerAtRuntime() {
+        let controller = MainWindowController()
+        guard let window = controller.window else {
+            XCTFail("Main window should be created")
+            return
+        }
+
+        controller.showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        window.layoutIfNeeded()
+        controller.splitViewController.view.layoutSubtreeIfNeeded()
+
+        controller.splitViewController.equalizePanes()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        controller.splitViewController.view.layoutSubtreeIfNeeded()
+
+        let frames = controller.splitViewController.splitViewItems.map { $0.viewController.view.frame }
+        window.close()
+
+        XCTAssertGreaterThanOrEqual(frames.count, 3)
+        let leftWidth = frames[1].width
+        let rightWidth = frames[2].width
+        XCTAssertEqual(leftWidth, rightWidth, accuracy: 12, "\(frames)")
+    }
+
     func testSidebarResizePolicyPreservesEqualPanes() {
         let widths = SplitContentResizePolicy.proportionalWidths(
             contentWidth: 620,
