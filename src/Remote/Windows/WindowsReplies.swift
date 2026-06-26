@@ -99,13 +99,21 @@ enum WindowsReplyDecoder {
         // PowerShell's ConvertTo-Json emits an array, a single object, or the bare
         // literal `null`. Dispatch on the first significant byte so the payload is
         // parsed exactly once rather than being speculatively decoded up to three times.
-        guard let firstByte = data.first(where: { $0 != 0x20 && $0 != 0x09 && $0 != 0x0A && $0 != 0x0D }) else {
+        let isWhitespace: (UInt8) -> Bool = { $0 == 0x20 || $0 == 0x09 || $0 == 0x0A || $0 == 0x0D }
+        guard let firstByte = data.first(where: { !isWhitespace($0) }) else {
             return [try decoder.decode(T.self, from: data)]
         }
         switch firstByte {
         case UInt8(ascii: "["):
             return try decoder.decode([T].self, from: data)
         case UInt8(ascii: "n"):
+            // Only the exact literal `null` means an empty result. Any other
+            // `n`-prefixed payload (e.g. `nan`, a truncated `nul`) is malformed and
+            // must surface a decode error rather than being silently dropped.
+            let significant = data.filter { !isWhitespace($0) }
+            guard significant.elementsEqual("null".utf8) else {
+                return [try decoder.decode(T.self, from: data)]
+            }
             return []
         default:
             return [try decoder.decode(T.self, from: data)]

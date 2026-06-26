@@ -165,22 +165,27 @@ struct QuickNavView: View {
     }
 
     private var remoteHost: RemoteHost? {
-        if case .remote(let host, _, _) = scope { return host }
+        if case .remote(let host, _, _, _) = scope { return host }
         return nil
     }
 
     private var remoteProvider: (any FileProvider)? {
-        if case .remote(_, let provider, _) = scope { return provider }
+        if case .remote(_, let provider, _, _) = scope { return provider }
+        return nil
+    }
+
+    private var remoteSearchRoot: Location? {
+        if case .remote(_, _, _, let searchRoot) = scope { return searchRoot }
         return nil
     }
 
     private var isDisconnectedRemote: Bool {
-        if case .remote(_, _, let isConnected) = scope { return !isConnected }
+        if case .remote(_, _, let isConnected, _) = scope { return !isConnected }
         return false
     }
 
     private var scopeHeaderText: String {
-        if case .remote(let host, _, _) = scope {
+        if case .remote(let host, _, _, _) = scope {
             return "Searching \(host.displayName) - entire host"
         }
         return "This Mac"
@@ -449,13 +454,14 @@ struct QuickNavView: View {
         updateRemoteMergedResults()
 
         let cap = remoteSearchCap
+        let searchRoot = remoteSearchRoot
         remoteSearchTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: spotlightDebounceInterval)
             guard !Task.isCancelled else { return }
 
             var collected: [QuickNavResult] = []
             do {
-                for try await batch in provider.find(query: trimmed, cap: cap) {
+                for try await batch in provider.find(query: trimmed, cap: cap, root: searchRoot) {
                     guard !Task.isCancelled else { return }
                     collected.append(contentsOf: batch.map { item in
                         QuickNavResult.remote(

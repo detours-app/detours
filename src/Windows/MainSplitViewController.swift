@@ -879,7 +879,12 @@ final class MainSplitViewController: NSSplitViewController {
             return .local
         }
         let isConnected = RemoteConnectionStateStore.shared.state(for: hostID) == .connected
-        return .remote(host: host, provider: provider, isConnected: isConnected)
+        return .remote(
+            host: host,
+            provider: provider,
+            isConnected: isConnected,
+            searchRoot: fileList.currentRemoteLocation
+        )
     }
 
     /// Open a remote Quick Open result in the active tab (A5): a file navigates to its containing

@@ -82,6 +82,34 @@ enum WindowsFindScripts {
         $statusOutput = & $git.Source -C $Arguments.path status --porcelain=v1 2>$null
         if ($LASTEXITCODE -ne 0) { return @() }
 
+        function Convert-GitQuotedName([string]$Name) {
+            if ($Name.Length -lt 2 -or -not ($Name.StartsWith('"') -and $Name.EndsWith('"'))) {
+                return $Name
+            }
+            $inner = $Name.Substring(1, $Name.Length - 2)
+            $bytes = New-Object System.Collections.Generic.List[byte]
+            $i = 0
+            while ($i -lt $inner.Length) {
+                if ($inner[$i] -eq '\' -and ($i + 1) -lt $inner.Length) {
+                    $next = $inner[$i + 1]
+                    if ('01234567'.Contains([string]$next) -and ($i + 4) -le $inner.Length) {
+                        $bytes.Add([Convert]::ToByte($inner.Substring($i + 1, 3), 8))
+                        $i += 4
+                    } elseif ($next -eq 'n') { $bytes.Add([byte]10); $i += 2 }
+                    elseif ($next -eq 't') { $bytes.Add([byte]9); $i += 2 }
+                    elseif ($next -eq 'r') { $bytes.Add([byte]13); $i += 2 }
+                    else {
+                        foreach ($b in [System.Text.Encoding]::UTF8.GetBytes([string]$next)) { $bytes.Add($b) }
+                        $i += 2
+                    }
+                } else {
+                    foreach ($b in [System.Text.Encoding]::UTF8.GetBytes([string]$inner[$i])) { $bytes.Add($b) }
+                    $i += 1
+                }
+            }
+            [System.Text.Encoding]::UTF8.GetString($bytes.ToArray())
+        }
+
         function Convert-GitStatus([char]$Index, [char]$WorkTree) {
             if ($Index -eq '?' -and $WorkTree -eq '?') { return 'untracked' }
             if ($Index -eq 'U' -or $WorkTree -eq 'U' -or
@@ -104,9 +132,7 @@ enum WindowsFindScripts {
             if ($arrowIndex -ge 0) {
                 $fileName = $fileName.Substring($arrowIndex + 4)
             }
-            if ($fileName.StartsWith('"') -and $fileName.EndsWith('"')) {
-                $fileName = $fileName.Substring(1, $fileName.Length - 2)
-            }
+            $fileName = Convert-GitQuotedName -Name $fileName
             $status = Convert-GitStatus -Index $index -WorkTree $workTree
             if ($status -eq 'clean') { continue }
             [pscustomobject]@{

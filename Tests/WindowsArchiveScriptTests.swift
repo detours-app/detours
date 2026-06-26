@@ -12,4 +12,13 @@ final class WindowsArchiveScriptTests: XCTestCase {
         XCTAssertTrue(script.contains("Built-in ZIP cannot archive entries larger than 4 GiB"))
         XCTAssertFalse(script.contains("Compress-Archive"))
     }
+
+    func testArchiveExtractRejectsEscapingEntries() {
+        for script in [WindowsArchiveScripts.zipExtract, WindowsArchiveScripts.externalExtract] {
+            XCTAssertTrue(script.contains("Assert-PathWithinDirectory"))
+            XCTAssertTrue(script.contains("escapes the destination directory"))
+        }
+        // The built-in zip path validates each entry's destination before extracting it.
+        XCTAssertTrue(WindowsArchiveScripts.zipExtract.contains("foreach ($entry in $zip.Entries)"))
+    }
 }

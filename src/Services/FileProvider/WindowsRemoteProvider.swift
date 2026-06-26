@@ -6,7 +6,6 @@ actor WindowsRemoteProvider: FileProvider {
     private let channel: PowerShellChannel
     private let transferChannel: WindowsTransferChannel
     private let watchChannel: WindowsWatchChannel?
-    private let searchScope = WindowsSearchScope()
     private var rawPaths: [Location: String] = [:]
     private var archiveToolAvailability: WindowsArchiveToolAvailability?
 
@@ -33,7 +32,6 @@ actor WindowsRemoteProvider: FileProvider {
         let script = PowerShellScript(source: Self.homeDirectoryScript)
         let data = try await channel.run(script, operation: "HomeDirectory")
         let nativePath = try JSONDecoder.detoursWindows.decode(String.self, from: data)
-        searchScope.setActiveDirectory(nativePath)
         return try WindowsPath.remotePath(fromNative: nativePath)
     }
 
@@ -46,7 +44,6 @@ actor WindowsRemoteProvider: FileProvider {
         guard let nativePath = windowsPath.nativePath else {
             throw WindowsPathError.nativePathRequired(windowsPath.remotePath)
         }
-        searchScope.setActiveDirectory(nativePath)
         let arguments = PathArguments(path: nativePath, showHidden: showHidden)
         let script = try PowerShellScript(source: Self.listScript, arguments: arguments)
         let data = try await channel.run(script, operation: "List")
@@ -304,10 +301,20 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     nonisolated func find(query: String, cap: Int) -> AsyncThrowingStream<[FoundItem], Error> {
+        find(query: query, cap: cap, root: nil)
+    }
+
+    nonisolated func find(query: String, cap: Int, root: Location?) -> AsyncThrowingStream<[FoundItem], Error> {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let hostID = self.hostID
         let channel = self.channel
-        let root = searchScope.activeDirectory
+        // Capture the search root for this call only. It is derived from the directory the
+        // search was launched from, never from shared mutable state, so a concurrent listing
+        // in another pane cannot redirect this search.
+        let root: String? = {
+            guard let root, let windowsPath = try? WindowsPath(location: root, hostID: hostID) else { return nil }
+            return windowsPath.nativePath
+        }()
 
         return AsyncThrowingStream { continuation in
             guard !trimmed.isEmpty, let root else {
@@ -528,21 +535,6 @@ private enum WindowsTrashLocation {
             throw FileProviderError.unsupportedOperation("Invalid Windows trash token")
         }
         return String(path.dropFirst(prefix.count))
-    }
-}
-
-private final class WindowsSearchScope: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage: String?
-
-    var activeDirectory: String? {
-        lock.withLock { storage }
-    }
-
-    func setActiveDirectory(_ path: String) {
-        lock.withLock {
-            storage = path
-        }
     }
 }
 

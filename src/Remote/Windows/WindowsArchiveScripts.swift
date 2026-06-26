@@ -107,7 +107,20 @@ enum WindowsArchiveScripts {
         $parent = [System.IO.Path]::GetDirectoryName($archivePath)
         $tempDirectory = New-ExtractTempDirectory -Parent $parent
         try {
-            [System.IO.Compression.ZipFile]::ExtractToDirectory($archivePath, $tempDirectory)
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
+            try {
+                foreach ($entry in $zip.Entries) {
+                    $destination = Assert-PathWithinDirectory -Root $tempDirectory -Candidate (Join-Path -Path $tempDirectory -ChildPath $entry.FullName)
+                    if ([string]::IsNullOrEmpty($entry.Name)) {
+                        [System.IO.Directory]::CreateDirectory($destination) | Out-Null
+                        continue
+                    }
+                    [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($destination)) | Out-Null
+                    [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $destination, $true)
+                }
+            } finally {
+                $zip.Dispose()
+            }
             Materialize-ExtractionResult -TempDirectory $tempDirectory -ArchivePath $archivePath -Format 'zip'
         } catch {
             Remove-Item -LiteralPath $tempDirectory -Recurse -Force -ErrorAction SilentlyContinue
@@ -283,6 +296,17 @@ enum WindowsArchiveScripts {
     """#
 
     static let extractionHelpers = #"""
+    function Assert-PathWithinDirectory([string]$Root, [string]$Candidate) {
+        $separator = [string][System.IO.Path]::DirectorySeparatorChar
+        $rootFull = [System.IO.Path]::GetFullPath($Root)
+        if (-not $rootFull.EndsWith($separator)) { $rootFull += $separator }
+        $candidateFull = [System.IO.Path]::GetFullPath($Candidate)
+        if (-not $candidateFull.StartsWith($rootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Archive entry escapes the destination directory: $Candidate"
+        }
+        $candidateFull
+    }
+
     function New-ExtractTempDirectory([string]$Parent) {
         $path = Join-Path -Path $Parent -ChildPath ".detours-extract-$([guid]::NewGuid().ToString())"
         New-Item -ItemType Directory -Path $path -ErrorAction Stop | Out-Null
@@ -299,6 +323,11 @@ enum WindowsArchiveScripts {
     }
 
     function Materialize-ExtractionResult([string]$TempDirectory, [string]$ArchivePath, [string]$Format) {
+        # Reject any extracted entry whose resolved path escapes the temp directory
+        # (zip-slip), covering archives unpacked by external 7z/tar tools.
+        Get-ChildItem -LiteralPath $TempDirectory -Force -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+            Assert-PathWithinDirectory -Root $TempDirectory -Candidate $_.FullName | Out-Null
+        }
         $items = @(Get-ChildItem -LiteralPath $TempDirectory -Force)
         if ($items.Count -eq 0) { throw "Archive appears to be empty: $ArchivePath" }
         $parent = [System.IO.Path]::GetDirectoryName($ArchivePath)

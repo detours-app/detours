@@ -2,6 +2,17 @@
 
 ## Latest Run
 
+### 2026-06-26 12:50
+
+- Command: `swift test --filter WindowsPathTests --filter WindowsRepliesTests
+  --filter WindowsArchiveScriptTests --filter WindowsFindContractTests`
+  (Spectre, branch `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Windows remote hardening, isolated tasks T12/T14/T17/T18 with tests
+  T33/T34/T35/T36/T37. 11 tests executed, 0 failures. Covers find-scope
+  isolation, malformed-reply rejection, git octal-escape decode contract,
+  path-traversal rejection, and archive zip-slip guard.
+
 ### 2026-06-25 14:31
 
 - Command: `resources/scripts/uitest.sh SmokeTests` (Foundry, commit

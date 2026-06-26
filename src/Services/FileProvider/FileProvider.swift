@@ -43,6 +43,7 @@ protocol FileProvider: Sendable {
     func upload(_ localURL: URL, to location: Location) async throws
     func version(of location: Location) async throws -> RemoteFileVersion
     func find(query: String, cap: Int) -> AsyncThrowingStream<[FoundItem], Error>
+    func find(query: String, cap: Int, root: Location?) -> AsyncThrowingStream<[FoundItem], Error>
 }
 
 enum FileProviderError: Error, Equatable {
@@ -72,5 +73,12 @@ extension FileProvider {
     /// Local Quick Open keeps using Spotlight + the scoped walk; remote find is never invoked for local tabs.
     func find(query: String, cap: Int) -> AsyncThrowingStream<[FoundItem], Error> {
         AsyncThrowingStream { $0.finish() }
+    }
+
+    /// Default: the search root is ignored. Providers that scope a whole-host search to a
+    /// directory (the Windows provider) override this so the root is captured per call and a
+    /// concurrent listing in another pane cannot redirect the search.
+    func find(query: String, cap: Int, root: Location?) -> AsyncThrowingStream<[FoundItem], Error> {
+        find(query: query, cap: cap)
     }
 }
