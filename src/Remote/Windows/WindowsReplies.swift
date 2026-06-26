@@ -96,13 +96,20 @@ struct WindowsErrorEnvelope: Decodable, Equatable, Sendable {
 enum WindowsReplyDecoder {
     static func decodeArrayOrSingle<T: Decodable>(_ type: T.Type, from data: Data) throws -> [T] {
         let decoder = JSONDecoder.detoursWindows
-        if case .some(.none) = try? decoder.decode(Optional<T>.self, from: data) {
+        // PowerShell's ConvertTo-Json emits an array, a single object, or the bare
+        // literal `null`. Dispatch on the first significant byte so the payload is
+        // parsed exactly once rather than being speculatively decoded up to three times.
+        guard let firstByte = data.first(where: { $0 != 0x20 && $0 != 0x09 && $0 != 0x0A && $0 != 0x0D }) else {
+            return [try decoder.decode(T.self, from: data)]
+        }
+        switch firstByte {
+        case UInt8(ascii: "["):
+            return try decoder.decode([T].self, from: data)
+        case UInt8(ascii: "n"):
             return []
+        default:
+            return [try decoder.decode(T.self, from: data)]
         }
-        if let array = try? decoder.decode([T].self, from: data) {
-            return array
-        }
-        return [try decoder.decode(T.self, from: data)]
     }
 }
 

@@ -31,7 +31,7 @@ struct RemoteHostKindProbe: Sendable {
             "DETOURS_WINDOWS_PROBE\t$([System.Environment]::OSVersion.Platform)"
         }
         """
-        let encoded = Data(script.utf16LittleEndian).base64EncodedString()
+        let encoded = script.utf16LittleEndianData.base64EncodedString()
         return "powershell.exe -NoProfile -NonInteractive -EncodedCommand \(encoded)"
     }
 
@@ -85,13 +85,5 @@ struct SSHRemoteHostKindProbeClient: RemoteHostKindProbeClient {
             )
         }
         return String(data: stdout, encoding: .utf8) ?? ""
-    }
-}
-
-private extension String {
-    var utf16LittleEndian: [UInt8] {
-        Array(utf16.flatMap { codeUnit in
-            [UInt8(codeUnit & 0x00ff), UInt8(codeUnit >> 8)]
-        })
     }
 }

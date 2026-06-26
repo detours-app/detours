@@ -124,7 +124,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
 
     private func startIfNeeded() async throws {
         guard !isStarted else { return }
-        try await transport.start(dispatcherBase64: Self.dispatcherBase64())
+        try await transport.start(dispatcherBase64: Self.dispatcherBase64)
         isStarted = true
     }
 
@@ -142,9 +142,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
         isStarted = false
     }
 
-    static func dispatcherBase64() -> String {
-        Data(dispatcherScript.utf16LittleEndianBytes).base64EncodedString()
-    }
+    static let dispatcherBase64 = dispatcherScript.utf16LittleEndianData.base64EncodedString()
 
     private static let dispatcherScript = #"""
     $ErrorActionPreference = 'Stop'
@@ -293,7 +291,7 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
             return try await Task.detached(priority: .userInitiated) {
                 try withExtendedLifetime((runningProcess, stdoutPipe)) {
                     let lengthData = try Self.readExact(4, from: output)
-                    let length = Int(UInt32(detoursBigEndianData: lengthData.prefix(4)))
+                    let length = Int(UInt32(bigEndianData: lengthData.prefix(4)))
                     return try Self.readExact(length, from: output)
                 }
             }.value
@@ -392,19 +390,5 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
             }
         }
         return result
-    }
-}
-
-private extension String {
-    var utf16LittleEndianBytes: [UInt8] {
-        Array(utf16.flatMap { codeUnit in
-            [UInt8(codeUnit & 0x00ff), UInt8(codeUnit >> 8)]
-        })
-    }
-}
-
-private extension UInt32 {
-    init(detoursBigEndianData data: Data.SubSequence) {
-        self = data.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
     }
 }

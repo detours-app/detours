@@ -84,7 +84,7 @@ enum WindowsArchiveScripts {
                     throw "Password-protected TAR archives are not supported."
                 }
                 $tool = Resolve-ArchiveTool @('tar.exe', 'tar')
-                $flag = Get-TarCreateFlag -Format $format
+                $flag = Get-TarCompressionFlag -Format $format
                 $leafNames = foreach ($path in $items) { (Get-Item -LiteralPath $path -Force).Name }
                 $arguments = @("-c$($flag)f", $archivePath, '--')
                 $arguments += $leafNames
@@ -129,16 +129,7 @@ enum WindowsArchiveScripts {
         $format = [string]$Arguments.format
         try {
             switch ($format) {
-                'zip' {
-                    $tool = Resolve-ArchiveTool @('7z.exe', '7z')
-                    $arguments = @('x', '-y', "-o$tempDirectory")
-                    if (-not [string]::IsNullOrEmpty($Arguments.password)) {
-                        $arguments += "-p$($Arguments.password)"
-                    }
-                    $arguments += $archivePath
-                    Invoke-ArchiveTool -FilePath $tool -Arguments $arguments -WorkingDirectory $null
-                }
-                'sevenZ' {
+                { $_ -in 'zip', 'sevenZ' } {
                     $tool = Resolve-ArchiveTool @('7z.exe', '7z')
                     $arguments = @('x', '-y', "-o$tempDirectory")
                     if (-not [string]::IsNullOrEmpty($Arguments.password)) {
@@ -152,7 +143,7 @@ enum WindowsArchiveScripts {
                         throw "Password-protected TAR archives are not supported."
                     }
                     $tool = Resolve-ArchiveTool @('tar.exe', 'tar')
-                    $flag = Get-TarExtractFlag -Format $format
+                    $flag = Get-TarCompressionFlag -Format $format
                     Invoke-ArchiveTool -FilePath $tool -Arguments @("-x$($flag)f", $archivePath, '-C', $tempDirectory) -WorkingDirectory $null
                 }
             }
@@ -281,16 +272,7 @@ enum WindowsArchiveScripts {
         }
     }
 
-    function Get-TarCreateFlag([string]$Format) {
-        switch ($Format) {
-            'tarGz' { 'z' }
-            'tarBz2' { 'j' }
-            'tarXz' { 'J' }
-            default { throw "Unsupported tar archive format: $Format" }
-        }
-    }
-
-    function Get-TarExtractFlag([string]$Format) {
+    function Get-TarCompressionFlag([string]$Format) {
         switch ($Format) {
             'tarGz' { 'z' }
             'tarBz2' { 'j' }

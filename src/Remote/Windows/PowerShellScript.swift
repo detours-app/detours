@@ -22,7 +22,7 @@ struct PowerShellScript: Equatable, Sendable {
     }
 
     var sourceBase64UTF16LE: String {
-        Data(source.utf16LittleEndianBytes).base64EncodedString()
+        source.utf16LittleEndianData.base64EncodedString()
     }
 
     var decodedSourceForTesting: String {
@@ -72,10 +72,10 @@ extension JSONDecoder {
     }
 }
 
-private extension String {
-    var utf16LittleEndianBytes: [UInt8] {
-        Array(utf16.flatMap { codeUnit in
-            [UInt8(codeUnit & 0x00ff), UInt8(codeUnit >> 8)]
-        })
+extension String {
+    /// UTF-16 little-endian bytes (no byte-order mark), the encoding PowerShell's
+    /// `-EncodedCommand` and the `[scriptblock]::Create` dispatcher expect.
+    var utf16LittleEndianData: Data {
+        Data(utf16.flatMap { [UInt8($0 & 0x00ff), UInt8($0 >> 8)] })
     }
 }

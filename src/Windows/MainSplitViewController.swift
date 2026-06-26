@@ -477,22 +477,10 @@ final class MainSplitViewController: NSSplitViewController {
 
     private func preserveContentPaneRatioAfterResize() {
         let frames = splitViewItemFrames()
-        guard isSplitResizePolicyActive else {
-            recordCurrentSplitState(frames: frames)
-            return
-        }
-
-        guard frames.count >= 3 else {
-            recordCurrentSplitState(frames: frames)
-            return
-        }
-
-        guard !isBalancingContentPaneWidths else {
-            recordCurrentSplitState(frames: frames)
-            return
-        }
-
-        guard previousSplitSubviewFrames.count == frames.count else {
+        guard isSplitResizePolicyActive,
+              frames.count >= 3,
+              !isBalancingContentPaneWidths,
+              previousSplitSubviewFrames.count == frames.count else {
             recordCurrentSplitState(frames: frames)
             return
         }

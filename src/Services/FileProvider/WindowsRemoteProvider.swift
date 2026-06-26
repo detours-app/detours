@@ -634,45 +634,37 @@ private extension WindowsRemoteProvider {
         """
     )
 
-    static let copyScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        \(recycleBinHelpers)
-
-        foreach ($source in $Arguments.sources) {
-            $sourceItem = Get-Item -LiteralPath $source -Force
-            $target = Join-Path -Path $Arguments.destination -ChildPath $sourceItem.Name
-            if ([string]::Equals($sourceItem.FullName, $target, [System.StringComparison]::OrdinalIgnoreCase)) {
-                throw "Cannot copy an item onto itself: $($sourceItem.FullName)"
-            }
-            if (Test-Path -LiteralPath $target) {
-                Send-ToRecycleBin -Path $target
-            }
-            Copy-Item -LiteralPath $sourceItem.FullName -Destination $target -Recurse -Force -ErrorAction Stop
-            (Get-Item -LiteralPath $target -Force).FullName
-        }
-        """
+    static let copyScript = transferScript(
+        verb: "copy",
+        itemCommand: "Copy-Item -LiteralPath $sourceItem.FullName -Destination $target -Recurse -Force -ErrorAction Stop"
     )
 
-    static let moveScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        \(recycleBinHelpers)
-
-        foreach ($source in $Arguments.sources) {
-            $sourceItem = Get-Item -LiteralPath $source -Force
-            $target = Join-Path -Path $Arguments.destination -ChildPath $sourceItem.Name
-            if ([string]::Equals($sourceItem.FullName, $target, [System.StringComparison]::OrdinalIgnoreCase)) {
-                throw "Cannot move an item onto itself: $($sourceItem.FullName)"
-            }
-            if (Test-Path -LiteralPath $target) {
-                Send-ToRecycleBin -Path $target
-            }
-            Move-Item -LiteralPath $sourceItem.FullName -Destination $target -Force -ErrorAction Stop
-            (Get-Item -LiteralPath $target -Force).FullName
-        }
-        """
+    static let moveScript = transferScript(
+        verb: "move",
+        itemCommand: "Move-Item -LiteralPath $sourceItem.FullName -Destination $target -Force -ErrorAction Stop"
     )
+
+    private static func transferScript(verb: String, itemCommand: String) -> String {
+        PowerShellScript.prelude(
+            operationBody: """
+            param($Arguments)
+            \(recycleBinHelpers)
+
+            foreach ($source in $Arguments.sources) {
+                $sourceItem = Get-Item -LiteralPath $source -Force
+                $target = Join-Path -Path $Arguments.destination -ChildPath $sourceItem.Name
+                if ([string]::Equals($sourceItem.FullName, $target, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    throw "Cannot \(verb) an item onto itself: $($sourceItem.FullName)"
+                }
+                if (Test-Path -LiteralPath $target) {
+                    Send-ToRecycleBin -Path $target
+                }
+                \(itemCommand)
+                (Get-Item -LiteralPath $target -Force).FullName
+            }
+            """
+        )
+    }
 
     static let trashScript = PowerShellScript.prelude(
         operationBody: """

@@ -30,25 +30,6 @@ struct RemoteHost: Codable, Equatable, Hashable, Identifiable, Sendable {
         self.kind = kind
     }
 
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case displayName
-        case sshTarget
-        case knownHostKeyFingerprint
-        case lastConnected
-        case kind
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        displayName = try container.decode(String.self, forKey: .displayName)
-        sshTarget = try container.decode(String.self, forKey: .sshTarget)
-        knownHostKeyFingerprint = try container.decodeIfPresent(String.self, forKey: .knownHostKeyFingerprint)
-        lastConnected = try container.decodeIfPresent(Date.self, forKey: .lastConnected)
-        kind = try container.decodeIfPresent(RemoteHostKind.self, forKey: .kind)
-    }
-
     var cacheDirectoryName: String {
         Self.cacheDirectoryName(hostID: id, sshTarget: sshTarget)
     }

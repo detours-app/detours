@@ -40,6 +40,7 @@ actor WindowsWatchChannel {
     private var callbacks: [UUID: @Sendable (Location) -> Void] = [:]
     private var watches: [UUID: FileProviderWatch] = [:]
     private var recentEventTimestamps: [String: Date] = [:]
+    private static let dedupWindow: TimeInterval = 0.5
 
     init(
         hostID: UUID,
@@ -106,7 +107,7 @@ actor WindowsWatchChannel {
 
     private func startIfNeeded() async throws {
         guard !isStarted else { return }
-        try await transport.start(dispatcherBase64: Self.dispatcherBase64())
+        try await transport.start(dispatcherBase64: Self.dispatcherBase64)
         isStarted = true
         readTask = Task { [weak self] in
             guard let self else { return }
@@ -166,10 +167,13 @@ actor WindowsWatchChannel {
             }
             let eventKey = "\(watchID.uuidString)|\(nativePath)"
             let now = Date()
-            if let lastEvent = recentEventTimestamps[eventKey], now.timeIntervalSince(lastEvent) < 0.5 {
+            if let lastEvent = recentEventTimestamps[eventKey], now.timeIntervalSince(lastEvent) < Self.dedupWindow {
                 return
             }
             recentEventTimestamps[eventKey] = now
+            // Drop entries older than the dedup window so the map can't grow for the
+            // lifetime of a long-lived watch over a busy directory.
+            recentEventTimestamps = recentEventTimestamps.filter { now.timeIntervalSince($0.value) < Self.dedupWindow }
             let location = (try? WindowsPath.location(fromNative: nativePath, hostID: hostID))
                 ?? watches[watchID]?.location
             if let location {
@@ -185,9 +189,7 @@ actor WindowsWatchChannel {
         pending.removeAll()
     }
 
-    static func dispatcherBase64() -> String {
-        Data(dispatcherScript.utf16LittleEndianBytes).base64EncodedString()
-    }
+    static let dispatcherBase64 = dispatcherScript.utf16LittleEndianData.base64EncodedString()
 
     private static let dispatcherScript = #"""
     $ErrorActionPreference = 'Stop'
@@ -304,12 +306,4 @@ actor WindowsWatchChannel {
         }
     }
     """#
-}
-
-private extension String {
-    var utf16LittleEndianBytes: [UInt8] {
-        Array(utf16.flatMap { codeUnit in
-            [UInt8(codeUnit & 0x00ff), UInt8(codeUnit >> 8)]
-        })
-    }
 }
