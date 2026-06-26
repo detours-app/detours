@@ -2,6 +2,21 @@
 
 ## Latest Run
 
+### 2026-06-26 13:58
+
+- Command: `swift test --filter testWindowsRemoteCopyMoveConflictUsesShared
+  Resolution --filter testWindowsRemoteReplaceUndoRestoresDisplacedOriginal
+  --filter testCopyMoveOntoExistingTargetDoesNotSilentlyOverwrite --filter
+  testCopyMovePartialFailureLeavesOriginalRecoverable` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Windows copy/move data-safety blockers T1/T2/T3 with tests
+  T21/T22/T23. 4 tests, 0 failures, via a stateful in-memory Windows
+  filesystem stand-in transport. Verifies same-name collisions route through
+  the shared Skip/Replace/Keep Both flow without silent overwrite, folder
+  merges preserve existing contents, Replace plus undo restores the displaced
+  original, and a forced staged-write failure leaves the original intact.
+
 ### 2026-06-26 13:46
 
 - Command: `swift build`; `swift test --filter FileOperationQueueTests

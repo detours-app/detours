@@ -84,6 +84,31 @@ actor WindowsRemoteProvider: FileProvider {
         return try decodeNativeLocations(from: data)
     }
 
+    /// Copy a single item to an exact target path, refusing to overwrite an existing
+    /// target. The file operation queue uses this to place items after resolving any
+    /// same-name conflict, so nothing is silently clobbered.
+    func copyItem(_ source: Location, to target: Location) async throws -> Location {
+        try await transferItem(source, to: target, scriptSource: Self.copyItemScript, operation: "CopyItem")
+    }
+
+    /// Move a single item to an exact target path, refusing to overwrite an existing target.
+    func moveItem(_ source: Location, to target: Location) async throws -> Location {
+        try await transferItem(source, to: target, scriptSource: Self.moveItemScript, operation: "MoveItem")
+    }
+
+    private func transferItem(_ source: Location, to target: Location, scriptSource: String, operation: String) async throws -> Location {
+        let arguments = try ItemTransferArguments(
+            source: nativePath(from: windowsPath(from: source)),
+            target: nativePath(from: windowsPath(from: target))
+        )
+        let script = try PowerShellScript(source: scriptSource, arguments: arguments)
+        let data = try await channel.run(script, operation: operation)
+        guard let location = try decodeNativeLocations(from: data).first else {
+            throw RemoteFileProviderError.invalidResponse(operation)
+        }
+        return location
+    }
+
     func delete(_ items: [Location]) async throws {
         _ = try await trash(items)
     }
@@ -446,6 +471,11 @@ private struct RenameArguments: Encodable {
 private struct TransferArguments: Encodable {
     let sources: [String]
     let destination: String
+}
+
+private struct ItemTransferArguments: Encodable {
+    let source: String
+    let target: String
 }
 
 private struct TrashArguments: Encodable {

@@ -465,7 +465,7 @@ extension FileOperationQueue {
         }
     }
 
-    private func uniqueDestinationLocation(
+    func uniqueDestinationLocation(
         for source: Location,
         in directory: Location,
         provider: any FileProvider

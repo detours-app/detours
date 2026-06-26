@@ -92,8 +92,6 @@ extension WindowsRemoteProvider {
         PowerShellScript.prelude(
             operationBody: """
             param($Arguments)
-            \(recycleBinHelpers)
-
             foreach ($source in $Arguments.sources) {
                 $sourceItem = Get-Item -LiteralPath $source -Force
                 $target = Join-Path -Path $Arguments.destination -ChildPath $sourceItem.Name
@@ -101,11 +99,40 @@ extension WindowsRemoteProvider {
                     throw "Cannot \(verb) an item onto itself: $($sourceItem.FullName)"
                 }
                 if (Test-Path -LiteralPath $target) {
-                    Send-ToRecycleBin -Path $target
+                    throw "Destination already exists: $target"
                 }
                 \(itemCommand)
                 (Get-Item -LiteralPath $target -Force).FullName
             }
+            """
+        )
+    }
+
+    static let copyItemScript = itemTransferScript(
+        itemCommand: "Copy-Item -LiteralPath $sourceItem.FullName -Destination $Arguments.target -Recurse -Force -ErrorAction Stop"
+    )
+
+    static let moveItemScript = itemTransferScript(
+        itemCommand: "Move-Item -LiteralPath $sourceItem.FullName -Destination $Arguments.target -Force -ErrorAction Stop"
+    )
+
+    // Copy/move a single item to an explicit, fully-qualified target path, refusing to
+    // overwrite an existing target. The file operation queue resolves same-name
+    // collisions (Skip/Replace/Keep Both) before staging anything here, so a target is
+    // never silently clobbered inside the script.
+    private static func itemTransferScript(itemCommand: String) -> String {
+        PowerShellScript.prelude(
+            operationBody: """
+            param($Arguments)
+            $sourceItem = Get-Item -LiteralPath $Arguments.source -Force
+            if ([string]::Equals($sourceItem.FullName, $Arguments.target, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Cannot transfer an item onto itself: $($sourceItem.FullName)"
+            }
+            if (Test-Path -LiteralPath $Arguments.target) {
+                throw "Destination already exists: $($Arguments.target)"
+            }
+            \(itemCommand)
+            (Get-Item -LiteralPath $Arguments.target -Force).FullName
             """
         )
     }

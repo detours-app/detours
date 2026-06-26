@@ -74,6 +74,11 @@ final class FileOperationQueue {
     var onOperationFinish: ((FileOperation?, Error?) -> Void)?
     var onOperationPaused: ((String) -> Void)?
     var copyProgressCancellationProbeForTesting: (@Sendable (Int64) -> Bool)?
+    #if DEBUG
+    /// Test seam: forces every conflict resolution to this choice instead of the
+    /// keep-both default, so Replace/Skip paths can be exercised without a dialog.
+    var conflictChoiceOverrideForTesting: ConflictChoice?
+    #endif
 
     var pendingCount: Int { pending.count }
 
@@ -142,12 +147,23 @@ final class FileOperationQueue {
         guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
             let hostIDs = remoteHostIDs(from: items, destination: destination)
             return try await enqueue(remoteHosts: hostIDs) {
-                try await self.performProviderTransfer(items: items, to: destination, isMove: false, undoManager: undoManager)
+                // Windows same-host copies route through the conflict-aware remote-copy
+                // path so same-name collisions reach the shared Skip/Replace/Keep Both flow.
+                if self.isSingleRemoteHostOperation(items: items, destination: destination),
+                   self.isWindowsDestination(destination) {
+                    return try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager)
+                }
+                return try await self.performProviderTransfer(items: items, to: destination, isMove: false, undoManager: undoManager)
             }
         }
         return try await enqueue {
             try await self.performCopy(items: sourceURLs, to: destinationURL, undoManager: undoManager).map(Location.local)
         }
+    }
+
+    func isWindowsDestination(_ destination: Location) -> Bool {
+        guard case .remote(let hostID, _) = destination else { return false }
+        return remoteFileProviders[hostID] is WindowsRemoteProvider
     }
 
     @discardableResult

@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 extension FileOperationQueue {
-    private func performRemoteCopy(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+    func performRemoteCopy(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
         guard case .remote(let destinationHostID, _) = destination,
               let groups = remoteGroups(from: items),
               groups.count == 1,
@@ -19,6 +19,12 @@ extension FileOperationQueue {
 
         try checkCancelled()
         let provider = try remoteProvider(for: destinationHostID)
+        if let windows = provider as? WindowsRemoteProvider {
+            return try await performWindowsTransfer(
+                items: items, to: destination, provider: windows,
+                isMove: false, undoManager: undoManager
+            )
+        }
         let copied = try await provider.copy(items, to: destination)
         updateProgress(
             operation: operation,
@@ -62,6 +68,12 @@ extension FileOperationQueue {
 
         try checkCancelled()
         let provider = try remoteProvider(for: destinationHostID)
+        if let windows = provider as? WindowsRemoteProvider {
+            return try await performWindowsTransfer(
+                items: items, to: destination, provider: windows,
+                isMove: true, undoManager: undoManager
+            )
+        }
         let moved = try await provider.move(items, to: destination)
         updateProgress(
             operation: operation,

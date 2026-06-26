@@ -464,6 +464,11 @@ extension FileOperationQueue {
         destination: URL,
         cachedChoice: ConflictChoice?
     ) async -> ConflictResolution {
+        #if DEBUG
+        if let forced = conflictChoiceOverrideForTesting {
+            return ConflictResolution(choice: forced, applyToAll: true)
+        }
+        #endif
         if isRunningTests {
             return ConflictResolution(choice: .keepBoth, applyToAll: true)
         }
