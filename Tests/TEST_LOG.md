@@ -2,6 +2,20 @@
 
 ## Latest Run
 
+### 2026-06-26 14:48
+
+- Command: `swift test --filter FileOperationQueueTests --filter
+  RemoteTransferChannelTests --filter RemoteDragOutTests --filter
+  DetoursPreviewGeneratorTests --filter RemoteIntegrationTests`; `swift test
+  --filter WindowsRemoteLiveTests` (Spectre, branch `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: A9 regression T39 (122 local/Unix tests, 0 failures) confirms local and
+  Unix copy/move/upload/download/preview are unchanged. Live Windows integration
+  tests T40/T41/T42 added (conflict+undo+merge, interrupted-download safety,
+  dual-pane concurrent ops and watches); all 11 live tests compile and skip
+  cleanly without DETOURS_WINDOWS_TEST_TARGET. Live execution against
+  win-carriercall remains to be run on the test host.
+
 ### 2026-06-26 14:40
 
 - Command: `swift test --filter testWindowsRemoteUploadConflictUsesShared

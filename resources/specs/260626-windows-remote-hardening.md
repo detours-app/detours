@@ -130,13 +130,13 @@ Tests are implementation tasks; numbering continues the `**T<n>**` sequence. Uni
 - [x] **T36** `WindowsArchiveScriptTests.testArchiveExtractRejectsEscapingEntries` — archive extraction rejects entries whose normalized destination would escape the requested folder.
 - [x] **T37** `WindowsRepliesTests.testGitStatusDecodesOctalEscapedNames` — git porcelain output with octal-escaped non-ASCII filenames decodes to the correct names.
 - [x] **T38** `RemoteHostKindRoutingTests.testProbeUsesTimeoutAndCacheInvalidatesOnTargetChange` — the host-kind probe runs with `ConnectTimeout`/`BatchMode`, cached `.windows` hosts do not re-probe while the `sshTarget` is unchanged, cached `.unix` hosts can be reclassified, and changing a host's `sshTarget` clears the cached kind before the next connect (A9 unaffected for Unix).
-- [ ] **T39** Run the existing local and Unix remote regression coverage touched by this spec: `FileOperationQueueTests`, `RemoteTransferChannelTests`, `RemoteDragOutTests`, `DetoursPreviewGeneratorTests`, and the `RemoteIntegrationTests` live Unix cases when their target environment is available (A9).
+- [x] **T39** Run the existing local and Unix remote regression coverage touched by this spec: `FileOperationQueueTests`, `RemoteTransferChannelTests`, `RemoteDragOutTests`, `DetoursPreviewGeneratorTests`, and the `RemoteIntegrationTests` live Unix cases when their target environment is available (A9).
 
 ### Integration Tests (`Tests/`, live Windows host — `win-carriercall`)
 
-- [ ] **T40** `WindowsRemoteLiveTests.testCopyMoveUploadConflictAndUndoOnExistingTarget` — copy/move/upload onto an existing target prompts before replacing, copy/move undo restores the displaced original, and folder copy merge still preserves existing contents (A1, A2, A3); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
-- [ ] **T41** `WindowsRemoteLiveTests.testInterruptedDownloadLeavesNoCorruptFileAndRetrySucceeds` — an interrupted download leaves no corrupt file at the destination and a retry to the same path succeeds (A5); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
-- [ ] **T42** `WindowsRemoteLiveTests.testConcurrentDualPaneOperationsAndWatches` — two panes on the same Windows host run operations and live watches concurrently without collisions or dropped updates (A6, A7); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
+- [x] **T40** `WindowsRemoteLiveTests.testCopyMoveUploadConflictAndUndoOnExistingTarget` — copy/move/upload onto an existing target prompts before replacing, copy/move undo restores the displaced original, and folder copy merge still preserves existing contents (A1, A2, A3); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
+- [x] **T41** `WindowsRemoteLiveTests.testInterruptedDownloadLeavesNoCorruptFileAndRetrySucceeds` — an interrupted download leaves no corrupt file at the destination and a retry to the same path succeeds (A5); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
+- [x] **T42** `WindowsRemoteLiveTests.testConcurrentDualPaneOperationsAndWatches` — two panes on the same Windows host run operations and live watches concurrently without collisions or dropped updates (A6, A7); skips unless `DETOURS_WINDOWS_TEST_TARGET` is set.
 
 ### UI Tests (`Tests/UITests/DetoursUITests/`, run on Foundry)
 
