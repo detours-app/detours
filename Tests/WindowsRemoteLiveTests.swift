@@ -162,6 +162,28 @@ final class WindowsRemoteLiveTests: XCTestCase {
         }
     }
 
+    func testDriveRootWatchDoesNotBreakDriveReload() async throws {
+        try await withFixture { fixture in
+            let drives = try await fixture.provider.list(.remote(hostID: fixture.hostID, path: "/"), showHidden: false)
+            let cDrive = try XCTUnwrap(drives.first { $0.name == "C:" && $0.isDirectory })
+
+            async let watchResult = fixture.provider.watch(cDrive.location) { _ in }
+            async let initialReload = fixture.provider.list(cDrive.location, showHidden: false)
+            let (watch, initialItems) = try await (watchResult, initialReload)
+
+            do {
+                let retryItems = try await fixture.provider.list(cDrive.location, showHidden: false)
+                await fixture.provider.unwatch(watch)
+
+                XCTAssertFalse(initialItems.isEmpty)
+                XCTAssertFalse(retryItems.isEmpty)
+            } catch {
+                await fixture.provider.unwatch(watch)
+                throw error
+            }
+        }
+    }
+
     private func withFixture(_ body: (WindowsLiveFixture) async throws -> Void) async throws {
         guard let target else {
             throw XCTSkip("Set DETOURS_WINDOWS_TEST_TARGET to run Windows live tests.")
