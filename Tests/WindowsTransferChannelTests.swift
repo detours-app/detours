@@ -44,6 +44,38 @@ final class WindowsTransferChannelTests: XCTestCase {
         }
     }
 
+    func testDownloadUsesPartialTempAndCleansUpOnFailure() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let destination = temp.appendingPathComponent("file.bin")
+        let partial = RemoteTransferChannel.partialURL(for: destination)
+        // First SFTP attempt is truncated (2 of 4 bytes), the retry is complete.
+        let sftp = PartialScriptedSFTP(byteCounts: [2, 4])
+        // Threshold 0 keeps a failed download from falling through to the PowerShell path,
+        // so the partial-file cleanup is observable directly.
+        let transfer = WindowsTransferChannel(
+            powerShellChannel: PowerShellChannel(transport: TransferScriptTransport(responses: [:])),
+            sftpClient: sftp,
+            fallbackThreshold: 0
+        )
+
+        // Interrupted/size-mismatched download leaves no corrupt file at the destination.
+        do {
+            try await transfer.download(remotePath: "C:\\f.bin", expectedByteCount: 4, to: destination)
+            XCTFail("Expected the truncated download to fail")
+        } catch {
+            // expected
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path), "partial must be cleaned up")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path), "no corrupt file at destination")
+
+        // A retry to the same destination then succeeds.
+        try await transfer.download(remotePath: "C:\\f.bin", expectedByteCount: 4, to: destination)
+        XCTAssertEqual(try Data(contentsOf: destination).count, 4)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path))
+    }
+
     func testUploadFallsBackThroughPowerShellWhenSFTPUnavailable() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -62,6 +94,21 @@ final class WindowsTransferChannelTests: XCTestCase {
         let operations = await transport.operations
         XCTAssertEqual(operations, ["UploadFallback"])
     }
+}
+
+private actor PartialScriptedSFTP: WindowsSFTPClient {
+    private let byteCounts: [Int]
+    private var index = 0
+
+    init(byteCounts: [Int]) { self.byteCounts = byteCounts }
+
+    func download(remotePath: String, to localURL: URL) async throws {
+        let count = index < byteCounts.count ? byteCounts[index] : 0
+        index += 1
+        FileManager.default.createFile(atPath: localURL.path, contents: Data(repeating: 0x41, count: count))
+    }
+
+    func upload(localURL: URL, remotePath: String) async throws {}
 }
 
 private struct FailingWindowsSFTPClient: WindowsSFTPClient {

@@ -2,6 +2,17 @@
 
 ## Latest Run
 
+### 2026-06-26 14:05
+
+- Command: `swift test --filter WindowsTransferChannelTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Windows download partial-file safety T4/T5 with test T24. 4 tests, 0
+  failures. The SFTP download now streams into a .detours-partial temp, verifies
+  the byte count, then atomically swaps into place; an interrupted/truncated
+  download leaves no corrupt file at the destination and a retry to the same
+  path succeeds. Existing SFTP/PowerShell fallback tests unchanged.
+
 ### 2026-06-26 13:58
 
 - Command: `swift test --filter testWindowsRemoteCopyMoveConflictUsesShared

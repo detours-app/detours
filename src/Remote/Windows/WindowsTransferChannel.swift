@@ -4,6 +4,7 @@ enum WindowsTransferError: Error, Equatable, LocalizedError {
     case unsupportedLargeTransferWithoutSFTP(byteCount: Int64)
     case byteCountMismatch(expected: Int64, actual: Int64)
     case invalidBase64Payload
+    case partialFileMissing
 
     var errorDescription: String? {
         switch self {
@@ -13,6 +14,8 @@ enum WindowsTransferError: Error, Equatable, LocalizedError {
             return "Windows transfer byte count mismatch: expected \(expected), got \(actual)."
         case .invalidBase64Payload:
             return "Windows transfer returned invalid base64 data."
+        case .partialFileMissing:
+            return "The downloaded partial file was missing before it could be finalized."
         }
     }
 }
@@ -56,13 +59,28 @@ actor WindowsTransferChannel {
 
     func download(remotePath: String, expectedByteCount: Int64, to localURL: URL) async throws {
         do {
-            try await sftpClient.download(remotePath: remotePath, to: localURL)
-            try verifyByteCount(localURL, expected: expectedByteCount)
+            try await downloadViaSFTP(remotePath: remotePath, expectedByteCount: expectedByteCount, to: localURL)
         } catch {
             guard expectedByteCount <= fallbackThreshold else {
                 throw WindowsTransferError.unsupportedLargeTransferWithoutSFTP(byteCount: expectedByteCount)
             }
             try await downloadViaPowerShell(remotePath: remotePath, expectedByteCount: expectedByteCount, to: localURL)
+        }
+    }
+
+    private func downloadViaSFTP(remotePath: String, expectedByteCount: Int64, to localURL: URL) async throws {
+        // Stream into a .detours-partial temp, verify, then atomically swap into place, so an
+        // interrupted or size-mismatched download never leaves a truncated file at the
+        // destination.
+        let partial = RemoteTransferChannel.partialURL(for: localURL)
+        try preparePartial(partial, finalURL: localURL)
+        do {
+            try await sftpClient.download(remotePath: remotePath, to: partial)
+            try verifyByteCount(partial, expected: expectedByteCount)
+            try finalizePartial(partial, to: localURL)
+        } catch {
+            try? FileManager.default.removeItem(at: partial)
+            throw error
         }
     }
 
@@ -89,18 +107,29 @@ actor WindowsTransferChannel {
         }
 
         let partial = RemoteTransferChannel.partialURL(for: localURL)
-        try FileManager.default.createDirectory(at: localURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? FileManager.default.removeItem(at: partial)
+        try preparePartial(partial, finalURL: localURL)
         do {
             try payload.write(to: partial, options: .atomic)
-            guard !FileManager.default.fileExists(atPath: localURL.path) else {
-                throw CocoaError(.fileWriteFileExists)
-            }
-            try FileManager.default.moveItem(at: partial, to: localURL)
+            try finalizePartial(partial, to: localURL)
         } catch {
             try? FileManager.default.removeItem(at: partial)
             throw error
         }
+    }
+
+    private func preparePartial(_ partial: URL, finalURL: URL) throws {
+        try FileManager.default.createDirectory(at: finalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: partial)
+    }
+
+    /// Move a verified partial into place. The guard is on the partial temp, not the final
+    /// destination, so a stale file from an earlier interrupted attempt never blocks a retry:
+    /// an interruption leaves no file at the destination, so the rename succeeds next time.
+    private func finalizePartial(_ partial: URL, to localURL: URL) throws {
+        guard FileManager.default.fileExists(atPath: partial.path) else {
+            throw WindowsTransferError.partialFileMissing
+        }
+        try FileManager.default.moveItem(at: partial, to: localURL)
     }
 
     private func uploadViaPowerShell(localURL: URL, remotePath: String, byteCount: Int64) async throws {
