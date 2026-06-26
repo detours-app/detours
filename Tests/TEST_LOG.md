@@ -2,6 +2,17 @@
 
 ## Latest Run
 
+### 2026-06-26 14:40
+
+- Command: `swift test --filter testWindowsRemoteUploadConflictUsesShared
+  Resolution --filter WindowsTransferChannelTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Windows upload overwrite safety T15 (test T25) and ControlPersist T19.
+  6 tests, 0 failures. A same-name upload onto a Windows host now routes through
+  the shared Skip/Replace/Keep Both flow and the transfer layer refuses an
+  unapproved overwrite, while local/Unix uploads keep their existing behavior.
+
 ### 2026-06-26 14:32
 
 - Command: `swift test --filter PowerShellChannelTests` (Spectre, branch

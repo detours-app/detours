@@ -361,6 +361,8 @@ extension FileOperationQueue {
 
         var successes: [Location] = []
         var failures: [(URL, Error)] = []
+        var conflictChoice: ConflictChoice?
+        var displacedTokens: [TrashedItem] = []
 
         for (index, item) in items.enumerated() {
             try checkCancelled()
@@ -369,11 +371,38 @@ extension FileOperationQueue {
 
             do {
                 let sourceProvider = try provider(for: item)
-                let finalLocation = try await uniqueDestinationLocation(
-                    for: item,
-                    in: destination,
-                    provider: destinationProvider
-                )
+                let initialDestination = destination.appendingPathComponent(item.lastPathComponent)
+                let finalLocation: Location
+                // A same-name upload onto a Windows host is resolved through the shared
+                // Skip/Replace/Keep Both flow rather than silently overwriting (A1). Local and
+                // Unix destinations keep the existing keep-both naming behavior unchanged.
+                if isWindowsDestination(destination),
+                   await locationExists(initialDestination, provider: destinationProvider) {
+                    let resolution = await resolveConflict(
+                        source: displayURL,
+                        destination: URL(fileURLWithPath: initialDestination.path),
+                        cachedChoice: conflictChoice
+                    )
+                    if resolution.applyToAll { conflictChoice = resolution.choice }
+                    switch resolution.choice {
+                    case .skip:
+                        updateProgress(operation: operation, currentItem: displayURL, completed: index + 1, total: items.count)
+                        continue
+                    case .keepBoth:
+                        finalLocation = try await uniqueDestinationLocation(for: item, in: destination, provider: destinationProvider)
+                    case .replace:
+                        if let token = try await (destinationProvider as? WindowsRemoteProvider)?.trash([initialDestination]).first {
+                            displacedTokens.append(token)
+                        }
+                        finalLocation = initialDestination
+                    }
+                } else {
+                    finalLocation = try await uniqueDestinationLocation(
+                        for: item,
+                        in: destination,
+                        provider: destinationProvider
+                    )
+                }
                 let itemStagingDirectory = stagingRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
                 let stagedURL = itemStagingDirectory.appendingPathComponent(item.lastPathComponent)
                 try FileManager.default.createDirectory(at: itemStagingDirectory, withIntermediateDirectories: true)
@@ -395,10 +424,15 @@ extension FileOperationQueue {
 
         if failures.isEmpty, !successes.isEmpty, let undoManager {
             let createdItems = successes
+            let tokens = displacedTokens
+            let windowsProvider = destinationProvider as? WindowsRemoteProvider
             undoManager.registerUndo(withTarget: self) { target in
                 Task { @MainActor in
                     do {
                         try await target.delete(items: createdItems, undoManager: nil)
+                        if !tokens.isEmpty, let windowsProvider {
+                            _ = try await windowsProvider.restoreFromTrash(tokens)
+                        }
                     } catch {
                         target.presentError(error)
                     }

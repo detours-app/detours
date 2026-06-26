@@ -76,6 +76,27 @@ final class WindowsTransferChannelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path))
     }
 
+    func testUploadRefusesExistingRemoteTargetWithoutReplace() async throws {
+        // Contract: the upload script refuses to overwrite an existing remote target.
+        XCTAssertTrue(WindowsTransferChannel.uploadScriptForTesting.contains("Destination already exists"))
+
+        // Behavior: a host-side refusal propagates rather than being silently swallowed.
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let local = try createTestFile(in: temp, name: "u.bin", content: "x")
+        let transfer = WindowsTransferChannel(
+            powerShellChannel: PowerShellChannel(transport: TransferScriptTransport(responses: [:])),
+            sftpClient: FailingWindowsSFTPClient()
+        )
+
+        do {
+            try await transfer.upload(localURL: local, remotePath: "C:\\dst\\u.bin", byteCount: 1)
+            XCTFail("Expected the refusal to propagate")
+        } catch {
+            // expected: SFTP fails, and the PowerShell fallback's refusal is not swallowed
+        }
+    }
+
     func testUploadFallsBackThroughPowerShellWhenSFTPUnavailable() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

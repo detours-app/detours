@@ -216,6 +216,34 @@ extension FileOperationQueueTests {
     }
 
     @MainActor
+    func testWindowsRemoteUploadConflictUsesSharedResolution() async throws {
+        let hostID = UUID()
+        let fs = WindowsFakeFSTransport()
+        await fs.seedDirectory("C:\\dst")
+        await fs.seedFile("C:\\dst\\A.txt", content: "original")
+        let provider = makeWindowsProvider(hostID: hostID, transport: fs)
+
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(provider, for: hostID)
+        defer { queue.unregisterRemoteFileProvider(for: hostID) }
+
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let localFile = try createTestFile(in: temp, name: "A.txt", content: "local")
+
+        // Uploading a local file onto an existing Windows target routes through the shared
+        // conflict flow (Keep Both in tests) instead of clobbering the original.
+        let result = try await queue.copy(
+            items: [.local(localFile)],
+            to: .remote(hostID: hostID, path: "/C:/dst")
+        )
+
+        XCTAssertEqual(result, [.remote(hostID: hostID, path: "/C:/dst/A 2.txt")])
+        let survived = await fs.contentTag("C:\\dst\\A.txt")
+        XCTAssertEqual(survived, "original")
+    }
+
+    @MainActor
     func testWindowsRemoteReplaceUndoRestoresDisplacedOriginal() async throws {
         let hostID = UUID()
         let fs = WindowsFakeFSTransport()

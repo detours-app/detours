@@ -473,6 +473,9 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         [
             "-o", "ControlMaster=auto",
             "-o", "ControlPath=\(controlDirectory.path)/%C",
+            // Keep the multiplexed master alive after a oneShot request exits so terminating
+            // it cannot drop a watch or transfer connection sharing the same control path.
+            "-o", "ControlPersist=300",
         ] + hostTrust.sshArguments + [
             sshTarget,
             "powershell.exe",

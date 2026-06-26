@@ -240,6 +240,9 @@ private extension WindowsTransferChannel {
         if ($bytes.Length -ne [int64]$Arguments.expectedByteCount) {
             throw "Decoded upload byte count did not match."
         }
+        if ([System.IO.File]::Exists($Arguments.path) -or [System.IO.Directory]::Exists($Arguments.path)) {
+            throw "Destination already exists: $($Arguments.path)"
+        }
         $directory = [System.IO.Path]::GetDirectoryName($Arguments.path)
         if (-not [string]::IsNullOrWhiteSpace($directory)) {
             [System.IO.Directory]::CreateDirectory($directory) | Out-Null
@@ -249,3 +252,9 @@ private extension WindowsTransferChannel {
         """
     )
 }
+
+#if DEBUG
+extension WindowsTransferChannel {
+    static var uploadScriptForTesting: String { uploadScript }
+}
+#endif
