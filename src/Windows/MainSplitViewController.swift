@@ -86,7 +86,6 @@ final class MainSplitViewController: NSSplitViewController {
     private var remoteConnectTasks: [UUID: Task<RemoteConnectionResources, Error>] = [:]
     private var remoteConnectionResources: [UUID: RemoteConnectionResources] = [:]
     private var previousSplitSubviewFrames: [NSRect] = []
-    private var previousSplitViewWidth: CGFloat = 0
     private var isSplitResizePolicyActive = false
     private var isBalancingContentPaneWidths = false
     private var pendingContentPaneBalanceWorkItem: DispatchWorkItem?
@@ -213,9 +212,11 @@ final class MainSplitViewController: NSSplitViewController {
 
     override func viewDidAppear() {
         super.viewDidAppear()
-        previousSplitSubviewFrames = splitView.subviews.map(\.frame)
-        previousSplitViewWidth = splitView.bounds.width
-        isSplitResizePolicyActive = true
+        isSplitResizePolicyActive = false
+        DispatchQueue.main.async { [weak self] in
+            self?.recordCurrentSplitState()
+            self?.isSplitResizePolicyActive = true
+        }
     }
 
     private func setupActivityCallbacks() {
@@ -487,9 +488,8 @@ final class MainSplitViewController: NSSplitViewController {
         let currentRight = frames[2]
 
         let sidebarChanged = abs(currentSidebar.width - previousSidebar.width) > splitResizeEpsilon
-        let splitViewWidthChanged = abs(splitView.bounds.width - previousSplitViewWidth) > splitResizeEpsilon
 
-        guard sidebarChanged || splitViewWidthChanged else {
+        guard sidebarChanged else {
             cancelPendingContentPaneBalance()
             recordCurrentSplitState(frames: frames)
             return
@@ -541,7 +541,6 @@ final class MainSplitViewController: NSSplitViewController {
 
     private func recordCurrentSplitState(frames: [NSRect]? = nil) {
         previousSplitSubviewFrames = frames ?? splitView.subviews.map(\.frame)
-        previousSplitViewWidth = splitView.bounds.width
     }
 
     // MARK: - Sidebar
