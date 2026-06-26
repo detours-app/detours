@@ -283,6 +283,11 @@ extension FileOperationQueue {
     func handleSSHConnectionStateChange(_ change: SSHConnectionStateChange) {
         switch change.newState {
         case .failed:
+            // Windows hosts use a per-request oneShot model that reconnects transparently, so a
+            // transient drop must not pause the queue waiting for a reconnect signal it never
+            // sends. The connection-lost banner still updates from the published state, which is
+            // read independently of the queue.
+            guard !(remoteFileProviders[change.hostID] is WindowsRemoteProvider) else { break }
             pausedRemoteHosts.insert(change.hostID)
             // Only surface a pause when an operation is actually running against this
             // host. An offline saved host at launch warmup must not paint a spurious

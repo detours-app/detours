@@ -123,7 +123,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
             let quickLookURL = try await fixture.provider.openForQuickLook(remote)
             let quickLookData = try Data(contentsOf: quickLookURL)
             var found: [FoundItem] = []
-            for try await batch in fixture.provider.find(query: name, cap: 20) {
+            for try await batch in fixture.provider.find(query: name, cap: 20, root: fixture.root) {
                 found.append(contentsOf: batch)
             }
 
@@ -346,15 +346,33 @@ private actor LiveWatchRecorder {
 private struct WindowsLiveFixture {
     let target: String
     let hostID = UUID()
+    let controlDirectory: URL
     let channel: PowerShellChannel
     let provider: WindowsRemoteProvider
     let root: Location
 
     init(target: String) async throws {
         self.target = target
-        channel = PowerShellChannel(hostID: hostID, sshTarget: target)
+        // Each fixture gets its own SSH ControlPath so tests never share a control master.
+        // That fully isolates per-test sessions: no leaked watcher session from one test can
+        // accumulate over a shared master and exhaust the host's MaxSessions for a later test.
+        // Keep the directory short and under the home dir: <dir>/%C must stay within the
+        // ~104-char unix-socket path limit, which the long /var/folders temp path blows past.
+        let controlDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".detours/lt-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: controlDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
+        )
+        self.controlDirectory = controlDir
+
+        let channel = PowerShellChannel(hostID: hostID, sshTarget: target, controlDirectory: controlDir)
+        self.channel = channel
         try await channel.forceReconnect()
-        provider = WindowsRemoteProvider(hostID: hostID, sshTarget: target, channel: channel)
+        let transferChannel = WindowsTransferChannel(sshTarget: target, powerShellChannel: channel, controlDirectory: controlDir)
+        let watchChannel = WindowsWatchChannel(hostID: hostID, sshTarget: target, controlDirectory: controlDir)
+        provider = WindowsRemoteProvider(
+            hostID: hostID, channel: channel, transferChannel: transferChannel, watchChannel: watchChannel
+        )
         let home = try await provider.homeDirectory()
         root = Location.remote(hostID: hostID, path: home)
             .appendingPathComponent("DetoursLiveTests-\(UUID().uuidString)")
@@ -362,6 +380,9 @@ private struct WindowsLiveFixture {
     }
 
     func cleanup() async throws {
+        // Tear down this fixture's own control master (and its sessions) and drop the socket
+        // directory, leaving a clean SSH slate for the next test.
+        defer { Self.closeControlConnection(target: target, controlDirectory: controlDirectory) }
         do {
             try await run(
                 operation: "Cleanup",
@@ -377,6 +398,17 @@ private struct WindowsLiveFixture {
             await channel.disconnect()
             throw error
         }
+    }
+
+    private static func closeControlConnection(target: String, controlDirectory: URL) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = ["-o", "ControlPath=\(controlDirectory.path)/%C", "-O", "exit", target]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
+        try? FileManager.default.removeItem(at: controlDirectory)
     }
 
     func upload(_ data: Data, to location: Location) async throws {

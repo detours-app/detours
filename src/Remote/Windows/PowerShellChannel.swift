@@ -94,6 +94,30 @@ actor PowerShellChannel: RemoteConnectionHandle {
             endInFlightOperation()
             releaseRequestSlot()
         }
+        do {
+            return try await sendAndReceive(script, operation: operation)
+        } catch let error as PowerShellChannelError where Self.isRemoteOperationError(error) {
+            // An operation-level error from a responsive host is not a connection drop; surface
+            // it to the caller without restarting or publishing a failed state.
+            throw error
+        } catch {
+            // A transient transport failure (a oneShot ssh that lost a race on the shared
+            // master, say) gets one quiet re-establish-and-retry before it is treated as a
+            // real drop, so a single hiccup never pauses the file-operation queue.
+            isStarted = false
+            await transport.stop()
+            do {
+                return try await sendAndReceive(script, operation: operation)
+            } catch let retryError as PowerShellChannelError where Self.isRemoteOperationError(retryError) {
+                throw retryError
+            } catch {
+                await restartAfterProtocolFailure(reason: .transport(error.localizedDescription))
+                throw error
+            }
+        }
+    }
+
+    private func sendAndReceive(_ script: PowerShellScript, operation: String) async throws -> Data {
         try await startIfNeeded()
         let requestID = nextRequestID
         nextRequestID += 1
@@ -106,23 +130,18 @@ actor PowerShellChannel: RemoteConnectionHandle {
         )
         let payload = try JSONEncoder.detoursWindows.encode(request)
         try await transport.sendFrame(try RPCStreamHandler.encodeFrame(payload))
-
-        do {
-            let responsePayload = try await transport.readFrame()
-            let response = try JSONDecoder.detoursWindows.decode(Response.self, from: responsePayload)
-            guard response.id == requestID else {
-                throw PowerShellChannelError.responseIDMismatch(expected: requestID, actual: response.id)
-            }
-            guard response.ok else {
-                throw PowerShellChannelError.remoteError(response.error ?? "PowerShell operation failed.")
-            }
-            // A completed round trip means the host connection is live.
-            transition(to: .connected)
-            return Data((response.resultJSON ?? "null").utf8)
-        } catch {
-            await restartAfterProtocolFailure(reason: .transport(error.localizedDescription))
-            throw error
+        let responsePayload = try await transport.readFrame()
+        let response = try JSONDecoder.detoursWindows.decode(Response.self, from: responsePayload)
+        guard response.id == requestID else {
+            throw PowerShellChannelError.responseIDMismatch(expected: requestID, actual: response.id)
         }
+        // A complete framed reply means the host connection is live, even if the operation it
+        // carried failed.
+        transition(to: .connected)
+        guard response.ok else {
+            throw PowerShellChannelError.remoteError(response.error ?? "PowerShell operation failed.")
+        }
+        return Data((response.resultJSON ?? "null").utf8)
     }
 
     func setActivePaneCount(_ count: Int) async {
@@ -138,6 +157,9 @@ actor PowerShellChannel: RemoteConnectionHandle {
         transition(to: .connecting)
         await transport.stop()
         try await startIfNeeded()
+        // Verify reachability with a trivial request so a successful manual reconnect
+        // publishes .connected and resumes any paused queue operation.
+        _ = try await run(PowerShellScript(source: "$true"), operation: "ReconnectCheck")
     }
 
     func disconnect() async {
@@ -203,6 +225,13 @@ actor PowerShellChannel: RemoteConnectionHandle {
         // transparently reconnects), so it is not surfaced as a drop.
         isStarted = false
         await transport.stop()
+    }
+
+    /// True for an error the host returned about the operation itself (it responded, so the
+    /// connection is healthy), as opposed to a transport/protocol failure that is a real drop.
+    private static func isRemoteOperationError(_ error: PowerShellChannelError) -> Bool {
+        if case .remoteError = error { return true }
+        return false
     }
 
     private func transition(to newState: SSHConnectionState) {

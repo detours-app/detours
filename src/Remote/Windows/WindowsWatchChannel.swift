@@ -223,8 +223,12 @@ actor WindowsWatchChannel {
         return
     }
 
+    # Watch stdin asynchronously: when the SSH session drops, the read completes at EOF and the
+    # process exits at once, instead of lingering on the host until a heartbeat write fails.
+    $stdinProbe = [byte[]]::new(1)
+    $stdinRead = $stdinStream.ReadAsync($stdinProbe, 0, 1)
     $lastHeartbeat = [DateTime]::UtcNow
-    while ($true) {
+    while (-not $stdinRead.IsCompleted) {
         $eventRecord = Wait-Event -Timeout 1
         if ($null -ne $eventRecord) {
             $eventPath = $eventRecord.SourceEventArgs.FullPath

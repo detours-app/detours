@@ -21,7 +21,7 @@ final class PowerShellChannelTests: XCTestCase {
     }
 
     func testMalformedFrameRestartsSessionAndFailsRequest() async throws {
-        let transport = ScriptedPowerShellTransport(malformedResponseCount: 1)
+        let transport = ScriptedPowerShellTransport(malformedResponseCount: 2)
         let channel = PowerShellChannel(transport: transport)
         await channel.setActivePaneCount(1)
 
@@ -83,7 +83,7 @@ final class PowerShellChannelTests: XCTestCase {
         RemoteConnectionStateStore.shared.clearForTesting()
         defer { RemoteConnectionStateStore.shared.clearForTesting() }
         let hostID = UUID()
-        let transport = ScriptedPowerShellTransport(malformedResponseCount: 1)
+        let transport = ScriptedPowerShellTransport(malformedResponseCount: 2)
         let channel = PowerShellChannel(transport: transport, hostID: hostID)
         await channel.setActivePaneCount(1)
 
