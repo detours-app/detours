@@ -214,6 +214,7 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
     private let hostTrust: SSHHostTrust
     private let processFactory: @Sendable () -> Process
     private let executionMode: ExecutionMode
+    private let stateLock = NSLock()
 
     private var process: Process?
     private var stdinPipe: Pipe?
@@ -242,6 +243,8 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
     }
 
     private func startProcess(dispatcherBase64: String) throws {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         guard process == nil else { return }
         let process = processFactory()
         let stdinPipe = Pipe()
@@ -251,7 +254,12 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
         process.standardError = FileHandle.nullDevice
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            ProcessRetirement.retireOnMain(process)
+            throw error
+        }
 
         self.process = process
         self.stdinPipe = stdinPipe
@@ -265,20 +273,16 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
             }
             try startProcess(dispatcherBase64: dispatcherBase64)
         }
-        guard let process, process.isRunning, let stdinPipe else {
-            throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
-        }
+        let (_, stdinPipe) = try processForWriting()
         stdinPipe.fileHandleForWriting.write(frame)
         if executionMode == .oneShot {
             stdinPipe.fileHandleForWriting.closeFile()
-            self.stdinPipe = nil
+            clearStdinPipeIfCurrent(stdinPipe)
         }
     }
 
     func readFrame() async throws -> Data {
-        guard process != nil, let stdoutPipe else {
-            throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
-        }
+        let (runningProcess, stdoutPipe) = try processForReading()
         let output = stdoutPipe.fileHandleForReading
         defer {
             if executionMode == .oneShot {
@@ -287,9 +291,11 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         }
         do {
             return try await Task.detached(priority: .userInitiated) {
-                let lengthData = try Self.readExact(4, from: output)
-                let length = Int(UInt32(detoursBigEndianData: lengthData.prefix(4)))
-                return try Self.readExact(length, from: output)
+                try withExtendedLifetime((runningProcess, stdoutPipe)) {
+                    let lengthData = try Self.readExact(4, from: output)
+                    let length = Int(UInt32(detoursBigEndianData: lengthData.prefix(4)))
+                    return try Self.readExact(length, from: output)
+                }
             }.value
         } catch {
             if executionMode == .persistent {
@@ -304,14 +310,43 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
     }
 
     private func stopProcess() {
+        stateLock.lock()
         let runningProcess = process
+        process = nil
+        stdinPipe = nil
+        stdoutPipe = nil
+        stateLock.unlock()
         if runningProcess?.isRunning == true {
             runningProcess?.terminate()
             runningProcess?.waitUntilExit()
         }
-        process = nil
-        stdinPipe = nil
-        stdoutPipe = nil
+        ProcessRetirement.retireOnMain(runningProcess)
+    }
+
+    private func processForWriting() throws -> (Process, Pipe) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard let runningProcess = process, runningProcess.isRunning, let stdinPipe else {
+            throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
+        }
+        return (runningProcess, stdinPipe)
+    }
+
+    private func processForReading() throws -> (Process, Pipe) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard let runningProcess = process, let stdoutPipe else {
+            throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
+        }
+        return (runningProcess, stdoutPipe)
+    }
+
+    private func clearStdinPipeIfCurrent(_ pipe: Pipe) {
+        stateLock.lock()
+        if stdinPipe === pipe {
+            stdinPipe = nil
+        }
+        stateLock.unlock()
     }
 
     private func sshArguments(dispatcherBase64: String) -> [String] {

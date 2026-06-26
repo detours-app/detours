@@ -74,10 +74,12 @@ actor SSHConnection {
     }
 
     deinit {
-        process?.terminationHandler = nil
-        if process?.isRunning == true {
-            process?.terminate()
+        let runningProcess = process
+        runningProcess?.terminationHandler = nil
+        if runningProcess?.isRunning == true {
+            runningProcess?.terminate()
         }
+        ProcessRetirement.retireOnMain(runningProcess)
     }
 
     func connect() async throws {
@@ -108,7 +110,12 @@ actor SSHConnection {
             }
         }
 
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            ProcessRetirement.retireOnMain(process)
+            throw error
+        }
 
         self.process = process
         self.stdinPipe = stdinPipe
@@ -127,11 +134,7 @@ actor SSHConnection {
     func disconnect() {
         cancelIdleDisconnect()
         disconnectedForIdle = false
-        process?.terminationHandler = nil
-        if process?.isRunning == true {
-            process?.terminate()
-        }
-        process = nil
+        retireCurrentProcess(terminate: true)
         stdinPipe = nil
         stdoutPipe = nil
         stderrPipe = nil
@@ -179,13 +182,15 @@ actor SSHConnection {
     }
 
     func receive() async throws -> RPCEnvelope {
-        guard let stdoutPipe else {
+        guard let process, let stdoutPipe else {
             throw SSHConnectionError.notConnected
         }
 
         let output = stdoutPipe.fileHandleForReading
         let frame = try await Task.detached(priority: .userInitiated) {
-            try Self.readFrame(from: output)
+            try withExtendedLifetime((process, stdoutPipe)) {
+                try Self.readFrame(from: output)
+            }
         }.value
         return try RPCEnvelope(encodedPayload: frame)
     }
@@ -220,7 +225,7 @@ actor SSHConnection {
         lastStderr = stderrPipe.flatMap {
             String(data: $0.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
         } ?? ""
-        process = nil
+        retireCurrentProcess(terminate: false)
         stdinPipe = nil
         stdoutPipe = nil
         stderrPipe = nil
@@ -240,11 +245,7 @@ actor SSHConnection {
     private func disconnectAfterFailure(_ reason: SSHConnectionFailureReason) {
         cancelIdleDisconnect()
         disconnectedForIdle = false
-        process?.terminationHandler = nil
-        if process?.isRunning == true {
-            process?.terminate()
-        }
-        process = nil
+        retireCurrentProcess(terminate: true)
         stdinPipe = nil
         stdoutPipe = nil
         stderrPipe = nil
@@ -287,16 +288,22 @@ actor SSHConnection {
         idleDisconnectTask = nil
         disconnectedForIdle = true
         transition(to: .disconnected)
-        process?.terminationHandler = nil
-        if process?.isRunning == true {
-            process?.terminate()
-        }
-        process = nil
+        retireCurrentProcess(terminate: true)
         stdinPipe = nil
         stdoutPipe = nil
         stderrPipe = nil
         frameReader = RPCStreamHandler()
         streamGeneration += 1
+    }
+
+    private func retireCurrentProcess(terminate: Bool) {
+        let runningProcess = process
+        runningProcess?.terminationHandler = nil
+        if terminate, runningProcess?.isRunning == true {
+            runningProcess?.terminate()
+        }
+        process = nil
+        ProcessRetirement.retireOnMain(runningProcess)
     }
 
     #if DEBUG
@@ -325,8 +332,8 @@ actor SSHConnection {
         process = Process()
     }
 
-    func simulateStdoutPipeForTesting(_ pipe: Pipe) {
-        process = Process()
+    func simulateStdoutPipeForTesting(_ pipe: Pipe, process: Process = Process()) {
+        self.process = process
         stdoutPipe = pipe
         streamGeneration += 1
         transition(to: .connected)
