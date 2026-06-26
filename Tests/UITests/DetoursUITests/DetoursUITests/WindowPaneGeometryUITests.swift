@@ -78,7 +78,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
         relaunchApp()
         waitForPanes()
 
-        let restoredSidebarBoundaryX = leftPaneOutline().frame.minX
+        let restoredSidebarBoundaryX = sidebarDividerX()
         let restoredDividerX = paneDivider().frame.midX
         XCTAssertEqual(restoredSidebarBoundaryX, persistedSidebarBoundaryX, accuracy: 16)
         XCTAssertEqual(restoredDividerX, persistedDividerX, accuracy: 16)
@@ -175,6 +175,10 @@ final class WindowPaneGeometryUITests: XCTestCase {
         let sidebarDividerX = splitters[0].frame.midX
         let paneDividerX = splitters[1].frame.midX
         return (left: paneDividerX - sidebarDividerX, right: mainWindow().frame.maxX - paneDividerX)
+    }
+
+    private func sidebarDividerX() -> CGFloat {
+        splittersSortedByX().first?.frame.midX ?? leftPaneOutline().frame.minX
     }
 
     /// The left/right pane divider, targeted as the rightmost AppKit split divider.
@@ -305,30 +309,33 @@ final class WindowPaneGeometryUITests: XCTestCase {
     private func dragSidebarDivider() throws -> CGFloat {
         let sidebar = sidebarOutline()
         let left = leftPaneOutline()
-        let originalBoundaryX = left.frame.minX
-        let dividerX = (sidebar.frame.maxX + left.frame.minX) / 2
+        let originalBoundaryX = sidebarDividerX()
         let dividerY = min(sidebar.frame.midY, left.frame.midY)
-        let windowFrame = mainWindow().frame
-        let normalized = CGVector(
-            dx: (dividerX - windowFrame.minX) / windowFrame.width,
-            dy: (dividerY - windowFrame.minY) / windowFrame.height
-        )
-        let start = mainWindow().coordinate(withNormalizedOffset: normalized)
         // The sidebar is clamped between its minimum and maximum thickness, so drag
         // toward whichever side has room: widen it when it is narrow, narrow it when
         // it is wide. A fixed direction stalls when the sidebar starts at that limit.
         let sidebarMidpointWidth: CGFloat = 235
-        let dx: CGFloat = sidebar.frame.width < sidebarMidpointWidth ? 60 : -60
-        let end = start.withOffset(CGVector(dx: dx, dy: 0))
+        let primaryDX: CGFloat = sidebar.frame.width < sidebarMidpointWidth ? 60 : -60
 
-        start.press(forDuration: 0.2, thenDragTo: end)
-        RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+        for dx in [primaryDX, -primaryDX] {
+            let dividerX = sidebarDividerX()
+            let windowFrame = mainWindow().frame
+            let normalized = CGVector(
+                dx: (dividerX - windowFrame.minX) / windowFrame.width,
+                dy: (dividerY - windowFrame.minY) / windowFrame.height
+            )
+            let start = mainWindow().coordinate(withNormalizedOffset: normalized)
+            let end = start.withOffset(CGVector(dx: dx, dy: 0))
 
-        let movedBoundaryX = leftPaneOutline().frame.minX
-        guard abs(movedBoundaryX - originalBoundaryX) > 16 else {
-            throw NSError(domain: "WindowPaneGeometryUITests", code: 3)
+            start.press(forDuration: 0.2, thenDragTo: end)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+
+            let movedBoundaryX = sidebarDividerX()
+            if abs(movedBoundaryX - originalBoundaryX) > 16 {
+                return movedBoundaryX
+            }
         }
-        return movedBoundaryX
+        throw NSError(domain: "WindowPaneGeometryUITests", code: 3)
     }
 
     @discardableResult

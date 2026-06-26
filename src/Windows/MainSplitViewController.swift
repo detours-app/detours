@@ -86,6 +86,7 @@ final class MainSplitViewController: NSSplitViewController {
     private var remoteConnectTasks: [UUID: Task<RemoteConnectionResources, Error>] = [:]
     private var remoteConnectionResources: [UUID: RemoteConnectionResources] = [:]
     private var previousSplitSubviewFrames: [NSRect] = []
+    private var contentPaneWidthRatio: CGFloat?
     private var isSplitResizePolicyActive = false
     private var isBalancingContentPaneWidths = false
     private var pendingContentPaneBalanceWorkItem: DispatchWorkItem?
@@ -454,10 +455,13 @@ final class MainSplitViewController: NSSplitViewController {
     /// split autosave then persists the new layout like any user drag.
     func equalizePanes() {
         cancelPendingContentPaneBalance()
+        contentPaneWidthRatio = 0.5
         let sidebarWidth = (sidebarSplitViewItem?.isCollapsed ?? false) ? 0 : sidebarViewController.view.frame.width
         let position = (splitView.bounds.width + sidebarWidth) / 2
         splitView.setPosition(position, ofDividerAt: 1)
-        recordCurrentSplitState()
+        DispatchQueue.main.async { [weak self] in
+            self?.recordCurrentSplitState(contentRatio: 0.5)
+        }
     }
 
     @objc private func splitViewSubviewsDidResize(_ notification: Notification) {
@@ -503,10 +507,11 @@ final class MainSplitViewController: NSSplitViewController {
         }
 
         let contentWidth = currentLeft.width + currentRight.width
+        let preservedRatio = contentPaneWidthRatio ?? Self.contentPaneRatio(left: previousLeft, right: previousRight)
         let widths = SplitContentResizePolicy.proportionalWidths(
             contentWidth: contentWidth,
-            previousLeft: previousLeft.width,
-            previousRight: previousRight.width,
+            previousLeft: preservedRatio,
+            previousRight: 1 - preservedRatio,
             minimumLeft: contentPaneMinimumThickness,
             minimumRight: contentPaneMinimumThickness
         )
@@ -546,12 +551,26 @@ final class MainSplitViewController: NSSplitViewController {
         recordCurrentSplitState()
     }
 
-    private func recordCurrentSplitState(frames: [NSRect]? = nil) {
+    private func recordCurrentSplitState(frames: [NSRect]? = nil, contentRatio: CGFloat? = nil) {
         previousSplitSubviewFrames = frames ?? splitViewItemFrames()
+        if let contentRatio {
+            contentPaneWidthRatio = contentRatio
+        } else if previousSplitSubviewFrames.count >= 3 {
+            contentPaneWidthRatio = Self.contentPaneRatio(
+                left: previousSplitSubviewFrames[1],
+                right: previousSplitSubviewFrames[2]
+            )
+        }
     }
 
     private func splitViewItemFrames() -> [NSRect] {
         splitViewItems.map { $0.viewController.view.frame }
+    }
+
+    private static func contentPaneRatio(left: NSRect, right: NSRect) -> CGFloat {
+        let contentWidth = left.width + right.width
+        guard contentWidth > 0 else { return 0.5 }
+        return left.width / contentWidth
     }
 
     // MARK: - Sidebar
