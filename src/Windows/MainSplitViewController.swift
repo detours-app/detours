@@ -86,6 +86,7 @@ final class MainSplitViewController: NSSplitViewController {
     private var remoteConnectTasks: [UUID: Task<RemoteConnectionResources, Error>] = [:]
     private var remoteConnectionResources: [UUID: RemoteConnectionResources] = [:]
     private var previousSplitSubviewFrames: [NSRect] = []
+    private var previousSplitViewWidth: CGFloat = 0
     private var isSplitResizePolicyActive = false
     private var isBalancingContentPaneWidths = false
     private var pendingContentPaneBalanceWorkItem: DispatchWorkItem?
@@ -213,6 +214,7 @@ final class MainSplitViewController: NSSplitViewController {
     override func viewDidAppear() {
         super.viewDidAppear()
         previousSplitSubviewFrames = splitView.subviews.map(\.frame)
+        previousSplitViewWidth = splitView.bounds.width
         isSplitResizePolicyActive = true
     }
 
@@ -442,12 +444,11 @@ final class MainSplitViewController: NSSplitViewController {
     /// during automatic layout. The sidebar divider is left untouched. AppKit
     /// split autosave then persists the new layout like any user drag.
     func equalizePanes() {
-        pendingContentPaneBalanceWorkItem?.cancel()
-        pendingContentPaneBalanceWorkItem = nil
+        cancelPendingContentPaneBalance()
         let sidebarWidth = (sidebarSplitViewItem?.isCollapsed ?? false) ? 0 : sidebarViewController.view.frame.width
         let position = (splitView.bounds.width + sidebarWidth) / 2
         splitView.setPosition(position, ofDividerAt: 1)
-        previousSplitSubviewFrames = splitView.subviews.map(\.frame)
+        recordCurrentSplitState()
     }
 
     @objc private func splitViewSubviewsDidResize(_ notification: Notification) {
@@ -459,22 +460,22 @@ final class MainSplitViewController: NSSplitViewController {
         let subviews = splitView.subviews
         let frames = subviews.map(\.frame)
         guard isSplitResizePolicyActive else {
-            previousSplitSubviewFrames = frames
+            recordCurrentSplitState(frames: frames)
             return
         }
 
         guard subviews.count >= 3 else {
-            previousSplitSubviewFrames = frames
+            recordCurrentSplitState(frames: frames)
             return
         }
 
         guard !isBalancingContentPaneWidths else {
-            previousSplitSubviewFrames = frames
+            recordCurrentSplitState(frames: frames)
             return
         }
 
         guard previousSplitSubviewFrames.count == frames.count else {
-            previousSplitSubviewFrames = frames
+            recordCurrentSplitState(frames: frames)
             return
         }
 
@@ -485,13 +486,12 @@ final class MainSplitViewController: NSSplitViewController {
         let currentLeft = frames[1]
         let currentRight = frames[2]
 
-        let previousTotalWidth = previousSplitSubviewFrames.reduce(CGFloat(0)) { $0 + $1.width }
-        let currentTotalWidth = frames.reduce(CGFloat(0)) { $0 + $1.width }
         let sidebarChanged = abs(currentSidebar.width - previousSidebar.width) > splitResizeEpsilon
-        let splitViewWidthChanged = abs(currentTotalWidth - previousTotalWidth) > splitResizeEpsilon
+        let splitViewWidthChanged = abs(splitView.bounds.width - previousSplitViewWidth) > splitResizeEpsilon
 
         guard sidebarChanged || splitViewWidthChanged else {
-            previousSplitSubviewFrames = frames
+            cancelPendingContentPaneBalance()
+            recordCurrentSplitState(frames: frames)
             return
         }
 
@@ -504,7 +504,7 @@ final class MainSplitViewController: NSSplitViewController {
             minimumRight: contentPaneMinimumThickness
         )
         guard abs(widths.left - currentLeft.width) > splitResizeEpsilon else {
-            previousSplitSubviewFrames = frames
+            recordCurrentSplitState(frames: frames)
             return
         }
 
@@ -512,8 +512,13 @@ final class MainSplitViewController: NSSplitViewController {
         scheduleContentPaneBalance(paneDividerPosition: paneDividerPosition)
     }
 
-    private func scheduleContentPaneBalance(paneDividerPosition: CGFloat) {
+    private func cancelPendingContentPaneBalance() {
         pendingContentPaneBalanceWorkItem?.cancel()
+        pendingContentPaneBalanceWorkItem = nil
+    }
+
+    private func scheduleContentPaneBalance(paneDividerPosition: CGFloat) {
+        cancelPendingContentPaneBalance()
         let workItem = DispatchWorkItem { [weak self] in
             self?.applyContentPaneBalance(paneDividerPosition: paneDividerPosition)
         }
@@ -524,14 +529,19 @@ final class MainSplitViewController: NSSplitViewController {
     private func applyContentPaneBalance(paneDividerPosition: CGFloat) {
         pendingContentPaneBalanceWorkItem = nil
         guard isSplitResizePolicyActive, splitView.subviews.count >= 3 else {
-            previousSplitSubviewFrames = splitView.subviews.map(\.frame)
+            recordCurrentSplitState()
             return
         }
 
         isBalancingContentPaneWidths = true
         defer { isBalancingContentPaneWidths = false }
         splitView.setPosition(paneDividerPosition, ofDividerAt: 1)
-        previousSplitSubviewFrames = splitView.subviews.map(\.frame)
+        recordCurrentSplitState()
+    }
+
+    private func recordCurrentSplitState(frames: [NSRect]? = nil) {
+        previousSplitSubviewFrames = frames ?? splitView.subviews.map(\.frame)
+        previousSplitViewWidth = splitView.bounds.width
     }
 
     // MARK: - Sidebar
