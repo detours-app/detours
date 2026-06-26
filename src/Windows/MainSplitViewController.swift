@@ -93,6 +93,7 @@ final class MainSplitViewController: NSSplitViewController {
     private let contentPaneMinimumThickness: CGFloat = 200
     private let contentPaneBalanceDelay: TimeInterval = 0.05
     private let splitResizeEpsilon: CGFloat = 0.5
+    private let contentPaneRatioEpsilon: CGFloat = 0.02
 
     private enum SplitLayout {
         static let sidebarPreferredFraction: CGFloat = 0.25
@@ -226,6 +227,11 @@ final class MainSplitViewController: NSSplitViewController {
             self?.recordCurrentSplitState()
             self?.isSplitResizePolicyActive = true
         }
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        preserveContentPaneRatioAfterResize()
     }
 
     private func setupActivityCallbacks() {
@@ -496,7 +502,6 @@ final class MainSplitViewController: NSSplitViewController {
         let previousRight = previousSplitSubviewFrames[2]
         let currentSidebar = frames[0]
         let currentLeft = frames[1]
-        let currentRight = frames[2]
 
         let sidebarChanged = abs(currentSidebar.width - previousSidebar.width) > splitResizeEpsilon
 
@@ -506,7 +511,7 @@ final class MainSplitViewController: NSSplitViewController {
             return
         }
 
-        let contentWidth = currentLeft.width + currentRight.width
+        let contentWidth = max(0, splitView.bounds.width - currentSidebar.width)
         let preservedRatio = contentPaneWidthRatio ?? Self.contentPaneRatio(left: previousLeft, right: previousRight)
         let widths = SplitContentResizePolicy.proportionalWidths(
             contentWidth: contentWidth,
@@ -520,7 +525,7 @@ final class MainSplitViewController: NSSplitViewController {
             return
         }
 
-        let paneDividerPosition = currentLeft.minX + widths.left
+        let paneDividerPosition = currentSidebar.width + widths.left
         scheduleContentPaneBalance(paneDividerPosition: paneDividerPosition)
     }
 
@@ -556,10 +561,16 @@ final class MainSplitViewController: NSSplitViewController {
         if let contentRatio {
             contentPaneWidthRatio = contentRatio
         } else if previousSplitSubviewFrames.count >= 3 {
-            contentPaneWidthRatio = Self.contentPaneRatio(
+            let measuredRatio = Self.contentPaneRatio(
                 left: previousSplitSubviewFrames[1],
                 right: previousSplitSubviewFrames[2]
             )
+            if let currentRatio = contentPaneWidthRatio,
+               abs(currentRatio - measuredRatio) < contentPaneRatioEpsilon {
+                contentPaneWidthRatio = currentRatio
+            } else {
+                contentPaneWidthRatio = measuredRatio
+            }
         }
     }
 
