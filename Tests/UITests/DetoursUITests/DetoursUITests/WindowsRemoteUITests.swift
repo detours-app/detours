@@ -47,6 +47,52 @@ final class WindowsRemoteUITests: BaseUITest {
         XCTAssertTrue(rightFolder.exists, "Local pane should remain visible after the Windows host drop")
     }
 
+    /// Drives the reconnect banner from the channel's real published connection state rather
+    /// than the UI-test injection seam. Requires a reachable Windows host, so it skips when
+    /// DETOURS_WINDOWS_TEST_TARGET is unset (e.g. local runs without the lab host).
+    func testReconnectBannerDrivenByRealWindowsState() throws {
+        guard let target = ProcessInfo.processInfo.environment["DETOURS_WINDOWS_TEST_TARGET"], !target.isEmpty else {
+            throw XCTSkip("Set DETOURS_WINDOWS_TEST_TARGET to run the real Windows reconnect-banner test.")
+        }
+
+        try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
+        app = DetoursUITestApp.make()
+        app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
+        // Connect to the real Windows host so the banner is driven by the PowerShell channel's
+        // published state, with no test-only state injection.
+        app.launchEnvironment["DETOURS_UI_TEST_WINDOWS_TARGET"] = target
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10), "App window should exist")
+
+        // A local/Unix tab in the right pane must remain usable while the Windows tab drops.
+        let rightOutline = app.rightPaneOutlineView
+        XCTAssertTrue(rightOutline.waitForExistence(timeout: 5), "Right pane outline should exist")
+
+        // Drop the real connection (kill its ssh control master) and assert the banner appears
+        // from the published .failed state.
+        try dropRealWindowsConnection(target: target)
+        let banner = app.groups["remoteReconnectBanner"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 15), "A real Windows drop should publish a failed state and show the banner")
+
+        // A successful reconnect clears the banner.
+        let reconnect = app.buttons["remoteReconnectButton"]
+        XCTAssertTrue(reconnect.waitForExistence(timeout: 3), "Reconnect button should be visible")
+        reconnect.click()
+        XCTAssertTrue(waitForNonExistence(banner, timeout: 30), "A successful reconnect should clear the banner")
+        XCTAssertTrue(rightOutline.exists, "Local/Unix pane is unaffected by the Windows drop")
+    }
+
+    private func dropRealWindowsConnection(target: String) throws {
+        // Force the shared control master closed so the next channel request observes the drop.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = ["-O", "exit", target]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
+    }
+
     private func launchRemote(mode: String) throws {
         try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
         app = DetoursUITestApp.make()

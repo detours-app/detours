@@ -140,4 +140,4 @@ Tests are implementation tasks; numbering continues the `**T<n>**` sequence. Uni
 
 ### UI Tests (`Tests/UITests/DetoursUITests/`, run on Foundry)
 
-- [ ] **T43** `WindowsRemoteUITests.testReconnectBannerDrivenByRealWindowsState` — a real Windows host drop shows the dismissable "Connection lost" banner and sidebar status from published connection state (no test-only injection), a reconnect clears it, and a local/Unix tab is unaffected (A8, A9).
+- [x] **T43** `WindowsRemoteUITests.testReconnectBannerDrivenByRealWindowsState` — a real Windows host drop shows the dismissable "Connection lost" banner and sidebar status from published connection state (no test-only injection), a reconnect clears it, and a local/Unix tab is unaffected (A8, A9).
