@@ -49,6 +49,12 @@ actor PowerShellChannel: RemoteConnectionHandle {
     private var isStarted = false
     private var activePaneCount = 0
 
+    // Serializes requests on the single shared oneShot transport: the actor releases its
+    // lock at every `await transport.*`, so without this gate a second concurrent `run()`
+    // could start its send/read while another is mid-flight and collide on the process.
+    private var isProcessingRequest = false
+    private var requestWaiters: [CheckedContinuation<Void, Never>] = []
+
     init(
         sshTarget: String,
         controlDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
@@ -68,6 +74,8 @@ actor PowerShellChannel: RemoteConnectionHandle {
     }
 
     func run(_ script: PowerShellScript, operation: String) async throws -> Data {
+        await acquireRequestSlot()
+        defer { releaseRequestSlot() }
         try await startIfNeeded()
         let requestID = nextRequestID
         nextRequestID += 1
@@ -121,6 +129,26 @@ actor PowerShellChannel: RemoteConnectionHandle {
         isStarted
     }
     #endif
+
+    /// FIFO mutex over the shared transport: each request fully completes its send and read
+    /// before the next begins. Ownership passes directly to the next waiter on release.
+    private func acquireRequestSlot() async {
+        if !isProcessingRequest {
+            isProcessingRequest = true
+            return
+        }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            requestWaiters.append(continuation)
+        }
+    }
+
+    private func releaseRequestSlot() {
+        if requestWaiters.isEmpty {
+            isProcessingRequest = false
+        } else {
+            requestWaiters.removeFirst().resume()
+        }
+    }
 
     private func startIfNeeded() async throws {
         guard !isStarted else { return }

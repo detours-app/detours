@@ -2,6 +2,16 @@
 
 ## Latest Run
 
+### 2026-06-26 14:10
+
+- Command: `swift test --filter PowerShellChannelTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Per-host request serialization T6 with test T27... T26. 4 tests, 0
+  failures. A FIFO gate ensures only one request is in flight on the shared
+  oneShot transport at a time; eight concurrent requests all complete with
+  correlated replies and never overlap.
+
 ### 2026-06-26 14:05
 
 - Command: `swift test --filter WindowsTransferChannelTests` (Spectre, branch
