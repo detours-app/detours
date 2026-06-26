@@ -163,6 +163,12 @@ final class MainSplitViewController: NSSplitViewController {
 
         sidebarSplitViewItem = sidebarItem
         splitView.autosaveName = NSSplitView.AutosaveName(Self.splitViewAutosaveName)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(splitViewSubviewsDidResize(_:)),
+            name: NSSplitView.didResizeSubviewsNotification,
+            object: splitView
+        )
 
         addEqualSplitIndicator()
 
@@ -437,10 +443,10 @@ final class MainSplitViewController: NSSplitViewController {
         let sidebarWidth = (sidebarSplitViewItem?.isCollapsed ?? false) ? 0 : sidebarViewController.view.frame.width
         let position = (splitView.bounds.width + sidebarWidth) / 2
         splitView.setPosition(position, ofDividerAt: 1)
+        previousSplitSubviewFrames = splitView.subviews.map(\.frame)
     }
 
-    override func splitViewDidResizeSubviews(_ notification: Notification) {
-        super.splitViewDidResizeSubviews(notification)
+    @objc private func splitViewSubviewsDidResize(_ notification: Notification) {
         guard notification.object as? NSSplitView === splitView else { return }
         preserveContentPaneRatioAfterResize()
     }
@@ -498,17 +504,11 @@ final class MainSplitViewController: NSSplitViewController {
             return
         }
 
-        let paneDividerGap = max(0, currentRight.minX - currentLeft.maxX)
-        var balancedLeftFrame = currentLeft
-        var balancedRightFrame = currentRight
-        balancedLeftFrame.size.width = widths.left
-        balancedRightFrame.origin.x = balancedLeftFrame.maxX + paneDividerGap
-        balancedRightFrame.size.width = widths.right
+        let paneDividerPosition = currentLeft.minX + widths.left
 
         isBalancingContentPaneWidths = true
-        subviews[1].frame = balancedLeftFrame
-        subviews[2].frame = balancedRightFrame
-        isBalancingContentPaneWidths = false
+        defer { isBalancingContentPaneWidths = false }
+        splitView.setPosition(paneDividerPosition, ofDividerAt: 1)
         previousSplitSubviewFrames = subviews.map(\.frame)
     }
 

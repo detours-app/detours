@@ -20,7 +20,7 @@ final class SplitPositionTests: XCTestCase {
         XCTAssertTrue(source.contains("NSSplitViewController"))
         XCTAssertTrue(source.contains("splitView.autosaveName"))
         XCTAssertTrue(source.contains("Detours.MainSplitView.AppKitV1"))
-        XCTAssertTrue(source.contains("splitViewDidResizeSubviews"))
+        XCTAssertTrue(source.contains("NSSplitView.didResizeSubviewsNotification"))
         XCTAssertFalse(source.contains("Detours.SplitDividerPosition"))
         XCTAssertFalse(source.contains("Detours.SidebarWidth"))
     }
@@ -43,13 +43,13 @@ final class SplitPositionTests: XCTestCase {
             XCTAssertFalse(source.contains(symbol), "\(symbol) must not return to MainSplitViewController")
         }
 
-        // The user-triggered Equalize command may position the divider, but launch
-        // and automatic-layout code must not. `equalizePanes` is defined after
-        // viewDidLoad, so no `setPosition` may appear before it.
+        // Split positioning must not happen during launch/setup. `equalizePanes`
+        // and the sidebar-resize policy are defined after viewDidLoad, so no
+        // `setPosition` may appear before them.
         let beforeEqualize = source.components(separatedBy: "func equalizePanes").first ?? source
         XCTAssertFalse(
             beforeEqualize.contains("setPosition"),
-            "Only the user-triggered equalizePanes may set the divider position; launch/layout code must not"
+            "Launch/setup code must not set split divider positions"
         )
     }
 
