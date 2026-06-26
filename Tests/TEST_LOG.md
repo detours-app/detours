@@ -2,6 +2,17 @@
 
 ## Latest Run
 
+### 2026-06-26 14:20
+
+- Command: `swift test --filter WindowsWatchChannelTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Multi-watch support T7 and keepalive T8 with tests T30/T31/T32. 4
+  tests, 0 failures. Each watch now runs its own process keyed by watch id, so
+  two concurrent watches both deliver and closing one leaves the other alive;
+  heartbeat frames keep a quiet watch from tripping the read timeout without
+  surfacing as changes; a watch racing teardown leaks no continuation.
+
 ### 2026-06-26 14:10
 
 - Command: `swift test --filter PowerShellChannelTests` (Spectre, branch
