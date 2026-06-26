@@ -522,11 +522,28 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         stdinPipe = nil
         stdoutPipe = nil
         stateLock.unlock()
-        if runningProcess?.isRunning == true {
-            runningProcess?.terminate()
-            runningProcess?.waitUntilExit()
-        }
+        Self.terminatePromptly(runningProcess)
         ProcessRetirement.retireOnMain(runningProcess)
+    }
+
+    /// Terminates a process without ever blocking indefinitely. A plain `waitUntilExit()` after
+    /// `terminate()` deadlocks the channel forever when a wedged ssh ignores SIGTERM (e.g. stuck
+    /// on a degraded host), so escalate to SIGKILL after a short grace and bound every wait.
+    static func terminatePromptly(_ process: Process?) {
+        guard let process, process.isRunning else { return }
+        process.terminate()
+        if waitForExit(process, within: 0.5) { return }
+        kill(process.processIdentifier, SIGKILL)
+        _ = waitForExit(process, within: 0.5)
+    }
+
+    private static func waitForExit(_ process: Process, within timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning {
+            if Date() >= deadline { return false }
+            usleep(10_000)
+        }
+        return true
     }
 
     private func processForWriting() throws -> (Process, Pipe) {

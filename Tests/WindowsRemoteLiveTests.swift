@@ -142,10 +142,6 @@ final class WindowsRemoteLiveTests: XCTestCase {
                     changeReceived.fulfill()
                 }
             }
-            defer {
-                Task { await fixture.provider.unwatch(watch) }
-            }
-
             try await fixture.run(
                 operation: "CreateWatchedFile",
                 source: """
@@ -157,6 +153,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
             )
 
             await fulfillment(of: [changeReceived], timeout: 5.0)
+            await fixture.provider.unwatch(watch)
             let locations = await recorder.locations
             XCTAssertTrue(locations.contains(fixture.root.appendingPathComponent("watched.txt")))
         }
@@ -255,7 +252,6 @@ final class WindowsRemoteLiveTests: XCTestCase {
             let recorder = LiveWatchRecorder()
             let watchA = try await fixture.provider.watch(paneA) { loc in Task { await recorder.record(loc) } }
             let watchB = try await fixture.provider.watch(paneB) { loc in Task { await recorder.record(loc) } }
-            defer { Task { await fixture.provider.unwatch(watchA); await fixture.provider.unwatch(watchB) } }
 
             // Concurrent operations on the same host serialize cleanly with no collisions.
             async let listA = fixture.provider.list(paneA, showHidden: true)
@@ -271,6 +267,12 @@ final class WindowsRemoteLiveTests: XCTestCase {
                 return locations.contains(where: { $0.path.contains("paneA") })
                     && locations.contains(where: { $0.path.contains("paneB") })
             }
+
+            // Deterministically tear the watches down before the fixture cleans up, so a run
+            // never leaves a leaked watcher that degrades the host for the next test. On a throw,
+            // the fixture's control-master close still ends the watch sessions.
+            await fixture.provider.unwatch(watchA)
+            await fixture.provider.unwatch(watchB)
         }
     }
 
