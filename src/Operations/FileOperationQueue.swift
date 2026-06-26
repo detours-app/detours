@@ -381,61 +381,105 @@ final class FileOperationQueue {
     }
 
     func presentError(_ error: Error) {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
+        if isRunningTests {
+            // A blocking modal here would deadlock a headless test run: the test sits on the
+            // main actor awaiting the very work whose failure this reports. Surface it to the
+            // log instead of presenting UI, mirroring resolveConflict's test guard.
+            NSLog("FileOperationQueue.presentError suppressed during tests: \(error)")
+            return
+        }
 
         if let operationError = error as? FileOperationError {
             switch operationError {
-            case .cancelled:
+            case .cancelled, .archivePasswordRequired:
+                // Cancellation is silent; a required archive password is handled by the caller.
                 return
             case let .partialFailure(_, failed):
-                alert.messageText = "Some Items Failed"
-                alert.informativeText = "\(failed.count) item\(failed.count == 1 ? "" : "s") failed. Check permissions and try again."
-                alert.addButton(withTitle: "OK")
-                alert.addButton(withTitle: "Show Details")
-                let response = alert.runModal()
-                if response == .alertSecondButtonReturn {
-                    let detailAlert = NSAlert()
-                    detailAlert.messageText = "Failed Items"
-                    let lines = failed.map { $0.0.path }.joined(separator: "\n")
-                    detailAlert.informativeText = lines
-                    detailAlert.addButton(withTitle: "OK")
-                    detailAlert.runModal()
-                }
+                presentPartialFailure(failed)
                 return
-            case let .permissionDenied(url):
-                alert.messageText = "Permission Denied"
-                let isNetworkVolume = (try? url.resourceValues(forKeys: [.volumeIsLocalKey]))?.volumeIsLocal == false
-                if isNetworkVolume {
-                    alert.informativeText = "Permission denied for \"\(url.lastPathComponent)\". Check server share permissions."
-                } else {
-                    alert.informativeText = "Permission denied for \"\(url.lastPathComponent)\". Check Full Disk Access in System Settings."
-                }
-            case let .archiveToolNotFound(tool):
-                alert.messageText = "Tool Not Found"
-                alert.informativeText = "\(tool) is not installed. Install it via Homebrew:\n\nbrew install \(tool)"
-            case let .archiveProcessFailed(message):
-                alert.messageText = "Archive Failed"
-                alert.informativeText = message
-            case .insufficientDiskSpace:
-                alert.messageText = "Insufficient Disk Space"
-                alert.informativeText = "There is not enough disk space to create the archive."
-            case .archivePasswordRequired:
-                // Handled by the caller to prompt for password
-                return
-            case .archivePasswordUnsupported:
-                alert.messageText = "Password Archives Disabled"
-                alert.informativeText = operationError.localizedDescription
             default:
-                alert.messageText = "Operation Failed"
-                alert.informativeText = operationError.localizedDescription
+                break
             }
-        } else {
-            alert.messageText = "Operation Failed"
-            alert.informativeText = error.localizedDescription
         }
 
+        let presentation = Self.errorPresentation(for: error)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = presentation.title
+        alert.informativeText = presentation.body
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    private func presentPartialFailure(_ failed: [(URL, Error)]) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = failed.count == 1
+            ? "1 item couldn't be completed."
+            : "\(failed.count) items couldn't be completed."
+        if let first = failed.first {
+            alert.informativeText = Self.errorPresentation(for: first.1).body
+        }
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Show Details")
+        if alert.runModal() == .alertSecondButtonReturn {
+            let detail = NSAlert()
+            detail.messageText = "Items that couldn't be completed"
+            detail.informativeText = failed
+                .map { "\($0.0.lastPathComponent): \(Self.errorPresentation(for: $0.1).title)" }
+                .joined(separator: "\n")
+            detail.addButton(withTitle: "OK")
+            detail.runModal()
+        }
+    }
+
+    /// Builds a descriptive, actionable (title, body) for any operation error so a failure always
+    /// says what went wrong and what to do next, never a bare "Operation Failed". Remote errors
+    /// supply their own reason and recovery suggestion through LocalizedError.
+    static func errorPresentation(for error: Error) -> (title: String, body: String) {
+        if let operationError = error as? FileOperationError {
+            switch operationError {
+            case let .unknown(inner):
+                return errorPresentation(for: inner)
+            case let .permissionDenied(url):
+                return (
+                    "Permission denied for \"\(url.lastPathComponent)\".",
+                    "Detours isn't allowed to modify it. Check the item's permissions "
+                        + "(or Full Disk Access in System Settings for local files), then try again."
+                )
+            case let .destinationExists(url):
+                return (
+                    "An item named \"\(url.lastPathComponent)\" already exists.",
+                    "Rename or remove the existing item, then try again."
+                )
+            case let .sourceNotFound(url):
+                return (
+                    "\"\(url.lastPathComponent)\" could no longer be found.",
+                    "It may have been moved or deleted. Refresh the folder and try again."
+                )
+            case .diskFull, .insufficientDiskSpace:
+                return ("There isn't enough free space.", "Free up space on the destination, then try again.")
+            case let .archiveToolNotFound(tool):
+                return ("\(tool) isn't installed.", "Install it with Homebrew: brew install \(tool)")
+            case let .archiveProcessFailed(message):
+                return ("The archive couldn't be created.", message)
+            case .archivePasswordUnsupported:
+                return ("Password-protected archives are disabled.", operationError.localizedDescription)
+            case .cancelled, .archivePasswordRequired, .partialFailure:
+                // Handled before reaching here; provide a safe fallback.
+                return ("The operation couldn't be completed.", "")
+            }
+        }
+
+        let localized = error as? LocalizedError
+        let title = localized?.errorDescription ?? "The operation couldn't be completed."
+        var body: [String] = []
+        if let reason = localized?.failureReason { body.append(reason) }
+        if let suggestion = localized?.recoverySuggestion { body.append(suggestion) }
+        if body.isEmpty {
+            body.append(error.localizedDescription)
+            body.append("If this keeps happening, check the connection and permissions, then try again.")
+        }
+        return (title, body.joined(separator: "\n\n"))
     }
 }

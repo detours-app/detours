@@ -296,6 +296,14 @@ extension FileOperationQueue {
         return .unknown(error)
     }
 
+    /// A friendly name for the remote host of a transfer destination, for error messages.
+    /// Falls back to a generic phrase when the destination is local or the host is unknown.
+    func transferHostName(for destination: Location) async -> String {
+        guard case let .remote(hostID, _) = destination else { return "the host" }
+        let name = await MainActor.run { RemoteHostStore.shared.host(id: hostID)?.displayName }
+        return name ?? "the host"
+    }
+
     private struct IncrementableYearName {
         private static let yearRegex = try? NSRegularExpression(pattern: #"(?<!\d)(19|20)\d{2}(?!\d)"#)
 

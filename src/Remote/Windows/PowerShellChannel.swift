@@ -11,13 +11,39 @@ enum PowerShellChannelError: Error, Equatable, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .responseIDMismatch(let expected, let actual):
-            return "PowerShell response id \(actual) did not match request id \(expected)."
-        case .remoteError(let message), .invalidResponse(let message), .processFailed(let message),
-             .timeout(let message):
-            return message
+        case .responseIDMismatch:
+            return "The Windows host sent a reply that didn't match the request."
+        case .remoteError:
+            return "The Windows host reported an error."
+        case .invalidResponse:
+            return "The Windows host sent an unexpected reply."
+        case .processFailed:
+            return "The connection to the Windows host failed."
+        case .timeout:
+            return "The Windows host stopped responding."
         case .unexpectedEOF:
-            return "The Windows PowerShell channel closed before sending a complete response."
+            return "The connection to the Windows host closed unexpectedly."
+        }
+    }
+
+    var failureReason: String? {
+        switch self {
+        case let .remoteError(message), let .processFailed(message):
+            // The host's own message (or the underlying ssh error) is the useful detail.
+            return message.isEmpty ? nil : message
+        case .responseIDMismatch, .invalidResponse, .timeout, .unexpectedEOF:
+            return nil
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .remoteError:
+            return "Check the item and your permissions on the host, then try again."
+        case .processFailed:
+            return "Check that the host is reachable over SSH, then try again."
+        case .responseIDMismatch, .invalidResponse, .timeout, .unexpectedEOF:
+            return "Reconnect to the host and try again."
         }
     }
 }
@@ -27,6 +53,14 @@ protocol PowerShellChannelTransport: Sendable {
     func sendFrame(_ frame: Data) async throws
     func readFrame() async throws -> Data
     func stop() async
+    /// Tears down the shared SSH control master for this host. The command, transfer, and
+    /// watch channels all multiplex over one ControlPath socket, so closing it ends every
+    /// session for the host at once. Transports without a real control master no-op.
+    func closeControlConnection() async
+}
+
+extension PowerShellChannelTransport {
+    func closeControlConnection() async {}
 }
 
 actor PowerShellChannel: RemoteConnectionHandle {
@@ -168,6 +202,9 @@ actor PowerShellChannel: RemoteConnectionHandle {
         inFlightOperationCount = 0
         cancelIdleDisconnect()
         await transport.stop()
+        // Close the shared control master so the host's watch and transfer sessions
+        // multiplexed over it do not linger after the channel goes away (e.g. on app quit).
+        await transport.closeControlConnection()
         transition(to: .disconnected)
     }
 
@@ -456,6 +493,26 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
 
     func stop() async {
         stopProcess()
+    }
+
+    func closeControlConnection() async {
+        // Ask the multiplexing master at this host's ControlPath to exit now. Because the
+        // command, transfer, and watch channels share one socket, a single exit request ends
+        // them all — including long-lived watcher processes — instead of leaving them orphaned
+        // until ControlPersist expires. Best effort: a missing master just exits nonzero.
+        let controlPath = "\(controlDirectory.path)/%C"
+        let target = sshTarget
+        let factory = processFactory
+        await Task.detached(priority: .userInitiated) {
+            let process = factory()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+            process.arguments = ["-o", "ControlPath=\(controlPath)", "-O", "exit", target]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+            process.waitUntilExit()
+            ProcessRetirement.retireOnMain(process)
+        }.value
     }
 
     private func stopProcess() {

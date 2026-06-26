@@ -363,6 +363,7 @@ extension FileOperationQueue {
         var failures: [(URL, Error)] = []
         var conflictChoice: ConflictChoice?
         var displacedTokens: [TrashedItem] = []
+        let hostName = await transferHostName(for: destination)
 
         for (index, item) in items.enumerated() {
             try checkCancelled()
@@ -416,7 +417,12 @@ extension FileOperationQueue {
 
                 successes.append(finalLocation)
             } catch {
-                failures.append((displayURL, mapError(error, url: displayURL)))
+                failures.append((displayURL, RemoteOperationError.operation(
+                    action: isMove ? .move : .copy,
+                    item: displayURL.lastPathComponent,
+                    host: hostName,
+                    underlying: error
+                )))
             }
 
             updateProgress(operation: operation, currentItem: displayURL, completed: index + 1, total: items.count)
@@ -426,6 +432,7 @@ extension FileOperationQueue {
             let createdItems = successes
             let tokens = displacedTokens
             let windowsProvider = destinationProvider as? WindowsRemoteProvider
+            let undoHostName = hostName
             undoManager.registerUndo(withTarget: self) { target in
                 Task { @MainActor in
                     do {
@@ -434,7 +441,7 @@ extension FileOperationQueue {
                             _ = try await windowsProvider.restoreFromTrash(tokens)
                         }
                     } catch {
-                        target.presentError(error)
+                        target.presentError(RemoteOperationError.undo(host: undoHostName, underlying: error))
                     }
                 }
             }

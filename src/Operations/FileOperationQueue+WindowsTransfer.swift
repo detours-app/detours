@@ -32,6 +32,7 @@ extension FileOperationQueue {
             ? FileOperation.move(sources: urls, destination: destinationURL)
             : FileOperation.copy(sources: urls, destination: destinationURL)
         let ledger = WindowsTransferLedger()
+        let hostName = await transferHostName(for: destination)
         var conflictChoice: ConflictChoice?
         var failures: [(URL, Error)] = []
 
@@ -42,14 +43,19 @@ extension FileOperationQueue {
             do {
                 try await windowsPlaceItem(source: source, into: destination, context: context, conflictChoice: &conflictChoice, ledger: ledger)
             } catch {
-                failures.append((displayURL, mapError(error, url: displayURL)))
+                failures.append((displayURL, RemoteOperationError.operation(
+                    action: isMove ? .move : .copy,
+                    item: displayURL.lastPathComponent,
+                    host: hostName,
+                    underlying: error
+                )))
             }
             updateProgress(operation: operation, currentItem: displayURL, completed: index + 1, total: items.count)
         }
 
         let placed = ledger.placed.map(\.placed)
         if failures.isEmpty, !placed.isEmpty, let undoManager {
-            registerWindowsTransferUndo(undoManager: undoManager, context: context, ledger: ledger)
+            registerWindowsTransferUndo(undoManager: undoManager, context: context, ledger: ledger, hostName: hostName)
         }
         try handleFailures(successes: placed.map { URL(fileURLWithPath: $0.path) }, failures: failures)
         return placed
@@ -152,7 +158,8 @@ extension FileOperationQueue {
     private func registerWindowsTransferUndo(
         undoManager: UndoManager,
         context: WindowsTransferContext,
-        ledger: WindowsTransferLedger
+        ledger: WindowsTransferLedger,
+        hostName: String
     ) {
         let provider = context.provider
         let isMove = context.isMove
@@ -179,7 +186,7 @@ extension FileOperationQueue {
                         _ = try await provider.restoreFromTrash(displacedTokens)
                     }
                 } catch {
-                    target.presentError(error)
+                    target.presentError(RemoteOperationError.undo(host: hostName, underlying: error))
                 }
             }
         }

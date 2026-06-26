@@ -52,6 +52,28 @@ enum FileProviderError: Error, Equatable {
     case unsupportedOperation(String)
 }
 
+extension FileProviderError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .expectedLocal:
+            return "This action only works on local files."
+        case .unsupportedRemote:
+            return "This action isn't available on this remote host."
+        case let .unsupportedOperation(detail):
+            return detail.isEmpty ? "This remote action isn't supported." : detail
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .expectedLocal:
+            return "Copy the item to a local folder first, then try again."
+        case .unsupportedRemote, .unsupportedOperation:
+            return "Try the action on a local copy, or use a host that supports it."
+        }
+    }
+}
+
 extension FileProvider {
     func createDirectory(at location: Location, withIntermediateDirectories: Bool = false) async throws {
         throw FileProviderError.unsupportedOperation("createDirectory")

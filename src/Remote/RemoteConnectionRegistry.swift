@@ -3,6 +3,9 @@ import Foundation
 protocol RemoteConnectionHandle: Sendable {
     func setActivePaneCount(_ count: Int) async
     func forceReconnect() async throws
+    /// Fully tears down the connection and its SSH control master so no session or remote
+    /// helper process outlives the app.
+    func disconnect() async
 }
 
 struct SSHConnectionHandle: RemoteConnectionHandle {
@@ -14,6 +17,10 @@ struct SSHConnectionHandle: RemoteConnectionHandle {
 
     func forceReconnect() async throws {
         try await connection.forceReconnect()
+    }
+
+    func disconnect() async {
+        await connection.disconnect()
     }
 }
 
@@ -57,5 +64,19 @@ actor RemoteConnectionRegistry {
         guard let registered = connections[hostID] else { return }
         await registered.rpcClient?.prepareForReconnect()
         try await registered.connection.forceReconnect()
+    }
+
+    /// Disconnects every live connection. Called on app termination so SSH control masters and
+    /// the remote watcher/helper processes multiplexed over them die with the app instead of
+    /// lingering (Windows masters persist for minutes via ControlPersist otherwise).
+    func disconnectAll() async {
+        let handles = connections.values.map { $0.connection }
+        connections.removeAll()
+        activePaneCounts.removeAll()
+        await withTaskGroup(of: Void.self) { group in
+            for handle in handles {
+                group.addTask { await handle.disconnect() }
+            }
+        }
     }
 }

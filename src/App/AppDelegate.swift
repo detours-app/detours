@@ -59,6 +59,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         mainWindowController?.splitViewController.saveSession()
 
+        // Tear down live remote connections before the process exits so their SSH control
+        // masters (Windows keeps them alive for minutes via ControlPersist) and the remote
+        // watcher processes multiplexed over them do not linger after quit. Bounded so a slow
+        // or wedged ssh can never stall app termination.
+        let remoteTeardown = DispatchSemaphore(value: 0)
+        Task.detached {
+            await RemoteConnectionRegistry.shared.disconnectAll()
+            remoteTeardown.signal()
+        }
+        _ = remoteTeardown.wait(timeout: .now() + 2.0)
+
         if !UITestEnvironment.isEnabled {
             // Close any Finder info windows we opened.
             let script = NSAppleScript(source: """
