@@ -1371,3 +1371,5 @@ Spotlight search has no unit test (depends on the live, async-built system index
 
 - 2026-01-06 10:25:43: Added system-defined media key handling for the dictation
   key (F5 on many keyboards) and tests for the path.
+
+- 2026-06-26: /simplify cleanup of the windows-remote-browsing branch (consolidated the duplicated UTF-16LE String extension and reused the existing big-endian UInt32 decoder, dropped RemoteHost's redundant hand-written Codable, merged duplicate PowerShell archive/copy/move script branches, cached the dispatcher base64, single-pass reply decoding, pruned the watch dedup map, collapsed split-resize guards). swiftlint clean. Ran on Spectre: WindowsRepliesTests, RemoteHostTests, RemoteHostStoreTests, WindowsArchiveScriptTests, PowerShellChannelTests, WindowsWatchChannelTests, WindowsRemoteProviderTests, RemoteHostKindRoutingTests, SplitPositionTests -> 35 tests, 0 failures. Full package compiled clean.

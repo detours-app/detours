@@ -169,4 +169,47 @@ final class SSHConnectionStateTests: XCTestCase {
         _ = await disconnectTask.result
         _ = await receiveTask.result
     }
+
+    func testReceiveKeepsProcessAliveUntilFrameReadCompletes() async throws {
+        final class WeakBox<T: AnyObject> {
+            weak var value: T?
+
+            init(_ value: T?) {
+                self.value = value
+            }
+        }
+
+        let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"))
+        let pipe = Pipe()
+        var process: Process? = Process()
+        let weakProcess = WeakBox(process)
+        await connection.simulateStdoutPipeForTesting(pipe, process: try XCTUnwrap(process))
+        process = nil
+
+        let receiveTask = Task {
+            try await connection.receive()
+        }
+        try await Task.sleep(nanoseconds: 20_000_000)
+        await connection.disconnect()
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async {
+                continuation.resume()
+            }
+        }
+
+        XCTAssertNotNil(weakProcess.value)
+
+        let envelope = RPCEnvelope(
+            id: 1,
+            kind: .response,
+            messageType: "Test",
+            sequence: 0,
+            isFinal: true,
+            payload: Data("ok".utf8)
+        )
+        pipe.fileHandleForWriting.write(try RPCStreamHandler.encodeFrame(envelope.encodedPayload()))
+        let received = try await receiveTask.value
+
+        XCTAssertEqual(received, envelope)
+    }
 }

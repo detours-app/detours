@@ -8,6 +8,8 @@ enum UITestEnvironment {
     static let dismissNetworkShareDialogCommandFileName = ".detours-dismiss-network-share-dialog.json"
     static let showNetworkShareDialogDismissedFileName = ".detours-show-network-share-dialog-dismissed.json"
     static let quickNavCommandFileName = ".detours-quick-nav-command.json"
+    static let remoteFailureCommandFileName = ".detours-remote-failure.json"
+    static let remoteFailureAcknowledgementFileName = ".detours-remote-failure-ack.json"
     static let undoMenuTitleRequestFileName = ".detours-undo-menu-title-request.json"
     static let undoMenuTitleResponseFileName = ".detours-undo-menu-title-response.json"
     static let duplicateStructureShowRequestFileName = ".detours-duplicate-structure-show-request.json"
@@ -42,6 +44,10 @@ enum UITestEnvironment {
         let action: String?
     }
 
+    struct RemoteFailureCommand: Decodable {
+        let id: String
+    }
+
     struct UndoMenuTitleRequest: Decodable {
         let id: String
     }
@@ -60,8 +66,13 @@ enum UITestEnvironment {
         let id: String
     }
 
-    struct ShowNetworkShareDialogDismissalAcknowledgement: Encodable {
+    struct NetworkShareDismissalAck: Encodable {
         let id: String
+    }
+
+    struct RemoteFailureAcknowledgement: Encodable {
+        let id: String
+        let handled: Bool
     }
 
     struct UndoMenuTitleResponse: Encodable {
@@ -87,10 +98,12 @@ enum UITestEnvironment {
     }
 
     /// Remote-tab seam for the remote-aware Quick Open UI tests. `DETOURS_UI_TEST_REMOTE` is
-    /// `connected` or `disconnected`; absent means the standard local-only test session.
+    /// `connected`, `disconnected`, or `windows-failed`; absent means the standard local-only
+    /// test session.
     enum RemoteMode: String {
         case connected
         case disconnected
+        case windowsFailed = "windows-failed"
     }
 
     static var remoteMode: RemoteMode? {
@@ -107,6 +120,7 @@ enum UITestEnvironment {
 
     /// Stable host identity for the UI-test remote so the seam and tests agree on the display name.
     static let remoteHostDisplayName = "UITest Server"
+    static let windowsRemoteHostDisplayName = "UITest Windows"
 
     static var rootDirectory: URL? {
         guard let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"], !root.isEmpty else {
@@ -155,6 +169,14 @@ enum UITestEnvironment {
 
     static var quickNavCommandURL: URL? {
         rootDirectory?.appendingPathComponent(quickNavCommandFileName)
+    }
+
+    static var remoteFailureCommandURL: URL? {
+        rootDirectory?.appendingPathComponent(remoteFailureCommandFileName)
+    }
+
+    static var remoteFailureAcknowledgementURL: URL? {
+        rootDirectory?.appendingPathComponent(remoteFailureAcknowledgementFileName)
     }
 
     static var undoMenuTitleRequestURL: URL? {
@@ -231,6 +253,16 @@ enum UITestEnvironment {
         return try? JSONDecoder().decode(QuickNavCommand.self, from: data)
     }
 
+    static func currentRemoteFailureCommand() -> RemoteFailureCommand? {
+        guard let url = remoteFailureCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(RemoteFailureCommand.self, from: data)
+    }
+
     static func currentUndoMenuTitleRequest() -> UndoMenuTitleRequest? {
         guard let url = undoMenuTitleRequestURL,
               let data = try? Data(contentsOf: url),
@@ -272,7 +304,16 @@ enum UITestEnvironment {
 
     static func acknowledgeShowNetworkShareDialogDismissed(id: String) {
         guard let url = showNetworkShareDialogDismissedURL,
-              let data = try? JSONEncoder().encode(ShowNetworkShareDialogDismissalAcknowledgement(id: id)) else {
+              let data = try? JSONEncoder().encode(NetworkShareDismissalAck(id: id)) else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func acknowledgeRemoteFailureCommand(id: String, handled: Bool) {
+        guard let url = remoteFailureAcknowledgementURL,
+              let data = try? JSONEncoder().encode(RemoteFailureAcknowledgement(id: id, handled: handled)) else {
             return
         }
 

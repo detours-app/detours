@@ -1,4 +1,5 @@
 import XCTest
+@testable import Detours
 
 final class SplitPositionTests: XCTestCase {
     func testAppKitFrameAutosaveIsTheWindowPersistenceAuthority() throws {
@@ -19,7 +20,9 @@ final class SplitPositionTests: XCTestCase {
         XCTAssertTrue(source.contains("NSSplitViewController"))
         XCTAssertTrue(source.contains("splitView.autosaveName"))
         XCTAssertTrue(source.contains("Detours.MainSplitView.AppKitV1"))
-        XCTAssertFalse(source.contains("splitViewDidResizeSubviews"))
+        XCTAssertTrue(source.contains("NSSplitView.didResizeSubviewsNotification"))
+        XCTAssertFalse(source.contains("Detours.SplitDividerPosition"))
+        XCTAssertFalse(source.contains("Detours.SidebarWidth"))
     }
 
     func testNoCustomSplitGeometryKeysAreWritten() throws {
@@ -40,13 +43,111 @@ final class SplitPositionTests: XCTestCase {
             XCTAssertFalse(source.contains(symbol), "\(symbol) must not return to MainSplitViewController")
         }
 
-        // The user-triggered Equalize command may position the divider, but launch
-        // and automatic-layout code must not. `equalizePanes` is defined after
-        // viewDidLoad, so no `setPosition` may appear before it.
+        // Split positioning must not happen during launch/setup. `equalizePanes`
+        // and the sidebar-resize policy are defined after viewDidLoad, so no
+        // `setPosition` may appear before them.
         let beforeEqualize = source.components(separatedBy: "func equalizePanes").first ?? source
         XCTAssertFalse(
             beforeEqualize.contains("setPosition"),
-            "Only the user-triggered equalizePanes may set the divider position; launch/layout code must not"
+            "Launch/setup code must not set split divider positions"
         )
+    }
+
+    @MainActor
+    func testEqualizePanesMovesContentDividerAtRuntime() {
+        let controller = MainWindowController()
+        guard let window = controller.window else {
+            XCTFail("Main window should be created")
+            return
+        }
+
+        controller.showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        window.layoutIfNeeded()
+        controller.splitViewController.view.layoutSubtreeIfNeeded()
+
+        controller.splitViewController.equalizePanes()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        controller.splitViewController.view.layoutSubtreeIfNeeded()
+
+        let frames = controller.splitViewController.splitViewItems.map { $0.viewController.view.frame }
+        window.close()
+
+        XCTAssertGreaterThanOrEqual(frames.count, 3)
+        let leftWidth = frames[1].width
+        let rightWidth = frames[2].width
+        XCTAssertEqual(leftWidth, rightWidth, accuracy: 12, "\(frames)")
+    }
+
+    @MainActor
+    func testSidebarDividerMoveKeepsEqualContentPanesAtRuntime() {
+        let controller = MainWindowController()
+        guard let window = controller.window else {
+            XCTFail("Main window should be created")
+            return
+        }
+
+        controller.showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        window.layoutIfNeeded()
+        controller.splitViewController.view.layoutSubtreeIfNeeded()
+
+        controller.splitViewController.equalizePanes()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        controller.splitViewController.view.layoutSubtreeIfNeeded()
+
+        let sidebarWidth = controller.splitViewController.splitViewItems[0].viewController.view.frame.width
+        controller.splitViewController.splitView.setPosition(sidebarWidth + 60, ofDividerAt: 0)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        controller.splitViewController.view.layoutSubtreeIfNeeded()
+
+        let frames = controller.splitViewController.splitViewItems.map { $0.viewController.view.frame }
+        window.close()
+
+        XCTAssertGreaterThanOrEqual(frames.count, 3)
+        let leftWidth = frames[1].width
+        let rightWidth = frames[2].width
+        XCTAssertEqual(leftWidth, rightWidth, accuracy: 12, "\(frames)")
+    }
+
+    func testSidebarResizePolicyPreservesEqualPanes() {
+        let widths = SplitContentResizePolicy.proportionalWidths(
+            contentWidth: 620,
+            previousLeft: 300,
+            previousRight: 300,
+            minimumLeft: 200,
+            minimumRight: 200
+        )
+
+        XCTAssertEqual(widths.left, 310, accuracy: 0.001)
+        XCTAssertEqual(widths.right, 310, accuracy: 0.001)
+    }
+
+    func testSidebarResizePolicyPreservesUnequalRatio() {
+        let widths = SplitContentResizePolicy.proportionalWidths(
+            contentWidth: 900,
+            previousLeft: 600,
+            previousRight: 300,
+            minimumLeft: 200,
+            minimumRight: 200
+        )
+
+        XCTAssertEqual(widths.left, 600, accuracy: 0.001)
+        XCTAssertEqual(widths.right, 300, accuracy: 0.001)
+    }
+
+    func testSidebarResizePolicyHonorsMinimumPaneWidths() {
+        let widths = SplitContentResizePolicy.proportionalWidths(
+            contentWidth: 500,
+            previousLeft: 450,
+            previousRight: 50,
+            minimumLeft: 200,
+            minimumRight: 200
+        )
+
+        XCTAssertEqual(widths.left, 300, accuracy: 0.001)
+        XCTAssertEqual(widths.right, 200, accuracy: 0.001)
     }
 }

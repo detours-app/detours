@@ -47,7 +47,8 @@ final class RemoteHostStore {
                 displayName: host.displayName,
                 sshTarget: host.sshTarget,
                 knownHostKeyFingerprint: host.knownHostKeyFingerprint ?? existing.knownHostKeyFingerprint,
-                lastConnected: host.lastConnected ?? existing.lastConnected
+                lastConnected: host.lastConnected ?? existing.lastConnected,
+                kind: host.kind ?? existing.kind
             )
             hosts[index] = updated
             return updated
@@ -68,6 +69,11 @@ final class RemoteHostStore {
     func markConnected(id: UUID, at date: Date = Date()) {
         guard let index = hosts.firstIndex(where: { $0.id == id }) else { return }
         hosts[index].lastConnected = date
+    }
+
+    func updateKind(id: UUID, kind: RemoteHostKind) {
+        guard let index = hosts.firstIndex(where: { $0.id == id }) else { return }
+        hosts[index].kind = kind
     }
 
     func updateFingerprint(id: UUID, fingerprint: String) {
@@ -106,7 +112,8 @@ final class RemoteHostStore {
                     displayName: host.displayName,
                     sshTarget: host.sshTarget,
                     knownHostKeyFingerprint: host.knownHostKeyFingerprint ?? existing.knownHostKeyFingerprint,
-                    lastConnected: host.lastConnected ?? existing.lastConnected
+                    lastConnected: host.lastConnected ?? existing.lastConnected,
+                    kind: host.kind ?? existing.kind
                 )
             } else {
                 indexesByTarget[target] = result.count

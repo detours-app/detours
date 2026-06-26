@@ -335,6 +335,47 @@ final class PaneViewControllerTests: XCTestCase {
         )
     }
 
+    func testRemoteBreadcrumbDriveSegmentNavigatesToDriveRoot() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        pane.view.frame = NSRect(x: 0, y: 0, width: 900, height: 500)
+        pane.view.layoutSubtreeIfNeeded()
+        let host = RemoteHost(displayName: "win-carriercall", sshTarget: "win-carriercall")
+        let provider = PaneRemoteProvider(listings: [
+            "/C:": [.remoteDirectory(hostID: host.id, path: "/C:/Users", name: "Users")],
+            "/C:/Users/sans": [],
+        ])
+
+        pane.loadRemoteHost(host, provider: provider, path: "/C:/Users/sans")
+        waitUntil(breadcrumbTitles(in: pane.view).contains("C:"))
+
+        pane.pathControlDidClick(at: 1)
+
+        waitUntil(pane.selectedTab?.fileListViewController.currentRemoteLocation == .remote(hostID: host.id, path: "/C:"))
+        waitUntil(pane.selectedTab?.title == "C:")
+    }
+
+    func testRemoteBreadcrumbHostSegmentNavigatesToRemoteRoot() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        pane.view.frame = NSRect(x: 0, y: 0, width: 900, height: 500)
+        pane.view.layoutSubtreeIfNeeded()
+        let host = RemoteHost(displayName: "win-carriercall", sshTarget: "win-carriercall")
+        let provider = PaneRemoteProvider(listings: [
+            "/": [.remoteDirectory(hostID: host.id, path: "/C:", name: "C:")],
+            "/C:/Users/sans": [],
+        ])
+
+        pane.loadRemoteHost(host, provider: provider, path: "/C:/Users/sans")
+        waitUntil(breadcrumbTitles(in: pane.view).first == "win-carriercall"
+            && breadcrumbTitles(in: pane.view).contains("C:"))
+
+        pane.pathControlDidClick(at: 0)
+
+        waitUntil(pane.selectedTab?.fileListViewController.currentRemoteLocation == .remote(hostID: host.id, path: "/"))
+        waitUntil(pane.selectedTab?.title == "win-carriercall")
+    }
+
     func testRemoteTabUsesPlainFolderIcon() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()
@@ -559,6 +600,28 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertEqual(refreshedSelection.location.path, selectedFile.path)
     }
 
+    func testRemoteRetryReloadsCurrentRemoteDirectory() throws {
+        let host = RemoteHost(displayName: "win-carriercall", sshTarget: "win-carriercall")
+        let remoteDirectory = "/C:"
+        let provider = PaneRemoteProvider(listings: [
+            remoteDirectory: [
+                .remoteDirectory(hostID: host.id, path: "/C:/Users", name: "Users"),
+            ],
+        ])
+        let fileList = FileListViewController()
+        fileList.loadViewIfNeeded()
+        fileList.currentDirectory = nil
+        fileList.currentRemoteHost = host
+        fileList.currentRemoteLocation = .remote(hostID: host.id, path: remoteDirectory)
+        fileList.currentRemoteProvider = provider
+
+        fileList.retryCurrentLoadForTesting()
+
+        waitUntil(fileList.tableView.numberOfRows == 1)
+        let item = try XCTUnwrap(fileList.tableView.item(atRow: 0) as? FileItem)
+        XCTAssertEqual(item.location, .remote(hostID: host.id, path: "/C:/Users"))
+    }
+
     func testConnectingRemoteHostClearsLocalRowsBeforeConnectionCompletes() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -713,7 +776,7 @@ private actor PaneRemoteProvider: FileProvider {
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
-        listings[location.path] ?? []
+        return listings[location.path] ?? []
     }
 
     func stat(_ location: Location) async throws -> LoadedFileEntry { throw FileProviderError.unsupportedOperation("stat") }

@@ -607,14 +607,19 @@ final class PaneViewController: NSViewController {
         reconnectBanner.isHidden = true
         reconnectBanner.wantsLayer = true
         reconnectBanner.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.18).cgColor
+        reconnectBanner.setAccessibilityElement(true)
         reconnectBanner.setAccessibilityIdentifier("remoteReconnectBanner")
+        reconnectBanner.setAccessibilityRole(.group)
 
         reconnectBannerLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 12)
         reconnectBannerLabel.textColor = ThemeManager.shared.currentTheme.textPrimary
         reconnectBannerLabel.lineBreakMode = .byTruncatingTail
+        reconnectBannerLabel.setAccessibilityIdentifier("remoteReconnectBannerLabel")
 
         reconnectButton.bezelStyle = .rounded
         reconnectButton.controlSize = .small
+        reconnectButton.setAccessibilityIdentifier("remoteReconnectButton")
+        reconnectButton.setAccessibilityLabel("Reconnect")
         reconnectButton.target = self
         reconnectButton.action = #selector(reconnectRemoteHost)
 
@@ -629,6 +634,7 @@ final class PaneViewController: NSViewController {
         reconnectDismissButton.contentTintColor = ThemeManager.shared.currentTheme.textSecondary
         reconnectDismissButton.toolTip = "Dismiss"
         reconnectDismissButton.setAccessibilityIdentifier("remoteReconnectDismiss")
+        reconnectDismissButton.setAccessibilityLabel("Dismiss")
         reconnectDismissButton.target = self
         reconnectDismissButton.action = #selector(dismissReconnectBanner)
 
@@ -640,7 +646,7 @@ final class PaneViewController: NSViewController {
 
     @objc private func handleSSHConnectionStateChange(_ notification: Notification) {
         guard let change = notification.object as? SSHConnectionStateChange,
-              let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }),
+              let host = selectedReconnectHost(),
               host.id == change.hostID else {
             return
         }
@@ -669,13 +675,48 @@ final class PaneViewController: NSViewController {
         reconnectBannerHeightConstraint?.constant = 0
     }
 
+    private func syncReconnectBannerForSelectedTab() {
+        guard let host = selectedReconnectHost() else {
+            hideReconnectBanner()
+            return
+        }
+
+        if case .failed = RemoteConnectionStateStore.shared.state(for: host.id) {
+            showReconnectBanner(for: host)
+        } else {
+            hideReconnectBanner()
+        }
+    }
+
+    private func selectedReconnectHost() -> RemoteHost? {
+        if let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }) {
+            return host
+        }
+
+        return selectedTab?.fileListViewController.currentRemoteHost
+    }
+
+    func performUITestRemoteFailureForSelectedHost() -> Bool {
+        guard UITestEnvironment.isEnabled,
+              let host = selectedReconnectHost() else {
+            return false
+        }
+
+        RemoteConnectionStateStore.shared.setState(
+            .failed(reason: .transport("UI test connection dropped")),
+            for: host.id
+        )
+        showReconnectBanner(for: host)
+        return true
+    }
+
     @objc private func dismissReconnectBanner() {
-        dismissedReconnectHostID = selectedTab.flatMap { remoteBreadcrumbHostsByTabID[$0.id] }?.id
+        dismissedReconnectHostID = selectedReconnectHost()?.id
         hideReconnectBanner()
     }
 
     @objc private func reconnectRemoteHost() {
-        guard let host = selectedTab.flatMap({ remoteBreadcrumbHostsByTabID[$0.id] }) else { return }
+        guard let host = selectedReconnectHost() else { return }
 
         // Tabs restored from a previous session have no live connection yet;
         // they need the full connect flow, not a registry reconnect.
@@ -981,6 +1022,7 @@ final class PaneViewController: NSViewController {
             selected.fileListViewController.view.isHidden = false
         }
 
+        syncReconnectBannerForSelectedTab()
         reloadTabBar()
         scheduleSessionSave()
     }
@@ -991,14 +1033,15 @@ final class PaneViewController: NSViewController {
         if index == selectedTabIndex {
             let tab = tabs[index]
             if tab.fileListViewController.view.isHidden {
-            tab.fileListViewController.view.isHidden = false
-            tabBar.updateSelectedIndex(index)
-            updateNavigationControls()
-            updateRemoteHostBadge()
-            updatePathControl()
-            loadTabIfNeeded(tab)
+                tab.fileListViewController.view.isHidden = false
+                tabBar.updateSelectedIndex(index)
+                updateNavigationControls()
+                updateRemoteHostBadge()
+                updatePathControl()
+                loadTabIfNeeded(tab)
             }
 
+            syncReconnectBannerForSelectedTab()
             if isActive {
                 view.window?.makeFirstResponder(tab.fileListViewController.tableView)
             }
@@ -1021,6 +1064,7 @@ final class PaneViewController: NSViewController {
         updateNavigationControls()
         updateRemoteHostBadge()
         updatePathControl()
+        syncReconnectBannerForSelectedTab()
 
         // Make first responder if this pane is active
         if isActive {
@@ -1443,9 +1487,11 @@ final class PaneViewController: NSViewController {
         let breadcrumbHost = remoteBreadcrumbHostsByTabID[tab.id]
         var titles: [String] = []
         var itemURLs: [URL?] = []
+        let isRemoteBreadcrumb = breadcrumbHost != nil
+            && tab.fileListViewController.currentRemoteLocation != nil
         if let breadcrumbHost {
             titles.append(breadcrumbHost.displayName)
-            itemURLs.append(nil)
+            itemURLs.append(isRemoteBreadcrumb ? URL(fileURLWithPath: "/") : nil)
         }
         titles.append(contentsOf: components.map { $0.0 })
         itemURLs.append(contentsOf: components.map { Optional($0.1) })

@@ -251,7 +251,7 @@ struct RPCBinaryReader {
     }
 }
 
-private extension UInt32 {
+extension UInt32 {
     var bigEndianData: Data {
         var bigEndian = self.bigEndian
         return Data(bytes: &bigEndian, count: MemoryLayout<UInt32>.size)

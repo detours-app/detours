@@ -933,6 +933,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 )
                 self.finishRemoteLoad(restoreTableViewFocus: shouldRestoreTableViewFocus)
             case .failure(let error):
+                logger.error("Remote directory load failed for \(location.path, privacy: .public): \(String(describing: error), privacy: .public)")
                 self.showErrorOverlay(for: error)
                 self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
@@ -1154,10 +1155,25 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     @objc private func retryLoad() {
+        retryCurrentLoad()
+    }
+
+    private func retryCurrentLoad() {
+        if let currentRemoteLocation, let currentRemoteProvider {
+            hideErrorOverlay()
+            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
+            return
+        }
         guard let currentDirectory else { return }
         hideErrorOverlay()
         loadDirectory(currentDirectory, preserveExpansion: true)
     }
+
+    #if DEBUG
+    func retryCurrentLoadForTesting() {
+        retryCurrentLoad()
+    }
+    #endif
 
     @objc private func goToNearestParent() {
         guard let currentDirectory else { return }
@@ -1462,7 +1478,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             navigationDelegate?.fileListDidRequestICloudSharedNavigation(cloudDocsURL: url)
         } else if item.isNavigableFolder {
             navigationDelegate?.fileListDidRequestNavigation(to: url)
-        } else if CompressionTools.isExtractable(url) {
+        } else if Self.isExtractableArchiveLocation(item.location) {
             extractSelectedArchive()
         } else {
             NSWorkspace.shared.open(url)
@@ -1689,26 +1705,24 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     private func archiveSelection() {
         guard !isSharedTopLevelView else { return }
-        let urls = selectedURLs
-        guard !urls.isEmpty else { return }
+        let locations = selectedLocations
+        let displayURLs = locations.map { URL(fileURLWithPath: $0.path) }
+        guard !locations.isEmpty else { return }
         guard let window = view.window else { return }
 
-        let controller = ArchiveWindowController(sourceURLs: urls) { [weak self] model in
+        let controller = ArchiveWindowController(sourceURLs: displayURLs) { [weak self] model in
             guard let self else { return }
             let password = model.includePassword && model.format.supportsPassword && !model.password.isEmpty ? model.password : nil
 
             Task { @MainActor in
                 do {
-                    let archiveURL = try await FileOperationQueue.shared.archive(
-                        items: urls,
+                    let archiveLocation = try await FileOperationQueue.shared.archive(
+                        items: locations,
                         format: model.format,
                         archiveName: model.archiveName,
                         password: password
                     )
-                    self.loadDirectory(self.currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
-                    self.pendingPostLoadAction = {
-                        self.selectItem(at: archiveURL)
-                    }
+                    self.reloadCurrentListing(selecting: archiveLocation)
                 } catch {
                     FileOperationQueue.shared.presentError(error)
                 }
@@ -1718,22 +1732,41 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     }
 
     func extractSelectedArchive(password: String? = nil) {
-        let urls = selectedURLs
-        guard urls.count == 1, let archiveURL = urls.first else { return }
-        guard CompressionTools.isExtractable(archiveURL) else { return }
+        let locations = selectedLocations
+        guard locations.count == 1, let archiveLocation = locations.first else { return }
+        guard Self.isExtractableArchiveLocation(archiveLocation) else { return }
 
         Task { @MainActor in
             do {
-                let extractedURL = try await FileOperationQueue.shared.extract(archive: archiveURL, password: password)
-                self.loadDirectory(self.currentDirectory ?? archiveURL.deletingLastPathComponent(), preserveExpansion: true)
-                self.pendingPostLoadAction = {
-                    self.selectItem(at: extractedURL)
-                }
+                let extractedLocation = try await FileOperationQueue.shared.extract(archive: archiveLocation, password: password)
+                self.reloadCurrentListing(selecting: extractedLocation)
             } catch FileOperationError.archivePasswordRequired {
-                self.promptForArchivePassword(archive: archiveURL)
+                self.promptForArchivePassword(archive: URL(fileURLWithPath: archiveLocation.path))
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
+        }
+    }
+
+    private func reloadCurrentListing(selecting location: Location) {
+        pendingPostLoadAction = { [weak self] in
+            self?.selectLocation(location)
+        }
+        if let currentRemoteLocation, let currentRemoteProvider {
+            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
+        } else if let currentDirectory {
+            loadDirectory(currentDirectory, preserveExpansion: true)
+        }
+    }
+
+    private static func isExtractableArchiveLocation(_ location: Location) -> Bool {
+        let url = URL(fileURLWithPath: location.path)
+        guard let format = ArchiveFormat.detect(from: url) else { return false }
+        switch location {
+        case .local:
+            return CompressionTools.canExtract(format)
+        case .remote:
+            return true
         }
     }
 
@@ -3162,8 +3195,10 @@ extension FileListViewController: NSMenuItemValidation {
             return !selectedLocations.isEmpty
         case #selector(cut(_:)):
             return !selectedLocations.isEmpty && !isSharedTopLevelView
-        case #selector(duplicate(_:)), #selector(archive(_:)):
+        case #selector(duplicate(_:)):
             return !selectedURLs.isEmpty && !isSharedTopLevelView
+        case #selector(archive(_:)):
+            return !selectedLocations.isEmpty && !isSharedTopLevelView
         case #selector(delete(_:)), #selector(deleteImmediately(_:)):
             return !selectedLocations.isEmpty && !isSharedTopLevelView
         case #selector(renameFromContextMenu(_:)):
@@ -3182,8 +3217,8 @@ extension FileListViewController: NSMenuItemValidation {
                 && items[0].isNavigableFolder
                 && !isSharedTopLevelView
         case #selector(extractArchive(_:)):
-            let urls = selectedURLs
-            return urls.count == 1 && CompressionTools.isExtractable(urls[0])
+            let locations = selectedLocations
+            return locations.count == 1 && Self.isExtractableArchiveLocation(locations[0])
         case #selector(paste(_:)):
             return ClipboardManager.shared.hasValidLocations
                 && (currentDirectory != nil || currentRemoteLocation != nil)

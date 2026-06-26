@@ -3,6 +3,34 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "split")
 
+enum SplitContentResizePolicy {
+    static func proportionalWidths(
+        contentWidth: CGFloat,
+        previousLeft: CGFloat,
+        previousRight: CGFloat,
+        minimumLeft: CGFloat,
+        minimumRight: CGFloat
+    ) -> (left: CGFloat, right: CGFloat) {
+        guard contentWidth > 0 else { return (0, 0) }
+        let previousContentWidth = previousLeft + previousRight
+        let ratio: CGFloat
+        if previousContentWidth > 0 {
+            ratio = previousLeft / previousContentWidth
+        } else {
+            ratio = 0.5
+        }
+
+        guard contentWidth >= minimumLeft + minimumRight else {
+            let left = floor(contentWidth / 2)
+            return (left, contentWidth - left)
+        }
+
+        let unclampedLeft = round(contentWidth * ratio)
+        let left = min(max(unclampedLeft, minimumLeft), contentWidth - minimumRight)
+        return (left, contentWidth - left)
+    }
+}
+
 struct RemoteHomeDirectoryProbe {
     let sshTarget: String
     let hostTrust: SSHHostTrust
@@ -57,6 +85,20 @@ final class MainSplitViewController: NSSplitViewController {
     private var saveSessionWorkItem: DispatchWorkItem?
     private var remoteConnectTasks: [UUID: Task<RemoteConnectionResources, Error>] = [:]
     private var remoteConnectionResources: [UUID: RemoteConnectionResources] = [:]
+    private var previousSplitSubviewFrames: [NSRect] = []
+    private var contentPaneWidthRatio: CGFloat?
+    private var isSplitResizePolicyActive = false
+    private var isBalancingContentPaneWidths = false
+    private var pendingContentPaneBalanceWorkItem: DispatchWorkItem?
+    private let contentPaneMinimumThickness: CGFloat = 200
+    private let contentPaneBalanceDelay: TimeInterval = 0.05
+    private let splitResizeEpsilon: CGFloat = 0.5
+    private let contentPaneRatioEpsilon: CGFloat = 0.02
+
+    private enum SplitLayout {
+        static let sidebarPreferredFraction: CGFloat = 0.25
+        static let contentPanePreferredFraction: CGFloat = 0.375
+    }
 
     private enum SessionKeys {
         static let leftTabs = "Detours.LeftPaneTabs"
@@ -117,12 +159,15 @@ final class MainSplitViewController: NSSplitViewController {
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
         sidebarItem.minimumThickness = 150
         sidebarItem.maximumThickness = 320
+        sidebarItem.preferredThicknessFraction = SplitLayout.sidebarPreferredFraction
 
         let leftPaneItem = NSSplitViewItem(viewController: leftPane)
-        leftPaneItem.minimumThickness = 200
+        leftPaneItem.minimumThickness = contentPaneMinimumThickness
+        leftPaneItem.preferredThicknessFraction = SplitLayout.contentPanePreferredFraction
 
         let rightPaneItem = NSSplitViewItem(viewController: rightPane)
-        rightPaneItem.minimumThickness = 200
+        rightPaneItem.minimumThickness = contentPaneMinimumThickness
+        rightPaneItem.preferredThicknessFraction = SplitLayout.contentPanePreferredFraction
 
         addSplitViewItem(sidebarItem)
         addSplitViewItem(leftPaneItem)
@@ -130,6 +175,12 @@ final class MainSplitViewController: NSSplitViewController {
 
         sidebarSplitViewItem = sidebarItem
         splitView.autosaveName = NSSplitView.AutosaveName(Self.splitViewAutosaveName)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(splitViewSubviewsDidResize(_:)),
+            name: NSSplitView.didResizeSubviewsNotification,
+            object: splitView
+        )
 
         addEqualSplitIndicator()
 
@@ -167,6 +218,20 @@ final class MainSplitViewController: NSSplitViewController {
 
         // Wire activity strip to file operation queue
         setupActivityCallbacks()
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        isSplitResizePolicyActive = false
+        DispatchQueue.main.async { [weak self] in
+            self?.recordCurrentSplitState()
+            self?.isSplitResizePolicyActive = true
+        }
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        preserveContentPaneRatioAfterResize()
     }
 
     private func setupActivityCallbacks() {
@@ -395,9 +460,116 @@ final class MainSplitViewController: NSSplitViewController {
     /// during automatic layout. The sidebar divider is left untouched. AppKit
     /// split autosave then persists the new layout like any user drag.
     func equalizePanes() {
+        cancelPendingContentPaneBalance()
+        contentPaneWidthRatio = 0.5
         let sidebarWidth = (sidebarSplitViewItem?.isCollapsed ?? false) ? 0 : sidebarViewController.view.frame.width
         let position = (splitView.bounds.width + sidebarWidth) / 2
         splitView.setPosition(position, ofDividerAt: 1)
+        DispatchQueue.main.async { [weak self] in
+            self?.recordCurrentSplitState(contentRatio: 0.5)
+        }
+    }
+
+    @objc private func splitViewSubviewsDidResize(_ notification: Notification) {
+        guard notification.object as? NSSplitView === splitView else { return }
+        preserveContentPaneRatioAfterResize()
+    }
+
+    private func preserveContentPaneRatioAfterResize() {
+        let frames = splitViewItemFrames()
+        guard isSplitResizePolicyActive,
+              frames.count >= 3,
+              !isBalancingContentPaneWidths,
+              previousSplitSubviewFrames.count == frames.count else {
+            recordCurrentSplitState(frames: frames)
+            return
+        }
+
+        let previousSidebar = previousSplitSubviewFrames[0]
+        let previousLeft = previousSplitSubviewFrames[1]
+        let previousRight = previousSplitSubviewFrames[2]
+        let currentSidebar = frames[0]
+        let currentLeft = frames[1]
+
+        let sidebarChanged = abs(currentSidebar.width - previousSidebar.width) > splitResizeEpsilon
+
+        guard sidebarChanged else {
+            cancelPendingContentPaneBalance()
+            recordCurrentSplitState(frames: frames)
+            return
+        }
+
+        let contentWidth = max(0, splitView.bounds.width - currentSidebar.width)
+        let preservedRatio = contentPaneWidthRatio ?? Self.contentPaneRatio(left: previousLeft, right: previousRight)
+        let widths = SplitContentResizePolicy.proportionalWidths(
+            contentWidth: contentWidth,
+            previousLeft: preservedRatio,
+            previousRight: 1 - preservedRatio,
+            minimumLeft: contentPaneMinimumThickness,
+            minimumRight: contentPaneMinimumThickness
+        )
+        guard abs(widths.left - currentLeft.width) > splitResizeEpsilon else {
+            recordCurrentSplitState(frames: frames)
+            return
+        }
+
+        let paneDividerPosition = currentSidebar.width + widths.left
+        scheduleContentPaneBalance(paneDividerPosition: paneDividerPosition)
+    }
+
+    private func cancelPendingContentPaneBalance() {
+        pendingContentPaneBalanceWorkItem?.cancel()
+        pendingContentPaneBalanceWorkItem = nil
+    }
+
+    private func scheduleContentPaneBalance(paneDividerPosition: CGFloat) {
+        cancelPendingContentPaneBalance()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.applyContentPaneBalance(paneDividerPosition: paneDividerPosition)
+        }
+        pendingContentPaneBalanceWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + contentPaneBalanceDelay, execute: workItem)
+    }
+
+    private func applyContentPaneBalance(paneDividerPosition: CGFloat) {
+        pendingContentPaneBalanceWorkItem = nil
+        guard isSplitResizePolicyActive, splitViewItemFrames().count >= 3 else {
+            recordCurrentSplitState()
+            return
+        }
+
+        isBalancingContentPaneWidths = true
+        defer { isBalancingContentPaneWidths = false }
+        splitView.setPosition(paneDividerPosition, ofDividerAt: 1)
+        recordCurrentSplitState()
+    }
+
+    private func recordCurrentSplitState(frames: [NSRect]? = nil, contentRatio: CGFloat? = nil) {
+        previousSplitSubviewFrames = frames ?? splitViewItemFrames()
+        if let contentRatio {
+            contentPaneWidthRatio = contentRatio
+        } else if previousSplitSubviewFrames.count >= 3 {
+            let measuredRatio = Self.contentPaneRatio(
+                left: previousSplitSubviewFrames[1],
+                right: previousSplitSubviewFrames[2]
+            )
+            if let currentRatio = contentPaneWidthRatio,
+               abs(currentRatio - measuredRatio) < contentPaneRatioEpsilon {
+                contentPaneWidthRatio = currentRatio
+            } else {
+                contentPaneWidthRatio = measuredRatio
+            }
+        }
+    }
+
+    private func splitViewItemFrames() -> [NSRect] {
+        splitViewItems.map { $0.viewController.view.frame }
+    }
+
+    private static func contentPaneRatio(left: NSRect, right: NSRect) -> CGFloat {
+        let contentWidth = left.width + right.width
+        guard contentWidth > 0 else { return 0.5 }
+        return left.width / contentWidth
     }
 
     // MARK: - Sidebar
@@ -466,7 +638,14 @@ final class MainSplitViewController: NSSplitViewController {
     /// UI-test seam: turn the left pane's active tab into a remote tab backed by the test root,
     /// so the remote-aware Quick Open tests can run without a live SSH server.
     private func installUITestRemoteTab(root: URL, mode: UITestEnvironment.RemoteMode) {
-        let host = RemoteHost(displayName: UITestEnvironment.remoteHostDisplayName, sshTarget: "uitest@localhost")
+        let isWindowsFailureMode = mode == .windowsFailed
+        let host = RemoteHost(
+            displayName: isWindowsFailureMode
+                ? UITestEnvironment.windowsRemoteHostDisplayName
+                : UITestEnvironment.remoteHostDisplayName,
+            sshTarget: isWindowsFailureMode ? "uitest-windows@localhost" : "uitest@localhost",
+            kind: isWindowsFailureMode ? .windows : nil
+        )
         let provider = UITestRemoteProvider(hostID: host.id, base: root)
         guard let tab = leftPane.selectedTab else { return }
         tab.fileListViewController.loadRemoteDirectory(host: host, path: "/", provider: provider)
@@ -475,6 +654,8 @@ final class MainSplitViewController: NSSplitViewController {
             RemoteConnectionStateStore.shared.setState(.connected, for: host.id)
         case .disconnected:
             RemoteConnectionStateStore.shared.setState(.disconnected, for: host.id)
+        case .windowsFailed:
+            RemoteConnectionStateStore.shared.setState(.connected, for: host.id)
         }
     }
 
@@ -607,6 +788,11 @@ final class MainSplitViewController: NSSplitViewController {
     func performUITestDuplicateStructure(relativePath: String) {
         guard UITestEnvironment.isEnabled else { return }
         leftPane.selectedTab?.fileListViewController.performUITestDuplicateStructure(relativePath: relativePath)
+    }
+
+    func performUITestRemoteFailure() -> Bool {
+        guard UITestEnvironment.isEnabled else { return false }
+        return leftPane.performUITestRemoteFailureForSelectedHost()
     }
 
     func setActivePaneFromChild(_ pane: PaneViewController) {
@@ -1208,7 +1394,7 @@ extension MainSplitViewController: SidebarDelegate {
     }
 
     struct RemoteConnectionResources {
-        let provider: RemoteFileProvider
+        let provider: any FileProvider
         let homePath: String
     }
 
@@ -1289,6 +1475,32 @@ extension MainSplitViewController: SidebarDelegate {
             defer { remoteConnectTasks[host.id] = nil }
             Self.postRemoteConnectionState(.connecting, for: host.id)
             do {
+                let kind = await RemoteHostKindProbe(
+                    client: SSHRemoteHostKindProbeClient(sshTarget: host.sshTarget)
+                ).resolve(cachedKind: host.kind)
+                if host.kind != kind {
+                    RemoteHostStore.shared.updateKind(id: host.id, kind: kind)
+                }
+
+                let route = RemoteConnectionRoute(kind: kind)
+                if route.usesWindowsProvider {
+                    let channel = PowerShellChannel(sshTarget: host.sshTarget)
+                    try await channel.forceReconnect()
+                    let provider = WindowsRemoteProvider(hostID: host.id, sshTarget: host.sshTarget, channel: channel)
+                    let initialPath = try await validateWindowsRemoteConnection(provider: provider, host: host)
+
+                    await RemoteConnectionRegistry.shared.register(channel, for: host.id)
+                    FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
+                    RemoteHostStore.shared.markConnected(id: host.id)
+                    Self.postRemoteConnectionState(.connected, for: host.id)
+                    let resources = RemoteConnectionResources(provider: provider, homePath: initialPath)
+                    remoteConnectionResources[host.id] = resources
+                    return resources
+                }
+
+                guard route.deploysHelper else {
+                    throw RemoteFileProviderError.invalidResponse("Unsupported remote host kind.")
+                }
                 let bundledBinaryDirectory = Self.detoursServerBinaryDirectoryURL()
                 let deploymentClient = SSHServerDeploymentClient(sshTarget: host.sshTarget)
                 let deployer = ServerDeployer(client: deploymentClient, bundledBinaryDirectoryURL: bundledBinaryDirectory)
@@ -1317,7 +1529,11 @@ extension MainSplitViewController: SidebarDelegate {
                 )
                 let initialPath = try await validateRemoteConnection(provider: provider, rpcClient: rpcClient, host: host)
 
-                await RemoteConnectionRegistry.shared.register(connection, rpcClient: rpcClient, for: host.id)
+                await RemoteConnectionRegistry.shared.register(
+                    SSHConnectionHandle(connection: connection),
+                    rpcClient: rpcClient,
+                    for: host.id
+                )
                 FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
                 RemoteHostStore.shared.markConnected(id: host.id)
                 let resources = RemoteConnectionResources(provider: provider, homePath: initialPath)
@@ -1349,6 +1565,15 @@ extension MainSplitViewController: SidebarDelegate {
             throw RemoteFileProviderError.invalidResponse("\(host.sshTarget) protocol version")
         }
         let initialPath = try await Self.remoteHomeDirectory(sshTarget: host.sshTarget)
+        _ = try await provider.list(.remote(hostID: host.id, path: initialPath), showHidden: false)
+        return initialPath
+    }
+
+    private func validateWindowsRemoteConnection(
+        provider: WindowsRemoteProvider,
+        host: RemoteHost
+    ) async throws -> String {
+        let initialPath = try await provider.homeDirectory()
         _ = try await provider.list(.remote(hostID: host.id, path: initialPath), showHidden: false)
         return initialPath
     }

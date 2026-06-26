@@ -322,8 +322,14 @@ final class FileOperationQueue {
     @discardableResult
     func archive(items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location {
         guard let itemURLs = localURLs(from: items) else {
-            return try await enqueue {
-                throw FileProviderError.unsupportedOperation("Remote archive creation is not implemented yet")
+            let hostIDs = remoteHostIDs(from: items)
+            return try await enqueue(remoteHosts: hostIDs) {
+                try await self.performProviderArchive(
+                    items: items,
+                    format: format,
+                    archiveName: archiveName,
+                    password: password
+                )
             }
         }
         return try await enqueue { () async throws -> Location in
@@ -340,8 +346,9 @@ final class FileOperationQueue {
     @discardableResult
     func extract(archive: Location, password: String? = nil) async throws -> Location {
         guard case .local(let archiveURL) = archive else {
-            return try await enqueue {
-                throw FileProviderError.unsupportedOperation("Remote archive extraction is not implemented yet")
+            let hostIDs = remoteHostIDs(from: [archive])
+            return try await enqueue(remoteHosts: hostIDs) {
+                try await self.performProviderExtract(archive: archive, password: password)
             }
         }
         return try await enqueue { () async throws -> Location in
@@ -1752,6 +1759,54 @@ final class FileOperationQueue {
         } catch {
             throw mapError(error, url: URL(fileURLWithPath: destination.path))
         }
+    }
+
+    private func performProviderArchive(
+        items: [Location],
+        format: ArchiveFormat,
+        archiveName: String,
+        password: String?
+    ) async throws -> Location {
+        guard let groups = remoteGroups(from: items), groups.count == 1, let (hostID, hostItems) = groups.first else {
+            throw FileProviderError.unsupportedOperation("Remote archive creation supports one host per operation")
+        }
+
+        let operation = FileOperation.archive(items: hostItems.map { URL(fileURLWithPath: $0.path) }, format: format)
+        startOperation(operation, totalCount: hostItems.count)
+        defer { finishOperation() }
+
+        let provider = try remoteProvider(for: hostID)
+        let archive = try await provider.archiveCreate(hostItems, format: format, archiveName: archiveName, password: password)
+        updateProgress(
+            operation: operation,
+            currentItem: URL(fileURLWithPath: archive.path),
+            completed: hostItems.count,
+            total: hostItems.count
+        )
+        return archive
+    }
+
+    private func performProviderExtract(archive: Location, password: String?) async throws -> Location {
+        guard case .remote(let hostID, _) = archive else {
+            throw FileProviderError.expectedLocal(archive)
+        }
+        guard let format = ArchiveFormat.detect(from: URL(fileURLWithPath: archive.path)) else {
+            throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.lastPathComponent)")
+        }
+
+        let operation = FileOperation.extract(archive: URL(fileURLWithPath: archive.path), format: format)
+        startOperation(operation, totalCount: 1)
+        defer { finishOperation() }
+
+        let provider = try remoteProvider(for: hostID)
+        let extracted = try await provider.archiveExtract(archive, password: password)
+        updateProgress(
+            operation: operation,
+            currentItem: URL(fileURLWithPath: extracted.path),
+            completed: 1,
+            total: 1
+        )
+        return extracted
     }
 
     private func performCreateFolder(in directory: URL, name: String, undoManager: UndoManager? = nil) async throws -> URL {

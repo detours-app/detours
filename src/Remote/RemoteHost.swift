@@ -1,25 +1,33 @@
 import CryptoKit
 import Foundation
 
+enum RemoteHostKind: String, Codable, Equatable, Sendable {
+    case unix
+    case windows
+}
+
 struct RemoteHost: Codable, Equatable, Hashable, Identifiable, Sendable {
     let id: UUID
     var displayName: String
     var sshTarget: String
     var knownHostKeyFingerprint: String?
     var lastConnected: Date?
+    var kind: RemoteHostKind?
 
     init(
         id: UUID = UUID(),
         displayName: String,
         sshTarget: String,
         knownHostKeyFingerprint: String? = nil,
-        lastConnected: Date? = nil
+        lastConnected: Date? = nil,
+        kind: RemoteHostKind? = nil
     ) {
         self.id = id
         self.displayName = displayName
         self.sshTarget = sshTarget
         self.knownHostKeyFingerprint = knownHostKeyFingerprint
         self.lastConnected = lastConnected
+        self.kind = kind
     }
 
     var cacheDirectoryName: String {

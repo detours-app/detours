@@ -1,6 +1,10 @@
 import AppKit
 
 final class SidebarItemView: NSTableCellView {
+    private enum Layout {
+        static let accessoryTrailingInset: CGFloat = -10
+    }
+
     private let iconView = NSImageView()
     private let statusDot = NSView()
     private let statusSpinner = NSProgressIndicator()
@@ -84,7 +88,10 @@ final class SidebarItemView: NSTableCellView {
         addSubview(ejectButton)
 
         nameTrailingConstraint = nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: capacityLabel.leadingAnchor, constant: -4)
-        accessoryTrailingConstraint = ejectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4)
+        accessoryTrailingConstraint = ejectButton.trailingAnchor.constraint(
+            equalTo: trailingAnchor,
+            constant: Layout.accessoryTrailingInset
+        )
 
         NSLayoutConstraint.activate([
             iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
@@ -137,7 +144,7 @@ final class SidebarItemView: NSTableCellView {
         subtitleLabel.isHidden = true
         onEject = nil
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
-        setAccessoryTrailing(-4)
+        setAccessoryTrailing(Layout.accessoryTrailingInset)
         alphaValue = 1.0
 
         switch item {
@@ -188,7 +195,7 @@ final class SidebarItemView: NSTableCellView {
         // Show eject button for ejectable volumes
         ejectButton.isHidden = !volume.isEjectable
         configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
-        setAccessoryTrailing(-4)
+        setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
         ejectButton.contentTintColor = theme.textSecondary
         ejectButton.alphaValue = 0.7
@@ -255,7 +262,7 @@ final class SidebarItemView: NSTableCellView {
         // Show eject button when server has mounted volumes
         ejectButton.isHidden = !hasVolumes
         configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
-        setAccessoryTrailing(-4)
+        setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: protocolBadge.leadingAnchor, constant: -4)
         protocolBadgeTrailingConstraint?.isActive = false
         if hasVolumes {
@@ -302,7 +309,7 @@ final class SidebarItemView: NSTableCellView {
         protocolBadge.isHidden = true
         ejectButton.isHidden = false
         configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
-        setAccessoryTrailing(-4)
+        setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: ejectButton.leadingAnchor, constant: -4)
         ejectButton.contentTintColor = theme.textSecondary
         ejectButton.alphaValue = 0.7
@@ -354,7 +361,7 @@ final class SidebarItemView: NSTableCellView {
         // Show eject button when server has mounted volumes
         ejectButton.isHidden = !hasVolumes
         configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
-        setAccessoryTrailing(-4)
+        setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: protocolBadge.leadingAnchor, constant: -4)
         protocolBadgeTrailingConstraint?.isActive = false
         if hasVolumes {
@@ -384,7 +391,7 @@ final class SidebarItemView: NSTableCellView {
         // Show eject button for ejectable network volumes
         ejectButton.isHidden = !volume.isEjectable
         configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
-        setAccessoryTrailing(-4)
+        setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
         ejectButton.contentTintColor = theme.textSecondary
         ejectButton.alphaValue = 0.7
@@ -507,7 +514,7 @@ final class SidebarItemView: NSTableCellView {
         protocolBadgeTrailingConstraint?.isActive = false
         protocolBadgeTrailingConstraint = nil
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
-        setAccessoryTrailing(-4)
+        setAccessoryTrailing(Layout.accessoryTrailingInset)
         ejectButton.isHidden = true
         ejectButton.alphaValue = 1.0
         alphaValue = 1.0
