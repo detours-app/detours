@@ -1,4 +1,5 @@
 import XCTest
+@testable import Detours
 
 final class SplitPositionTests: XCTestCase {
     func testAppKitFrameAutosaveIsTheWindowPersistenceAuthority() throws {
@@ -19,7 +20,9 @@ final class SplitPositionTests: XCTestCase {
         XCTAssertTrue(source.contains("NSSplitViewController"))
         XCTAssertTrue(source.contains("splitView.autosaveName"))
         XCTAssertTrue(source.contains("Detours.MainSplitView.AppKitV1"))
-        XCTAssertFalse(source.contains("splitViewDidResizeSubviews"))
+        XCTAssertTrue(source.contains("splitViewDidResizeSubviews"))
+        XCTAssertFalse(source.contains("Detours.SplitDividerPosition"))
+        XCTAssertFalse(source.contains("Detours.SidebarWidth"))
     }
 
     func testNoCustomSplitGeometryKeysAreWritten() throws {
@@ -48,5 +51,44 @@ final class SplitPositionTests: XCTestCase {
             beforeEqualize.contains("setPosition"),
             "Only the user-triggered equalizePanes may set the divider position; launch/layout code must not"
         )
+    }
+
+    func testSidebarResizePolicyPreservesEqualPanes() {
+        let widths = SplitContentResizePolicy.proportionalWidths(
+            contentWidth: 620,
+            previousLeft: 300,
+            previousRight: 300,
+            minimumLeft: 200,
+            minimumRight: 200
+        )
+
+        XCTAssertEqual(widths.left, 310, accuracy: 0.001)
+        XCTAssertEqual(widths.right, 310, accuracy: 0.001)
+    }
+
+    func testSidebarResizePolicyPreservesUnequalRatio() {
+        let widths = SplitContentResizePolicy.proportionalWidths(
+            contentWidth: 900,
+            previousLeft: 600,
+            previousRight: 300,
+            minimumLeft: 200,
+            minimumRight: 200
+        )
+
+        XCTAssertEqual(widths.left, 600, accuracy: 0.001)
+        XCTAssertEqual(widths.right, 300, accuracy: 0.001)
+    }
+
+    func testSidebarResizePolicyHonorsMinimumPaneWidths() {
+        let widths = SplitContentResizePolicy.proportionalWidths(
+            contentWidth: 500,
+            previousLeft: 450,
+            previousRight: 50,
+            minimumLeft: 200,
+            minimumRight: 200
+        )
+
+        XCTAssertEqual(widths.left, 300, accuracy: 0.001)
+        XCTAssertEqual(widths.right, 200, accuracy: 0.001)
     }
 }

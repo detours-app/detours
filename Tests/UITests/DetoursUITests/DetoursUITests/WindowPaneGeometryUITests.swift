@@ -113,17 +113,24 @@ final class WindowPaneGeometryUITests: XCTestCase {
         let before = contentPaneWidths()
         XCTAssertGreaterThan(abs(before.left - before.right), 20, "Divider should start off-center")
 
-        // Trigger the Equalize Panes command from the View menu.
-        let viewMenu = app.menuBarItems["View"]
-        XCTAssertTrue(viewMenu.waitForExistence(timeout: 5), "View menu should exist")
-        viewMenu.click()
-        let equalizeItem = app.menuItems["Equalize Panes"]
-        XCTAssertTrue(equalizeItem.waitForExistence(timeout: 5), "Equalize Panes item should exist")
-        equalizeItem.click()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+        equalizePanes()
 
         let after = contentPaneWidths()
         XCTAssertEqual(after.left, after.right, accuracy: 12, "Equalize Panes should make the content panes equal width")
+    }
+
+    func testSidebarResizePreservesEqualContentPanes() throws {
+        launchApp()
+        waitForPanes()
+        equalizePanes()
+
+        let before = contentPaneWidths()
+        XCTAssertEqual(before.left, before.right, accuracy: 12, "Test must start with equal content panes")
+
+        _ = try dragSidebarDivider()
+        let after = contentPaneWidths()
+
+        XCTAssertEqual(after.left, after.right, accuracy: 12, "Sidebar resize should preserve equal content panes")
     }
 
     private func launchApp() {
@@ -184,6 +191,16 @@ final class WindowPaneGeometryUITests: XCTestCase {
         XCTAssertTrue(sidebarOutline().waitForExistence(timeout: 8), "Sidebar should exist")
         XCTAssertTrue(leftPaneOutline().waitForExistence(timeout: 8), "Left pane should exist")
         XCTAssertTrue(rightPaneOutline().waitForExistence(timeout: 8), "Right pane should exist")
+    }
+
+    private func equalizePanes() {
+        let viewMenu = app.menuBarItems["View"]
+        XCTAssertTrue(viewMenu.waitForExistence(timeout: 5), "View menu should exist")
+        viewMenu.click()
+        let equalizeItem = app.menuItems["Equalize Panes"]
+        XCTAssertTrue(equalizeItem.waitForExistence(timeout: 5), "Equalize Panes item should exist")
+        equalizeItem.click()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
     }
 
     private func sampleWindowFrames(duration: TimeInterval) -> [CGRect] {

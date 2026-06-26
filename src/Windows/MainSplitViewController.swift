@@ -3,6 +3,34 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "split")
 
+enum SplitContentResizePolicy {
+    static func proportionalWidths(
+        contentWidth: CGFloat,
+        previousLeft: CGFloat,
+        previousRight: CGFloat,
+        minimumLeft: CGFloat,
+        minimumRight: CGFloat
+    ) -> (left: CGFloat, right: CGFloat) {
+        guard contentWidth > 0 else { return (0, 0) }
+        let previousContentWidth = previousLeft + previousRight
+        let ratio: CGFloat
+        if previousContentWidth > 0 {
+            ratio = previousLeft / previousContentWidth
+        } else {
+            ratio = 0.5
+        }
+
+        guard contentWidth >= minimumLeft + minimumRight else {
+            let left = floor(contentWidth / 2)
+            return (left, contentWidth - left)
+        }
+
+        let unclampedLeft = round(contentWidth * ratio)
+        let left = min(max(unclampedLeft, minimumLeft), contentWidth - minimumRight)
+        return (left, contentWidth - left)
+    }
+}
+
 struct RemoteHomeDirectoryProbe {
     let sshTarget: String
     let hostTrust: SSHHostTrust
@@ -57,6 +85,11 @@ final class MainSplitViewController: NSSplitViewController {
     private var saveSessionWorkItem: DispatchWorkItem?
     private var remoteConnectTasks: [UUID: Task<RemoteConnectionResources, Error>] = [:]
     private var remoteConnectionResources: [UUID: RemoteConnectionResources] = [:]
+    private var previousSplitSubviewFrames: [NSRect] = []
+    private var isSplitResizePolicyActive = false
+    private var isBalancingContentPaneWidths = false
+    private let contentPaneMinimumThickness: CGFloat = 200
+    private let splitResizeEpsilon: CGFloat = 0.5
 
     private enum SessionKeys {
         static let leftTabs = "Detours.LeftPaneTabs"
@@ -119,10 +152,10 @@ final class MainSplitViewController: NSSplitViewController {
         sidebarItem.maximumThickness = 320
 
         let leftPaneItem = NSSplitViewItem(viewController: leftPane)
-        leftPaneItem.minimumThickness = 200
+        leftPaneItem.minimumThickness = contentPaneMinimumThickness
 
         let rightPaneItem = NSSplitViewItem(viewController: rightPane)
-        rightPaneItem.minimumThickness = 200
+        rightPaneItem.minimumThickness = contentPaneMinimumThickness
 
         addSplitViewItem(sidebarItem)
         addSplitViewItem(leftPaneItem)
@@ -167,6 +200,12 @@ final class MainSplitViewController: NSSplitViewController {
 
         // Wire activity strip to file operation queue
         setupActivityCallbacks()
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        previousSplitSubviewFrames = splitView.subviews.map(\.frame)
+        isSplitResizePolicyActive = true
     }
 
     private func setupActivityCallbacks() {
@@ -398,6 +437,79 @@ final class MainSplitViewController: NSSplitViewController {
         let sidebarWidth = (sidebarSplitViewItem?.isCollapsed ?? false) ? 0 : sidebarViewController.view.frame.width
         let position = (splitView.bounds.width + sidebarWidth) / 2
         splitView.setPosition(position, ofDividerAt: 1)
+    }
+
+    override func splitViewDidResizeSubviews(_ notification: Notification) {
+        super.splitViewDidResizeSubviews(notification)
+        guard notification.object as? NSSplitView === splitView else { return }
+        preserveContentPaneRatioAfterResize()
+    }
+
+    private func preserveContentPaneRatioAfterResize() {
+        let subviews = splitView.subviews
+        let frames = subviews.map(\.frame)
+        guard isSplitResizePolicyActive else {
+            previousSplitSubviewFrames = frames
+            return
+        }
+
+        guard subviews.count >= 3 else {
+            previousSplitSubviewFrames = frames
+            return
+        }
+
+        guard !isBalancingContentPaneWidths else {
+            previousSplitSubviewFrames = frames
+            return
+        }
+
+        guard previousSplitSubviewFrames.count == frames.count else {
+            previousSplitSubviewFrames = frames
+            return
+        }
+
+        let previousSidebar = previousSplitSubviewFrames[0]
+        let previousLeft = previousSplitSubviewFrames[1]
+        let previousRight = previousSplitSubviewFrames[2]
+        let currentSidebar = frames[0]
+        let currentLeft = frames[1]
+        let currentRight = frames[2]
+
+        let previousTotalWidth = previousSplitSubviewFrames.reduce(CGFloat(0)) { $0 + $1.width }
+        let currentTotalWidth = frames.reduce(CGFloat(0)) { $0 + $1.width }
+        let sidebarChanged = abs(currentSidebar.width - previousSidebar.width) > splitResizeEpsilon
+        let splitViewWidthChanged = abs(currentTotalWidth - previousTotalWidth) > splitResizeEpsilon
+
+        guard sidebarChanged || splitViewWidthChanged else {
+            previousSplitSubviewFrames = frames
+            return
+        }
+
+        let contentWidth = currentLeft.width + currentRight.width
+        let widths = SplitContentResizePolicy.proportionalWidths(
+            contentWidth: contentWidth,
+            previousLeft: previousLeft.width,
+            previousRight: previousRight.width,
+            minimumLeft: contentPaneMinimumThickness,
+            minimumRight: contentPaneMinimumThickness
+        )
+        guard abs(widths.left - currentLeft.width) > splitResizeEpsilon else {
+            previousSplitSubviewFrames = frames
+            return
+        }
+
+        let paneDividerGap = max(0, currentRight.minX - currentLeft.maxX)
+        var balancedLeftFrame = currentLeft
+        var balancedRightFrame = currentRight
+        balancedLeftFrame.size.width = widths.left
+        balancedRightFrame.origin.x = balancedLeftFrame.maxX + paneDividerGap
+        balancedRightFrame.size.width = widths.right
+
+        isBalancingContentPaneWidths = true
+        subviews[1].frame = balancedLeftFrame
+        subviews[2].frame = balancedRightFrame
+        isBalancingContentPaneWidths = false
+        previousSplitSubviewFrames = subviews.map(\.frame)
     }
 
     // MARK: - Sidebar
