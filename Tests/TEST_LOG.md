@@ -2,6 +2,24 @@
 
 ## Latest Run
 
+### 2026-06-26 13:46
+
+- Command: `swift build`; `swift test --filter FileOperationQueueTests
+  --filter FileListResponderTests --filter PaneViewControllerTests --filter
+  FileListDataSourceTests --filter DirectoryLoaderTests --filter
+  RemoteIntegrationTests --filter DetoursPreviewGeneratorTests --filter
+  WindowsRemoteProviderTests` (+ remote/Windows classes) (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Structural split of all 19 Swift files over 700 lines into per-feature
+  extension files (every source and test file now <= 700 lines). Pure code
+  moves plus access widening (private -> internal) and one file-private logger
+  per new file. Full build clean (0 errors). Regression classes for every split
+  file pass: 167 XCTest + Swift Testing suites + preview (19) + Windows/remote
+  (35), 0 failures. Fixed a stale archive-extract assertion left by the earlier
+  zip-slip change (ExtractToDirectory -> OpenRead/ExtractToFile). UITests split
+  files parse cleanly; full XCUI verification pending on Foundry.
+
 ### 2026-06-26 12:53
 
 - Command: `swift test --filter RemoteHostKindRoutingTests` (Spectre, branch

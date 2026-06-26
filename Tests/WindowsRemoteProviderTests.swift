@@ -227,7 +227,8 @@ final class WindowsRemoteProviderTests: XCTestCase {
         XCTAssertEqual(extracted, .remote(hostID: hostID, path: "/C:/Users/sans/bundle"))
         XCTAssertEqual(requests.map(\.operation), ["ArchiveCreate", "ArchiveExtract", "ArchiveTools", "ArchiveCreate"])
         XCTAssertTrue(requests[0].decodedScript.contains("System.IO.Compression.ZipArchive"))
-        XCTAssertTrue(requests[1].decodedScript.contains("ZipFile]::ExtractToDirectory"))
+        XCTAssertTrue(requests[1].decodedScript.contains("ZipFile]::OpenRead"))
+        XCTAssertTrue(requests[1].decodedScript.contains("ZipFileExtensions]::ExtractToFile"))
         XCTAssertTrue(requests[3].decodedScript.contains("Resolve-ArchiveTool @('7z.exe', '7z')"))
     }
 
