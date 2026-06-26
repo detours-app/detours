@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: fix/windows-remote-hardening
 
 ---
@@ -29,16 +29,16 @@ Bring every Windows file operation up to the same safety and reliability the Mac
 
 ### Acceptance Criteria
 
-- [ ] **A1** Copying, moving, or uploading an item onto an existing same-name item on a Windows host asks how to resolve the conflict (Skip, Replace, or Keep Both), exactly as on Mac and Linux hosts; nothing is overwritten without that choice.
-- [ ] **A2** After choosing Replace for a copy or move on a Windows host, undo restores the replaced item to its original place.
-- [ ] **A3** Copying a folder onto an existing same-name folder on a Windows host merges their contents rather than discarding the existing folder.
-- [ ] **A4** If a copy or move on a Windows host is interrupted partway, the original is never lost or left stranded with no way back, and the user can recover it in the app.
-- [ ] **A5** If a download from a Windows host is interrupted, no half-written or corrupted file is left at the destination, and downloading again to the same place succeeds.
-- [ ] **A6** Browsing the same Windows host in both panes at once works; operations and live updates in one pane do not fail or disrupt the other.
-- [ ] **A7** A Windows folder left open keeps updating automatically when its contents change on the server, even after a quiet period of several minutes.
-- [ ] **A8** When a Windows host connection drops, the "Connection lost" banner and sidebar status reflect the real connection state, and a successful reconnect clears them, without any test-only assistance.
-- [ ] **A9** Browsing, copying, moving, uploading, downloading, and previewing on Mac and Linux hosts is unchanged in every respect.
-- [ ] **A10** A malformed or oversized server response is handled cleanly, without freezing the app or exhausting memory.
+- [x] **A1** Copying, moving, or uploading an item onto an existing same-name item on a Windows host asks how to resolve the conflict (Skip, Replace, or Keep Both), exactly as on Mac and Linux hosts; nothing is overwritten without that choice.
+- [x] **A2** After choosing Replace for a copy or move on a Windows host, undo restores the replaced item to its original place.
+- [x] **A3** Copying a folder onto an existing same-name folder on a Windows host merges their contents rather than discarding the existing folder.
+- [x] **A4** If a copy or move on a Windows host is interrupted partway, the original is never lost or left stranded with no way back, and the user can recover it in the app.
+- [x] **A5** If a download from a Windows host is interrupted, no half-written or corrupted file is left at the destination, and downloading again to the same place succeeds.
+- [x] **A6** Browsing the same Windows host in both panes at once works; operations and live updates in one pane do not fail or disrupt the other.
+- [x] **A7** A Windows folder left open keeps updating automatically when its contents change on the server, even after a quiet period of several minutes.
+- [x] **A8** When a Windows host connection drops, the "Connection lost" banner and sidebar status reflect the real connection state, and a successful reconnect clears them, without any test-only assistance.
+- [x] **A9** Browsing, copying, moving, uploading, downloading, and previewing on Mac and Linux hosts is unchanged in every respect.
+- [x] **A10** A malformed or oversized server response is handled cleanly, without freezing the app or exhausting memory.
 
 ### Out of scope
 
@@ -102,7 +102,7 @@ The two fixes that are genuinely new design are request serialization on `PowerS
 - [x] **T17** Decode octal-escaped git filenames. In `src/Remote/Windows/WindowsFindScripts.swift` git-status parsing, decode git's octal-escaped non-ASCII filenames so status badges appear for those files.
 - [x] **T18** Reject path traversal. In `src/Remote/Windows/WindowsPath.swift` reject `..` segments before they can reach `CreateDirectory`/`-LiteralPath` sinks, and ensure archive extraction in `src/Remote/Windows/WindowsArchiveScripts.swift` rejects entries that would escape the destination directory (zip-slip).
 - [x] **T19** Keep the multiplexed SSH connection alive across oneShot requests. In `PowerShellChannel` add `ControlPersist` to the oneShot `ControlMaster` options so terminating a oneShot request cannot drop the watch/transfer connection sharing the same control path.
-- [ ] **T20** Build the app with `resources/scripts/build.sh` and resolve all `swiftlint lint --quiet` findings.
+- [x] **T20** Build the app with `resources/scripts/build.sh` and resolve all `swiftlint lint --quiet` findings.
 
 ---
 

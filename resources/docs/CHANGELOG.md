@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Windows Remote Safety and Reliability
+
+- **Windows file operations never overwrite silently** - Copying, moving, or
+  uploading onto an existing same-name item on a Windows host now asks how to
+  resolve it (Skip, Replace, or Keep Both), exactly as on Mac and Linux hosts.
+- **Replace is undoable on Windows** - Choosing Replace and then undo restores
+  the displaced original to its place, and a folder copied onto an existing
+  folder merges instead of discarding the existing contents.
+- **Interrupted Windows transfers are safe** - An interrupted copy, move, or
+  download never loses the original or leaves a corrupted file behind, and a
+  retry succeeds.
+- **Both panes on one Windows host work together** - Operations and live folder
+  updates in one pane no longer disrupt the other, even with both panes on the
+  same Windows server.
+- **Windows folders keep updating** - A Windows folder left open keeps
+  refreshing automatically, even after a long quiet period.
+- **Connection status reflects reality** - When a Windows host drops, the
+  Connection lost banner and sidebar status show the real state and clear on a
+  successful reconnect.
+
 ## 1.8.0 - 2026-06-25
 
 ### Remote Quick Open

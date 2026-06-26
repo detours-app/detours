@@ -2,6 +2,19 @@
 
 ## Latest Run
 
+### 2026-06-26 14:48 (Foundry)
+
+- Command: `resources/scripts/uitest.sh SmokeTests`;
+  `resources/scripts/uitest.sh FolderExpansionUITests` (Foundry, commit
+  `653a52d`, active GUI session)
+- Status: PASS
+- Notes: App builds, codesigns, and installs cleanly on Foundry; the controller
+  and test-file split did not break launch. SmokeTests 4/4 (window, file list,
+  home button) and FolderExpansionUITests 30/30, 0 failures. The full UITests
+  target compiles (split test files and the new WindowsRemoteUITests reconnect
+  test). Live Windows integration/UI runs (T40-T43) against win-carriercall
+  remain pending a configured Windows test host.
+
 ### 2026-06-26 14:48
 
 - Command: `swift test --filter FileOperationQueueTests --filter
