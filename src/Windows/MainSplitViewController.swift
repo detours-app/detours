@@ -88,7 +88,9 @@ final class MainSplitViewController: NSSplitViewController {
     private var previousSplitSubviewFrames: [NSRect] = []
     private var isSplitResizePolicyActive = false
     private var isBalancingContentPaneWidths = false
+    private var pendingContentPaneBalanceWorkItem: DispatchWorkItem?
     private let contentPaneMinimumThickness: CGFloat = 200
+    private let contentPaneBalanceDelay: TimeInterval = 0.05
     private let splitResizeEpsilon: CGFloat = 0.5
 
     private enum SessionKeys {
@@ -440,6 +442,8 @@ final class MainSplitViewController: NSSplitViewController {
     /// during automatic layout. The sidebar divider is left untouched. AppKit
     /// split autosave then persists the new layout like any user drag.
     func equalizePanes() {
+        pendingContentPaneBalanceWorkItem?.cancel()
+        pendingContentPaneBalanceWorkItem = nil
         let sidebarWidth = (sidebarSplitViewItem?.isCollapsed ?? false) ? 0 : sidebarViewController.view.frame.width
         let position = (splitView.bounds.width + sidebarWidth) / 2
         splitView.setPosition(position, ofDividerAt: 1)
@@ -505,11 +509,29 @@ final class MainSplitViewController: NSSplitViewController {
         }
 
         let paneDividerPosition = currentLeft.minX + widths.left
+        scheduleContentPaneBalance(paneDividerPosition: paneDividerPosition)
+    }
+
+    private func scheduleContentPaneBalance(paneDividerPosition: CGFloat) {
+        pendingContentPaneBalanceWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.applyContentPaneBalance(paneDividerPosition: paneDividerPosition)
+        }
+        pendingContentPaneBalanceWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + contentPaneBalanceDelay, execute: workItem)
+    }
+
+    private func applyContentPaneBalance(paneDividerPosition: CGFloat) {
+        pendingContentPaneBalanceWorkItem = nil
+        guard isSplitResizePolicyActive, splitView.subviews.count >= 3 else {
+            previousSplitSubviewFrames = splitView.subviews.map(\.frame)
+            return
+        }
 
         isBalancingContentPaneWidths = true
         defer { isBalancingContentPaneWidths = false }
         splitView.setPosition(paneDividerPosition, ofDividerAt: 1)
-        previousSplitSubviewFrames = subviews.map(\.frame)
+        previousSplitSubviewFrames = splitView.subviews.map(\.frame)
     }
 
     // MARK: - Sidebar
