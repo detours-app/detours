@@ -121,7 +121,7 @@ extension MainSplitViewController {
 
                 let route = RemoteConnectionRoute(kind: kind)
                 if route.usesWindowsProvider {
-                    let channel = PowerShellChannel(sshTarget: host.sshTarget)
+                    let channel = PowerShellChannel(hostID: host.id, sshTarget: host.sshTarget)
                     try await channel.forceReconnect()
                     let provider = WindowsRemoteProvider(hostID: host.id, sshTarget: host.sshTarget, channel: channel)
                     let initialPath = try await validateWindowsRemoteConnection(provider: provider, host: host)

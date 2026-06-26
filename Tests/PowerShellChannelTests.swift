@@ -63,6 +63,85 @@ final class PowerShellChannelTests: XCTestCase {
         XCTAssertEqual(maxConcurrent, 1)
     }
 
+    func testReadFrameRejectsOversizedLength() throws {
+        let pipe = Pipe()
+        let oversize = UInt32(RPCStreamHandler.defaultMaxFrameSize + 1)
+        let lengthBytes = withUnsafeBytes(of: oversize.bigEndian) { Data($0) }
+        pipe.fileHandleForWriting.write(lengthBytes)
+        try? pipe.fileHandleForWriting.close()
+
+        XCTAssertThrowsError(try PowerShellProcessTransport.readFramePayload(from: pipe.fileHandleForReading)) { error in
+            guard case RPCProtocolError.frameTooLarge(let length) = error else {
+                return XCTFail("Expected frameTooLarge, got \(error)")
+            }
+            XCTAssertEqual(length, Int(oversize))
+        }
+    }
+
+    @MainActor
+    func testPublishesConnectionStateOnDropAndReconnect() async throws {
+        RemoteConnectionStateStore.shared.clearForTesting()
+        defer { RemoteConnectionStateStore.shared.clearForTesting() }
+        let hostID = UUID()
+        let transport = ScriptedPowerShellTransport(malformedResponseCount: 1)
+        let channel = PowerShellChannel(transport: transport, hostID: hostID)
+        await channel.setActivePaneCount(1)
+
+        // A protocol failure on a real request publishes a failed state, with no test injection.
+        do {
+            _ = try await channel.run(PowerShellScript(source: "1"), operation: "First")
+            XCTFail("Expected the malformed response to fail")
+        } catch {}
+        try await waitForState(hostID) { if case .failed = $0 { return true } else { return false } }
+
+        // A successful reconnect publishes connected and clears the banner.
+        _ = try await channel.run(PowerShellScript(source: "2"), operation: "Second")
+        try await waitForState(hostID) { $0 == .connected }
+    }
+
+    func testTransportNotTornDownWhileOperationInFlight() async throws {
+        let transport = BlockingPowerShellTransport()
+        let channel = PowerShellChannel(transport: transport, idleTimeout: 0.15)
+        await channel.setActivePaneCount(1)
+
+        let runTask = Task { try await channel.run(PowerShellScript(source: "1"), operation: "Op") }
+        try await waitUntil { await channel.inFlightOperationCountForTesting() == 1 }
+
+        // Pane count reaching 0 mid-operation must not stop the process.
+        await channel.setActivePaneCount(0)
+        try await Task.sleep(nanoseconds: 80_000_000)
+        let stopWhileInFlight = await transport.stopCount
+        XCTAssertEqual(stopWhileInFlight, 0)
+
+        // Once the operation drains and the idle grace elapses, the transport is torn down.
+        await transport.releaseRead()
+        _ = try await runTask.value
+        try await waitUntil(timeout: 2.0) { await transport.stopCount >= 1 }
+    }
+
+    private func waitUntil(timeout: TimeInterval = 1.0, _ condition: () async -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Condition not met within \(timeout)s")
+    }
+
+    @MainActor
+    private func waitForState(
+        _ hostID: UUID,
+        timeout: TimeInterval = 1.0,
+        _ predicate: (SSHConnectionState?) -> Bool
+    ) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if predicate(RemoteConnectionStateStore.shared.state(for: hostID)) { return }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Connection state condition not met within \(timeout)s")
+    }
+
     func testDisconnectStopsTransport() async throws {
         let transport = ScriptedPowerShellTransport()
         let channel = PowerShellChannel(transport: transport)
@@ -72,6 +151,50 @@ final class PowerShellChannelTests: XCTestCase {
 
         let stopCount = await transport.stopCount
         XCTAssertEqual(stopCount, 1)
+    }
+}
+
+private actor BlockingPowerShellTransport: PowerShellChannelTransport {
+    private struct Request: Decodable { let id: UInt64 }
+    private struct Response: Encodable {
+        let id: UInt64
+        let ok: Bool
+        let resultJSON: String?
+        let error: String?
+    }
+
+    private var handler = RPCStreamHandler()
+    private var pendingResponse: Data?
+    private var readContinuation: CheckedContinuation<Void, Never>?
+    private(set) var stopCount = 0
+
+    func start(dispatcherBase64: String) async throws {}
+
+    func sendFrame(_ frame: Data) async throws {
+        for payload in try handler.append(frame) {
+            let request = try JSONDecoder.detoursWindows.decode(Request.self, from: payload)
+            pendingResponse = try JSONEncoder.detoursWindows.encode(
+                Response(id: request.id, ok: true, resultJSON: #"{"ok":true}"#, error: nil)
+            )
+        }
+    }
+
+    func readFrame() async throws -> Data {
+        // Block until the test releases the read, keeping the operation in flight.
+        await withCheckedContinuation { readContinuation = $0 }
+        guard let pendingResponse else { throw PowerShellChannelError.invalidResponse("none") }
+        return pendingResponse
+    }
+
+    func releaseRead() {
+        readContinuation?.resume()
+        readContinuation = nil
+    }
+
+    func stop() async {
+        stopCount += 1
+        readContinuation?.resume()
+        readContinuation = nil
     }
 }
 

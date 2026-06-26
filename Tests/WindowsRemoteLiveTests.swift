@@ -235,7 +235,7 @@ private struct WindowsLiveFixture {
 
     init(target: String) async throws {
         self.target = target
-        channel = PowerShellChannel(sshTarget: target)
+        channel = PowerShellChannel(hostID: hostID, sshTarget: target)
         try await channel.forceReconnect()
         provider = WindowsRemoteProvider(hostID: hostID, sshTarget: target, channel: channel)
         let home = try await provider.homeDirectory()

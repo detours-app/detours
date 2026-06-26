@@ -45,9 +45,13 @@ actor PowerShellChannel: RemoteConnectionHandle {
     }
 
     private let transport: any PowerShellChannelTransport
+    private let hostID: UUID?
+    private let idleTimeout: TimeInterval
     private var nextRequestID: UInt64 = 1
     private var isStarted = false
     private var activePaneCount = 0
+    private var inFlightOperationCount = 0
+    private var idleDisconnectTask: Task<Void, Never>?
 
     // Serializes requests on the single shared oneShot transport: the actor releases its
     // lock at every `await transport.*`, so without this gate a second concurrent `run()`
@@ -55,12 +59,20 @@ actor PowerShellChannel: RemoteConnectionHandle {
     private var isProcessingRequest = false
     private var requestWaiters: [CheckedContinuation<Void, Never>] = []
 
+    private var state: SSHConnectionState = .disconnected {
+        didSet { publishStateChange(from: oldValue, to: state) }
+    }
+
     init(
+        hostID: UUID,
         sshTarget: String,
         controlDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".detours/ssh", isDirectory: true),
-        hostTrust: SSHHostTrust = SSHHostTrust()
+        hostTrust: SSHHostTrust = SSHHostTrust(),
+        idleTimeout: TimeInterval = 5 * 60
     ) {
+        self.hostID = hostID
+        self.idleTimeout = idleTimeout
         transport = PowerShellProcessTransport(
             sshTarget: sshTarget,
             controlDirectory: controlDirectory,
@@ -69,13 +81,19 @@ actor PowerShellChannel: RemoteConnectionHandle {
         )
     }
 
-    init(transport: any PowerShellChannelTransport) {
+    init(transport: any PowerShellChannelTransport, hostID: UUID? = nil, idleTimeout: TimeInterval = 5 * 60) {
         self.transport = transport
+        self.hostID = hostID
+        self.idleTimeout = idleTimeout
     }
 
     func run(_ script: PowerShellScript, operation: String) async throws -> Data {
         await acquireRequestSlot()
-        defer { releaseRequestSlot() }
+        beginInFlightOperation()
+        defer {
+            endInFlightOperation()
+            releaseRequestSlot()
+        }
         try await startIfNeeded()
         let requestID = nextRequestID
         nextRequestID += 1
@@ -98,37 +116,106 @@ actor PowerShellChannel: RemoteConnectionHandle {
             guard response.ok else {
                 throw PowerShellChannelError.remoteError(response.error ?? "PowerShell operation failed.")
             }
+            // A completed round trip means the host connection is live.
+            transition(to: .connected)
             return Data((response.resultJSON ?? "null").utf8)
         } catch {
-            await restartAfterProtocolFailure()
+            await restartAfterProtocolFailure(reason: .transport(error.localizedDescription))
             throw error
         }
     }
 
     func setActivePaneCount(_ count: Int) async {
         activePaneCount = max(0, count)
-        if activePaneCount == 0 {
-            Task { await stopIfIdle() }
-        }
+        scheduleIdleDisconnectIfNeeded()
     }
 
     func forceReconnect() async throws {
-        await transport.stop()
+        // Clear state before the teardown await so a concurrent request cannot observe a
+        // stale "started" flag while the transport is stopping.
         isStarted = false
+        cancelIdleDisconnect()
+        transition(to: .connecting)
+        await transport.stop()
         try await startIfNeeded()
     }
 
     func disconnect() async {
-        await transport.stop()
         isStarted = false
         activePaneCount = 0
+        inFlightOperationCount = 0
+        cancelIdleDisconnect()
+        await transport.stop()
+        transition(to: .disconnected)
     }
 
     #if DEBUG
     func isStartedForTesting() -> Bool {
         isStarted
     }
+
+    func inFlightOperationCountForTesting() -> Int {
+        inFlightOperationCount
+    }
+
+    func simulateConnectedForTesting() {
+        transition(to: .connected)
+    }
     #endif
+
+    private func beginInFlightOperation() {
+        inFlightOperationCount += 1
+        cancelIdleDisconnect()
+    }
+
+    private func endInFlightOperation() {
+        inFlightOperationCount = max(0, inFlightOperationCount - 1)
+        scheduleIdleDisconnectIfNeeded()
+    }
+
+    private var hasIdleBlockers: Bool {
+        activePaneCount > 0 || inFlightOperationCount > 0
+    }
+
+    private func scheduleIdleDisconnectIfNeeded() {
+        cancelIdleDisconnect()
+        guard isStarted, !hasIdleBlockers else { return }
+        let timeout = idleTimeout
+        idleDisconnectTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            } catch {
+                return
+            }
+            await self?.disconnectForIdleIfStillInactive()
+        }
+    }
+
+    private func cancelIdleDisconnect() {
+        idleDisconnectTask?.cancel()
+        idleDisconnectTask = nil
+    }
+
+    private func disconnectForIdleIfStillInactive() async {
+        guard isStarted, !hasIdleBlockers else { return }
+        idleDisconnectTask = nil
+        // Idle teardown is silent: the connection logically still exists (the next request
+        // transparently reconnects), so it is not surfaced as a drop.
+        isStarted = false
+        await transport.stop()
+    }
+
+    private func transition(to newState: SSHConnectionState) {
+        guard state != newState else { return }
+        state = newState
+    }
+
+    private func publishStateChange(from oldState: SSHConnectionState, to newState: SSHConnectionState) {
+        guard let hostID else { return }
+        Task { @MainActor in
+            RemoteConnectionStateStore.shared.setState(newState, for: hostID, oldState: oldState)
+        }
+    }
 
     /// FIFO mutex over the shared transport: each request fully completes its send and read
     /// before the next begins. Ownership passes directly to the next waiter on release.
@@ -156,18 +243,16 @@ actor PowerShellChannel: RemoteConnectionHandle {
         isStarted = true
     }
 
-    private func restartAfterProtocolFailure() async {
-        await transport.stop()
+    private func restartAfterProtocolFailure(reason: SSHConnectionFailureReason) async {
+        // Clear the started flag before the teardown await (T13), publish the drop, then
+        // re-arm if work is still pending so the next request reconnects transparently.
         isStarted = false
-        if activePaneCount > 0 {
+        cancelIdleDisconnect()
+        transition(to: .failed(reason: reason))
+        await transport.stop()
+        if hasIdleBlockers {
             try? await startIfNeeded()
         }
-    }
-
-    private func stopIfIdle() async {
-        guard activePaneCount == 0 else { return }
-        await transport.stop()
-        isStarted = false
     }
 
     static let dispatcherBase64 = dispatcherScript.utf16LittleEndianData.base64EncodedString()
@@ -318,9 +403,7 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         do {
             return try await Task.detached(priority: .userInitiated) {
                 try withExtendedLifetime((runningProcess, stdoutPipe)) {
-                    let lengthData = try Self.readExact(4, from: output)
-                    let length = Int(UInt32(bigEndianData: lengthData.prefix(4)))
-                    return try Self.readExact(length, from: output)
+                    try Self.readFramePayload(from: output)
                 }
             }.value
         } catch {
@@ -329,6 +412,17 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
             }
             throw error
         }
+    }
+
+    static func readFramePayload(from handle: FileHandle) throws -> Data {
+        let lengthData = try readExact(4, from: handle)
+        let length = Int(UInt32(bigEndianData: lengthData.prefix(4)))
+        // A garbage length from a stdout desync must not force a huge allocation; cap it at
+        // the same 16 MB ceiling the encoder enforces before reading the payload.
+        guard length <= RPCStreamHandler.defaultMaxFrameSize else {
+            throw RPCProtocolError.frameTooLarge(length)
+        }
+        return try readExact(length, from: handle)
     }
 
     func stop() async {

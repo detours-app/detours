@@ -2,6 +2,18 @@
 
 ## Latest Run
 
+### 2026-06-26 14:32
+
+- Command: `swift test --filter PowerShellChannelTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: PowerShell channel reliability T9/T10/T11/T13 with tests
+  T27/T28/T29 (plus T32 in the watch suite). 7 tests, 0 failures. A garbage
+  frame length is rejected before allocation; real connection drops and
+  reconnects publish state with no test injection; pane count reaching 0 mid
+  operation no longer tears the process down until the work drains and the idle
+  grace elapses; teardown clears state before awaiting.
+
 ### 2026-06-26 14:20
 
 - Command: `swift test --filter WindowsWatchChannelTests` (Spectre, branch
