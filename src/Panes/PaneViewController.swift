@@ -45,8 +45,8 @@ final class PaneViewController: NSViewController {
     var detailPopover: OperationDetailPopover?
     var operationStatusBarForceShown = false
 
-    internal(set) var tabs: [PaneTab] = []
-    internal(set) var selectedTabIndex: Int = 0
+    var tabs: [PaneTab] = []
+    var selectedTabIndex: Int = 0
 
     var isActive: Bool = false
     var pathItemURLs: [URL?] = []  // URLs for each path item (nil for ellipsis)
