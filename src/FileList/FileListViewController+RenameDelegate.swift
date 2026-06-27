@@ -1,0 +1,111 @@
+import AppKit
+import os.log
+@preconcurrency import Quartz
+
+// MARK: - RenameControllerDelegate
+
+extension FileListViewController: RenameControllerDelegate {
+    func performUITestRename(relativePath: String, to newName: String) {
+        guard UITestEnvironment.isEnabled,
+              let commandRoot = UITestEnvironment.rootDirectory else {
+            return
+        }
+
+        let itemURL = commandRoot
+            .appendingPathComponent(relativePath)
+            .standardizedFileURL
+        let item = FileItem(url: itemURL)
+
+        Task { @MainActor [weak self, item, itemURL] in
+            guard let self else { return }
+
+            do {
+                let newURL = try await FileOperationQueue.shared.rename(item: itemURL, to: newName)
+                self.renameController(self.renameController, didRename: item, to: newURL)
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
+    func performUITestDuplicateStructure(relativePath: String) {
+        guard UITestEnvironment.isEnabled,
+              let commandRoot = UITestEnvironment.rootDirectory else {
+            return
+        }
+
+        let sourceURL = commandRoot
+            .appendingPathComponent(relativePath)
+            .standardizedFileURL
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return
+        }
+
+        showDuplicateStructureDialog(for: sourceURL)
+    }
+
+    func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL) {
+        selectionBeforeNewItem = nil
+        dataSource.invalidateGitStatus()
+        pendingPostLoadAction = { [weak self] in
+            if case .remote = item.location {
+                self?.selectRemoteItem(atPath: newURL.path)
+            } else {
+                self?.selectItem(at: newURL)
+            }
+        }
+        if let currentRemoteLocation, let currentRemoteProvider {
+            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
+        } else if let currentDirectory {
+            loadDirectory(currentDirectory, preserveExpansion: true)
+        }
+    }
+
+    func renameControllerDidCancelNewItem(_ controller: RenameController, item: FileItem) {
+        // SAFETY CHECK: Only trash if this looks like a newly created item
+        // This prevents catastrophic data loss if the wrong item was selected
+        let isLikelyNewItem: Bool
+        if item.isRemote {
+            isLikelyNewItem = item.name.hasPrefix("Folder") ||
+                item.name.hasPrefix("Text File") ||
+                item.name.hasPrefix("Document") ||
+                item.name.hasPrefix("Untitled")
+        } else if item.isDirectory {
+            // New folders are empty and named "Folder" or "Folder N"
+            let contents = try? FileManager.default.contentsOfDirectory(atPath: item.url.path)
+            let isEmpty = contents?.isEmpty ?? false
+            let hasDefaultName = item.name.hasPrefix("Folder")
+            isLikelyNewItem = isEmpty && hasDefaultName
+        } else {
+            // New files are empty/tiny and have default names
+            let size = item.size ?? 0
+            let hasDefaultName = item.name.hasPrefix("Text File") || item.name.hasPrefix("Document") || item.name.hasPrefix("Untitled")
+            isLikelyNewItem = size < 100 && hasDefaultName
+        }
+
+        guard isLikelyNewItem else {
+            print("⚠️ SAFETY: Refusing to trash '\(item.name)' - doesn't look like a newly created item")
+            return
+        }
+
+        let restoreSelection = selectionBeforeNewItem
+        selectionBeforeNewItem = nil
+
+        Task {
+            do {
+                // Move to trash (not permanent delete) so user can recover if needed
+                // Don't register undo since user cancelled the creation - nothing to undo
+                try await FileOperationQueue.shared.delete(items: [item.location], undoManager: nil)
+                refresh()
+                if let restoreSelection {
+                    selectItem(at: restoreSelection)
+                }
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+}

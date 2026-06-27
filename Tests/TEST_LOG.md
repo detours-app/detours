@@ -2,6 +2,182 @@
 
 ## Latest Run
 
+### 2026-06-26 18:54 (Spectre live + Foundry XCUI)
+
+- Command: unit suites + a 99-test regression (Spectre);
+  `resources/scripts/wintest.sh WindowsRemoteLiveTests` x4 (Spectre, live
+  win-carriercall); `resources/scripts/uitest.sh` full suite (Foundry). Branch
+  `fix/windows-remote-hardening` at `5a92af3`.
+- Status: PASS
+- Notes: Three remote-hardening fixes proven end to end. (1) Quit teardown:
+  `RemoteConnectionRegistry.disconnectAll()` from `applicationWillTerminate`
+  closes each Windows host's shared SSH control master so command, transfer, and
+  watch sessions end at once instead of lingering via ControlPersist. (2)
+  Non-blocking, descriptive errors: `presentError` no longer runs a modal during
+  tests (a modal there deadlocked unattended runs and leaked xctest processes,
+  the surface cause of the suite "hang"); a remote copy/move/undo failure now
+  reads like "Couldn't copy A.txt on win-carriercall" with the host's own reason
+  and a next step, and the generic "Operation Failed" is retired;
+  FileProviderError and PowerShellChannelError are descriptive LocalizedErrors.
+  (3) Bounded process termination: `PowerShellProcessTransport.stopProcess()` no
+  longer calls an unbounded `waitUntilExit()` (which deadlocked the channel
+  forever when a wedged ssh ignored SIGTERM on a degraded host, the deeper suite
+  hang); it escalates SIGTERM to SIGKILL with bounded waits.
+- Verification: 12 new unit tests (RemoteConnectionTeardown, PresentErrorModal,
+  RemoteErrorMessaging, ProcessTermination) plus a 99-test regression of the
+  operation, Windows-transfer, conflict, and undo paths, all green; swiftlint
+  clean. WindowsRemoteLiveTests 11/11 green four times (including once on a host
+  already degraded with leaked processes), 0 failures, ~44s each, no hang. Full
+  Foundry XCUI suite: 79 tests, 1 skip, 0 failures (~22 min), all 13 UI suites
+  including WindowsRemoteUITests.
+- Watcher orphan leak FIXED: a watch used to leave a remote PowerShell orphaned
+  on the host (~9 per run) because under ssh connection-sharing the watcher never
+  notices its torn-down connection (Windows sshd keeps its stdin and stdout alive,
+  so neither EOF nor a failed write ever fires). The watcher now reports its own
+  PID in its ack and the watch channel kills it by PID over a fresh command
+  connection on unwatch, drop, and teardown. Quitting wires the same teardown
+  through the connection registry's onDisconnect hook so watches are stopped on
+  app exit too. Verified end to end: live suite 11/11 green twice with the host
+  process count back to baseline afterward (was 9, now 1); and quitting the
+  running app cleanly dropped the host watcher count from 5 to 1. Three
+  connection-teardown approaches were tried and discarded first; explicit PID
+  kill is the one that works.
+
+### 2026-06-26 14:48 (Foundry)
+
+- Command: `resources/scripts/uitest.sh SmokeTests`;
+  `resources/scripts/uitest.sh FolderExpansionUITests` (Foundry, commit
+  `653a52d`, active GUI session)
+- Status: PASS
+- Notes: App builds, codesigns, and installs cleanly on Foundry; the controller
+  and test-file split did not break launch. SmokeTests 4/4 (window, file list,
+  home button) and FolderExpansionUITests 30/30, 0 failures. The full UITests
+  target compiles (split test files and the new WindowsRemoteUITests reconnect
+  test). Live Windows integration/UI runs (T40-T43) against win-carriercall
+  remain pending a configured Windows test host.
+
+### 2026-06-26 14:48
+
+- Command: `swift test --filter FileOperationQueueTests --filter
+  RemoteTransferChannelTests --filter RemoteDragOutTests --filter
+  DetoursPreviewGeneratorTests --filter RemoteIntegrationTests`; `swift test
+  --filter WindowsRemoteLiveTests` (Spectre, branch `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: A9 regression T39 (122 local/Unix tests, 0 failures) confirms local and
+  Unix copy/move/upload/download/preview are unchanged. Live Windows integration
+  tests T40/T41/T42 added (conflict+undo+merge, interrupted-download safety,
+  dual-pane concurrent ops and watches); all 11 live tests compile and skip
+  cleanly without DETOURS_WINDOWS_TEST_TARGET. Live execution against
+  win-carriercall remains to be run on the test host.
+
+### 2026-06-26 14:40
+
+- Command: `swift test --filter testWindowsRemoteUploadConflictUsesShared
+  Resolution --filter WindowsTransferChannelTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Windows upload overwrite safety T15 (test T25) and ControlPersist T19.
+  6 tests, 0 failures. A same-name upload onto a Windows host now routes through
+  the shared Skip/Replace/Keep Both flow and the transfer layer refuses an
+  unapproved overwrite, while local/Unix uploads keep their existing behavior.
+
+### 2026-06-26 14:32
+
+- Command: `swift test --filter PowerShellChannelTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: PowerShell channel reliability T9/T10/T11/T13 with tests
+  T27/T28/T29 (plus T32 in the watch suite). 7 tests, 0 failures. A garbage
+  frame length is rejected before allocation; real connection drops and
+  reconnects publish state with no test injection; pane count reaching 0 mid
+  operation no longer tears the process down until the work drains and the idle
+  grace elapses; teardown clears state before awaiting.
+
+### 2026-06-26 14:20
+
+- Command: `swift test --filter WindowsWatchChannelTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Multi-watch support T7 and keepalive T8 with tests T30/T31/T32. 4
+  tests, 0 failures. Each watch now runs its own process keyed by watch id, so
+  two concurrent watches both deliver and closing one leaves the other alive;
+  heartbeat frames keep a quiet watch from tripping the read timeout without
+  surfacing as changes; a watch racing teardown leaks no continuation.
+
+### 2026-06-26 14:10
+
+- Command: `swift test --filter PowerShellChannelTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Per-host request serialization T6 with test T27... T26. 4 tests, 0
+  failures. A FIFO gate ensures only one request is in flight on the shared
+  oneShot transport at a time; eight concurrent requests all complete with
+  correlated replies and never overlap.
+
+### 2026-06-26 14:05
+
+- Command: `swift test --filter WindowsTransferChannelTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Windows download partial-file safety T4/T5 with test T24. 4 tests, 0
+  failures. The SFTP download now streams into a .detours-partial temp, verifies
+  the byte count, then atomically swaps into place; an interrupted/truncated
+  download leaves no corrupt file at the destination and a retry to the same
+  path succeeds. Existing SFTP/PowerShell fallback tests unchanged.
+
+### 2026-06-26 13:58
+
+- Command: `swift test --filter testWindowsRemoteCopyMoveConflictUsesShared
+  Resolution --filter testWindowsRemoteReplaceUndoRestoresDisplacedOriginal
+  --filter testCopyMoveOntoExistingTargetDoesNotSilentlyOverwrite --filter
+  testCopyMovePartialFailureLeavesOriginalRecoverable` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Windows copy/move data-safety blockers T1/T2/T3 with tests
+  T21/T22/T23. 4 tests, 0 failures, via a stateful in-memory Windows
+  filesystem stand-in transport. Verifies same-name collisions route through
+  the shared Skip/Replace/Keep Both flow without silent overwrite, folder
+  merges preserve existing contents, Replace plus undo restores the displaced
+  original, and a forced staged-write failure leaves the original intact.
+
+### 2026-06-26 13:46
+
+- Command: `swift build`; `swift test --filter FileOperationQueueTests
+  --filter FileListResponderTests --filter PaneViewControllerTests --filter
+  FileListDataSourceTests --filter DirectoryLoaderTests --filter
+  RemoteIntegrationTests --filter DetoursPreviewGeneratorTests --filter
+  WindowsRemoteProviderTests` (+ remote/Windows classes) (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Structural split of all 19 Swift files over 700 lines into per-feature
+  extension files (every source and test file now <= 700 lines). Pure code
+  moves plus access widening (private -> internal) and one file-private logger
+  per new file. Full build clean (0 errors). Regression classes for every split
+  file pass: 167 XCTest + Swift Testing suites + preview (19) + Windows/remote
+  (35), 0 failures. Fixed a stale archive-extract assertion left by the earlier
+  zip-slip change (ExtractToDirectory -> OpenRead/ExtractToFile). UITests split
+  files parse cleanly; full XCUI verification pending on Foundry.
+
+### 2026-06-26 12:53
+
+- Command: `swift test --filter RemoteHostKindRoutingTests` (Spectre, branch
+  `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Host-kind probe hardening T16 with test T38. 6 tests, 0 failures.
+  Verifies ConnectTimeout/BatchMode ssh flags, cached-kind reuse vs re-probe,
+  and clearing a cached kind when a host's ssh target changes.
+
+### 2026-06-26 12:50
+
+- Command: `swift test --filter WindowsPathTests --filter WindowsRepliesTests
+  --filter WindowsArchiveScriptTests --filter WindowsFindContractTests`
+  (Spectre, branch `fix/windows-remote-hardening`)
+- Status: PASS
+- Notes: Windows remote hardening, isolated tasks T12/T14/T17/T18 with tests
+  T33/T34/T35/T36/T37. 11 tests executed, 0 failures. Covers find-scope
+  isolation, malformed-reply rejection, git octal-escape decode contract,
+  path-traversal rejection, and archive zip-slip guard.
+
 ### 2026-06-25 14:31
 
 - Command: `resources/scripts/uitest.sh SmokeTests` (Foundry, commit

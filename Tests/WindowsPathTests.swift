@@ -32,4 +32,18 @@ final class WindowsPathTests: XCTestCase {
         XCTAssertEqual(profile.parent.remotePath, "/C:/Users")
         XCTAssertEqual(try syntheticRoot.appending("D:").remotePath, "/D:")
     }
+
+    func testRejectsParentTraversalSegments() throws {
+        XCTAssertThrowsError(try WindowsPath(remotePath: "/C:/Users/../secret")) { error in
+            XCTAssertEqual(error as? WindowsPathError, .parentTraversal("/C:/Users/../secret"))
+        }
+        XCTAssertThrowsError(try WindowsPath(remotePath: "/C:/Users/.."))
+        // Backslash-delimited traversal must be rejected too.
+        XCTAssertThrowsError(try WindowsPath(remotePath: "/C:/Users/..\\secret"))
+        XCTAssertThrowsError(try WindowsPath.remotePath(fromNative: "C:\\Users\\..\\secret"))
+
+        let base = try WindowsPath(remotePath: "/C:/Users/sans")
+        XCTAssertThrowsError(try base.appending(".."))
+        XCTAssertThrowsError(try base.appending("../secret"))
+    }
 }

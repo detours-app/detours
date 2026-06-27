@@ -11,13 +11,39 @@ enum PowerShellChannelError: Error, Equatable, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .responseIDMismatch(let expected, let actual):
-            return "PowerShell response id \(actual) did not match request id \(expected)."
-        case .remoteError(let message), .invalidResponse(let message), .processFailed(let message),
-             .timeout(let message):
-            return message
+        case .responseIDMismatch:
+            return "The Windows host sent a reply that didn't match the request."
+        case .remoteError:
+            return "The Windows host reported an error."
+        case .invalidResponse:
+            return "The Windows host sent an unexpected reply."
+        case .processFailed:
+            return "The connection to the Windows host failed."
+        case .timeout:
+            return "The Windows host stopped responding."
         case .unexpectedEOF:
-            return "The Windows PowerShell channel closed before sending a complete response."
+            return "The connection to the Windows host closed unexpectedly."
+        }
+    }
+
+    var failureReason: String? {
+        switch self {
+        case let .remoteError(message), let .processFailed(message):
+            // The host's own message (or the underlying ssh error) is the useful detail.
+            return message.isEmpty ? nil : message
+        case .responseIDMismatch, .invalidResponse, .timeout, .unexpectedEOF:
+            return nil
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .remoteError:
+            return "Check the item and your permissions on the host, then try again."
+        case .processFailed:
+            return "Check that the host is reachable over SSH, then try again."
+        case .responseIDMismatch, .invalidResponse, .timeout, .unexpectedEOF:
+            return "Reconnect to the host and try again."
         }
     }
 }
@@ -27,6 +53,14 @@ protocol PowerShellChannelTransport: Sendable {
     func sendFrame(_ frame: Data) async throws
     func readFrame() async throws -> Data
     func stop() async
+    /// Tears down the shared SSH control master for this host. The command, transfer, and
+    /// watch channels all multiplex over one ControlPath socket, so closing it ends every
+    /// session for the host at once. Transports without a real control master no-op.
+    func closeControlConnection() async
+}
+
+extension PowerShellChannelTransport {
+    func closeControlConnection() async {}
 }
 
 actor PowerShellChannel: RemoteConnectionHandle {
@@ -45,16 +79,34 @@ actor PowerShellChannel: RemoteConnectionHandle {
     }
 
     private let transport: any PowerShellChannelTransport
+    private let hostID: UUID?
+    private let idleTimeout: TimeInterval
     private var nextRequestID: UInt64 = 1
     private var isStarted = false
     private var activePaneCount = 0
+    private var inFlightOperationCount = 0
+    private var idleDisconnectTask: Task<Void, Never>?
+
+    // Serializes requests on the single shared oneShot transport: the actor releases its
+    // lock at every `await transport.*`, so without this gate a second concurrent `run()`
+    // could start its send/read while another is mid-flight and collide on the process.
+    private var isProcessingRequest = false
+    private var requestWaiters: [CheckedContinuation<Void, Never>] = []
+
+    private var state: SSHConnectionState = .disconnected {
+        didSet { publishStateChange(from: oldValue, to: state) }
+    }
 
     init(
+        hostID: UUID,
         sshTarget: String,
         controlDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".detours/ssh", isDirectory: true),
-        hostTrust: SSHHostTrust = SSHHostTrust()
+        hostTrust: SSHHostTrust = SSHHostTrust(),
+        idleTimeout: TimeInterval = 5 * 60
     ) {
+        self.hostID = hostID
+        self.idleTimeout = idleTimeout
         transport = PowerShellProcessTransport(
             sshTarget: sshTarget,
             controlDirectory: controlDirectory,
@@ -63,11 +115,43 @@ actor PowerShellChannel: RemoteConnectionHandle {
         )
     }
 
-    init(transport: any PowerShellChannelTransport) {
+    init(transport: any PowerShellChannelTransport, hostID: UUID? = nil, idleTimeout: TimeInterval = 5 * 60) {
         self.transport = transport
+        self.hostID = hostID
+        self.idleTimeout = idleTimeout
     }
 
     func run(_ script: PowerShellScript, operation: String) async throws -> Data {
+        await acquireRequestSlot()
+        beginInFlightOperation()
+        defer {
+            endInFlightOperation()
+            releaseRequestSlot()
+        }
+        do {
+            return try await sendAndReceive(script, operation: operation)
+        } catch let error as PowerShellChannelError where Self.isRemoteOperationError(error) {
+            // An operation-level error from a responsive host is not a connection drop; surface
+            // it to the caller without restarting or publishing a failed state.
+            throw error
+        } catch {
+            // A transient transport failure (a oneShot ssh that lost a race on the shared
+            // master, say) gets one quiet re-establish-and-retry before it is treated as a
+            // real drop, so a single hiccup never pauses the file-operation queue.
+            isStarted = false
+            await transport.stop()
+            do {
+                return try await sendAndReceive(script, operation: operation)
+            } catch let retryError as PowerShellChannelError where Self.isRemoteOperationError(retryError) {
+                throw retryError
+            } catch {
+                await restartAfterProtocolFailure(reason: .transport(error.localizedDescription))
+                throw error
+            }
+        }
+    }
+
+    private func sendAndReceive(_ script: PowerShellScript, operation: String) async throws -> Data {
         try await startIfNeeded()
         let requestID = nextRequestID
         nextRequestID += 1
@@ -80,47 +164,144 @@ actor PowerShellChannel: RemoteConnectionHandle {
         )
         let payload = try JSONEncoder.detoursWindows.encode(request)
         try await transport.sendFrame(try RPCStreamHandler.encodeFrame(payload))
-
-        do {
-            let responsePayload = try await transport.readFrame()
-            let response = try JSONDecoder.detoursWindows.decode(Response.self, from: responsePayload)
-            guard response.id == requestID else {
-                throw PowerShellChannelError.responseIDMismatch(expected: requestID, actual: response.id)
-            }
-            guard response.ok else {
-                throw PowerShellChannelError.remoteError(response.error ?? "PowerShell operation failed.")
-            }
-            return Data((response.resultJSON ?? "null").utf8)
-        } catch {
-            await restartAfterProtocolFailure()
-            throw error
+        let responsePayload = try await transport.readFrame()
+        let response = try JSONDecoder.detoursWindows.decode(Response.self, from: responsePayload)
+        guard response.id == requestID else {
+            throw PowerShellChannelError.responseIDMismatch(expected: requestID, actual: response.id)
         }
+        // A complete framed reply means the host connection is live, even if the operation it
+        // carried failed.
+        transition(to: .connected)
+        guard response.ok else {
+            throw PowerShellChannelError.remoteError(response.error ?? "PowerShell operation failed.")
+        }
+        return Data((response.resultJSON ?? "null").utf8)
     }
 
     func setActivePaneCount(_ count: Int) async {
         activePaneCount = max(0, count)
-        if activePaneCount == 0 {
-            Task { await stopIfIdle() }
-        }
+        scheduleIdleDisconnectIfNeeded()
     }
 
     func forceReconnect() async throws {
-        await transport.stop()
+        // Clear state before the teardown await so a concurrent request cannot observe a
+        // stale "started" flag while the transport is stopping.
         isStarted = false
+        cancelIdleDisconnect()
+        transition(to: .connecting)
+        await transport.stop()
         try await startIfNeeded()
+        // Verify reachability with a trivial request so a successful manual reconnect
+        // publishes .connected and resumes any paused queue operation.
+        _ = try await run(PowerShellScript(source: "$true"), operation: "ReconnectCheck")
     }
 
     func disconnect() async {
-        await transport.stop()
         isStarted = false
         activePaneCount = 0
+        inFlightOperationCount = 0
+        cancelIdleDisconnect()
+        await transport.stop()
+        // Close the shared control master so the host's watch and transfer sessions
+        // multiplexed over it do not linger after the channel goes away (e.g. on app quit).
+        await transport.closeControlConnection()
+        transition(to: .disconnected)
     }
 
     #if DEBUG
     func isStartedForTesting() -> Bool {
         isStarted
     }
+
+    func inFlightOperationCountForTesting() -> Int {
+        inFlightOperationCount
+    }
+
+    func simulateConnectedForTesting() {
+        transition(to: .connected)
+    }
     #endif
+
+    private func beginInFlightOperation() {
+        inFlightOperationCount += 1
+        cancelIdleDisconnect()
+    }
+
+    private func endInFlightOperation() {
+        inFlightOperationCount = max(0, inFlightOperationCount - 1)
+        scheduleIdleDisconnectIfNeeded()
+    }
+
+    private var hasIdleBlockers: Bool {
+        activePaneCount > 0 || inFlightOperationCount > 0
+    }
+
+    private func scheduleIdleDisconnectIfNeeded() {
+        cancelIdleDisconnect()
+        guard isStarted, !hasIdleBlockers else { return }
+        let timeout = idleTimeout
+        idleDisconnectTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            } catch {
+                return
+            }
+            await self?.disconnectForIdleIfStillInactive()
+        }
+    }
+
+    private func cancelIdleDisconnect() {
+        idleDisconnectTask?.cancel()
+        idleDisconnectTask = nil
+    }
+
+    private func disconnectForIdleIfStillInactive() async {
+        guard isStarted, !hasIdleBlockers else { return }
+        idleDisconnectTask = nil
+        // Idle teardown is silent: the connection logically still exists (the next request
+        // transparently reconnects), so it is not surfaced as a drop.
+        isStarted = false
+        await transport.stop()
+    }
+
+    /// True for an error the host returned about the operation itself (it responded, so the
+    /// connection is healthy), as opposed to a transport/protocol failure that is a real drop.
+    private static func isRemoteOperationError(_ error: PowerShellChannelError) -> Bool {
+        if case .remoteError = error { return true }
+        return false
+    }
+
+    private func transition(to newState: SSHConnectionState) {
+        guard state != newState else { return }
+        state = newState
+    }
+
+    private func publishStateChange(from oldState: SSHConnectionState, to newState: SSHConnectionState) {
+        guard let hostID else { return }
+        Task { @MainActor in
+            RemoteConnectionStateStore.shared.setState(newState, for: hostID, oldState: oldState)
+        }
+    }
+
+    /// FIFO mutex over the shared transport: each request fully completes its send and read
+    /// before the next begins. Ownership passes directly to the next waiter on release.
+    private func acquireRequestSlot() async {
+        if !isProcessingRequest {
+            isProcessingRequest = true
+            return
+        }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            requestWaiters.append(continuation)
+        }
+    }
+
+    private func releaseRequestSlot() {
+        if requestWaiters.isEmpty {
+            isProcessingRequest = false
+        } else {
+            requestWaiters.removeFirst().resume()
+        }
+    }
 
     private func startIfNeeded() async throws {
         guard !isStarted else { return }
@@ -128,18 +309,16 @@ actor PowerShellChannel: RemoteConnectionHandle {
         isStarted = true
     }
 
-    private func restartAfterProtocolFailure() async {
-        await transport.stop()
+    private func restartAfterProtocolFailure(reason: SSHConnectionFailureReason) async {
+        // Clear the started flag before the teardown await (T13), publish the drop, then
+        // re-arm if work is still pending so the next request reconnects transparently.
         isStarted = false
-        if activePaneCount > 0 {
+        cancelIdleDisconnect()
+        transition(to: .failed(reason: reason))
+        await transport.stop()
+        if hasIdleBlockers {
             try? await startIfNeeded()
         }
-    }
-
-    private func stopIfIdle() async {
-        guard activePaneCount == 0 else { return }
-        await transport.stop()
-        isStarted = false
     }
 
     static let dispatcherBase64 = dispatcherScript.utf16LittleEndianData.base64EncodedString()
@@ -290,9 +469,7 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         do {
             return try await Task.detached(priority: .userInitiated) {
                 try withExtendedLifetime((runningProcess, stdoutPipe)) {
-                    let lengthData = try Self.readExact(4, from: output)
-                    let length = Int(UInt32(bigEndianData: lengthData.prefix(4)))
-                    return try Self.readExact(length, from: output)
+                    try Self.readFramePayload(from: output)
                 }
             }.value
         } catch {
@@ -303,8 +480,39 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         }
     }
 
+    static func readFramePayload(from handle: FileHandle) throws -> Data {
+        let lengthData = try readExact(4, from: handle)
+        let length = Int(UInt32(bigEndianData: lengthData.prefix(4)))
+        // A garbage length from a stdout desync must not force a huge allocation; cap it at
+        // the same 16 MB ceiling the encoder enforces before reading the payload.
+        guard length <= RPCStreamHandler.defaultMaxFrameSize else {
+            throw RPCProtocolError.frameTooLarge(length)
+        }
+        return try readExact(length, from: handle)
+    }
+
     func stop() async {
         stopProcess()
+    }
+
+    func closeControlConnection() async {
+        // Ask the multiplexing master at this host's ControlPath to exit now. Because the
+        // command, transfer, and watch channels share one socket, a single exit request ends
+        // them all — including long-lived watcher processes — instead of leaving them orphaned
+        // until ControlPersist expires. Best effort: a missing master just exits nonzero.
+        let controlPath = "\(controlDirectory.path)/%C"
+        let target = sshTarget
+        let factory = processFactory
+        await Task.detached(priority: .userInitiated) {
+            let process = factory()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+            process.arguments = ["-o", "ControlPath=\(controlPath)", "-O", "exit", target]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+            process.waitUntilExit()
+            ProcessRetirement.retireOnMain(process)
+        }.value
     }
 
     private func stopProcess() {
@@ -314,11 +522,28 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         stdinPipe = nil
         stdoutPipe = nil
         stateLock.unlock()
-        if runningProcess?.isRunning == true {
-            runningProcess?.terminate()
-            runningProcess?.waitUntilExit()
-        }
+        Self.terminatePromptly(runningProcess)
         ProcessRetirement.retireOnMain(runningProcess)
+    }
+
+    /// Terminates a process without ever blocking indefinitely. A plain `waitUntilExit()` after
+    /// `terminate()` deadlocks the channel forever when a wedged ssh ignores SIGTERM (e.g. stuck
+    /// on a degraded host), so escalate to SIGKILL after a short grace and bound every wait.
+    static func terminatePromptly(_ process: Process?) {
+        guard let process, process.isRunning else { return }
+        process.terminate()
+        if waitForExit(process, within: 0.5) { return }
+        kill(process.processIdentifier, SIGKILL)
+        _ = waitForExit(process, within: 0.5)
+    }
+
+    private static func waitForExit(_ process: Process, within timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning {
+            if Date() >= deadline { return false }
+            usleep(10_000)
+        }
+        return true
     }
 
     private func processForWriting() throws -> (Process, Pipe) {
@@ -351,6 +576,9 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         [
             "-o", "ControlMaster=auto",
             "-o", "ControlPath=\(controlDirectory.path)/%C",
+            // Keep the multiplexed master alive after a oneShot request exits so terminating
+            // it cannot drop a watch or transfer connection sharing the same control path.
+            "-o", "ControlPersist=300",
         ] + hostTrust.sshArguments + [
             sshTarget,
             "powershell.exe",

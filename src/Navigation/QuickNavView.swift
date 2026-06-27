@@ -165,22 +165,27 @@ struct QuickNavView: View {
     }
 
     private var remoteHost: RemoteHost? {
-        if case .remote(let host, _, _) = scope { return host }
+        if case .remote(let host, _, _, _) = scope { return host }
         return nil
     }
 
     private var remoteProvider: (any FileProvider)? {
-        if case .remote(_, let provider, _) = scope { return provider }
+        if case .remote(_, let provider, _, _) = scope { return provider }
+        return nil
+    }
+
+    private var remoteSearchRoot: Location? {
+        if case .remote(_, _, _, let searchRoot) = scope { return searchRoot }
         return nil
     }
 
     private var isDisconnectedRemote: Bool {
-        if case .remote(_, _, let isConnected) = scope { return !isConnected }
+        if case .remote(_, _, let isConnected, _) = scope { return !isConnected }
         return false
     }
 
     private var scopeHeaderText: String {
-        if case .remote(let host, _, _) = scope {
+        if case .remote(let host, _, _, _) = scope {
             return "Searching \(host.displayName) - entire host"
         }
         return "This Mac"
@@ -449,13 +454,14 @@ struct QuickNavView: View {
         updateRemoteMergedResults()
 
         let cap = remoteSearchCap
+        let searchRoot = remoteSearchRoot
         remoteSearchTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: spotlightDebounceInterval)
             guard !Task.isCancelled else { return }
 
             var collected: [QuickNavResult] = []
             do {
-                for try await batch in provider.find(query: trimmed, cap: cap) {
+                for try await batch in provider.find(query: trimmed, cap: cap, root: searchRoot) {
                     guard !Task.isCancelled else { return }
                     collected.append(contentsOf: batch.map { item in
                         QuickNavResult.remote(
@@ -506,98 +512,6 @@ struct QuickNavView: View {
             limit: maxResults
         )
         selectedIndex = results.isEmpty ? 0 : min(selectedIndex, results.count - 1)
-    }
-
-    private static func localMatches(
-        for query: String,
-        in roots: [URL],
-        includeHidden: Bool,
-        limit: Int
-    ) async -> [URL] {
-        await Task.detached(priority: .userInitiated) {
-            let tokens = query
-                .split(whereSeparator: { $0.isWhitespace })
-                .map { String($0).lowercased() }
-            guard !tokens.isEmpty, !roots.isEmpty else { return [] }
-
-            let fileManager = FileManager.default
-            let maxDepth = 4
-            let maxVisitedPerRoot = 5_000
-            var seen = Set<String>()
-            var matches: [(url: URL, isDirectory: Bool, depth: Int)] = []
-
-            for root in roots {
-                guard matches.count < limit else { break }
-
-                let rootURL = root.standardizedFileURL
-                var isRootDirectory: ObjCBool = false
-                guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isRootDirectory),
-                      isRootDirectory.boolValue else {
-                    continue
-                }
-
-                var options: FileManager.DirectoryEnumerationOptions = [.skipsPackageDescendants]
-                if !includeHidden {
-                    options.insert(.skipsHiddenFiles)
-                }
-
-                guard let enumerator = fileManager.enumerator(
-                    at: rootURL,
-                    includingPropertiesForKeys: [.isDirectoryKey],
-                    options: options
-                ) else {
-                    continue
-                }
-
-                let rootDepth = rootURL.pathComponents.count
-                var visited = 0
-
-                while let candidate = enumerator.nextObject() as? URL {
-                    if Task.isCancelled || matches.count >= limit || visited >= maxVisitedPerRoot {
-                        break
-                    }
-                    visited += 1
-
-                    let url = candidate.standardizedFileURL
-                    let depth = max(0, url.pathComponents.count - rootDepth)
-                    if depth > maxDepth {
-                        enumerator.skipDescendants()
-                        continue
-                    }
-
-                    if url.path.contains(".app/") ||
-                        url.path.contains(".xcodeproj/") ||
-                        url.path.contains(".xcworkspace/") ||
-                        url.path.contains("node_modules/") ||
-                        url.path.contains(".git/") {
-                        enumerator.skipDescendants()
-                        continue
-                    }
-
-                    let name = url.lastPathComponent.lowercased()
-                    guard tokens.allSatisfy({ name.localizedCaseInsensitiveContains($0) }) else {
-                        continue
-                    }
-
-                    let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
-                    let isDirectory = values?.isDirectory == true
-                    guard seen.insert(url.path).inserted else { continue }
-                    matches.append((url, isDirectory, depth))
-                }
-            }
-
-            matches.sort { lhs, rhs in
-                if lhs.isDirectory != rhs.isDirectory {
-                    return lhs.isDirectory
-                }
-                if lhs.depth != rhs.depth {
-                    return lhs.depth < rhs.depth
-                }
-                return lhs.url.lastPathComponent.localizedStandardCompare(rhs.url.lastPathComponent) == .orderedAscending
-            }
-
-            return matches.prefix(limit).map(\.url)
-        }.value
     }
 
     private func moveSelection(by delta: Int) {

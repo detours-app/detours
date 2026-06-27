@@ -38,8 +38,14 @@ final class RemoteHostStore {
     @discardableResult
     func upsert(_ host: RemoteHost) -> RemoteHost {
         if let index = hosts.firstIndex(where: { $0.id == host.id }) {
-            hosts[index] = host
-            return host
+            var updated = host
+            // When an existing host is repointed at a different ssh target, the cached
+            // host kind belongs to the old target; clear it so the next connect re-probes.
+            if Self.normalizedTarget(hosts[index].sshTarget) != Self.normalizedTarget(host.sshTarget) {
+                updated.kind = nil
+            }
+            hosts[index] = updated
+            return updated
         } else if let index = hosts.firstIndex(where: { Self.normalizedTarget($0.sshTarget) == Self.normalizedTarget(host.sshTarget) }) {
             let existing = hosts[index]
             let updated = RemoteHost(

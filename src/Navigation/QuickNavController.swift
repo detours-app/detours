@@ -4,7 +4,7 @@ import SwiftUI
 /// What Quick Open is searching: the Mac, or a specific remote host (which may be disconnected).
 enum QuickNavScope {
     case local
-    case remote(host: RemoteHost, provider: any FileProvider, isConnected: Bool)
+    case remote(host: RemoteHost, provider: any FileProvider, isConnected: Bool, searchRoot: Location?)
 }
 
 /// Borderless floating panel that can receive keyboard input.

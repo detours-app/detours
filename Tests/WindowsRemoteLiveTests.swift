@@ -123,7 +123,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
             let quickLookURL = try await fixture.provider.openForQuickLook(remote)
             let quickLookData = try Data(contentsOf: quickLookURL)
             var found: [FoundItem] = []
-            for try await batch in fixture.provider.find(query: name, cap: 20) {
+            for try await batch in fixture.provider.find(query: name, cap: 20, root: fixture.root) {
                 found.append(contentsOf: batch)
             }
 
@@ -142,10 +142,6 @@ final class WindowsRemoteLiveTests: XCTestCase {
                     changeReceived.fulfill()
                 }
             }
-            defer {
-                Task { await fixture.provider.unwatch(watch) }
-            }
-
             try await fixture.run(
                 operation: "CreateWatchedFile",
                 source: """
@@ -157,6 +153,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
             )
 
             await fulfillment(of: [changeReceived], timeout: 5.0)
+            await fixture.provider.unwatch(watch)
             let locations = await recorder.locations
             XCTAssertTrue(locations.contains(fixture.root.appendingPathComponent("watched.txt")))
         }
@@ -184,11 +181,115 @@ final class WindowsRemoteLiveTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testCopyMoveUploadConflictAndUndoOnExistingTarget() async throws {
+        try await withMainFixture { fixture in
+            let queue = FileOperationQueue.shared
+            queue.registerRemoteFileProvider(fixture.provider, for: fixture.hostID)
+            defer { queue.unregisterRemoteFileProvider(for: fixture.hostID) }
+
+            let dst = fixture.root.appendingPathComponent("dst")
+            let src = fixture.root.appendingPathComponent("src")
+            try await fixture.provider.createDirectory(at: dst, withIntermediateDirectories: false)
+            try await fixture.provider.createDirectory(at: src, withIntermediateDirectories: false)
+            try await fixture.upload(Data("original".utf8), to: dst.appendingPathComponent("A.txt"))
+            try await fixture.upload(Data("new".utf8), to: src.appendingPathComponent("A.txt"))
+
+            // Replace then undo restores the displaced original (A1, A2).
+            let undoManager = UndoManager()
+            queue.conflictChoiceOverrideForTesting = .replace
+            _ = try await queue.copy(items: [src.appendingPathComponent("A.txt")], to: dst, undoManager: undoManager)
+            queue.conflictChoiceOverrideForTesting = nil
+            undoManager.undo()
+            try await Task.sleep(nanoseconds: 800_000_000)
+            let restored = try await fixture.provider.stat(dst.appendingPathComponent("A.txt"))
+            XCTAssertEqual(restored.name, "A.txt")
+
+            // Folder copy onto an existing same-name folder merges, preserving existing contents (A3).
+            let mergeSrc = fixture.root.appendingPathComponent("mergeSrc/folder")
+            let mergeDst = fixture.root.appendingPathComponent("mergeDst/folder")
+            try await fixture.provider.createDirectory(at: mergeSrc, withIntermediateDirectories: true)
+            try await fixture.provider.createDirectory(at: mergeDst, withIntermediateDirectories: true)
+            try await fixture.upload(Data("c".utf8), to: mergeSrc.appendingPathComponent("child.txt"))
+            try await fixture.upload(Data("e".utf8), to: mergeDst.appendingPathComponent("existing.txt"))
+            _ = try await queue.copy(items: [mergeSrc], to: fixture.root.appendingPathComponent("mergeDst"))
+            let mergedChild = try await fixture.provider.stat(mergeDst.appendingPathComponent("child.txt"))
+            let mergedExisting = try await fixture.provider.stat(mergeDst.appendingPathComponent("existing.txt"))
+            XCTAssertEqual(mergedChild.name, "child.txt")
+            XCTAssertEqual(mergedExisting.name, "existing.txt")
+        }
+    }
+
+    func testInterruptedDownloadLeavesNoCorruptFileAndRetrySucceeds() async throws {
+        try await withFixture { fixture in
+            let remote = fixture.root.appendingPathComponent("download-safe.bin")
+            let payload = Data((0..<4096).map { UInt8($0 % 251) })
+            try await fixture.upload(payload, to: remote)
+
+            let destination = FileManager.default.temporaryDirectory.appendingPathComponent("detours-live-\(UUID().uuidString).bin")
+            defer { try? FileManager.default.removeItem(at: destination) }
+            let partial = RemoteTransferChannel.partialURL(for: destination)
+
+            try await fixture.provider.download(remote, to: destination)
+            XCTAssertEqual(try Data(contentsOf: destination), payload)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path), "no partial temp may be left behind")
+
+            // A retry to a fresh path also succeeds and leaves no partial behind.
+            let retryDestination = FileManager.default.temporaryDirectory.appendingPathComponent("detours-live-\(UUID().uuidString).bin")
+            defer { try? FileManager.default.removeItem(at: retryDestination) }
+            try await fixture.provider.download(remote, to: retryDestination)
+            XCTAssertEqual(try Data(contentsOf: retryDestination), payload)
+        }
+    }
+
+    func testConcurrentDualPaneOperationsAndWatches() async throws {
+        try await withFixture { fixture in
+            let paneA = fixture.root.appendingPathComponent("paneA")
+            let paneB = fixture.root.appendingPathComponent("paneB")
+            try await fixture.provider.createDirectory(at: paneA, withIntermediateDirectories: false)
+            try await fixture.provider.createDirectory(at: paneB, withIntermediateDirectories: false)
+
+            let recorder = LiveWatchRecorder()
+            let watchA = try await fixture.provider.watch(paneA) { loc in Task { await recorder.record(loc) } }
+            let watchB = try await fixture.provider.watch(paneB) { loc in Task { await recorder.record(loc) } }
+
+            // Concurrent operations on the same host serialize cleanly with no collisions.
+            async let listA = fixture.provider.list(paneA, showHidden: true)
+            async let listB = fixture.provider.list(paneB, showHidden: true)
+            _ = try await (listA, listB)
+
+            try await fixture.upload(Data("a".utf8), to: paneA.appendingPathComponent("a.txt"))
+            try await fixture.upload(Data("b".utf8), to: paneB.appendingPathComponent("b.txt"))
+
+            // Both watches deliver their own directory's change.
+            try await waitUntilLive(timeout: 8.0) {
+                let locations = await recorder.locations
+                return locations.contains(where: { $0.path.contains("paneA") })
+                    && locations.contains(where: { $0.path.contains("paneB") })
+            }
+
+            // Deterministically tear the watches down before the fixture cleans up, so a run
+            // never leaves a leaked watcher that degrades the host for the next test. On a throw,
+            // the fixture's control-master close still ends the watch sessions.
+            await fixture.provider.unwatch(watchA)
+            await fixture.provider.unwatch(watchB)
+        }
+    }
+
+    private func waitUntilLive(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTFail("Live condition not met within \(timeout)s")
+    }
+
     private func withFixture(_ body: (WindowsLiveFixture) async throws -> Void) async throws {
         guard let target else {
             throw XCTSkip("Set DETOURS_WINDOWS_TEST_TARGET to run Windows live tests.")
         }
-        guard try await canReachWindowsHost(target: target) else {
+        guard try await Self.canReachWindowsHost(target: target) else {
             throw XCTSkip("Windows host \(target) is unreachable.")
         }
         let fixture = try await WindowsLiveFixture(target: target)
@@ -201,7 +302,25 @@ final class WindowsRemoteLiveTests: XCTestCase {
         }
     }
 
-    private func canReachWindowsHost(target: String) async throws -> Bool {
+    @MainActor
+    private func withMainFixture(_ body: @MainActor (WindowsLiveFixture) async throws -> Void) async throws {
+        guard let target else {
+            throw XCTSkip("Set DETOURS_WINDOWS_TEST_TARGET to run Windows live tests.")
+        }
+        guard try await Self.canReachWindowsHost(target: target) else {
+            throw XCTSkip("Windows host \(target) is unreachable.")
+        }
+        let fixture = try await WindowsLiveFixture(target: target)
+        do {
+            try await body(fixture)
+            try await fixture.cleanup()
+        } catch {
+            try? await fixture.cleanup()
+            throw error
+        }
+    }
+
+    private static func canReachWindowsHost(target: String) async throws -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
         process.arguments = [
@@ -229,15 +348,33 @@ private actor LiveWatchRecorder {
 private struct WindowsLiveFixture {
     let target: String
     let hostID = UUID()
+    let controlDirectory: URL
     let channel: PowerShellChannel
     let provider: WindowsRemoteProvider
     let root: Location
 
     init(target: String) async throws {
         self.target = target
-        channel = PowerShellChannel(sshTarget: target)
+        // Each fixture gets its own SSH ControlPath so tests never share a control master.
+        // That fully isolates per-test sessions: no leaked watcher session from one test can
+        // accumulate over a shared master and exhaust the host's MaxSessions for a later test.
+        // Keep the directory short and under the home dir: <dir>/%C must stay within the
+        // ~104-char unix-socket path limit, which the long /var/folders temp path blows past.
+        let controlDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".detours/lt-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: controlDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
+        )
+        self.controlDirectory = controlDir
+
+        let channel = PowerShellChannel(hostID: hostID, sshTarget: target, controlDirectory: controlDir)
+        self.channel = channel
         try await channel.forceReconnect()
-        provider = WindowsRemoteProvider(hostID: hostID, sshTarget: target, channel: channel)
+        let transferChannel = WindowsTransferChannel(sshTarget: target, powerShellChannel: channel, controlDirectory: controlDir)
+        let watchChannel = WindowsWatchChannel(hostID: hostID, sshTarget: target, controlDirectory: controlDir)
+        provider = WindowsRemoteProvider(
+            hostID: hostID, channel: channel, transferChannel: transferChannel, watchChannel: watchChannel
+        )
         let home = try await provider.homeDirectory()
         root = Location.remote(hostID: hostID, path: home)
             .appendingPathComponent("DetoursLiveTests-\(UUID().uuidString)")
@@ -245,6 +382,9 @@ private struct WindowsLiveFixture {
     }
 
     func cleanup() async throws {
+        // Tear down this fixture's own control master (and its sessions) and drop the socket
+        // directory, leaving a clean SSH slate for the next test.
+        defer { Self.closeControlConnection(target: target, controlDirectory: controlDirectory) }
         do {
             try await run(
                 operation: "Cleanup",
@@ -260,6 +400,17 @@ private struct WindowsLiveFixture {
             await channel.disconnect()
             throw error
         }
+    }
+
+    private static func closeControlConnection(target: String, controlDirectory: URL) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = ["-o", "ControlPath=\(controlDirectory.path)/%C", "-O", "exit", target]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
+        try? FileManager.default.removeItem(at: controlDirectory)
     }
 
     func upload(_ data: Data, to location: Location) async throws {

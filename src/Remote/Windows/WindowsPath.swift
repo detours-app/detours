@@ -4,6 +4,7 @@ enum WindowsPathError: Error, Equatable {
     case expectedRemote(Location)
     case invalidDrivePath(String)
     case nativePathRequired(String)
+    case parentTraversal(String)
 }
 
 struct WindowsPath: Equatable, Sendable {
@@ -61,6 +62,9 @@ struct WindowsPath: Equatable, Sendable {
             .replacingOccurrences(of: "\\", with: "/")
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard !cleaned.isEmpty else { return self }
+        guard !cleaned.split(separator: "/").contains("..") else {
+            throw WindowsPathError.parentTraversal(component)
+        }
         if isSyntheticRoot {
             return try WindowsPath(remotePath: "/" + cleaned)
         }
@@ -81,7 +85,12 @@ struct WindowsPath: Equatable, Sendable {
         let trimmed = slashPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard !trimmed.isEmpty else { return Self.syntheticRoot }
 
-        let firstComponent = trimmed.split(separator: "/", maxSplits: 1).first.map(String.init) ?? ""
+        let segments = trimmed.split(separator: "/").map(String.init)
+        guard !segments.contains("..") else {
+            throw WindowsPathError.parentTraversal(path)
+        }
+
+        let firstComponent = segments.first ?? ""
         guard isDriveComponent(firstComponent) else {
             throw WindowsPathError.invalidDrivePath(path)
         }

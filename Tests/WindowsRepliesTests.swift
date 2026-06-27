@@ -63,6 +63,32 @@ final class WindowsRepliesTests: XCTestCase {
         XCTAssertEqual(error.category, "PermissionDenied")
         XCTAssertEqual(error.fullyQualifiedErrorID, "UnauthorizedAccess")
     }
+
+    func testDecodeArrayOrSingleRejectsMalformedNonNull() throws {
+        // The exact literal `null` (with optional surrounding whitespace) is the empty result.
+        XCTAssertTrue(try WindowsReplyDecoder.decodeArrayOrSingle(
+            WindowsErrorEnvelope.self, from: Data("null".utf8)).isEmpty)
+        XCTAssertTrue(try WindowsReplyDecoder.decodeArrayOrSingle(
+            WindowsErrorEnvelope.self, from: Data("  null\n".utf8)).isEmpty)
+
+        // Any other `n`-prefixed or non-array/non-object payload must surface a decode error.
+        XCTAssertThrowsError(try WindowsReplyDecoder.decodeArrayOrSingle(
+            WindowsErrorEnvelope.self, from: Data("nan".utf8)))
+        XCTAssertThrowsError(try WindowsReplyDecoder.decodeArrayOrSingle(
+            WindowsErrorEnvelope.self, from: Data("nul".utf8)))
+        XCTAssertThrowsError(try WindowsReplyDecoder.decodeArrayOrSingle(
+            WindowsErrorEnvelope.self, from: Data("123".utf8)))
+    }
+
+    func testGitStatusDecodesOctalEscapedNames() {
+        // The decode runs host-side in PowerShell; assert the parser wires git's
+        // octal-escape decoding (\NNN bytes -> UTF-8) into the status path.
+        let script = WindowsFindScripts.gitStatus
+        XCTAssertTrue(script.contains("function Convert-GitQuotedName"))
+        XCTAssertTrue(script.contains("[Convert]::ToByte($inner.Substring($i + 1, 3), 8)"))
+        XCTAssertTrue(script.contains("[System.Text.Encoding]::UTF8.GetString($bytes.ToArray())"))
+        XCTAssertTrue(script.contains("$fileName = Convert-GitQuotedName -Name $fileName"))
+    }
 }
 
 private struct WindowsDriveEntryForTest {

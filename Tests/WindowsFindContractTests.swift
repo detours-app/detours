@@ -23,7 +23,8 @@ final class WindowsFindContractTests: XCTestCase {
 
         _ = try await provider.homeDirectory()
         var batches: [[FoundItem]] = []
-        for try await batch in provider.find(query: "target", cap: 5_000) {
+        let searchRoot = Location.remote(hostID: hostID, path: "/C:/Users/sans")
+        for try await batch in provider.find(query: "target", cap: 5_000, root: searchRoot) {
             batches.append(batch)
         }
         let requests = await transport.requests
@@ -41,6 +42,36 @@ final class WindowsFindContractTests: XCTestCase {
         XCTAssertTrue(findRequest.decodedScript.contains("Get-ChildItem -LiteralPath $directory.FullName -Force"))
         XCTAssertTrue(findRequest.decodedScript.contains("'Program Files (x86)'"))
         XCTAssertTrue(findRequest.decodedScript.contains("'AppData'"))
+    }
+
+    func testFindScopeStableAcrossConcurrentListings() async throws {
+        let hostID = UUID()
+        let listJSON = #"[{"Name":"x","FullName":"D:\\Other\\x","PSIsContainer":false,"Attributes":"Archive","Length":1,"LastWriteTimeUtc":0}]"#
+        let findJSON = #"[{"FullName":"C:\\Project\\hit.txt","PSIsContainer":false}]"#
+        let transport = FindScriptTransport(responses: ["List": listJSON, "Find": findJSON])
+        let channel = PowerShellChannel(transport: transport)
+        let provider = WindowsRemoteProvider(
+            hostID: hostID,
+            channel: channel,
+            transferChannel: WindowsTransferChannel(
+                powerShellChannel: channel,
+                sftpClient: FindFakeWindowsSFTPClient()
+            )
+        )
+
+        // Another pane lists a different directory; this must not redirect the search root.
+        _ = try await provider.list(.remote(hostID: hostID, path: "/D:/Other"), showHidden: false)
+
+        var items: [FoundItem] = []
+        let searchRoot = Location.remote(hostID: hostID, path: "/C:/Project")
+        for try await batch in provider.find(query: "hit", cap: 100, root: searchRoot) {
+            items.append(contentsOf: batch)
+        }
+
+        let requests = await transport.requests
+        let findRequest = try XCTUnwrap(requests.first { $0.operation == "Find" })
+        XCTAssertTrue(findRequest.argumentsJSON.contains(#""root":"C:\\Project""#))
+        XCTAssertEqual(items.first?.location, .remote(hostID: hostID, path: "/C:/Project/hit.txt"))
     }
 }
 

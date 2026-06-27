@@ -6,7 +6,6 @@ actor WindowsRemoteProvider: FileProvider {
     private let channel: PowerShellChannel
     private let transferChannel: WindowsTransferChannel
     private let watchChannel: WindowsWatchChannel?
-    private let searchScope = WindowsSearchScope()
     private var rawPaths: [Location: String] = [:]
     private var archiveToolAvailability: WindowsArchiveToolAvailability?
 
@@ -33,7 +32,6 @@ actor WindowsRemoteProvider: FileProvider {
         let script = PowerShellScript(source: Self.homeDirectoryScript)
         let data = try await channel.run(script, operation: "HomeDirectory")
         let nativePath = try JSONDecoder.detoursWindows.decode(String.self, from: data)
-        searchScope.setActiveDirectory(nativePath)
         return try WindowsPath.remotePath(fromNative: nativePath)
     }
 
@@ -46,7 +44,6 @@ actor WindowsRemoteProvider: FileProvider {
         guard let nativePath = windowsPath.nativePath else {
             throw WindowsPathError.nativePathRequired(windowsPath.remotePath)
         }
-        searchScope.setActiveDirectory(nativePath)
         let arguments = PathArguments(path: nativePath, showHidden: showHidden)
         let script = try PowerShellScript(source: Self.listScript, arguments: arguments)
         let data = try await channel.run(script, operation: "List")
@@ -85,6 +82,31 @@ actor WindowsRemoteProvider: FileProvider {
         let script = try PowerShellScript(source: Self.moveScript, arguments: arguments)
         let data = try await channel.run(script, operation: "Move")
         return try decodeNativeLocations(from: data)
+    }
+
+    /// Copy a single item to an exact target path, refusing to overwrite an existing
+    /// target. The file operation queue uses this to place items after resolving any
+    /// same-name conflict, so nothing is silently clobbered.
+    func copyItem(_ source: Location, to target: Location) async throws -> Location {
+        try await transferItem(source, to: target, scriptSource: Self.copyItemScript, operation: "CopyItem")
+    }
+
+    /// Move a single item to an exact target path, refusing to overwrite an existing target.
+    func moveItem(_ source: Location, to target: Location) async throws -> Location {
+        try await transferItem(source, to: target, scriptSource: Self.moveItemScript, operation: "MoveItem")
+    }
+
+    private func transferItem(_ source: Location, to target: Location, scriptSource: String, operation: String) async throws -> Location {
+        let arguments = try ItemTransferArguments(
+            source: nativePath(from: windowsPath(from: source)),
+            target: nativePath(from: windowsPath(from: target))
+        )
+        let script = try PowerShellScript(source: scriptSource, arguments: arguments)
+        let data = try await channel.run(script, operation: operation)
+        guard let location = try decodeNativeLocations(from: data).first else {
+            throw RemoteFileProviderError.invalidResponse(operation)
+        }
+        return location
     }
 
     func delete(_ items: [Location]) async throws {
@@ -205,6 +227,12 @@ actor WindowsRemoteProvider: FileProvider {
         await watchChannel?.unwatch(watch)
     }
 
+    /// Tears down every watch on this host, killing each remote watcher process. Used on app
+    /// quit so watchers do not orphan on the host when the connection is abandoned.
+    func stopWatching() async {
+        await watchChannel?.stop()
+    }
+
     func gitStatus(for directory: Location) async -> [Location: GitStatus] {
         guard let windowsPath = try? windowsPath(from: directory),
               let nativePath = windowsPath.nativePath else {
@@ -304,10 +332,20 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     nonisolated func find(query: String, cap: Int) -> AsyncThrowingStream<[FoundItem], Error> {
+        find(query: query, cap: cap, root: nil)
+    }
+
+    nonisolated func find(query: String, cap: Int, root: Location?) -> AsyncThrowingStream<[FoundItem], Error> {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let hostID = self.hostID
         let channel = self.channel
-        let root = searchScope.activeDirectory
+        // Capture the search root for this call only. It is derived from the directory the
+        // search was launched from, never from shared mutable state, so a concurrent listing
+        // in another pane cannot redirect this search.
+        let root: String? = {
+            guard let root, let windowsPath = try? WindowsPath(location: root, hostID: hostID) else { return nil }
+            return windowsPath.nativePath
+        }()
 
         return AsyncThrowingStream { continuation in
             guard !trimmed.isEmpty, let root else {
@@ -441,6 +479,11 @@ private struct TransferArguments: Encodable {
     let destination: String
 }
 
+private struct ItemTransferArguments: Encodable {
+    let source: String
+    let target: String
+}
+
 private struct TrashArguments: Encodable {
     let paths: [String]
 }
@@ -531,21 +574,6 @@ private enum WindowsTrashLocation {
     }
 }
 
-private final class WindowsSearchScope: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage: String?
-
-    var activeDirectory: String? {
-        lock.withLock { storage }
-    }
-
-    func setActiveDirectory(_ path: String) {
-        lock.withLock {
-            storage = path
-        }
-    }
-}
-
 private struct VersionReply: Decodable {
     let sha256: String
     let modificationDate: Date
@@ -554,238 +582,4 @@ private struct VersionReply: Decodable {
         case sha256 = "SHA256"
         case modificationDate = "LastWriteTimeUtc"
     }
-}
-
-private extension WindowsRemoteProvider {
-    static let homeDirectoryScript = PowerShellScript.prelude(
-        operationBody: """
-        [Environment]::GetFolderPath('UserProfile')
-        """
-    )
-
-    static let driveListScript = PowerShellScript.prelude(
-        operationBody: """
-        Get-PSDrive -PSProvider FileSystem | ForEach-Object {
-            [pscustomobject]@{
-                Name = $_.Name
-                Root = $_.Root
-                Free = if ($null -eq $_.Free) { $null } else { [int64]$_.Free }
-                Used = if ($null -eq $_.Used) { $null } else { [int64]$_.Used }
-            }
-        }
-        """
-    )
-
-    static let listScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        function Convert-Item($Item) {
-            [pscustomobject]@{
-                Name = $Item.Name
-                FullName = $Item.FullName
-                PSIsContainer = [bool]$Item.PSIsContainer
-                Attributes = $Item.Attributes.ToString()
-                Length = if ($Item.PSIsContainer) { $null } else { [int64]$Item.Length }
-                LastWriteTimeUtc = [int64]([DateTimeOffset]$Item.LastWriteTimeUtc).ToUnixTimeMilliseconds()
-            }
-        }
-
-        Get-ChildItem -LiteralPath $Arguments.path -Force | Where-Object {
-            [bool]$Arguments.showHidden -or -not ($_.Attributes -band [System.IO.FileAttributes]::Hidden)
-        } | ForEach-Object { Convert-Item $_ }
-        """
-    )
-
-    static let statScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        $item = Get-Item -LiteralPath $Arguments.path -Force
-        [pscustomobject]@{
-            Name = $item.Name
-            FullName = $item.FullName
-            PSIsContainer = [bool]$item.PSIsContainer
-            Attributes = $item.Attributes.ToString()
-            Length = if ($item.PSIsContainer) { $null } else { [int64]$item.Length }
-            LastWriteTimeUtc = [int64]([DateTimeOffset]$item.LastWriteTimeUtc).ToUnixTimeMilliseconds()
-        }
-        """
-    )
-
-    static let createDirectoryScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        if ($Arguments.intermediate) {
-            [System.IO.Directory]::CreateDirectory($Arguments.path) | Out-Null
-        } else {
-            New-Item -ItemType Directory -Path $Arguments.path -ErrorAction Stop | Out-Null
-        }
-        $Arguments.path
-        """
-    )
-
-    static let renameScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        $item = Get-Item -LiteralPath $Arguments.path -Force
-        $parent = [System.IO.Path]::GetDirectoryName($item.FullName)
-        $destination = Join-Path -Path $parent -ChildPath $Arguments.newName
-        Rename-Item -LiteralPath $item.FullName -NewName $Arguments.newName -ErrorAction Stop
-        (Get-Item -LiteralPath $destination -Force).FullName
-        """
-    )
-
-    static let copyScript = transferScript(
-        verb: "copy",
-        itemCommand: "Copy-Item -LiteralPath $sourceItem.FullName -Destination $target -Recurse -Force -ErrorAction Stop"
-    )
-
-    static let moveScript = transferScript(
-        verb: "move",
-        itemCommand: "Move-Item -LiteralPath $sourceItem.FullName -Destination $target -Force -ErrorAction Stop"
-    )
-
-    private static func transferScript(verb: String, itemCommand: String) -> String {
-        PowerShellScript.prelude(
-            operationBody: """
-            param($Arguments)
-            \(recycleBinHelpers)
-
-            foreach ($source in $Arguments.sources) {
-                $sourceItem = Get-Item -LiteralPath $source -Force
-                $target = Join-Path -Path $Arguments.destination -ChildPath $sourceItem.Name
-                if ([string]::Equals($sourceItem.FullName, $target, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    throw "Cannot \(verb) an item onto itself: $($sourceItem.FullName)"
-                }
-                if (Test-Path -LiteralPath $target) {
-                    Send-ToRecycleBin -Path $target
-                }
-                \(itemCommand)
-                (Get-Item -LiteralPath $target -Force).FullName
-            }
-            """
-        )
-    }
-
-    static let trashScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        \(recycleBinHelpers)
-
-        foreach ($path in $Arguments.paths) {
-            $item = Get-Item -LiteralPath $path -Force
-            $originalPath = $item.FullName
-            $trashPath = Send-ToRecycleBin -Path $originalPath
-            $token = ConvertTo-Base64UrlJson @{
-                OriginalPath = $originalPath
-                TrashPath = $trashPath
-            }
-            [pscustomobject]@{
-                OriginalPath = $originalPath
-                TrashToken = $token
-            }
-        }
-        """
-    )
-
-    static let restoreTrashScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        \(recycleBinHelpers)
-
-        foreach ($entry in $Arguments.items) {
-            $token = ConvertFrom-Base64UrlJson -Token $entry.trashToken
-            if (Test-Path -LiteralPath $entry.originalPath) {
-                throw "Restore destination already exists: $($entry.originalPath)"
-            }
-            $trashPath = [string]$token.TrashPath
-            if ([string]::IsNullOrWhiteSpace($trashPath) -or -not (Test-Path -LiteralPath $trashPath)) {
-                throw "Could not find matching trash item for: $($entry.originalPath)"
-            }
-
-            $parent = [System.IO.Path]::GetDirectoryName([string]$entry.originalPath)
-            if (-not [string]::IsNullOrWhiteSpace($parent)) {
-                [System.IO.Directory]::CreateDirectory($parent) | Out-Null
-            }
-            Move-Item -LiteralPath $trashPath -Destination $entry.originalPath -Force -ErrorAction Stop
-            $entry.originalPath
-        }
-        """
-    )
-
-    static let folderSizeScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        $item = Get-Item -LiteralPath $Arguments.path -Force
-        if (-not $item.PSIsContainer) { [int64]$item.Length; return }
-        $sum = (Get-ChildItem -LiteralPath $Arguments.path -Force -Recurse -File -ErrorAction SilentlyContinue |
-            Measure-Object -Property Length -Sum).Sum
-        if ($null -eq $sum) { [int64]0 } else { [int64]$sum }
-        """
-    )
-
-    static let readSymlinkScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        $item = Get-Item -LiteralPath $Arguments.path -Force
-        if ($item.Target) {
-            if ($item.Target -is [array]) { $item.Target[0] } else { $item.Target }
-        } else {
-            $item.FullName
-        }
-        """
-    )
-
-    static let versionScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        $item = Get-Item -LiteralPath $Arguments.path -Force
-        $hash = if ($item.PSIsContainer) { '' } else { (Get-FileHash -LiteralPath $Arguments.path -Algorithm SHA256).Hash.ToLowerInvariant() }
-        [pscustomobject]@{
-            SHA256 = $hash
-            LastWriteTimeUtc = [int64]([DateTimeOffset]$item.LastWriteTimeUtc).ToUnixTimeMilliseconds()
-        }
-        """
-    )
-
-    static let recycleBinHelpers = """
-    function Get-DetoursTrashRoot {
-        $profile = [Environment]::GetFolderPath('UserProfile')
-        if ([string]::IsNullOrWhiteSpace($profile)) { throw "Windows user profile is unavailable." }
-        $root = Join-Path -Path $profile -ChildPath '.detours-trash'
-        [System.IO.Directory]::CreateDirectory($root) | Out-Null
-        $root
-    }
-
-    function New-DetoursTrashPath([string]$Name) {
-        $root = Get-DetoursTrashRoot
-        while ($true) {
-            $candidate = Join-Path -Path $root -ChildPath "$([guid]::NewGuid().ToString())-$Name"
-            if (-not (Test-Path -LiteralPath $candidate)) { return $candidate }
-        }
-    }
-
-    function Send-ToRecycleBin([string]$Path) {
-        $item = Get-Item -LiteralPath $Path -Force
-        $trashPath = New-DetoursTrashPath -Name $item.Name
-        Move-Item -LiteralPath $item.FullName -Destination $trashPath -Force -ErrorAction Stop
-        $trashPath
-    }
-
-    function ConvertTo-Base64UrlJson($Value) {
-        $json = $Value | ConvertTo-Json -Compress -Depth 6
-        [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($json)).
-            TrimEnd('=').Replace('+', '-').Replace('/', '_')
-    }
-
-    function ConvertFrom-Base64UrlJson([string]$Token) {
-        $base64 = $Token.Replace('-', '+').Replace('_', '/')
-        switch ($base64.Length % 4) {
-            0 { break }
-            2 { $base64 += '==' }
-            3 { $base64 += '=' }
-            default { throw "Invalid Windows trash token." }
-        }
-        [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($base64)) | ConvertFrom-Json
-    }
-    """
 }
