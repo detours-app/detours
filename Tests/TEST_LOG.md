@@ -30,13 +30,15 @@
   already degraded with leaked processes), 0 failures, ~44s each, no hang. Full
   Foundry XCUI suite: 79 tests, 1 skip, 0 failures (~22 min), all 13 UI suites
   including WindowsRemoteUITests.
-- Known residual: a watch leaves a remote PowerShell orphaned on the host (~9
-  per run). Under ControlMaster multiplexing the remote watcher's Wait-Event
-  loop never sees its torn-down ssh (its heartbeat write does not fail and stdin
-  never EOFs), so it keeps running. Non-functional (re-runs stay green, even on
-  an already-degraded host) and cleared on host reboot; a watcher self-terminate
-  is a noted follow-up. Deterministic `unwatch` in the live watch tests reduced
-  but did not eliminate it.
+- Watcher orphan leak FIXED: a watch used to leave a remote PowerShell orphaned
+  on the host (~9 per run) because under ssh connection-sharing the watcher never
+  notices its torn-down connection (Windows sshd keeps its stdin and stdout alive,
+  so neither EOF nor a failed write ever fires). The watcher now reports its own
+  PID in its ack and the watch channel kills it by PID over a fresh command
+  connection on unwatch, drop, and teardown. Verified: live suite 11/11 green
+  twice with the host process count back to baseline afterward (was 9, now 1).
+  Three connection-teardown approaches were tried and discarded first; explicit
+  PID kill is the one that works.
 
 ### 2026-06-26 14:48 (Foundry)
 

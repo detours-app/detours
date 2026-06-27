@@ -33,6 +33,7 @@ actor WindowsWatchChannel {
         let watchID: UUID?
         let path: String?
         let error: String?
+        let pid: Int?
     }
 
     private struct WatchEntry {
@@ -40,10 +41,15 @@ actor WindowsWatchChannel {
         let readTask: Task<Void, Never>
         let onChange: @Sendable (Location) -> Void
         let location: Location
+        let watcherPID: Int?
     }
 
     private let hostID: UUID
     private let transportFactory: @Sendable () -> any PowerShellChannelTransport
+    /// Kills a watcher PowerShell on the host by PID. A watcher whose ssh is torn down does not
+    /// notice it (Windows sshd keeps its stdin/stdout alive, so neither EOF nor a failed write
+    /// ever fires), so the only reliable teardown is an explicit kill over a fresh command.
+    private let watcherKiller: (@Sendable (Int) async -> Void)?
     private var watchers: [UUID: WatchEntry] = [:]
     private var recentEventTimestamps: [String: Date] = [:]
     private static let dedupWindow: TimeInterval = 0.5
@@ -64,11 +70,17 @@ actor WindowsWatchChannel {
                 executionMode: .persistent
             )
         }
+        self.watcherKiller = { pid in
+            await Self.killRemoteProcess(
+                pid: pid, sshTarget: sshTarget, controlDirectory: controlDirectory, hostTrust: hostTrust
+            )
+        }
     }
 
     init(hostID: UUID, transportFactory: @escaping @Sendable () -> any PowerShellChannelTransport) {
         self.hostID = hostID
         self.transportFactory = transportFactory
+        self.watcherKiller = nil
     }
 
     func watch(
@@ -91,7 +103,10 @@ actor WindowsWatchChannel {
                 guard let self else { return }
                 await self.eventLoop(watchID: id, transport: transport)
             }
-            watchers[id] = WatchEntry(transport: transport, readTask: readTask, onChange: onChange, location: location)
+            watchers[id] = WatchEntry(
+                transport: transport, readTask: readTask, onChange: onChange,
+                location: location, watcherPID: ack.pid
+            )
             return FileProviderWatch(id: id, location: location)
         } catch {
             await transport.stop()
@@ -104,6 +119,7 @@ actor WindowsWatchChannel {
         forgetEvents(for: watch.id)
         entry.readTask.cancel()
         await entry.transport.stop()
+        if let pid = entry.watcherPID { await watcherKiller?(pid) }
     }
 
     func stop() async {
@@ -113,6 +129,7 @@ actor WindowsWatchChannel {
         for (_, entry) in current {
             entry.readTask.cancel()
             await entry.transport.stop()
+            if let pid = entry.watcherPID { await watcherKiller?(pid) }
         }
     }
 
@@ -157,10 +174,44 @@ actor WindowsWatchChannel {
     private func handleWatchDropped(_ watchID: UUID) {
         guard let entry = watchers.removeValue(forKey: watchID) else { return }
         forgetEvents(for: watchID)
-        Task { await entry.transport.stop() }
+        let killer = watcherKiller
+        Task {
+            await entry.transport.stop()
+            if let pid = entry.watcherPID { await killer?(pid) }
+        }
         // Surface the drop as a change so the file list reloads and re-arms its watch rather
         // than leaving a stale record that blocks re-watching the directory.
         entry.onChange(entry.location)
+    }
+
+    /// Kills a remote watcher by PID over a fresh ssh command (the command path works even when
+    /// the watcher's own connection is wedged). Bounded and off-actor so it can never stall.
+    private static func killRemoteProcess(
+        pid: Int,
+        sshTarget: String,
+        controlDirectory: URL,
+        hostTrust: SSHHostTrust
+    ) async {
+        await Task.detached(priority: .utility) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+            process.arguments = [
+                "-o", "ControlMaster=auto",
+                "-o", "ControlPath=\(controlDirectory.path)/%C",
+                "-o", "ControlPersist=300",
+            ] + hostTrust.sshArguments + [
+                sshTarget,
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Stop-Process -Id \(pid) -Force -ErrorAction SilentlyContinue",
+            ]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+            process.waitUntilExit()
+        }.value
     }
 
     private func forgetEvents(for watchID: UUID) {
@@ -217,7 +268,7 @@ actor WindowsWatchChannel {
         foreach ($eventName in @('Changed', 'Created', 'Deleted', 'Renamed')) {
             Register-ObjectEvent -InputObject $watcher -EventName $eventName -SourceIdentifier "detours-$eventName" -MessageData $watchID | Out-Null
         }
-        Write-Frame (@{ type = 'ack'; id = [uint64]$request.id } | ConvertTo-Json -Compress)
+        Write-Frame (@{ type = 'ack'; id = [uint64]$request.id; pid = $PID } | ConvertTo-Json -Compress)
     } catch {
         Write-Frame (@{ type = 'error'; id = [uint64]$request.id; error = $_.Exception.Message } | ConvertTo-Json -Compress)
         return
