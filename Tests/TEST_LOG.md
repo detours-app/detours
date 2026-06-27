@@ -2,6 +2,11 @@
 
 ## Latest Run
 
+### 2026-06-27 08:01 (Foundry XCUI)
+
+- Removed redundant `internal(set)` modifiers on PaneViewController `tabs`/`selectedTabIndex` that were emitting build warnings. Built clean on Spectre (no-install) and Foundry: no warnings, no errors.
+- XCUI SmokeTests (4) PASS on Foundry against the signed/installed build: app launches clean with a window, file-list outline present, home button works, no launch crash. Change touches view-controller property declarations only, so the launch suite is the relevant guard.
+
 ### 2026-06-26 18:54 (Spectre live + Foundry XCUI)
 
 - Command: unit suites + a 99-test regression (Spectre);
