@@ -35,10 +35,13 @@
   notices its torn-down connection (Windows sshd keeps its stdin and stdout alive,
   so neither EOF nor a failed write ever fires). The watcher now reports its own
   PID in its ack and the watch channel kills it by PID over a fresh command
-  connection on unwatch, drop, and teardown. Verified: live suite 11/11 green
-  twice with the host process count back to baseline afterward (was 9, now 1).
-  Three connection-teardown approaches were tried and discarded first; explicit
-  PID kill is the one that works.
+  connection on unwatch, drop, and teardown. Quitting wires the same teardown
+  through the connection registry's onDisconnect hook so watches are stopped on
+  app exit too. Verified end to end: live suite 11/11 green twice with the host
+  process count back to baseline afterward (was 9, now 1); and quitting the
+  running app cleanly dropped the host watcher count from 5 to 1. Three
+  connection-teardown approaches were tried and discarded first; explicit PID
+  kill is the one that works.
 
 ### 2026-06-26 14:48 (Foundry)
 
