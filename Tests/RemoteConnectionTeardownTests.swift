@@ -36,6 +36,24 @@ final class RemoteConnectionTeardownTests: XCTestCase {
         let closedAgain = await transport.didCloseControlConnection
         XCTAssertFalse(closedAgain, "After the registry is cleared, a second disconnectAll is a no-op")
     }
+
+    func testDisconnectAllRunsOnDisconnectHook() async throws {
+        let transport = RecordingTeardownTransport()
+        let channel = PowerShellChannel(transport: transport, hostID: nil)
+        let registry = RemoteConnectionRegistry()
+        let hook = OnDisconnectFlag()
+        await registry.register(channel, onDisconnect: { await hook.markCalled() }, for: UUID())
+
+        await registry.disconnectAll()
+
+        let called = await hook.called
+        XCTAssertTrue(called, "disconnectAll must run the onDisconnect hook so watch channels tear down on quit")
+    }
+}
+
+private actor OnDisconnectFlag {
+    private(set) var called = false
+    func markCalled() { called = true }
 }
 
 private actor RecordingTeardownTransport: PowerShellChannelTransport {

@@ -126,7 +126,11 @@ extension MainSplitViewController {
                     let provider = WindowsRemoteProvider(hostID: host.id, sshTarget: host.sshTarget, channel: channel)
                     let initialPath = try await validateWindowsRemoteConnection(provider: provider, host: host)
 
-                    await RemoteConnectionRegistry.shared.register(channel, for: host.id)
+                    await RemoteConnectionRegistry.shared.register(
+                        channel,
+                        onDisconnect: { [provider] in await provider.stopWatching() },
+                        for: host.id
+                    )
                     FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
                     RemoteHostStore.shared.markConnected(id: host.id)
                     Self.postRemoteConnectionState(.connected, for: host.id)

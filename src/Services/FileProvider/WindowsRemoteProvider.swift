@@ -227,6 +227,12 @@ actor WindowsRemoteProvider: FileProvider {
         await watchChannel?.unwatch(watch)
     }
 
+    /// Tears down every watch on this host, killing each remote watcher process. Used on app
+    /// quit so watchers do not orphan on the host when the connection is abandoned.
+    func stopWatching() async {
+        await watchChannel?.stop()
+    }
+
     func gitStatus(for directory: Location) async -> [Location: GitStatus] {
         guard let windowsPath = try? windowsPath(from: directory),
               let nativePath = windowsPath.nativePath else {

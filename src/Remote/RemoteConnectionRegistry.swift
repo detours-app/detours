@@ -30,13 +30,21 @@ actor RemoteConnectionRegistry {
     private struct RegisteredConnection {
         let connection: any RemoteConnectionHandle
         let rpcClient: SSHRemoteRPCClient?
+        let onDisconnect: (@Sendable () async -> Void)?
     }
 
     private var connections: [UUID: RegisteredConnection] = [:]
     private var activePaneCounts: [UUID: Int] = [:]
 
-    func register(_ connection: any RemoteConnectionHandle, rpcClient: SSHRemoteRPCClient? = nil, for hostID: UUID) async {
-        connections[hostID] = RegisteredConnection(connection: connection, rpcClient: rpcClient)
+    func register(
+        _ connection: any RemoteConnectionHandle,
+        rpcClient: SSHRemoteRPCClient? = nil,
+        onDisconnect: (@Sendable () async -> Void)? = nil,
+        for hostID: UUID
+    ) async {
+        connections[hostID] = RegisteredConnection(
+            connection: connection, rpcClient: rpcClient, onDisconnect: onDisconnect
+        )
         await connection.setActivePaneCount(activePaneCounts[hostID] ?? 0)
     }
 
@@ -70,12 +78,15 @@ actor RemoteConnectionRegistry {
     /// the remote watcher/helper processes multiplexed over them die with the app instead of
     /// lingering (Windows masters persist for minutes via ControlPersist otherwise).
     func disconnectAll() async {
-        let handles = connections.values.map { $0.connection }
+        let registered = Array(connections.values)
         connections.removeAll()
         activePaneCounts.removeAll()
         await withTaskGroup(of: Void.self) { group in
-            for handle in handles {
-                group.addTask { await handle.disconnect() }
+            for entry in registered {
+                group.addTask {
+                    await entry.connection.disconnect()
+                    await entry.onDisconnect?()
+                }
             }
         }
     }
