@@ -49,15 +49,11 @@ struct FileOperations {
         try encodeFileEntries([fileEntry(path: path.string)])
     }
 
-    func copy(sources: [ServerRemotePath], destination: ServerRemotePath, maximumRPCBytes: Int64) throws -> Data {
+    func copy(sources: [ServerRemotePath], destination: ServerRemotePath, maximumRPCBytes _: Int64) throws -> Data {
         let destinationURL = URL(fileURLWithPath: destination.string)
         let copied = try sources.map { source in
             let sourceURL = URL(fileURLWithPath: source.string)
-            if try byteCount(at: sourceURL) > maximumRPCBytes {
-                throw ServerRPCError.unsupportedCommand("copy over rpc threshold")
-            }
-            let finalURL = destinationURL.appendingPathComponent(sourceURL.lastPathComponent)
-            try trashExistingItem(at: finalURL)
+            let finalURL = try copyDestination(for: sourceURL, in: destinationURL)
             try fileManager.copyItem(at: sourceURL, to: finalURL)
             return ServerRemotePath(finalURL.path)
         }
@@ -68,8 +64,13 @@ struct FileOperations {
         let destinationURL = URL(fileURLWithPath: destination.string)
         let moved = try sources.map { source in
             let sourceURL = URL(fileURLWithPath: source.string)
-            let finalURL = destinationURL.appendingPathComponent(sourceURL.lastPathComponent)
-            try trashExistingItem(at: finalURL)
+            var finalURL = destinationURL.appendingPathComponent(sourceURL.lastPathComponent)
+            if isSameFilesystemPath(sourceURL, finalURL) {
+                return ServerRemotePath(sourceURL.path)
+            }
+            if fileManager.fileExists(atPath: finalURL.path) {
+                finalURL = try uniqueNumberedDestination(for: sourceURL, in: destinationURL)
+            }
             try fileManager.moveItem(at: sourceURL, to: finalURL)
             return ServerRemotePath(finalURL.path)
         }
@@ -274,12 +275,65 @@ struct FileOperations {
         _ = try trashOperations.trash(paths: [url.path])
     }
 
-    private func byteCount(at url: URL) throws -> Int64 {
-        let values = try url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
-        guard values.isDirectory != true else {
-            throw ServerRPCError.unsupportedCommand("copy directory over rpc")
+    private func copyDestination(for sourceURL: URL, in destinationURL: URL) throws -> URL {
+        let initial = destinationURL.appendingPathComponent(sourceURL.lastPathComponent)
+        if isSameFilesystemPath(sourceURL, initial) {
+            return try uniqueCopyDestination(for: sourceURL, in: destinationURL)
         }
-        return Int64(values.fileSize ?? 0)
+        if fileManager.fileExists(atPath: initial.path) {
+            return try uniqueNumberedDestination(for: sourceURL, in: destinationURL)
+        }
+        return initial
+    }
+
+    private func isSameFilesystemPath(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.standardizedFileURL.resolvingSymlinksInPath().path == rhs.standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
+    private func uniqueCopyDestination(for sourceURL: URL, in directoryURL: URL) throws -> URL {
+        let (baseName, ext) = try destinationNameParts(for: sourceURL)
+        var attempt = 1
+        while true {
+            let suffix = attempt == 1 ? " copy" : " copy \(attempt)"
+            let name = ext.isEmpty ? baseName + suffix : "\(baseName)\(suffix).\(ext)"
+            let candidate = directoryURL.appendingPathComponent(name)
+            if !fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            attempt += 1
+        }
+    }
+
+    private func uniqueNumberedDestination(for sourceURL: URL, in directoryURL: URL) throws -> URL {
+        let originalName = sourceURL.lastPathComponent.isEmpty ? "Untitled" : sourceURL.lastPathComponent
+        var attempt = 2
+        while true {
+            let candidate = directoryURL.appendingPathComponent(numberedName(originalName, index: attempt))
+            if !fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            attempt += 1
+        }
+    }
+
+    private func destinationNameParts(for sourceURL: URL) throws -> (baseName: String, ext: String) {
+        let values = try sourceURL.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+        if values.isDirectory == true, values.isPackage != true {
+            return (sourceURL.lastPathComponent, "")
+        }
+        let ext = sourceURL.pathExtension
+        let baseName = ext.isEmpty ? sourceURL.lastPathComponent : sourceURL.deletingPathExtension().lastPathComponent
+        return (baseName.isEmpty ? "Untitled" : baseName, ext)
+    }
+
+    private func numberedName(_ name: String, index: Int) -> String {
+        let nsName = name as NSString
+        let ext = nsName.pathExtension
+        let stem = ext.isEmpty ? name : nsName.deletingPathExtension
+        guard !ext.isEmpty else {
+            return "\(stem) \(index)"
+        }
+        return "\(stem) \(index).\(ext)"
     }
 
     private func sha256Hex(path: String) throws -> String {

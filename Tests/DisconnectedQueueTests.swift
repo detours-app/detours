@@ -206,7 +206,23 @@ private actor DisconnectedQueueProvider: FileProvider {
     }
 
     func copy(_ sources: [Location], to destination: Location) async throws -> [Location] {
-        throw FileProviderError.unsupportedOperation("copy")
+        copyCalls += 1
+        if dropsFirstOperation, copyCalls == 1 {
+            await onFirstDrop?()
+            throw FileProviderError.unsupportedOperation("connection dropped")
+        }
+
+        var copied: [Location] = []
+        for source in sources {
+            guard let data = files[source] else {
+                throw FileProviderError.unsupportedOperation("copy")
+            }
+            let target = destination.appendingPathComponent(source.lastPathComponent)
+            files[target] = data
+            copied.append(target)
+        }
+        completedCopyCalls += 1
+        return copied
     }
 
     func move(_ sources: [Location], to destination: Location) async throws -> [Location] {
@@ -272,12 +288,6 @@ private actor DisconnectedQueueProvider: FileProvider {
             throw FileProviderError.unsupportedOperation("download")
         }
 
-        copyCalls += 1
-        if dropsFirstOperation, copyCalls == 1 {
-            await onFirstDrop?()
-            throw FileProviderError.unsupportedOperation("connection dropped")
-        }
-
         try FileManager.default.createDirectory(at: localURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: localURL)
     }
@@ -285,7 +295,6 @@ private actor DisconnectedQueueProvider: FileProvider {
     func upload(_ localURL: URL, to location: Location) async throws {
         let data = try Data(contentsOf: localURL)
         files[location] = data
-        completedCopyCalls += 1
     }
 
     private func entry(for location: Location) -> LoadedFileEntry {

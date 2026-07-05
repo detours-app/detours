@@ -147,10 +147,7 @@ final class FileOperationQueue {
         guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
             let hostIDs = remoteHostIDs(from: items, destination: destination)
             return try await enqueue(remoteHosts: hostIDs) {
-                // Windows same-host copies route through the conflict-aware remote-copy
-                // path so same-name collisions reach the shared Skip/Replace/Keep Both flow.
-                if self.isSingleRemoteHostOperation(items: items, destination: destination),
-                   self.isWindowsDestination(destination) {
+                if self.isSingleRemoteHostOperation(items: items, destination: destination) {
                     return try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager)
                 }
                 return try await self.performProviderTransfer(items: items, to: destination, isMove: false, undoManager: undoManager)

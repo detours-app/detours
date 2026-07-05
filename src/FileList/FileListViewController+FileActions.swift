@@ -332,16 +332,14 @@ extension FileListViewController {
                 // (loadDirectory is async, so we can't do this synchronously after)
                 pendingPostLoadAction = { [weak self] in
                     guard let self else { return }
-                    // If we created inside a subfolder, expand it so the new folder is visible
-                    if case .local(let destinationURL) = destination,
-                       case .local(let currentURL) = currentLocation,
-                       destinationURL != currentURL,
-                       let parentItem = self.dataSource.findItem(withURL: destinationURL, in: self.dataSource.items) {
-                        self.tableView.expandItem(parentItem)
-                    }
-                    self.selectLocation(newFolder)
-                    if !UITestEnvironment.disablesInlineRename {
-                        self.renameSelection(isNewItem: true)
+                    Task { @MainActor in
+                        if destination != currentLocation {
+                            await self.expandAncestorChain(to: destination)
+                        }
+                        guard self.selectLocation(newFolder) else { return }
+                        if !UITestEnvironment.disablesInlineRename {
+                            self.renameSelection(isNewItem: true)
+                        }
                     }
                 }
 
@@ -387,15 +385,14 @@ extension FileListViewController {
                 // Schedule post-load action to select and rename the new file
                 pendingPostLoadAction = { [weak self] in
                     guard let self else { return }
-                    if case .local(let destinationURL) = destination,
-                       case .local(let currentURL) = currentLocation,
-                       destinationURL != currentURL,
-                       let parentItem = self.dataSource.findItem(withURL: destinationURL, in: self.dataSource.items) {
-                        self.tableView.expandItem(parentItem)
-                    }
-                    self.selectLocation(newFile)
-                    if !UITestEnvironment.disablesInlineRename {
-                        self.renameSelection(isNewItem: true)
+                    Task { @MainActor in
+                        if destination != currentLocation {
+                            await self.expandAncestorChain(to: destination)
+                        }
+                        guard self.selectLocation(newFile) else { return }
+                        if !UITestEnvironment.disablesInlineRename {
+                            self.renameSelection(isNewItem: true)
+                        }
                     }
                 }
 
@@ -481,8 +478,7 @@ extension FileListViewController {
         case .local(let url):
             return selectItem(at: url)
         case .remote(_, let path):
-            selectRemoteItem(atPath: path)
-            return tableView.selectedRow >= 0
+            return selectRemoteItem(atPath: path)
         }
     }
 

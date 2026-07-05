@@ -56,6 +56,43 @@ final class FileListResponderTests: XCTestCase {
         XCTAssertNotNil(menu.item(withTitle: "Get Info"))
     }
 
+    func testRemoteNewFolderInSelectedFolderSelectsCreatedChildForRename() async throws {
+        let hostID = UUID()
+        let root = Location.remote(hostID: hostID, path: "/home/marco")
+        let parent = Location.remote(hostID: hostID, path: "/home/marco/Parent")
+        let created = Location.remote(hostID: hostID, path: "/home/marco/Parent/Folder")
+        let provider = FileListRemoteProvider(
+            hostID: hostID,
+            listings: [
+                root.path: [
+                    .remoteDirectory(hostID: hostID, path: parent.path, name: "Parent"),
+                ],
+                parent.path: [],
+            ]
+        )
+        FileOperationQueue.shared.registerRemoteFileProvider(provider, for: hostID)
+        defer {
+            FileOperationQueue.shared.unregisterRemoteFileProvider(for: hostID)
+            ClipboardManager.shared.clear()
+        }
+
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        let host = RemoteHost(id: hostID, displayName: "Dev VM", sshTarget: "dev")
+
+        viewController.loadRemoteDirectory(host: host, path: root.path, provider: provider)
+        let didLoadRows = await waitForRowCount(1, in: viewController.tableView)
+        XCTAssertTrue(didLoadRows)
+        viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        viewController.createNewFolder()
+
+        let didSelectCreatedFolder = await waitForSelectedLocations([created], in: viewController)
+        XCTAssertTrue(didSelectCreatedFolder)
+        XCTAssertEqual(viewController.selectedLocations, [created])
+        XCTAssertEqual(borderedTextFieldCount(in: viewController.tableView), 1)
+    }
+
     func testRemoteF8DeleteRoutesToTrashProvider() async throws {
         try await assertRemoteDeleteShortcutRoutesToTrash(
             makeFunctionKeyEvent(keyCode: 100, functionKey: NSF8FunctionKey)
@@ -232,6 +269,23 @@ final class FileListResponderTests: XCTestCase {
         return viewController.selectedURLs.map(\.standardizedFileURL) == [targetURL]
     }
 
+    func waitForSelectedLocations(
+        _ locations: [Location],
+        in viewController: FileListViewController,
+        timeout: TimeInterval = 2.0
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if viewController.selectedLocations == locations {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        return viewController.selectedLocations == locations
+    }
+
     func waitForRowCount(
         _ minimumRowCount: Int,
         in tableView: NSTableView,
@@ -308,7 +362,7 @@ final class FileListResponderTests: XCTestCase {
 
 private actor FileListRemoteProvider: FileProvider {
     private let hostID: UUID
-    private let listings: [String: [LoadedFileEntry]]
+    private var listings: [String: [LoadedFileEntry]]
     private var trashCalls: [[Location]] = []
     private var deleteCalls: [[Location]] = []
 
@@ -330,6 +384,9 @@ private actor FileListRemoteProvider: FileProvider {
     }
 
     func stat(_ location: Location) async throws -> LoadedFileEntry {
+        if listings[location.path] != nil {
+            return .remoteDirectory(hostID: hostID, path: location.path, name: location.lastPathComponent)
+        }
         for entries in listings.values {
             if let entry = entries.first(where: { $0.location == location }) {
                 return entry
@@ -371,6 +428,15 @@ private actor FileListRemoteProvider: FileProvider {
         archive
     }
 
+    func createDirectory(at location: Location, withIntermediateDirectories: Bool) async throws {
+        let parent = location.deletingLastPathComponent()
+        let entry = LoadedFileEntry.remoteDirectory(hostID: hostID, path: location.path, name: location.lastPathComponent)
+        if listings[parent.path]?.contains(where: { $0.location == location }) != true {
+            listings[parent.path, default: []].append(entry)
+        }
+        listings[location.path, default: []] = listings[location.path] ?? []
+    }
+
     func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
         FileProviderWatch(id: UUID(), location: location)
     }
@@ -383,6 +449,15 @@ private actor FileListRemoteProvider: FileProvider {
 }
 
 private extension LoadedFileEntry {
+    static func remoteDirectory(hostID: UUID, path: String, name: String) -> LoadedFileEntry {
+        LoadedFileEntry(
+            location: .remote(hostID: hostID, path: path),
+            url: URL(fileURLWithPath: path),
+            name: name,
+            isDirectory: true
+        )
+    }
+
     static func remoteFile(hostID: UUID, path: String, name: String) -> LoadedFileEntry {
         LoadedFileEntry(
             location: .remote(hostID: hostID, path: path),

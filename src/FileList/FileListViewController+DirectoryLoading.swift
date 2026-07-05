@@ -78,7 +78,7 @@ extension FileListViewController {
         return false
     }
 
-    private func expandAncestorChain(to location: Location) async {
+    func expandAncestorChain(to location: Location) async {
         switch location {
         case .local(let url):
             expandAncestorChain(to: url)
@@ -361,17 +361,18 @@ extension FileListViewController {
 
     /// Select a remote row by its absolute path. Remote `FileItem`s have no local file URL, so
     /// selection matches on the standardized path rather than going through `findItem(withURL:)`.
-    func selectRemoteItem(atPath path: String) {
+    @discardableResult
+    func selectRemoteItem(atPath path: String) -> Bool {
         let target = URL(fileURLWithPath: path).standardizedFileURL
-        for item in dataSource.items where item.isRemote {
-            guard item.expansionURL == target else { continue }
-            let row = tableView.row(forItem: item)
-            if row >= 0 {
-                tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                tableView.scrollRowToVisible(row)
-            }
-            return
+        guard let item = dataSource.findItem(withURL: target, in: dataSource.items),
+              item.isRemote else {
+            return false
         }
+        let row = tableView.row(forItem: item)
+        guard row >= 0 else { return false }
+        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        tableView.scrollRowToVisible(row)
+        return true
     }
 
     func loadRemoteDirectory(

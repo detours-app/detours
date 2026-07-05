@@ -29,6 +29,58 @@ final class FileOperationsServerTests: XCTestCase {
         XCTAssertEqual(try decodeServerFileEntries(chunks[0]).map(\.name), ["file-0.txt", "file-1.txt"])
         XCTAssertEqual(try decodeServerFileEntries(chunks[2]).map(\.name), ["file-4.txt"])
     }
+
+    func testCopyIntoSameDirectoryCreatesCopyAndKeepsSource() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "source.txt", content: "body")
+
+        let payload = try FileOperations().copy(
+            sources: [ServerRemotePath(source.path)],
+            destination: ServerRemotePath(temp.path),
+            maximumRPCBytes: 1
+        )
+        let copied = try decodeServerPathList(payload)
+
+        let copy = temp.appendingPathComponent("source copy.txt")
+        XCTAssertEqual(copied, [copy.path])
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "body")
+        XCTAssertEqual(try String(contentsOf: copy, encoding: .utf8), "body")
+    }
+
+    func testMoveIntoSameDirectoryLeavesSourceInPlace() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "source.txt", content: "body")
+
+        let payload = try FileOperations().move(
+            sources: [ServerRemotePath(source.path)],
+            destination: ServerRemotePath(temp.path)
+        )
+        let moved = try decodeServerPathList(payload)
+
+        XCTAssertEqual(moved, [source.path])
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "body")
+    }
+
+    func testCopyUsesServerSideCopyWithoutRPCByteThreshold() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = temp.appendingPathComponent("large.bin")
+        try Data(repeating: 7, count: 1_048_577).write(to: source)
+        let destination = try createTestFolder(in: temp, name: "dest")
+
+        let payload = try FileOperations().copy(
+            sources: [ServerRemotePath(source.path)],
+            destination: ServerRemotePath(destination.path),
+            maximumRPCBytes: 1
+        )
+        let copied = try decodeServerPathList(payload)
+
+        let copy = destination.appendingPathComponent("large.bin")
+        XCTAssertEqual(copied, [copy.path])
+        XCTAssertEqual(try XCTUnwrap(copy.resourceValues(forKeys: [.fileSizeKey]).fileSize), 1_048_577)
+    }
 }
 
 final class TrashOperationsServerTests: XCTestCase {
@@ -355,6 +407,20 @@ private func decodeServerFileEntries(_ payload: Data) throws -> [DecodedServerFi
     }
     try reader.requireComplete()
     return entries
+}
+
+private func decodeServerPathList(_ payload: Data) throws -> [String] {
+    var reader = ServerRPCBinaryReader(data: payload)
+    let count = try reader.readUInt32()
+    var paths: [String] = []
+    for _ in 0..<count {
+        guard let path = String(bytes: try reader.readData(), encoding: .utf8) else {
+            throw ServerRPCProtocolError.invalidFrame
+        }
+        paths.append(path)
+    }
+    try reader.requireComplete()
+    return paths
 }
 
 private struct FailingInotifyBackend: InotifyBackend {

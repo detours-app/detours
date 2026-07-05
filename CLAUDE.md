@@ -6,6 +6,12 @@ Native macOS file manager. Swift tools 6.2, AppKit, SwiftUI (dialogs), macOS 14.
 
 ## Workflow
 
+### Communication
+
+- Do not respond to correction or frustration with meta-compliance narration.
+- Do not write phrases such as "I won't argue with you", "I'm not going to argue", or "Understood" as a standalone compliance marker.
+- State concrete status, evidence, and the next action instead.
+
 ### Specs Are Authoritative
 
 - **Always use `/spec-create` skill** to create specs - don't write them manually

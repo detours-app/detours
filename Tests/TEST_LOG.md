@@ -1554,3 +1554,34 @@ Spotlight search has no unit test (depends on the live, async-built system index
   key (F5 on many keyboards) and tests for the path.
 
 - 2026-06-26: /simplify cleanup of the windows-remote-browsing branch (consolidated the duplicated UTF-16LE String extension and reused the existing big-endian UInt32 decoder, dropped RemoteHost's redundant hand-written Codable, merged duplicate PowerShell archive/copy/move script branches, cached the dispatcher base64, single-pass reply decoding, pruned the watch dedup map, collapsed split-resize guards). swiftlint clean. Ran on Spectre: WindowsRepliesTests, RemoteHostTests, RemoteHostStoreTests, WindowsArchiveScriptTests, PowerShellChannelTests, WindowsWatchChannelTests, WindowsRemoteProviderTests, RemoteHostKindRoutingTests, SplitPositionTests -> 35 tests, 0 failures. Full package compiled clean.
+
+- 2026-07-05 21:15 CEST: Targeted Spectre verification attempt for remote
+  new-folder selection and remote copy/move fixes failed at compile time:
+  `swift test --filter FileOperationsServerTests`,
+  `swift test --filter FileListResponderTests/testRemoteNewFolderInSelectedFolderSelectsCreatedChildForRename`,
+  and `swift test --filter DisconnectedQueueTests` all hit the same new-test
+  syntax error (`await` inside an XCTest autoclosure). The test assertions were
+  changed to store awaited values before `XCTAssertTrue`; rerun follows.
+
+- 2026-07-05 21:16 CEST: `swift test --filter FileOperationsServerTests`
+  PASS on Spectre: 5 tests, 0 failures. Covers same-directory server copy,
+  server-side copy above the RPC byte threshold, and same-directory server move.
+
+- 2026-07-05 21:16 CEST:
+  `swift test --filter FileListResponderTests/testRemoteNewFolderInSelectedFolderSelectsCreatedChildForRename`
+  PASS on Spectre: 1 test, 0 failures. Covers remote new-folder creation inside
+  a selected remote folder selecting the created child before inline rename.
+
+- 2026-07-05 21:17 CEST: `swift test --filter DisconnectedQueueTests`
+  PASS on Spectre: 4 tests, 0 failures. Covers same-host remote copy queue
+  pause/resume/requeue behavior after routing same-host copy through the remote
+  provider copy operation.
+
+- 2026-07-05 21:17 CEST: `swift test --filter RemoteFileProviderTests`
+  PASS on Spectre: 10 tests, 0 failures. Covers remote provider copy RPC
+  encoding plus related remote provider transfer/read/watch behavior.
+
+- 2026-07-05 21:17 CEST:
+  `swift test --filter FileOperationQueueTests/testProvider` PASS on Spectre:
+  3 tests, 0 failures. Covers local/remote provider transfer paths after the
+  same-host remote copy routing change.
