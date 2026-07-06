@@ -1585,3 +1585,33 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `swift test --filter FileOperationQueueTests/testProvider` PASS on Spectre:
   3 tests, 0 failures. Covers local/remote provider transfer paths after the
   same-host remote copy routing change.
+
+- 2026-07-06 11:09 CEST: Foundry `resources/scripts/build.sh` PASS at
+  `d9305e8`: helper rebuilds completed, app built, codesigned, installed to
+  `/Applications`, and relaunched. Foundry `resources/scripts/uitest.sh
+  SmokeTests` PASS: 4 tests, 0 failures; app launch/window proof is green.
+
+- 2026-07-06 11:09 CEST: Foundry parallel attempt for `resources/scripts/uitest.sh
+  NewFolderUITests` FAIL in build setup, not test execution: simultaneous
+  `uitest.sh` runs raced over `build/Detours.app`, causing codesign to report
+  `build/Detours.app: No such file or directory`. Rerunning the suite
+  sequentially.
+
+- 2026-07-06 11:10 CEST: Foundry sequential
+  `resources/scripts/uitest.sh NewFolderUITests` PASS: 3 tests, 0 failures.
+  Confirms installed-app new-folder selection behavior after the remote
+  post-refresh selection fix.
+
+- 2026-07-06 11:11 CEST: Foundry
+  `swift test --filter FileOperationsServerTests` PASS: 5 tests, 0 failures.
+  Covers same-directory server copy, server-side copy above the RPC byte
+  threshold, and same-directory server move on the build host.
+
+- 2026-07-06 11:11 CEST: Foundry
+  `swift test --filter FileListResponderTests/testRemoteNewFolderInSelectedFolderSelectsCreatedChildForRename`
+  PASS: 1 test, 0 failures. Covers selecting the created remote child before
+  inline rename.
+
+- 2026-07-06 11:11 CEST: Foundry `swift test --filter DisconnectedQueueTests`
+  PASS: 4 tests, 0 failures. Covers same-host remote copy queue
+  pause/resume/requeue behavior on the build host.
