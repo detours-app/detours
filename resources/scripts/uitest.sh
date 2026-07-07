@@ -22,6 +22,10 @@ if [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
     BUILD_ARGS+=(--screenshot-fixtures)
 fi
 
+if [ -n "${DETOURS_SCREENSHOT_CAPTURE_DIR:-}" ] && [[ "$DETOURS_SCREENSHOT_CAPTURE_DIR" != /* ]]; then
+    export DETOURS_SCREENSHOT_CAPTURE_DIR="$PROJECT_DIR/$DETOURS_SCREENSHOT_CAPTURE_DIR"
+fi
+
 # Build app first
 echo "Building Detours..."
 DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 "$SCRIPT_DIR/build.sh" "${BUILD_ARGS[@]}"
@@ -30,6 +34,10 @@ if [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
     echo ""
     echo "Setting up screenshot fixtures..."
     "$SCRIPT_DIR/screenshot-setup.sh"
+    if [ "${DETOURS_UI_TEST_SCREENSHOT_REMOTE_FIXTURES:-0}" = "1" ]; then
+        REMOTE_HOST="${DETOURS_SCREENSHOT_REMOTE_HOST:-devtest}"
+        ssh -o BatchMode=yes "$REMOTE_HOST" 'bash -s' < "$SCRIPT_DIR/screenshot-setup.sh"
+    fi
     DETOURS_SCREENSHOT_SKIP_RELAUNCH=1 "$SCRIPT_DIR/screenshot-configure.sh"
 fi
 

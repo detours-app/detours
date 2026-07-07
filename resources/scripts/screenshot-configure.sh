@@ -16,6 +16,7 @@ FILE_SERVER_PROTOCOL="${DETOURS_SCREENSHOT_FILE_SERVER_PROTOCOL:-SMB}"
 REMOTE_BASE="${DETOURS_SCREENSHOT_REMOTE_BASE:-}"
 SPARSEBUNDLE_MOUNT="${DETOURS_SCREENSHOT_SPARSEBUNDLE_MOUNT:-/Volumes/Specs.sparsebundle}"
 DISK_IMAGE_MOUNT="${DETOURS_SCREENSHOT_DISK_IMAGE_MOUNT:-/Volumes/Detours.dmg}"
+THEME="${DETOURS_SCREENSHOT_THEME:-dark}"
 LEFT_TAB_COUNT=4
 RIGHT_TAB_COUNT=4
 LEFT_LOCAL_TAB_INDEX=2
@@ -30,6 +31,15 @@ if [[ -z "$REMOTE_BASE" ]]; then
         REMOTE_BASE="$BASE"
     fi
 fi
+
+case "$THEME" in
+    dark|light)
+        ;;
+    *)
+        echo "Error: DETOURS_SCREENSHOT_THEME must be dark or light, got '$THEME'."
+        exit 1
+        ;;
+esac
 
 REMOTE_API_PATH="$REMOTE_BASE/taskflow/api"
 
@@ -103,7 +113,7 @@ mkdir -p \
 
 quit_detours
 
-settings_json=$(printf '{"schemaVersion":1,"restoreSession":true,"showHiddenByDefault":false,"searchIncludesHidden":false,"theme":"dark","fontSize":13,"fileListRowDensity":"compact","dateFormatCurrentYear":"d. MMM H:mm","dateFormatOtherYears":"d.M.yy","showStatusBar":true,"sidebarVisible":true,"folderExpansionEnabled":true,"foldersOnTop":true,"favorites":["%s/INBOX","%s/1 Projects","%s/2 Areas","%s/3 Resources","%s/4 Archive","%s/dev"],"recentServers":[],"gitStatusEnabled":true,"shortcuts":{}}' "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" "$HOME")
+settings_json=$(printf '{"schemaVersion":1,"restoreSession":true,"showHiddenByDefault":false,"searchIncludesHidden":false,"theme":"%s","fontSize":13,"fileListRowDensity":"compact","dateFormatCurrentYear":"d. MMM H:mm","dateFormatOtherYears":"d.M.yy","showStatusBar":true,"sidebarVisible":true,"folderExpansionEnabled":true,"foldersOnTop":true,"favorites":["%s/INBOX","%s/1 Projects","%s/2 Areas","%s/3 Resources","%s/4 Archive","%s/dev"],"recentServers":[],"gitStatusEnabled":true,"shortcuts":{}}' "$THEME" "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" "$HOME")
 settings_hex=$(printf '%s' "$settings_json" | xxd -p -c 100000)
 remote_hosts_json=$(printf '[{"id":"%s","displayName":"%s","sshTarget":"%s"}]' "$REMOTE_HOST_ID" "$REMOTE_HOST" "$REMOTE_HOST")
 remote_hosts_hex=$(printf '%s' "$remote_hosts_json" | xxd -p -c 100000)
@@ -154,6 +164,7 @@ else
 fi
 
 echo "Detours configured for README screenshot."
+echo "Theme:      $THEME"
 echo "Left pane:  $BASE/acme-corp"
 echo "Right pane: $REMOTE_HOST:$REMOTE_API_PATH"
 echo "Mounted:    $SPARSEBUNDLE_MOUNT"
