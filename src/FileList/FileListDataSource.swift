@@ -195,10 +195,6 @@ final class InactiveHidingRowView: NSTableRowView {
         }
         bounds.fill()
 
-        if isTableActive {
-            theme.accent.withAlphaComponent(0.85).setFill()
-            NSRect(x: bounds.minX, y: bounds.minY, width: 2, height: bounds.height).fill()
-        }
     }
 
     override func didAddSubview(_ subview: NSView) {
