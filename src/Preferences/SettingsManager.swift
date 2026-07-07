@@ -105,6 +105,11 @@ final class SettingsManager {
         set { settings.fontSize = max(10, min(16, newValue)) }
     }
 
+    var fileListRowDensity: FileListRowDensity {
+        get { settings.fileListRowDensity }
+        set { settings.fileListRowDensity = newValue }
+    }
+
     var dateFormatCurrentYear: String {
         get { settings.dateFormatCurrentYear }
         set { settings.dateFormatCurrentYear = newValue }

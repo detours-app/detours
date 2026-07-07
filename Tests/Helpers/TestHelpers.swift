@@ -51,6 +51,7 @@ func resetSettingsForTests() {
     manager.theme = defaultsSettings.theme
     manager.customTheme = defaultsSettings.customTheme
     manager.fontSize = defaultsSettings.fontSize
+    manager.fileListRowDensity = defaultsSettings.fileListRowDensity
     manager.dateFormatCurrentYear = defaultsSettings.dateFormatCurrentYear
     manager.dateFormatOtherYears = defaultsSettings.dateFormatOtherYears
     manager.showStatusBar = defaultsSettings.showStatusBar

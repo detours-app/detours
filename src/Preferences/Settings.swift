@@ -95,6 +95,7 @@ struct Settings: Equatable {
     var theme: ThemeChoice = .system
     var customTheme: CustomThemeColors?
     var fontSize: Int = 13
+    var fileListRowDensity: FileListRowDensity = .compact
     var dateFormatCurrentYear: String = "d. MMM H:mm"
     var dateFormatOtherYears: String = "d.M.yy"
 
@@ -139,6 +140,7 @@ extension Settings: Codable {
         case theme
         case customTheme
         case fontSize
+        case fileListRowDensity
         case dateFormatCurrentYear
         case dateFormatOtherYears
         case showStatusBar
@@ -166,6 +168,7 @@ extension Settings: Codable {
         theme = (try? container.decodeIfPresent(ThemeChoice.self, forKey: .theme)) ?? defaults.theme
         customTheme = try? container.decodeIfPresent(CustomThemeColors.self, forKey: .customTheme)
         fontSize = (try? container.decodeIfPresent(Int.self, forKey: .fontSize)) ?? defaults.fontSize
+        fileListRowDensity = (try? container.decodeIfPresent(FileListRowDensity.self, forKey: .fileListRowDensity)) ?? defaults.fileListRowDensity
         dateFormatCurrentYear = (try? container.decodeIfPresent(String.self, forKey: .dateFormatCurrentYear)) ?? defaults.dateFormatCurrentYear
         dateFormatOtherYears = (try? container.decodeIfPresent(String.self, forKey: .dateFormatOtherYears)) ?? defaults.dateFormatOtherYears
 
@@ -202,6 +205,7 @@ extension Settings: Codable {
         try container.encode(theme, forKey: .theme)
         try container.encodeIfPresent(customTheme, forKey: .customTheme)
         try container.encode(fontSize, forKey: .fontSize)
+        try container.encode(fileListRowDensity, forKey: .fileListRowDensity)
         try container.encode(dateFormatCurrentYear, forKey: .dateFormatCurrentYear)
         try container.encode(dateFormatOtherYears, forKey: .dateFormatOtherYears)
         try container.encode(showStatusBar, forKey: .showStatusBar)
