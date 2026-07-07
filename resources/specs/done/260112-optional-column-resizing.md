@@ -12,6 +12,7 @@ Currently Size and Date columns are fixed width. Research shows most file manage
 ## Considerations
 
 If implemented:
+
 - Keep Name column flexible (fills space)
 - Size and Date become draggable with minimum widths
 - Double-click to auto-fit
