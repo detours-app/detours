@@ -101,7 +101,7 @@ create_mounted_volume_fixtures() {
     hdiutil attach -quiet -nobrowse -mountpoint "$SPARSEBUNDLE_MOUNT" "$SPARSEBUNDLE_IMAGE"
     populate_sparsebundle_volume
 
-    hdiutil create -quiet -size 64m -fs HFS+ -format UDRW \
+    hdiutil create -quiet -size 64m -fs HFS+ -type UDIF \
         -volname "Detours.dmg" -ov "$DISK_IMAGE"
     hdiutil attach -quiet -nobrowse -mountpoint "$DISK_IMAGE_MOUNT" "$DISK_IMAGE"
     populate_disk_image_volume
