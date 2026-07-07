@@ -148,7 +148,7 @@ Sidebar polish lives in `SidebarViewController` and `SidebarItemView`. Keep the 
 
 - [x] **T1** Add `FileListRowDensity` to `src/Preferences/Settings.swift` with Compact, Comfortable, and Spacious cases, display names, row heights, icon sizes, and robust Codable fallback to Compact.
 - [x] **T2** Add `fileListRowDensity` to `Settings`, `Settings.CodingKeys`, `SettingsManager`, and `Tests/Helpers/TestHelpers.swift`, preserving Compact as the default.
-- [ ] **T3** Add a "File list density" picker to `src/Preferences/AppearanceSettingsView.swift` and update `ThemePreview`/`FileRowPreview` so preview rows use the selected density's row height and primary icon size.
+- [x] **T3** Add a "File list density" picker to `src/Preferences/AppearanceSettingsView.swift` and update `ThemePreview`/`FileRowPreview` so preview rows use the selected density's row height and primary icon size.
 
 **Phase 2: File List Polish**
 
@@ -215,3 +215,4 @@ Populated at implement time - one entry per task ID with what got built and how 
 
 - **T1** Added `FileListRowDensity` in `src/Preferences/Settings.swift` with Compact, Comfortable, and Spacious display names, row heights, primary/accessory icon metrics, git marker sizing, alignment offsets, and a Codable decoder that falls back to Compact for unknown raw values. `resources/scripts/build.sh` passed.
 - **T2** Added `fileListRowDensity` to `Settings`, robust decoding/encoding, `SettingsManager`, and `resetSettingsForTests()`, preserving Compact as the default. `resources/scripts/build.sh` passed.
+- **T3** Added the Appearance "File list density" picker and wired `ThemePreview` / `FileRowPreview` to render preview rows with the selected density's row height and primary icon size. `resources/scripts/build.sh` passed.
