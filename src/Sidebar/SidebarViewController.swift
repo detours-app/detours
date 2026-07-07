@@ -19,7 +19,7 @@ private struct ScreenshotFileShare {
 final class SidebarViewController: NSViewController {
     let outlineView = SidebarOutlineView()
     private let scrollView = NSScrollView()
-    private let effectView = NSVisualEffectView()
+    private let effectView = NSView()
     private var sidebarSeparator: NSView?
 
     weak var delegate: SidebarDelegate?
@@ -34,9 +34,6 @@ final class SidebarViewController: NSViewController {
     var remoteConnectionStates: [UUID: SSHConnectionState] = [:]
 
     override func loadView() {
-        effectView.material = .sidebar
-        effectView.blendingMode = .behindWindow
-        effectView.state = .inactive
         effectView.wantsLayer = true
         view = effectView
     }
@@ -231,7 +228,7 @@ final class SidebarViewController: NSViewController {
 
     private func applyTheme() {
         let theme = ThemeManager.shared.currentTheme
-        effectView.state = .inactive
+        effectView.layer?.isOpaque = true
         effectView.layer?.backgroundColor = theme.surface.cgColor
         outlineView.backgroundColor = .clear
         updateSeparatorColor()
