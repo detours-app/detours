@@ -217,12 +217,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let windowFrame = window.frame.insetBy(dx: -1, dy: -1)
         var frames: [UITestTextFrame] = []
-        var visited = Set<ObjectIdentifier>()
         var seenFrames = Set<String>()
         collectUITestTextFrames(
-            from: contentView,
+            in: contentView,
+            window: window,
             windowFrame: windowFrame,
-            visited: &visited,
             seenFrames: &seenFrames,
             frames: &frames
         )
@@ -243,64 +242,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func collectUITestTextFrames(
-        from element: Any,
+        in view: NSView,
+        window: NSWindow,
         windowFrame: NSRect,
-        visited: inout Set<ObjectIdentifier>,
         seenFrames: inout Set<String>,
         frames: inout [UITestTextFrame]
     ) {
-        if let object = element as? NSObject {
-            let identifier = ObjectIdentifier(object)
-            guard visited.insert(identifier).inserted else { return }
-        }
+        guard !view.isHidden, view.alphaValue > 0.01, view.window != nil else { return }
 
-        if let view = element as? NSView {
-            guard !view.isHidden, view.alphaValue > 0.01, view.window != nil else { return }
-        }
-
-        if let accessible = element as? NSObject {
+        if let textField = view as? NSTextField {
             collectUITestTextFrame(
-                from: accessible,
+                label: textField.stringValue,
+                from: textField,
+                window: window,
                 windowFrame: windowFrame,
                 seenFrames: &seenFrames,
                 frames: &frames
             )
-
-            for child in accessible.accessibilityChildren() ?? [] {
-                collectUITestTextFrames(
-                    from: child,
-                    windowFrame: windowFrame,
-                    visited: &visited,
-                    seenFrames: &seenFrames,
-                    frames: &frames
-                )
-            }
         }
 
-        if let view = element as? NSView {
-            for subview in view.subviews {
-                collectUITestTextFrames(
-                    from: subview,
-                    windowFrame: windowFrame,
-                    visited: &visited,
-                    seenFrames: &seenFrames,
-                    frames: &frames
-                )
-            }
+        if let pathControl = view as? NSPathControl {
+            collectUITestTextFrame(
+                label: pathControl.pathItems.map(\.title).joined(separator: " / "),
+                from: pathControl,
+                window: window,
+                windowFrame: windowFrame,
+                seenFrames: &seenFrames,
+                frames: &frames
+            )
+        }
+
+        for subview in view.subviews {
+            collectUITestTextFrames(
+                in: subview,
+                window: window,
+                windowFrame: windowFrame,
+                seenFrames: &seenFrames,
+                frames: &frames
+            )
         }
     }
 
     private func collectUITestTextFrame(
-        from accessible: NSObject,
+        label rawLabel: String,
+        from view: NSView,
+        window: NSWindow,
         windowFrame: NSRect,
         seenFrames: inout Set<String>,
         frames: inout [UITestTextFrame]
     ) {
-        guard accessible.accessibilityRole() == .staticText else { return }
-
-        let rawLabel = accessible.accessibilityLabel() ?? (accessible.accessibilityValue() as? String) ?? ""
         let label = rawLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let frame = accessible.accessibilityFrame()
+        let frame = window.convertToScreen(view.convert(view.bounds, to: nil))
         guard !label.isEmpty,
               frame.width > 0.5,
               frame.height > 0.5,
