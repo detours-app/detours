@@ -187,7 +187,7 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. UI 
 - [x] **T18** `PreferencesTests.testFileListRowDensityPersists` - a non-default density saves to and loads from `UserDefaults`.
 - [x] **T19** `PreferencesTests.testFileListRowDensityDecodeFallback` - missing or invalid saved density decodes to Compact without dropping other settings.
 - [x] **T20** `FileListDensityTests.testDensityMetrics` - Compact, Comfortable, and Spacious expose the expected row heights, icon sizes, and accessory sizes.
-- [ ] **T21** `FileListDataSourceTests.testRowHeightFollowsDensity` - the file-list row delegate returns the active density height.
+- [x] **T21** `FileListDataSourceTests.testRowHeightFollowsDensity` - the file-list row delegate returns the active density height.
 - [ ] **T22** `FileListCellTests.testCompactDensityMatchesCurrentLayout` - Compact keeps the existing icon and text positions within the current row height.
 - [ ] **T23** `FileListCellTests.testDensityLayoutsDoNotOverlapAccessories` - each density fits disclosure, icon, name, git, iCloud, symlink, lock, size, and date content without overlap.
 - [ ] **T24** `SidebarTests.testMountedVolumeAccessoryLabels` - mounted volumes and mounted servers expose context-correct eject accessibility labels and tooltips.
@@ -231,3 +231,4 @@ Populated at implement time - one entry per task ID with what got built and how 
 - **T16** On Foundry, `DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 resources/scripts/build.sh` passed with a clean release build, app bundle creation, codesign, stale-install check, and install to `/Applications`; Detours then relaunched via `sudo launchctl asuser`.
 - **T17-T19** Added `PreferencesTests` coverage for Compact default density, non-default density persistence through `SettingsManager` / `UserDefaults`, and missing or invalid density decode fallback to Compact while preserving other settings. On Foundry, `swift test --filter PreferencesTests` passed: 25 tests, 0 failures.
 - **T20** Added `FileListDensityTests.testDensityMetrics` for Compact, Comfortable, and Spacious row heights, primary/accessory icon sizes, git marker heights, and loading spinner sizes. On Foundry, `swift test --filter FileListDensityTests` passed: 1 test, 0 failures.
+- **T21** Added `FileListDataSourceTests.testRowHeightFollowsDensity` against the real `NSOutlineViewDelegate` row-height callback while cycling all density settings. On Foundry, `swift test --filter FileListDataSourceTests/testRowHeightFollowsDensity` passed: 1 test, 0 failures.
