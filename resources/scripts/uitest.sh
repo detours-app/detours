@@ -4,6 +4,7 @@
 # Usage:
 #   resources/scripts/uitest.sh                              # Run all UI tests
 #   resources/scripts/uitest.sh TestClass/testMethod         # Run specific test
+#   DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 resources/scripts/uitest.sh TestClass/testMethod
 
 set -e
 
@@ -12,13 +13,25 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 XCODEPROJ="$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj"
 UITEST_DESTINATION="platform=macOS,arch=arm64"
 APP_PATH="/Applications/Detours.app"
+BUILD_ARGS=()
 
 # Test directory setup in home (accessible and easy to navigate)
 TEST_DIR="$HOME/DetoursUITests-Temp"
 
+if [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
+    BUILD_ARGS+=(--screenshot-fixtures)
+fi
+
 # Build app first
 echo "Building Detours..."
-DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 "$SCRIPT_DIR/build.sh"
+DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 "$SCRIPT_DIR/build.sh" "${BUILD_ARGS[@]}"
+
+if [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
+    echo ""
+    echo "Setting up screenshot fixtures..."
+    "$SCRIPT_DIR/screenshot-setup.sh"
+    DETOURS_SCREENSHOT_SKIP_RELAUNCH=1 "$SCRIPT_DIR/screenshot-configure.sh"
+fi
 
 echo ""
 echo "Setting up test directory..."
@@ -64,10 +77,7 @@ echo "data" > "$TEST_DIR/Projects2025/notes.txt"
 
 echo "Running UI tests..."
 
-cleanup() {
-    rm -rf "$TEST_DIR"
-}
-trap cleanup EXIT
+trap 'rm -rf "$TEST_DIR"' EXIT
 
 if [ -n "$1" ]; then
     # Run specific test

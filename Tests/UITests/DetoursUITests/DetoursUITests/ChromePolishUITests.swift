@@ -7,6 +7,9 @@ private func chromePolishScopeText(_ element: XCUIElement) -> String {
 
 final class ChromePolishUITests: BaseUITest {
     private let quickNavCommandFileName = ".detours-quick-nav-command.json"
+    private let screenshotSparseBundleName = "Specs.sparsebundle"
+    private let screenshotDiskImageName = "Detours.dmg"
+    private let screenshotFileServerName = "Acme NAS"
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -86,6 +89,23 @@ final class ChromePolishUITests: BaseUITest {
 
         pressCharKey("w", modifiers: .command)
         XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "Closing the second tab should return to the original tab")
+    }
+
+    func testSidebarMountedVolumesExposeEject() throws {
+        launchChromePolishApp()
+
+        assertSidebarRow(
+            named: screenshotSparseBundleName,
+            exposesEjectButton: "Eject \(screenshotSparseBundleName)"
+        )
+        assertSidebarRow(
+            named: screenshotDiskImageName,
+            exposesEjectButton: "Eject \(screenshotDiskImageName)"
+        )
+        assertSidebarRow(
+            named: screenshotFileServerName,
+            exposesEjectButton: "Eject mounted shares from \(screenshotFileServerName)"
+        )
     }
 
     private func launchChromePolishApp(remoteMode: String? = nil) {
@@ -174,5 +194,24 @@ final class ChromePolishUITests: BaseUITest {
         let crumb = pathControl.staticTexts[title]
         XCTAssertTrue(crumb.waitForExistence(timeout: 3), "\(title) breadcrumb should exist")
         crumb.click()
+    }
+
+    private func assertSidebarRow(
+        named rowTitle: String,
+        exposesEjectButton buttonLabel: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let sidebar = app.outlines.matching(identifier: "sidebarOutlineView").firstMatch
+        XCTAssertTrue(sidebar.waitForExistence(timeout: 5), "Sidebar should exist", file: file, line: line)
+
+        let row = sidebar.outlineRows.containing(.staticText, identifier: rowTitle).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 8), "\(rowTitle) sidebar row should exist", file: file, line: line)
+
+        let button = row.buttons[buttonLabel]
+        XCTAssertTrue(button.waitForExistence(timeout: 3), "\(buttonLabel) button should exist", file: file, line: line)
+        XCTAssertFalse(button.frame.isEmpty, "\(buttonLabel) button should have a visible frame", file: file, line: line)
+        XCTAssertTrue(sidebar.frame.intersects(button.frame), "\(buttonLabel) button should be inside the sidebar", file: file, line: line)
+        XCTAssertTrue(button.isHittable, "\(buttonLabel) button should be visible and hittable", file: file, line: line)
     }
 }
