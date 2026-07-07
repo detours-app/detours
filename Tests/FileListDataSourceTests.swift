@@ -61,6 +61,31 @@ final class FileListDataSourceTests: XCTestCase {
         XCTAssertEqual(dataSource.items.count, 2)
     }
 
+    func testRowHeightFollowsDensity() {
+        let originalDensity = SettingsManager.shared.fileListRowDensity
+        defer { SettingsManager.shared.fileListRowDensity = originalDensity }
+
+        let dataSource = FileListDataSource()
+        let outlineView = NSOutlineView()
+        let item = FileItem(
+            name: "sample.txt",
+            url: URL(fileURLWithPath: "/tmp/sample.txt"),
+            isDirectory: false,
+            size: 10,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+
+        for density in FileListRowDensity.allCases {
+            SettingsManager.shared.fileListRowDensity = density
+
+            XCTAssertEqual(
+                dataSource.outlineView(outlineView, heightOfRowByItem: item),
+                density.rowHeight
+            )
+        }
+    }
+
     // MARK: - Bug Fix Verification Tests
 
     /// Tests that nested folder structure is correctly traversable.
