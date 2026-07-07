@@ -102,6 +102,8 @@ enum UITestEnvironment {
     struct AppearanceSettingsAcknowledgement: Encodable {
         let id: String
         let applied: Bool
+        let checkedTextCount: Int
+        let failure: String?
     }
 
     static var isEnabled: Bool {
@@ -383,9 +385,19 @@ enum UITestEnvironment {
         try? data.write(to: url, options: .atomic)
     }
 
-    static func acknowledgeAppearanceSettingsCommand(id: String, applied: Bool) {
+    static func acknowledgeAppearanceSettingsCommand(
+        id: String,
+        applied: Bool,
+        checkedTextCount: Int = 0,
+        failure: String? = nil
+    ) {
         guard let url = appearanceSettingsAcknowledgementURL,
-              let data = try? JSONEncoder().encode(AppearanceSettingsAcknowledgement(id: id, applied: applied)) else {
+              let data = try? JSONEncoder().encode(AppearanceSettingsAcknowledgement(
+                id: id,
+                applied: applied,
+                checkedTextCount: checkedTextCount,
+                failure: failure
+              )) else {
             return
         }
 

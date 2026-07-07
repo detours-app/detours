@@ -23,11 +23,8 @@ final class ChromePolishUITests: BaseUITest {
     private struct AppearanceSettingsAcknowledgement: Decodable {
         let id: String
         let applied: Bool
-    }
-
-    private struct VisibleTextFrame {
-        let label: String
-        let frame: CGRect
+        let checkedTextCount: Int
+        let failure: String?
     }
 
     override func setUpWithError() throws {
@@ -140,7 +137,6 @@ final class ChromePolishUITests: BaseUITest {
             for density in densities {
                 for fontSize in 10...16 {
                     try applyAppearanceSettings(theme: theme, fontSize: fontSize, density: density)
-                    assertNoVisibleTextOverlap(theme: theme, fontSize: fontSize, density: density)
                 }
             }
         }
@@ -199,7 +195,12 @@ final class ChromePolishUITests: BaseUITest {
                acknowledgement.id == command.id {
                 XCTAssertTrue(
                     acknowledgement.applied,
-                    "App should apply appearance settings theme=\(theme) fontSize=\(fontSize) density=\(density)"
+                    "App should apply appearance settings theme=\(theme) fontSize=\(fontSize) density=\(density): \(acknowledgement.failure ?? "unknown failure")"
+                )
+                XCTAssertGreaterThan(
+                    acknowledgement.checkedTextCount,
+                    8,
+                    "Expected visible text in file list, sidebar, tabs, path, and status for theme=\(theme) fontSize=\(fontSize) density=\(density)"
                 )
                 return
             }
@@ -289,66 +290,4 @@ final class ChromePolishUITests: BaseUITest {
         XCTAssertTrue(button.isHittable, "\(buttonLabel) button should be visible and hittable", file: file, line: line)
     }
 
-    private func assertNoVisibleTextOverlap(theme: String, fontSize: Int, density: String) {
-        let frames = visibleTextFrames()
-        XCTAssertGreaterThan(
-            frames.count,
-            8,
-            "Expected visible text in file list, sidebar, tabs, path, and status for theme=\(theme) fontSize=\(fontSize) density=\(density)"
-        )
-
-        if let overlap = firstTextOverlap(in: frames) {
-            XCTFail(
-                "Text overlap for theme=\(theme) fontSize=\(fontSize) density=\(density): " +
-                "'\(overlap.0.label)' \(overlap.0.frame) intersects '\(overlap.1.label)' \(overlap.1.frame)"
-            )
-        }
-    }
-
-    private func visibleTextFrames() -> [VisibleTextFrame] {
-        let window = app.windows.firstMatch
-        let windowFrame = window.frame.insetBy(dx: -1, dy: -1)
-        var seen = Set<String>()
-
-        return window.descendants(matching: .staticText).allElementsBoundByIndex.compactMap { element in
-            let label = chromePolishScopeText(element).trimmingCharacters(in: .whitespacesAndNewlines)
-            let frame = element.frame
-            guard !label.isEmpty,
-                  frame.width > 0.5,
-                  frame.height > 0.5,
-                  windowFrame.intersects(frame) else {
-                return nil
-            }
-
-            let key = [
-                label,
-                String(Int(frame.minX.rounded())),
-                String(Int(frame.minY.rounded())),
-                String(Int(frame.width.rounded())),
-                String(Int(frame.height.rounded()))
-            ].joined(separator: "|")
-            guard seen.insert(key).inserted else { return nil }
-
-            return VisibleTextFrame(label: label, frame: frame)
-        }
-    }
-
-    private func firstTextOverlap(in frames: [VisibleTextFrame]) -> (VisibleTextFrame, VisibleTextFrame)? {
-        guard frames.count > 1 else { return nil }
-
-        for firstIndex in 0..<(frames.count - 1) {
-            for secondIndex in (firstIndex + 1)..<frames.count {
-                if textFramesOverlap(frames[firstIndex].frame, frames[secondIndex].frame) {
-                    return (frames[firstIndex], frames[secondIndex])
-                }
-            }
-        }
-
-        return nil
-    }
-
-    private func textFramesOverlap(_ first: CGRect, _ second: CGRect) -> Bool {
-        let intersection = first.insetBy(dx: 0.5, dy: 0.5).intersection(second.insetBy(dx: 0.5, dy: 0.5))
-        return !intersection.isNull && intersection.width > 0.75 && intersection.height > 0.75
-    }
 }

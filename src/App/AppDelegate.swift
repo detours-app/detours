@@ -15,6 +15,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUITestDuplicateStructureShowRequestID: String?
     private var lastUITestAppearanceSettingsCommandID: String?
 
+    private struct UITestTextFrame {
+        let label: String
+        let frame: NSRect
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Reduce tooltip delay from default ~1000ms to 200ms
         UserDefaults.standard.set(200, forKey: "NSInitialToolTipDelay")
@@ -183,7 +188,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func applyAppearanceSettingsForUITest(_ command: UITestEnvironment.AppearanceSettingsCommand) {
         guard let theme = ThemeChoice(rawValue: command.theme),
               let density = FileListRowDensity(rawValue: command.fileListRowDensity) else {
-            UITestEnvironment.acknowledgeAppearanceSettingsCommand(id: command.id, applied: false)
+            UITestEnvironment.acknowledgeAppearanceSettingsCommand(
+                id: command.id,
+                applied: false,
+                failure: "Invalid appearance settings command"
+            )
             return
         }
 
@@ -191,7 +200,143 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsManager.shared.fontSize = command.fontSize
         SettingsManager.shared.fileListRowDensity = density
         mainWindowController?.window?.contentView?.layoutSubtreeIfNeeded()
-        UITestEnvironment.acknowledgeAppearanceSettingsCommand(id: command.id, applied: true)
+        let audit = auditVisibleTextOverlapForUITest()
+        UITestEnvironment.acknowledgeAppearanceSettingsCommand(
+            id: command.id,
+            applied: audit.failure == nil,
+            checkedTextCount: audit.count,
+            failure: audit.failure
+        )
+    }
+
+    private func auditVisibleTextOverlapForUITest() -> (count: Int, failure: String?) {
+        guard let window = mainWindowController?.window,
+              let contentView = window.contentView else {
+            return (0, "Main window content view is missing")
+        }
+
+        let windowFrame = window.frame.insetBy(dx: -1, dy: -1)
+        var frames: [UITestTextFrame] = []
+        var visited = Set<ObjectIdentifier>()
+        var seenFrames = Set<String>()
+        collectUITestTextFrames(
+            from: contentView,
+            windowFrame: windowFrame,
+            visited: &visited,
+            seenFrames: &seenFrames,
+            frames: &frames
+        )
+
+        guard frames.count > 8 else {
+            return (frames.count, "Expected visible chrome text, found only \(frames.count) text frames")
+        }
+
+        if let overlap = firstUITestTextOverlap(in: frames) {
+            return (
+                frames.count,
+                "'\(overlap.0.label)' \(NSStringFromRect(overlap.0.frame)) overlaps " +
+                "'\(overlap.1.label)' \(NSStringFromRect(overlap.1.frame))"
+            )
+        }
+
+        return (frames.count, nil)
+    }
+
+    private func collectUITestTextFrames(
+        from element: Any,
+        windowFrame: NSRect,
+        visited: inout Set<ObjectIdentifier>,
+        seenFrames: inout Set<String>,
+        frames: inout [UITestTextFrame]
+    ) {
+        if let object = element as? AnyObject {
+            let identifier = ObjectIdentifier(object)
+            guard visited.insert(identifier).inserted else { return }
+        }
+
+        if let view = element as? NSView {
+            guard !view.isHidden, view.alphaValue > 0.01, view.window != nil else { return }
+        }
+
+        if let accessible = element as? NSAccessibilityElementProtocol {
+            collectUITestTextFrame(
+                from: accessible,
+                windowFrame: windowFrame,
+                seenFrames: &seenFrames,
+                frames: &frames
+            )
+
+            for child in accessible.accessibilityChildren() ?? [] {
+                collectUITestTextFrames(
+                    from: child,
+                    windowFrame: windowFrame,
+                    visited: &visited,
+                    seenFrames: &seenFrames,
+                    frames: &frames
+                )
+            }
+        }
+
+        if let view = element as? NSView {
+            for subview in view.subviews {
+                collectUITestTextFrames(
+                    from: subview,
+                    windowFrame: windowFrame,
+                    visited: &visited,
+                    seenFrames: &seenFrames,
+                    frames: &frames
+                )
+            }
+        }
+    }
+
+    private func collectUITestTextFrame(
+        from accessible: NSAccessibilityElementProtocol,
+        windowFrame: NSRect,
+        seenFrames: inout Set<String>,
+        frames: inout [UITestTextFrame]
+    ) {
+        guard accessible.accessibilityRole() == .staticText else { return }
+
+        let rawLabel = accessible.accessibilityLabel() ?? (accessible.accessibilityValue() as? String) ?? ""
+        let label = rawLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let frame = accessible.accessibilityFrame()
+        guard !label.isEmpty,
+              frame.width > 0.5,
+              frame.height > 0.5,
+              windowFrame.intersects(frame) else {
+            return
+        }
+
+        let key = [
+            label,
+            String(Int(frame.minX.rounded())),
+            String(Int(frame.minY.rounded())),
+            String(Int(frame.width.rounded())),
+            String(Int(frame.height.rounded()))
+        ].joined(separator: "|")
+        guard seenFrames.insert(key).inserted else { return }
+
+        frames.append(UITestTextFrame(label: label, frame: frame))
+    }
+
+    private func firstUITestTextOverlap(in frames: [UITestTextFrame]) -> (UITestTextFrame, UITestTextFrame)? {
+        guard frames.count > 1 else { return nil }
+
+        for firstIndex in 0..<(frames.count - 1) {
+            for secondIndex in (firstIndex + 1)..<frames.count {
+                if uiTestTextFramesOverlap(frames[firstIndex].frame, frames[secondIndex].frame) {
+                    return (frames[firstIndex], frames[secondIndex])
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private func uiTestTextFramesOverlap(_ first: NSRect, _ second: NSRect) -> Bool {
+        let intersection = first.insetBy(dx: 0.5, dy: 0.5).intersection(second.insetBy(dx: 0.5, dy: 0.5))
+        return !intersection.isNull && intersection.width > 0.75 && intersection.height > 0.75
     }
 
     private func writeUndoMenuTitleForUITest(requestID: String) {
