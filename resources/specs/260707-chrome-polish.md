@@ -160,7 +160,7 @@ Sidebar polish lives in `SidebarViewController` and `SidebarItemView`. Keep the 
 
 **Phase 3: Pane Chrome Polish**
 
-- [ ] **T9** Update `src/Panes/PaneTabBar.swift` and `src/Panes/PaneTabBar+TabButton.swift` tab drawing, spacing, and active/inactive colors so tabs keep one flat active underline, no rounded cap, SF Symbol navigation buttons, and visibly distinct active versus inactive pane states.
+- [x] **T9** Update `src/Panes/PaneTabBar.swift` and `src/Panes/PaneTabBar+TabButton.swift` tab drawing, spacing, and active/inactive colors so tabs keep one flat active underline, no rounded cap, SF Symbol navigation buttons, and visibly distinct active versus inactive pane states.
 - [ ] **T10** Update `src/Panes/PaneViewController.swift` and `src/Panes/PaneViewController+PathControl.swift` spacing, separators, and theme colors so the tab strip, path strip, home/iCloud buttons, remote breadcrumb, reconnect banner, and content boundary read as one pane chrome stack.
 - [ ] **T11** Update `src/Panes/StatusBarView.swift` theme colors and active-pane emphasis so status text and remote/local context remain readable across themes without adding new command surfaces.
 
@@ -221,3 +221,4 @@ Populated at implement time - one entry per task ID with what got built and how 
 - **T6** Updated `FileListViewController.handleSettingsChange()` to preserve selected `FileItem` references and folder expansion state, apply changed density row heights, invalidate row heights, reload visible rows, and restore table keyboard focus when it had focus before the settings refresh. `resources/scripts/build.sh` passed.
 - **T7** Removed alternating file-list background bands, kept a flat themed background, and moved row feedback into `InactiveHidingRowView` with theme-aware hover, active selection, inactive selection, and drop-target fills plus an active accent rail. `resources/scripts/build.sh` passed.
 - **T8** Added density metrics for icon leading, disclosure width, rename editor sizing, and loading spinners; wired rename placement, disclosure centering, async folder spinner placement, git marker leading, name gap, and iCloud/symlink/lock overlay sizes/offsets to those metrics. `resources/scripts/build.sh` passed.
+- **T9** Tuned pane tab surfaces, nav-control tinting, tab spacing, active/inactive text emphasis, hover fills, and file-drop highlights while keeping SF Symbol back/forward controls and a single flat accent underline for selected tabs. `resources/scripts/build.sh` passed.

@@ -24,9 +24,9 @@ final class TabButton: NSView {
     private let colors: Colors
 
     private static let iconSize: CGFloat = 16
-    private static let leadingPad: CGFloat = 8
-    private static let iconTextGap: CGFloat = 5
-    private static let trailingPad: CGFloat = 10
+    private static let leadingPad: CGFloat = 10
+    private static let iconTextGap: CGFloat = 6
+    private static let trailingPad: CGFloat = 12
 
     var tabAction: (() -> Void)?
     var closeAction: (() -> Void)?
@@ -141,15 +141,23 @@ final class TabButton: NSView {
         layer?.backgroundColor = nil
         layer?.cornerRadius = 0
 
-        let textColor = (isDropTarget || isSelected) ? colors.textPrimary : colors.textSecondary
+        let textColor: NSColor
+        if isDropTarget || (isSelected && isPaneActive) {
+            textColor = colors.textPrimary
+        } else if isSelected {
+            textColor = colors.textSecondary
+        } else {
+            textColor = isPaneActive ? colors.textSecondary : colors.textSecondary.withAlphaComponent(0.75)
+        }
         titleLabel.textColor = textColor
         iconView.contentTintColor = textColor
         closeButton.contentTintColor = textColor
 
         // Inactive pane dims everything
-        let paneAlpha: CGFloat = isPaneActive ? 1.0 : 0.6
+        let paneAlpha: CGFloat = isPaneActive ? 1.0 : 0.78
         titleLabel.alphaValue = paneAlpha
         iconView.alphaValue = paneAlpha
+        closeButton.alphaValue = paneAlpha
 
         // On hover: swap icon for close button
         iconView.isHidden = isHovered
@@ -162,20 +170,23 @@ final class TabButton: NSView {
         let b = bounds
 
         if isDropTarget {
-            colors.accent.withAlphaComponent(0.3).setFill()
-            let path = NSBezierPath(roundedRect: b, xRadius: 4, yRadius: 4)
-            path.fill()
+            colors.accent.withAlphaComponent(isPaneActive ? 0.18 : 0.12).setFill()
+            b.fill()
         } else if isSelected {
-            let fillColor = isPaneActive ? colors.background : colors.surface
+            let fillColor: NSColor
+            if isPaneActive {
+                fillColor = colors.background
+            } else {
+                fillColor = colors.surface.blended(withFraction: 0.35, of: colors.background) ?? colors.surface
+            }
             fillColor.setFill()
             b.fill()
 
             // Accent indicator at bottom edge
-            let indicatorColor = isPaneActive ? colors.accent : colors.accent.withAlphaComponent(0.4)
-            indicatorColor.setFill()
+            colors.accent.withAlphaComponent(isPaneActive ? 1.0 : 0.45).setFill()
             NSRect(x: 0, y: 0, width: b.width, height: 2).fill()
         } else if isHovered {
-            (colors.surface.blended(withFraction: 0.08, of: .black) ?? colors.surface).setFill()
+            colors.textPrimary.withAlphaComponent(isPaneActive ? 0.055 : 0.035).setFill()
             b.fill()
         }
     }

@@ -172,12 +172,12 @@ final class PaneTabBar: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let theme = ThemeManager.shared.currentTheme
-        let fillColor = isActive ? theme.surface : (theme.surface.blended(withFraction: 0.30, of: theme.background) ?? theme.surface)
+        let fillColor = isActive ? theme.surface : (theme.surface.blended(withFraction: 0.50, of: theme.background) ?? theme.surface)
         fillColor.setFill()
         bounds.fill()
 
         // Bottom separator
-        theme.border.setFill()
+        (isActive ? theme.border : theme.border.withAlphaComponent(0.65)).setFill()
         NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
 
         // Draw drop indicator if needed
@@ -252,6 +252,8 @@ final class PaneTabBar: NSView {
         for button in tabButtons {
             button.setPaneActive(active)
         }
+        updateNewTabButtonColor()
+        needsDisplay = true
     }
 
     private func scrollToTab(at index: Int) {
@@ -274,7 +276,7 @@ final class PaneTabBar: NSView {
     }
 
     private func updateNewTabButtonColor() {
-        let color = textSecondaryColor
+        let color = isActive ? textSecondaryColor : textSecondaryColor.withAlphaComponent(0.65)
         let config = NSImage.SymbolConfiguration(paletteColors: [color])
 
         if let backImage = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")?
