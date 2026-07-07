@@ -2,7 +2,12 @@ import AppKit
 
 final class SidebarItemView: NSTableCellView {
     private enum Layout {
-        static let accessoryTrailingInset: CGFloat = -10
+        static let iconLeading: CGFloat = 12
+        static let sectionLeading: CGFloat = 14
+        static let childIndent: CGFloat = 10
+        static let nameIconGap: CGFloat = 8
+        static let trailingInset: CGFloat = -10
+        static let accessoryTrailingInset: CGFloat = -8
     }
 
     private let iconView = NSImageView()
@@ -46,25 +51,26 @@ final class SidebarItemView: NSTableCellView {
         statusSpinner.isHidden = true
 
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        nameLabel.font = .systemFont(ofSize: 12)
+        nameLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 13)
         nameLabel.lineBreakMode = .byTruncatingTail
         nameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        subtitleLabel.font = .systemFont(ofSize: 10)
+        subtitleLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 10)
         subtitleLabel.lineBreakMode = .byTruncatingTail
         subtitleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         subtitleLabel.isHidden = true
 
         capacityLabel.translatesAutoresizingMaskIntoConstraints = false
-        capacityLabel.font = .systemFont(ofSize: 10)
+        capacityLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 10)
         capacityLabel.alignment = .right
         capacityLabel.setContentHuggingPriority(.defaultHigh, for: .horizontal)
 
         protocolBadge.translatesAutoresizingMaskIntoConstraints = false
-        protocolBadge.font = .systemFont(ofSize: 9, weight: .medium)
+        protocolBadge.font = ThemeManager.shared.currentTheme.uiFont(size: 9, weight: .medium)
         protocolBadge.alignment = .right
         protocolBadge.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        protocolBadge.lineBreakMode = .byTruncatingTail
         protocolBadge.isHidden = true
 
         // Accessory button setup
@@ -94,7 +100,7 @@ final class SidebarItemView: NSTableCellView {
         )
 
         NSLayoutConstraint.activate([
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.iconLeading),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
@@ -109,7 +115,7 @@ final class SidebarItemView: NSTableCellView {
             statusSpinner.widthAnchor.constraint(equalToConstant: 12),
             statusSpinner.heightAnchor.constraint(equalToConstant: 12),
 
-            nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
+            nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: Layout.nameIconGap),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             nameTrailingConstraint!,
 
@@ -118,7 +124,7 @@ final class SidebarItemView: NSTableCellView {
             subtitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
 
             capacityLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-            capacityLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 50),
+            capacityLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 56),
 
             protocolBadge.centerYAnchor.constraint(equalTo: centerYAnchor),
             // protocolBadge trailing is set dynamically based on eject button visibility
@@ -142,9 +148,13 @@ final class SidebarItemView: NSTableCellView {
         statusSpinner.stopAnimation(nil)
         statusSpinner.isHidden = true
         subtitleLabel.isHidden = true
+        capacityLabel.isHidden = true
+        protocolBadge.isHidden = true
+        ejectButton.isHidden = true
         onEject = nil
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
         setAccessoryTrailing(Layout.accessoryTrailingInset)
+        resetNameCenterY()
         alphaValue = 1.0
 
         switch item {
@@ -168,21 +178,23 @@ final class SidebarItemView: NSTableCellView {
     private func configureAsSection(_ section: SidebarSection, theme: Theme) {
         iconView.isHidden = true
         nameLabel.stringValue = section.title
-        nameLabel.font = theme.uiFont(size: 11)
-        nameLabel.textColor = theme.textSecondary
+        nameLabel.font = theme.uiFont(size: 10, weight: .semibold)
+        nameLabel.textColor = theme.textTertiary
         capacityLabel.isHidden = true
+        protocolBadge.isHidden = true
+        ejectButton.isHidden = true
 
         // Adjust leading constraint for section headers (no icon)
         if let constraint = constraints.first(where: { $0.firstAnchor == nameLabel.leadingAnchor }) {
             constraint.isActive = false
         }
-        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.sectionLeading).isActive = true
 
         // Offset content down by 6px to create top padding (row is 34px: 6px top + 28px content)
         for constraint in constraints where constraint.firstAnchor == nameLabel.centerYAnchor {
             constraint.isActive = false
         }
-        nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 3).isActive = true
+        nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 4).isActive = true
     }
 
     private func configureAsDevice(_ volume: VolumeInfo, theme: Theme) {
@@ -197,8 +209,7 @@ final class SidebarItemView: NSTableCellView {
         configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
         setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
-        ejectButton.contentTintColor = theme.textSecondary
-        ejectButton.alphaValue = 0.7
+        applyAccessoryTint(theme)
 
         // Update capacity trailing constraint based on eject button visibility
         capacityTrailingConstraint?.isActive = false
@@ -212,7 +223,7 @@ final class SidebarItemView: NSTableCellView {
         if let capacity = volume.capacityString {
             capacityLabel.isHidden = false
             capacityLabel.stringValue = capacity
-            capacityLabel.font = theme.font(size: 10)
+            capacityLabel.font = theme.uiFont(size: 10)
             capacityLabel.textColor = theme.textTertiary
         } else {
             capacityLabel.isHidden = true
@@ -230,6 +241,11 @@ final class SidebarItemView: NSTableCellView {
         let smallConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
         ejectButton.image = image?.withSymbolConfiguration(smallConfig)
         ejectButton.toolTip = accessibilityDescription
+    }
+
+    private func applyAccessoryTint(_ theme: Theme) {
+        ejectButton.contentTintColor = theme.textSecondary
+        ejectButton.alphaValue = 0.82
     }
 
     private func configureAsServer(_ server: NetworkServer, theme: Theme, isOffline: Bool = false, hasVolumes: Bool = false) {
@@ -257,7 +273,7 @@ final class SidebarItemView: NSTableCellView {
         // Show protocol/status badge
         protocolBadge.isHidden = false
         protocolBadge.font = theme.uiFont(size: 9)
-        protocolBadge.textColor = theme.textTertiary
+        protocolBadge.textColor = isOffline ? theme.textTertiary : theme.accent.withAlphaComponent(0.85)
 
         // Show eject button when server has mounted volumes
         ejectButton.isHidden = !hasVolumes
@@ -266,8 +282,7 @@ final class SidebarItemView: NSTableCellView {
         setNameTrailing(to: protocolBadge.leadingAnchor, constant: -4)
         protocolBadgeTrailingConstraint?.isActive = false
         if hasVolumes {
-            ejectButton.contentTintColor = theme.textSecondary
-            ejectButton.alphaValue = 0.7
+            applyAccessoryTint(theme)
             // Move protocol badge to not overlap with eject button
             protocolBadgeTrailingConstraint = protocolBadge.trailingAnchor.constraint(equalTo: ejectButton.leadingAnchor, constant: -6)
         } else {
@@ -290,6 +305,8 @@ final class SidebarItemView: NSTableCellView {
         }
         statusDot.isHidden = isInProgress
         statusDot.layer?.backgroundColor = statusDotColor(for: state, theme: theme).cgColor
+        statusDot.layer?.borderWidth = 1
+        statusDot.layer?.borderColor = theme.surface.withAlphaComponent(0.9).cgColor
         statusSpinner.isHidden = !isInProgress
         if isInProgress {
             statusSpinner.startAnimation(nil)
@@ -311,8 +328,7 @@ final class SidebarItemView: NSTableCellView {
         configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
         setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: ejectButton.leadingAnchor, constant: -4)
-        ejectButton.contentTintColor = theme.textSecondary
-        ejectButton.alphaValue = 0.7
+        applyAccessoryTint(theme)
 
         resetNameLeadingToStatusDot()
 
@@ -356,7 +372,7 @@ final class SidebarItemView: NSTableCellView {
         protocolBadge.stringValue = "manual"
 #endif
         protocolBadge.font = theme.uiFont(size: 9)
-        protocolBadge.textColor = theme.textTertiary
+        protocolBadge.textColor = theme.accent.withAlphaComponent(0.85)
 
         // Show eject button when server has mounted volumes
         ejectButton.isHidden = !hasVolumes
@@ -365,8 +381,7 @@ final class SidebarItemView: NSTableCellView {
         setNameTrailing(to: protocolBadge.leadingAnchor, constant: -4)
         protocolBadgeTrailingConstraint?.isActive = false
         if hasVolumes {
-            ejectButton.contentTintColor = theme.textSecondary
-            ejectButton.alphaValue = 0.7
+            applyAccessoryTint(theme)
             // Move protocol badge to not overlap with eject button
             protocolBadgeTrailingConstraint = protocolBadge.trailingAnchor.constraint(equalTo: ejectButton.leadingAnchor, constant: -6)
         } else {
@@ -393,8 +408,7 @@ final class SidebarItemView: NSTableCellView {
         configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
         setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
-        ejectButton.contentTintColor = theme.textSecondary
-        ejectButton.alphaValue = 0.7
+        applyAccessoryTint(theme)
 
         // Update capacity trailing constraint based on eject button visibility
         capacityTrailingConstraint?.isActive = false
@@ -408,14 +422,14 @@ final class SidebarItemView: NSTableCellView {
         if let capacity = volume.capacityString {
             capacityLabel.isHidden = false
             capacityLabel.stringValue = capacity
-            capacityLabel.font = theme.font(size: 10)
+            capacityLabel.font = theme.uiFont(size: 10)
             capacityLabel.textColor = theme.textTertiary
         } else {
             capacityLabel.isHidden = true
         }
 
         // Subtle indent for child items - enough to show hierarchy without feeling nested
-        resetNameLeading(indent: indented ? 8 : 0)
+        resetNameLeading(indent: indented ? Layout.childIndent : 0)
     }
 
     func configureAsPlaceholder(_ placeholder: NetworkPlaceholder, theme: Theme) {
@@ -430,7 +444,7 @@ final class SidebarItemView: NSTableCellView {
         for constraint in constraints where constraint.firstAnchor == nameLabel.leadingAnchor {
             constraint.isActive = false
         }
-        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.sectionLeading).isActive = true
     }
 
     private func configureAsFavorite(_ url: URL, theme: Theme) {
@@ -476,8 +490,8 @@ final class SidebarItemView: NSTableCellView {
         for constraint in constraints where constraint.firstAnchor == iconView.leadingAnchor {
             constraint.isActive = false
         }
-        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14 + indent).isActive = true
-        nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8).isActive = true
+        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.iconLeading + indent).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: Layout.nameIconGap).isActive = true
     }
 
     private func resetNameLeadingToStatusDot() {
@@ -501,6 +515,8 @@ final class SidebarItemView: NSTableCellView {
         iconView.contentTintColor = nil
         statusDot.isHidden = true
         statusDot.layer?.backgroundColor = nil
+        statusDot.layer?.borderWidth = 0
+        statusDot.layer?.borderColor = nil
         toolTip = nil
         nameLabel.stringValue = ""
         subtitleLabel.stringValue = ""
@@ -524,6 +540,6 @@ final class SidebarItemView: NSTableCellView {
         for constraint in constraints where constraint.firstAnchor == iconView.leadingAnchor {
             constraint.isActive = false
         }
-        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14).isActive = true
+        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.iconLeading).isActive = true
     }
 }

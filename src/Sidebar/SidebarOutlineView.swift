@@ -104,16 +104,18 @@ final class SidebarRowView: NSTableRowView {
 
     override func drawBackground(in dirtyRect: NSRect) {
         if isHovered && !isSelected {
-            let hoverColor = NSColor.labelColor.withAlphaComponent(0.06)
-            hoverColor.setFill()
+            Theme.currentSnapshot().textPrimary.withAlphaComponent(0.055).setFill()
             bounds.fill()
         }
     }
 
     override func drawSelection(in dirtyRect: NSRect) {
         guard isSelected else { return }
-        let accentColor = Theme.currentSnapshot().accent
-        accentColor.withAlphaComponent(0.3).setFill()
+        let theme = Theme.currentSnapshot()
+        theme.accent.withAlphaComponent(0.24).setFill()
         bounds.fill()
+
+        theme.accent.withAlphaComponent(0.85).setFill()
+        NSRect(x: bounds.minX, y: bounds.minY, width: 2, height: bounds.height).fill()
     }
 }

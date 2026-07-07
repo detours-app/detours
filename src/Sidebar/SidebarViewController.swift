@@ -107,7 +107,7 @@ final class SidebarViewController: NSViewController {
 
         outlineView.outlineTableColumn = column
         outlineView.headerView = nil
-        outlineView.rowHeight = 24
+        outlineView.rowHeight = 26
         outlineView.intercellSpacing = NSSize(width: 0, height: 0)
         outlineView.indentationPerLevel = 0  // We handle indentation manually in cell views
         outlineView.indentationMarkerFollowsCell = false

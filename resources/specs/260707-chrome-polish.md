@@ -166,7 +166,7 @@ Sidebar polish lives in `SidebarViewController` and `SidebarItemView`. Keep the 
 
 **Phase 4: Sidebar Polish**
 
-- [ ] **T12** Update `src/Sidebar/SidebarViewController.swift` and `src/Sidebar/SidebarItemView.swift` spacing, section-header treatment, icon tinting, status dots, protocol badges, capacity text, and accessory alignment while keeping the current sidebar sections and actions.
+- [x] **T12** Update `src/Sidebar/SidebarViewController.swift` and `src/Sidebar/SidebarItemView.swift` spacing, section-header treatment, icon tinting, status dots, protocol badges, capacity text, and accessory alignment while keeping the current sidebar sections and actions.
 - [ ] **T13** Give mounted sparse bundles, mounted disk images, mounted file servers, local devices, remote hosts, and favorites item-type-specific row treatment, tooltip, accessibility label, and eject or remove action.
 
 **Phase 5: Verification Surface**
@@ -224,3 +224,4 @@ Populated at implement time - one entry per task ID with what got built and how 
 - **T9** Tuned pane tab surfaces, nav-control tinting, tab spacing, active/inactive text emphasis, hover fills, and file-drop highlights while keeping SF Symbol back/forward controls and a single flat accent underline for selected tabs. `resources/scripts/build.sh` passed.
 - **T10** Added a themed path strip and separator under the tab bar, anchored home/iCloud/path controls inside it, retuned path spacing, made breadcrumb text use the themed UI font, and refreshed path/reconnect/control colors when themes or active pane state change. `resources/scripts/build.sh` passed.
 - **T11** Added active-pane status bar rendering with themed active/inactive backgrounds, border and text emphasis, preserved progress/error/completion modes, and prepended remote host context to existing status text for remote tabs. `resources/scripts/build.sh` passed.
+- **T12** Retuned sidebar row heights, theme-aware row hover/selection, section-header typography, item fonts, capacity text, protocol badge colors, remote status-dot contrast, network child indentation, and eject accessory alignment/tinting while preserving existing sections and actions. `resources/scripts/build.sh` passed.
