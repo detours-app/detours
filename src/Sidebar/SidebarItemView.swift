@@ -417,7 +417,7 @@ final class SidebarItemView: NSTableCellView {
         capacityLabel.isHidden = true
         protocolBadge.isHidden = true
         ejectButton.isHidden = false
-        configureAccessoryButton(symbolName: "minus.circle", accessibilityDescription: "Remove \(host.displayName)")
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Remove \(host.displayName)")
         setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: ejectButton.leadingAnchor, constant: -4)
         applyAccessoryTint(theme)
@@ -566,11 +566,8 @@ final class SidebarItemView: NSTableCellView {
         iconView.isHidden = false
         nameLabel.font = theme.uiFont(size: 13)
         capacityLabel.isHidden = true
-        ejectButton.isHidden = false
-        configureAccessoryButton(symbolName: "minus.circle", accessibilityDescription: "Remove \(url.lastPathComponent) from Favorites")
-        setAccessoryTrailing(Layout.accessoryTrailingInset)
-        setNameTrailing(to: ejectButton.leadingAnchor, constant: -4)
-        applyAccessoryTint(theme)
+        ejectButton.isHidden = true
+        setNameTrailing(to: trailingAnchor, constant: -10)
 
         // Check if favorite exists
         var isDirectory: ObjCBool = false
@@ -587,7 +584,7 @@ final class SidebarItemView: NSTableCellView {
         iconView.contentTintColor = nil
 
         toolTip = url.path
-        setAccessibilityLabel(FileManager.default.fileExists(atPath: url.path) ? "\(url.lastPathComponent), favorite, removable" : "\(url.lastPathComponent), missing favorite, removable")
+        setAccessibilityLabel(FileManager.default.fileExists(atPath: url.path) ? "\(url.lastPathComponent), favorite" : "\(url.lastPathComponent), missing favorite")
         resetNameLeading()
     }
 
