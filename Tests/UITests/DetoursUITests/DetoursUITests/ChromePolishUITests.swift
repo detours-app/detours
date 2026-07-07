@@ -37,6 +37,27 @@ final class ChromePolishUITests: BaseUITest {
         XCTAssertEqual(selectedRowName(), "unique-in-B.txt", "Remote Quick Nav selection behavior should be preserved")
     }
 
+    func testRowDensityPickerAppliesAndPersists() throws {
+        launchChromePolishApp()
+
+        setFileListDensity("Compact")
+        let compactHeight = rowHeight(named: "FolderA")
+        selectRow(named: "FolderB")
+
+        setFileListDensity("Spacious")
+        let spaciousHeight = waitForRowHeight(named: "FolderA", greaterThan: compactHeight + 4)
+        XCTAssertGreaterThan(spaciousHeight, compactHeight + 4, "Spacious density should increase open file-list row height")
+        XCTAssertEqual(selectedRowName(), "FolderB", "Changing density should preserve the current selection")
+
+        app.terminate()
+
+        launchChromePolishApp()
+        let persistedHeight = rowHeight(named: "FolderA")
+        XCTAssertGreaterThan(persistedHeight, compactHeight + 4, "Spacious density should persist after relaunch")
+
+        setFileListDensity("Compact")
+    }
+
     private func launchChromePolishApp(remoteMode: String? = nil) {
         removeQuickNavCommand()
         app = DetoursUITestApp.make()
@@ -62,5 +83,48 @@ final class ChromePolishUITests: BaseUITest {
 
     private func removeQuickNavCommand() {
         try? FileManager.default.removeItem(at: uiTestRootURL.appendingPathComponent(quickNavCommandFileName))
+    }
+
+    private func setFileListDensity(_ displayName: String) {
+        pressCharKey(",", modifiers: .command)
+
+        let preferencesWindow = app.windows["Preferences"]
+        XCTAssertTrue(preferencesWindow.waitForExistence(timeout: 3), "Preferences window should open")
+
+        let appearanceSection = app.staticTexts["Appearance"]
+        XCTAssertTrue(appearanceSection.waitForExistence(timeout: 2), "Appearance settings section should exist")
+        appearanceSection.click()
+
+        let picker = app.descendants(matching: .any)["fileListDensityPicker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 2), "File list density picker should exist")
+        picker.click()
+
+        let menuItem = app.menuItems[displayName]
+        XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "\(displayName) density menu item should exist")
+        menuItem.click()
+        sleep(1)
+
+        pressCharKey("w", modifiers: .command)
+        XCTAssertFalse(preferencesWindow.waitForExistence(timeout: 2), "Preferences window should close")
+        app.windows.firstMatch.click()
+    }
+
+    private func rowHeight(named name: String) -> CGFloat {
+        let row = outlineRow(named: name)
+        XCTAssertTrue(row.waitForExistence(timeout: 3), "\(name) row should exist")
+        return row.frame.height
+    }
+
+    private func waitForRowHeight(named name: String, greaterThan minimumHeight: CGFloat, timeout: TimeInterval = 3) -> CGFloat {
+        let deadline = Date().addingTimeInterval(timeout)
+        var measuredHeight = rowHeight(named: name)
+        while Date() < deadline {
+            measuredHeight = rowHeight(named: name)
+            if measuredHeight > minimumHeight {
+                return measuredHeight
+            }
+            usleep(100_000)
+        }
+        return measuredHeight
     }
 }

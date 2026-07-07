@@ -43,6 +43,8 @@ struct AppearanceSettingsView: View {
                         Text(density.displayName).tag(density)
                     }
                 }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("fileListDensityPicker")
                 .onChange(of: fileListRowDensity) { _, newValue in
                     SettingsManager.shared.fileListRowDensity = newValue
                 }
