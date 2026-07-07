@@ -385,10 +385,10 @@ final class PaneViewController: NSViewController {
             tabContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 
-            // Status bar at bottom, 22px height
+            // Status bar at bottom
             statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            statusBar.heightAnchor.constraint(equalToConstant: 20),
+            statusBar.heightAnchor.constraint(equalToConstant: StatusBarView.preferredHeight),
         ])
 
         // Set up dynamic bottom constraints based on status bar visibility

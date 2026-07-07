@@ -4,6 +4,8 @@ import AppKit
 /// Shows: item count, selection info, selection size, hidden file count, available disk space
 /// Progress mode: inline progress bar + operation text during file operations
 final class StatusBarView: NSView {
+    static let preferredHeight: CGFloat = 24
+
     enum Mode {
         case normal
         case progress
@@ -20,6 +22,12 @@ final class StatusBarView: NSView {
     // Progress mode views
     private let progressBar = NSProgressIndicator()
     private let progressLabel = NSTextField(labelWithString: "")
+
+    private enum Metrics {
+        static let horizontalInset: CGFloat = 12
+        static let progressWidth: CGFloat = 104
+        static let progressSpacing: CGFloat = 10
+    }
 
     // State
     private var itemCount: Int = 0
@@ -82,18 +90,18 @@ final class StatusBarView: NSView {
 
         NSLayoutConstraint.activate([
             // Normal label
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Metrics.horizontalInset),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Metrics.horizontalInset),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
 
             // Progress bar at leading edge
-            progressBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            progressBar.widthAnchor.constraint(equalToConstant: 100),
+            progressBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Metrics.horizontalInset),
+            progressBar.widthAnchor.constraint(equalToConstant: Metrics.progressWidth),
             progressBar.centerYAnchor.constraint(equalTo: centerYAnchor),
 
             // Progress label fills remaining space
-            progressLabel.leadingAnchor.constraint(equalTo: progressBar.trailingAnchor, constant: 8),
-            progressLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            progressLabel.leadingAnchor.constraint(equalTo: progressBar.trailingAnchor, constant: Metrics.progressSpacing),
+            progressLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Metrics.horizontalInset),
             progressLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
 
