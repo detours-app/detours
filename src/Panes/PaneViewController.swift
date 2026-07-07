@@ -36,6 +36,8 @@ final class PaneViewController: NSViewController {
     let homeButton = NSButton()
     let iCloudButton = NSButton()
     let pathControl = DroppablePathControl()
+    let pathStripView = NSView()
+    private let pathStripSeparator = NSView()
     let reconnectBanner = NSView()
     let reconnectBannerLabel = NSTextField(labelWithString: "")
     private let reconnectButton = NSButton(title: "Reconnect", target: nil, action: nil)
@@ -74,6 +76,7 @@ final class PaneViewController: NSViewController {
         super.viewDidLoad()
 
         setupTabBar()
+        setupPathStrip()
         setupHomeButton()
         setupICloudButton()
         updateRemoteHostBadge()
@@ -84,7 +87,7 @@ final class PaneViewController: NSViewController {
         setupConstraints()
 
         // Apply initial theme colors
-        updateButtonColors()
+        updatePaneChromeColors()
 
         // Observe theme changes to refresh the view
         NotificationCenter.default.addObserver(
@@ -116,9 +119,8 @@ final class PaneViewController: NSViewController {
 
     @objc private func handleThemeChange() {
         view.needsDisplay = true
-        updatePathControlColors()
         updateRemoteHostBadge()
-        updateButtonColors()
+        updatePaneChromeColors()
     }
 
     override func viewDidLayout() {
@@ -130,6 +132,13 @@ final class PaneViewController: NSViewController {
         tabBar.delegate = self
         tabBar.paneViewController = self
         view.addSubview(tabBar)
+    }
+
+    private func setupPathStrip() {
+        pathStripView.wantsLayer = true
+        pathStripSeparator.wantsLayer = true
+        pathStripView.addSubview(pathStripSeparator)
+        view.addSubview(pathStripView)
     }
 
     private func setupHomeButton() {
@@ -154,7 +163,8 @@ final class PaneViewController: NSViewController {
     }
 
     private func updateButtonColors() {
-        let color = ThemeManager.shared.currentTheme.textSecondary
+        let theme = ThemeManager.shared.currentTheme
+        let color = isActive ? theme.textSecondary : theme.textSecondary.withAlphaComponent(0.68)
         let config = NSImage.SymbolConfiguration(paletteColors: [color])
 
         if let homeImage = NSImage(systemSymbolName: "house", accessibilityDescription: "Home")?
@@ -165,6 +175,21 @@ final class PaneViewController: NSViewController {
             .withSymbolConfiguration(config) {
             iCloudButton.image = iCloudImage
         }
+        homeButton.alphaValue = isActive ? 1.0 : 0.78
+        iCloudButton.alphaValue = isActive ? 1.0 : 0.78
+    }
+
+    func updatePaneChromeColors() {
+        let theme = ThemeManager.shared.currentTheme
+        let stripColor = isActive ? theme.surface : (theme.surface.blended(withFraction: 0.45, of: theme.background) ?? theme.surface)
+        pathStripView.layer?.backgroundColor = stripColor.cgColor
+        pathStripSeparator.layer?.backgroundColor = theme.border.withAlphaComponent(isActive ? 1.0 : 0.65).cgColor
+        reconnectBanner.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(isActive ? 0.18 : 0.12).cgColor
+        reconnectBannerLabel.font = theme.uiFont(size: 12)
+        reconnectBannerLabel.textColor = theme.textPrimary
+        reconnectDismissButton.contentTintColor = theme.textSecondary
+        updatePathControlColors()
+        updateButtonColors()
     }
 
     private func setupPathControl() {
@@ -186,14 +211,16 @@ final class PaneViewController: NSViewController {
 
     func updatePathControlColors() {
         let theme = ThemeManager.shared.currentTheme
+        let textColor = isActive ? theme.textSecondary : theme.textSecondary.withAlphaComponent(0.72)
         // Update path item colors by rebuilding them with attributed titles
         for item in pathControl.pathItems {
             let attrs: [NSAttributedString.Key: Any] = [
-                .foregroundColor: theme.textSecondary,
-                .font: ThemeManager.shared.currentTheme.uiFont(size: NSFont.systemFontSize)
+                .foregroundColor: textColor,
+                .font: theme.uiFont(size: 12)
             ]
             item.attributedTitle = NSAttributedString(string: item.title, attributes: attrs)
         }
+        pathControl.alphaValue = isActive ? 1.0 : 0.82
         pathControl.needsDisplay = true
     }
 
@@ -272,6 +299,8 @@ final class PaneViewController: NSViewController {
 
     private func setupConstraints() {
         tabBar.translatesAutoresizingMaskIntoConstraints = false
+        pathStripView.translatesAutoresizingMaskIntoConstraints = false
+        pathStripSeparator.translatesAutoresizingMaskIntoConstraints = false
         homeButton.translatesAutoresizingMaskIntoConstraints = false
         iCloudButton.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
@@ -282,9 +311,9 @@ final class PaneViewController: NSViewController {
         tabContainer.translatesAutoresizingMaskIntoConstraints = false
         statusBar.translatesAutoresizingMaskIntoConstraints = false
 
-        pathControlLeadingToICloudConstraint = pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 6)
-        pathControlLeadingToViewConstraint = pathControl.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8)
-        pathControlTrailingConstraint = pathControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8)
+        pathControlLeadingToICloudConstraint = pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 8)
+        pathControlLeadingToViewConstraint = pathControl.leadingAnchor.constraint(equalTo: pathStripView.leadingAnchor, constant: 10)
+        pathControlTrailingConstraint = pathControl.trailingAnchor.constraint(equalTo: pathStripView.trailingAnchor, constant: -10)
         reconnectBannerHeightConstraint = reconnectBanner.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
@@ -294,23 +323,34 @@ final class PaneViewController: NSViewController {
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tabBar.heightAnchor.constraint(equalToConstant: 32),
 
-            // Path control under tab bar
-            pathControl.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
-            homeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-            homeButton.centerYAnchor.constraint(equalTo: pathControl.centerYAnchor),
+            // Path strip under tab bar
+            pathStripView.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            pathStripView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            pathStripView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            pathStripView.heightAnchor.constraint(equalToConstant: 28),
+
+            pathStripSeparator.leadingAnchor.constraint(equalTo: pathStripView.leadingAnchor),
+            pathStripSeparator.trailingAnchor.constraint(equalTo: pathStripView.trailingAnchor),
+            pathStripSeparator.bottomAnchor.constraint(equalTo: pathStripView.bottomAnchor),
+            pathStripSeparator.heightAnchor.constraint(equalToConstant: 1),
+
+            // Path control and quick path buttons sit inside the path strip
+            homeButton.leadingAnchor.constraint(equalTo: pathStripView.leadingAnchor, constant: 10),
+            homeButton.centerYAnchor.constraint(equalTo: pathStripView.centerYAnchor),
             homeButton.widthAnchor.constraint(equalToConstant: 24),
             homeButton.heightAnchor.constraint(equalToConstant: 24),
 
             iCloudButton.leadingAnchor.constraint(equalTo: homeButton.trailingAnchor, constant: 4),
-            iCloudButton.centerYAnchor.constraint(equalTo: pathControl.centerYAnchor),
+            iCloudButton.centerYAnchor.constraint(equalTo: pathStripView.centerYAnchor),
             iCloudButton.widthAnchor.constraint(equalToConstant: 24),
             iCloudButton.heightAnchor.constraint(equalToConstant: 24),
 
             pathControlLeadingToICloudConstraint!,
             pathControlTrailingConstraint!,
+            pathControl.centerYAnchor.constraint(equalTo: pathStripView.centerYAnchor),
             pathControl.heightAnchor.constraint(equalToConstant: 24),
 
-            reconnectBanner.topAnchor.constraint(equalTo: pathControl.bottomAnchor),
+            reconnectBanner.topAnchor.constraint(equalTo: pathStripView.bottomAnchor),
             reconnectBanner.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             reconnectBanner.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             reconnectBannerHeightConstraint!,
