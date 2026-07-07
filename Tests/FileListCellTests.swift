@@ -26,6 +26,7 @@ final class FileListCellTests: XCTestCase {
 
         let iconView = try XCTUnwrap(cell.imageView)
         let nameLabel = try XCTUnwrap(cell.textField)
+        let nameAlignmentRect = nameLabel.alignmentRect(forFrame: nameLabel.frame)
 
         XCTAssertEqual(cell.frame.height, FileListRowDensity.compact.rowHeight)
         XCTAssertEqual(iconView.frame.origin.x, 12, accuracy: 0.5)
@@ -33,8 +34,8 @@ final class FileListCellTests: XCTestCase {
         XCTAssertEqual(iconView.frame.height, 16, accuracy: 0.5)
         XCTAssertEqual(iconView.frame.midY, cell.bounds.midY, accuracy: 0.5)
 
-        XCTAssertEqual(nameLabel.frame.origin.x, 36, accuracy: 0.5)
-        XCTAssertEqual(nameLabel.frame.midY, cell.bounds.midY, accuracy: 0.5)
+        XCTAssertEqual(nameAlignmentRect.origin.x, 36, accuracy: 0.5)
+        XCTAssertEqual(nameAlignmentRect.midY, cell.bounds.midY, accuracy: 0.5)
         XCTAssertGreaterThanOrEqual(nameLabel.frame.minY, cell.bounds.minY)
         XCTAssertLessThanOrEqual(nameLabel.frame.maxY, cell.bounds.maxY)
     }
