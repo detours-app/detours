@@ -1,6 +1,29 @@
 # Changelog
 
-## Unreleased
+## 1.10.0 - 2026-07-07
+
+### Chrome Polish
+
+- **File lists have adjustable density** - Appearance settings now include
+  Compact, Comfortable, and Spacious file-list density options, with persisted
+  row height, icon, accessory, and rename-editor spacing.
+- **Pane chrome is clearer and more consistent** - Tabs, path controls,
+  active-pane emphasis, selected rows, banded file-list rows, and status bars
+  now use the Detours theme system consistently across light and dark themes.
+- **Status bars have more breathing room** - Pane status text now sits in a
+  roomier footer with clearer active/inactive treatment and remote host context.
+- **Sidebar affordances are more native** - Mounted volumes, mounted file
+  servers, and remote hosts now use eject affordances, while favorite rows keep
+  a clean navigation-only presentation.
+
+### Verification
+
+- **Chrome polish screenshots are reproducible** - Added Foundry screenshot
+  fixtures and captured dark/light, left-active/right-active reference images
+  covering local, remote, mounted volume, and file-server surfaces.
+- **Chrome layout coverage is broader** - Added UI and unit coverage for row
+  density persistence, pane navigation, Quick Nav, sidebar eject controls,
+  theme contrast, and text-overlap checks across densities, fonts, and themes.
 
 ### Bug Fixes
 
