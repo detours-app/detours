@@ -254,42 +254,5 @@ final class BandedOutlineView: NSOutlineView {
         let theme = ThemeManager.shared.currentTheme
         theme.background.setFill()
         clipRect.fill()
-
-        let bandColor = theme.textPrimary.withAlphaComponent(0.04)
-        let rowH = rowHeight + intercellSpacing.height
-
-        // Band existing rows
-        for row in 0..<numberOfRows {
-            guard row % 2 == 0 else { continue }
-            let rowRect = rect(ofRow: row).intersection(clipRect)
-            guard !rowRect.isEmpty else { continue }
-            bandColor.setFill()
-            rowRect.fill()
-        }
-
-        // Continue virtual bands below the last row to fill the visible area
-        let startY: CGFloat
-        let nextIndex: Int
-        if numberOfRows > 0 {
-            let lastRect = rect(ofRow: numberOfRows - 1)
-            startY = lastRect.maxY
-            nextIndex = numberOfRows
-        } else {
-            startY = 0
-            nextIndex = 0
-        }
-
-        var y = startY
-        var idx = nextIndex
-        bandColor.setFill()
-        while y < clipRect.maxY {
-            if idx % 2 == 0 {
-                let bandRect = NSRect(x: clipRect.minX, y: y, width: clipRect.width, height: rowH)
-                    .intersection(clipRect)
-                if !bandRect.isEmpty { bandRect.fill() }
-            }
-            y += rowH
-            idx += 1
-        }
     }
 }

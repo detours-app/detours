@@ -27,6 +27,7 @@ extension FileListDataSource {
         let rowView = InactiveHidingRowView()
         rowView.isTableActive = isActive
         if let fileItem = item as? FileItem {
+            rowView.isDropTarget = dropTargetItem === fileItem
             rowView.setAccessibilityIdentifier("outlineRow_\(fileItem.name)")
         }
         return rowView
