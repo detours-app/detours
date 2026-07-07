@@ -200,8 +200,8 @@ extension FileListViewController {
 
     private func remoteInfoKind(for entry: LoadedFileEntry) -> String {
         if entry.isSymbolicLink { return "Symbolic Link" }
-        if entry.isPackage { return "Package" }
         if entry.isDirectory { return "Folder" }
+        if entry.isPackage { return "Package" }
         return "File"
     }
 

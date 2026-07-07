@@ -66,6 +66,37 @@ final class FileItemTests: XCTestCase {
         XCTAssertEqual(remoteA.hashValue, remoteB.hashValue)
     }
 
+    func testRemoteDirectoryMarkedPackageStillPresentsAsNavigableFolder() {
+        let hostID = UUID()
+        let item = FileItem(
+            name: "cognel-v3-05-fullapp-prototype.evidence",
+            location: .remote(hostID: hostID, path: "/opt/cognel-app/resources/specs/cognel-v3-05-fullapp-prototype.evidence"),
+            isDirectory: true,
+            isPackage: true,
+            size: nil,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+
+        XCTAssertTrue(item.isPresentedAsFolder)
+        XCTAssertTrue(item.isNavigableFolder)
+    }
+
+    func testLocalPackageDirectoryDoesNotPresentAsNavigableFolder() {
+        let item = FileItem(
+            name: "Document.rtfd",
+            url: URL(fileURLWithPath: "/tmp/Document.rtfd"),
+            isDirectory: true,
+            isPackage: true,
+            size: nil,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+
+        XCTAssertFalse(item.isPresentedAsFolder)
+        XCTAssertFalse(item.isNavigableFolder)
+    }
+
     func testCloudDocsNotRenamedToShared() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

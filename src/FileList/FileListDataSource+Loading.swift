@@ -214,7 +214,11 @@ extension FileListDataSource {
 
     func makeFileItem(from entry: LoadedFileEntry) -> FileItem {
         let placeholder: NSImage
-        if entry.isDirectory && !entry.isPackage {
+        if FileItem.shouldPresentAsFolder(
+            isDirectory: entry.isDirectory,
+            isPackage: entry.isPackage,
+            location: entry.location
+        ) {
             placeholder = FileItem.tintedFolderIcon(IconLoader.placeholderFolderIcon)
         } else {
             placeholder = IconLoader.placeholderFileIcon

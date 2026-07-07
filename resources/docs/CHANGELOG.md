@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- **Remote directories stay expandable** - Remote folders that carry package-like
+  metadata now keep their disclosure triangles, folder icons, and Folder info
+  label instead of being presented like files.
+
 ## 1.9.0 - 2026-06-27
 
 ### Windows Remote Safety and Reliability

@@ -56,7 +56,7 @@ extension FileListDataSource {
                 guard !Task.isCancelled else { return }
 
                 // Tint folder icons with accent color
-                if item.isDirectory && !item.isPackage {
+                if item.isPresentedAsFolder {
                     item.icon = FileItem.tintedFolderIcon(icon)
                 } else {
                     item.icon = icon

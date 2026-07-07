@@ -284,6 +284,32 @@ final class FileListDataSourceTests: XCTestCase {
         }, timeout: 1)
     }
 
+    func testRemoteDirectoryMarkedPackageIsExpandable() {
+        let originalFolderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+        SettingsManager.shared.folderExpansionEnabled = true
+        defer {
+            SettingsManager.shared.folderExpansionEnabled = originalFolderExpansionEnabled
+        }
+
+        let hostID = UUID()
+        let entry = LoadedFileEntry(
+            location: .remote(hostID: hostID, path: "/opt/cognel-app/resources/specs/cognel-v3-05-fullapp-prototype.evidence"),
+            url: URL(fileURLWithPath: "/opt/cognel-app/resources/specs/cognel-v3-05-fullapp-prototype.evidence"),
+            name: "cognel-v3-05-fullapp-prototype.evidence",
+            isDirectory: true,
+            isPackage: true,
+            fileSize: nil,
+            contentModificationDate: Date()
+        )
+        let dataSource = FileListDataSource()
+        let item = dataSource.makeFileItem(from: entry)
+        let outlineView = NSOutlineView()
+
+        XCTAssertTrue(item.isPresentedAsFolder)
+        XCTAssertTrue(item.isNavigableFolder)
+        XCTAssertTrue(dataSource.outlineView(outlineView, isItemExpandable: item))
+    }
+
     private func makeRemoteItem(name: String, path: String, isDirectory: Bool) -> FileItem {
         FileItem(
             name: name,

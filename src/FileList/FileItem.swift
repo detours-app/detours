@@ -202,10 +202,11 @@ final class FileItem {
             }
             return false
         }()
+        let isPackage = values?.isPackage ?? false
 
         self.name = values?.localizedName ?? url.lastPathComponent
         self.isDirectory = isDirectory
-        self.isPackage = values?.isPackage ?? false
+        self.isPackage = isPackage
         self.isAliasFile = values?.isAliasFile ?? false
         self.isSymbolicLink = values?.isSymbolicLink ?? false
         self.isReadable = values?.isReadable ?? true
@@ -215,7 +216,7 @@ final class FileItem {
 
         // Get system icon and tint folders (but not packages) with accent color
         let systemIcon = NSWorkspace.shared.icon(forFile: url.path)
-        if self.isDirectory && !self.isPackage {
+        if Self.shouldPresentAsFolder(isDirectory: isDirectory, isPackage: isPackage, location: .local(url)) {
             self.icon = Self.tintedFolderIcon(systemIcon)
         } else {
             self.icon = systemIcon
@@ -378,7 +379,11 @@ final class FileItem {
 
         let items = entries.map { entry -> FileItem in
             let placeholder: NSImage
-            if entry.isDirectory && !entry.isPackage {
+            if Self.shouldPresentAsFolder(
+                isDirectory: entry.isDirectory,
+                isPackage: entry.isPackage,
+                location: entry.location
+            ) {
                 placeholder = Self.tintedFolderIcon(IconLoader.placeholderFolderIcon)
             } else {
                 placeholder = IconLoader.placeholderFileIcon
@@ -418,13 +423,36 @@ struct SortDescriptor: Equatable {
 // MARK: - Sorting
 
 extension FileItem {
-    /// True if this is a navigable folder (directory but not a package or disk image)
+    /// True if this should be drawn and spaced as a folder in Detours.
+    ///
+    /// Package opacity is a local Finder convention. Remote providers may surface
+    /// package-like metadata for ordinary directories, especially on non-Darwin
+    /// hosts, but remote directory rows must remain folder-like and expandable.
+    var isPresentedAsFolder: Bool {
+        Self.shouldPresentAsFolder(
+            isDirectory: isDirectory,
+            isPackage: isPackage,
+            location: location
+        )
+    }
+
+    static func shouldPresentAsFolder(isDirectory: Bool, isPackage: Bool, location: Location) -> Bool {
+        guard isDirectory else { return false }
+        switch location {
+        case .local:
+            return !isPackage
+        case .remote:
+            return true
+        }
+    }
+
+    /// True if this is a navigable folder.
     var isNavigableFolder: Bool {
         switch location {
         case .local(let url):
             return isDirectory && !isPackage && !FileOpenHelper.isDiskImage(url)
         case .remote:
-            return isDirectory && !isPackage
+            return isDirectory
         }
     }
 
