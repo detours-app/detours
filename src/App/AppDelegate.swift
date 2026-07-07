@@ -249,7 +249,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         seenFrames: inout Set<String>,
         frames: inout [UITestTextFrame]
     ) {
-        if let object = element as? AnyObject {
+        if let object = element as? NSObject {
             let identifier = ObjectIdentifier(object)
             guard visited.insert(identifier).inserted else { return }
         }
@@ -258,7 +258,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard !view.isHidden, view.alphaValue > 0.01, view.window != nil else { return }
         }
 
-        if let accessible = element as? NSAccessibilityElementProtocol {
+        if let accessible = element as? NSObject {
             collectUITestTextFrame(
                 from: accessible,
                 windowFrame: windowFrame,
@@ -291,7 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func collectUITestTextFrame(
-        from accessible: NSAccessibilityElementProtocol,
+        from accessible: NSObject,
         windowFrame: NSRect,
         seenFrames: inout Set<String>,
         frames: inout [UITestTextFrame]
