@@ -161,7 +161,7 @@ extension FileListViewController {
     func setupTableView() {
         tableView.backgroundColor = ThemeManager.shared.currentTheme.background
         tableView.style = .plain
-        tableView.rowHeight = 24
+        tableView.rowHeight = SettingsManager.shared.fileListRowDensity.rowHeight
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.gridStyleMask = []

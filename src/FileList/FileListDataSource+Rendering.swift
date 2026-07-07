@@ -20,7 +20,7 @@ extension FileListDataSource {
     }
 
     func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
-        return 24
+        SettingsManager.shared.fileListRowDensity.rowHeight
     }
 
     func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
