@@ -97,6 +97,7 @@ final class PaneTabBar: NSView {
         backButton.target = self
         backButton.action = #selector(backClicked)
         backButton.toolTip = "Back"
+        backButton.setAccessibilityIdentifier("paneBackButton")
 
         forwardButton.bezelStyle = .inline
         forwardButton.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")
@@ -104,6 +105,7 @@ final class PaneTabBar: NSView {
         forwardButton.target = self
         forwardButton.action = #selector(forwardClicked)
         forwardButton.toolTip = "Forward"
+        forwardButton.setAccessibilityIdentifier("paneForwardButton")
 
         addSubview(backButton)
         addSubview(forwardButton)
@@ -133,6 +135,7 @@ final class PaneTabBar: NSView {
         newTabButton.target = self
         newTabButton.action = #selector(newTabClicked)
         newTabButton.toolTip = "New Tab"
+        newTabButton.setAccessibilityIdentifier("paneNewTabButton")
 
         addSubview(newTabButton)
 

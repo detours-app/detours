@@ -205,6 +205,7 @@ final class PaneViewController: NSViewController {
         pathControl.delegate = self
         pathControl.dropDelegate = self
         pathControl.focusRingType = .none
+        pathControl.setAccessibilityIdentifier("panePathControl")
         // Compress gracefully when pane is narrow
         pathControl.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         pathControl.setContentHuggingPriority(.defaultLow, for: .horizontal)

@@ -58,6 +58,36 @@ final class ChromePolishUITests: BaseUITest {
         setFileListDensity("Compact")
     }
 
+    func testPaneChromePreservesNavigation() throws {
+        launchChromePolishApp()
+
+        openFolderB()
+        clickPathCrumb(named: testFolderName)
+        XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "Path breadcrumb should navigate back to the test root")
+
+        app.buttons.matching(identifier: "paneBackButton").element(boundBy: 0).click()
+        XCTAssertTrue(waitForRow(named: "unique-in-B.txt", timeout: 3), "Back button should return to FolderB")
+
+        app.buttons.matching(identifier: "paneForwardButton").element(boundBy: 0).click()
+        XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "Forward button should return to the test root")
+
+        let newTabButton = app.buttons.matching(identifier: "paneNewTabButton").element(boundBy: 0)
+        XCTAssertTrue(newTabButton.waitForExistence(timeout: 2), "New tab button should exist")
+        newTabButton.click()
+        XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "New tab should open at the current directory")
+
+        openFolderB()
+        pressCharKey("1", modifiers: .command)
+        XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "Cmd-1 should select the original tab")
+        XCTAssertFalse(rowExists(named: "unique-in-B.txt"), "Original tab should remain at the test root")
+
+        pressCharKey("2", modifiers: .command)
+        XCTAssertTrue(waitForRow(named: "unique-in-B.txt", timeout: 3), "Cmd-2 should select the new tab")
+
+        pressCharKey("w", modifiers: .command)
+        XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "Closing the second tab should return to the original tab")
+    }
+
     private func launchChromePolishApp(remoteMode: String? = nil) {
         removeQuickNavCommand()
         app = DetoursUITestApp.make()
@@ -126,5 +156,23 @@ final class ChromePolishUITests: BaseUITest {
             usleep(100_000)
         }
         return measuredHeight
+    }
+
+    private func openFolderB() {
+        let folderBRow = outlineRow(named: "FolderB")
+        XCTAssertTrue(folderBRow.waitForExistence(timeout: 3), "FolderB row should exist")
+        folderBRow.staticTexts["FolderB"].doubleClick()
+        XCTAssertTrue(waitForRow(named: "unique-in-B.txt", timeout: 3), "FolderB should open")
+    }
+
+    private func clickPathCrumb(named title: String) {
+        let pathControl = app.descendants(matching: .any)
+            .matching(identifier: "panePathControl")
+            .element(boundBy: 0)
+        XCTAssertTrue(pathControl.waitForExistence(timeout: 3), "Path control should exist")
+
+        let crumb = pathControl.staticTexts[title]
+        XCTAssertTrue(crumb.waitForExistence(timeout: 3), "\(title) breadcrumb should exist")
+        crumb.click()
     }
 }
