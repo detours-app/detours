@@ -153,7 +153,7 @@ Sidebar polish lives in `SidebarViewController` and `SidebarItemView`. Keep the 
 **Phase 2: File List Polish**
 
 - [x] **T4** Update `src/FileList/FileListViewController+Setup.swift` and `src/FileList/FileListDataSource+Rendering.swift` so table setup and row-height delegates read from `SettingsManager.shared.fileListRowDensity`.
-- [ ] **T5** Update `src/FileList/FileListCell.swift` to replace hardcoded icon, git marker, cloud, link, lock, and label alignment constraints with mutable constraints backed by `FileListRowDensity` metrics while keeping Compact visually equivalent to today.
+- [x] **T5** Update `src/FileList/FileListCell.swift` to replace hardcoded icon, git marker, cloud, link, lock, and label alignment constraints with mutable constraints backed by `FileListRowDensity` metrics while keeping Compact visually equivalent to today.
 - [ ] **T6** Update file-list settings handling, including `FileListViewController.handleSettingsChange()`, so density changes preserve selection and folder expansion state, invalidate row heights, reload visible rows, and keep keyboard focus when the table had focus.
 - [ ] **T7** Update `src/FileList/BandedOutlineView.swift`, `src/FileList/FileListDataSource.swift`, and `InactiveHidingRowView` row rendering to remove alternating bands and use a flat background plus theme-aware hover, selection, active-pane, inactive-pane, drag, and drop-target states.
 - [ ] **T8** Adjust rename-field placement, disclosure triangle placement, folder-loading spinner placement, git markers, iCloud markers, symlink markers, and lock markers to align in Compact, Comfortable, and Spacious densities.
@@ -217,3 +217,4 @@ Populated at implement time - one entry per task ID with what got built and how 
 - **T2** Added `fileListRowDensity` to `Settings`, robust decoding/encoding, `SettingsManager`, and `resetSettingsForTests()`, preserving Compact as the default. `resources/scripts/build.sh` passed.
 - **T3** Added the Appearance "File list density" picker and wired `ThemePreview` / `FileRowPreview` to render preview rows with the selected density's row height and primary icon size. `resources/scripts/build.sh` passed.
 - **T4** Updated initial table setup and the `NSOutlineViewDelegate` row-height callback to read `SettingsManager.shared.fileListRowDensity.rowHeight`. `resources/scripts/build.sh` passed.
+- **T5** Replaced `FileListCell` fixed icon, overlay accessory, git marker, and text center constraints with mutable density-backed constraints. Compact keeps the previous 16 pt icon, 12/11 pt accessories, 14 pt git marker, 4 pt overlay offset, and centered text. `resources/scripts/build.sh` passed.

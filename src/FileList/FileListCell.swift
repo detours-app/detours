@@ -17,6 +17,23 @@ final class FileListCell: NSTableCellView {
     private var gitStatus: GitStatus?
     private var iconLeadingConstraint: NSLayoutConstraint?
     private var gitBarLeadingConstraint: NSLayoutConstraint?
+    private var gitBarHeightConstraint: NSLayoutConstraint?
+    private var iconWidthConstraint: NSLayoutConstraint?
+    private var iconHeightConstraint: NSLayoutConstraint?
+    private var cloudTrailingConstraint: NSLayoutConstraint?
+    private var cloudBottomConstraint: NSLayoutConstraint?
+    private var cloudWidthConstraint: NSLayoutConstraint?
+    private var cloudHeightConstraint: NSLayoutConstraint?
+    private var linkTrailingConstraint: NSLayoutConstraint?
+    private var linkTopConstraint: NSLayoutConstraint?
+    private var linkWidthConstraint: NSLayoutConstraint?
+    private var linkHeightConstraint: NSLayoutConstraint?
+    private var lockTrailingConstraint: NSLayoutConstraint?
+    private var lockBottomConstraint: NSLayoutConstraint?
+    private var lockWidthConstraint: NSLayoutConstraint?
+    private var lockHeightConstraint: NSLayoutConstraint?
+    private var nameLabelCenterYConstraint: NSLayoutConstraint?
+    private var sharedLabelCenterYConstraint: NSLayoutConstraint?
     private var itemName: String = ""
 
     override init(frame frameRect: NSRect) {
@@ -86,47 +103,65 @@ final class FileListCell: NSTableCellView {
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         sharedLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        // Create dynamic constraints for git bar and icon leading (adjusted when folder expansion is enabled)
+        // Create dynamic constraints for density and folder expansion changes.
+        let density = SettingsManager.shared.fileListRowDensity
         gitBarLeadingConstraint = gitStatusBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5)
         iconLeadingConstraint = iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12)
+        gitBarHeightConstraint = gitStatusBar.heightAnchor.constraint(equalToConstant: density.gitMarkerHeight)
+        iconWidthConstraint = iconView.widthAnchor.constraint(equalToConstant: density.primaryIconSize)
+        iconHeightConstraint = iconView.heightAnchor.constraint(equalToConstant: density.primaryIconSize)
+        cloudTrailingConstraint = cloudIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: density.overlayOffset)
+        cloudBottomConstraint = cloudIcon.bottomAnchor.constraint(equalTo: iconView.bottomAnchor, constant: density.overlayOffset)
+        cloudWidthConstraint = cloudIcon.widthAnchor.constraint(equalToConstant: density.accessoryIconSize)
+        cloudHeightConstraint = cloudIcon.heightAnchor.constraint(equalToConstant: density.accessoryIconSize)
+        linkTrailingConstraint = linkIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: density.overlayOffset)
+        linkTopConstraint = linkIcon.topAnchor.constraint(equalTo: iconView.topAnchor, constant: -density.overlayOffset)
+        linkWidthConstraint = linkIcon.widthAnchor.constraint(equalToConstant: density.secondaryAccessoryIconSize)
+        linkHeightConstraint = linkIcon.heightAnchor.constraint(equalToConstant: density.secondaryAccessoryIconSize)
+        lockTrailingConstraint = lockIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: density.overlayOffset)
+        lockBottomConstraint = lockIcon.bottomAnchor.constraint(equalTo: iconView.bottomAnchor, constant: density.overlayOffset)
+        lockWidthConstraint = lockIcon.widthAnchor.constraint(equalToConstant: density.secondaryAccessoryIconSize)
+        lockHeightConstraint = lockIcon.heightAnchor.constraint(equalToConstant: density.secondaryAccessoryIconSize)
+        nameLabelCenterYConstraint = nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: density.verticalTextOffset)
+        sharedLabelCenterYConstraint = sharedLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: density.verticalTextOffset)
 
         NSLayoutConstraint.activate([
-            // Git status bar: 2px × 14px, centered vertically (leading is dynamic)
+            // Git status bar: fixed width, density-controlled height.
             gitBarLeadingConstraint!,
             gitStatusBar.centerYAnchor.constraint(equalTo: centerYAnchor),
             gitStatusBar.widthAnchor.constraint(equalToConstant: 2),
-            gitStatusBar.heightAnchor.constraint(equalToConstant: 14),
+            gitBarHeightConstraint!,
 
-            // Icon: 16x16, centered vertically (leading is dynamic)
+            // Icon: density-controlled size, centered vertically.
             iconLeadingConstraint!,
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 16),
-            iconView.heightAnchor.constraint(equalToConstant: 16),
+            iconWidthConstraint!,
+            iconHeightConstraint!,
 
-            // Cloud icon: 12x12, bottom-right of main icon
-            cloudIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
-            cloudIcon.bottomAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 4),
-            cloudIcon.widthAnchor.constraint(equalToConstant: 12),
-            cloudIcon.heightAnchor.constraint(equalToConstant: 12),
+            // Overlay icons stay pinned to the main icon with density-controlled sizes.
+            cloudTrailingConstraint!,
+            cloudBottomConstraint!,
+            cloudWidthConstraint!,
+            cloudHeightConstraint!,
 
-            linkIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
-            linkIcon.topAnchor.constraint(equalTo: iconView.topAnchor, constant: -4),
-            linkIcon.widthAnchor.constraint(equalToConstant: 11),
-            linkIcon.heightAnchor.constraint(equalToConstant: 11),
+            linkTrailingConstraint!,
+            linkTopConstraint!,
+            linkWidthConstraint!,
+            linkHeightConstraint!,
 
-            lockIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
-            lockIcon.bottomAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 4),
-            lockIcon.widthAnchor.constraint(equalToConstant: 11),
-            lockIcon.heightAnchor.constraint(equalToConstant: 11),
+            lockTrailingConstraint!,
+            lockBottomConstraint!,
+            lockWidthConstraint!,
+            lockHeightConstraint!,
 
             // Name: 8px after icon
             nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
-            nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            nameLabelCenterYConstraint!,
 
             // Shared label: after name, before trailing edge
             sharedLabel.leadingAnchor.constraint(equalTo: nameLabel.trailingAnchor, constant: 8),
             sharedLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
-            sharedLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            sharedLabelCenterYConstraint!,
         ])
 
         NotificationCenter.default.addObserver(
@@ -178,6 +213,8 @@ final class FileListCell: NSTableCellView {
         linkIcon.isHidden = !item.isSymbolicLink
         lockIcon.isHidden = item.isReadable
 
+        applyDensityMetrics()
+
         // Adjust leading padding based on folder expansion and item type
         // Folders never have git status, so they can use tighter spacing
         let folderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
@@ -222,6 +259,27 @@ final class FileListCell: NSTableCellView {
 
         updateCutAppearance()
         updateDropTargetAppearance()
+    }
+
+    private func applyDensityMetrics() {
+        let density = SettingsManager.shared.fileListRowDensity
+        gitBarHeightConstraint?.constant = density.gitMarkerHeight
+        iconWidthConstraint?.constant = density.primaryIconSize
+        iconHeightConstraint?.constant = density.primaryIconSize
+        cloudTrailingConstraint?.constant = density.overlayOffset
+        cloudBottomConstraint?.constant = density.overlayOffset
+        cloudWidthConstraint?.constant = density.accessoryIconSize
+        cloudHeightConstraint?.constant = density.accessoryIconSize
+        linkTrailingConstraint?.constant = density.overlayOffset
+        linkTopConstraint?.constant = -density.overlayOffset
+        linkWidthConstraint?.constant = density.secondaryAccessoryIconSize
+        linkHeightConstraint?.constant = density.secondaryAccessoryIconSize
+        lockTrailingConstraint?.constant = density.overlayOffset
+        lockBottomConstraint?.constant = density.overlayOffset
+        lockWidthConstraint?.constant = density.secondaryAccessoryIconSize
+        lockHeightConstraint?.constant = density.secondaryAccessoryIconSize
+        nameLabelCenterYConstraint?.constant = density.verticalTextOffset
+        sharedLabelCenterYConstraint?.constant = density.verticalTextOffset
     }
 
     private func updateGitStatusBar() {
