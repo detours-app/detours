@@ -27,6 +27,8 @@ final class StatusBarView: NSView {
     private var hiddenCount: Int = 0
     private var selectionSize: Int64 = 0
     private var availableSpace: Int64 = 0
+    private var contextLabel: String?
+    private var isPaneActive: Bool = true
     private var completionWorkItem: DispatchWorkItem?
     let speedCalculator = TransferSpeedCalculator()
 
@@ -114,34 +116,42 @@ final class StatusBarView: NSView {
     }
 
     @objc private func handleThemeChange() {
+        applyThemeColors()
+    }
+
+    private func applyThemeColors() {
         let theme = ThemeManager.shared.currentTheme
         label.font = theme.uiFont(size: ThemeManager.shared.fontSize - 1)
+        progressLabel.font = theme.uiFont(size: ThemeManager.shared.fontSize - 1)
 
         switch mode {
         case .normal:
-            label.textColor = theme.textSecondary
+            label.textColor = statusTextColor(for: theme)
         case .progress:
-            progressLabel.font = theme.uiFont(size: ThemeManager.shared.fontSize - 1)
-            progressLabel.textColor = theme.textSecondary
+            progressLabel.textColor = statusTextColor(for: theme)
         case .paused:
-            label.textColor = theme.textSecondary
+            label.textColor = statusTextColor(for: theme)
         case .completion:
-            label.textColor = theme.accent
+            label.textColor = theme.accent.withAlphaComponent(isPaneActive ? 1.0 : 0.72)
         case .error:
             label.textColor = .systemRed
         }
 
-        progressLabel.font = theme.uiFont(size: ThemeManager.shared.fontSize - 1)
         needsDisplay = true
     }
 
+    private func statusTextColor(for theme: Theme) -> NSColor {
+        isPaneActive ? theme.textSecondary : theme.textSecondary.withAlphaComponent(0.68)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
-        // Draw background matching surface color
-        ThemeManager.shared.currentTheme.surface.setFill()
+        let theme = ThemeManager.shared.currentTheme
+        let fillColor = isPaneActive ? theme.surface : (theme.surface.blended(withFraction: 0.45, of: theme.background) ?? theme.surface)
+        fillColor.setFill()
         bounds.fill()
 
         // Draw top border
-        ThemeManager.shared.currentTheme.border.setStroke()
+        (isPaneActive ? theme.border : theme.border.withAlphaComponent(0.65)).setStroke()
         let path = NSBezierPath()
         path.move(to: NSPoint(x: 0, y: bounds.height))
         path.line(to: NSPoint(x: bounds.width, y: bounds.height))
@@ -150,6 +160,12 @@ final class StatusBarView: NSView {
     }
 
     // MARK: - Public API
+
+    func setPaneActive(_ active: Bool) {
+        guard active != isPaneActive else { return }
+        isPaneActive = active
+        applyThemeColors()
+    }
 
     func showProgress(_ progress: FileOperationProgress, isDestination: Bool = false) {
         completionWorkItem?.cancel()
@@ -163,6 +179,7 @@ final class StatusBarView: NSView {
         progressBar.isHidden = false
         progressLabel.isHidden = false
 
+        applyThemeColors()
         updateProgressViews(progress)
     }
 
@@ -181,7 +198,7 @@ final class StatusBarView: NSView {
         label.isHidden = false
 
         label.stringValue = message
-        label.textColor = ThemeManager.shared.currentTheme.textSecondary
+        label.textColor = statusTextColor(for: ThemeManager.shared.currentTheme)
         label.lineBreakMode = .byTruncatingMiddle
         needsDisplay = true
 
@@ -197,7 +214,7 @@ final class StatusBarView: NSView {
         label.isHidden = false
 
         label.stringValue = message
-        label.textColor = ThemeManager.shared.currentTheme.accent
+        label.textColor = ThemeManager.shared.currentTheme.accent.withAlphaComponent(isPaneActive ? 1.0 : 0.72)
         needsDisplay = true
 
         postAccessibilityAnnouncement("Operation complete")
@@ -244,9 +261,10 @@ final class StatusBarView: NSView {
         progressLabel.isHidden = true
         label.isHidden = false
 
-        label.textColor = ThemeManager.shared.currentTheme.textSecondary
+        label.textColor = statusTextColor(for: ThemeManager.shared.currentTheme)
         label.lineBreakMode = .byTruncatingMiddle
         updateLabel()
+        applyThemeColors()
         needsDisplay = true
     }
 
@@ -255,13 +273,15 @@ final class StatusBarView: NSView {
         selectedCount: Int,
         hiddenCount: Int,
         selectionSize: Int64,
-        availableSpace: Int64
+        availableSpace: Int64,
+        contextLabel: String? = nil
     ) {
         self.itemCount = itemCount
         self.selectedCount = selectedCount
         self.hiddenCount = hiddenCount
         self.selectionSize = selectionSize
         self.availableSpace = availableSpace
+        self.contextLabel = contextLabel
 
         if case .normal = mode {
             updateLabel()
@@ -346,6 +366,10 @@ final class StatusBarView: NSView {
 
     private func updateLabel() {
         var parts: [String] = []
+
+        if let contextLabel, !contextLabel.isEmpty {
+            parts.append(contextLabel)
+        }
 
         // Item count and selection
         if selectedCount > 0 {

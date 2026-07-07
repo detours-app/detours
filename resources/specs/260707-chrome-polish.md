@@ -162,7 +162,7 @@ Sidebar polish lives in `SidebarViewController` and `SidebarItemView`. Keep the 
 
 - [x] **T9** Update `src/Panes/PaneTabBar.swift` and `src/Panes/PaneTabBar+TabButton.swift` tab drawing, spacing, and active/inactive colors so tabs keep one flat active underline, no rounded cap, SF Symbol navigation buttons, and visibly distinct active versus inactive pane states.
 - [x] **T10** Update `src/Panes/PaneViewController.swift` and `src/Panes/PaneViewController+PathControl.swift` spacing, separators, and theme colors so the tab strip, path strip, home/iCloud buttons, remote breadcrumb, reconnect banner, and content boundary read as one pane chrome stack.
-- [ ] **T11** Update `src/Panes/StatusBarView.swift` theme colors and active-pane emphasis so status text and remote/local context remain readable across themes without adding new command surfaces.
+- [x] **T11** Update `src/Panes/StatusBarView.swift` theme colors and active-pane emphasis so status text and remote/local context remain readable across themes without adding new command surfaces.
 
 **Phase 4: Sidebar Polish**
 
@@ -223,3 +223,4 @@ Populated at implement time - one entry per task ID with what got built and how 
 - **T8** Added density metrics for icon leading, disclosure width, rename editor sizing, and loading spinners; wired rename placement, disclosure centering, async folder spinner placement, git marker leading, name gap, and iCloud/symlink/lock overlay sizes/offsets to those metrics. `resources/scripts/build.sh` passed.
 - **T9** Tuned pane tab surfaces, nav-control tinting, tab spacing, active/inactive text emphasis, hover fills, and file-drop highlights while keeping SF Symbol back/forward controls and a single flat accent underline for selected tabs. `resources/scripts/build.sh` passed.
 - **T10** Added a themed path strip and separator under the tab bar, anchored home/iCloud/path controls inside it, retuned path spacing, made breadcrumb text use the themed UI font, and refreshed path/reconnect/control colors when themes or active pane state change. `resources/scripts/build.sh` passed.
+- **T11** Added active-pane status bar rendering with themed active/inactive backgrounds, border and text emphasis, preserved progress/error/completion modes, and prepended remote host context to existing status text for remote tabs. `resources/scripts/build.sh` passed.
