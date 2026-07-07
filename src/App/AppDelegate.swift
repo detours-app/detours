@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUITestRemoteFailureCommandID: String?
     private var lastUITestUndoMenuTitleRequestID: String?
     private var lastUITestDuplicateStructureShowRequestID: String?
+    private var lastUITestAppearanceSettingsCommandID: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Reduce tooltip delay from default ~1000ms to 200ms
@@ -114,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lastUITestRemoteFailureCommandID = UITestEnvironment.currentRemoteFailureCommand()?.id
         lastUITestUndoMenuTitleRequestID = UITestEnvironment.currentUndoMenuTitleRequest()?.id
         lastUITestDuplicateStructureShowRequestID = UITestEnvironment.currentDuplicateStructureShowRequest()?.id
+        lastUITestAppearanceSettingsCommandID = UITestEnvironment.currentAppearanceSettingsCommand()?.id
     }
 
     private func pollUITestCommands() {
@@ -170,6 +172,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             lastUITestDuplicateStructureShowRequestID = request.id
             mainWindowController?.splitViewController.performUITestDuplicateStructure(relativePath: request.relativePath)
         }
+
+        if let command = UITestEnvironment.currentAppearanceSettingsCommand(),
+           command.id != lastUITestAppearanceSettingsCommandID {
+            lastUITestAppearanceSettingsCommandID = command.id
+            applyAppearanceSettingsForUITest(command)
+        }
+    }
+
+    private func applyAppearanceSettingsForUITest(_ command: UITestEnvironment.AppearanceSettingsCommand) {
+        guard let theme = ThemeChoice(rawValue: command.theme),
+              let density = FileListRowDensity(rawValue: command.fileListRowDensity) else {
+            UITestEnvironment.acknowledgeAppearanceSettingsCommand(id: command.id, applied: false)
+            return
+        }
+
+        SettingsManager.shared.theme = theme
+        SettingsManager.shared.fontSize = command.fontSize
+        SettingsManager.shared.fileListRowDensity = density
+        mainWindowController?.window?.contentView?.layoutSubtreeIfNeeded()
+        UITestEnvironment.acknowledgeAppearanceSettingsCommand(id: command.id, applied: true)
     }
 
     private func writeUndoMenuTitleForUITest(requestID: String) {
