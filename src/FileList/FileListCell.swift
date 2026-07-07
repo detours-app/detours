@@ -231,6 +231,7 @@ final class FileListCell: NSTableCellView {
             iconLeadingConstraint?.constant = density.standardIconLeading
             gitBarLeadingConstraint?.constant = density.standardGitMarkerLeading
         }
+        updateLockOverlayLeading(for: item, density: density, folderExpansionEnabled: folderExpansionEnabled)
 
         // Update theme colors in case they changed
         updateThemeColors()
@@ -284,6 +285,12 @@ final class FileListCell: NSTableCellView {
         nameLabelLeadingConstraint?.constant = density.nameIconGap
         nameLabelCenterYConstraint?.constant = density.verticalTextOffset
         sharedLabelCenterYConstraint?.constant = density.verticalTextOffset
+    }
+
+    private func updateLockOverlayLeading(for item: FileItem, density: FileListRowDensity, folderExpansionEnabled: Bool) {
+        let hasVisibleGitMarker = (item.gitStatus ?? .clean) != .clean
+        let usesExpandedFileGutter = folderExpansionEnabled && !item.isNavigableFolder
+        lockLeadingConstraint?.constant = usesExpandedFileGutter && hasVisibleGitMarker ? 0 : -density.overlayOffset
     }
 
     private func updateGitStatusBar() {

@@ -39,4 +39,113 @@ final class FileListCellTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(nameLabel.frame.minY, cell.bounds.minY)
         XCTAssertLessThanOrEqual(nameLabel.frame.maxY, cell.bounds.maxY)
     }
+
+    func testDensityLayoutsDoNotOverlapAccessories() throws {
+        let originalDensity = SettingsManager.shared.fileListRowDensity
+        let originalExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+        defer {
+            SettingsManager.shared.fileListRowDensity = originalDensity
+            SettingsManager.shared.folderExpansionEnabled = originalExpansionEnabled
+        }
+
+        let item = FileItem(
+            name: "Design-Specification-Review-Notes.md",
+            url: URL(fileURLWithPath: "/tmp/Design-Specification-Review-Notes.md"),
+            isDirectory: false,
+            isSymbolicLink: true,
+            isReadable: false,
+            size: 128_000,
+            dateModified: Date(timeIntervalSince1970: 1_767_788_400),
+            icon: NSImage(size: NSSize(width: 18, height: 18)),
+            iCloudStatus: .notDownloaded,
+            gitStatus: .modified
+        )
+
+        for density in FileListRowDensity.allCases {
+            SettingsManager.shared.fileListRowDensity = density
+            SettingsManager.shared.folderExpansionEnabled = true
+
+            let nameCell = FileListCell(frame: NSRect(x: 0, y: 0, width: 520, height: density.rowHeight))
+            nameCell.configure(with: item)
+            nameCell.layoutSubtreeIfNeeded()
+
+            try assertNameCellLayoutDoesNotOverlap(nameCell, density: density)
+            try assertMetadataCellContentFits(item: item, columnIdentifier: "Size", width: 84, density: density)
+            try assertMetadataCellContentFits(item: item, columnIdentifier: "Date", width: 132, density: density)
+            XCTAssertGreaterThanOrEqual(density.disclosureWidth, 20)
+        }
+    }
+
+    private func assertNameCellLayoutDoesNotOverlap(
+        _ cell: FileListCell,
+        density: FileListRowDensity,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let iconView = try XCTUnwrap(cell.imageView, file: file, line: line)
+        let nameLabel = try XCTUnwrap(cell.textField, file: file, line: line)
+        let nameAlignmentRect = nameLabel.alignmentRect(forFrame: nameLabel.frame)
+        let gitMarker = try XCTUnwrap(
+            cell.subviews.first { view in
+                view !== iconView && !(view is NSImageView) && !(view is NSTextField)
+            },
+            file: file,
+            line: line
+        )
+        let accessoryViews = cell.subviews.compactMap { $0 as? NSImageView }
+            .filter { $0 !== iconView && !$0.isHidden }
+
+        XCTAssertEqual(accessoryViews.count, 3, file: file, line: line)
+        XCTAssertEqual(cell.bounds.height, density.rowHeight, accuracy: 0.5, file: file, line: line)
+        XCTAssertFalse(gitMarker.isHidden, file: file, line: line)
+        XCTAssertLessThanOrEqual(gitMarker.frame.maxX, iconView.frame.minX + 0.5, file: file, line: line)
+        XCTAssertLessThanOrEqual(iconView.frame.maxX, nameAlignmentRect.minX + 0.5, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(nameLabel.frame.minY, cell.bounds.minY, file: file, line: line)
+        XCTAssertLessThanOrEqual(nameLabel.frame.maxY, cell.bounds.maxY, file: file, line: line)
+
+        for accessoryView in accessoryViews {
+            XCTAssertGreaterThanOrEqual(accessoryView.frame.minX, cell.bounds.minX, file: file, line: line)
+            XCTAssertGreaterThanOrEqual(accessoryView.frame.minY, cell.bounds.minY, file: file, line: line)
+            XCTAssertLessThanOrEqual(accessoryView.frame.maxY, cell.bounds.maxY, file: file, line: line)
+            XCTAssertLessThanOrEqual(accessoryView.frame.maxX, nameAlignmentRect.minX, file: file, line: line)
+            XCTAssertFalse(accessoryView.frame.intersects(gitMarker.frame), file: file, line: line)
+        }
+
+        for firstIndex in accessoryViews.indices {
+            for secondIndex in accessoryViews.indices where secondIndex > firstIndex {
+                XCTAssertFalse(
+                    accessoryViews[firstIndex].frame.intersects(accessoryViews[secondIndex].frame),
+                    file: file,
+                    line: line
+                )
+            }
+        }
+    }
+
+    private func assertMetadataCellContentFits(
+        item: FileItem,
+        columnIdentifier: String,
+        width: CGFloat,
+        density: FileListRowDensity,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let dataSource = FileListDataSource()
+        let outlineView = NSOutlineView()
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(columnIdentifier))
+        let cell = try XCTUnwrap(
+            dataSource.outlineView(outlineView, viewFor: column, item: item) as? NSTableCellView,
+            file: file,
+            line: line
+        )
+        cell.frame = NSRect(x: 0, y: 0, width: width, height: density.rowHeight)
+        cell.layoutSubtreeIfNeeded()
+
+        let textField = try XCTUnwrap(cell.textField, file: file, line: line)
+        let textAlignmentRect = textField.alignmentRect(forFrame: textField.frame)
+        XCTAssertGreaterThanOrEqual(textAlignmentRect.minX, cell.bounds.minX, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(textAlignmentRect.minY, cell.bounds.minY, file: file, line: line)
+        XCTAssertLessThanOrEqual(textAlignmentRect.maxX, cell.bounds.maxX, file: file, line: line)
+        XCTAssertLessThanOrEqual(textAlignmentRect.maxY, cell.bounds.maxY, file: file, line: line)
+    }
 }
