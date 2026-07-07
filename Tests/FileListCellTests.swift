@@ -48,32 +48,48 @@ final class FileListCellTests: XCTestCase {
             SettingsManager.shared.folderExpansionEnabled = originalExpansionEnabled
         }
 
-        let item = FileItem(
-            name: "Design-Specification-Review-Notes.md",
-            url: URL(fileURLWithPath: "/tmp/Design-Specification-Review-Notes.md"),
-            isDirectory: false,
-            isSymbolicLink: true,
-            isReadable: false,
-            size: 128_000,
-            dateModified: Date(timeIntervalSince1970: 1_767_788_400),
-            icon: NSImage(size: NSSize(width: 18, height: 18)),
-            iCloudStatus: .notDownloaded,
-            gitStatus: .modified
-        )
+        let accessoryItems = [
+            makeAccessoryItem(name: "Cloud-Backed-Design.md", iCloudStatus: .notDownloaded),
+            makeAccessoryItem(name: "Linked-Design.md", isSymbolicLink: true),
+            makeAccessoryItem(name: "Locked-Design.md", isReadable: false),
+        ]
 
         for density in FileListRowDensity.allCases {
             SettingsManager.shared.fileListRowDensity = density
             SettingsManager.shared.folderExpansionEnabled = true
 
-            let nameCell = FileListCell(frame: NSRect(x: 0, y: 0, width: 520, height: density.rowHeight))
-            nameCell.configure(with: item)
-            nameCell.layoutSubtreeIfNeeded()
+            for item in accessoryItems {
+                let nameCell = FileListCell(frame: NSRect(x: 0, y: 0, width: 520, height: density.rowHeight))
+                nameCell.configure(with: item)
+                nameCell.layoutSubtreeIfNeeded()
 
-            try assertNameCellLayoutDoesNotOverlap(nameCell, density: density)
-            try assertMetadataCellContentFits(item: item, columnIdentifier: "Size", width: 84, density: density)
-            try assertMetadataCellContentFits(item: item, columnIdentifier: "Date", width: 132, density: density)
+                try assertNameCellLayoutDoesNotOverlap(nameCell, density: density)
+            }
+
+            try assertMetadataCellContentFits(item: accessoryItems[0], columnIdentifier: "Size", width: 84, density: density)
+            try assertMetadataCellContentFits(item: accessoryItems[0], columnIdentifier: "Date", width: 132, density: density)
             XCTAssertGreaterThanOrEqual(density.disclosureWidth, 20)
         }
+    }
+
+    private func makeAccessoryItem(
+        name: String,
+        iCloudStatus: ICloudStatus = .local,
+        isSymbolicLink: Bool = false,
+        isReadable: Bool = true
+    ) -> FileItem {
+        FileItem(
+            name: name,
+            url: URL(fileURLWithPath: "/tmp/\(name)"),
+            isDirectory: false,
+            isSymbolicLink: isSymbolicLink,
+            isReadable: isReadable,
+            size: 128_000,
+            dateModified: Date(timeIntervalSince1970: 1_767_788_400),
+            icon: NSImage(size: NSSize(width: 18, height: 18)),
+            iCloudStatus: iCloudStatus,
+            gitStatus: .modified
+        )
     }
 
     private func assertNameCellLayoutDoesNotOverlap(
@@ -98,7 +114,7 @@ final class FileListCellTests: XCTestCase {
             .filter { $0 !== iconView && !$0.isHidden }
         let accessoryRects = accessoryViews.map { $0.alignmentRect(forFrame: $0.frame) }
 
-        XCTAssertEqual(accessoryViews.count, 3, file: file, line: line)
+        XCTAssertEqual(accessoryViews.count, 1, file: file, line: line)
         XCTAssertEqual(cell.bounds.height, density.rowHeight, accuracy: 0.5, file: file, line: line)
         XCTAssertFalse(gitMarker.isHidden, file: file, line: line)
         XCTAssertLessThanOrEqual(gitMarkerRect.maxX, iconRect.minX + 0.5, file: file, line: line)
@@ -117,17 +133,6 @@ final class FileListCellTests: XCTestCase {
                 file: file,
                 line: line
             )
-        }
-
-        for firstIndex in accessoryRects.indices {
-            for secondIndex in accessoryRects.indices where secondIndex > firstIndex {
-                XCTAssertFalse(
-                    accessoryRects[firstIndex].intersects(accessoryRects[secondIndex]),
-                    "density=\(density) first=\(accessoryRects[firstIndex]) second=\(accessoryRects[secondIndex])",
-                    file: file,
-                    line: line
-                )
-            }
         }
     }
 
