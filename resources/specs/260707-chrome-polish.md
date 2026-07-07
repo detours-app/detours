@@ -172,7 +172,7 @@ Sidebar polish lives in `SidebarViewController` and `SidebarItemView`. Keep the 
 **Phase 5: Verification Surface**
 
 - [x] **T14** Capture a static desktop reference screenshot of `resources/docs/detours-chrome-concept.html` for implementation comparison and keep it beside the prototype in `resources/docs/`.
-- [ ] **T15** Update `resources/scripts/screenshot-setup.sh`, `resources/scripts/screenshot-configure.sh`, and `resources/docs/screenshot-process.md` so Foundry screenshots include local browsing, remote browsing, fixture-owned mounted sparse bundle, fixture-owned mounted disk image, sidebar eject affordances, and both panes.
+- [x] **T15** Update `resources/scripts/screenshot-setup.sh`, `resources/scripts/screenshot-configure.sh`, and `resources/docs/screenshot-process.md` so Foundry screenshots include local browsing, remote browsing, fixture-owned mounted sparse bundle, fixture-owned mounted disk image, sidebar eject affordances, and both panes.
 - [ ] **T16** Build the app with `resources/scripts/build.sh` and resolve all build, lint, and warning output.
 
 ---
@@ -227,3 +227,4 @@ Populated at implement time - one entry per task ID with what got built and how 
 - **T12** Retuned sidebar row heights, theme-aware row hover/selection, section-header typography, item fonts, capacity text, protocol badge colors, remote status-dot contrast, network child indentation, and eject accessory alignment/tinting while preserving existing sections and actions. `resources/scripts/build.sh` passed.
 - **T13** Added sidebar item semantics for mounted sparse bundles, mounted disk images, mounted file server shares, local devices, remote hosts, and favorites: type-specific icons/tints where Detours can infer the type, context tooltips, accessibility labels, eject labels for mounted volumes/servers, remove labels for remote hosts, and visible favorite remove accessories. On Foundry, `DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 resources/scripts/build.sh` passed and `sudo launchctl asuser 501 open -g /Applications/Detours.app` relaunched Detours.
 - **T14** Rendered `resources/docs/detours-chrome-concept.html` on Foundry with `qlmanage -t -s 1800` and saved the inspected 1800 x 1800 PNG as `resources/docs/detours-chrome-concept-reference.png`.
+- **T15** Extended the Foundry screenshot setup to recreate and mount fixture-owned `Specs.sparsebundle` and `Detours.dmg` volumes, added those mounted volumes as browseable screenshot tabs while preserving the local left pane and remote right pane, kept screenshot-only file server injection, documented the Foundry flow and SSH relaunch fallback, and removed legacy split geometry writes from the screenshot configurator.
