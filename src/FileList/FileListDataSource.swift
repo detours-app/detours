@@ -196,11 +196,7 @@ final class InactiveHidingRowView: NSTableRowView {
         bounds.fill()
 
         if isTableActive {
-            ChromeContrast.stateIndicatorColor(
-                preferred: theme.accent,
-                fallback: theme.textPrimary,
-                on: ChromeContrast.fileListSelectionFill(for: theme)
-            ).setFill()
+            theme.accent.withAlphaComponent(0.85).setFill()
             NSRect(x: bounds.minX, y: bounds.minY, width: 2, height: bounds.height).fill()
         }
     }
