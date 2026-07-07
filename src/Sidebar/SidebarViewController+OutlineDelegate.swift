@@ -60,6 +60,9 @@ extension SidebarViewController: NSOutlineViewDelegate {
             }
         } else if let url = item as? URL {
             cellView.configure(with: .favorite(url), theme: theme)
+            cellView.onEject = { [weak self] in
+                self?.delegate?.sidebarDidRemoveFavorite(url)
+            }
         }
 
         return cellView
