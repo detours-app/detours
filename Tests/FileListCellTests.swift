@@ -84,6 +84,7 @@ final class FileListCellTests: XCTestCase {
     ) throws {
         let iconView = try XCTUnwrap(cell.imageView, file: file, line: line)
         let nameLabel = try XCTUnwrap(cell.textField, file: file, line: line)
+        let iconRect = iconView.alignmentRect(forFrame: iconView.frame)
         let nameAlignmentRect = nameLabel.alignmentRect(forFrame: nameLabel.frame)
         let gitMarker = try XCTUnwrap(
             cell.subviews.first { view in
@@ -92,29 +93,31 @@ final class FileListCellTests: XCTestCase {
             file: file,
             line: line
         )
+        let gitMarkerRect = gitMarker.alignmentRect(forFrame: gitMarker.frame)
         let accessoryViews = cell.subviews.compactMap { $0 as? NSImageView }
             .filter { $0 !== iconView && !$0.isHidden }
+        let accessoryRects = accessoryViews.map { $0.alignmentRect(forFrame: $0.frame) }
 
         XCTAssertEqual(accessoryViews.count, 3, file: file, line: line)
         XCTAssertEqual(cell.bounds.height, density.rowHeight, accuracy: 0.5, file: file, line: line)
         XCTAssertFalse(gitMarker.isHidden, file: file, line: line)
-        XCTAssertLessThanOrEqual(gitMarker.frame.maxX, iconView.frame.minX + 0.5, file: file, line: line)
-        XCTAssertLessThanOrEqual(iconView.frame.maxX, nameAlignmentRect.minX + 0.5, file: file, line: line)
+        XCTAssertLessThanOrEqual(gitMarkerRect.maxX, iconRect.minX + 0.5, file: file, line: line)
+        XCTAssertLessThanOrEqual(iconRect.maxX, nameAlignmentRect.minX + 0.5, file: file, line: line)
         XCTAssertGreaterThanOrEqual(nameLabel.frame.minY, cell.bounds.minY, file: file, line: line)
         XCTAssertLessThanOrEqual(nameLabel.frame.maxY, cell.bounds.maxY, file: file, line: line)
 
-        for accessoryView in accessoryViews {
-            XCTAssertGreaterThanOrEqual(accessoryView.frame.minX, cell.bounds.minX, file: file, line: line)
-            XCTAssertGreaterThanOrEqual(accessoryView.frame.minY, cell.bounds.minY, file: file, line: line)
-            XCTAssertLessThanOrEqual(accessoryView.frame.maxY, cell.bounds.maxY, file: file, line: line)
-            XCTAssertLessThanOrEqual(accessoryView.frame.maxX, nameAlignmentRect.minX, file: file, line: line)
-            XCTAssertFalse(accessoryView.frame.intersects(gitMarker.frame), file: file, line: line)
+        for accessoryRect in accessoryRects {
+            XCTAssertGreaterThanOrEqual(accessoryRect.minX, cell.bounds.minX, file: file, line: line)
+            XCTAssertGreaterThanOrEqual(accessoryRect.minY, cell.bounds.minY, file: file, line: line)
+            XCTAssertLessThanOrEqual(accessoryRect.maxY, cell.bounds.maxY, file: file, line: line)
+            XCTAssertLessThanOrEqual(accessoryRect.maxX, nameAlignmentRect.minX, file: file, line: line)
+            XCTAssertFalse(accessoryRect.intersects(gitMarkerRect), file: file, line: line)
         }
 
-        for firstIndex in accessoryViews.indices {
-            for secondIndex in accessoryViews.indices where secondIndex > firstIndex {
+        for firstIndex in accessoryRects.indices {
+            for secondIndex in accessoryRects.indices where secondIndex > firstIndex {
                 XCTAssertFalse(
-                    accessoryViews[firstIndex].frame.intersects(accessoryViews[secondIndex].frame),
+                    accessoryRects[firstIndex].intersects(accessoryRects[secondIndex]),
                     file: file,
                     line: line
                 )
