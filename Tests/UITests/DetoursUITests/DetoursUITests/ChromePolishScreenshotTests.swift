@@ -13,7 +13,6 @@ final class ChromePolishScreenshotTests: XCTestCase {
 
     func testCaptureChromePolishScreenshots() throws {
         let environment = ProcessInfo.processInfo.environment
-        let theme = environment["DETOURS_SCREENSHOT_CAPTURE_THEME"] ?? environment["DETOURS_SCREENSHOT_THEME"] ?? "dark"
         let outputDirectory = URL(
             fileURLWithPath: environment["DETOURS_SCREENSHOT_CAPTURE_DIR"] ?? "resources/docs",
             isDirectory: true
@@ -32,10 +31,10 @@ final class ChromePolishScreenshotTests: XCTestCase {
         try waitForScreenshotState()
 
         app.leftPaneOutlineView.click()
-        try captureWindow(window, to: outputDirectory.appendingPathComponent("chrome-polish-\(theme)-left-active.png"))
+        try captureWindow(window, to: outputDirectory.appendingPathComponent("chrome-polish-left-active.png"))
 
         app.rightPaneOutlineView.click()
-        try captureWindow(window, to: outputDirectory.appendingPathComponent("chrome-polish-\(theme)-right-active.png"))
+        try captureWindow(window, to: outputDirectory.appendingPathComponent("chrome-polish-right-active.png"))
     }
 
     private func waitForScreenshotState() throws {

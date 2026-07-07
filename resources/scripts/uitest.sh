@@ -26,6 +26,21 @@ if [ -n "${DETOURS_SCREENSHOT_CAPTURE_DIR:-}" ] && [[ "$DETOURS_SCREENSHOT_CAPTU
     export DETOURS_SCREENSHOT_CAPTURE_DIR="$PROJECT_DIR/$DETOURS_SCREENSHOT_CAPTURE_DIR"
 fi
 
+copy_screenshot_captures() {
+    if [ -z "${DETOURS_SCREENSHOT_CAPTURE_DIR:-}" ]; then
+        return
+    fi
+
+    local capture_theme="${DETOURS_SCREENSHOT_CAPTURE_THEME:-${DETOURS_SCREENSHOT_THEME:-dark}}"
+    local runner_docs="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/resources/docs"
+
+    mkdir -p "$DETOURS_SCREENSHOT_CAPTURE_DIR"
+    cp "$runner_docs/chrome-polish-left-active.png" \
+        "$DETOURS_SCREENSHOT_CAPTURE_DIR/chrome-polish-$capture_theme-left-active.png"
+    cp "$runner_docs/chrome-polish-right-active.png" \
+        "$DETOURS_SCREENSHOT_CAPTURE_DIR/chrome-polish-$capture_theme-right-active.png"
+}
+
 # Build app first
 echo "Building Detours..."
 DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 "$SCRIPT_DIR/build.sh" "${BUILD_ARGS[@]}"
@@ -101,5 +116,7 @@ else
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION"
 fi
+
+copy_screenshot_captures
 
 exit $?
