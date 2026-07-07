@@ -30,10 +30,10 @@ final class ChromePolishScreenshotTests: XCTestCase {
 
         try waitForScreenshotState()
 
-        app.leftPaneOutlineView.click()
+        clickRow(named: "Budget-2026.xlsx", in: app.leftPaneOutlineView)
         try captureWindow(window, to: outputDirectory.appendingPathComponent("chrome-polish-left-active.png"))
 
-        app.rightPaneOutlineView.click()
+        clickRow(named: "database.py", in: app.rightPaneOutlineView)
         try captureWindow(window, to: outputDirectory.appendingPathComponent("chrome-polish-right-active.png"))
     }
 
@@ -42,11 +42,11 @@ final class ChromePolishScreenshotTests: XCTestCase {
         XCTAssertTrue(app.rightPaneOutlineView.waitForExistence(timeout: 8), "Right pane should exist")
 
         XCTAssertTrue(
-            waitForRow(named: "Budget-2026.xlsx", in: app.leftPaneOutlineView, timeout: 10),
+            row(named: "Budget-2026.xlsx", in: app.leftPaneOutlineView).waitForExistence(timeout: 10),
             "Left local browsing row should load"
         )
         XCTAssertTrue(
-            waitForRow(named: "database.py", in: app.rightPaneOutlineView, timeout: 20),
+            row(named: "database.py", in: app.rightPaneOutlineView).waitForExistence(timeout: 20),
             "Right remote browsing row should load"
         )
         XCTAssertTrue(
@@ -63,9 +63,14 @@ final class ChromePolishScreenshotTests: XCTestCase {
         )
     }
 
-    private func waitForRow(named name: String, in outline: XCUIElement, timeout: TimeInterval) -> Bool {
-        let row = outline.outlineRows.containing(.staticText, identifier: name).firstMatch
-        return row.waitForExistence(timeout: timeout)
+    private func row(named name: String, in outline: XCUIElement) -> XCUIElement {
+        outline.outlineRows.containing(.staticText, identifier: name).firstMatch
+    }
+
+    private func clickRow(named name: String, in outline: XCUIElement) {
+        let targetRow = row(named: name, in: outline)
+        XCTAssertTrue(targetRow.waitForExistence(timeout: 5), "\(name) row should exist before capture")
+        targetRow.staticTexts[name].click()
     }
 
     private func captureWindow(_ window: XCUIElement, to url: URL) throws {
