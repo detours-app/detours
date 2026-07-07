@@ -56,7 +56,7 @@ extension FileListDataSource {
             indicator.style = .spinning
             indicator.controlSize = .small
             indicator.sizeToFit()
-            indicator.frame = NSRect(x: 6, y: (rowView.bounds.height - 16) / 2, width: 16, height: 16)
+            indicator.frame = folderLoadingSpinnerFrame(in: rowView.bounds)
             rowView.addSubview(indicator)
             indicator.startAnimation(nil)
             spinner = indicator
@@ -90,6 +90,17 @@ extension FileListDataSource {
         }
     }
 
+    private func folderLoadingSpinnerFrame(in bounds: NSRect) -> NSRect {
+        let density = SettingsManager.shared.fileListRowDensity
+        let size = density.loadingSpinnerSize
+        return NSRect(
+            x: density.loadingSpinnerLeading,
+            y: bounds.midY - size / 2,
+            width: size,
+            height: size
+        )
+    }
+
     private func loadRemoteChildrenAsync(for item: FileItem, in outlineView: NSOutlineView) {
         guard let provider = currentRemoteProvider else { return }
 
@@ -100,7 +111,7 @@ extension FileListDataSource {
             indicator.style = .spinning
             indicator.controlSize = .small
             indicator.sizeToFit()
-            indicator.frame = NSRect(x: 6, y: (rowView.bounds.height - 16) / 2, width: 16, height: 16)
+            indicator.frame = folderLoadingSpinnerFrame(in: rowView.bounds)
             rowView.addSubview(indicator)
             indicator.startAnimation(nil)
             spinner = indicator

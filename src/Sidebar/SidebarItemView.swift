@@ -1,8 +1,38 @@
 import AppKit
 
 final class SidebarItemView: NSTableCellView {
+    private enum VolumeDisplayKind {
+        case sparseBundle
+        case diskImage
+        case networkShare
+        case localDevice
+
+        var name: String {
+            switch self {
+            case .sparseBundle: return "mounted sparse bundle"
+            case .diskImage: return "mounted disk image"
+            case .networkShare: return "mounted file server"
+            case .localDevice: return "local device"
+            }
+        }
+
+        var symbolName: String {
+            switch self {
+            case .sparseBundle: return "externaldrive.fill"
+            case .diskImage: return "externaldrive"
+            case .networkShare: return "externaldrive.connected.to.line.below"
+            case .localDevice: return "externaldrive"
+            }
+        }
+    }
+
     private enum Layout {
-        static let accessoryTrailingInset: CGFloat = -10
+        static let iconLeading: CGFloat = 12
+        static let sectionLeading: CGFloat = 14
+        static let childIndent: CGFloat = 10
+        static let nameIconGap: CGFloat = 8
+        static let trailingInset: CGFloat = -10
+        static let accessoryTrailingInset: CGFloat = -8
     }
 
     private let iconView = NSImageView()
@@ -17,8 +47,21 @@ final class SidebarItemView: NSTableCellView {
     private var capacityTrailingConstraint: NSLayoutConstraint?
     private var protocolBadgeTrailingConstraint: NSLayoutConstraint?
     private var accessoryTrailingConstraint: NSLayoutConstraint?
+    private var currentTheme: Theme = .light
+    private var normalIconTintColor: NSColor?
+    private var normalNameTextColor: NSColor?
+    private var normalSubtitleTextColor: NSColor?
+    private var normalCapacityTextColor: NSColor?
+    private var normalProtocolBadgeTextColor: NSColor?
+    private var normalAccessoryTintColor: NSColor?
 
     var onEject: (() -> Void)?
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            applyBackgroundStyleColors()
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -46,25 +89,26 @@ final class SidebarItemView: NSTableCellView {
         statusSpinner.isHidden = true
 
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        nameLabel.font = .systemFont(ofSize: 12)
+        nameLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 13)
         nameLabel.lineBreakMode = .byTruncatingTail
         nameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        subtitleLabel.font = .systemFont(ofSize: 10)
+        subtitleLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 10)
         subtitleLabel.lineBreakMode = .byTruncatingTail
         subtitleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         subtitleLabel.isHidden = true
 
         capacityLabel.translatesAutoresizingMaskIntoConstraints = false
-        capacityLabel.font = .systemFont(ofSize: 10)
+        capacityLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 10)
         capacityLabel.alignment = .right
         capacityLabel.setContentHuggingPriority(.defaultHigh, for: .horizontal)
 
         protocolBadge.translatesAutoresizingMaskIntoConstraints = false
-        protocolBadge.font = .systemFont(ofSize: 9, weight: .medium)
+        protocolBadge.font = ThemeManager.shared.currentTheme.uiFont(size: 9, weight: .medium)
         protocolBadge.alignment = .right
         protocolBadge.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        protocolBadge.lineBreakMode = .byTruncatingTail
         protocolBadge.isHidden = true
 
         // Accessory button setup
@@ -94,7 +138,7 @@ final class SidebarItemView: NSTableCellView {
         )
 
         NSLayoutConstraint.activate([
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.iconLeading),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
@@ -109,7 +153,7 @@ final class SidebarItemView: NSTableCellView {
             statusSpinner.widthAnchor.constraint(equalToConstant: 12),
             statusSpinner.heightAnchor.constraint(equalToConstant: 12),
 
-            nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
+            nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: Layout.nameIconGap),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             nameTrailingConstraint!,
 
@@ -118,7 +162,7 @@ final class SidebarItemView: NSTableCellView {
             subtitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
 
             capacityLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-            capacityLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 50),
+            capacityLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 56),
 
             protocolBadge.centerYAnchor.constraint(equalTo: centerYAnchor),
             // protocolBadge trailing is set dynamically based on eject button visibility
@@ -138,13 +182,20 @@ final class SidebarItemView: NSTableCellView {
         hasVolumes: Bool = false,
         remoteConnectionState: SSHConnectionState? = nil
     ) {
+        currentTheme = theme
         statusDot.isHidden = true
         statusSpinner.stopAnimation(nil)
         statusSpinner.isHidden = true
         subtitleLabel.isHidden = true
+        capacityLabel.isHidden = true
+        protocolBadge.isHidden = true
+        ejectButton.isHidden = true
         onEject = nil
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
         setAccessoryTrailing(Layout.accessoryTrailingInset)
+        resetNameCenterY()
+        toolTip = nil
+        setAccessibilityLabel(nil)
         alphaValue = 1.0
 
         switch item {
@@ -163,42 +214,55 @@ final class SidebarItemView: NSTableCellView {
         case .favorite(let url):
             configureAsFavorite(url, theme: theme)
         }
+
+        rememberNormalColors()
+        applyBackgroundStyleColors()
     }
 
     private func configureAsSection(_ section: SidebarSection, theme: Theme) {
         iconView.isHidden = true
         nameLabel.stringValue = section.title
-        nameLabel.font = theme.uiFont(size: 11)
-        nameLabel.textColor = theme.textSecondary
+        nameLabel.font = theme.uiFont(size: 10, weight: .semibold)
+        nameLabel.textColor = theme.textTertiary
         capacityLabel.isHidden = true
+        protocolBadge.isHidden = true
+        ejectButton.isHidden = true
+        toolTip = section.title
+        setAccessibilityLabel(section.title)
 
         // Adjust leading constraint for section headers (no icon)
         if let constraint = constraints.first(where: { $0.firstAnchor == nameLabel.leadingAnchor }) {
             constraint.isActive = false
         }
-        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.sectionLeading).isActive = true
 
         // Offset content down by 6px to create top padding (row is 34px: 6px top + 28px content)
         for constraint in constraints where constraint.firstAnchor == nameLabel.centerYAnchor {
             constraint.isActive = false
         }
-        nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 3).isActive = true
+        nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 4).isActive = true
     }
 
     private func configureAsDevice(_ volume: VolumeInfo, theme: Theme) {
         iconView.isHidden = false
-        iconView.image = volume.icon
+        let displayKind = volumeDisplayKind(for: volume, isNetworkVolume: false)
+        if displayKind == .localDevice {
+            iconView.image = volume.icon
+            iconView.contentTintColor = nil
+        } else {
+            iconView.image = NSImage(systemSymbolName: displayKind.symbolName, accessibilityDescription: displayKind.name)
+            iconView.contentTintColor = theme.accent
+        }
         nameLabel.stringValue = volume.name
         nameLabel.font = theme.uiFont(size: 13)
         nameLabel.textColor = theme.textPrimary
 
         // Show eject button for ejectable volumes
         ejectButton.isHidden = !volume.isEjectable
-        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject \(volume.name)")
         setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
-        ejectButton.contentTintColor = theme.textSecondary
-        ejectButton.alphaValue = 0.7
+        applyAccessoryTint(theme)
 
         // Update capacity trailing constraint based on eject button visibility
         capacityTrailingConstraint?.isActive = false
@@ -212,12 +276,15 @@ final class SidebarItemView: NSTableCellView {
         if let capacity = volume.capacityString {
             capacityLabel.isHidden = false
             capacityLabel.stringValue = capacity
-            capacityLabel.font = theme.font(size: 10)
+            capacityLabel.font = theme.uiFont(size: 10)
             capacityLabel.textColor = theme.textTertiary
         } else {
             capacityLabel.isHidden = true
         }
 
+        let descriptor = "\(volume.name), \(displayKind.name)"
+        toolTip = volumeToolTip(for: volume, kind: displayKind)
+        setAccessibilityLabel(volume.isEjectable ? "\(descriptor), ejectable" : descriptor)
         resetNameLeading()
     }
 
@@ -230,6 +297,45 @@ final class SidebarItemView: NSTableCellView {
         let smallConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
         ejectButton.image = image?.withSymbolConfiguration(smallConfig)
         ejectButton.toolTip = accessibilityDescription
+        ejectButton.setAccessibilityLabel(accessibilityDescription)
+    }
+
+    private func applyAccessoryTint(_ theme: Theme) {
+        ejectButton.contentTintColor = theme.textSecondary
+        ejectButton.alphaValue = 0.82
+    }
+
+    private func rememberNormalColors() {
+        normalIconTintColor = iconView.contentTintColor
+        normalNameTextColor = nameLabel.textColor
+        normalSubtitleTextColor = subtitleLabel.textColor
+        normalCapacityTextColor = capacityLabel.textColor
+        normalProtocolBadgeTextColor = protocolBadge.textColor
+        normalAccessoryTintColor = ejectButton.contentTintColor
+    }
+
+    private func applyBackgroundStyleColors() {
+        guard backgroundStyle == .emphasized else {
+            iconView.contentTintColor = normalIconTintColor
+            nameLabel.textColor = normalNameTextColor
+            subtitleLabel.textColor = normalSubtitleTextColor
+            capacityLabel.textColor = normalCapacityTextColor
+            protocolBadge.textColor = normalProtocolBadgeTextColor
+            ejectButton.contentTintColor = normalAccessoryTintColor
+            return
+        }
+
+        let selectedForeground = ChromeContrast.sidebarSelectedForeground(for: currentTheme)
+        if normalIconTintColor != nil {
+            iconView.contentTintColor = selectedForeground
+        }
+        nameLabel.textColor = selectedForeground
+        subtitleLabel.textColor = selectedForeground
+        capacityLabel.textColor = selectedForeground
+        protocolBadge.textColor = selectedForeground
+        if normalAccessoryTintColor != nil {
+            ejectButton.contentTintColor = selectedForeground
+        }
     }
 
     private func configureAsServer(_ server: NetworkServer, theme: Theme, isOffline: Bool = false, hasVolumes: Bool = false) {
@@ -257,17 +363,16 @@ final class SidebarItemView: NSTableCellView {
         // Show protocol/status badge
         protocolBadge.isHidden = false
         protocolBadge.font = theme.uiFont(size: 9)
-        protocolBadge.textColor = theme.textTertiary
+        protocolBadge.textColor = isOffline ? theme.textTertiary : theme.accent.withAlphaComponent(0.85)
 
         // Show eject button when server has mounted volumes
         ejectButton.isHidden = !hasVolumes
-        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject mounted shares from \(server.name)")
         setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: protocolBadge.leadingAnchor, constant: -4)
         protocolBadgeTrailingConstraint?.isActive = false
         if hasVolumes {
-            ejectButton.contentTintColor = theme.textSecondary
-            ejectButton.alphaValue = 0.7
+            applyAccessoryTint(theme)
             // Move protocol badge to not overlap with eject button
             protocolBadgeTrailingConstraint = protocolBadge.trailingAnchor.constraint(equalTo: ejectButton.leadingAnchor, constant: -6)
         } else {
@@ -276,6 +381,8 @@ final class SidebarItemView: NSTableCellView {
         }
         protocolBadgeTrailingConstraint?.isActive = true
 
+        toolTip = isOffline ? "\(server.name) is offline" : "\(server.name) \(server.protocol.displayName) file server"
+        setAccessibilityLabel(hasVolumes ? "\(server.name), file server, mounted shares ejectable" : "\(server.name), file server")
         resetNameLeading()
     }
 
@@ -290,11 +397,13 @@ final class SidebarItemView: NSTableCellView {
         }
         statusDot.isHidden = isInProgress
         statusDot.layer?.backgroundColor = statusDotColor(for: state, theme: theme).cgColor
+        statusDot.layer?.borderWidth = 1
+        statusDot.layer?.borderColor = theme.surface.withAlphaComponent(0.9).cgColor
         statusSpinner.isHidden = !isInProgress
         if isInProgress {
             statusSpinner.startAnimation(nil)
         }
-        toolTip = statusTooltip(for: state)
+        toolTip = statusTooltip(for: state) ?? "\(host.displayName), remote host"
 
         nameLabel.stringValue = host.displayName
         nameLabel.font = theme.uiFont(size: 13)
@@ -308,12 +417,12 @@ final class SidebarItemView: NSTableCellView {
         capacityLabel.isHidden = true
         protocolBadge.isHidden = true
         ejectButton.isHidden = false
-        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Remove \(host.displayName)")
         setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: ejectButton.leadingAnchor, constant: -4)
-        ejectButton.contentTintColor = theme.textSecondary
-        ejectButton.alphaValue = 0.7
+        applyAccessoryTint(theme)
 
+        setAccessibilityLabel("\(host.displayName), remote host, \(statusAccessibilityDescription(for: state)), removable")
         resetNameLeadingToStatusDot()
 
         resetNameCenterY()
@@ -339,6 +448,21 @@ final class SidebarItemView: NSTableCellView {
         return nil
     }
 
+    private func statusAccessibilityDescription(for state: SSHConnectionState) -> String {
+        switch state {
+        case .connected:
+            return "connected"
+        case .connecting:
+            return "connecting"
+        case .reconnecting:
+            return "reconnecting"
+        case .disconnected:
+            return "disconnected"
+        case .failed:
+            return "connection failed"
+        }
+    }
+
     private func configureAsSyntheticServer(_ server: SyntheticServer, theme: Theme, hasVolumes: Bool = false) {
         iconView.isHidden = false
         let serverIcon = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "Server")
@@ -356,17 +480,16 @@ final class SidebarItemView: NSTableCellView {
         protocolBadge.stringValue = "manual"
 #endif
         protocolBadge.font = theme.uiFont(size: 9)
-        protocolBadge.textColor = theme.textTertiary
+        protocolBadge.textColor = theme.accent.withAlphaComponent(0.85)
 
         // Show eject button when server has mounted volumes
         ejectButton.isHidden = !hasVolumes
-        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject mounted shares from \(server.displayName)")
         setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: protocolBadge.leadingAnchor, constant: -4)
         protocolBadgeTrailingConstraint?.isActive = false
         if hasVolumes {
-            ejectButton.contentTintColor = theme.textSecondary
-            ejectButton.alphaValue = 0.7
+            applyAccessoryTint(theme)
             // Move protocol badge to not overlap with eject button
             protocolBadgeTrailingConstraint = protocolBadge.trailingAnchor.constraint(equalTo: ejectButton.leadingAnchor, constant: -6)
         } else {
@@ -375,13 +498,15 @@ final class SidebarItemView: NSTableCellView {
         }
         protocolBadgeTrailingConstraint?.isActive = true
 
+        toolTip = "\(server.displayName), mounted file server"
+        setAccessibilityLabel(hasVolumes ? "\(server.displayName), mounted file server, shares ejectable" : "\(server.displayName), file server")
         resetNameLeading()
     }
 
     private func configureAsNetworkVolume(_ volume: VolumeInfo, theme: Theme, indented: Bool) {
         iconView.isHidden = false
-        // Use consistent icon for network shares with accent color
-        let shareIcon = NSImage(systemSymbolName: "externaldrive.connected.to.line.below", accessibilityDescription: "Network Share")
+        let displayKind = volumeDisplayKind(for: volume, isNetworkVolume: true)
+        let shareIcon = NSImage(systemSymbolName: displayKind.symbolName, accessibilityDescription: displayKind.name)
         iconView.image = shareIcon
         iconView.contentTintColor = theme.accent
         nameLabel.stringValue = volume.name
@@ -390,11 +515,10 @@ final class SidebarItemView: NSTableCellView {
 
         // Show eject button for ejectable network volumes
         ejectButton.isHidden = !volume.isEjectable
-        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject")
+        configureAccessoryButton(symbolName: "eject.fill", accessibilityDescription: "Eject \(volume.name)")
         setAccessoryTrailing(Layout.accessoryTrailingInset)
         setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
-        ejectButton.contentTintColor = theme.textSecondary
-        ejectButton.alphaValue = 0.7
+        applyAccessoryTint(theme)
 
         // Update capacity trailing constraint based on eject button visibility
         capacityTrailingConstraint?.isActive = false
@@ -408,14 +532,17 @@ final class SidebarItemView: NSTableCellView {
         if let capacity = volume.capacityString {
             capacityLabel.isHidden = false
             capacityLabel.stringValue = capacity
-            capacityLabel.font = theme.font(size: 10)
+            capacityLabel.font = theme.uiFont(size: 10)
             capacityLabel.textColor = theme.textTertiary
         } else {
             capacityLabel.isHidden = true
         }
 
+        let descriptor = "\(volume.name), \(displayKind.name)"
+        toolTip = volumeToolTip(for: volume, kind: displayKind)
+        setAccessibilityLabel(volume.isEjectable ? "\(descriptor), ejectable" : descriptor)
         // Subtle indent for child items - enough to show hierarchy without feeling nested
-        resetNameLeading(indent: indented ? 8 : 0)
+        resetNameLeading(indent: indented ? Layout.childIndent : 0)
     }
 
     func configureAsPlaceholder(_ placeholder: NetworkPlaceholder, theme: Theme) {
@@ -425,19 +552,22 @@ final class SidebarItemView: NSTableCellView {
         nameLabel.textColor = theme.textTertiary
         capacityLabel.isHidden = true
         protocolBadge.isHidden = true
+        toolTip = placeholder.text
+        setAccessibilityLabel(placeholder.text)
 
         // Adjust leading constraint for placeholder (no icon, indented)
         for constraint in constraints where constraint.firstAnchor == nameLabel.leadingAnchor {
             constraint.isActive = false
         }
-        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.sectionLeading).isActive = true
     }
 
     private func configureAsFavorite(_ url: URL, theme: Theme) {
         iconView.isHidden = false
         nameLabel.font = theme.uiFont(size: 13)
         capacityLabel.isHidden = true
-        setNameTrailing(to: capacityLabel.leadingAnchor, constant: -4)
+        ejectButton.isHidden = true
+        setNameTrailing(to: trailingAnchor, constant: -10)
 
         // Check if favorite exists
         var isDirectory: ObjCBool = false
@@ -453,7 +583,38 @@ final class SidebarItemView: NSTableCellView {
         iconView.image = isDirectory.boolValue ? FileItem.tintedFolderIcon(icon) : icon
         iconView.contentTintColor = nil
 
+        toolTip = url.path
+        setAccessibilityLabel(FileManager.default.fileExists(atPath: url.path) ? "\(url.lastPathComponent), favorite" : "\(url.lastPathComponent), missing favorite")
         resetNameLeading()
+    }
+
+    private func volumeDisplayKind(for volume: VolumeInfo, isNetworkVolume: Bool) -> VolumeDisplayKind {
+        if isNetworkVolume || volume.isNetwork {
+            return .networkShare
+        }
+
+        let lowerName = volume.name.lowercased()
+        let lowerPath = volume.url.path.lowercased()
+        if lowerName.contains("sparsebundle") || lowerPath.contains("sparsebundle") {
+            return .sparseBundle
+        }
+        if lowerName.contains(".dmg") || lowerPath.contains(".dmg") ||
+            lowerName.contains(".sparseimage") || lowerPath.contains(".sparseimage") ||
+            lowerName.contains(".iso") || lowerPath.contains(".iso") {
+            return .diskImage
+        }
+        return .localDevice
+    }
+
+    private func volumeToolTip(for volume: VolumeInfo, kind: VolumeDisplayKind) -> String {
+        var parts = ["\(volume.name), \(kind.name)"]
+        if let capacity = volume.capacityString {
+            parts.append("\(capacity) available")
+        }
+        if volume.isEjectable {
+            parts.append("ejectable")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func setNameTrailing(to anchor: NSLayoutXAxisAnchor, constant: CGFloat) {
@@ -476,8 +637,8 @@ final class SidebarItemView: NSTableCellView {
         for constraint in constraints where constraint.firstAnchor == iconView.leadingAnchor {
             constraint.isActive = false
         }
-        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14 + indent).isActive = true
-        nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8).isActive = true
+        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.iconLeading + indent).isActive = true
+        nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: Layout.nameIconGap).isActive = true
     }
 
     private func resetNameLeadingToStatusDot() {
@@ -501,6 +662,8 @@ final class SidebarItemView: NSTableCellView {
         iconView.contentTintColor = nil
         statusDot.isHidden = true
         statusDot.layer?.backgroundColor = nil
+        statusDot.layer?.borderWidth = 0
+        statusDot.layer?.borderColor = nil
         toolTip = nil
         nameLabel.stringValue = ""
         subtitleLabel.stringValue = ""
@@ -524,6 +687,6 @@ final class SidebarItemView: NSTableCellView {
         for constraint in constraints where constraint.firstAnchor == iconView.leadingAnchor {
             constraint.isActive = false
         }
-        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14).isActive = true
+        iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.iconLeading).isActive = true
     }
 }

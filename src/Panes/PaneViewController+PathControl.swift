@@ -58,7 +58,7 @@ extension PaneViewController {
         }
         func itemWidth(at index: Int) -> CGFloat {
             let textWidth = (titles[index] as NSString).size(
-                withAttributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
+                withAttributes: [.font: ThemeManager.shared.currentTheme.uiFont(size: 12)]
             ).width
             let iconWidth: CGFloat = (index == 0 && breadcrumbHost != nil) ? hostIconWidth : 0
             return textWidth + iconWidth + separatorWidth
@@ -296,7 +296,8 @@ extension PaneViewController {
     }
 
     func updateBackgroundTint() {
-        // No background tint - active pane indicated by blue selection color
+        updatePaneChromeColors()
+        view.needsDisplay = true
     }
 }
 

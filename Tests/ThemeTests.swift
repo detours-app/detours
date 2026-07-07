@@ -162,4 +162,162 @@ final class ThemeTests: XCTestCase {
         let systemFont = NSFont.systemFont(ofSize: 13)
         XCTAssertEqual(font.fontName, systemFont.fontName, "Default SF Pro should resolve to system font")
     }
+
+    func testChromeContrastForBuiltInAndCustomThemes() throws {
+        let themes: [(String, Theme)] = [
+            ("light", .light),
+            ("dark", .dark),
+            ("foolscap", .foolscap),
+            ("drafting", .drafting),
+            ("custom high contrast", Self.customTheme(
+                background: "#101214",
+                surface: "#171A1D",
+                border: "#5E6770",
+                textPrimary: "#F7F8F8",
+                textSecondary: "#C7CDD3",
+                textTertiary: "#AAB2BB",
+                accent: "#88D4C3",
+                accentText: "#071010"
+            )),
+            ("custom restrained contrast", Self.customTheme(
+                background: "#F7F5EF",
+                surface: "#ECE8DD",
+                border: "#BDB5A5",
+                textPrimary: "#26231E",
+                textSecondary: "#59544B",
+                textTertiary: "#655F55",
+                accent: "#526B35",
+                accentText: "#FFFFFF"
+            )),
+        ]
+
+        for (name, theme) in themes {
+            let inactivePaneSurface = theme.surface.blended(withFraction: 0.45, of: theme.background) ?? theme.surface
+            let inactiveTabSurface = theme.surface.blended(withFraction: 0.50, of: theme.background) ?? theme.surface
+            let fileHoverFill = ChromeContrast.blend(theme.textPrimary, alpha: 0.06, over: theme.background)
+            let sidebarHoverFill = ChromeContrast.blend(theme.textPrimary, alpha: 0.055, over: theme.surface)
+            let fileSelectionFill = ChromeContrast.fileListSelectionFill(for: theme)
+            let sidebarSelectionFill = ChromeContrast.sidebarSelectionFill(for: theme)
+
+            assertNormalTextContrast(theme.textPrimary, on: theme.background, "\(name) primary file text")
+            assertNormalTextContrast(theme.textSecondary, on: theme.surface, "\(name) secondary chrome text")
+            assertNormalTextContrast(theme.textTertiary, on: theme.surface, "\(name) tertiary sidebar text")
+            assertNormalTextContrast(theme.textPrimary, on: fileHoverFill, "\(name) file hover text")
+            assertNormalTextContrast(theme.textPrimary, on: sidebarHoverFill, "\(name) sidebar hover text")
+
+            assertNormalTextContrast(
+                ChromeContrast.readableTextColor(preferred: theme.textSecondary, fallback: theme.textPrimary, on: inactivePaneSurface),
+                on: inactivePaneSurface,
+                "\(name) inactive status/path text"
+            )
+            assertNormalTextContrast(
+                ChromeContrast.readableTextColor(preferred: theme.textSecondary, fallback: theme.textPrimary, on: inactiveTabSurface),
+                on: inactiveTabSurface,
+                "\(name) inactive tab text"
+            )
+
+            assertNormalTextContrast(
+                ChromeContrast.fileListSelectedForeground(for: theme),
+                on: fileSelectionFill,
+                "\(name) selected file name text"
+            )
+            assertNormalTextContrast(
+                ChromeContrast.fileListSelectedSecondaryForeground(for: theme),
+                on: fileSelectionFill,
+                "\(name) selected file metadata/accessory text"
+            )
+            assertStateIndicatorContrast(
+                ChromeContrast.stateIndicatorColor(preferred: theme.accent, fallback: theme.textPrimary, on: fileSelectionFill),
+                on: fileSelectionFill,
+                "\(name) selected file accent rail"
+            )
+
+            assertNormalTextContrast(
+                ChromeContrast.sidebarSelectedForeground(for: theme),
+                on: sidebarSelectionFill,
+                "\(name) selected sidebar row text"
+            )
+            assertStateIndicatorContrast(
+                ChromeContrast.stateIndicatorColor(preferred: theme.accent, fallback: theme.textPrimary, on: sidebarSelectionFill),
+                on: sidebarSelectionFill,
+                "\(name) selected sidebar accent rail"
+            )
+        }
+    }
+
+    private func assertNormalTextContrast(
+        _ foreground: NSColor,
+        on background: NSColor,
+        _ label: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        assertContrast(
+            foreground,
+            on: background,
+            minimum: ChromeContrast.minimumNormalTextContrast,
+            label,
+            file: file,
+            line: line
+        )
+    }
+
+    private func assertStateIndicatorContrast(
+        _ foreground: NSColor,
+        on background: NSColor,
+        _ label: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        assertContrast(
+            foreground,
+            on: background,
+            minimum: ChromeContrast.minimumStateIndicatorContrast,
+            label,
+            file: file,
+            line: line
+        )
+    }
+
+    private func assertContrast(
+        _ foreground: NSColor,
+        on background: NSColor,
+        minimum: CGFloat,
+        _ label: String,
+        file: StaticString,
+        line: UInt
+    ) {
+        let ratio = ChromeContrast.contrastRatio(foreground: foreground, background: background)
+        XCTAssertGreaterThanOrEqual(
+            ratio,
+            minimum,
+            "\(label) contrast \(String(format: "%.2f", Double(ratio))) is below \(String(format: "%.1f", Double(minimum))):1",
+            file: file,
+            line: line
+        )
+    }
+
+    private static func customTheme(
+        background: String,
+        surface: String,
+        border: String,
+        textPrimary: String,
+        textSecondary: String,
+        textTertiary: String,
+        accent: String,
+        accentText: String
+    ) -> Theme {
+        Theme.custom(from: CustomThemeColors(
+            background: CodableColor(hex: background),
+            surface: CodableColor(hex: surface),
+            border: CodableColor(hex: border),
+            textPrimary: CodableColor(hex: textPrimary),
+            textSecondary: CodableColor(hex: textSecondary),
+            textTertiary: CodableColor(hex: textTertiary),
+            accent: CodableColor(hex: accent),
+            accentText: CodableColor(hex: accentText),
+            fontName: "SF Pro",
+            uiFontName: "SF Pro"
+        ))
+    }
 }

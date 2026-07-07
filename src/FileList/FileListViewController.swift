@@ -53,6 +53,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var selectionCursor: Int?
     /// Tracks whether folder expansion was enabled before the last settings change
     var wasFolderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+    /// Tracks the density applied to the table before the last settings change
+    var wasFileListRowDensity = SettingsManager.shared.fileListRowDensity
     /// Preserved expansion state when folder expansion is disabled (for restore on re-enable)
     var preservedExpansionWhenDisabled: Set<URL>?
     /// Selection to restore when user cancels new folder/file creation

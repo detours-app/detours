@@ -9,12 +9,114 @@ set -euo pipefail
 BASE="${DETOURS_SCREENSHOT_BASE:-$HOME/Projects}"
 CORP="$BASE/acme-corp"
 DEV="$BASE/taskflow"
+VOLUMES_DIR="${DETOURS_SCREENSHOT_VOLUMES_DIR:-$BASE/Volumes}"
+SPARSEBUNDLE_IMAGE_BASE="$VOLUMES_DIR/Specs"
+SPARSEBUNDLE_IMAGE="$SPARSEBUNDLE_IMAGE_BASE.sparsebundle"
+SPARSEBUNDLE_MOUNT="${DETOURS_SCREENSHOT_SPARSEBUNDLE_MOUNT:-/Volumes/Specs.sparsebundle}"
+DISK_IMAGE="$VOLUMES_DIR/Detours.dmg"
+DISK_IMAGE_MOUNT="${DETOURS_SCREENSHOT_DISK_IMAGE_MOUNT:-/Volumes/Detours.dmg}"
+
+is_darwin() {
+    [[ "$(uname -s)" == "Darwin" ]]
+}
+
+detach_fixture_mount() {
+    local mount="$1"
+
+    if [[ ! -d "$mount" ]] || ! command -v hdiutil >/dev/null 2>&1; then
+        return
+    fi
+
+    hdiutil detach "$mount" -quiet >/dev/null 2>&1 || \
+        diskutil unmount force "$mount" >/dev/null 2>&1 || true
+    rmdir "$mount" >/dev/null 2>&1 || true
+}
+
+detach_fixture_mounts() {
+    detach_fixture_mount "$SPARSEBUNDLE_MOUNT"
+    detach_fixture_mount "$DISK_IMAGE_MOUNT"
+}
+
+populate_sparsebundle_volume() {
+    mkdir -p "$SPARSEBUNDLE_MOUNT/bands" "$SPARSEBUNDLE_MOUNT/snapshots"
+    cat > "$SPARSEBUNDLE_MOUNT/Info.plist" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+  <key>DetoursScreenshotFixture</key>
+  <true/>
+</dict>
+</plist>
+PLIST
+    printf 'detours\n' > "$SPARSEBUNDLE_MOUNT/token"
+    dd if=/dev/urandom bs=1024 count=48 2>/dev/null | base64 > "$SPARSEBUNDLE_MOUNT/bands/0"
+    dd if=/dev/urandom bs=1024 count=32 2>/dev/null | base64 > "$SPARSEBUNDLE_MOUNT/snapshots/chrome-polish.snapshot"
+    touch -t 202601200912 "$SPARSEBUNDLE_MOUNT/Info.plist"
+    touch -t 202601200912 "$SPARSEBUNDLE_MOUNT/token"
+    touch -t 202601200914 "$SPARSEBUNDLE_MOUNT/bands/0"
+    touch -t 202601200916 "$SPARSEBUNDLE_MOUNT/snapshots/chrome-polish.snapshot"
+}
+
+populate_disk_image_volume() {
+    mkdir -p "$DISK_IMAGE_MOUNT/Applications" "$DISK_IMAGE_MOUNT/Detours.app/Contents/MacOS"
+    cat > "$DISK_IMAGE_MOUNT/README.txt" << 'README'
+Detours screenshot disk image fixture.
+
+This mounted volume exists so the sidebar can show a disk image row with its
+eject affordance while screenshot tabs can browse the mounted volume.
+README
+    cat > "$DISK_IMAGE_MOUNT/Detours.app/Contents/Info.plist" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>Detours</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.detours.fixture</string>
+</dict>
+</plist>
+PLIST
+    printf '#!/bin/sh\nexit 0\n' > "$DISK_IMAGE_MOUNT/Detours.app/Contents/MacOS/Detours"
+    chmod +x "$DISK_IMAGE_MOUNT/Detours.app/Contents/MacOS/Detours"
+    touch -t 202601200803 "$DISK_IMAGE_MOUNT/README.txt"
+    touch -t 202601200803 "$DISK_IMAGE_MOUNT/Detours.app"
+}
+
+create_mounted_volume_fixtures() {
+    if ! is_darwin; then
+        echo "==> Skipping mounted disk image fixtures on $(uname -s)"
+        return
+    fi
+
+    if ! command -v hdiutil >/dev/null 2>&1; then
+        echo "Error: hdiutil is required to create screenshot mounted-volume fixtures."
+        exit 1
+    fi
+
+    echo "==> Creating and mounting screenshot disk image fixtures..."
+    mkdir -p "$VOLUMES_DIR"
+
+    hdiutil create -quiet -size 64m -type SPARSEBUNDLE -fs HFS+ \
+        -volname "Specs.sparsebundle" -ov "$SPARSEBUNDLE_IMAGE_BASE"
+    hdiutil attach -quiet -mountpoint "$SPARSEBUNDLE_MOUNT" "$SPARSEBUNDLE_IMAGE"
+    populate_sparsebundle_volume
+
+    hdiutil create -quiet -size 64m -fs HFS+ -type UDIF \
+        -volname "Detours.dmg" -ov "$DISK_IMAGE"
+    hdiutil attach -quiet -mountpoint "$DISK_IMAGE_MOUNT" "$DISK_IMAGE"
+    populate_disk_image_volume
+
+    sync
+}
 
 echo "==> Creating screenshot folders..."
 
 # Clean up only the managed fixture trees. The default base is ~/Projects so
 # unrelated project folders must be left intact.
-rm -rf "$CORP" "$DEV"
+if is_darwin; then
+    detach_fixture_mounts
+fi
+rm -rf "$CORP" "$DEV" "$VOLUMES_DIR"
 mkdir -p "$BASE"
 
 # ============================================
@@ -1252,6 +1354,15 @@ echo "  taskflow:  $(find "$DEV" -type f | wc -l | tr -d ' ') files"
 echo ""
 echo "Git status in taskflow:"
 cd "$DEV" && git status --short
+
+create_mounted_volume_fixtures
+
+if is_darwin; then
+    echo ""
+    echo "Mounted volume fixtures:"
+    echo "  sparse bundle: $SPARSEBUNDLE_MOUNT (source $SPARSEBUNDLE_IMAGE)"
+    echo "  disk image:    $DISK_IMAGE_MOUNT (source $DISK_IMAGE)"
+fi
 echo ""
 echo "==> Open Detours and navigate to these folders"
 echo "==> Make sure sidebar is visible (Cmd-0)"

@@ -182,6 +182,9 @@ extension PaneViewController {
         let selectedIndexes = tab.fileListViewController.tableView.selectedRowIndexes
         let selectedCount = selectedIndexes.count
         let isRemoteTab = tab.fileListViewController.currentRemoteLocation != nil
+        let contextLabel = isRemoteTab
+            ? remoteBreadcrumbHostsByTabID[tab.id].map { "Remote: \($0.displayName)" }
+            : nil
 
         // Calculate hidden file count (only when not showing hidden files)
         var hiddenCount = 0
@@ -215,7 +218,8 @@ extension PaneViewController {
             selectedCount: selectedCount,
             hiddenCount: hiddenCount,
             selectionSize: selectionSize,
-            availableSpace: availableSpace
+            availableSpace: availableSpace,
+            contextLabel: contextLabel
         )
     }
 
@@ -252,6 +256,7 @@ extension PaneViewController {
         isActive = active
         updateBackgroundTint()
         tabBar.setActive(active)
+        statusBar.setPaneActive(active)
 
         // Update all tabs' data sources with active state
         for tab in tabs {

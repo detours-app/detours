@@ -3,6 +3,7 @@ import SwiftUI
 struct AppearanceSettingsView: View {
     @State private var selectedTheme: ThemeChoice = SettingsManager.shared.theme
     @State private var fontSize: Int = SettingsManager.shared.fontSize
+    @State private var fileListRowDensity: FileListRowDensity = SettingsManager.shared.fileListRowDensity
     @State private var customColors: CustomThemeColors = SettingsManager.shared.customTheme ?? .defaultLight
     @State private var dateFormatCurrentYear: String = SettingsManager.shared.dateFormatCurrentYear
     @State private var dateFormatOtherYears: String = SettingsManager.shared.dateFormatOtherYears
@@ -35,6 +36,17 @@ struct AppearanceSettingsView: View {
                 }
                 .onChange(of: fontSize) { _, newValue in
                     SettingsManager.shared.fontSize = newValue
+                }
+
+                Picker("File list density", selection: $fileListRowDensity) {
+                    ForEach(FileListRowDensity.allCases, id: \.self) { density in
+                        Text(density.displayName).tag(density)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("fileListDensityPicker")
+                .onChange(of: fileListRowDensity) { _, newValue in
+                    SettingsManager.shared.fileListRowDensity = newValue
                 }
             }
 
@@ -71,10 +83,11 @@ struct AppearanceSettingsView: View {
                 ThemePreview(
                     theme: previewTheme,
                     fontSize: fontSize,
+                    fileListRowDensity: fileListRowDensity,
                     dateFormatCurrentYear: validatedCurrentYearFormat,
                     dateFormatOtherYears: validatedOtherYearsFormat
                 )
-                .id("\(selectedTheme)-\(validatedCurrentYearFormat)-\(validatedOtherYearsFormat)")
+                .id("\(selectedTheme)-\(fontSize)-\(fileListRowDensity)-\(validatedCurrentYearFormat)-\(validatedOtherYearsFormat)")
             }
         }
         .formStyle(.grouped)
@@ -285,6 +298,7 @@ struct ColorPickerRow: View {
 struct ThemePreview: View {
     let theme: Theme
     let fontSize: Int
+    let fileListRowDensity: FileListRowDensity
     let dateFormatCurrentYear: String
     let dateFormatOtherYears: String
 
@@ -340,7 +354,8 @@ struct ThemePreview: View {
                     isSelected: true,
                     dateString: formatDate(currentYearDate, isCurrentYear: true),
                     theme: theme,
-                    fontSize: fontSize
+                    fontSize: fontSize,
+                    density: fileListRowDensity
                 )
                 FileRowPreview(
                     name: "Archive",
@@ -348,7 +363,8 @@ struct ThemePreview: View {
                     isSelected: false,
                     dateString: formatDate(pastYearDate, isCurrentYear: false),
                     theme: theme,
-                    fontSize: fontSize
+                    fontSize: fontSize,
+                    density: fileListRowDensity
                 )
                 FileRowPreview(
                     name: "notes.txt",
@@ -356,7 +372,8 @@ struct ThemePreview: View {
                     isSelected: false,
                     dateString: formatDate(currentYearDate, isCurrentYear: true),
                     theme: theme,
-                    fontSize: fontSize
+                    fontSize: fontSize,
+                    density: fileListRowDensity
                 )
             }
         }
@@ -376,6 +393,7 @@ struct FileRowPreview: View {
     let dateString: String
     let theme: Theme
     let fontSize: Int
+    let density: FileListRowDensity
 
     private var folderColor: Color {
         Color(theme.accent)
@@ -396,7 +414,8 @@ struct FileRowPreview: View {
         HStack(spacing: 8) {
             Image(systemName: isDirectory ? "folder.fill" : "doc")
                 .foregroundColor(iconColor)
-                .frame(width: 18)
+                .font(.system(size: density.primaryIconSize))
+                .frame(width: density.primaryIconSize, height: density.primaryIconSize)
             Text(name)
                 .font(.custom(theme.monoFont, size: CGFloat(fontSize)))
                 .foregroundColor(isSelected ? Color(theme.accent) : Color(theme.textPrimary))
@@ -407,8 +426,7 @@ struct FileRowPreview: View {
                 .foregroundColor(isSelected ? Color(theme.accent).opacity(0.8) : Color(theme.textTertiary))
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: density.rowHeight, maxHeight: density.rowHeight, alignment: .leading)
         .background(isSelected ? Color(theme.accent).opacity(0.2) : Color.clear)
     }
 }

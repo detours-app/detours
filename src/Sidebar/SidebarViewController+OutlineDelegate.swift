@@ -60,6 +60,9 @@ extension SidebarViewController: NSOutlineViewDelegate {
             }
         } else if let url = item as? URL {
             cellView.configure(with: .favorite(url), theme: theme)
+            cellView.onEject = { [weak self] in
+                self?.delegate?.sidebarDidRemoveFavorite(url)
+            }
         }
 
         return cellView
@@ -67,9 +70,9 @@ extension SidebarViewController: NSOutlineViewDelegate {
 
     func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
         if item is SidebarSection {
-            return 30 // 24px base + 6px top padding for section headers
+            return 32
         }
-        return 24
+        return 26
     }
 
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {

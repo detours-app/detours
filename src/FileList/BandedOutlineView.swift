@@ -231,14 +231,18 @@ final class BandedOutlineView: NSOutlineView {
         guard SettingsManager.shared.folderExpansionEnabled else {
             return .zero
         }
-        return super.frameOfOutlineCell(atRow: row)
+
+        var frame = super.frameOfOutlineCell(atRow: row)
+        let rowRect = rect(ofRow: row)
+        frame.origin.y = rowRect.midY - frame.height / 2 + SettingsManager.shared.fileListRowDensity.verticalTextOffset
+        return frame
     }
 
     override func frameOfCell(atColumn column: Int, row: Int) -> NSRect {
         var frame = super.frameOfCell(atColumn: column, row: row)
         // When folder expansion is disabled, shift content left to fill the disclosure triangle space
         if !SettingsManager.shared.folderExpansionEnabled && column == 0 {
-            let outlineWidth: CGFloat = 20 // disclosure triangle space
+            let outlineWidth = SettingsManager.shared.fileListRowDensity.disclosureWidth
             frame.origin.x -= outlineWidth
             frame.size.width += outlineWidth
         }
@@ -258,7 +262,6 @@ final class BandedOutlineView: NSOutlineView {
         let bandColor = theme.textPrimary.withAlphaComponent(0.04)
         let rowH = rowHeight + intercellSpacing.height
 
-        // Band existing rows
         for row in 0..<numberOfRows {
             guard row % 2 == 0 else { continue }
             let rowRect = rect(ofRow: row).intersection(clipRect)
@@ -267,7 +270,6 @@ final class BandedOutlineView: NSOutlineView {
             rowRect.fill()
         }
 
-        // Continue virtual bands below the last row to fill the visible area
         let startY: CGFloat
         let nextIndex: Int
         if numberOfRows > 0 {
@@ -286,7 +288,9 @@ final class BandedOutlineView: NSOutlineView {
             if idx % 2 == 0 {
                 let bandRect = NSRect(x: clipRect.minX, y: y, width: clipRect.width, height: rowH)
                     .intersection(clipRect)
-                if !bandRect.isEmpty { bandRect.fill() }
+                if !bandRect.isEmpty {
+                    bandRect.fill()
+                }
             }
             y += rowH
             idx += 1

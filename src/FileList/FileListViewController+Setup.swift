@@ -23,9 +23,14 @@ extension FileListViewController {
 
     @objc func handleSettingsChange() {
         let isNowEnabled = SettingsManager.shared.folderExpansionEnabled
+        let currentDensity = SettingsManager.shared.fileListRowDensity
+        let didChangeDensity = currentDensity != wasFileListRowDensity
 
         // Preserve selection before reload
-        let selectedRows = tableView.selectedRowIndexes
+        let selectedItems = tableView.selectedRowIndexes.compactMap { row in
+            tableView.item(atRow: row) as? FileItem
+        }
+        let shouldRestoreTableViewFocus = tableViewHasKeyboardFocus()
 
         // Handle expansion state preservation based on transition
         let expandedURLs: Set<URL>
@@ -44,6 +49,11 @@ extension FileListViewController {
 
         // Update the tracking variable
         wasFolderExpansionEnabled = isNowEnabled
+        wasFileListRowDensity = currentDensity
+
+        if didChangeDensity {
+            tableView.rowHeight = currentDensity.rowHeight
+        }
 
         // Re-sort (handles foldersOnTop changes) and reload
         dataSource.resort()
@@ -52,9 +62,13 @@ extension FileListViewController {
         restoreExpansion(expandedURLs)
 
         // Restore selection
-        if !selectedRows.isEmpty {
-            tableView.selectRowIndexes(selectedRows, byExtendingSelection: false)
+        restoreSelection(to: selectedItems)
+
+        if didChangeDensity {
+            invalidateRowHeightsAndReloadVisibleRows()
         }
+
+        restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
     }
 
     @objc func handleFilesRestored(_ notification: Notification) {
@@ -98,6 +112,38 @@ extension FileListViewController {
     func restoreTableViewKeyboardFocusIfNeeded(_ shouldRestore: Bool) {
         guard shouldRestore else { return }
         view.window?.makeFirstResponder(tableView)
+    }
+
+    private func restoreSelection(to selectedItems: [FileItem]) {
+        guard !selectedItems.isEmpty else { return }
+
+        var rowIndexes = IndexSet()
+        for item in selectedItems {
+            let row = tableView.row(forItem: item)
+            if row >= 0 {
+                rowIndexes.insert(row)
+            }
+        }
+
+        if !rowIndexes.isEmpty {
+            tableView.selectRowIndexes(rowIndexes, byExtendingSelection: false)
+        }
+    }
+
+    private func invalidateRowHeightsAndReloadVisibleRows() {
+        guard tableView.numberOfRows > 0 else { return }
+
+        tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
+
+        let visibleRange = tableView.rows(in: tableView.visibleRect)
+        guard visibleRange.location != NSNotFound, visibleRange.length > 0 else { return }
+
+        let upperBound = min(visibleRange.location + visibleRange.length, tableView.numberOfRows)
+        guard visibleRange.location < upperBound else { return }
+
+        let rowIndexes = IndexSet(integersIn: visibleRange.location..<upperBound)
+        let columnIndexes = IndexSet(integersIn: 0..<tableView.numberOfColumns)
+        tableView.reloadData(forRowIndexes: rowIndexes, columnIndexes: columnIndexes)
     }
 
     @objc func tableViewSelectionDidChange(_ notification: Notification) {
@@ -161,7 +207,7 @@ extension FileListViewController {
     func setupTableView() {
         tableView.backgroundColor = ThemeManager.shared.currentTheme.background
         tableView.style = .plain
-        tableView.rowHeight = 24
+        tableView.rowHeight = SettingsManager.shared.fileListRowDensity.rowHeight
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.gridStyleMask = []

@@ -13,6 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUITestRemoteFailureCommandID: String?
     private var lastUITestUndoMenuTitleRequestID: String?
     private var lastUITestDuplicateStructureShowRequestID: String?
+    private var lastUITestAppearanceSettingsCommandID: String?
+
+    private struct UITestTextFrame {
+        let label: String
+        let frame: NSRect
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Reduce tooltip delay from default ~1000ms to 200ms
@@ -114,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lastUITestRemoteFailureCommandID = UITestEnvironment.currentRemoteFailureCommand()?.id
         lastUITestUndoMenuTitleRequestID = UITestEnvironment.currentUndoMenuTitleRequest()?.id
         lastUITestDuplicateStructureShowRequestID = UITestEnvironment.currentDuplicateStructureShowRequest()?.id
+        lastUITestAppearanceSettingsCommandID = UITestEnvironment.currentAppearanceSettingsCommand()?.id
     }
 
     private func pollUITestCommands() {
@@ -170,6 +177,194 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             lastUITestDuplicateStructureShowRequestID = request.id
             mainWindowController?.splitViewController.performUITestDuplicateStructure(relativePath: request.relativePath)
         }
+
+        if let command = UITestEnvironment.currentAppearanceSettingsCommand(),
+           command.id != lastUITestAppearanceSettingsCommandID {
+            lastUITestAppearanceSettingsCommandID = command.id
+            applyAppearanceSettingsForUITest(command)
+        }
+    }
+
+    private func applyAppearanceSettingsForUITest(_ command: UITestEnvironment.AppearanceSettingsCommand) {
+        guard let theme = ThemeChoice(rawValue: command.theme),
+              let density = FileListRowDensity(rawValue: command.fileListRowDensity) else {
+            UITestEnvironment.acknowledgeAppearanceSettingsCommand(
+                id: command.id,
+                applied: false,
+                failure: "Invalid appearance settings command"
+            )
+            return
+        }
+
+        SettingsManager.shared.theme = theme
+        SettingsManager.shared.fontSize = command.fontSize
+        SettingsManager.shared.fileListRowDensity = density
+        mainWindowController?.window?.contentView?.layoutSubtreeIfNeeded()
+        let audit = auditVisibleTextOverlapForUITest()
+        UITestEnvironment.acknowledgeAppearanceSettingsCommand(
+            id: command.id,
+            applied: audit.failure == nil,
+            checkedTextCount: audit.count,
+            failure: audit.failure
+        )
+    }
+
+    private func auditVisibleTextOverlapForUITest() -> (count: Int, failure: String?) {
+        guard let window = mainWindowController?.window,
+              let contentView = window.contentView else {
+            return (0, "Main window content view is missing")
+        }
+
+        let windowFrame = window.frame.insetBy(dx: -1, dy: -1)
+        var frames: [UITestTextFrame] = []
+        var seenFrames = Set<String>()
+        collectUITestTextFrames(
+            in: contentView,
+            window: window,
+            windowFrame: windowFrame,
+            seenFrames: &seenFrames,
+            frames: &frames
+        )
+
+        guard frames.count > 8 else {
+            return (frames.count, "Expected visible chrome text, found only \(frames.count) text frames")
+        }
+
+        if let overlap = firstUITestTextOverlap(in: frames) {
+            return (
+                frames.count,
+                "'\(overlap.0.label)' \(NSStringFromRect(overlap.0.frame)) overlaps " +
+                "'\(overlap.1.label)' \(NSStringFromRect(overlap.1.frame))"
+            )
+        }
+
+        if let sidebarFailure = auditSidebarBackgroundForUITest() {
+            return (frames.count, sidebarFailure)
+        }
+
+        return (frames.count, nil)
+    }
+
+    private func auditSidebarBackgroundForUITest() -> String? {
+        guard let sidebarLayer = mainWindowController?.splitViewController.sidebarViewController.view.layer,
+              let backgroundColor = sidebarLayer.backgroundColor,
+              let actualColor = NSColor(cgColor: backgroundColor)?.usingColorSpace(.deviceRGB),
+              let expectedColor = ThemeManager.shared.currentTheme.surface.usingColorSpace(.deviceRGB) else {
+            return "Sidebar background color is not available"
+        }
+
+        guard colorsMatchForUITest(actualColor, expectedColor) else {
+            return "Sidebar background \(colorDescriptionForUITest(actualColor)) does not match theme surface \(colorDescriptionForUITest(expectedColor))"
+        }
+
+        return nil
+    }
+
+    private func colorsMatchForUITest(_ first: NSColor, _ second: NSColor) -> Bool {
+        abs(first.redComponent - second.redComponent) < 0.01 &&
+            abs(first.greenComponent - second.greenComponent) < 0.01 &&
+            abs(first.blueComponent - second.blueComponent) < 0.01 &&
+            abs(first.alphaComponent - second.alphaComponent) < 0.01
+    }
+
+    private func colorDescriptionForUITest(_ color: NSColor) -> String {
+        String(
+            format: "rgba(%.3f, %.3f, %.3f, %.3f)",
+            color.redComponent,
+            color.greenComponent,
+            color.blueComponent,
+            color.alphaComponent
+        )
+    }
+
+    private func collectUITestTextFrames(
+        in view: NSView,
+        window: NSWindow,
+        windowFrame: NSRect,
+        seenFrames: inout Set<String>,
+        frames: inout [UITestTextFrame]
+    ) {
+        guard !view.isHidden, view.alphaValue > 0.01, view.window != nil else { return }
+
+        if let textField = view as? NSTextField {
+            collectUITestTextFrame(
+                label: textField.stringValue,
+                from: textField,
+                window: window,
+                windowFrame: windowFrame,
+                seenFrames: &seenFrames,
+                frames: &frames
+            )
+        }
+
+        if let pathControl = view as? NSPathControl {
+            collectUITestTextFrame(
+                label: pathControl.pathItems.map(\.title).joined(separator: " / "),
+                from: pathControl,
+                window: window,
+                windowFrame: windowFrame,
+                seenFrames: &seenFrames,
+                frames: &frames
+            )
+        }
+
+        for subview in view.subviews {
+            collectUITestTextFrames(
+                in: subview,
+                window: window,
+                windowFrame: windowFrame,
+                seenFrames: &seenFrames,
+                frames: &frames
+            )
+        }
+    }
+
+    private func collectUITestTextFrame(
+        label rawLabel: String,
+        from view: NSView,
+        window: NSWindow,
+        windowFrame: NSRect,
+        seenFrames: inout Set<String>,
+        frames: inout [UITestTextFrame]
+    ) {
+        let label = rawLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let frame = window.convertToScreen(view.convert(view.bounds, to: nil))
+        guard !label.isEmpty,
+              frame.width > 0.5,
+              frame.height > 0.5,
+              windowFrame.intersects(frame) else {
+            return
+        }
+
+        let key = [
+            label,
+            String(Int(frame.minX.rounded())),
+            String(Int(frame.minY.rounded())),
+            String(Int(frame.width.rounded())),
+            String(Int(frame.height.rounded()))
+        ].joined(separator: "|")
+        guard seenFrames.insert(key).inserted else { return }
+
+        frames.append(UITestTextFrame(label: label, frame: frame))
+    }
+
+    private func firstUITestTextOverlap(in frames: [UITestTextFrame]) -> (UITestTextFrame, UITestTextFrame)? {
+        guard frames.count > 1 else { return nil }
+
+        for firstIndex in 0..<(frames.count - 1) {
+            for secondIndex in (firstIndex + 1)..<frames.count {
+                if uiTestTextFramesOverlap(frames[firstIndex].frame, frames[secondIndex].frame) {
+                    return (frames[firstIndex], frames[secondIndex])
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private func uiTestTextFramesOverlap(_ first: NSRect, _ second: NSRect) -> Bool {
+        let intersection = first.insetBy(dx: 0.5, dy: 0.5).intersection(second.insetBy(dx: 0.5, dy: 0.5))
+        return !intersection.isNull && intersection.width > 0.75 && intersection.height > 0.75
     }
 
     private func writeUndoMenuTitleForUITest(requestID: String) {

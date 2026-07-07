@@ -167,4 +167,105 @@ final class SidebarTests: XCTestCase {
             XCTAssertEqual(volume.capacityString, expected, "Capacity \(bytes) should format as \(expected)")
         }
     }
+
+    // MARK: - Sidebar Accessibility Tests
+
+    @MainActor
+    func testMountedVolumeAccessoryLabels() throws {
+        try assertMountedItemLabels(
+            item: .device(Self.volume(path: "/Volumes/Specs.sparsebundle", name: "Specs.sparsebundle")),
+            expectedRowLabel: "Specs.sparsebundle, mounted sparse bundle, ejectable",
+            expectedRowToolTip: "Specs.sparsebundle, mounted sparse bundle, ejectable",
+            expectedAccessoryLabel: "Eject Specs.sparsebundle"
+        )
+
+        try assertMountedItemLabels(
+            item: .device(Self.volume(path: "/Volumes/Detours.dmg", name: "Detours.dmg")),
+            expectedRowLabel: "Detours.dmg, mounted disk image, ejectable",
+            expectedRowToolTip: "Detours.dmg, mounted disk image, ejectable",
+            expectedAccessoryLabel: "Eject Detours.dmg"
+        )
+
+        try assertMountedItemLabels(
+            item: .networkVolume(Self.volume(
+                path: "/Volumes/Projects",
+                name: "Projects",
+                isNetwork: true,
+                serverHost: "nas.local"
+            )),
+            indented: true,
+            expectedRowLabel: "Projects, mounted file server, ejectable",
+            expectedRowToolTip: "Projects, mounted file server, ejectable",
+            expectedAccessoryLabel: "Eject Projects"
+        )
+
+        let discoveredServer = NetworkServer(name: "Build NAS", host: "nas.local", port: 445, protocol: .smb)
+        try assertMountedItemLabels(
+            item: .server(discoveredServer),
+            hasVolumes: true,
+            expectedRowLabel: "Build NAS, file server, mounted shares ejectable",
+            expectedRowToolTip: "Build NAS SMB file server",
+            expectedAccessoryLabel: "Eject mounted shares from Build NAS"
+        )
+
+#if DETOURS_SCREENSHOT_FIXTURES
+        let syntheticServer = SyntheticServer(host: "Manual NAS", protocolLabel: nil)
+#else
+        let syntheticServer = SyntheticServer(host: "Manual NAS")
+#endif
+        try assertMountedItemLabels(
+            item: .syntheticServer(syntheticServer),
+            hasVolumes: true,
+            expectedRowLabel: "Manual NAS, mounted file server, shares ejectable",
+            expectedRowToolTip: "Manual NAS, mounted file server",
+            expectedAccessoryLabel: "Eject mounted shares from Manual NAS"
+        )
+    }
+
+    @MainActor
+    private func assertMountedItemLabels(
+        item: SidebarItem,
+        indented: Bool = false,
+        hasVolumes: Bool = false,
+        expectedRowLabel: String,
+        expectedRowToolTip: String,
+        expectedAccessoryLabel: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let view = SidebarItemView(frame: NSRect(x: 0, y: 0, width: 260, height: 28))
+        view.configure(with: item, theme: .light, indented: indented, hasVolumes: hasVolumes)
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(view.accessibilityLabel(), expectedRowLabel, file: file, line: line)
+        XCTAssertEqual(view.toolTip, expectedRowToolTip, file: file, line: line)
+
+        let accessoryButton = try XCTUnwrap(
+            view.subviews.compactMap { $0 as? NSButton }.first,
+            "Expected mounted sidebar item to include an accessory button",
+            file: file,
+            line: line
+        )
+        XCTAssertFalse(accessoryButton.isHidden, file: file, line: line)
+        XCTAssertEqual(accessoryButton.accessibilityLabel(), expectedAccessoryLabel, file: file, line: line)
+        XCTAssertEqual(accessoryButton.toolTip, expectedAccessoryLabel, file: file, line: line)
+    }
+
+    private static func volume(
+        path: String,
+        name: String,
+        isNetwork: Bool = false,
+        serverHost: String? = nil
+    ) -> VolumeInfo {
+        VolumeInfo(
+            url: URL(fileURLWithPath: path),
+            name: name,
+            icon: NSImage(),
+            capacity: nil,
+            availableCapacity: nil,
+            isEjectable: true,
+            isNetwork: isNetwork,
+            serverHost: serverHost
+        )
+    }
 }

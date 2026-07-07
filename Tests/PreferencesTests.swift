@@ -75,6 +75,7 @@ final class PreferencesTests: XCTestCase {
         settings.showHiddenByDefault = true
         settings.theme = .dark
         settings.fontSize = 15
+        settings.fileListRowDensity = .comfortable
 
         let encoder = JSONEncoder()
         let data = try encoder.encode(settings)
@@ -83,6 +84,56 @@ final class PreferencesTests: XCTestCase {
         let decoded = try decoder.decode(Settings.self, from: data)
 
         XCTAssertEqual(settings, decoded, "Encoded and decoded settings should be equal")
+    }
+
+    func testFileListRowDensityDefaultsToCompact() throws {
+        let settings = Settings()
+
+        XCTAssertEqual(settings.fileListRowDensity, .compact)
+        XCTAssertEqual(SettingsManager.shared.fileListRowDensity, .compact)
+    }
+
+    func testFileListRowDensityPersists() async throws {
+        SettingsManager.shared.fileListRowDensity = .spacious
+
+        guard let data = UserDefaults.standard.data(forKey: "Detours.Settings"),
+              let savedSettings = try? JSONDecoder().decode(Settings.self, from: data) else {
+            XCTFail("Settings should be saved to UserDefaults")
+            return
+        }
+
+        XCTAssertEqual(savedSettings.fileListRowDensity, .spacious)
+    }
+
+    func testFileListRowDensityDecodeFallback() throws {
+        let missingDensityJSON = """
+        {
+          "restoreSession": false,
+          "theme": "dark",
+          "fontSize": 14
+        }
+        """
+        let missingDensity = try JSONDecoder().decode(Settings.self, from: Data(missingDensityJSON.utf8))
+
+        XCTAssertEqual(missingDensity.fileListRowDensity, .compact)
+        XCTAssertFalse(missingDensity.restoreSession)
+        XCTAssertEqual(missingDensity.theme, .dark)
+        XCTAssertEqual(missingDensity.fontSize, 14)
+
+        let invalidDensityJSON = """
+        {
+          "restoreSession": false,
+          "theme": "foolscap",
+          "fontSize": 15,
+          "fileListRowDensity": "oversized"
+        }
+        """
+        let invalidDensity = try JSONDecoder().decode(Settings.self, from: Data(invalidDensityJSON.utf8))
+
+        XCTAssertEqual(invalidDensity.fileListRowDensity, .compact)
+        XCTAssertFalse(invalidDensity.restoreSession)
+        XCTAssertEqual(invalidDensity.theme, .foolscap)
+        XCTAssertEqual(invalidDensity.fontSize, 15)
     }
 
     // MARK: - KeyCombo Tests

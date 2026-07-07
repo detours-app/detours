@@ -19,7 +19,7 @@ private struct ScreenshotFileShare {
 final class SidebarViewController: NSViewController {
     let outlineView = SidebarOutlineView()
     private let scrollView = NSScrollView()
-    private let effectView = NSVisualEffectView()
+    private let effectView = NSView()
     private var sidebarSeparator: NSView?
 
     weak var delegate: SidebarDelegate?
@@ -33,16 +33,8 @@ final class SidebarViewController: NSViewController {
     private var sections: [SidebarSection] = SidebarSection.allCases
     var remoteConnectionStates: [UUID: SSHConnectionState] = [:]
 
-    /// Themes that support vibrancy (system default / light / dark)
-    private var isVibrancyTheme: Bool {
-        let choice = SettingsManager.shared.theme
-        return choice == .system || choice == .light || choice == .dark
-    }
-
     override func loadView() {
-        effectView.material = .sidebar
-        effectView.blendingMode = .behindWindow
-        effectView.state = .followsWindowActiveState
+        effectView.wantsLayer = true
         view = effectView
     }
 
@@ -107,7 +99,7 @@ final class SidebarViewController: NSViewController {
 
         outlineView.outlineTableColumn = column
         outlineView.headerView = nil
-        outlineView.rowHeight = 24
+        outlineView.rowHeight = 26
         outlineView.intercellSpacing = NSSize(width: 0, height: 0)
         outlineView.indentationPerLevel = 0  // We handle indentation manually in cell views
         outlineView.indentationMarkerFollowsCell = false
@@ -236,16 +228,9 @@ final class SidebarViewController: NSViewController {
 
     private func applyTheme() {
         let theme = ThemeManager.shared.currentTheme
-        if isVibrancyTheme {
-            effectView.state = .followsWindowActiveState
-            effectView.layer?.backgroundColor = nil
-            outlineView.backgroundColor = .clear
-        } else {
-            effectView.state = .inactive
-            effectView.wantsLayer = true
-            effectView.layer?.backgroundColor = theme.surface.cgColor
-            outlineView.backgroundColor = .clear
-        }
+        effectView.layer?.isOpaque = true
+        effectView.layer?.backgroundColor = theme.surface.cgColor
+        outlineView.backgroundColor = .clear
         updateSeparatorColor()
     }
 

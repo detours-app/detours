@@ -24,9 +24,9 @@ final class TabButton: NSView {
     private let colors: Colors
 
     private static let iconSize: CGFloat = 16
-    private static let leadingPad: CGFloat = 8
-    private static let iconTextGap: CGFloat = 5
-    private static let trailingPad: CGFloat = 10
+    private static let leadingPad: CGFloat = 10
+    private static let iconTextGap: CGFloat = 6
+    private static let trailingPad: CGFloat = 12
 
     var tabAction: (() -> Void)?
     var closeAction: (() -> Void)?
@@ -141,15 +141,34 @@ final class TabButton: NSView {
         layer?.backgroundColor = nil
         layer?.cornerRadius = 0
 
-        let textColor = (isDropTarget || isSelected) ? colors.textPrimary : colors.textSecondary
+        let backgroundColor = currentBackgroundColor()
+        let textColor: NSColor
+        if isDropTarget || (isSelected && isPaneActive) {
+            textColor = ChromeContrast.readableTextColor(
+                preferred: colors.textPrimary,
+                fallback: colors.textSecondary,
+                on: backgroundColor
+            )
+        } else if isSelected {
+            textColor = ChromeContrast.readableTextColor(
+                preferred: colors.textSecondary,
+                fallback: colors.textPrimary,
+                on: backgroundColor
+            )
+        } else {
+            textColor = ChromeContrast.readableTextColor(
+                preferred: colors.textSecondary,
+                fallback: colors.textPrimary,
+                on: backgroundColor
+            )
+        }
         titleLabel.textColor = textColor
         iconView.contentTintColor = textColor
         closeButton.contentTintColor = textColor
 
-        // Inactive pane dims everything
-        let paneAlpha: CGFloat = isPaneActive ? 1.0 : 0.6
-        titleLabel.alphaValue = paneAlpha
-        iconView.alphaValue = paneAlpha
+        titleLabel.alphaValue = 1.0
+        iconView.alphaValue = 1.0
+        closeButton.alphaValue = 1.0
 
         // On hover: swap icon for close button
         iconView.isHidden = isHovered
@@ -158,24 +177,47 @@ final class TabButton: NSView {
         needsDisplay = true
     }
 
+    private func currentBackgroundColor() -> NSColor {
+        if isDropTarget {
+            return ChromeContrast.blend(colors.accent, alpha: isPaneActive ? 0.18 : 0.12, over: tabBarBackgroundColor())
+        }
+        if isSelected {
+            if isPaneActive {
+                return colors.background
+            }
+            return colors.surface.blended(withFraction: 0.35, of: colors.background) ?? colors.surface
+        }
+        if isHovered {
+            return ChromeContrast.blend(colors.textPrimary, alpha: isPaneActive ? 0.055 : 0.035, over: tabBarBackgroundColor())
+        }
+        return tabBarBackgroundColor()
+    }
+
+    private func tabBarBackgroundColor() -> NSColor {
+        isPaneActive ? colors.surface : (colors.surface.blended(withFraction: 0.50, of: colors.background) ?? colors.surface)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         let b = bounds
 
         if isDropTarget {
-            colors.accent.withAlphaComponent(0.3).setFill()
-            let path = NSBezierPath(roundedRect: b, xRadius: 4, yRadius: 4)
-            path.fill()
+            colors.accent.withAlphaComponent(isPaneActive ? 0.18 : 0.12).setFill()
+            b.fill()
         } else if isSelected {
-            let fillColor = isPaneActive ? colors.background : colors.surface
+            let fillColor: NSColor
+            if isPaneActive {
+                fillColor = colors.background
+            } else {
+                fillColor = colors.surface.blended(withFraction: 0.35, of: colors.background) ?? colors.surface
+            }
             fillColor.setFill()
             b.fill()
 
             // Accent indicator at bottom edge
-            let indicatorColor = isPaneActive ? colors.accent : colors.accent.withAlphaComponent(0.4)
-            indicatorColor.setFill()
+            colors.accent.withAlphaComponent(isPaneActive ? 1.0 : 0.45).setFill()
             NSRect(x: 0, y: 0, width: b.width, height: 2).fill()
         } else if isHovered {
-            (colors.surface.blended(withFraction: 0.08, of: .black) ?? colors.surface).setFill()
+            colors.textPrimary.withAlphaComponent(isPaneActive ? 0.055 : 0.035).setFill()
             b.fill()
         }
     }

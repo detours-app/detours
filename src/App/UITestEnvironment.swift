@@ -16,6 +16,8 @@ enum UITestEnvironment {
     static let duplicateStructurePresentedFileName = ".detours-duplicate-structure-presented.json"
     static let duplicateStructureActionFileName = ".detours-duplicate-structure-action.json"
     static let duplicateStructureDismissedFileName = ".detours-duplicate-structure-dismissed.json"
+    static let appearanceSettingsCommandFileName = ".detours-appearance-settings.json"
+    static let appearanceSettingsAcknowledgementFileName = ".detours-appearance-settings-applied.json"
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
@@ -62,6 +64,13 @@ enum UITestEnvironment {
         let action: String
     }
 
+    struct AppearanceSettingsCommand: Decodable {
+        let id: String
+        let theme: String
+        let fontSize: Int
+        let fileListRowDensity: String
+    }
+
     struct ShowNetworkShareDialogAcknowledgement: Encodable {
         let id: String
     }
@@ -88,6 +97,13 @@ enum UITestEnvironment {
 
     struct DuplicateStructureDismissal: Encodable {
         let id: String
+    }
+
+    struct AppearanceSettingsAcknowledgement: Encodable {
+        let id: String
+        let applied: Bool
+        let checkedTextCount: Int
+        let failure: String?
     }
 
     static var isEnabled: Bool {
@@ -203,6 +219,14 @@ enum UITestEnvironment {
         rootDirectory?.appendingPathComponent(duplicateStructureDismissedFileName)
     }
 
+    static var appearanceSettingsCommandURL: URL? {
+        rootDirectory?.appendingPathComponent(appearanceSettingsCommandFileName)
+    }
+
+    static var appearanceSettingsAcknowledgementURL: URL? {
+        rootDirectory?.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
+    }
+
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
         guard let url = resizeMainWindowCommandURL,
               let data = try? Data(contentsOf: url),
@@ -293,6 +317,16 @@ enum UITestEnvironment {
         return try? JSONDecoder().decode(DuplicateStructureAction.self, from: data)
     }
 
+    static func currentAppearanceSettingsCommand() -> AppearanceSettingsCommand? {
+        guard let url = appearanceSettingsCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(AppearanceSettingsCommand.self, from: data)
+    }
+
     static func acknowledgeShowNetworkShareDialogCommand(id: String) {
         guard let url = showNetworkShareDialogAcknowledgementURL,
               let data = try? JSONEncoder().encode(ShowNetworkShareDialogAcknowledgement(id: id)) else {
@@ -345,6 +379,25 @@ enum UITestEnvironment {
     static func writeDuplicateStructureDismissed(id: String) {
         guard let url = duplicateStructureDismissedURL,
               let data = try? JSONEncoder().encode(DuplicateStructureDismissal(id: id)) else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func acknowledgeAppearanceSettingsCommand(
+        id: String,
+        applied: Bool,
+        checkedTextCount: Int = 0,
+        failure: String? = nil
+    ) {
+        guard let url = appearanceSettingsAcknowledgementURL,
+              let data = try? JSONEncoder().encode(AppearanceSettingsAcknowledgement(
+                id: id,
+                applied: applied,
+                checkedTextCount: checkedTextCount,
+                failure: failure
+              )) else {
             return
         }
 

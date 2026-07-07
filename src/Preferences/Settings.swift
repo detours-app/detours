@@ -1,5 +1,152 @@
 import AppKit
 
+// MARK: - File List Row Density
+
+enum FileListRowDensity: String, CaseIterable, Equatable {
+    case compact
+    case comfortable
+    case spacious
+
+    var displayName: String {
+        switch self {
+        case .compact: return "Compact"
+        case .comfortable: return "Comfortable"
+        case .spacious: return "Spacious"
+        }
+    }
+
+    var rowHeight: CGFloat {
+        switch self {
+        case .compact: return 24
+        case .comfortable: return 28
+        case .spacious: return 32
+        }
+    }
+
+    var primaryIconSize: CGFloat {
+        switch self {
+        case .compact: return 16
+        case .comfortable, .spacious: return 18
+        }
+    }
+
+    var accessoryIconSize: CGFloat {
+        switch self {
+        case .compact: return 12
+        case .comfortable, .spacious: return 13
+        }
+    }
+
+    var secondaryAccessoryIconSize: CGFloat {
+        switch self {
+        case .compact: return 11
+        case .comfortable, .spacious: return 12
+        }
+    }
+
+    var gitMarkerHeight: CGFloat {
+        switch self {
+        case .compact: return 14
+        case .comfortable: return 16
+        case .spacious: return 18
+        }
+    }
+
+    var expandedFolderIconLeading: CGFloat {
+        switch self {
+        case .compact: return 2
+        case .comfortable: return 3
+        case .spacious: return 4
+        }
+    }
+
+    var expandedFileIconLeading: CGFloat {
+        switch self {
+        case .compact: return 4
+        case .comfortable: return 5
+        case .spacious: return 6
+        }
+    }
+
+    var standardIconLeading: CGFloat {
+        switch self {
+        case .compact: return 12
+        case .comfortable: return 13
+        case .spacious: return 14
+        }
+    }
+
+    var expandedGitMarkerLeading: CGFloat { 1 }
+
+    var standardGitMarkerLeading: CGFloat {
+        switch self {
+        case .compact: return 5
+        case .comfortable: return 6
+        case .spacious: return 7
+        }
+    }
+
+    var disclosureWidth: CGFloat { 20 }
+
+    var overlayOffset: CGFloat {
+        switch self {
+        case .compact: return 4
+        case .comfortable, .spacious: return 5
+        }
+    }
+
+    var verticalTextOffset: CGFloat {
+        switch self {
+        case .compact, .comfortable: return 0
+        case .spacious: return -0.5
+        }
+    }
+
+    var nameIconGap: CGFloat { 8 }
+
+    var renameFieldHeight: CGFloat {
+        switch self {
+        case .compact: return 20
+        case .comfortable: return 22
+        case .spacious: return 24
+        }
+    }
+
+    var renameHorizontalInset: CGFloat { 4 }
+
+    var renameVerticalInset: CGFloat {
+        max(1, (rowHeight - renameFieldHeight) / 2)
+    }
+
+    var loadingSpinnerSize: CGFloat {
+        switch self {
+        case .compact, .comfortable: return 16
+        case .spacious: return 18
+        }
+    }
+
+    var loadingSpinnerLeading: CGFloat {
+        switch self {
+        case .compact: return 6
+        case .comfortable: return 7
+        case .spacious: return 8
+        }
+    }
+}
+
+extension FileListRowDensity: Codable {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = (try? container.decode(String.self)) ?? Self.compact.rawValue
+        self = FileListRowDensity(rawValue: rawValue) ?? .compact
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 // MARK: - Settings
 
 struct Settings: Equatable {
@@ -15,6 +162,7 @@ struct Settings: Equatable {
     var theme: ThemeChoice = .system
     var customTheme: CustomThemeColors?
     var fontSize: Int = 13
+    var fileListRowDensity: FileListRowDensity = .compact
     var dateFormatCurrentYear: String = "d. MMM H:mm"
     var dateFormatOtherYears: String = "d.M.yy"
 
@@ -59,6 +207,7 @@ extension Settings: Codable {
         case theme
         case customTheme
         case fontSize
+        case fileListRowDensity
         case dateFormatCurrentYear
         case dateFormatOtherYears
         case showStatusBar
@@ -86,6 +235,7 @@ extension Settings: Codable {
         theme = (try? container.decodeIfPresent(ThemeChoice.self, forKey: .theme)) ?? defaults.theme
         customTheme = try? container.decodeIfPresent(CustomThemeColors.self, forKey: .customTheme)
         fontSize = (try? container.decodeIfPresent(Int.self, forKey: .fontSize)) ?? defaults.fontSize
+        fileListRowDensity = (try? container.decodeIfPresent(FileListRowDensity.self, forKey: .fileListRowDensity)) ?? defaults.fileListRowDensity
         dateFormatCurrentYear = (try? container.decodeIfPresent(String.self, forKey: .dateFormatCurrentYear)) ?? defaults.dateFormatCurrentYear
         dateFormatOtherYears = (try? container.decodeIfPresent(String.self, forKey: .dateFormatOtherYears)) ?? defaults.dateFormatOtherYears
 
@@ -122,6 +272,7 @@ extension Settings: Codable {
         try container.encode(theme, forKey: .theme)
         try container.encodeIfPresent(customTheme, forKey: .customTheme)
         try container.encode(fontSize, forKey: .fontSize)
+        try container.encode(fileListRowDensity, forKey: .fileListRowDensity)
         try container.encode(dateFormatCurrentYear, forKey: .dateFormatCurrentYear)
         try container.encode(dateFormatOtherYears, forKey: .dateFormatOtherYears)
         try container.encode(showStatusBar, forKey: .showStatusBar)

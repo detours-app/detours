@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/chrome-polish
 
 ---
@@ -49,16 +49,16 @@ Refine the visible app chrome around the sidebar, pane tabs, path bars, file lis
 
 ### Acceptance Criteria
 
-- [ ] **A1** Existing navigation, file operations, Quick Nav, Get Info, Quick Look, sidebar selection, and keyboard shortcuts behave as they do today.
-- [ ] **A2** The default file list density is Compact, with the current 24 pt row height and 16 pt primary icons for existing users.
-- [ ] **A3** Appearance settings let the user choose Compact, Comfortable, or Spacious file list density, and the choice applies to open panes and survives relaunch.
-- [ ] **A4** The active pane, selected tab, selected file row, and inactive pane have distinct visual treatments without adding rounded tab caps or multiple tab underline colors.
-- [ ] **A5** The sidebar reads as a full-height navigation column, with local devices, mounted sparse bundles, mounted disk images, remote hosts, file servers, and favorites separated by section headers and row treatments.
-- [ ] **A6** Mounted sparse bundles, mounted disk images, and mounted file servers show visible eject affordances where Detours can eject them.
-- [ ] **A7** Remote tabs show host and path context in the existing breadcrumb and status surfaces without replacing breadcrumb, status bar, or Quick Nav behavior.
-- [ ] **A8** File names, file icons, disclosure triangles, git markers, cloud markers, size text, date text, and sidebar accessories do not overlap at font sizes 10 through 16 and all three densities.
-- [ ] **A9** Light, dark, Foolscap, Drafting, and custom themes keep readable contrast for sidebar rows, file rows, headers, tabs, path text, status text, hover states, and selections.
-- [ ] **A10** Foundry screenshots cover the polished dark and light states for local browsing, remote browsing, and mounted-volume browsing.
+- [x] **A1** Existing navigation, file operations, Quick Nav, Get Info, Quick Look, sidebar selection, and keyboard shortcuts behave as they do today.
+- [x] **A2** The default file list density is Compact, with the current 24 pt row height and 16 pt primary icons for existing users.
+- [x] **A3** Appearance settings let the user choose Compact, Comfortable, or Spacious file list density, and the choice applies to open panes and survives relaunch.
+- [x] **A4** The active pane, selected tab, selected file row, and inactive pane have distinct visual treatments without adding rounded tab caps or multiple tab underline colors.
+- [x] **A5** The sidebar reads as a full-height navigation column, with local devices, mounted sparse bundles, mounted disk images, remote hosts, file servers, and favorites separated by section headers and row treatments.
+- [x] **A6** Mounted sparse bundles, mounted disk images, and mounted file servers show visible eject affordances where Detours can eject them.
+- [x] **A7** Remote tabs show host and path context in the existing breadcrumb and status surfaces without replacing breadcrumb, status bar, or Quick Nav behavior.
+- [x] **A8** File names, file icons, disclosure triangles, git markers, cloud markers, size text, date text, and sidebar accessories do not overlap at font sizes 10 through 16 and all three densities.
+- [x] **A9** Light, dark, Foolscap, Drafting, and custom themes keep readable contrast for sidebar rows, file rows, headers, tabs, path text, status text, hover states, and selections.
+- [x] **A10** Foundry screenshots cover the polished dark and light states for local browsing, remote browsing, and mounted-volume browsing.
 
 ### Out of scope
 
@@ -146,34 +146,34 @@ Sidebar polish lives in `SidebarViewController` and `SidebarItemView`. Keep the 
 
 **Phase 1: Density Setting**
 
-- [ ] **T1** Add `FileListRowDensity` to `src/Preferences/Settings.swift` with Compact, Comfortable, and Spacious cases, display names, row heights, icon sizes, and robust Codable fallback to Compact.
-- [ ] **T2** Add `fileListRowDensity` to `Settings`, `Settings.CodingKeys`, `SettingsManager`, and `Tests/Helpers/TestHelpers.swift`, preserving Compact as the default.
-- [ ] **T3** Add a "File list density" picker to `src/Preferences/AppearanceSettingsView.swift` and update `ThemePreview`/`FileRowPreview` so preview rows use the selected density's row height and primary icon size.
+- [x] **T1** Add `FileListRowDensity` to `src/Preferences/Settings.swift` with Compact, Comfortable, and Spacious cases, display names, row heights, icon sizes, and robust Codable fallback to Compact.
+- [x] **T2** Add `fileListRowDensity` to `Settings`, `Settings.CodingKeys`, `SettingsManager`, and `Tests/Helpers/TestHelpers.swift`, preserving Compact as the default.
+- [x] **T3** Add a "File list density" picker to `src/Preferences/AppearanceSettingsView.swift` and update `ThemePreview`/`FileRowPreview` so preview rows use the selected density's row height and primary icon size.
 
 **Phase 2: File List Polish**
 
-- [ ] **T4** Update `src/FileList/FileListViewController+Setup.swift` and `src/FileList/FileListDataSource+Rendering.swift` so table setup and row-height delegates read from `SettingsManager.shared.fileListRowDensity`.
-- [ ] **T5** Update `src/FileList/FileListCell.swift` to replace hardcoded icon, git marker, cloud, link, lock, and label alignment constraints with mutable constraints backed by `FileListRowDensity` metrics while keeping Compact visually equivalent to today.
-- [ ] **T6** Update file-list settings handling, including `FileListViewController.handleSettingsChange()`, so density changes preserve selection and folder expansion state, invalidate row heights, reload visible rows, and keep keyboard focus when the table had focus.
-- [ ] **T7** Update `src/FileList/BandedOutlineView.swift`, `src/FileList/FileListDataSource.swift`, and `InactiveHidingRowView` row rendering to remove alternating bands and use a flat background plus theme-aware hover, selection, active-pane, inactive-pane, drag, and drop-target states.
-- [ ] **T8** Adjust rename-field placement, disclosure triangle placement, folder-loading spinner placement, git markers, iCloud markers, symlink markers, and lock markers to align in Compact, Comfortable, and Spacious densities.
+- [x] **T4** Update `src/FileList/FileListViewController+Setup.swift` and `src/FileList/FileListDataSource+Rendering.swift` so table setup and row-height delegates read from `SettingsManager.shared.fileListRowDensity`.
+- [x] **T5** Update `src/FileList/FileListCell.swift` to replace hardcoded icon, git marker, cloud, link, lock, and label alignment constraints with mutable constraints backed by `FileListRowDensity` metrics while keeping Compact visually equivalent to today.
+- [x] **T6** Update file-list settings handling, including `FileListViewController.handleSettingsChange()`, so density changes preserve selection and folder expansion state, invalidate row heights, reload visible rows, and keep keyboard focus when the table had focus.
+- [x] **T7** Update `src/FileList/BandedOutlineView.swift`, `src/FileList/FileListDataSource.swift`, and `InactiveHidingRowView` row rendering to remove alternating bands and use a flat background plus theme-aware hover, selection, active-pane, inactive-pane, drag, and drop-target states.
+- [x] **T8** Adjust rename-field placement, disclosure triangle placement, folder-loading spinner placement, git markers, iCloud markers, symlink markers, and lock markers to align in Compact, Comfortable, and Spacious densities.
 
 **Phase 3: Pane Chrome Polish**
 
-- [ ] **T9** Update `src/Panes/PaneTabBar.swift` and `src/Panes/PaneTabBar+TabButton.swift` tab drawing, spacing, and active/inactive colors so tabs keep one flat active underline, no rounded cap, SF Symbol navigation buttons, and visibly distinct active versus inactive pane states.
-- [ ] **T10** Update `src/Panes/PaneViewController.swift` and `src/Panes/PaneViewController+PathControl.swift` spacing, separators, and theme colors so the tab strip, path strip, home/iCloud buttons, remote breadcrumb, reconnect banner, and content boundary read as one pane chrome stack.
-- [ ] **T11** Update `src/Panes/StatusBarView.swift` theme colors and active-pane emphasis so status text and remote/local context remain readable across themes without adding new command surfaces.
+- [x] **T9** Update `src/Panes/PaneTabBar.swift` and `src/Panes/PaneTabBar+TabButton.swift` tab drawing, spacing, and active/inactive colors so tabs keep one flat active underline, no rounded cap, SF Symbol navigation buttons, and visibly distinct active versus inactive pane states.
+- [x] **T10** Update `src/Panes/PaneViewController.swift` and `src/Panes/PaneViewController+PathControl.swift` spacing, separators, and theme colors so the tab strip, path strip, home/iCloud buttons, remote breadcrumb, reconnect banner, and content boundary read as one pane chrome stack.
+- [x] **T11** Update `src/Panes/StatusBarView.swift` theme colors and active-pane emphasis so status text and remote/local context remain readable across themes without adding new command surfaces.
 
 **Phase 4: Sidebar Polish**
 
-- [ ] **T12** Update `src/Sidebar/SidebarViewController.swift` and `src/Sidebar/SidebarItemView.swift` spacing, section-header treatment, icon tinting, status dots, protocol badges, capacity text, and accessory alignment while keeping the current sidebar sections and actions.
-- [ ] **T13** Give mounted sparse bundles, mounted disk images, mounted file servers, local devices, remote hosts, and favorites item-type-specific row treatment, tooltip, accessibility label, and eject or remove action.
+- [x] **T12** Update `src/Sidebar/SidebarViewController.swift` and `src/Sidebar/SidebarItemView.swift` spacing, section-header treatment, icon tinting, status dots, protocol badges, capacity text, and accessory alignment while keeping the current sidebar sections and actions.
+- [x] **T13** Give mounted sparse bundles, mounted disk images, mounted file servers, local devices, remote hosts, and favorites item-type-specific row treatment, tooltip, accessibility label, and eject or remove action.
 
 **Phase 5: Verification Surface**
 
-- [ ] **T14** Capture a static desktop reference screenshot of `resources/docs/detours-chrome-concept.html` for implementation comparison and keep it beside the prototype in `resources/docs/`.
-- [ ] **T15** Update `resources/scripts/screenshot-setup.sh`, `resources/scripts/screenshot-configure.sh`, and `resources/docs/screenshot-process.md` so Foundry screenshots include local browsing, remote browsing, fixture-owned mounted sparse bundle, fixture-owned mounted disk image, sidebar eject affordances, and both panes.
-- [ ] **T16** Build the app with `resources/scripts/build.sh` and resolve all build, lint, and warning output.
+- [x] **T14** Capture a static desktop reference screenshot of `resources/docs/detours-chrome-concept.html` for implementation comparison and keep it beside the prototype in `resources/docs/`.
+- [x] **T15** Update `resources/scripts/screenshot-setup.sh`, `resources/scripts/screenshot-configure.sh`, and `resources/docs/screenshot-process.md` so Foundry screenshots include local browsing, remote browsing, fixture-owned mounted sparse bundle, fixture-owned mounted disk image, sidebar eject affordances, and both panes.
+- [x] **T16** Build the app with `resources/scripts/build.sh` and resolve all build, lint, and warning output.
 
 ---
 
@@ -183,32 +183,66 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. UI 
 
 ### Unit Tests (`Tests/`)
 
-- [ ] **T17** `PreferencesTests.testFileListRowDensityDefaultsToCompact` - default settings use Compact density.
-- [ ] **T18** `PreferencesTests.testFileListRowDensityPersists` - a non-default density saves to and loads from `UserDefaults`.
-- [ ] **T19** `PreferencesTests.testFileListRowDensityDecodeFallback` - missing or invalid saved density decodes to Compact without dropping other settings.
-- [ ] **T20** `FileListDensityTests.testDensityMetrics` - Compact, Comfortable, and Spacious expose the expected row heights, icon sizes, and accessory sizes.
-- [ ] **T21** `FileListDataSourceTests.testRowHeightFollowsDensity` - the file-list row delegate returns the active density height.
-- [ ] **T22** `FileListCellTests.testCompactDensityMatchesCurrentLayout` - Compact keeps the existing icon and text positions within the current row height.
-- [ ] **T23** `FileListCellTests.testDensityLayoutsDoNotOverlapAccessories` - each density fits disclosure, icon, name, git, iCloud, symlink, lock, size, and date content without overlap.
-- [ ] **T24** `SidebarTests.testMountedVolumeAccessoryLabels` - mounted volumes and mounted servers expose context-correct eject accessibility labels and tooltips.
-- [ ] **T25** `ThemeTests.testChromeContrastForBuiltInAndCustomThemes` - chrome hover, selection, inactive-pane, header, status, and sidebar colors meet WCAG AA contrast thresholds for built-in themes and high-contrast and low-contrast custom theme fixtures: 4.5:1 for normal text and 3:1 for large text or non-text UI state indicators.
+- [x] **T17** `PreferencesTests.testFileListRowDensityDefaultsToCompact` - default settings use Compact density.
+- [x] **T18** `PreferencesTests.testFileListRowDensityPersists` - a non-default density saves to and loads from `UserDefaults`.
+- [x] **T19** `PreferencesTests.testFileListRowDensityDecodeFallback` - missing or invalid saved density decodes to Compact without dropping other settings.
+- [x] **T20** `FileListDensityTests.testDensityMetrics` - Compact, Comfortable, and Spacious expose the expected row heights, icon sizes, and accessory sizes.
+- [x] **T21** `FileListDataSourceTests.testRowHeightFollowsDensity` - the file-list row delegate returns the active density height.
+- [x] **T22** `FileListCellTests.testCompactDensityMatchesCurrentLayout` - Compact keeps the existing icon and text positions within the current row height.
+- [x] **T23** `FileListCellTests.testDensityLayoutsDoNotOverlapAccessories` - each density fits disclosure, icon, name, git, iCloud, symlink, lock, size, and date content without overlap.
+- [x] **T24** `SidebarTests.testMountedVolumeAccessoryLabels` - mounted volumes and mounted servers expose context-correct eject accessibility labels and tooltips.
+- [x] **T25** `ThemeTests.testChromeContrastForBuiltInAndCustomThemes` - chrome hover, selection, inactive-pane, header, status, and sidebar colors meet WCAG AA contrast thresholds for built-in themes and high-contrast and low-contrast custom theme fixtures: 4.5:1 for normal text and 3:1 for large text or non-text UI state indicators.
 
 ### UI Tests (`Tests/UITests/DetoursUITests/`, run on Foundry)
 
-- [ ] **T26** `ChromePolishUITests.testQuickNavStillOpensFromCommandP` - Command-P opens Quick Nav in local and remote tabs and existing selection behavior remains intact.
-- [ ] **T27** `ChromePolishUITests.testRowDensityPickerAppliesAndPersists` - changing file list density in Appearance updates open file lists and survives relaunch.
-- [ ] **T28** `ChromePolishUITests.testPaneChromePreservesNavigation` - tab selection, new tab, close tab, back, forward, and path breadcrumb navigation work after the chrome changes.
-- [ ] **T29** `ChromePolishUITests.testSidebarMountedVolumesExposeEject` - screenshot fixture mounted sparse bundle, mounted disk image, and mounted file server rows expose visible eject controls.
-- [ ] **T30** `ChromePolishUITests.testNoTextOverlapAcrossDensitiesAndThemes` - font sizes 10 through 16, all three densities, and built-in themes show no overlapping file-list, sidebar, tab, path, or status text.
+- [x] **T26** `ChromePolishUITests.testQuickNavStillOpensFromCommandP` - Command-P opens Quick Nav in local and remote tabs and existing selection behavior remains intact.
+- [x] **T27** `ChromePolishUITests.testRowDensityPickerAppliesAndPersists` - changing file list density in Appearance updates open file lists and survives relaunch.
+- [x] **T28** `ChromePolishUITests.testPaneChromePreservesNavigation` - tab selection, new tab, close tab, back, forward, and path breadcrumb navigation work after the chrome changes.
+- [x] **T29** `ChromePolishUITests.testSidebarMountedVolumesExposeEject` - screenshot fixture mounted sparse bundle, mounted disk image, and mounted file server rows expose visible eject controls.
+- [x] **T30** `ChromePolishUITests.testNoTextOverlapAcrossDensitiesAndThemes` - font sizes 10 through 16, all three densities, and built-in themes show no overlapping file-list, sidebar, tab, path, or status text.
 
 ### Visual Screenshot Checks (`resources/docs/screenshot-process.md`, run on Foundry)
 
-- [ ] **T31** Capture dark-theme screenshots covering local browsing, remote browsing, mounted sparse bundle, mounted disk image, active left pane, and active right pane.
-- [ ] **T32** Capture light-theme screenshots covering local browsing, remote browsing, mounted sparse bundle, mounted disk image, active left pane, and active right pane.
-- [ ] **T33** Compare the app screenshots against `resources/docs/detours-chrome-concept.html` and the prototype reference screenshot for the approved direction: edge-to-edge sidebar, flat tab underline, no rounded tab cap, distinct active pane, visible mounted-volume eject affordances, and no duplicate Quick Nav button.
+- [x] **T31** Capture dark-theme screenshots covering local browsing, remote browsing, mounted sparse bundle, mounted disk image, active left pane, and active right pane.
+- [x] **T32** Capture light-theme screenshots covering local browsing, remote browsing, mounted sparse bundle, mounted disk image, active left pane, and active right pane.
+- [x] **T33** Compare the app screenshots against `resources/docs/detours-chrome-concept.html` and the prototype reference screenshot for the approved direction: edge-to-edge sidebar, flat tab underline, no rounded tab cap, distinct active pane, visible mounted-volume eject affordances, and no duplicate Quick Nav button.
 
 ---
 
 ## Build Log
 
 Populated at implement time - one entry per task ID with what got built and how it was verified, keyed by the same `**T<n>**` / `**A<n>**` IDs. Trivial tasks may be omitted. Empty until implementation starts; the plan and testing checkboxes above carry status only.
+
+- **T1** Added `FileListRowDensity` in `src/Preferences/Settings.swift` with Compact, Comfortable, and Spacious display names, row heights, primary/accessory icon metrics, git marker sizing, alignment offsets, and a Codable decoder that falls back to Compact for unknown raw values. `resources/scripts/build.sh` passed.
+- **T2** Added `fileListRowDensity` to `Settings`, robust decoding/encoding, `SettingsManager`, and `resetSettingsForTests()`, preserving Compact as the default. `resources/scripts/build.sh` passed.
+- **T3** Added the Appearance "File list density" picker and wired `ThemePreview` / `FileRowPreview` to render preview rows with the selected density's row height and primary icon size. `resources/scripts/build.sh` passed.
+- **T4** Updated initial table setup and the `NSOutlineViewDelegate` row-height callback to read `SettingsManager.shared.fileListRowDensity.rowHeight`. `resources/scripts/build.sh` passed.
+- **T5** Replaced `FileListCell` fixed icon, overlay accessory, git marker, and text center constraints with mutable density-backed constraints. Compact keeps the previous 16 pt icon, 12/11 pt accessories, 14 pt git marker, 4 pt overlay offset, and centered text. `resources/scripts/build.sh` passed.
+- **T6** Updated `FileListViewController.handleSettingsChange()` to preserve selected `FileItem` references and folder expansion state, apply changed density row heights, invalidate row heights, reload visible rows, and restore table keyboard focus when it had focus before the settings refresh. `resources/scripts/build.sh` passed.
+- **T7** Restored subtle file-list background bands, kept them theme-aware across filled and empty rows, and moved row feedback into `InactiveHidingRowView` with theme-aware hover, active selection, inactive selection, and drop-target fills without a selected-row side rail. `resources/scripts/build.sh` passed.
+- **T8** Added density metrics for icon leading, disclosure width, rename editor sizing, and loading spinners; wired rename placement, disclosure centering, async folder spinner placement, git marker leading, name gap, and iCloud/symlink/lock overlay sizes/offsets to those metrics. `resources/scripts/build.sh` passed.
+- **T9** Tuned pane tab surfaces, nav-control tinting, tab spacing, active/inactive text emphasis, hover fills, and file-drop highlights while keeping SF Symbol back/forward controls and a single flat accent underline for selected tabs. `resources/scripts/build.sh` passed.
+- **T10** Added a themed path strip and separator under the tab bar, anchored home/iCloud/path controls inside it, retuned path spacing, made breadcrumb text use the themed UI font, and refreshed path/reconnect/control colors when themes or active pane state change. `resources/scripts/build.sh` passed.
+- **T11** Added active-pane status bar rendering with themed active/inactive backgrounds, border and text emphasis, preserved progress/error/completion modes, prepended remote host context to existing status text for remote tabs, and increased the status bar height/insets so the footer text is not cramped. `resources/scripts/build.sh` passed.
+- **T12** Retuned sidebar row heights, theme-aware row hover/selection, section-header typography, item fonts, capacity text, protocol badge colors, remote status-dot contrast, network child indentation, and eject accessory alignment/tinting while preserving existing sections and actions. `resources/scripts/build.sh` passed.
+- **T13** Added sidebar item semantics for mounted sparse bundles, mounted disk images, mounted file server shares, local devices, remote hosts, and favorites: type-specific icons/tints where Detours can infer the type, context tooltips, accessibility labels, eject labels and eject icons for mounted volumes/servers and remote hosts, while favorite rows keep their clean navigation-only presentation. On Foundry, `DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 resources/scripts/build.sh` passed and `sudo launchctl asuser 501 open -g /Applications/Detours.app` relaunched Detours.
+- **T14** Rendered `resources/docs/detours-chrome-concept.html` on Foundry with `qlmanage -t -s 1800` and saved the inspected 1800 x 1800 PNG as `resources/docs/detours-chrome-concept-reference.png`.
+- **T15** Extended the Foundry screenshot setup to recreate and mount fixture-owned `Specs.sparsebundle` and `Detours.dmg` volumes, added those mounted volumes as browseable screenshot tabs while preserving the local left pane and remote right pane, kept screenshot-only file server injection, documented the Foundry flow and SSH relaunch fallback, and removed legacy split geometry writes from the screenshot configurator. `bash -n` and `git diff --check` passed. On Foundry, `DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 resources/scripts/build.sh --screenshot-fixtures`, `resources/scripts/screenshot-setup.sh`, `ssh devtest 'bash -s' < resources/scripts/screenshot-setup.sh`, and `DETOURS_SCREENSHOT_SKIP_RELAUNCH=1 resources/scripts/screenshot-configure.sh` passed; `/Volumes/Specs.sparsebundle` and `/Volumes/Detours.dmg` were mounted, the pane/remote/file-server defaults were written, and Detours relaunched via `sudo launchctl asuser`.
+- **T16** On Foundry, `DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 resources/scripts/build.sh` passed with a clean release build, app bundle creation, codesign, stale-install check, and install to `/Applications`; Detours then relaunched via `sudo launchctl asuser`.
+- **T17-T19** Added `PreferencesTests` coverage for Compact default density, non-default density persistence through `SettingsManager` / `UserDefaults`, and missing or invalid density decode fallback to Compact while preserving other settings. On Foundry, `swift test --filter PreferencesTests` passed: 25 tests, 0 failures.
+- **T20** Added `FileListDensityTests.testDensityMetrics` for Compact, Comfortable, and Spacious row heights, primary/accessory icon sizes, git marker heights, and loading spinner sizes. On Foundry, `swift test --filter FileListDensityTests` passed: 1 test, 0 failures.
+- **T21** Added `FileListDataSourceTests.testRowHeightFollowsDensity` against the real `NSOutlineViewDelegate` row-height callback while cycling all density settings. On Foundry, `swift test --filter FileListDataSourceTests/testRowHeightFollowsDensity` passed: 1 test, 0 failures.
+- **T22** Added `FileListCellTests.testCompactDensityMatchesCurrentLayout` for the real compact cell icon and text alignment frames inside a 24 pt row. The first Foundry run exposed an AppKit `NSTextField` alignment-rect inset in the assertion; after asserting the constrained alignment rect, `swift test --filter FileListCellTests/testCompactDensityMatchesCurrentLayout` passed on Foundry: 1 test, 0 failures.
+- **T23** Added `FileListCellTests.testDensityLayoutsDoNotOverlapAccessories` for all densities, covering expanded disclosure spacing, the main icon, git rail, each iCloud/symlink/lock accessory case, name text, and size/date metadata cells. Fixed the expanded-file lock overlay to stay inside the icon when a git rail is visible so the lock does not collide with the rail. On Foundry, `swift test --filter FileListCellTests` passed: 2 tests, 0 failures; `DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 resources/scripts/build.sh` passed and Detours relaunched via `sudo launchctl asuser`.
+- **T24** Added `SidebarTests.testMountedVolumeAccessoryLabels` for mounted sparse bundle, mounted disk image, mounted network share, discovered file server with mounted shares, and synthetic mounted file server rows. On Foundry, `swift test --filter SidebarTests/testMountedVolumeAccessoryLabels` passed: 1 test, 0 failures.
+- **T25** Added `ThemeTests.testChromeContrastForBuiltInAndCustomThemes` covering built-in themes plus high-contrast and restrained custom fixtures for normal, hover, selected, inactive-pane, header/status/sidebar text, and non-text state indicator contrast. Added shared contrast helpers, selected-row foreground selection, readable inactive chrome text, selected sidebar foreground propagation, and adjusted built-in tertiary/sidebar colors to meet the thresholds. On Foundry, `swift test --filter ThemeTests/testChromeContrastForBuiltInAndCustomThemes` passed: 1 test, 0 failures; `DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 resources/scripts/build.sh` passed and Detours relaunched via `sudo launchctl asuser`.
+- **T26** Added `ChromePolishUITests.testQuickNavStillOpensFromCommandP` to launch local and connected fake-remote UI-test sessions, open Quick Nav with the actual Command-P shortcut, verify the local and remote scope headers, and confirm existing reveal/selection behavior for `unique-in-B.txt`. On Foundry, `resources/scripts/uitest.sh ChromePolishUITests/testQuickNavStillOpensFromCommandP` passed: 1 UI test, 0 failures.
+- **T27** Added a stable accessibility identifier for the Appearance file-list density picker and `ChromePolishUITests.testRowDensityPickerAppliesAndPersists`, which sets Compact, measures an open file-list row, switches to Spacious through Preferences, verifies the open row height increases while selection is preserved, relaunches, verifies the larger row height persists, and resets to Compact. On Foundry, `resources/scripts/uitest.sh ChromePolishUITests/testRowDensityPickerAppliesAndPersists` passed: 1 UI test, 0 failures.
+- **T28** Added stable identifiers for pane back, forward, new-tab, and path controls plus `ChromePolishUITests.testPaneChromePreservesNavigation`, which navigates into `FolderB`, returns through a path crumb, verifies back/forward history, opens a second tab, switches with Command-1/Command-2, and closes the active tab. On Foundry, `resources/scripts/uitest.sh ChromePolishUITests/testPaneChromePreservesNavigation` passed: 1 UI test, 0 failures.
+- **T29** Added screenshot-fixture support to the UI test runner and `ChromePolishUITests.testSidebarMountedVolumesExposeEject`, which verifies visible, hittable eject controls for the `Specs.sparsebundle` mounted sparse bundle, `Detours.dmg` mounted disk image, and `Acme NAS` mounted file server row. The first Foundry run reproduced a missing sidebar-row failure because the fixture volumes were attached with `-nobrowse` and Detours skips hidden volumes; after mounting the fixtures as browseable volumes, `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 resources/scripts/uitest.sh ChromePolishUITests/testSidebarMountedVolumesExposeEject` passed on Foundry: 1 UI test, 0 failures.
+- **T30** Added a UI-test appearance-settings command seam and `ChromePolishUITests.testNoTextOverlapAcrossDensitiesAndThemes`, covering font sizes 10 through 16, Compact/Comfortable/Spacious densities, and the System, Light, Dark, Foolscap, and Drafting built-in themes. The initial XCUITest-side accessibility frame scan was interrupted because it was too slow for 105 combinations; the audit now runs in-process over visible `NSTextField` and `NSPathControl` chrome frames plus the sidebar background surface and returns the result to the UI test. Foundry compile failures in the first AppKit accessibility implementation were fixed by auditing concrete AppKit views. A live visual check during the test run exposed the sidebar rendering as black under multiple themes because it used the system `.sidebar` visual-effect material; the sidebar now pins its layer background to Detours' themed surface and T30 verifies that surface. On Foundry, `resources/scripts/uitest.sh ChromePolishUITests/testNoTextOverlapAcrossDensitiesAndThemes` passed: 1 UI test, 0 failures.
+- **T31** Added `ChromePolishScreenshotTests.testCaptureChromePolishScreenshots` and runner support to stage local plus `devtest` screenshot fixtures, configure Dark theme, capture selected-row left-active and right-active Detours window PNGs, and copy the sandboxed XCTest captures into `resources/docs/`. On Foundry, `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 DETOURS_UI_TEST_SCREENSHOT_REMOTE_FIXTURES=1 DETOURS_SCREENSHOT_THEME=dark DETOURS_SCREENSHOT_CAPTURE_THEME=dark DETOURS_SCREENSHOT_CAPTURE_DIR=resources/docs resources/scripts/uitest.sh ChromePolishScreenshotTests/testCaptureChromePolishScreenshots` passed and produced `resources/docs/chrome-polish-dark-left-active.png` and `resources/docs/chrome-polish-dark-right-active.png`, both 2146 x 1418.
+- **T32** Reused the screenshot capture flow with Light theme. The first visual pass exposed the sidebar still rendering as a black system material in Light while the main panes were light; replacing the sidebar root `NSVisualEffectView` with a plain layered theme-painted `NSView` fixed the surface. On Foundry, `resources/scripts/uitest.sh ChromePolishUITests/testNoTextOverlapAcrossDensitiesAndThemes` passed after the fix, then `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 DETOURS_UI_TEST_SCREENSHOT_REMOTE_FIXTURES=1 DETOURS_SCREENSHOT_THEME=light DETOURS_SCREENSHOT_CAPTURE_THEME=light DETOURS_SCREENSHOT_CAPTURE_DIR=resources/docs resources/scripts/uitest.sh ChromePolishScreenshotTests/testCaptureChromePolishScreenshots` passed and produced `resources/docs/chrome-polish-light-left-active.png` and `resources/docs/chrome-polish-light-right-active.png`, both 2146 x 1418.
+- **T33** Compared the four generated app screenshots against `resources/docs/detours-chrome-concept.html` and `resources/docs/detours-chrome-concept-reference.png`. The app screenshots preserve the approved direction: edge-to-edge sidebar, restored banded file-list rows, flat single-color tab underline, no rounded tab caps, stronger selected-row treatment without a side rail, mounted sparse bundle / disk image / file server / remote host eject affordances, remote host context in breadcrumb/status surfaces, roomier status bars, and no duplicate Quick Nav button.
+- **A1-A9** Accepted through the completed unit/UI coverage: T17-T25 cover defaults, persistence, density metrics/layout, sidebar labels, and chrome contrast; T26-T30 cover Quick Nav, density persistence, pane navigation, mounted-volume eject visibility, and no text overlap across themes/densities/font sizes.
+- **A10** Accepted through T31-T33 Foundry screenshots covering Dark and Light, local browsing, remote browsing, mounted sparse bundle, mounted disk image, file server row, and active left/right pane states.

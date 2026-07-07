@@ -4,6 +4,7 @@
 # Usage:
 #   resources/scripts/uitest.sh                              # Run all UI tests
 #   resources/scripts/uitest.sh TestClass/testMethod         # Run specific test
+#   DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 resources/scripts/uitest.sh TestClass/testMethod
 
 set -e
 
@@ -12,13 +13,48 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 XCODEPROJ="$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj"
 UITEST_DESTINATION="platform=macOS,arch=arm64"
 APP_PATH="/Applications/Detours.app"
+BUILD_ARGS=()
 
 # Test directory setup in home (accessible and easy to navigate)
 TEST_DIR="$HOME/DetoursUITests-Temp"
 
+if [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
+    BUILD_ARGS+=(--screenshot-fixtures)
+fi
+
+if [ -n "${DETOURS_SCREENSHOT_CAPTURE_DIR:-}" ] && [[ "$DETOURS_SCREENSHOT_CAPTURE_DIR" != /* ]]; then
+    export DETOURS_SCREENSHOT_CAPTURE_DIR="$PROJECT_DIR/$DETOURS_SCREENSHOT_CAPTURE_DIR"
+fi
+
+copy_screenshot_captures() {
+    if [ -z "${DETOURS_SCREENSHOT_CAPTURE_DIR:-}" ]; then
+        return
+    fi
+
+    local capture_theme="${DETOURS_SCREENSHOT_CAPTURE_THEME:-${DETOURS_SCREENSHOT_THEME:-dark}}"
+    local runner_docs="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/resources/docs"
+
+    mkdir -p "$DETOURS_SCREENSHOT_CAPTURE_DIR"
+    cp "$runner_docs/chrome-polish-left-active.png" \
+        "$DETOURS_SCREENSHOT_CAPTURE_DIR/chrome-polish-$capture_theme-left-active.png"
+    cp "$runner_docs/chrome-polish-right-active.png" \
+        "$DETOURS_SCREENSHOT_CAPTURE_DIR/chrome-polish-$capture_theme-right-active.png"
+}
+
 # Build app first
 echo "Building Detours..."
-DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 "$SCRIPT_DIR/build.sh"
+DETOURS_BUILD_FORCE_QUIT=1 DETOURS_BUILD_SKIP_RELAUNCH=1 "$SCRIPT_DIR/build.sh" "${BUILD_ARGS[@]}"
+
+if [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
+    echo ""
+    echo "Setting up screenshot fixtures..."
+    "$SCRIPT_DIR/screenshot-setup.sh"
+    if [ "${DETOURS_UI_TEST_SCREENSHOT_REMOTE_FIXTURES:-0}" = "1" ]; then
+        REMOTE_HOST="${DETOURS_SCREENSHOT_REMOTE_HOST:-devtest}"
+        ssh -o BatchMode=yes "$REMOTE_HOST" 'bash -s' < "$SCRIPT_DIR/screenshot-setup.sh"
+    fi
+    DETOURS_SCREENSHOT_SKIP_RELAUNCH=1 "$SCRIPT_DIR/screenshot-configure.sh"
+fi
 
 echo ""
 echo "Setting up test directory..."
@@ -64,10 +100,7 @@ echo "data" > "$TEST_DIR/Projects2025/notes.txt"
 
 echo "Running UI tests..."
 
-cleanup() {
-    rm -rf "$TEST_DIR"
-}
-trap cleanup EXIT
+trap 'rm -rf "$TEST_DIR"' EXIT
 
 if [ -n "$1" ]; then
     # Run specific test
@@ -83,5 +116,7 @@ else
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION"
 fi
+
+copy_screenshot_captures
 
 exit $?

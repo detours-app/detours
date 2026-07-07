@@ -20,13 +20,14 @@ extension FileListDataSource {
     }
 
     func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
-        return 24
+        SettingsManager.shared.fileListRowDensity.rowHeight
     }
 
     func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
         let rowView = InactiveHidingRowView()
         rowView.isTableActive = isActive
         if let fileItem = item as? FileItem {
+            rowView.isDropTarget = dropTargetItem === fileItem
             rowView.setAccessibilityIdentifier("outlineRow_\(fileItem.name)")
         }
         return rowView

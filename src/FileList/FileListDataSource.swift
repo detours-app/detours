@@ -130,14 +130,14 @@ final class ThemedTextCell: NSTableCellView {
     private func updateTextColor() {
         let theme = ThemeManager.shared.currentTheme
         if backgroundStyle == .emphasized {
-            textField?.textColor = theme.accentText
+            textField?.textColor = ChromeContrast.fileListSelectedSecondaryForeground(for: theme)
         } else {
             textField?.textColor = theme.textSecondary
         }
     }
 }
 
-/// Row view with theme-aware selection color (background is drawn by BandedOutlineView)
+/// Row view with theme-aware hover, selection, inactive-pane, and drop-target states.
 final class InactiveHidingRowView: NSTableRowView {
     var isTableActive: Bool = true {
         didSet {
@@ -156,25 +156,45 @@ final class InactiveHidingRowView: NSTableRowView {
         }
     }
 
+    var isDropTarget: Bool = false {
+        didSet {
+            if isDropTarget != oldValue { needsDisplay = true }
+        }
+    }
+
     override var isEmphasized: Bool {
         get { isTableActive }
         set { }
     }
 
     override func drawBackground(in dirtyRect: NSRect) {
-        // Draw hover highlight for non-selected rows
+        let theme = Theme.currentSnapshot()
+
+        if isDropTarget {
+            theme.accent.withAlphaComponent(isTableActive ? 0.16 : 0.10).setFill()
+            bounds.fill()
+
+            theme.accent.withAlphaComponent(isTableActive ? 0.75 : 0.45).setFill()
+            NSRect(x: bounds.minX, y: bounds.minY, width: 2, height: bounds.height).fill()
+        }
+
         if isHovered && !isSelected {
-            let hoverColor = NSColor.labelColor.withAlphaComponent(0.06)
-            hoverColor.setFill()
+            theme.textPrimary.withAlphaComponent(isTableActive ? 0.06 : 0.035).setFill()
             bounds.fill()
         }
     }
 
     override func drawSelection(in dirtyRect: NSRect) {
-        guard isTableActive, isSelected else { return }
-        let accentColor = Theme.currentSnapshot().accent
-        accentColor.withAlphaComponent(0.3).setFill()
+        guard isSelected else { return }
+        let theme = Theme.currentSnapshot()
+
+        if isTableActive {
+            theme.accent.withAlphaComponent(ChromeContrast.fileListSelectionAlpha).setFill()
+        } else {
+            theme.textPrimary.withAlphaComponent(0.08).setFill()
+        }
         bounds.fill()
+
     }
 
     override func didAddSubview(_ subview: NSView) {
@@ -231,18 +251,23 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             guard dropTargetItem !== oldValue else { return }
             // Redraw affected rows
             if let old = oldValue {
-                let row = outlineView?.row(forItem: old) ?? -1
-                if row >= 0 {
-                    outlineView?.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 0))
-                }
+                updateDropTargetRow(old, isDropTarget: false)
             }
             if let new = dropTargetItem {
-                let row = outlineView?.row(forItem: new) ?? -1
-                if row >= 0 {
-                    outlineView?.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 0))
-                }
+                updateDropTargetRow(new, isDropTarget: true)
             }
         }
+    }
+
+    private func updateDropTargetRow(_ item: FileItem, isDropTarget: Bool) {
+        let row = outlineView?.row(forItem: item) ?? -1
+        guard row >= 0 else { return }
+
+        if let rowView = outlineView?.rowView(atRow: row, makeIfNecessary: false) as? InactiveHidingRowView {
+            rowView.isDropTarget = isDropTarget
+        }
+
+        outlineView?.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 0))
     }
 
     var isActive: Bool = true {
