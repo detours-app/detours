@@ -156,7 +156,7 @@ Sidebar polish lives in `SidebarViewController` and `SidebarItemView`. Keep the 
 - [x] **T5** Update `src/FileList/FileListCell.swift` to replace hardcoded icon, git marker, cloud, link, lock, and label alignment constraints with mutable constraints backed by `FileListRowDensity` metrics while keeping Compact visually equivalent to today.
 - [x] **T6** Update file-list settings handling, including `FileListViewController.handleSettingsChange()`, so density changes preserve selection and folder expansion state, invalidate row heights, reload visible rows, and keep keyboard focus when the table had focus.
 - [x] **T7** Update `src/FileList/BandedOutlineView.swift`, `src/FileList/FileListDataSource.swift`, and `InactiveHidingRowView` row rendering to remove alternating bands and use a flat background plus theme-aware hover, selection, active-pane, inactive-pane, drag, and drop-target states.
-- [ ] **T8** Adjust rename-field placement, disclosure triangle placement, folder-loading spinner placement, git markers, iCloud markers, symlink markers, and lock markers to align in Compact, Comfortable, and Spacious densities.
+- [x] **T8** Adjust rename-field placement, disclosure triangle placement, folder-loading spinner placement, git markers, iCloud markers, symlink markers, and lock markers to align in Compact, Comfortable, and Spacious densities.
 
 **Phase 3: Pane Chrome Polish**
 
@@ -220,3 +220,4 @@ Populated at implement time - one entry per task ID with what got built and how 
 - **T5** Replaced `FileListCell` fixed icon, overlay accessory, git marker, and text center constraints with mutable density-backed constraints. Compact keeps the previous 16 pt icon, 12/11 pt accessories, 14 pt git marker, 4 pt overlay offset, and centered text. `resources/scripts/build.sh` passed.
 - **T6** Updated `FileListViewController.handleSettingsChange()` to preserve selected `FileItem` references and folder expansion state, apply changed density row heights, invalidate row heights, reload visible rows, and restore table keyboard focus when it had focus before the settings refresh. `resources/scripts/build.sh` passed.
 - **T7** Removed alternating file-list background bands, kept a flat themed background, and moved row feedback into `InactiveHidingRowView` with theme-aware hover, active selection, inactive selection, and drop-target fills plus an active accent rail. `resources/scripts/build.sh` passed.
+- **T8** Added density metrics for icon leading, disclosure width, rename editor sizing, and loading spinners; wired rename placement, disclosure centering, async folder spinner placement, git marker leading, name gap, and iCloud/symlink/lock overlay sizes/offsets to those metrics. `resources/scripts/build.sh` passed.

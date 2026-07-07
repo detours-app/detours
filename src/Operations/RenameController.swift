@@ -30,23 +30,24 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         let rowRect = tableView.rect(ofRow: row)
         let cellFrame = tableView.frameOfCell(atColumn: 0, row: row)
+        let density = SettingsManager.shared.fileListRowDensity
 
         // Match FileListCell icon leading constraint per mode/type
         let folderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
         let iconLeading: CGFloat
         if folderExpansionEnabled {
-            iconLeading = item.isNavigableFolder ? 2 : 4
+            iconLeading = item.isNavigableFolder ? density.expandedFolderIconLeading : density.expandedFileIconLeading
         } else {
-            iconLeading = 12
+            iconLeading = density.standardIconLeading
         }
-        // iconLeading + 18 (icon) + 2 (gap) - accounts for new 18x18 icon
-        let nameOffset = iconLeading + 20
+        let nameOffset = iconLeading + density.primaryIconSize + density.nameIconGap
+        let fieldHeight = min(density.renameFieldHeight, max(12, rowRect.height - 2))
 
         let targetRect = NSRect(
             x: cellFrame.origin.x + nameOffset,
-            y: rowRect.minY + 1,
-            width: cellFrame.width - nameOffset - 4,
-            height: rowRect.height - 4
+            y: rowRect.minY + max(1, (rowRect.height - fieldHeight) / 2),
+            width: cellFrame.width - nameOffset - density.renameHorizontalInset,
+            height: fieldHeight
         )
 
         let field = NSTextField(frame: targetRect)

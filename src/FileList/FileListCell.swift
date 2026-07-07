@@ -28,10 +28,11 @@ final class FileListCell: NSTableCellView {
     private var linkTopConstraint: NSLayoutConstraint?
     private var linkWidthConstraint: NSLayoutConstraint?
     private var linkHeightConstraint: NSLayoutConstraint?
-    private var lockTrailingConstraint: NSLayoutConstraint?
+    private var lockLeadingConstraint: NSLayoutConstraint?
     private var lockBottomConstraint: NSLayoutConstraint?
     private var lockWidthConstraint: NSLayoutConstraint?
     private var lockHeightConstraint: NSLayoutConstraint?
+    private var nameLabelLeadingConstraint: NSLayoutConstraint?
     private var nameLabelCenterYConstraint: NSLayoutConstraint?
     private var sharedLabelCenterYConstraint: NSLayoutConstraint?
     private var itemName: String = ""
@@ -118,10 +119,11 @@ final class FileListCell: NSTableCellView {
         linkTopConstraint = linkIcon.topAnchor.constraint(equalTo: iconView.topAnchor, constant: -density.overlayOffset)
         linkWidthConstraint = linkIcon.widthAnchor.constraint(equalToConstant: density.secondaryAccessoryIconSize)
         linkHeightConstraint = linkIcon.heightAnchor.constraint(equalToConstant: density.secondaryAccessoryIconSize)
-        lockTrailingConstraint = lockIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: density.overlayOffset)
+        lockLeadingConstraint = lockIcon.leadingAnchor.constraint(equalTo: iconView.leadingAnchor, constant: -density.overlayOffset)
         lockBottomConstraint = lockIcon.bottomAnchor.constraint(equalTo: iconView.bottomAnchor, constant: density.overlayOffset)
         lockWidthConstraint = lockIcon.widthAnchor.constraint(equalToConstant: density.secondaryAccessoryIconSize)
         lockHeightConstraint = lockIcon.heightAnchor.constraint(equalToConstant: density.secondaryAccessoryIconSize)
+        nameLabelLeadingConstraint = nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: density.nameIconGap)
         nameLabelCenterYConstraint = nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: density.verticalTextOffset)
         sharedLabelCenterYConstraint = sharedLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: density.verticalTextOffset)
 
@@ -149,13 +151,13 @@ final class FileListCell: NSTableCellView {
             linkWidthConstraint!,
             linkHeightConstraint!,
 
-            lockTrailingConstraint!,
+            lockLeadingConstraint!,
             lockBottomConstraint!,
             lockWidthConstraint!,
             lockHeightConstraint!,
 
-            // Name: 8px after icon
-            nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+            // Name follows the icon at a density-controlled gap.
+            nameLabelLeadingConstraint!,
             nameLabelCenterYConstraint!,
 
             // Shared label: after name, before trailing edge
@@ -214,6 +216,7 @@ final class FileListCell: NSTableCellView {
         lockIcon.isHidden = item.isReadable
 
         applyDensityMetrics()
+        let density = SettingsManager.shared.fileListRowDensity
 
         // Adjust leading padding based on folder expansion and item type
         // Folders never have git status, so they can use tighter spacing
@@ -221,12 +224,12 @@ final class FileListCell: NSTableCellView {
         if folderExpansionEnabled {
             // Folders: minimal spacing (no git bar needed)
             // Files: slightly more space to accommodate git bar
-            iconLeadingConstraint?.constant = item.isNavigableFolder ? 2 : 4
-            gitBarLeadingConstraint?.constant = 1
+            iconLeadingConstraint?.constant = item.isNavigableFolder ? density.expandedFolderIconLeading : density.expandedFileIconLeading
+            gitBarLeadingConstraint?.constant = density.expandedGitMarkerLeading
         } else {
             // Standard spacing with room for git status bar
-            iconLeadingConstraint?.constant = 12
-            gitBarLeadingConstraint?.constant = 5
+            iconLeadingConstraint?.constant = density.standardIconLeading
+            gitBarLeadingConstraint?.constant = density.standardGitMarkerLeading
         }
 
         // Update theme colors in case they changed
@@ -274,10 +277,11 @@ final class FileListCell: NSTableCellView {
         linkTopConstraint?.constant = -density.overlayOffset
         linkWidthConstraint?.constant = density.secondaryAccessoryIconSize
         linkHeightConstraint?.constant = density.secondaryAccessoryIconSize
-        lockTrailingConstraint?.constant = density.overlayOffset
+        lockLeadingConstraint?.constant = -density.overlayOffset
         lockBottomConstraint?.constant = density.overlayOffset
         lockWidthConstraint?.constant = density.secondaryAccessoryIconSize
         lockHeightConstraint?.constant = density.secondaryAccessoryIconSize
+        nameLabelLeadingConstraint?.constant = density.nameIconGap
         nameLabelCenterYConstraint?.constant = density.verticalTextOffset
         sharedLabelCenterYConstraint?.constant = density.verticalTextOffset
     }

@@ -52,6 +52,42 @@ enum FileListRowDensity: String, CaseIterable, Equatable {
         }
     }
 
+    var expandedFolderIconLeading: CGFloat {
+        switch self {
+        case .compact: return 2
+        case .comfortable: return 3
+        case .spacious: return 4
+        }
+    }
+
+    var expandedFileIconLeading: CGFloat {
+        switch self {
+        case .compact: return 4
+        case .comfortable: return 5
+        case .spacious: return 6
+        }
+    }
+
+    var standardIconLeading: CGFloat {
+        switch self {
+        case .compact: return 12
+        case .comfortable: return 13
+        case .spacious: return 14
+        }
+    }
+
+    var expandedGitMarkerLeading: CGFloat { 1 }
+
+    var standardGitMarkerLeading: CGFloat {
+        switch self {
+        case .compact: return 5
+        case .comfortable: return 6
+        case .spacious: return 7
+        }
+    }
+
+    var disclosureWidth: CGFloat { 20 }
+
     var overlayOffset: CGFloat {
         switch self {
         case .compact: return 4
@@ -63,6 +99,37 @@ enum FileListRowDensity: String, CaseIterable, Equatable {
         switch self {
         case .compact, .comfortable: return 0
         case .spacious: return -0.5
+        }
+    }
+
+    var nameIconGap: CGFloat { 8 }
+
+    var renameFieldHeight: CGFloat {
+        switch self {
+        case .compact: return 20
+        case .comfortable: return 22
+        case .spacious: return 24
+        }
+    }
+
+    var renameHorizontalInset: CGFloat { 4 }
+
+    var renameVerticalInset: CGFloat {
+        max(1, (rowHeight - renameFieldHeight) / 2)
+    }
+
+    var loadingSpinnerSize: CGFloat {
+        switch self {
+        case .compact, .comfortable: return 16
+        case .spacious: return 18
+        }
+    }
+
+    var loadingSpinnerLeading: CGFloat {
+        switch self {
+        case .compact: return 6
+        case .comfortable: return 7
+        case .spacious: return 8
         }
     }
 }
