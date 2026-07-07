@@ -47,8 +47,21 @@ final class SidebarItemView: NSTableCellView {
     private var capacityTrailingConstraint: NSLayoutConstraint?
     private var protocolBadgeTrailingConstraint: NSLayoutConstraint?
     private var accessoryTrailingConstraint: NSLayoutConstraint?
+    private var currentTheme: Theme = .light
+    private var normalIconTintColor: NSColor?
+    private var normalNameTextColor: NSColor?
+    private var normalSubtitleTextColor: NSColor?
+    private var normalCapacityTextColor: NSColor?
+    private var normalProtocolBadgeTextColor: NSColor?
+    private var normalAccessoryTintColor: NSColor?
 
     var onEject: (() -> Void)?
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            applyBackgroundStyleColors()
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -169,6 +182,7 @@ final class SidebarItemView: NSTableCellView {
         hasVolumes: Bool = false,
         remoteConnectionState: SSHConnectionState? = nil
     ) {
+        currentTheme = theme
         statusDot.isHidden = true
         statusSpinner.stopAnimation(nil)
         statusSpinner.isHidden = true
@@ -200,6 +214,9 @@ final class SidebarItemView: NSTableCellView {
         case .favorite(let url):
             configureAsFavorite(url, theme: theme)
         }
+
+        rememberNormalColors()
+        applyBackgroundStyleColors()
     }
 
     private func configureAsSection(_ section: SidebarSection, theme: Theme) {
@@ -286,6 +303,39 @@ final class SidebarItemView: NSTableCellView {
     private func applyAccessoryTint(_ theme: Theme) {
         ejectButton.contentTintColor = theme.textSecondary
         ejectButton.alphaValue = 0.82
+    }
+
+    private func rememberNormalColors() {
+        normalIconTintColor = iconView.contentTintColor
+        normalNameTextColor = nameLabel.textColor
+        normalSubtitleTextColor = subtitleLabel.textColor
+        normalCapacityTextColor = capacityLabel.textColor
+        normalProtocolBadgeTextColor = protocolBadge.textColor
+        normalAccessoryTintColor = ejectButton.contentTintColor
+    }
+
+    private func applyBackgroundStyleColors() {
+        guard backgroundStyle == .emphasized else {
+            iconView.contentTintColor = normalIconTintColor
+            nameLabel.textColor = normalNameTextColor
+            subtitleLabel.textColor = normalSubtitleTextColor
+            capacityLabel.textColor = normalCapacityTextColor
+            protocolBadge.textColor = normalProtocolBadgeTextColor
+            ejectButton.contentTintColor = normalAccessoryTintColor
+            return
+        }
+
+        let selectedForeground = ChromeContrast.sidebarSelectedForeground(for: currentTheme)
+        if normalIconTintColor != nil {
+            iconView.contentTintColor = selectedForeground
+        }
+        nameLabel.textColor = selectedForeground
+        subtitleLabel.textColor = selectedForeground
+        capacityLabel.textColor = selectedForeground
+        protocolBadge.textColor = selectedForeground
+        if normalAccessoryTintColor != nil {
+            ejectButton.contentTintColor = selectedForeground
+        }
     }
 
     private func configureAsServer(_ server: NetworkServer, theme: Theme, isOffline: Bool = false, hasVolumes: Bool = false) {

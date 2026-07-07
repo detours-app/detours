@@ -276,7 +276,12 @@ final class PaneTabBar: NSView {
     }
 
     private func updateNewTabButtonColor() {
-        let color = isActive ? textSecondaryColor : textSecondaryColor.withAlphaComponent(0.65)
+        let background = isActive ? surfaceColor : (surfaceColor.blended(withFraction: 0.50, of: backgroundColor) ?? surfaceColor)
+        let color = ChromeContrast.readableTextColor(
+            preferred: textSecondaryColor,
+            fallback: textPrimaryColor,
+            on: background
+        )
         let config = NSImage.SymbolConfiguration(paletteColors: [color])
 
         if let backImage = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")?

@@ -132,7 +132,7 @@ final class StatusBarView: NSView {
         case .paused:
             label.textColor = statusTextColor(for: theme)
         case .completion:
-            label.textColor = theme.accent.withAlphaComponent(isPaneActive ? 1.0 : 0.72)
+            label.textColor = completionTextColor(for: theme)
         case .error:
             label.textColor = .systemRed
         }
@@ -141,13 +141,28 @@ final class StatusBarView: NSView {
     }
 
     private func statusTextColor(for theme: Theme) -> NSColor {
-        isPaneActive ? theme.textSecondary : theme.textSecondary.withAlphaComponent(0.68)
+        ChromeContrast.readableTextColor(
+            preferred: theme.textSecondary,
+            fallback: theme.textPrimary,
+            on: statusBackgroundColor(for: theme)
+        )
+    }
+
+    private func completionTextColor(for theme: Theme) -> NSColor {
+        ChromeContrast.readableTextColor(
+            preferred: theme.accent,
+            fallback: theme.textPrimary,
+            on: statusBackgroundColor(for: theme)
+        )
+    }
+
+    private func statusBackgroundColor(for theme: Theme) -> NSColor {
+        isPaneActive ? theme.surface : (theme.surface.blended(withFraction: 0.45, of: theme.background) ?? theme.surface)
     }
 
     override func draw(_ dirtyRect: NSRect) {
         let theme = ThemeManager.shared.currentTheme
-        let fillColor = isPaneActive ? theme.surface : (theme.surface.blended(withFraction: 0.45, of: theme.background) ?? theme.surface)
-        fillColor.setFill()
+        statusBackgroundColor(for: theme).setFill()
         bounds.fill()
 
         // Draw top border
@@ -214,7 +229,7 @@ final class StatusBarView: NSView {
         label.isHidden = false
 
         label.stringValue = message
-        label.textColor = ThemeManager.shared.currentTheme.accent.withAlphaComponent(isPaneActive ? 1.0 : 0.72)
+        label.textColor = completionTextColor(for: ThemeManager.shared.currentTheme)
         needsDisplay = true
 
         postAccessibilityAnnouncement("Operation complete")

@@ -141,29 +141,60 @@ final class TabButton: NSView {
         layer?.backgroundColor = nil
         layer?.cornerRadius = 0
 
+        let backgroundColor = currentBackgroundColor()
         let textColor: NSColor
         if isDropTarget || (isSelected && isPaneActive) {
-            textColor = colors.textPrimary
+            textColor = ChromeContrast.readableTextColor(
+                preferred: colors.textPrimary,
+                fallback: colors.textSecondary,
+                on: backgroundColor
+            )
         } else if isSelected {
-            textColor = colors.textSecondary
+            textColor = ChromeContrast.readableTextColor(
+                preferred: colors.textSecondary,
+                fallback: colors.textPrimary,
+                on: backgroundColor
+            )
         } else {
-            textColor = isPaneActive ? colors.textSecondary : colors.textSecondary.withAlphaComponent(0.75)
+            textColor = ChromeContrast.readableTextColor(
+                preferred: colors.textSecondary,
+                fallback: colors.textPrimary,
+                on: backgroundColor
+            )
         }
         titleLabel.textColor = textColor
         iconView.contentTintColor = textColor
         closeButton.contentTintColor = textColor
 
-        // Inactive pane dims everything
-        let paneAlpha: CGFloat = isPaneActive ? 1.0 : 0.78
-        titleLabel.alphaValue = paneAlpha
-        iconView.alphaValue = paneAlpha
-        closeButton.alphaValue = paneAlpha
+        titleLabel.alphaValue = 1.0
+        iconView.alphaValue = 1.0
+        closeButton.alphaValue = 1.0
 
         // On hover: swap icon for close button
         iconView.isHidden = isHovered
         closeButton.isHidden = !isHovered
 
         needsDisplay = true
+    }
+
+    private func currentBackgroundColor() -> NSColor {
+        if isDropTarget {
+            return ChromeContrast.blend(colors.accent, alpha: isPaneActive ? 0.18 : 0.12, over: tabBarBackgroundColor())
+        }
+        if isSelected {
+            if isPaneActive {
+                return colors.background
+            }
+            return colors.surface.blended(withFraction: 0.35, of: colors.background) ?? colors.surface
+        }
+        if isHovered {
+            return ChromeContrast.blend(colors.textPrimary, alpha: isPaneActive ? 0.055 : 0.035, over: tabBarBackgroundColor())
+        }
+        return tabBarBackgroundColor()
+    }
+
+    private func tabBarBackgroundColor() -> NSColor {
+        isPaneActive ? colors.surface : (colors.surface.blended(withFraction: 0.50, of: colors.background) ?? colors.surface)
     }
 
     override func draw(_ dirtyRect: NSRect) {

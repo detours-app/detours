@@ -130,7 +130,7 @@ final class ThemedTextCell: NSTableCellView {
     private func updateTextColor() {
         let theme = ThemeManager.shared.currentTheme
         if backgroundStyle == .emphasized {
-            textField?.textColor = theme.accentText
+            textField?.textColor = ChromeContrast.fileListSelectedSecondaryForeground(for: theme)
         } else {
             textField?.textColor = theme.textSecondary
         }
@@ -189,14 +189,18 @@ final class InactiveHidingRowView: NSTableRowView {
         let theme = Theme.currentSnapshot()
 
         if isTableActive {
-            theme.accent.withAlphaComponent(0.28).setFill()
+            theme.accent.withAlphaComponent(ChromeContrast.fileListSelectionAlpha).setFill()
         } else {
             theme.textPrimary.withAlphaComponent(0.08).setFill()
         }
         bounds.fill()
 
         if isTableActive {
-            theme.accent.withAlphaComponent(0.85).setFill()
+            ChromeContrast.stateIndicatorColor(
+                preferred: theme.accent,
+                fallback: theme.textPrimary,
+                on: ChromeContrast.fileListSelectionFill(for: theme)
+            ).setFill()
             NSRect(x: bounds.minX, y: bounds.minY, width: 2, height: bounds.height).fill()
         }
     }

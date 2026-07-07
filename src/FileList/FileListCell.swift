@@ -379,12 +379,13 @@ final class FileListCell: NSTableCellView {
         let isEmphasized = backgroundStyle == .emphasized
 
         if isEmphasized {
-            // Selected row: white text on accent background
-            nameLabel.textColor = .white
-            sharedLabel.textColor = NSColor.white.withAlphaComponent(0.8)
-            cloudIcon.contentTintColor = .white
-            linkIcon.contentTintColor = .white
-            lockIcon.contentTintColor = .white
+            let selectedForeground = ChromeContrast.fileListSelectedForeground(for: theme)
+            let selectedSecondaryForeground = ChromeContrast.fileListSelectedSecondaryForeground(for: theme)
+            nameLabel.textColor = selectedForeground
+            sharedLabel.textColor = selectedSecondaryForeground
+            cloudIcon.contentTintColor = selectedSecondaryForeground
+            linkIcon.contentTintColor = selectedSecondaryForeground
+            lockIcon.contentTintColor = selectedSecondaryForeground
             // Tint folder icons with accent color
             if isNavigableFolder, let original = originalIcon {
                 iconView.image = Self.tintedIcon(original, color: theme.accent)

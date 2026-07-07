@@ -112,10 +112,32 @@ final class SidebarRowView: NSTableRowView {
     override func drawSelection(in dirtyRect: NSRect) {
         guard isSelected else { return }
         let theme = Theme.currentSnapshot()
-        theme.accent.withAlphaComponent(0.24).setFill()
+        theme.accent.withAlphaComponent(ChromeContrast.sidebarSelectionAlpha).setFill()
         bounds.fill()
 
-        theme.accent.withAlphaComponent(0.85).setFill()
+        ChromeContrast.stateIndicatorColor(
+            preferred: theme.accent,
+            fallback: theme.textPrimary,
+            on: ChromeContrast.sidebarSelectionFill(for: theme)
+        ).setFill()
         NSRect(x: bounds.minX, y: bounds.minY, width: 2, height: bounds.height).fill()
+    }
+
+    override func didAddSubview(_ subview: NSView) {
+        super.didAddSubview(subview)
+        updateCellBackgroundStyle(subview)
+    }
+
+    override var isSelected: Bool {
+        didSet {
+            for subview in subviews {
+                updateCellBackgroundStyle(subview)
+            }
+        }
+    }
+
+    private func updateCellBackgroundStyle(_ view: NSView) {
+        guard let cellView = view as? NSTableCellView else { return }
+        cellView.backgroundStyle = isSelected ? .emphasized : .normal
     }
 }

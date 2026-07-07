@@ -164,7 +164,12 @@ final class PaneViewController: NSViewController {
 
     private func updateButtonColors() {
         let theme = ThemeManager.shared.currentTheme
-        let color = isActive ? theme.textSecondary : theme.textSecondary.withAlphaComponent(0.68)
+        let background = paneChromeBackgroundColor(for: theme)
+        let color = ChromeContrast.readableTextColor(
+            preferred: theme.textSecondary,
+            fallback: theme.textPrimary,
+            on: background
+        )
         let config = NSImage.SymbolConfiguration(paletteColors: [color])
 
         if let homeImage = NSImage(systemSymbolName: "house", accessibilityDescription: "Home")?
@@ -175,13 +180,13 @@ final class PaneViewController: NSViewController {
             .withSymbolConfiguration(config) {
             iCloudButton.image = iCloudImage
         }
-        homeButton.alphaValue = isActive ? 1.0 : 0.78
-        iCloudButton.alphaValue = isActive ? 1.0 : 0.78
+        homeButton.alphaValue = 1.0
+        iCloudButton.alphaValue = 1.0
     }
 
     func updatePaneChromeColors() {
         let theme = ThemeManager.shared.currentTheme
-        let stripColor = isActive ? theme.surface : (theme.surface.blended(withFraction: 0.45, of: theme.background) ?? theme.surface)
+        let stripColor = paneChromeBackgroundColor(for: theme)
         pathStripView.layer?.backgroundColor = stripColor.cgColor
         pathStripSeparator.layer?.backgroundColor = theme.border.withAlphaComponent(isActive ? 1.0 : 0.65).cgColor
         reconnectBanner.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(isActive ? 0.18 : 0.12).cgColor
@@ -211,7 +216,12 @@ final class PaneViewController: NSViewController {
 
     func updatePathControlColors() {
         let theme = ThemeManager.shared.currentTheme
-        let textColor = isActive ? theme.textSecondary : theme.textSecondary.withAlphaComponent(0.72)
+        let background = paneChromeBackgroundColor(for: theme)
+        let textColor = ChromeContrast.readableTextColor(
+            preferred: theme.textSecondary,
+            fallback: theme.textPrimary,
+            on: background
+        )
         // Update path item colors by rebuilding them with attributed titles
         for item in pathControl.pathItems {
             let attrs: [NSAttributedString.Key: Any] = [
@@ -220,8 +230,12 @@ final class PaneViewController: NSViewController {
             ]
             item.attributedTitle = NSAttributedString(string: item.title, attributes: attrs)
         }
-        pathControl.alphaValue = isActive ? 1.0 : 0.82
+        pathControl.alphaValue = 1.0
         pathControl.needsDisplay = true
+    }
+
+    private func paneChromeBackgroundColor(for theme: Theme) -> NSColor {
+        isActive ? theme.surface : (theme.surface.blended(withFraction: 0.45, of: theme.background) ?? theme.surface)
     }
 
     private func setupTabContainer() {
