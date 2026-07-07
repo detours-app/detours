@@ -1,5 +1,85 @@
 import AppKit
 
+// MARK: - File List Row Density
+
+enum FileListRowDensity: String, CaseIterable, Equatable {
+    case compact
+    case comfortable
+    case spacious
+
+    var displayName: String {
+        switch self {
+        case .compact: return "Compact"
+        case .comfortable: return "Comfortable"
+        case .spacious: return "Spacious"
+        }
+    }
+
+    var rowHeight: CGFloat {
+        switch self {
+        case .compact: return 24
+        case .comfortable: return 28
+        case .spacious: return 32
+        }
+    }
+
+    var primaryIconSize: CGFloat {
+        switch self {
+        case .compact: return 16
+        case .comfortable, .spacious: return 18
+        }
+    }
+
+    var accessoryIconSize: CGFloat {
+        switch self {
+        case .compact: return 12
+        case .comfortable, .spacious: return 13
+        }
+    }
+
+    var secondaryAccessoryIconSize: CGFloat {
+        switch self {
+        case .compact: return 11
+        case .comfortable, .spacious: return 12
+        }
+    }
+
+    var gitMarkerHeight: CGFloat {
+        switch self {
+        case .compact: return 14
+        case .comfortable: return 16
+        case .spacious: return 18
+        }
+    }
+
+    var overlayOffset: CGFloat {
+        switch self {
+        case .compact: return 4
+        case .comfortable, .spacious: return 5
+        }
+    }
+
+    var verticalTextOffset: CGFloat {
+        switch self {
+        case .compact, .comfortable: return 0
+        case .spacious: return -0.5
+        }
+    }
+}
+
+extension FileListRowDensity: Codable {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = (try? container.decode(String.self)) ?? Self.compact.rawValue
+        self = FileListRowDensity(rawValue: rawValue) ?? .compact
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 // MARK: - Settings
 
 struct Settings: Equatable {

@@ -146,7 +146,7 @@ Sidebar polish lives in `SidebarViewController` and `SidebarItemView`. Keep the 
 
 **Phase 1: Density Setting**
 
-- [ ] **T1** Add `FileListRowDensity` to `src/Preferences/Settings.swift` with Compact, Comfortable, and Spacious cases, display names, row heights, icon sizes, and robust Codable fallback to Compact.
+- [x] **T1** Add `FileListRowDensity` to `src/Preferences/Settings.swift` with Compact, Comfortable, and Spacious cases, display names, row heights, icon sizes, and robust Codable fallback to Compact.
 - [ ] **T2** Add `fileListRowDensity` to `Settings`, `Settings.CodingKeys`, `SettingsManager`, and `Tests/Helpers/TestHelpers.swift`, preserving Compact as the default.
 - [ ] **T3** Add a "File list density" picker to `src/Preferences/AppearanceSettingsView.swift` and update `ThemePreview`/`FileRowPreview` so preview rows use the selected density's row height and primary icon size.
 
@@ -212,3 +212,5 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. UI 
 ## Build Log
 
 Populated at implement time - one entry per task ID with what got built and how it was verified, keyed by the same `**T<n>**` / `**A<n>**` IDs. Trivial tasks may be omitted. Empty until implementation starts; the plan and testing checkboxes above carry status only.
+
+- **T1** Added `FileListRowDensity` in `src/Preferences/Settings.swift` with Compact, Comfortable, and Spacious display names, row heights, primary/accessory icon metrics, git marker sizing, alignment offsets, and a Codable decoder that falls back to Compact for unknown raw values. `resources/scripts/build.sh` passed.
