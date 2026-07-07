@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detours Chrome Concept</title>
+<link rel="stylesheet" href="detours-chrome-concept.css">
+</head>
+<body>
+<div class="shell">
+  <main class="stage">
+    <section class="window" aria-label="Detours chrome concept mockup">
+      <div class="titlebar">
+        <div class="lights"><span class="light red" aria-hidden="true">&nbsp;</span><span class="light yellow" aria-hidden="true">&nbsp;</span><span class="light green" aria-hidden="true">&nbsp;</span></div>
+        <div class="global-title"><span>Detours</span><strong>Two panes, one command surface</strong></div>
+        <div class="command-strip">
+          <button class="icon-button" type="button" data-action="quick-nav" aria-label="Command-P search and navigation">P</button>
+        </div>
+      </div>
+      <div class="content">
+        <aside class="sidebar">
+          <div class="side-section">
+            <div class="side-heading">Devices</div>
+            <button class="side-row" type="button" data-source="macintosh"><span class="mini-drive" aria-hidden="true">&nbsp;</span><span>Macintosh HD</span><span class="meta">175G</span></button>
+            <div class="mount-row">
+              <button class="mount-source" type="button" data-source="sparsebundle"><span class="mini-volume sparse" aria-hidden="true">&nbsp;</span><span>Specs.sparsebundle</span></button>
+              <button class="eject-icon" type="button" data-eject="sparsebundle" aria-label="Eject Specs.sparsebundle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5l6 7H6l6-7zM6 17h12"/></svg></button>
+            </div>
+            <div class="mount-row">
+              <button class="mount-source" type="button" data-source="diskimage"><span class="mini-volume" aria-hidden="true">&nbsp;</span><span>Detours.dmg</span></button>
+              <button class="eject-icon" type="button" data-eject="diskimage" aria-label="Eject Detours.dmg"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5l6 7H6l6-7zM6 17h12"/></svg></button>
+            </div>
+          </div>
+          <div class="side-section">
+            <div class="side-heading">Remote Hosts</div>
+            <button class="side-row active" type="button" data-source="cognel"><span class="dot" aria-hidden="true">&nbsp;</span><span>cognel-dev-next</span><span class="meta">SSH</span></button>
+            <button class="side-row" type="button" data-source="foundry"><span class="dot off" aria-hidden="true">&nbsp;</span><span>foundry</span><span class="meta">idle</span></button>
+          </div>
+          <div class="side-section">
+            <div class="side-heading">File Servers</div>
+            <button class="side-row" type="button" data-source="nas"><span class="mini-server" aria-hidden="true">&nbsp;</span><span>Acme NAS</span><span class="meta">SMB</span></button>
+            <button class="side-row" type="button" data-source="projects"><span class="mini-folder" aria-hidden="true">&nbsp;</span><span>Projects</span><span aria-hidden="true">&nbsp;</span></button>
+          </div>
+          <div class="side-section">
+            <div class="side-heading">Favorites</div>
+            <button class="side-row" type="button" data-source="inbox"><span class="mini-folder" aria-hidden="true">&nbsp;</span><span>INBOX</span><span aria-hidden="true">&nbsp;</span></button>
+            <button class="side-row" type="button" data-source="one-projects"><span class="mini-folder" aria-hidden="true">&nbsp;</span><span>1 Projects</span><span aria-hidden="true">&nbsp;</span></button>
+            <button class="side-row" type="button" data-source="two-areas"><span class="mini-folder" aria-hidden="true">&nbsp;</span><span>2 Areas</span><span aria-hidden="true">&nbsp;</span></button>
+            <button class="side-row" type="button" data-source="dev"><span class="mini-folder" aria-hidden="true">&nbsp;</span><span>dev</span><span aria-hidden="true">&nbsp;</span></button>
+          </div>
+        </aside>
+        <section class="main">
+          <section class="pane inactive" data-pane="left">
+            <div class="tabbar">
+              <div class="navs">
+                <button class="icon-button" type="button" data-action="back" aria-label="Back">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M5 12l6-6M5 12l6 6"/></svg>
+                </button>
+                <button class="icon-button" type="button" data-action="forward" aria-label="Forward">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M19 12l-6-6M19 12l-6 6"/></svg>
+                </button>
+              </div>
+              <div class="tabs" data-role="tabs"></div>
+              <button class="icon-button" type="button" data-action="new-tab" aria-label="New tab">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+            <div class="pathbar">
+              <span class="host-chip" data-role="host">&nbsp;</span>
+              <div class="path" data-role="path"></div>
+              <div class="pane-tools">
+                <button class="icon-button" type="button" data-action="info" aria-label="Info">i</button>
+              </div>
+            </div>
+            <div class="header"><div>Name</div><div class="num">Size</div><div>Date Modified</div></div>
+            <div class="list" data-role="list"></div>
+            <div class="status"><span data-role="status-main">&nbsp;</span><span class="right" data-role="status-right">&nbsp;</span></div>
+          </section>
+          <div class="splitter"></div>
+          <section class="pane" data-pane="right">
+            <div class="tabbar">
+              <div class="navs">
+                <button class="icon-button" type="button" data-action="back" aria-label="Back">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M5 12l6-6M5 12l6 6"/></svg>
+                </button>
+                <button class="icon-button" type="button" data-action="forward" aria-label="Forward">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M19 12l-6-6M19 12l-6 6"/></svg>
+                </button>
+              </div>
+              <div class="tabs" data-role="tabs"></div>
+              <button class="icon-button" type="button" data-action="new-tab" aria-label="New tab">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+            <div class="pathbar">
+              <span class="host-chip" data-role="host">&nbsp;</span>
+              <div class="path" data-role="path"></div>
+              <div class="pane-tools">
+                <button class="icon-button" type="button" data-action="info" aria-label="Info">i</button>
+              </div>
+            </div>
+            <div class="header"><div>Name</div><div class="num">Size</div><div>Date Modified</div></div>
+            <div class="list" data-role="list"></div>
+            <div class="status"><span data-role="status-main">&nbsp;</span><span class="right" data-role="status-right">&nbsp;</span></div>
+          </section>
+        </section>
+      </div>
+      <div class="command-panel hidden" data-role="command-panel" aria-label="Command-P search and navigation">
+        <div class="command-panel-head"><span>Command-P search and navigation</span><button class="close-button" type="button" data-action="close-command" aria-label="Close command panel">x</button></div>
+        <input class="command-search" data-role="quick-query" aria-label="Search files, folders, hosts, and mounted volumes" placeholder="Search files, folders, hosts, mounted volumes">
+        <div class="command-results" data-role="quick-results"></div>
+      </div>
+      <div class="inspector-panel hidden" data-role="inspector-panel" aria-label="Info inspector">
+        <div class="inspector-head"><span>Info</span><button class="close-button" type="button" data-action="close-info" aria-label="Close inspector">x</button></div>
+        <div class="inspector-body" data-role="inspector-body"></div>
+      </div>
+    </section>
+  </main>
+  <aside class="rationale">
+    <h1>Detours chrome direction</h1>
+    <p>Golden Gate-style chrome: dense and fast, but with edge-to-edge sidebars, uniform toolbars, clearer contrast, restrained icons, and stronger active-pane identity.</p>
+    <div class="swatches"><div class="swatch" style="background:#242322"></div><div class="swatch" style="background:#30302e"></div><div class="swatch" style="background:#59b9b2"></div><div class="swatch" style="background:#55c979"></div><div class="swatch" style="background:#d6a84e"></div></div>
+    <h2>Prototype interactions</h2>
+    <ul>
+      <li>Click panes, tabs, sidebar rows, breadcrumbs, toolbar buttons, and file rows. Double-click folders to drill in. Backspace, Return, Up, and Down work on the active pane.</li>
+      <li>The selected tab now has one underline color everywhere. Remote identity lives in the host chip and status text, not in an extra tab color.</li>
+      <li>The single top-right P is Command-P search and navigation: it opens a quick navigation panel scoped to the active pane.</li>
+      <li>i opens a compact inspector for the active selection, including host, path, kind, size, date, and mount/remote context.</li>
+      <li>Back and forward are icon buttons with arrow geometry, not text brackets.</li>
+      <li>Devices includes a mounted sparse bundle and mounted disk image with eject affordances, because those need to scan differently from ordinary folders.</li>
+    </ul>
+    <h2>What I would change</h2>
+    <ul>
+      <li>Make the top chrome feel like a uniform toolbar stack: titlebar, pane tabs, and path bars should align as one system rather than separate strips.</li>
+      <li>Give the active pane one unmistakable signal: flat tab underline, selected-row tone, and status metadata. Keep the inactive pane calmer.</li>
+      <li>Turn remote identity into a first-class chip in the path bar. Host state should be visible without stealing row space.</li>
+      <li>Use folder/file semantics consistently: directories get disclosure, folder shape, and tighter folder row spacing; files keep git/status rails.</li>
+      <li>Use a Golden Gate sidebar: full-height, edge-to-edge shaded column with colored source icons, no floating island or inset plateau.</li>
+      <li>Keep row density, but reduce visual noise with improved contrast, sparse hairlines, and fewer decorative icons.</li>
+    </ul>
+    <h2>Implementation bias</h2>
+    <ul>
+      <li>No marketing gloss, no oversized rounded cards, no decorative background effects.</li>
+      <li>Mostly AppKit-native: SF Symbols, existing theme tokens, current row heights, current keyboard model.</li>
+      <li>Likely small internal additions: semantic colors for active pane, remote chip, hover row, selected row, and sidebar badges.</li>
+      <li>Work in passes: first hierarchy and spacing, then iconography, then sidebar polish, then screenshots across light/dark themes.</li>
+    </ul>
+    <h2>External references</h2>
+    <ul>
+      <li><a href="https://www.apple.com/os/macos/" style="color:#79c8c2">Apple macOS Golden Gate</a>: Apple calls out uniform toolbars, edge-to-edge sidebars, improved contrast, updated window shapes, and tint control.</li>
+      <li><a href="https://www.macrumors.com/2026/06/09/macos-golden-gate-liquid-glass/" style="color:#79c8c2">Golden Gate coverage</a>: public screenshots show the sidebar moving away from Tahoe's floating treatment toward a full-height column with color returning to sidebar icons.</li>
+      <li><a href="https://developer.apple.com/design/human-interface-guidelines/sidebars" style="color:#79c8c2">Apple HIG</a>: sidebar and toolbar structure should clarify navigation and primary actions, not become decoration.</li>
+      <li><a href="https://binarynights.com/" style="color:#79c8c2">ForkLift 4</a>: dual-pane, remote connections, sync, preview, activity, and Quick Open need clear homes in the chrome.</li>
+      <li><a href="https://panic.com/transmit/" style="color:#79c8c2">Transmit</a>: server identity and transfer activity deserve first-class UI, not buried status.</li>
+      <li><a href="https://marta.sh/" style="color:#79c8c2">Marta</a>: native, fast, keyboard-centered, and themeable argues for restraint over ornament.</li>
+      <li><a href="https://www.raycast.com/" style="color:#79c8c2">Raycast</a> and <a href="https://nova.app/" style="color:#79c8c2">Nova</a>: power-user Mac tools can feel precise, premium, and keyboard-first without becoming sparse.</li>
+    </ul>
+    <div class="note">This is intentionally Golden Gate rather than Tahoe: no floating sidebar island, no over-rounded window, no glassy legibility gamble. The app is a power tool; the chrome should get out of the way while still feeling built, not assembled.</div>
+  </aside>
+</div>
+<script src="detours-chrome-concept-data.js"></script>
+<script src="detours-chrome-concept.js"></script>
+</body>
+</html>
