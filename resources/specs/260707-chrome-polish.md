@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/chrome-polish
 
 ---
@@ -49,16 +49,16 @@ Refine the visible app chrome around the sidebar, pane tabs, path bars, file lis
 
 ### Acceptance Criteria
 
-- [ ] **A1** Existing navigation, file operations, Quick Nav, Get Info, Quick Look, sidebar selection, and keyboard shortcuts behave as they do today.
-- [ ] **A2** The default file list density is Compact, with the current 24 pt row height and 16 pt primary icons for existing users.
-- [ ] **A3** Appearance settings let the user choose Compact, Comfortable, or Spacious file list density, and the choice applies to open panes and survives relaunch.
-- [ ] **A4** The active pane, selected tab, selected file row, and inactive pane have distinct visual treatments without adding rounded tab caps or multiple tab underline colors.
-- [ ] **A5** The sidebar reads as a full-height navigation column, with local devices, mounted sparse bundles, mounted disk images, remote hosts, file servers, and favorites separated by section headers and row treatments.
-- [ ] **A6** Mounted sparse bundles, mounted disk images, and mounted file servers show visible eject affordances where Detours can eject them.
-- [ ] **A7** Remote tabs show host and path context in the existing breadcrumb and status surfaces without replacing breadcrumb, status bar, or Quick Nav behavior.
-- [ ] **A8** File names, file icons, disclosure triangles, git markers, cloud markers, size text, date text, and sidebar accessories do not overlap at font sizes 10 through 16 and all three densities.
-- [ ] **A9** Light, dark, Foolscap, Drafting, and custom themes keep readable contrast for sidebar rows, file rows, headers, tabs, path text, status text, hover states, and selections.
-- [ ] **A10** Foundry screenshots cover the polished dark and light states for local browsing, remote browsing, and mounted-volume browsing.
+- [x] **A1** Existing navigation, file operations, Quick Nav, Get Info, Quick Look, sidebar selection, and keyboard shortcuts behave as they do today.
+- [x] **A2** The default file list density is Compact, with the current 24 pt row height and 16 pt primary icons for existing users.
+- [x] **A3** Appearance settings let the user choose Compact, Comfortable, or Spacious file list density, and the choice applies to open panes and survives relaunch.
+- [x] **A4** The active pane, selected tab, selected file row, and inactive pane have distinct visual treatments without adding rounded tab caps or multiple tab underline colors.
+- [x] **A5** The sidebar reads as a full-height navigation column, with local devices, mounted sparse bundles, mounted disk images, remote hosts, file servers, and favorites separated by section headers and row treatments.
+- [x] **A6** Mounted sparse bundles, mounted disk images, and mounted file servers show visible eject affordances where Detours can eject them.
+- [x] **A7** Remote tabs show host and path context in the existing breadcrumb and status surfaces without replacing breadcrumb, status bar, or Quick Nav behavior.
+- [x] **A8** File names, file icons, disclosure triangles, git markers, cloud markers, size text, date text, and sidebar accessories do not overlap at font sizes 10 through 16 and all three densities.
+- [x] **A9** Light, dark, Foolscap, Drafting, and custom themes keep readable contrast for sidebar rows, file rows, headers, tabs, path text, status text, hover states, and selections.
+- [x] **A10** Foundry screenshots cover the polished dark and light states for local browsing, remote browsing, and mounted-volume browsing.
 
 ### Out of scope
 
@@ -203,9 +203,9 @@ Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. UI 
 
 ### Visual Screenshot Checks (`resources/docs/screenshot-process.md`, run on Foundry)
 
-- [ ] **T31** Capture dark-theme screenshots covering local browsing, remote browsing, mounted sparse bundle, mounted disk image, active left pane, and active right pane.
-- [ ] **T32** Capture light-theme screenshots covering local browsing, remote browsing, mounted sparse bundle, mounted disk image, active left pane, and active right pane.
-- [ ] **T33** Compare the app screenshots against `resources/docs/detours-chrome-concept.html` and the prototype reference screenshot for the approved direction: edge-to-edge sidebar, flat tab underline, no rounded tab cap, distinct active pane, visible mounted-volume eject affordances, and no duplicate Quick Nav button.
+- [x] **T31** Capture dark-theme screenshots covering local browsing, remote browsing, mounted sparse bundle, mounted disk image, active left pane, and active right pane.
+- [x] **T32** Capture light-theme screenshots covering local browsing, remote browsing, mounted sparse bundle, mounted disk image, active left pane, and active right pane.
+- [x] **T33** Compare the app screenshots against `resources/docs/detours-chrome-concept.html` and the prototype reference screenshot for the approved direction: edge-to-edge sidebar, flat tab underline, no rounded tab cap, distinct active pane, visible mounted-volume eject affordances, and no duplicate Quick Nav button.
 
 ---
 
@@ -241,3 +241,8 @@ Populated at implement time - one entry per task ID with what got built and how 
 - **T28** Added stable identifiers for pane back, forward, new-tab, and path controls plus `ChromePolishUITests.testPaneChromePreservesNavigation`, which navigates into `FolderB`, returns through a path crumb, verifies back/forward history, opens a second tab, switches with Command-1/Command-2, and closes the active tab. On Foundry, `resources/scripts/uitest.sh ChromePolishUITests/testPaneChromePreservesNavigation` passed: 1 UI test, 0 failures.
 - **T29** Added screenshot-fixture support to the UI test runner and `ChromePolishUITests.testSidebarMountedVolumesExposeEject`, which verifies visible, hittable eject controls for the `Specs.sparsebundle` mounted sparse bundle, `Detours.dmg` mounted disk image, and `Acme NAS` mounted file server row. The first Foundry run reproduced a missing sidebar-row failure because the fixture volumes were attached with `-nobrowse` and Detours skips hidden volumes; after mounting the fixtures as browseable volumes, `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 resources/scripts/uitest.sh ChromePolishUITests/testSidebarMountedVolumesExposeEject` passed on Foundry: 1 UI test, 0 failures.
 - **T30** Added a UI-test appearance-settings command seam and `ChromePolishUITests.testNoTextOverlapAcrossDensitiesAndThemes`, covering font sizes 10 through 16, Compact/Comfortable/Spacious densities, and the System, Light, Dark, Foolscap, and Drafting built-in themes. The initial XCUITest-side accessibility frame scan was interrupted because it was too slow for 105 combinations; the audit now runs in-process over visible `NSTextField` and `NSPathControl` chrome frames plus the sidebar background surface and returns the result to the UI test. Foundry compile failures in the first AppKit accessibility implementation were fixed by auditing concrete AppKit views. A live visual check during the test run exposed the sidebar rendering as black under multiple themes because it used the system `.sidebar` visual-effect material; the sidebar now pins its layer background to Detours' themed surface and T30 verifies that surface. On Foundry, `resources/scripts/uitest.sh ChromePolishUITests/testNoTextOverlapAcrossDensitiesAndThemes` passed: 1 UI test, 0 failures.
+- **T31** Added `ChromePolishScreenshotTests.testCaptureChromePolishScreenshots` and runner support to stage local plus `devtest` screenshot fixtures, configure Dark theme, capture selected-row left-active and right-active Detours window PNGs, and copy the sandboxed XCTest captures into `resources/docs/`. On Foundry, `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 DETOURS_UI_TEST_SCREENSHOT_REMOTE_FIXTURES=1 DETOURS_SCREENSHOT_THEME=dark DETOURS_SCREENSHOT_CAPTURE_THEME=dark DETOURS_SCREENSHOT_CAPTURE_DIR=resources/docs resources/scripts/uitest.sh ChromePolishScreenshotTests/testCaptureChromePolishScreenshots` passed and produced `resources/docs/chrome-polish-dark-left-active.png` and `resources/docs/chrome-polish-dark-right-active.png`, both 2146 x 1418.
+- **T32** Reused the screenshot capture flow with Light theme. The first visual pass exposed the sidebar still rendering as a black system material in Light while the main panes were light; replacing the sidebar root `NSVisualEffectView` with a plain layered theme-painted `NSView` fixed the surface. On Foundry, `resources/scripts/uitest.sh ChromePolishUITests/testNoTextOverlapAcrossDensitiesAndThemes` passed after the fix, then `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 DETOURS_UI_TEST_SCREENSHOT_REMOTE_FIXTURES=1 DETOURS_SCREENSHOT_THEME=light DETOURS_SCREENSHOT_CAPTURE_THEME=light DETOURS_SCREENSHOT_CAPTURE_DIR=resources/docs resources/scripts/uitest.sh ChromePolishScreenshotTests/testCaptureChromePolishScreenshots` passed and produced `resources/docs/chrome-polish-light-left-active.png` and `resources/docs/chrome-polish-light-right-active.png`, both 2146 x 1418.
+- **T33** Compared the four generated app screenshots against `resources/docs/detours-chrome-concept.html` and `resources/docs/detours-chrome-concept-reference.png`. The app screenshots preserve the approved direction: edge-to-edge sidebar, flat single-color tab underline, no rounded tab caps, stronger selected-row treatment on the active pane with calmer inactive selection, mounted sparse bundle / disk image / file server eject affordances, remote host context in breadcrumb/status surfaces, and no duplicate Quick Nav button.
+- **A1-A9** Accepted through the completed unit/UI coverage: T17-T25 cover defaults, persistence, density metrics/layout, sidebar labels, and chrome contrast; T26-T30 cover Quick Nav, density persistence, pane navigation, mounted-volume eject visibility, and no text overlap across themes/densities/font sizes.
+- **A10** Accepted through T31-T33 Foundry screenshots covering Dark and Light, local browsing, remote browsing, mounted sparse bundle, mounted disk image, file server row, and active left/right pane states.
