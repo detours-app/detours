@@ -111,13 +111,19 @@ final class FileListCellTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(accessoryRect.minY, cell.bounds.minY, file: file, line: line)
             XCTAssertLessThanOrEqual(accessoryRect.maxY, cell.bounds.maxY, file: file, line: line)
             XCTAssertLessThanOrEqual(accessoryRect.maxX, nameAlignmentRect.minX, file: file, line: line)
-            XCTAssertFalse(accessoryRect.intersects(gitMarkerRect), file: file, line: line)
+            XCTAssertFalse(
+                accessoryRect.intersects(gitMarkerRect),
+                "density=\(density) accessory=\(accessoryRect) git=\(gitMarkerRect)",
+                file: file,
+                line: line
+            )
         }
 
         for firstIndex in accessoryRects.indices {
             for secondIndex in accessoryRects.indices where secondIndex > firstIndex {
                 XCTAssertFalse(
                     accessoryRects[firstIndex].intersects(accessoryRects[secondIndex]),
+                    "density=\(density) first=\(accessoryRects[firstIndex]) second=\(accessoryRects[secondIndex])",
                     file: file,
                     line: line
                 )
