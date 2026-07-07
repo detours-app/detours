@@ -238,7 +238,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
 
+        if let sidebarFailure = auditSidebarBackgroundForUITest() {
+            return (frames.count, sidebarFailure)
+        }
+
         return (frames.count, nil)
+    }
+
+    private func auditSidebarBackgroundForUITest() -> String? {
+        guard let sidebarLayer = mainWindowController?.splitViewController.sidebarViewController.view.layer,
+              let backgroundColor = sidebarLayer.backgroundColor,
+              let actualColor = NSColor(cgColor: backgroundColor)?.usingColorSpace(.deviceRGB),
+              let expectedColor = ThemeManager.shared.currentTheme.surface.usingColorSpace(.deviceRGB) else {
+            return "Sidebar background color is not available"
+        }
+
+        guard colorsMatchForUITest(actualColor, expectedColor) else {
+            return "Sidebar background \(colorDescriptionForUITest(actualColor)) does not match theme surface \(colorDescriptionForUITest(expectedColor))"
+        }
+
+        return nil
+    }
+
+    private func colorsMatchForUITest(_ first: NSColor, _ second: NSColor) -> Bool {
+        abs(first.redComponent - second.redComponent) < 0.01 &&
+            abs(first.greenComponent - second.greenComponent) < 0.01 &&
+            abs(first.blueComponent - second.blueComponent) < 0.01 &&
+            abs(first.alphaComponent - second.alphaComponent) < 0.01
+    }
+
+    private func colorDescriptionForUITest(_ color: NSColor) -> String {
+        String(
+            format: "rgba(%.3f, %.3f, %.3f, %.3f)",
+            color.redComponent,
+            color.greenComponent,
+            color.blueComponent,
+            color.alphaComponent
+        )
     }
 
     private func collectUITestTextFrames(

@@ -33,16 +33,11 @@ final class SidebarViewController: NSViewController {
     private var sections: [SidebarSection] = SidebarSection.allCases
     var remoteConnectionStates: [UUID: SSHConnectionState] = [:]
 
-    /// Themes that support vibrancy (system default / light / dark)
-    private var isVibrancyTheme: Bool {
-        let choice = SettingsManager.shared.theme
-        return choice == .system || choice == .light || choice == .dark
-    }
-
     override func loadView() {
         effectView.material = .sidebar
         effectView.blendingMode = .behindWindow
-        effectView.state = .followsWindowActiveState
+        effectView.state = .inactive
+        effectView.wantsLayer = true
         view = effectView
     }
 
@@ -236,16 +231,9 @@ final class SidebarViewController: NSViewController {
 
     private func applyTheme() {
         let theme = ThemeManager.shared.currentTheme
-        if isVibrancyTheme {
-            effectView.state = .followsWindowActiveState
-            effectView.layer?.backgroundColor = nil
-            outlineView.backgroundColor = .clear
-        } else {
-            effectView.state = .inactive
-            effectView.wantsLayer = true
-            effectView.layer?.backgroundColor = theme.surface.cgColor
-            outlineView.backgroundColor = .clear
-        }
+        effectView.state = .inactive
+        effectView.layer?.backgroundColor = theme.surface.cgColor
+        outlineView.backgroundColor = .clear
         updateSeparatorColor()
     }
 
