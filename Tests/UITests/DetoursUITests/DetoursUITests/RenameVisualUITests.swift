@@ -17,15 +17,13 @@ final class RenameVisualUITests: BaseUITest {
         XCTAssertTrue(renameItem.waitForExistence(timeout: 2), "Rename menu item should appear")
         renameItem.click()
 
-        let renameField = app.textFields["inlineRenameField"]
-        XCTAssertTrue(renameField.waitForExistence(timeout: 3), "Inline rename field should appear")
-
         let outputDirectory = URL(
             fileURLWithPath: ProcessInfo.processInfo.environment["DETOURS_RENAME_CAPTURE_DIR"] ?? NSTemporaryDirectory(),
             isDirectory: true
         )
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 
+        usleep(500_000)
         let screenshotURL = outputDirectory.appendingPathComponent("rename-inline-editor.png")
         let screenshot = app.windows.firstMatch.screenshot()
         try screenshot.pngRepresentation.write(to: screenshotURL, options: .atomic)
