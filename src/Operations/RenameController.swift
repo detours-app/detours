@@ -12,13 +12,31 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     var onSwitchPane: (() -> Void)?
 
     private var textField: NSTextField?
-    private weak var hiddenCellTextField: NSTextField?
+    private var editedFieldState: EditedFieldState?
     private weak var tableView: NSTableView?
     private var currentItem: FileItem?
     private var currentRow: Int?
     private var isNewItem: Bool = false
 
     private var currentUndoManager: UndoManager?
+
+    private struct EditedFieldState {
+        weak var field: NSTextField?
+        let isEditable: Bool
+        let isSelectable: Bool
+        let isBordered: Bool
+        let isBezeled: Bool
+        let drawsBackground: Bool
+        let backgroundColor: NSColor?
+        let textColor: NSColor?
+        let delegate: NSTextFieldDelegate?
+        let accessibilityIdentifier: String?
+        let focusRingType: NSFocusRingType
+        let lineBreakMode: NSLineBreakMode
+        let usesSingleLineMode: Bool
+        let wraps: Bool
+        let stringValue: String
+    }
 
     func beginRename(for item: FileItem, in tableView: NSTableView, at row: Int, isNewItem: Bool = false, undoManager: UndoManager? = nil) {
         cancelRename()
@@ -28,6 +46,15 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         currentRow = row
         self.isNewItem = isNewItem
         self.currentUndoManager = undoManager
+
+        tableView.scrollRowToVisible(row)
+        tableView.layoutSubtreeIfNeeded()
+
+        if let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView,
+           let cellTextField = cell.textField {
+            beginEditingExistingField(cellTextField, item: item, tableView: tableView)
+            return
+        }
 
         let rowRect = tableView.rect(ofRow: row)
         let cellFrame = tableView.frameOfCell(atColumn: 0, row: row)
@@ -43,23 +70,51 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         }
         let nameOffset = iconLeading + density.primaryIconSize + density.nameIconGap
         let fallbackFieldHeight = min(density.renameFieldHeight, max(12, rowRect.height - 2))
-        var targetRect = NSRect(
+        let targetRect = NSRect(
             x: cellFrame.origin.x + nameOffset,
             y: rowRect.minY + max(1, (rowRect.height - fallbackFieldHeight) / 2),
             width: cellFrame.width - nameOffset - density.renameHorizontalInset,
             height: fallbackFieldHeight
         )
 
-        if let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView,
-           let cellTextField = cell.textField {
-            let labelFrame = cellTextField.convert(cellTextField.bounds, to: tableView)
-            targetRect.origin.y = labelFrame.origin.y
-            targetRect.size.height = labelFrame.height
-            cellTextField.isHidden = true
-            hiddenCellTextField = cellTextField
-        }
-
         let field = NSTextField(frame: targetRect)
+        configureRenameField(field, item: item)
+        field.wantsLayer = true
+        field.layer?.zPosition = 1000
+        tableView.addSubview(field)
+        tableView.window?.makeFirstResponder(field)
+        selectFilenameStem(in: field, for: item)
+
+        textField = field
+    }
+
+    private func beginEditingExistingField(_ field: NSTextField, item: FileItem, tableView: NSTableView) {
+        editedFieldState = EditedFieldState(
+            field: field,
+            isEditable: field.isEditable,
+            isSelectable: field.isSelectable,
+            isBordered: field.isBordered,
+            isBezeled: field.isBezeled,
+            drawsBackground: field.drawsBackground,
+            backgroundColor: field.backgroundColor,
+            textColor: field.textColor,
+            delegate: field.delegate,
+            accessibilityIdentifier: field.accessibilityIdentifier(),
+            focusRingType: field.focusRingType,
+            lineBreakMode: field.lineBreakMode,
+            usesSingleLineMode: field.cell?.usesSingleLineMode ?? false,
+            wraps: field.cell?.wraps ?? false,
+            stringValue: field.stringValue
+        )
+
+        configureRenameField(field, item: item)
+        field.needsDisplay = true
+        tableView.window?.makeFirstResponder(field)
+        selectFilenameStem(in: field, for: item)
+        textField = field
+    }
+
+    private func configureRenameField(_ field: NSTextField, item: FileItem) {
         field.stringValue = item.name
         let theme = ThemeManager.shared.currentTheme
         field.font = ThemeManager.shared.currentFont
@@ -76,24 +131,38 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         field.cell?.wraps = false
         field.lineBreakMode = .byTruncatingTail
         field.setAccessibilityIdentifier("inlineRenameField")
-        field.wantsLayer = true
-        field.layer?.zPosition = 1000
-        tableView.addSubview(field)
-        tableView.scrollRowToVisible(row)
-        tableView.window?.makeFirstResponder(field)
+    }
 
-        // Select name only, not extension (unless it's a folder or has no extension)
-        if let editor = field.currentEditor() {
-            let name = item.name
-            let extensionStart = (name as NSString).range(of: ".", options: .backwards)
-            if extensionStart.location != NSNotFound && extensionStart.location > 0 && !item.isDirectory {
-                editor.selectedRange = NSRange(location: 0, length: extensionStart.location)
-            } else {
-                editor.selectAll(nil)
-            }
+    private func selectFilenameStem(in field: NSTextField, for item: FileItem) {
+        guard let editor = field.currentEditor() else { return }
+
+        let name = item.name
+        let extensionStart = (name as NSString).range(of: ".", options: .backwards)
+        if extensionStart.location != NSNotFound && extensionStart.location > 0 && !item.isDirectory {
+            editor.selectedRange = NSRange(location: 0, length: extensionStart.location)
+        } else {
+            editor.selectAll(nil)
         }
+    }
 
-        textField = field
+    private func restoreEditedField(from state: EditedFieldState) {
+        guard let field = state.field else { return }
+
+        field.isEditable = state.isEditable
+        field.isSelectable = state.isSelectable
+        field.isBordered = state.isBordered
+        field.isBezeled = state.isBezeled
+        field.drawsBackground = state.drawsBackground
+        field.backgroundColor = state.backgroundColor
+        field.textColor = state.textColor
+        field.delegate = state.delegate
+        field.setAccessibilityIdentifier(state.accessibilityIdentifier)
+        field.focusRingType = state.focusRingType
+        field.lineBreakMode = state.lineBreakMode
+        field.cell?.usesSingleLineMode = state.usesSingleLineMode
+        field.cell?.wraps = state.wraps
+        field.stringValue = state.stringValue
+        field.needsDisplay = true
     }
 
     func commitRename() {
@@ -204,11 +273,11 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         let item = currentItem
         let wasNewItem = isNewItem
         let field = textField
-        let cellTextField = hiddenCellTextField
+        let fieldState = editedFieldState
 
         // Clear state BEFORE removing field to prevent re-entrant calls
         textField = nil
-        hiddenCellTextField = nil
+        editedFieldState = nil
         tableView = nil
         currentItem = nil
         currentRow = nil
@@ -222,8 +291,11 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         // Restore focus to tableView so selection shows blue, then remove the editor.
         tv?.window?.makeFirstResponder(tv)
-        field?.removeFromSuperview()
-        cellTextField?.isHidden = false
+        if let fieldState {
+            restoreEditedField(from: fieldState)
+        } else {
+            field?.removeFromSuperview()
+        }
 
         // Delete newly created item if user cancelled before committing
         if wasNewItem, let item = item {
