@@ -12,7 +12,7 @@ final class RenameVisualUITests: BaseUITest {
         let fileName = fileRow.staticTexts["file1.txt"]
         XCTAssertTrue(fileName.waitForExistence(timeout: 2), "file1.txt static text should exist")
 
-        postReturnKeyEvent(modifiers: .maskShift)
+        pressKey(.return, modifiers: [.shift])
 
         let outputDirectory = URL(
             fileURLWithPath: ProcessInfo.processInfo.environment["DETOURS_RENAME_CAPTURE_DIR"] ?? NSTemporaryDirectory(),
@@ -26,8 +26,8 @@ final class RenameVisualUITests: BaseUITest {
         try screenshot.pngRepresentation.write(to: screenshotURL, options: .atomic)
         XCTAssertGreaterThan(try Data(contentsOf: screenshotURL).count, 20_000, "Screenshot should not be empty")
 
-        postTextKeyEvents("renameproof")
-        postReturnKeyEvent()
+        app.typeText("renameproof")
+        pressKey(.return)
 
         let renamedRow = app.outlineRows.containing(.staticText, identifier: "renameproof.txt").firstMatch
         XCTAssertTrue(renamedRow.waitForExistence(timeout: 5), "Typing after Shift-Return should rename the selected file")
