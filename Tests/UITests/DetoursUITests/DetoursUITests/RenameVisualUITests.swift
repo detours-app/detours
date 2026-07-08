@@ -14,7 +14,7 @@ final class RenameVisualUITests: XCTestCase {
         try "test\n".write(to: uiTestRootURL.appendingPathComponent("file1.txt"), atomically: true, encoding: .utf8)
         try "test\n".write(to: uiTestRootURL.appendingPathComponent("file2.txt"), atomically: true, encoding: .utf8)
 
-        _ = run("/usr/bin/killall", ["Detours"], allowFailure: true)
+        _ = try? run("/usr/bin/killall", ["Detours"], allowFailure: true)
         try run("/bin/launchctl", ["setenv", "DETOURS_UI_TEST_ROOT", uiTestRootURL.path])
         try run("/usr/bin/open", [ProcessInfo.processInfo.environment["DETOURS_UI_TEST_APP_PATH"] ?? "/Applications/Detours.app"])
 
@@ -24,7 +24,7 @@ final class RenameVisualUITests: XCTestCase {
 
     override func tearDownWithError() throws {
         app?.terminate()
-        _ = run("/bin/launchctl", ["unsetenv", "DETOURS_UI_TEST_ROOT"], allowFailure: true)
+        _ = try? run("/bin/launchctl", ["unsetenv", "DETOURS_UI_TEST_ROOT"], allowFailure: true)
         if let uiTestRootURL {
             try? FileManager.default.removeItem(at: uiTestRootURL)
         }
