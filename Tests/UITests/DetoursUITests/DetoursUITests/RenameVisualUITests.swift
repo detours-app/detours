@@ -12,10 +12,7 @@ final class RenameVisualUITests: BaseUITest {
         let fileName = fileRow.staticTexts["file1.txt"]
         XCTAssertTrue(fileName.waitForExistence(timeout: 2), "file1.txt static text should exist")
 
-        fileName.rightClick()
-        let renameItem = app.menuItems["Rename"]
-        XCTAssertTrue(renameItem.waitForExistence(timeout: 2), "Rename menu item should appear")
-        renameItem.click()
+        postReturnKeyEvent(modifiers: .maskShift)
 
         let outputDirectory = URL(
             fileURLWithPath: ProcessInfo.processInfo.environment["DETOURS_RENAME_CAPTURE_DIR"] ?? NSTemporaryDirectory(),
