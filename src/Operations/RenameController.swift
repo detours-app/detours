@@ -12,6 +12,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     var onSwitchPane: (() -> Void)?
 
     private var textField: NSTextField?
+    private weak var hiddenCellTextField: NSTextField?
     private weak var tableView: NSTableView?
     private var currentItem: FileItem?
     private var currentRow: Int?
@@ -49,6 +50,12 @@ final class RenameController: NSObject, NSTextFieldDelegate {
             width: cellFrame.width - nameOffset - density.renameHorizontalInset,
             height: fieldHeight
         )
+
+        if let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView,
+           let cellTextField = cell.textField {
+            cellTextField.isHidden = true
+            hiddenCellTextField = cellTextField
+        }
 
         let field = NSTextField(frame: targetRect)
         field.stringValue = item.name
@@ -195,9 +202,11 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         let item = currentItem
         let wasNewItem = isNewItem
         let field = textField
+        let cellTextField = hiddenCellTextField
 
         // Clear state BEFORE removing field to prevent re-entrant calls
         textField = nil
+        hiddenCellTextField = nil
         tableView = nil
         currentItem = nil
         currentRow = nil
@@ -212,6 +221,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         // Restore focus to tableView so selection shows blue, then remove the editor.
         tv?.window?.makeFirstResponder(tv)
         field?.removeFromSuperview()
+        cellTextField?.isHidden = false
 
         // Delete newly created item if user cancelled before committing
         if wasNewItem, let item = item {
