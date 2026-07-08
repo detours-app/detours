@@ -13,6 +13,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
     private var textField: NSTextField?
     private var editedFieldState: EditedFieldState?
+    private var editedFieldWidthConstraint: NSLayoutConstraint?
     private weak var tableView: NSTableView?
     private var currentItem: FileItem?
     private var currentRow: Int?
@@ -110,6 +111,9 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         )
 
         configureRenameField(field, item: item)
+        editedFieldWidthConstraint = widthConstraint(for: field, item: item)
+        editedFieldWidthConstraint?.isActive = true
+        field.layoutSubtreeIfNeeded()
         field.needsDisplay = true
         tableView.window?.makeFirstResponder(field)
         selectFilenameStem(in: field, for: item)
@@ -134,6 +138,15 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         field.cell?.wraps = false
         field.lineBreakMode = .byTruncatingTail
         field.setAccessibilityIdentifier("inlineRenameField")
+    }
+
+    private func widthConstraint(for field: NSTextField, item: FileItem) -> NSLayoutConstraint {
+        let font = field.font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        let measuredWidth = ceil((item.name as NSString).size(withAttributes: [.font: font]).width)
+        let width = max(measuredWidth + 6, 32)
+        let constraint = field.widthAnchor.constraint(equalToConstant: width)
+        constraint.priority = .required
+        return constraint
     }
 
     private func selectFilenameStem(in field: NSTextField, for item: FileItem) {
@@ -278,10 +291,12 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         let wasNewItem = isNewItem
         let field = textField
         let fieldState = editedFieldState
+        let widthConstraint = editedFieldWidthConstraint
 
         // Clear state BEFORE removing field to prevent re-entrant calls
         textField = nil
         editedFieldState = nil
+        editedFieldWidthConstraint = nil
         tableView = nil
         currentItem = nil
         currentRow = nil
@@ -296,6 +311,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         // Restore focus to tableView so selection shows blue, then remove the editor.
         tv?.window?.makeFirstResponder(tv)
         if let fieldState {
+            widthConstraint?.isActive = false
             restoreEditedField(from: fieldState)
         } else {
             field?.removeFromSuperview()
