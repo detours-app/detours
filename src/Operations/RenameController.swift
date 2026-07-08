@@ -46,7 +46,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         let targetRect = NSRect(
             x: cellFrame.origin.x + nameOffset,
-            y: rowRect.minY + max(1, (rowRect.height - fieldHeight) / 2),
+            y: rowRect.minY + max(0, (rowRect.height - fieldHeight) / 2 - 1),
             width: cellFrame.width - nameOffset - density.renameHorizontalInset,
             height: fieldHeight
         )
