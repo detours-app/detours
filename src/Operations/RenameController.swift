@@ -29,6 +29,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         let drawsBackground: Bool
         let backgroundColor: NSColor?
         let textColor: NSColor?
+        let refusesFirstResponder: Bool
         let delegate: NSTextFieldDelegate?
         let accessibilityIdentifier: String?
         let focusRingType: NSFocusRingType
@@ -98,6 +99,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
             drawsBackground: field.drawsBackground,
             backgroundColor: field.backgroundColor,
             textColor: field.textColor,
+            refusesFirstResponder: field.refusesFirstResponder,
             delegate: field.delegate,
             accessibilityIdentifier: field.accessibilityIdentifier(),
             focusRingType: field.focusRingType,
@@ -123,6 +125,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         field.isSelectable = true
         field.isBezeled = false
         field.isBordered = false
+        field.refusesFirstResponder = false
         field.focusRingType = .none
         field.delegate = self
         field.drawsBackground = false
@@ -155,6 +158,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         field.drawsBackground = state.drawsBackground
         field.backgroundColor = state.backgroundColor
         field.textColor = state.textColor
+        field.refusesFirstResponder = state.refusesFirstResponder
         field.delegate = state.delegate
         field.setAccessibilityIdentifier(state.accessibilityIdentifier)
         field.focusRingType = state.focusRingType
