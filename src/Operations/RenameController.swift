@@ -42,17 +42,19 @@ final class RenameController: NSObject, NSTextFieldDelegate {
             iconLeading = density.standardIconLeading
         }
         let nameOffset = iconLeading + density.primaryIconSize + density.nameIconGap
-        let fieldHeight = min(density.renameFieldHeight, max(12, rowRect.height - 2))
-
-        let targetRect = NSRect(
+        let fallbackFieldHeight = min(density.renameFieldHeight, max(12, rowRect.height - 2))
+        var targetRect = NSRect(
             x: cellFrame.origin.x + nameOffset,
-            y: rowRect.minY + max(0, (rowRect.height - fieldHeight) / 2 - 1),
+            y: rowRect.minY + max(1, (rowRect.height - fallbackFieldHeight) / 2),
             width: cellFrame.width - nameOffset - density.renameHorizontalInset,
-            height: fieldHeight
+            height: fallbackFieldHeight
         )
 
         if let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView,
            let cellTextField = cell.textField {
+            let labelFrame = cellTextField.convert(cellTextField.bounds, to: tableView)
+            targetRect.origin.y = labelFrame.origin.y
+            targetRect.size.height = labelFrame.height
             cellTextField.isHidden = true
             hiddenCellTextField = cellTextField
         }
