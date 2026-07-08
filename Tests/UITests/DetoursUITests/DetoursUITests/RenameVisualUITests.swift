@@ -13,8 +13,6 @@ final class RenameVisualUITests: BaseUITest {
         XCTAssertTrue(fileName.waitForExistence(timeout: 2), "file1.txt static text should exist")
 
         postReturnKeyEvent(modifiers: .maskShift)
-        let inlineEditor = app.descendants(matching: .any)["inlineRenameField"]
-        XCTAssertTrue(inlineEditor.waitForExistence(timeout: 2), "Inline rename editor should exist after Shift-Return")
 
         let outputDirectory = URL(
             fileURLWithPath: ProcessInfo.processInfo.environment["DETOURS_RENAME_CAPTURE_DIR"] ?? NSTemporaryDirectory(),
@@ -27,5 +25,11 @@ final class RenameVisualUITests: BaseUITest {
         let screenshot = app.windows.firstMatch.screenshot()
         try screenshot.pngRepresentation.write(to: screenshotURL, options: .atomic)
         XCTAssertGreaterThan(try Data(contentsOf: screenshotURL).count, 20_000, "Screenshot should not be empty")
+
+        postTextKeyEvents("renameproof")
+        postReturnKeyEvent()
+
+        let renamedRow = app.outlineRows.containing(.staticText, identifier: "renameproof.txt").firstMatch
+        XCTAssertTrue(renamedRow.waitForExistence(timeout: 5), "Typing after Shift-Return should rename the selected file")
     }
 }
