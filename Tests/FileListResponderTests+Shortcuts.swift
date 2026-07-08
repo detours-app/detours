@@ -101,10 +101,10 @@ extension FileListResponderTests {
         let (viewController, _, cleanup) = try makeViewControllerWithSelection()
         defer { cleanup() }
 
-        let beforeCount = borderedTextFieldCount(in: viewController.tableView)
+        let beforeCount = inlineRenameFieldCount(in: viewController.tableView)
         let event = makeFunctionKeyEvent(keyCode: 120, functionKey: NSF2FunctionKey)
         XCTAssertTrue(viewController.handleKeyDown(event))
-        let afterCount = borderedTextFieldCount(in: viewController.tableView)
+        let afterCount = inlineRenameFieldCount(in: viewController.tableView)
         XCTAssertGreaterThan(afterCount, beforeCount)
     }
 
@@ -112,10 +112,10 @@ extension FileListResponderTests {
         let (viewController, _, cleanup) = try makeViewControllerWithSelection()
         defer { cleanup() }
 
-        let beforeCount = borderedTextFieldCount(in: viewController.tableView)
+        let beforeCount = inlineRenameFieldCount(in: viewController.tableView)
         let event = makeKeyEvent(characters: "\r", keyCode: 36, modifiers: [.shift])
         XCTAssertTrue(viewController.handleKeyDown(event))
-        let afterCount = borderedTextFieldCount(in: viewController.tableView)
+        let afterCount = inlineRenameFieldCount(in: viewController.tableView)
         XCTAssertGreaterThan(afterCount, beforeCount)
     }
 

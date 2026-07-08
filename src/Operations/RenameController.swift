@@ -52,12 +52,21 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         let field = NSTextField(frame: targetRect)
         field.stringValue = item.name
+        let theme = ThemeManager.shared.currentTheme
         field.font = ThemeManager.shared.currentFont
-        field.isBordered = true
+        field.textColor = ChromeContrast.fileListSelectedForeground(for: theme)
+        field.isEditable = true
+        field.isSelectable = true
+        field.isBezeled = false
+        field.isBordered = false
         field.focusRingType = .none
         field.delegate = self
-        field.drawsBackground = true
-        field.backgroundColor = ThemeManager.shared.currentTheme.surface
+        field.drawsBackground = false
+        field.backgroundColor = .clear
+        field.cell?.usesSingleLineMode = true
+        field.cell?.wraps = false
+        field.lineBreakMode = .byTruncatingTail
+        field.setAccessibilityIdentifier("inlineRenameField")
         field.wantsLayer = true
         field.layer?.zPosition = 1000
         tableView.addSubview(field)

@@ -90,7 +90,7 @@ final class FileListResponderTests: XCTestCase {
         let didSelectCreatedFolder = await waitForSelectedLocations([created], in: viewController)
         XCTAssertTrue(didSelectCreatedFolder)
         XCTAssertEqual(viewController.selectedLocations, [created])
-        XCTAssertEqual(borderedTextFieldCount(in: viewController.tableView), 1)
+        XCTAssertEqual(inlineRenameFieldCount(in: viewController.tableView), 1)
     }
 
     func testRemoteF8DeleteRoutesToTrashProvider() async throws {
@@ -355,8 +355,10 @@ final class FileListResponderTests: XCTestCase {
         return await provider.recordedTrashCalls().count >= expectedCount
     }
 
-    func borderedTextFieldCount(in tableView: NSTableView) -> Int {
-        tableView.subviews.compactMap { $0 as? NSTextField }.filter { $0.isBordered }.count
+    func inlineRenameFieldCount(in tableView: NSTableView) -> Int {
+        tableView.subviews.compactMap { $0 as? NSTextField }
+            .filter { $0.accessibilityIdentifier() == "inlineRenameField" }
+            .count
     }
 }
 
