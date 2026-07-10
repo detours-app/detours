@@ -41,6 +41,219 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(remoteRoot + "/upload.txt"))"), "local-body")
     }
 
+    func testRemoteProviderCopyUsesRealHelperProtocol() async throws {
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH(
+            "mkdir \(Self.shellQuote(remoteRoot + "/destination")); "
+                + "printf rpc-copy > \(Self.shellQuote(remoteRoot + "/source.txt"))"
+        )
+        let source = Location.remote(hostID: session.hostID, path: remoteRoot + "/source.txt")
+        let destination = Location.remote(hostID: session.hostID, path: remoteRoot + "/destination")
+
+        let copied = try await session.provider.copy([source], to: destination)
+
+        let expected = destination.appendingPathComponent("source.txt")
+        XCTAssertEqual(copied, [expected])
+        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(expected.path))"), "rpc-copy")
+    }
+
+    @MainActor
+    func testFileOperationQueueCopiesRemoteFileToLocalFilesystem() async throws {
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH("printf remote-payload > \(Self.shellQuote(remoteRoot + "/remote.txt"))")
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let destination = try createTestFolder(in: localRoot, name: "destination")
+        let source = Location.remote(hostID: session.hostID, path: remoteRoot + "/remote.txt")
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
+
+        let copied = try await queue.copy(items: [source], to: .local(destination))
+
+        let localCopy = destination.appendingPathComponent("remote.txt")
+        XCTAssertEqual(copied, [.local(localCopy)])
+        XCTAssertEqual(try String(contentsOf: localCopy, encoding: .utf8), "remote-payload")
+        XCTAssertTrue(try Self.remotePathExists(source.path))
+    }
+
+    @MainActor
+    func testFileOperationQueueCopiesLocalFileToRemoteFilesystem() async throws {
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH("mkdir \(Self.shellQuote(remoteRoot + "/destination"))")
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let source = try createTestFile(in: localRoot, name: "local.txt", content: "local-payload")
+        let destination = Location.remote(hostID: session.hostID, path: remoteRoot + "/destination")
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
+
+        let copied = try await queue.copy(items: [.local(source)], to: destination)
+
+        let remoteCopy = destination.appendingPathComponent("local.txt")
+        XCTAssertEqual(copied, [remoteCopy])
+        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(remoteCopy.path))"), "local-payload")
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "local-payload")
+    }
+
+    @MainActor
+    func testFileOperationQueueMovesRemoteFileToLocalFilesystem() async throws {
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH("printf move-payload > \(Self.shellQuote(remoteRoot + "/move.txt"))")
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let destination = try createTestFolder(in: localRoot, name: "destination")
+        let source = Location.remote(hostID: session.hostID, path: remoteRoot + "/move.txt")
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
+
+        let moved = try await queue.move(items: [source], to: .local(destination))
+
+        let localCopy = destination.appendingPathComponent("move.txt")
+        XCTAssertEqual(moved, [.local(localCopy)])
+        XCTAssertEqual(try String(contentsOf: localCopy, encoding: .utf8), "move-payload")
+        XCTAssertFalse(try Self.remotePathExists(source.path))
+        let trashInfo = try Self.runSSH(
+            "grep -lFx \(Self.shellQuote("Path=\(source.path)")) "
+                + "\"$HOME/.local/share/Trash/info/\"*.trashinfo 2>/dev/null | head -n 1"
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        let trashInfoPath = try XCTUnwrap(trashInfo.isEmpty ? nil : trashInfo)
+
+        _ = try await session.provider.restoreFromTrash([
+            TrashedItem(
+                originalLocation: source,
+                trashLocation: .remote(hostID: session.hostID, path: trashInfoPath)
+            ),
+        ])
+        XCTAssertTrue(try Self.remotePathExists(source.path))
+    }
+
+    @MainActor
+    func testFileOperationQueueRemoteDeleteUndoRestoresRealFile() async throws {
+        RemoteTrashExplainer.markDismissed()
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH("printf undo-payload > \(Self.shellQuote(remoteRoot + "/undo.txt"))")
+        let item = Location.remote(hostID: session.hostID, path: remoteRoot + "/undo.txt")
+        let queue = FileOperationQueue.shared
+        let undoManager = UndoManager()
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
+
+        try await queue.delete(items: [item], undoManager: undoManager)
+        XCTAssertFalse(try Self.remotePathExists(item.path))
+        XCTAssertTrue(undoManager.canUndo)
+
+        undoManager.undo()
+        try await Self.waitForRemotePath(item.path)
+
+        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(item.path))"), "undo-payload")
+    }
+
+    @MainActor
+    func testFileOperationQueueRemoteRenameUsesRealProvider() async throws {
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH("printf rename-payload > \(Self.shellQuote(remoteRoot + "/old.txt"))")
+        let item = Location.remote(hostID: session.hostID, path: remoteRoot + "/old.txt")
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
+
+        let renamed = try await queue.rename(item: item, to: "new.txt")
+
+        XCTAssertEqual(renamed, .remote(hostID: session.hostID, path: remoteRoot + "/new.txt"))
+        XCTAssertFalse(try Self.remotePathExists(item.path))
+        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(renamed.path))"), "rename-payload")
+    }
+
+    func testServerDeployerUploadsAndAtomicallyFinalizesRealRemoteBinary() async throws {
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let bundle = try createTestFile(in: localRoot, name: "detours-server", content: "deployed-helper")
+        let installDirectory = remoteRoot + "/install"
+        let deployer = ServerDeployer(
+            client: SSHServerDeploymentClient(sshTarget: "devtest"),
+            bundledBinaryURL: bundle,
+            installDirectory: installDirectory
+        )
+
+        let result = try await deployer.deployIfNeeded()
+
+        let finalPath = installDirectory + "/detours-server"
+        XCTAssertEqual(result, ServerDeploymentResult(deployed: true, reason: .missing))
+        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(finalPath))"), "deployed-helper")
+        XCTAssertEqual(
+            try Self.runSSH("stat -c '%a' \(Self.shellQuote(finalPath))").trimmingCharacters(in: .whitespacesAndNewlines),
+            "700"
+        )
+        XCTAssertFalse(try Self.remotePathExists(finalPath + ".tmp"))
+    }
+
+    func testPersistentRPCClientRoutesConcurrentMultiChunkResponsesByRequestID() async throws {
+        try Self.runSSH("test -x ~/.detours-server/detours-server")
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH(
+            "i=0; while [ $i -lt 1001 ]; do : > \(Self.shellQuote(remoteRoot))/item-$i; i=$((i+1)); done; "
+                + "printf first > \(Self.shellQuote(remoteRoot + "/first.txt")); "
+                + "printf second > \(Self.shellQuote(remoteRoot + "/second.txt"))"
+        )
+        let controlRoot = URL(fileURLWithPath: "/tmp")
+            .appendingPathComponent("dtssh-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        defer { cleanupTempDirectory(controlRoot) }
+        let hostID = UUID()
+        let connection = SSHConnection(
+            configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: "devtest"),
+            controlDirectory: controlRoot.appendingPathComponent("ssh", isDirectory: true),
+            hostTrust: SSHHostTrust(
+                knownHostsURL: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/known_hosts")
+            )
+        )
+        let rpcClient = SSHRemoteRPCClient(connection: connection)
+        let provider = RemoteFileProvider(
+            hostID: hostID,
+            rpcClient: rpcClient,
+            transferChannel: RemoteTransferChannel(sshTarget: "devtest", controlDirectory: controlRoot)
+        )
+        let root = Location.remote(hostID: hostID, path: remoteRoot)
+
+        try await connection.connect()
+        let values: ([LoadedFileEntry], LoadedFileEntry, LoadedFileEntry, [Data])
+        do {
+            async let entries = provider.list(root, showHidden: true)
+            async let first = provider.stat(root.appendingPathComponent("first.txt"))
+            async let second = provider.stat(root.appendingPathComponent("second.txt"))
+            async let version = rpcClient.send(.protocolVersion(1))
+            values = try await (entries, first, second, version)
+        } catch {
+            await connection.disconnect()
+            throw error
+        }
+        await connection.disconnect()
+
+        var versionReader = RPCBinaryReader(data: try XCTUnwrap(values.3.first))
+        XCTAssertEqual(try versionReader.readInt64(), 1)
+        try versionReader.requireComplete()
+        XCTAssertEqual(values.0.count, 1_003)
+        XCTAssertEqual(values.1.name, "first.txt")
+        XCTAssertEqual(values.2.name, "second.txt")
+    }
+
     @MainActor
     func testRemoteOpenWithSessionUploadsBackToRealRemoteFile() async throws {
         let session = try RemoteIntegrationSession.make()
@@ -440,6 +653,17 @@ final class RemoteIntegrationTests: XCTestCase {
 
     private static func cleanupRemote(_ path: String, target: String) {
         _ = try? runSSH("rm -rf \(shellQuote(path))", target: target)
+    }
+
+    private static func waitForRemotePath(_ path: String, timeout: TimeInterval = 3) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if try remotePathExists(path) {
+                return
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("Remote path was not restored within \(timeout) seconds: \(path)")
     }
 
     private static func remotePathExists(_ path: String, target: String = "devtest") throws -> Bool {

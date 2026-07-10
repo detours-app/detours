@@ -1686,3 +1686,42 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 86 tests, 1 skipped, 0 failures. Full XCUI suite green at 3b9fb8e with
   the screenshot fixture volumes mounted. Supersedes the two FolderExpansion
   FAIL rows above.
+
+- 2026-07-10 14:07 CEST: Spectre
+  `swift test --filter 'PermanentDeleteWarningTests|ArchiveOperationTests|KeychainCredentialStoreTests|DisconnectedQueueTests|TransferModeTests|SSHHostTrustTests|RemoteConnectionTeardownTests'`
+  FAIL: compilation stopped because the permanent-delete confirmation helper
+  was declared static but called through the controller instance. No tests ran.
+
+- 2026-07-10 14:07 CEST: Spectre
+  `swift test --filter 'PermanentDeleteWarningTests|ArchiveOperationTests|KeychainCredentialStoreTests|DisconnectedQueueTests|TransferModeTests|SSHHostTrustTests|RemoteConnectionTeardownTests'`
+  FAIL: 48 tests ran with 1 failure. `KeychainCredentialStoreTests` could not
+  save a real item because the unsigned SwiftPM test host returned Security
+  error -34018 (`errSecMissingEntitlement`); the other 47 tests passed.
+
+- 2026-07-10 14:07 CEST: Spectre
+  `swift test --filter 'PermanentDeleteWarningTests|ArchiveOperationTests|KeychainCredentialStoreTests|DisconnectedQueueTests|TransferModeTests|SSHHostTrustTests|RemoteConnectionTeardownTests'`
+  FAIL: 48 tests ran with 1 failure. Supplying empty access-control flags still
+  created a `SecAccessControl` object, so the unsigned test host again returned
+  -34018; the other 47 tests passed.
+
+- 2026-07-10 14:08 CEST: Spectre
+  `swift test --filter 'PermanentDeleteWarningTests|ArchiveOperationTests|KeychainCredentialStoreTests|DisconnectedQueueTests|TransferModeTests|SSHHostTrustTests|RemoteConnectionTeardownTests'`
+  PASS: 48 tests, 0 failures. Covers permanent-delete cancellation, tar path
+  traversal, isolated real-Keychain lifecycle, ambiguous remote interruption,
+  negative transfer length, known-hosts modes, and registry replacement.
+
+- 2026-07-10 14:08 CEST: Spectre
+  `swift test --filter 'DroppablePathControlTests|MultiDirectoryWatcherTests|DarwinWatcherServerTests|DarwinServerSmokeTests|RemoteHomeDirectoryProbeTests'`
+  PASS: 24 tests, 0 failures. Covers production path-control geometry,
+  readiness-synchronized watching, timeout failures, malformed RPC recovery,
+  and typed home-directory probe errors.
+
+- 2026-07-10 14:08 CEST: Spectre `swift test --filter FileOperationQueueTests`
+  PASS: 64 tests, 0 failures. Covers nested copy contents, exact multi-item
+  duplication, deterministic progress coalescing/final delivery, synchronous
+  undo, and the queue retry-policy changes.
+
+- 2026-07-10 14:08 CEST: Spectre
+  `swift test --filter 'RemoteTrashUndoTests|RemoteFileProviderTests|ServerDeployerTests|WindowsWatchChannelTests'`
+  PASS: 22 tests, 0 failures. Covers retained unit behavior after fake-only
+  remote/deployment/watch tests moved to real integration fixtures.

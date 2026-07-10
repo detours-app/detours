@@ -22,29 +22,47 @@ final class MultiDirectoryWatcher: @unchecked Sendable {
     /// Network volumes use polling only. Local volumes use DispatchSource for instant
     /// structural changes (add/remove/rename) plus polling for metadata changes
     /// (size/date) that DispatchSource cannot detect.
-    func watch(_ url: URL) {
+    func watch(_ url: URL, onReady: (@Sendable () -> Void)? = nil) {
         let normalized = url.standardizedFileURL
-        guard watchers[normalized] == nil, pollers[normalized] == nil else { return }
+        guard watchers[normalized] == nil, pollers[normalized] == nil else {
+            onReady?()
+            return
+        }
+
+        let readiness = DispatchGroup()
 
         if VolumeMonitor.isNetworkVolume(normalized) {
+            readiness.enter()
             let poller = NetworkDirectoryPoller(url: normalized) { [weak self] in
                 self?.onChange(normalized)
             }
             pollers[normalized] = poller
-            poller.start()
+            poller.start {
+                readiness.leave()
+            }
         } else {
+            readiness.enter()
             let watcher = SingleDirectoryWatcher(url: normalized) { [weak self] in
                 self?.onChange(normalized)
             }
             watchers[normalized] = watcher
-            watcher.start()
+            watcher.start {
+                readiness.leave()
+            }
 
             // Poll for in-place metadata changes (touch, echo >>) that kqueue can't detect
+            readiness.enter()
             let poller = NetworkDirectoryPoller(url: normalized) { [weak self] in
                 self?.onChange(normalized)
             }
             pollers[normalized] = poller
-            poller.start()
+            poller.start {
+                readiness.leave()
+            }
+        }
+
+        readiness.notify(queue: .main) {
+            onReady?()
         }
     }
 
@@ -95,7 +113,7 @@ private final class SingleDirectoryWatcher: @unchecked Sendable {
         stop()
     }
 
-    func start() {
+    func start(onReady: @escaping @Sendable () -> Void = {}) {
         stop()
 
         let path = url.path
@@ -107,12 +125,14 @@ private final class SingleDirectoryWatcher: @unchecked Sendable {
             let fd = Darwin.open(path, O_EVTONLY)
             guard fd >= 0 else {
                 logger.warning("Failed to open directory for watching (FD limit?): \(path)")
+                onReady()
                 return
             }
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else {
                     Darwin.close(fd)
+                    onReady()
                     return
                 }
 
@@ -136,6 +156,7 @@ private final class SingleDirectoryWatcher: @unchecked Sendable {
 
                 self.source?.resume()
                 logger.debug("Started watching: \(path)")
+                onReady()
             }
         }
     }
@@ -185,7 +206,7 @@ final class NetworkDirectoryPoller: @unchecked Sendable {
         stop()
     }
 
-    func start() {
+    func start(onReady: @escaping @Sendable () -> Void = {}) {
         stop()
 
         let timer = DispatchSource.makeTimerSource(queue: pollQueue)
@@ -202,6 +223,7 @@ final class NetworkDirectoryPoller: @unchecked Sendable {
         // Take initial snapshot on background queue to avoid blocking main thread.
         pollQueue.async { [weak self] in
             self?.lastSnapshot = self?.takeSnapshot()
+            onReady()
         }
         logger.debug("Started polling network directory: \(self.url.path)")
     }

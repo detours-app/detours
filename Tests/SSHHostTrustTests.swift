@@ -3,6 +3,35 @@ import XCTest
 
 @MainActor
 final class SSHHostTrustTests: XCTestCase {
+    func testPrepareKnownHostsFileHardensExistingPermissions() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let sshDirectory = temp.appendingPathComponent(".ssh")
+        let knownHosts = sshDirectory.appendingPathComponent("known_hosts")
+        try FileManager.default.createDirectory(
+            at: sshDirectory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o777]
+        )
+        XCTAssertTrue(FileManager.default.createFile(
+            atPath: knownHosts.path,
+            contents: Data("example key\n".utf8),
+            attributes: [.posixPermissions: 0o666]
+        ))
+
+        try SSHHostTrust(knownHostsURL: knownHosts).prepareKnownHostsFile()
+
+        let directoryMode = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: sshDirectory.path)[.posixPermissions] as? NSNumber
+        ).intValue & 0o777
+        let fileMode = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: knownHosts.path)[.posixPermissions] as? NSNumber
+        ).intValue & 0o777
+        XCTAssertEqual(directoryMode, 0o700)
+        XCTAssertEqual(fileMode, 0o600)
+        XCTAssertEqual(try String(contentsOf: knownHosts, encoding: .utf8), "example key\n")
+    }
+
     func testHostKeyPromptRecordsFingerprint() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

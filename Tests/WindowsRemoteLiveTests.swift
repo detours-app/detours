@@ -159,6 +159,42 @@ final class WindowsRemoteLiveTests: XCTestCase {
         }
     }
 
+    func testUnwatchCancelsIdleReadAndNextWatchAcceptsWork() async throws {
+        try await withFixture { fixture in
+            let idleWatch = try await fixture.provider.watch(fixture.root) { _ in }
+            let cancellationStarted = Date()
+
+            await fixture.provider.unwatch(idleWatch)
+
+            XCTAssertLessThan(Date().timeIntervalSince(cancellationStarted), 3)
+
+            let changeReceived = expectation(description: "replacement Windows watch change")
+            let recorder = LiveWatchRecorder()
+            let replacementWatch = try await fixture.provider.watch(fixture.root) { location in
+                Task {
+                    await recorder.record(location)
+                    changeReceived.fulfill()
+                }
+            }
+            let created = fixture.root.appendingPathComponent("after-unwatch.txt")
+            try await fixture.run(
+                operation: "CreateAfterUnwatch",
+                source: """
+                param($Arguments)
+                Set-Content -LiteralPath $Arguments.path -Value 'accepted' -Encoding UTF8
+                $true
+                """,
+                arguments: PathArguments(path: try fixture.nativePath(created))
+            )
+
+            await fulfillment(of: [changeReceived], timeout: 5.0)
+            await fixture.provider.unwatch(replacementWatch)
+
+            let locations = await recorder.locations
+            XCTAssertTrue(locations.contains(created))
+        }
+    }
+
     func testDriveRootWatchDoesNotBreakDriveReload() async throws {
         try await withFixture { fixture in
             let drives = try await fixture.provider.list(.remote(hostID: fixture.hostID, path: "/"), showHidden: false)

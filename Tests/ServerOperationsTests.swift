@@ -221,7 +221,7 @@ final class DarwinWatcherServerTests: XCTestCase {
             }
             Thread.sleep(forTimeInterval: 0.02)
         }
-        throw XCTSkip("Darwin watcher did not emit an event before timeout")
+        throw ServerOperationsTestError.timeout("Darwin watcher did not emit an event within 2 seconds")
     }
 }
 
@@ -233,6 +233,40 @@ final class DarwinServerSmokeTests: XCTestCase {
 
         XCTAssertEqual(try reader.readInt64(), 1)
         try reader.requireComplete()
+    }
+
+    func testMalformedRequestDoesNotTerminateDarwinHelper() throws {
+        let helper = try buildDarwinHelperIfNeeded()
+        let malformed = ServerRPCEnvelope(
+            id: 1,
+            kind: .request,
+            messageType: "ProtocolVersion",
+            sequence: 0,
+            isFinal: true,
+            payload: Data([1])
+        )
+        let valid = ServerRPCEnvelope(
+            id: 2,
+            kind: .request,
+            messageType: "ProtocolVersion",
+            sequence: 0,
+            isFinal: true,
+            payload: protocolVersionPayload()
+        )
+
+        let envelopes = try runHelperRPC(helper: helper, requests: [malformed, valid])
+
+        let error = try XCTUnwrap(envelopes.first { $0.id == 1 })
+        XCTAssertEqual(error.kind, .error)
+        var errorReader = ServerRPCBinaryReader(data: error.payload)
+        XCTAssertEqual(try errorReader.readString(), "truncatedMessage")
+        try errorReader.requireComplete()
+
+        let response = try XCTUnwrap(envelopes.first { $0.id == 2 })
+        XCTAssertEqual(response.kind, .response)
+        var responseReader = ServerRPCBinaryReader(data: response.payload)
+        XCTAssertEqual(try responseReader.readInt64(), 1)
+        try responseReader.requireComplete()
     }
 
     func testDarwinFileOperationsRoundTrip() throws {
@@ -298,6 +332,20 @@ final class DarwinServerSmokeTests: XCTestCase {
     }
 
     private func runHelperRPC(helper: URL, messageType: String, payload: Data) throws -> [Data] {
+        let request = ServerRPCEnvelope(
+            id: 1,
+            kind: .request,
+            messageType: messageType,
+            sequence: 0,
+            isFinal: true,
+            payload: payload
+        )
+        return try runHelperRPC(helper: helper, requests: [request])
+            .filter { $0.kind == .response && $0.id == 1 }
+            .map(\.payload)
+    }
+
+    private func runHelperRPC(helper: URL, requests: [ServerRPCEnvelope]) throws -> [ServerRPCEnvelope] {
         let process = Process()
         let stdin = Pipe()
         let stdout = Pipe()
@@ -316,33 +364,28 @@ final class DarwinServerSmokeTests: XCTestCase {
             throw error
         }
 
-        let request = ServerRPCEnvelope(
-            id: 1,
-            kind: .request,
-            messageType: messageType,
-            sequence: 0,
-            isFinal: true,
-            payload: payload
-        )
-        stdin.fileHandleForWriting.write(try ServerRPCStreamHandler.encodeFrame(request.encodedPayload()))
+        for request in requests {
+            stdin.fileHandleForWriting.write(try ServerRPCStreamHandler.encodeFrame(request.encodedPayload()))
+        }
         try stdin.fileHandleForWriting.close()
 
         guard process.waitUntilExit(timeout: 5) else {
             process.terminate()
-            throw XCTSkip("Darwin helper timed out")
+            throw ServerOperationsTestError.timeout("Darwin helper did not exit within 5 seconds")
         }
 
         let stderrText = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         XCTAssertEqual(process.terminationStatus, 0, stderrText)
         var stream = ServerRPCStreamHandler()
         let frames = try stream.append(stdout.fileHandleForReading.readDataToEndOfFile())
-        return try frames
-            .map { try ServerRPCEnvelope(encodedPayload: $0) }
-            .filter { $0.kind == .response && $0.id == 1 }
-            .map(\.payload)
+        return try frames.map { try ServerRPCEnvelope(encodedPayload: $0) }
     }
 }
 #endif
+
+private enum ServerOperationsTestError: Error {
+    case timeout(String)
+}
 
 final class GitOperationsServerTests: XCTestCase {
     func testGitStatusOverlay() throws {

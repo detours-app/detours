@@ -92,12 +92,25 @@ final class FileOperationQueueTests: XCTestCase {
         defer { cleanupTempDirectory(temp) }
 
         let folder = try createTestFolder(in: temp, name: "Folder")
-        _ = try createTestFile(in: folder, name: "a.txt")
+        _ = try createTestFile(in: folder, name: "a.txt", content: "top-level")
+        let nested = try createTestFolder(in: folder, name: "Nested")
+        _ = try createTestFile(in: nested, name: "b.txt", content: "nested")
         let dest = try createTestFolder(in: temp, name: "Dest")
 
         try await FileOperationQueue.shared.copy(items: [folder], to: dest)
         let copied = dest.appendingPathComponent("Folder")
         XCTAssertTrue(FileManager.default.fileExists(atPath: copied.path))
+        XCTAssertEqual(
+            try String(contentsOf: copied.appendingPathComponent("a.txt"), encoding: .utf8),
+            "top-level"
+        )
+        XCTAssertEqual(
+            try String(
+                contentsOf: copied.appendingPathComponent("Nested").appendingPathComponent("b.txt"),
+                encoding: .utf8
+            ),
+            "nested"
+        )
     }
 
     func testMoveFile() async throws {
@@ -190,10 +203,12 @@ final class FileOperationQueueTests: XCTestCase {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
-        let fileA = try createTestFile(in: temp, name: "a.txt")
-        let fileB = try createTestFile(in: temp, name: "b.txt")
+        let fileA = try createTestFile(in: temp, name: "a.txt", content: "A")
+        let fileB = try createTestFile(in: temp, name: "b.txt", content: "B")
         let duplicates = try await FileOperationQueue.shared.duplicate(items: [fileA, fileB])
-        XCTAssertEqual(duplicates.count, 2)
+        XCTAssertEqual(duplicates.map(\.lastPathComponent).sorted(), ["a copy.txt", "b copy.txt"])
+        XCTAssertEqual(try String(contentsOf: temp.appendingPathComponent("a copy.txt"), encoding: .utf8), "A")
+        XCTAssertEqual(try String(contentsOf: temp.appendingPathComponent("b copy.txt"), encoding: .utf8), "B")
     }
 }
 

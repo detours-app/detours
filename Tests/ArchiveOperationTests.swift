@@ -247,6 +247,42 @@ final class ArchiveOperationTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: extractedFile.path))
     }
 
+    func testExtractTarRejectsParentTraversalMember() async throws {
+        let temp = try createTempDirectory()
+        let escapedName = "detours-archive-escape-\(UUID().uuidString).txt"
+        let escaped = temp.deletingLastPathComponent().appendingPathComponent(escapedName)
+        defer {
+            cleanupTempDirectory(temp)
+            try? FileManager.default.removeItem(at: escaped)
+        }
+        try Data("sentinel".utf8).write(to: escaped)
+        let source = try createTestFolder(in: temp, name: "source")
+        _ = try createTestFile(in: source, name: "payload.txt", content: "escape")
+        let archive = temp.appendingPathComponent("malicious.tar.gz")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
+        process.arguments = [
+            "-czf", archive.path,
+            "-s", ",payload.txt,../\(escapedName),",
+            "-C", source.path,
+            "payload.txt",
+        ]
+        try process.run()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+
+        do {
+            _ = try await FileOperationQueue.shared.extract(archive: archive)
+            XCTFail("Expected parent-traversal member to be rejected")
+        } catch let error as FileOperationError {
+            guard case let .archiveProcessFailed(message) = error else {
+                return XCTFail("Expected archiveProcessFailed, got \(error)")
+            }
+            XCTAssertTrue(message.contains("unsafe path"))
+        }
+        XCTAssertEqual(try String(contentsOf: escaped, encoding: .utf8), "sentinel")
+    }
+
     func testExtractPasswordZipIsDisabled() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

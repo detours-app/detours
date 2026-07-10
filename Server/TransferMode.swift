@@ -27,6 +27,9 @@ private struct TransferHandshake {
         self.source = ServerRemotePath(bytes: try reader.readData())
         self.destination = ServerRemotePath(bytes: try reader.readData())
         self.byteCount = try reader.readInt64()
+        guard byteCount >= 0 else {
+            throw TransferModeError.invalidHandshake
+        }
         try reader.requireComplete()
     }
 }

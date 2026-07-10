@@ -109,13 +109,16 @@ extension FileOperationQueue {
     }
 
     func finishOperation() {
+        progressThrottleWorkItem?.cancel()
+        progressThrottleWorkItem = nil
+        if let pendingProgress {
+            deliverProgress(pendingProgress)
+        }
         lastFinishedOperation = currentOperation
         currentOperation = nil
         currentProcess = nil
         currentCancelFlag = nil
         lastReceivedProgress = nil
-        progressThrottleWorkItem?.cancel()
-        progressThrottleWorkItem = nil
         pendingProgress = nil
     }
 

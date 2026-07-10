@@ -20,10 +20,7 @@ extension FileOperationQueueTests {
         // Undo the delete
         undoManager.undo()
 
-        // Wait for async undo to complete
-        try await Task.sleep(nanoseconds: 500_000_000)
-
-        // File should be restored
+        // Undo handlers complete their filesystem mutation synchronously.
         XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
     }
 
@@ -45,9 +42,8 @@ extension FileOperationQueueTests {
 
         // Undo
         undoManager.undo()
-        try await Task.sleep(nanoseconds: 500_000_000)
 
-        // All files should be restored
+        // The complete selection is restored before undo() returns.
         XCTAssertTrue(FileManager.default.fileExists(atPath: file1.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: file2.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: file3.path))
@@ -69,9 +65,8 @@ extension FileOperationQueueTests {
 
         // Undo
         undoManager.undo()
-        try await Task.sleep(nanoseconds: 500_000_000)
 
-        // Original should exist, copy should be gone (trashed)
+        // The copied item is trashed before undo() returns.
         XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: copied[0].path))
     }
@@ -92,9 +87,8 @@ extension FileOperationQueueTests {
 
         // Undo
         undoManager.undo()
-        try await Task.sleep(nanoseconds: 500_000_000)
 
-        // File should be back at source
+        // The move is reversed before undo() returns.
         XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: moved[0].path))
     }
@@ -114,9 +108,8 @@ extension FileOperationQueueTests {
 
         // Undo
         undoManager.undo()
-        try await Task.sleep(nanoseconds: 500_000_000)
 
-        // Original should exist, duplicate should be gone
+        // The duplicate is trashed before undo() returns.
         XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: duplicates[0].path))
     }
@@ -132,9 +125,8 @@ extension FileOperationQueueTests {
 
         // Undo
         undoManager.undo()
-        try await Task.sleep(nanoseconds: 500_000_000)
 
-        // Folder should be gone
+        // The folder is trashed before undo() returns.
         XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
     }
 
@@ -153,9 +145,8 @@ extension FileOperationQueueTests {
 
         // Undo - should create "a 2.txt" instead
         undoManager.undo()
-        try await Task.sleep(nanoseconds: 500_000_000)
 
-        // Both files should exist
+        // Conflict resolution is complete before undo() returns.
         XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
         let conflictFile = temp.appendingPathComponent("a 2.txt")
         XCTAssertTrue(FileManager.default.fileExists(atPath: conflictFile.path))
@@ -178,13 +169,11 @@ extension FileOperationQueueTests {
 
         // First undo should restore B (LIFO)
         undoManager.undo()
-        try await Task.sleep(nanoseconds: 500_000_000)
         XCTAssertFalse(FileManager.default.fileExists(atPath: fileA.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: fileB.path))
 
         // Second undo should restore A
         undoManager.undo()
-        try await Task.sleep(nanoseconds: 500_000_000)
         XCTAssertTrue(FileManager.default.fileExists(atPath: fileA.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: fileB.path))
     }

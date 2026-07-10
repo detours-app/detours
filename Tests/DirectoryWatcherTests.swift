@@ -12,6 +12,14 @@ struct MultiDirectoryWatcherTests {
         return dir
     }
 
+    private func watchWhenReady(_ url: URL, with watcher: MultiDirectoryWatcher) async {
+        await withCheckedContinuation { continuation in
+            watcher.watch(url) {
+                continuation.resume()
+            }
+        }
+    }
+
     @Test("Detects file creation")
     func testDetectsFileCreation() async throws {
         let tempDir = try makeTempDir()
@@ -22,10 +30,7 @@ struct MultiDirectoryWatcherTests {
         let watcher = MultiDirectoryWatcher { _ in
             changeDetected = true
         }
-        watcher.watch(tempDir)
-
-        // Allow time for async fd open in SingleDirectoryWatcher
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await watchWhenReady(tempDir, with: watcher)
 
         let testFile = tempDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
@@ -52,9 +57,7 @@ struct MultiDirectoryWatcherTests {
         let watcher = MultiDirectoryWatcher { _ in
             changeDetected = true
         }
-        watcher.watch(tempDir)
-
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await watchWhenReady(tempDir, with: watcher)
 
         try FileManager.default.removeItem(at: testFile)
 
@@ -80,9 +83,7 @@ struct MultiDirectoryWatcherTests {
         let watcher = MultiDirectoryWatcher { _ in
             changeDetected = true
         }
-        watcher.watch(tempDir)
-
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await watchWhenReady(tempDir, with: watcher)
 
         let renamedFile = tempDir.appendingPathComponent("renamed.txt")
         try FileManager.default.moveItem(at: testFile, to: renamedFile)
@@ -108,10 +109,8 @@ struct MultiDirectoryWatcherTests {
         let watcher = MultiDirectoryWatcher { url in
             callbackURL = url
         }
-        watcher.watch(rootDir)
-        watcher.watch(subDir)
-
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await watchWhenReady(rootDir, with: watcher)
+        await watchWhenReady(subDir, with: watcher)
 
         let testFile = subDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
@@ -139,10 +138,8 @@ struct MultiDirectoryWatcherTests {
         let watcher = MultiDirectoryWatcher { url in
             callbackURLs.append(url)
         }
-        watcher.watch(dir1)
-        watcher.watch(dir2)
-
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await watchWhenReady(dir1, with: watcher)
+        await watchWhenReady(dir2, with: watcher)
 
         // Unwatch dir1
         watcher.unwatch(dir1)
@@ -185,10 +182,8 @@ struct MultiDirectoryWatcherTests {
         let watcher = MultiDirectoryWatcher { _ in
             callbackCount += 1
         }
-        watcher.watch(dir1)
-        watcher.watch(dir2)
-
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await watchWhenReady(dir1, with: watcher)
+        await watchWhenReady(dir2, with: watcher)
 
         watcher.unwatchAll()
 
@@ -214,14 +209,12 @@ struct MultiDirectoryWatcherTests {
         let watcher = MultiDirectoryWatcher { _ in
             callbackCount += 1
         }
-        watcher.watch(tempDir)
+        await watchWhenReady(tempDir, with: watcher)
         // Watch same URL again — should be idempotent (no duplicate watcher)
         watcher.watch(tempDir)
 
         // Verify the watcher only tracks one entry for this URL
         #expect(watcher.watchedURLs.count == 1)
-
-        try await Task.sleep(nanoseconds: 300_000_000)
 
         let testFile = tempDir.appendingPathComponent("test.txt")
         FileManager.default.createFile(atPath: testFile.path, contents: Data("hello".utf8))
@@ -249,10 +242,7 @@ struct MultiDirectoryWatcherTests {
         let watcher = MultiDirectoryWatcher { _ in
             changeDetected = true
         }
-        watcher.watch(tempDir)
-
-        // Wait for watcher + poller to initialize (poller takes initial snapshot)
-        try await Task.sleep(nanoseconds: 3_000_000_000)
+        await watchWhenReady(tempDir, with: watcher)
 
         // Modify existing file content — DispatchSource alone can't detect this
         try "hello world".write(to: testFile, atomically: true, encoding: .utf8)
@@ -280,10 +270,7 @@ struct MultiDirectoryWatcherTests {
         let watcher = MultiDirectoryWatcher { _ in
             changeDetected = true
         }
-        watcher.watch(tempDir)
-
-        // Wait for watcher + poller to initialize
-        try await Task.sleep(nanoseconds: 3_000_000_000)
+        await watchWhenReady(tempDir, with: watcher)
 
         // Append to file using FileHandle
         let handle = try FileHandle(forWritingTo: testFile)

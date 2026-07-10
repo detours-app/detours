@@ -451,6 +451,8 @@ extension FileOperationQueue {
     }
 
     private func extractTar(archive: URL, destination: URL) async throws {
+        try await validateTarMemberPaths(archive: archive)
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
         process.arguments = ["-xf", archive.path, "-C", destination.path]
@@ -462,6 +464,44 @@ extension FileOperationQueue {
         let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
         let mode: ArchiveProgressMode = archiveSize > 0 ? .pollFileSize(sourceSize: archiveSize * 3) : .none
         try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: false, progressMode: mode)
+    }
+
+    private func validateTarMemberPaths(archive: URL) async throws {
+        let process = Process()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
+        process.arguments = ["-tf", archive.path]
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        try process.run()
+        let outputTask = Task.detached {
+            outputPipe.fileHandleForReading.readDataToEndOfFile()
+        }
+        let errorTask = Task.detached {
+            errorPipe.fileHandleForReading.readDataToEndOfFile()
+        }
+        process.waitUntilExit()
+        let output = await outputTask.value
+        let error = await errorTask.value
+
+        guard process.terminationStatus == 0 else {
+            let message = String(data: error, encoding: .utf8) ?? "Could not inspect archive contents"
+            throw FileOperationError.archiveProcessFailed(message)
+        }
+        guard let listing = String(data: output, encoding: .utf8)
+                ?? String(data: output, encoding: .isoLatin1) else {
+            throw FileOperationError.archiveProcessFailed("Could not decode archive member paths")
+        }
+
+        for member in listing.components(separatedBy: .newlines) where !member.isEmpty {
+            let normalized = member.replacingOccurrences(of: "\\", with: "/")
+            let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
+            if normalized.hasPrefix("/") || components.contains("..") {
+                throw FileOperationError.archiveProcessFailed("Archive contains an unsafe path: \(member)")
+            }
+        }
     }
 
     private func runExtractProcess(

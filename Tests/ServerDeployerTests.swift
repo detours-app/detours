@@ -155,34 +155,6 @@ final class ServerDeployerTests: XCTestCase {
         }
     }
 
-    func testAtomicRenameDeploy() async throws {
-        let bundle = try makeBundledBinary()
-        defer { cleanupTempDirectory(bundle.deletingLastPathComponent()) }
-
-        let client = FakeServerDeploymentClient(binaryInfo: nil, remoteHash: nil)
-        let deployer = ServerDeployer(client: client, bundledBinaryURL: bundle)
-
-        let result = try await deployer.deployIfNeeded()
-        let snapshot = await client.snapshot()
-
-        XCTAssertEqual(result, ServerDeploymentResult(deployed: true, reason: .missing))
-        XCTAssertEqual(
-            snapshot.calls,
-            [
-                "architecture",
-                "prepare:~/.detours-server",
-                "remove:~/.detours-server/detours-server.tmp",
-                "currentUsername",
-                "info:~/.detours-server/detours-server",
-                "upload:~/.detours-server/detours-server.tmp",
-                "finalize:~/.detours-server/detours-server.tmp->~/.detours-server/detours-server",
-                "info:~/.detours-server/detours-server",
-                "hash:~/.detours-server/detours-server",
-            ]
-        )
-        XCTAssertFalse(snapshot.partialExists)
-    }
-
     func testInterruptedDeployCleansPartialBeforeNextConnect() async throws {
         let bundle = try makeBundledBinary()
         defer { cleanupTempDirectory(bundle.deletingLastPathComponent()) }

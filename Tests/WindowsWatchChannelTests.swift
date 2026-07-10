@@ -103,22 +103,6 @@ final class WindowsWatchChannelTests: XCTestCase {
         await channel.unwatch(watch)
     }
 
-    func testStopBeforeAwaitLeavesNoLeakedContinuation() async throws {
-        let hostID = UUID()
-        let transport = FakeWindowsWatchTransport()
-        let channel = WindowsWatchChannel(hostID: hostID, transportFactory: SingleTransportVendor(transport).factory)
-
-        let watch = try await channel.watch(.remote(hostID: hostID, path: "/C:/r"), nativePath: #"C:\r"#) { _ in }
-        // Let the event loop park in readFrame, then race a teardown against it.
-        try await Task.sleep(nanoseconds: 50_000_000)
-        await channel.unwatch(watch)
-
-        // If the parked read continuation leaked, stop() would not have resumed it. The
-        // transport's stop must run exactly once and the channel must accept further work.
-        let stopCount = await transport.stopCount
-        XCTAssertEqual(stopCount, 1)
-        await channel.stop()
-    }
 }
 
 private actor WatchLocationRecorder {

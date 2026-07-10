@@ -31,7 +31,10 @@ final class RemoteHomeDirectoryProbeTests: XCTestCase {
                 stderr: Data()
             )
         ) { error in
-            XCTAssertTrue(String(describing: error).contains("home directory"))
+            XCTAssertEqual(
+                error as? RemoteFileProviderError,
+                .invalidResponse("wraith home directory")
+            )
         }
     }
 
@@ -45,7 +48,10 @@ final class RemoteHomeDirectoryProbeTests: XCTestCase {
                 stderr: Data("permission denied\n".utf8)
             )
         ) { error in
-            XCTAssertTrue(String(describing: error).contains("permission denied"))
+            XCTAssertEqual(
+                error as? RemoteFileProviderError,
+                .invalidResponse("permission denied")
+            )
         }
     }
 }

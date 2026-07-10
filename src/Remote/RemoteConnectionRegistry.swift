@@ -42,9 +42,13 @@ actor RemoteConnectionRegistry {
         onDisconnect: (@Sendable () async -> Void)? = nil,
         for hostID: UUID
     ) async {
-        connections[hostID] = RegisteredConnection(
+        let replacement = connections.updateValue(RegisteredConnection(
             connection: connection, rpcClient: rpcClient, onDisconnect: onDisconnect
-        )
+        ), forKey: hostID)
+        if let replacement {
+            await replacement.connection.disconnect()
+            await replacement.onDisconnect?()
+        }
         await connection.setActivePaneCount(activePaneCounts[hostID] ?? 0)
     }
 

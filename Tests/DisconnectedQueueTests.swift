@@ -113,6 +113,45 @@ final class DisconnectedQueueTests: XCTestCase {
         XCTAssertEqual(completedCopyCalls, 1)
     }
 
+    func testCompletedMutationIsNotRetriedAfterAmbiguousDisconnect() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "source.txt", content: "mutation")
+        let completedResult = temp.appendingPathComponent("completed.txt")
+        let hostID = UUID()
+        let provider = DisconnectedQueueProvider(
+            hostID: hostID,
+            completesFirstTrashThenDrops: true
+        ) {
+            try? FileManager.default.moveItem(at: source, to: completedResult)
+            await MainActor.run {
+                Self.postState(.failed(reason: .transport("reply lost after mutation")), for: hostID)
+            }
+        }
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(provider, for: hostID, displayName: "devtest")
+        let item = Location.remote(hostID: hostID, path: "/home/marco/project/a.txt")
+        let operation = Task { @MainActor in
+            try await queue.delete(items: [item])
+        }
+
+        await waitUntil {
+            queue.operationPauseMessage == "Paused — waiting for devtest"
+        }
+        postState(.connected, for: hostID)
+
+        do {
+            try await operation.value
+            XCTFail("An operation with an ambiguous completion must report the lost reply")
+        } catch let error as FileProviderError {
+            XCTAssertEqual(error, .unsupportedOperation("connection dropped after mutation"))
+        }
+        let trashCallCount = await provider.trashCallCount()
+        XCTAssertEqual(trashCallCount, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertEqual(try String(contentsOf: completedResult, encoding: .utf8), "mutation")
+    }
+
     func testFailedHostWithoutActiveOperationDoesNotPause() async throws {
         // Reproduces the spurious "Paused — waiting for <host>" status: a saved remote
         // host that fails to connect at launch warmup must not paint a pause when no
@@ -158,19 +197,23 @@ final class DisconnectedQueueTests: XCTestCase {
 private actor DisconnectedQueueProvider: FileProvider {
     private let hostID: UUID
     private let dropsFirstOperation: Bool
+    private let completesFirstTrashThenDrops: Bool
     private let onFirstDrop: (@Sendable () async -> Void)?
     private var files: [Location: Data]
     private var directories: Set<Location>
     private var copyCalls = 0
     private var completedCopyCalls = 0
+    private var trashCalls = 0
 
     init(
         hostID: UUID,
         dropsFirstOperation: Bool = false,
+        completesFirstTrashThenDrops: Bool = false,
         onFirstDrop: (@Sendable () async -> Void)? = nil
     ) {
         self.hostID = hostID
         self.dropsFirstOperation = dropsFirstOperation
+        self.completesFirstTrashThenDrops = completesFirstTrashThenDrops
         self.onFirstDrop = onFirstDrop
         self.files = [
             .remote(hostID: hostID, path: "/home/marco/project/a.txt"): Data("remote-body".utf8)
@@ -187,6 +230,10 @@ private actor DisconnectedQueueProvider: FileProvider {
 
     func completedCopyCallCount() -> Int {
         completedCopyCalls
+    }
+
+    func trashCallCount() -> Int {
+        trashCalls
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
@@ -234,6 +281,11 @@ private actor DisconnectedQueueProvider: FileProvider {
     }
 
     func trash(_ items: [Location]) async throws -> [TrashedItem] {
+        trashCalls += 1
+        if completesFirstTrashThenDrops, trashCalls == 1 {
+            await onFirstDrop?()
+            throw FileProviderError.unsupportedOperation("connection dropped after mutation")
+        }
         return items.map { item in
             TrashedItem(
                 originalLocation: item,

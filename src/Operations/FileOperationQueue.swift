@@ -149,7 +149,7 @@ final class FileOperationQueue {
             // Built outside the closure: a reconnect retry re-invokes the closure, and the state is
             // what tells the retry which items already reached the host.
             let resume = RemoteCopyResumeState(items: items)
-            return try await enqueue(remoteHosts: hostIDs) {
+            return try await enqueue(remoteHosts: hostIDs, retryAfterInterruption: true) {
                 if self.isSingleRemoteHostOperation(items: items, destination: destination) {
                     return try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager, resume: resume)
                 }
@@ -258,6 +258,7 @@ final class FileOperationQueue {
                 guard case .remote(let hostID, _) = item else {
                     throw FileProviderError.unsupportedOperation("Mixed rename is not implemented yet")
                 }
+                try self.validateRemoteRenameName(newName)
                 let provider = try self.remoteProvider(for: hostID)
                 // The local path refuses a name that is already taken. Do the same here rather than
                 // letting the server's bare move surface as a raw error.
@@ -277,6 +278,16 @@ final class FileOperationQueue {
         return try await enqueue {
             let renamed = try await self.performRename(item: itemURL, to: newName)
             return .local(renamed)
+        }
+    }
+
+    private func validateRemoteRenameName(_ name: String) throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed != ".",
+              trimmed != "..",
+              name.rangeOfCharacter(from: CharacterSet(charactersIn: ":/\0")) == nil else {
+            throw FileProviderError.unsupportedOperation("Name contains invalid characters.")
         }
     }
 

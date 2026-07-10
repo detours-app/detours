@@ -190,7 +190,7 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
         return true
     }
 
-    private func pathItemIndex(at point: NSPoint) -> Int? {
+    func pathItemIndex(at point: NSPoint) -> Int? {
         let rects = calculateItemRects()
         for (index, rect) in rects.enumerated() {
             if rect.contains(point) {
@@ -200,7 +200,7 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
         return nil
     }
 
-    private func calculateItemRects() -> [NSRect] {
+    func calculateItemRects() -> [NSRect] {
         var rects: [NSRect] = []
         let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
         let separatorWidth: CGFloat = 12  // " › " separator

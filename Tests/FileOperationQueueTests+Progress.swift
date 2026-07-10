@@ -31,45 +31,42 @@ extension FileOperationQueueTests {
     func testProgressThrottle16Hz() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
-
-        // Create enough files to generate many progress callbacks
-        let source = try createTestFolder(in: temp, name: "Source")
-        for i in 0..<50 {
-            try createTestFile(in: source, name: "file\(i).txt", content: "data \(i)")
-        }
-        let dest = try createTestFolder(in: temp, name: "Dest")
-
-        var progressCallCount = 0
-        var timestamps: [CFAbsoluteTime] = []
+        let source = try createTestFile(in: temp, name: "source.txt")
+        let destination = try createTestFolder(in: temp, name: "Destination")
         let queue = FileOperationQueue.shared
-
+        queue.finishOperation()
+        let operation = FileOperation.copy(
+            sources: [source],
+            destination: destination
+        )
+        let delivery = expectation(description: "coalesced progress delivered")
+        delivery.assertForOverFulfill = true
+        var samples: [FileOperationProgress] = []
         let savedCallback = queue.onProgressUpdate
-        queue.onProgressUpdate = { _ in
-            progressCallCount += 1
-            timestamps.append(CFAbsoluteTimeGetCurrent())
+        queue.onProgressUpdate = { progress in
+            samples.append(progress)
+            delivery.fulfill()
         }
-        defer { queue.onProgressUpdate = savedCallback }
-
-        // Copy all files from source
-        let files = try FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)
-        try await queue.copy(items: files, to: dest)
-
-        // Should have received progress updates but not one per file (throttled)
-        XCTAssertGreaterThan(progressCallCount, 0, "Should receive at least one progress update")
-
-        // Verify throttle: consecutive timestamps should be >= ~50ms apart (allowing some tolerance)
-        if timestamps.count >= 3 {
-            var shortIntervals = 0
-            for i in 1..<timestamps.count {
-                let interval = timestamps[i] - timestamps[i - 1]
-                if interval < 0.030 { // 30ms — well below the 60ms throttle
-                    shortIntervals += 1
-                }
-            }
-            // Most intervals should respect the throttle (allow some tolerance for first/last)
-            let throttledRatio = Double(timestamps.count - 1 - shortIntervals) / Double(timestamps.count - 1)
-            XCTAssertGreaterThan(throttledRatio, 0.5, "Most progress intervals should respect 60ms throttle")
+        defer {
+            queue.finishOperation()
+            queue.onProgressUpdate = savedCallback
         }
+
+        let startedAt = CFAbsoluteTimeGetCurrent()
+        queue.lastProgressTime = startedAt
+        for completed in 1...10 {
+            queue.updateProgress(
+                operation: operation,
+                currentItem: nil,
+                completed: completed,
+                total: 10
+            )
+        }
+
+        await fulfillment(of: [delivery], timeout: 1)
+        XCTAssertEqual(samples.count, 1)
+        XCTAssertEqual(samples[0].completedCount, 10)
+        XCTAssertGreaterThanOrEqual(CFAbsoluteTimeGetCurrent() - startedAt, 0.050)
     }
 
     func testCancellationWithAsyncProcess() async throws {
@@ -281,19 +278,24 @@ extension FileOperationQueueTests {
 
         let queue = FileOperationQueue.shared
         let collector = ProgressCollector()
+        let finalProgress = expectation(description: "final byte progress delivered")
+        var sawFinalProgress = false
         let savedProgress = queue.onProgressUpdate
         queue.onProgressUpdate = { progress in
             savedProgress?(progress)
             collector.record(progress.bytesCompleted)
+            if !sawFinalProgress, progress.bytesTotal > 0, progress.bytesCompleted == progress.bytesTotal {
+                sawFinalProgress = true
+                finalProgress.fulfill()
+            }
         }
         defer { queue.onProgressUpdate = savedProgress }
 
         try await queue.copy(items: [sourceDir], to: dest)
-
-        // Drain async dispatches from copyfile callback
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await fulfillment(of: [finalProgress], timeout: 1)
 
         let values = collector.values
+        XCTAssertGreaterThan(values.count, 1, "The copy should publish byte progress before completion")
         // Progress must never go backward through the full path
         for i in 1..<values.count {
             XCTAssertGreaterThanOrEqual(values[i], values[i - 1],

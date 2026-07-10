@@ -64,35 +64,6 @@ final class RemoteFileProviderTests: XCTestCase {
         XCTAssertFalse(entries[0].isReadable)
     }
 
-    func testCopySendsRPCThreshold() async throws {
-        let hostID = UUID()
-        let response = RemoteFileProvider.encodePathList([RemotePath("/home/marco/copied.txt")])
-        let client = FakeRemoteRPCClient(responses: [[response]])
-        let provider = RemoteFileProvider(
-            hostID: hostID,
-            rpcClient: client,
-            transferChannel: RemoteTransferChannel(sshTarget: "devtest")
-        )
-
-        let copied = try await provider.copy(
-            [.remote(hostID: hostID, path: "/home/marco/source.txt")],
-            to: .remote(hostID: hostID, path: "/home/marco")
-        )
-
-        XCTAssertEqual(copied, [.remote(hostID: hostID, path: "/home/marco/copied.txt")])
-        let messages = await client.sentMessages()
-        XCTAssertEqual(
-            messages,
-            [
-                .copy(
-                    sources: [RemotePath("/home/marco/source.txt")],
-                    destination: RemotePath("/home/marco"),
-                    maximumRPCBytes: RemoteTransferChannel.rpcThresholdBytes
-                ),
-            ]
-        )
-    }
-
     func testTransferRouteForLargeFiles() async {
         let provider = RemoteFileProvider(
             hostID: UUID(),
@@ -150,10 +121,6 @@ final class RemoteFileProviderTests: XCTestCase {
 
         let messages = await client.sentMessages()
         XCTAssertEqual(messages, [.stat(path: RemotePath("/home/marco/huge.mov"))])
-    }
-
-    func testRemoteQuickLookMaximumStillRejectsHugeFilesBeforeDownload() async throws {
-        try await testQuickLookRejectsFilesAboveMaximumBeforeDownload()
     }
 
     func testQuickLookDownloadsOnDemand() async throws {

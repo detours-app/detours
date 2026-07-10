@@ -15,10 +15,7 @@ final class UndoUITests: BaseUITest {
 
         // Delete with Cmd-Delete
         pressKey(.delete, modifiers: .command)
-        usleep(1_500_000) // Wait for delete to complete
-
-        // Verify file is gone
-        XCTAssertFalse(rowExists(named: "file1.txt"), "file1.txt should be deleted")
+        XCTAssertTrue(fileRow.waitForNonExistence(timeout: 5), "file1.txt should be deleted")
 
         // Undo with Cmd-Z
         pressCharKey("z", modifiers: .command)

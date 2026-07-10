@@ -20,12 +20,24 @@
   error alert.
 - **Icon memory stays bounded** - Browsing large directory trees no longer
   accumulates icons for the lifetime of the app.
+- **Interrupted remote mutations are not replayed** - When a connection drops
+  after a remote rename, move, delete, or folder creation may have completed,
+  Detours now waits for reconnection and reports the lost response instead of
+  running the mutation a second time.
+- **Replaced remote connections shut down cleanly** - Registering a new live
+  connection for a host now closes the displaced connection and its watchers.
 
 ### Security
 
 - **Archive passwords are never exposed on Windows hosts** - Password-protected
   archives are declined on Windows remote hosts, matching every other backend,
   so a password can no longer appear in the host's process list.
+- **Archive extraction stays inside its destination** - TAR archives containing
+  absolute or parent-traversal paths are rejected before extraction begins.
+- **Remote renames accept basenames only** - Remote rename requests containing
+  path separators or traversal components are rejected before reaching a host.
+- **Invalid uploads preserve existing files** - Negative transfer lengths are
+  rejected during the handshake, before an existing destination is moved.
 
 ## 1.10.0 - 2026-07-07
 

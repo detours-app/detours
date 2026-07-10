@@ -200,11 +200,19 @@ extension FileOperationQueue {
         try await enqueue(remoteHosts: [], work)
     }
 
-    func enqueue<T: Sendable>(remoteHosts hostIDs: Set<UUID>, _ work: @escaping () async throws -> T) async throws -> T {
+    func enqueue<T: Sendable>(
+        remoteHosts hostIDs: Set<UUID>,
+        retryAfterInterruption: Bool = false,
+        _ work: @escaping () async throws -> T
+    ) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
             enqueue(remoteHosts: hostIDs) {
                 do {
-                    let result = try await self.performQueuedRemoteAwareWork(hostIDs: hostIDs, work)
+                    let result = try await self.performQueuedRemoteAwareWork(
+                        hostIDs: hostIDs,
+                        retryAfterInterruption: retryAfterInterruption,
+                        work
+                    )
                     self.onOperationFinish?(self.lastFinishedOperation, nil)
                     continuation.resume(returning: result)
                 } catch {
@@ -239,6 +247,7 @@ extension FileOperationQueue {
 
     private func performQueuedRemoteAwareWork<T: Sendable>(
         hostIDs: Set<UUID>,
+        retryAfterInterruption: Bool,
         _ work: @escaping () async throws -> T
     ) async throws -> T {
         guard !hostIDs.isEmpty else {
@@ -260,7 +269,9 @@ extension FileOperationQueue {
                 let interruptedHosts = currentRemoteOperationInterruptedHosts.intersection(hostIDs)
                 if !interruptedHosts.isEmpty || !pausedRemoteHosts.isDisjoint(with: hostIDs) {
                     try await waitForRemoteHosts(hostIDs)
-                    continue
+                    if retryAfterInterruption {
+                        continue
+                    }
                 }
                 throw error
             }

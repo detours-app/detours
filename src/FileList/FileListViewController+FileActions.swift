@@ -134,10 +134,18 @@ extension FileListViewController {
         // Make Delete button destructive (red)
         alert.buttons[0].hasDestructiveAction = true
 
-        let response = alert.runModal()
-        guard response == .alertFirstButtonReturn else { return }
+        Self.performPermanentDeleteIfConfirmed(response: alert.runModal(), locations: locations) { locations in
+            performDeleteImmediately(locations: locations)
+        }
+    }
 
-        performDeleteImmediately(locations: locations)
+    static func performPermanentDeleteIfConfirmed(
+        response: NSApplication.ModalResponse,
+        locations: [Location],
+        delete: ([Location]) -> Void
+    ) {
+        guard response == .alertFirstButtonReturn else { return }
+        delete(locations)
     }
 
     nonisolated static func requiresPermanentDeleteWarning(

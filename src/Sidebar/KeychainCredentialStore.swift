@@ -43,9 +43,16 @@ enum KeychainError: LocalizedError {
 final class KeychainCredentialStore {
     static let shared = KeychainCredentialStore()
 
-    private let service = "com.detours.network"
+    private let service: String
+    private let accessControlFlags: SecAccessControlCreateFlags
 
-    private init() {}
+    init(
+        service: String = "com.detours.network",
+        accessControlFlags: SecAccessControlCreateFlags = .userPresence
+    ) {
+        self.service = service
+        self.accessControlFlags = accessControlFlags
+    }
 
     // MARK: - Save
 
@@ -58,33 +65,35 @@ final class KeychainCredentialStore {
         // Delete any existing credential first
         try? delete(server: server)
 
-        // Create access control requiring user presence (Touch ID / password)
-        var accessError: Unmanaged<CFError>?
-        guard let accessControl = SecAccessControlCreateWithFlags(
-            kCFAllocatorDefault,
-            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            .userPresence,
-            &accessError
-        ) else {
-            if let error = accessError?.takeRetainedValue() {
-                logger.error("Failed to create access control: \(error.localizedDescription)")
-            }
-            throw KeychainError.saveFailed(errSecParam)
-        }
-
         // Encode credentials as JSON
         let credentials = ["username": username, "password": password]
         guard let data = try? JSONEncoder().encode(credentials) else {
             throw KeychainError.saveFailed(errSecParam)
         }
 
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: server,
             kSecValueData as String: data,
-            kSecAttrAccessControl as String: accessControl,
         ]
+        if accessControlFlags.isEmpty {
+            query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        } else {
+            var accessError: Unmanaged<CFError>?
+            guard let accessControl = SecAccessControlCreateWithFlags(
+                kCFAllocatorDefault,
+                kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+                accessControlFlags,
+                &accessError
+            ) else {
+                if let error = accessError?.takeRetainedValue() {
+                    logger.error("Failed to create access control: \(error.localizedDescription)")
+                }
+                throw KeychainError.saveFailed(errSecParam)
+            }
+            query[kSecAttrAccessControl as String] = accessControl
+        }
 
         let status = SecItemAdd(query as CFDictionary, nil)
         if status != errSecSuccess {

@@ -4,6 +4,35 @@ import XCTest
 /// Verifies that quitting tears down remote connections so SSH control masters (and the
 /// remote watcher processes multiplexed over them) do not linger after the app exits.
 final class RemoteConnectionTeardownTests: XCTestCase {
+    func testRegisterReplacementDisconnectsOldConnectionOnly() async throws {
+        let oldTransport = RecordingTeardownTransport()
+        let newTransport = RecordingTeardownTransport()
+        let registry = RemoteConnectionRegistry()
+        let hostID = UUID()
+        await registry.register(PowerShellChannel(transport: oldTransport, hostID: nil), for: hostID)
+
+        await registry.register(PowerShellChannel(transport: newTransport, hostID: nil), for: hostID)
+
+        let oldStoppedAfterReplacement = await oldTransport.didStop
+        let oldClosedAfterReplacement = await oldTransport.didCloseControlConnection
+        let newStoppedAfterReplacement = await newTransport.didStop
+        let newClosedAfterReplacement = await newTransport.didCloseControlConnection
+        XCTAssertTrue(oldStoppedAfterReplacement)
+        XCTAssertTrue(oldClosedAfterReplacement)
+        XCTAssertFalse(newStoppedAfterReplacement)
+        XCTAssertFalse(newClosedAfterReplacement)
+
+        await oldTransport.reset()
+        await registry.disconnectAll()
+
+        let oldClosedDuringFinalTeardown = await oldTransport.didCloseControlConnection
+        let newStoppedDuringFinalTeardown = await newTransport.didStop
+        let newClosedDuringFinalTeardown = await newTransport.didCloseControlConnection
+        XCTAssertFalse(oldClosedDuringFinalTeardown)
+        XCTAssertTrue(newStoppedDuringFinalTeardown)
+        XCTAssertTrue(newClosedDuringFinalTeardown)
+    }
+
     func testDisconnectAllClosesWindowsControlConnection() async throws {
         let transport = RecordingTeardownTransport()
         let channel = PowerShellChannel(transport: transport, hostID: nil)
