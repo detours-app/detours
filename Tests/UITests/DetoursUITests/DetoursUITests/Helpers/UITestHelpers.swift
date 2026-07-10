@@ -42,6 +42,15 @@ extension XCUIApplication {
 }
 
 extension XCUIElement {
+    /// Find an outline row containing the given static text, scoped to this outline view.
+    ///
+    /// Prefer this over `XCUIApplication.outlineRow(containing:)` whenever the name can also appear
+    /// in the sidebar: the app-wide query matches the sidebar's favorite row first, and a sidebar
+    /// row is fully covered by its own cell, so XCTest can find no free point to click.
+    func outlineRow(containing text: String) -> XCUIElement {
+        outlineRows.containing(.staticText, identifier: text).firstMatch
+    }
+
     /// Get the disclosure triangle for this row (if it's an outline row)
     var disclosureTriangle: XCUIElement {
         disclosureTriangles.firstMatch

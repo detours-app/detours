@@ -167,7 +167,7 @@ extension FolderExpansionUITests {
         let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
         homeButton.click()
         sleep(1)
-        let testFolderRow = app.outlineRow(containing: testFolderName)
+        let testFolderRow = app.leftPaneOutlineView.outlineRow(containing: testFolderName)
         XCTAssertTrue(testFolderRow.waitForExistence(timeout: 2), "Test folder should exist")
         testFolderRow.doubleClick()
         sleep(1)
@@ -218,7 +218,7 @@ extension FolderExpansionUITests {
         homeButtonRight.click()
         sleep(1)
 
-        let testFolderRight = app.outlineRow(containing: testFolderName)
+        let testFolderRight = rightOutline.outlineRow(containing: testFolderName)
         XCTAssertTrue(testFolderRight.waitForExistence(timeout: 2), "Test folder should exist in right pane")
         testFolderRight.doubleClick()
         sleep(1)
