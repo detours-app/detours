@@ -32,7 +32,7 @@ run_with_timeout() {
         if kill -0 "$command_pid" 2>/dev/null; then
             kill -TERM "$command_pid" 2>/dev/null || true
         fi
-    ) &
+    ) >/dev/null 2>&1 &
     local timer_pid="$!"
 
     wait "$command_pid"

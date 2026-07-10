@@ -1735,3 +1735,14 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `resources/scripts/wintest.sh WindowsRemoteLiveTests/testUnwatchCancelsIdleReadAndNextWatchAcceptsWork`
   FAIL: no tests ran because the runner required GNU `timeout`, which is not
   installed on Foundry. The runner is being made portable before retrying.
+
+- 2026-07-10 14:13 CEST: Foundry
+  `resources/scripts/wintest.sh WindowsRemoteLiveTests/testUnwatchCancelsIdleReadAndNextWatchAcceptsWork`
+  FAIL: XCTest skipped the test because `win-carriercall` was unreachable, then
+  the portable runner's sleeping watchdog kept the output pipe open until the
+  run was interrupted. No Windows behavior was verified.
+
+- 2026-07-10 14:14 CEST: Foundry
+  `resources/scripts/uitest.sh UndoUITests/testUndoDelete`
+  PASS: 1 test, 0 failures. Covers deletion disappearance through an XCTest
+  wait and successful undo restoration without a fixed delete sleep.
