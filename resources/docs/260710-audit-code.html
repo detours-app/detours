@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detours - Code Audit 2026-07-10</title>
+<style>
+:root {
+  --bg: #ffffff; --panel: #f6f7f9; --border: #d8dbe0; --text: #1b1e23; --muted: #646b76;
+  --code-bg: #eceef1; --crit: #c1121f; --imp: #b45309; --min: #4b6bfb;
+  --fixed: #15803d; --wontfix: #6b7280; --accent: #1b1e23;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --panel: #1c1f25; --border: #2e333b; --text: #e6e8eb; --muted: #98a0ac;
+    --code-bg: #23272e; --crit: #f4737c; --imp: #e0a355; --min: #8aa2ff;
+    --fixed: #4ade80; --wontfix: #8b939f; --accent: #e6e8eb;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+}
+code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.87em; }
+.tnum { font-variant-numeric: tabular-nums; }
+.layout { display: grid; grid-template-columns: 264px 1fr; min-height: 100vh; }
+aside {
+  border-right: 1px solid var(--border); background: var(--panel);
+  padding: 20px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+main { padding: 28px 32px 80px; max-width: 940px; }
+h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: -0.01em; }
+.sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+.grade {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; border-radius: 10px; font-size: 22px; font-weight: 650;
+  background: var(--imp); color: #fff; margin-right: 14px; flex: none;
+}
+.posture { display: flex; align-items: center; gap: 0; margin: 0 0 24px; }
+.posture p { margin: 0; font-size: 14px; }
+details {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 18px; margin-bottom: 26px;
+}
+summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+details p { font-size: 14px; }
+details p:last-child { margin-bottom: 0; }
+.bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--border); margin-bottom: 8px; }
+.bar span { display: block; height: 100%; }
+.bar .b-fixed { background: var(--fixed); }
+.bar .b-progress { background: var(--imp); }
+.bar .b-wontfix { background: var(--wontfix); }
+.progress-label { font-size: 12px; color: var(--muted); margin-bottom: 22px; }
+aside h3 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); margin: 20px 0 8px; font-weight: 600;
+}
+aside h3:first-of-type { margin-top: 0; }
+.filter {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; user-select: none;
+}
+.filter:hover { background: var(--border); }
+.filter.on { background: var(--accent); color: var(--bg); }
+.filter .n { color: var(--muted); font-size: 12px; }
+.filter.on .n { color: var(--bg); opacity: 0.7; }
+#search {
+  width: 100%; padding: 7px 10px; border-radius: 7px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: 13px; margin-bottom: 4px;
+}
+#reset {
+  width: 100%; margin-top: 14px; padding: 6px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg); color: var(--muted); font-size: 12px;
+}
+#reset:hover { color: var(--text); }
+.card {
+  border: 1px solid var(--border); border-left: 3px solid var(--min);
+  border-radius: 10px; padding: 15px 18px; margin-bottom: 12px; background: var(--panel);
+}
+.card[data-sev="Critical"] { border-left-color: var(--crit); }
+.card[data-sev="Important"] { border-left-color: var(--imp); }
+.card[data-status="fixed"] { opacity: 0.55; }
+.card[data-status="fixed"] .desc { text-decoration: line-through; }
+.card[data-status="wontfix"] { opacity: 0.6; }
+.meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 9px; }
+.badge {
+  font-size: 10.5px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 5px; color: #fff;
+}
+.badge.Critical { background: var(--crit); }
+.badge.Important { background: var(--imp); }
+.badge.Minor { background: var(--min); }
+.cat { font-size: 11px; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--border); color: var(--muted); }
+.conf { margin-left: auto; font-size: 12px; color: var(--muted); }
+.desc { margin: 0 0 10px; font-size: 14px; }
+.loc {
+  display: inline-block; background: var(--code-bg); border-radius: 5px;
+  padding: 3px 8px; margin-bottom: 8px;
+}
+.cite {
+  border: 1px solid var(--border); border-radius: 7px; padding: 9px 12px;
+  font-size: 12.5px; color: var(--muted); margin: 8px 0 0;
+}
+.cite code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; }
+.pill {
+  display: inline-block; margin-top: 10px; font-size: 11px; font-weight: 600;
+  padding: 2px 9px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted);
+}
+.pill[data-s="fixed"] { color: var(--fixed); border-color: var(--fixed); }
+.pill[data-s="progress"] { color: var(--imp); border-color: var(--imp); }
+.empty { color: var(--muted); padding: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <h3>Search</h3>
+  <input id="search" placeholder="description, file, category">
+  <h3>Status</h3><div id="f-status"></div>
+  <h3>Severity</h3><div id="f-sev"></div>
+  <h3>Category</h3><div id="f-cat"></div>
+  <h3>Top files</h3><div id="f-file"></div>
+  <button id="reset">Clear filters</button>
+</aside>
+<main>
+  <h1>Detours - Code Audit</h1>
+  <div class="sub">2026-07-10 &middot; 310 Swift source files &middot; 5 review agents, 34 raw findings, 13 cleared the confidence threshold of 80</div>
+
+  <div class="posture">
+    <div class="grade" id="grade">C</div>
+    <p id="grade-why">Two Critical findings and a cluster of six Important ones, concentrated almost entirely in the file operation queue and the archive/transfer paths. The rest of the codebase is clean.</p>
+  </div>
+
+  <div class="bar" id="bar"></div>
+  <div class="progress-label" id="progress-label"></div>
+
+  <details open>
+    <summary>Summary</summary>
+    <p>The audit found two problems that can cost a user their data or their session. A cut-and-paste into the folder a file already lives in is treated as a name collision with itself; choosing "Replace" moves the original to the Trash and then fails, leaving the folder empty of the file the user was trying to keep. Separately, the remote helper daemon can be wedged indefinitely by an archive tool that writes enough diagnostic output, because the helper waits for the tool to finish before it ever reads what the tool is saying, and the tool cannot finish until someone reads it. Every later request on that connection stalls behind it.</p>
+    <p>Six further findings are real but bounded. An interrupted copy to a remote host restarts from the beginning on reconnect and duplicates everything it had already transferred under numbered names. Git status badges silently fail to appear for any file whose name contains a non-ASCII character, because the local parser never learned the escaping that the remote parser already handles. Archive passwords on Windows hosts are still passed on the command line where any other local account can read them, even though the same exposure was closed on the macOS and Linux paths. A password dialog is shown for encrypted archives that the app then unconditionally refuses to open.</p>
+    <p>The five Minor findings are unreachable guard clauses, a no-op branch, an unbounded icon cache, and a missing pre-check that turns a rename collision on a remote host into a raw error alert instead of the polite refusal the local path gives. Twenty-one further candidate findings were verified and discarded as false positives or nitpicks; four more landed at confidence 75, just under the threshold, and are not reported here.</p>
+  </details>
+
+  <div id="list"></div>
+</main>
+</div>
+<script>
+const FINDINGS = [
+  { sev:"Critical", cat:"Logic", conf:90, status:"open",
+    file:"src/Operations/FileOperationQueue+FastLane.swift", line:118,
+    desc:"performFastMove has no isSameFilesystemPath check, unlike performFastCopy directly above it. Cut a file, then paste it into the folder it already lives in: the destination is treated as a name conflict against the source itself, and choosing Replace trashes the source before the moveItem that then fails because the source no longer exists. ClipboardManager.paste does no same-folder pre-filtering; the drag-and-drop path does. Fix: add the isSameFilesystemPath(source, initialDestination) short-circuit that performFastCopy already uses.",
+    cite:"CLAUDE.md: \"All file deletion MUST go to Trash via <code>FileManager.trashItem</code>\" &mdash; the file does reach the Trash, but as the outcome of an operation the user asked to complete, not delete." },
+
+  { sev:"Critical", cat:"Bugs", conf:85, status:"open",
+    file:"Server/ArchiveOperations.swift", line:376,
+    desc:"runProcess assigns standardError to a Pipe, calls waitUntilExit(), and only then calls readDataToEndOfFile(). An archive tool that writes more than the 64KB pipe buffer to stderr blocks on write() and never exits, so waitUntilExit() never returns. RPCHandler.run() is a single synchronous loop with no per-request threading and no timeout here, so one wedged extract stalls every subsequent request on that connection forever. Fix: drain errorPipe concurrently while the process runs, or add a bounded wait with forced termination as GitOperations already does.",
+    cite:null },
+
+  { sev:"Important", cat:"Bugs", conf:90, status:"open",
+    file:"src/Operations/FileOperationQueue+Coordination.swift", line:257,
+    desc:"performQueuedRemoteAwareWork retries an interrupted operation by re-invoking the whole work closure, which closes over the original unfiltered items array. performRemoteCopy therefore re-sends every source, and the server's copyDestination appends a numbered suffix rather than skipping when a destination already exists. A remote copy interrupted midway and resumed on reconnect duplicates each already-transferred file under a \" 2\" name. Fix: track which sources completed before the interruption and retry only the remainder.",
+    cite:null },
+
+  { sev:"Important", cat:"Bugs", conf:90, status:"open",
+    file:"Server/GitOperations.swift", line:60,
+    desc:"runGit polls process.isRunning in a sleep loop and reads outputPipe only after that loop returns. A repository whose `git status --porcelain -uall` output exceeds the pipe buffer makes git block on write, the 5s timeout fires, and the request is reported as timed out even though git was working correctly. Fix: drain outputPipe incrementally inside the polling loop.",
+    cite:null },
+
+  { sev:"Important", cat:"Architecture", conf:97, status:"open",
+    file:"src/Services/GitStatusProvider.swift", line:116,
+    desc:"Both the local and remote git-status parsers run `git status --porcelain -uall` with neither `-z` nor `core.quotePath=false`, so git emits C-style octal escaping for non-ASCII names. Server/GitOperations.unquoteCQuoted decodes it; GitStatusProvider.parseGitStatus only strips the surrounding quote characters, then builds a URL from the literal escaped text. Git status badges silently never appear for a file named café.txt, or any name with a quote or backslash. Fix: decode C-quoted paths in parseGitStatus using the same logic the server already implements.",
+    cite:null },
+
+  { sev:"Important", cat:"Security", conf:85, status:"open",
+    file:"src/Remote/Windows/WindowsArchiveScripts.swift", line:66,
+    desc:"Archive passwords are appended to 7z.exe's argument array as -p$($Arguments.password), for both create and extract. Any other local account or administrator on the Windows host can read the password from the process command line while the operation runs. The same exposure was already identified and closed on the macOS and Linux paths, which reject non-empty passwords outright; the Windows path was left carrying the real password end-to-end. Fix: reject non-empty passwords on the Windows path as the other backends do.",
+    cite:"resources/docs/SECURITY_REVIEW.md records the fix as \"archive passwords are disabled instead of exposed in argv\" &mdash; true of the local and server paths, not of this one." },
+
+  { sev:"Important", cat:"Logic", conf:80, status:"open",
+    file:"src/Operations/FileOperationQueue+Extraction.swift", line:6,
+    desc:"performExtract throws archivePasswordUnsupported for any non-empty password before it dispatches on format. promptForArchivePassword is not gated on that, so a user who opens an encrypted archive gets a password dialog, types a password, and is always told password-protected archives are disabled. The dialog can never succeed. Fix: either drop the prompt and report the unsupported-feature error immediately, or implement password support.",
+    cite:null },
+
+  { sev:"Important", cat:"Logic", conf:90, status:"open",
+    file:"src/Operations/FileOperationQueue+Operations.swift", line:187,
+    desc:"performMove lacks the isSameFilesystemPath short-circuit that performCopy has at line 49 of the same file. This is the heavy-lane twin of the FastLane defect: reached through the same unfiltered ClipboardManager.paste call once the transfer is large enough, with the same trash-then-fail sequence. Fix: add the isSameFilesystemPath short-circuit performCopy uses.",
+    cite:null },
+
+  { sev:"Minor", cat:"Bugs", conf:85, status:"open",
+    file:"src/Operations/RenameController.swift", line:222,
+    desc:"commitRename checks FileManager.fileExists on the destination only inside the .local branch. A remote rename onto an existing name reaches the server's bare moveItem, throws, and surfaces as a raw error alert instead of the beep-and-refuse the local path gives for the identical conflict. Fix: pre-check the destination for the remote case, or catch the file-exists error and beep.",
+    cite:null },
+
+  { sev:"Minor", cat:"Bugs", conf:85, status:"open",
+    file:"src/FileList/IconLoader.swift", line:10,
+    desc:"The icon cache is a plain [URL: NSImage] dictionary inside an actor, not an NSCache. Entries are removed only by explicit invalidate calls, so every distinct file path browsed retains its NSImage for the lifetime of the app, with no eviction under memory pressure. Fix: use NSCache<NSURL, NSImage> with a count or cost limit.",
+    cite:null },
+
+  { sev:"Minor", cat:"Logic", conf:90, status:"open",
+    file:"src/Operations/FileOperationQueue+Extraction.swift", line:170,
+    desc:"extractZipWithUnzip and extractSevenZip each carry their own password guard that throws on a non-empty password. performExtract already threw for that case before either function is called, so neither guard can fire, and neither function ever passes a password to unzip or 7z even hypothetically. Fix: delete the unreachable branches, or wire real password support through them.",
+    cite:null },
+
+  { sev:"Minor", cat:"Logic", conf:80, status:"open",
+    file:"src/Operations/FileOperationQueue+Archive.swift", line:157,
+    desc:"runZip's password guard is unreachable: performArchive, its only caller, rejects any non-empty password first, and ArchiveFormat.supportsPassword is hardcoded false for every format. Fix: delete the guard, or comment it as deliberate defence against a future direct caller.",
+    cite:null },
+
+  { sev:"Minor", cat:"Logic", conf:80, status:"open",
+    file:"src/FileList/FileListDataSource.swift", line:25,
+    desc:"markStale's else branch calls cache.removeValue(forKey:) in exactly the case where the enclosing condition has established cache[url] is nil. The class is @MainActor-isolated, so there is no concurrency window that would make the removal meaningful. Fix: delete the else branch.",
+    cite:null }
+];
+
+const $ = s => document.querySelector(s);
+const state = { status: new Set(), sev: new Set(), cat: new Set(), file: new Set(), q: "" };
+const STATUS_LABEL = { open: "Open", progress: "In progress", fixed: "Fixed", wontfix: "Won't fix" };
+
+function counts(key, vals) {
+  const m = new Map();
+  FINDINGS.forEach(f => { const v = key === "status" ? (f.status || "open") : f[key]; m.set(v, (m.get(v) || 0) + 1); });
+  return vals ? vals.filter(v => m.has(v)).map(v => [v, m.get(v)]) : [...m.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function renderFilters() {
+  const build = (host, key, entries, label) => {
+    host.innerHTML = "";
+    entries.forEach(([v, n]) => {
+      const d = document.createElement("div");
+      d.className = "filter" + (state[key].has(v) ? " on" : "");
+      d.innerHTML = `<span>${label ? label(v) : v}</span><span class="n tnum">${n}</span>`;
+      d.onclick = () => { state[key].has(v) ? state[key].delete(v) : state[key].add(v); render(); };
+      host.appendChild(d);
+    });
+  };
+  build($("#f-status"), "status", counts("status", ["open", "progress", "fixed", "wontfix"]), v => STATUS_LABEL[v]);
+  build($("#f-sev"), "sev", counts("sev", ["Critical", "Important", "Minor"]));
+  build($("#f-cat"), "cat", counts("cat"));
+  build($("#f-file"), "file", counts("file").slice(0, 6), v => v.split("/").pop());
+}
+
+function match(f) {
+  const st = f.status || "open";
+  if (state.status.size && !state.status.has(st)) return false;
+  if (state.sev.size && !state.sev.has(f.sev)) return false;
+  if (state.cat.size && !state.cat.has(f.cat)) return false;
+  if (state.file.size && !state.file.has(f.file)) return false;
+  if (state.q) {
+    const hay = (f.desc + " " + f.file + " " + f.cat + " " + (f.cite || "")).toLowerCase();
+    if (!hay.includes(state.q)) return false;
+  }
+  return true;
+}
+
+const ORDER = { Critical: 0, Important: 1, Minor: 2 };
+
+function render() {
+  renderFilters();
+  const list = $("#list");
+  const shown = FINDINGS.filter(match).sort((a, b) => ORDER[a.sev] - ORDER[b.sev] || b.conf - a.conf);
+  list.innerHTML = "";
+  if (!shown.length) { list.innerHTML = '<div class="empty">No findings match these filters.</div>'; }
+  shown.forEach(f => {
+    const st = f.status || "open";
+    const c = document.createElement("div");
+    c.className = "card"; c.dataset.sev = f.sev; c.dataset.status = st;
+    c.innerHTML =
+      `<div class="meta"><span class="badge ${f.sev}">${f.sev}</span>` +
+      `<span class="cat">${f.cat}</span><span class="conf tnum">confidence ${f.conf}</span></div>` +
+      `<p class="desc">${f.desc}</p>` +
+      `<div class="loc mono">${f.file}${f.line ? ":" + f.line : ""}</div>` +
+      (f.cite ? `<div class="cite">${f.cite}</div>` : "") +
+      `<div><span class="pill" data-s="${st}">${STATUS_LABEL[st]}</span></div>`;
+    list.appendChild(c);
+  });
+
+  const tally = { fixed: 0, progress: 0, wontfix: 0, open: 0 };
+  FINDINGS.forEach(f => tally[f.status || "open"]++);
+  const t = FINDINGS.length;
+  $("#bar").innerHTML =
+    `<span class="b-fixed" style="width:${tally.fixed / t * 100}%"></span>` +
+    `<span class="b-progress" style="width:${tally.progress / t * 100}%"></span>` +
+    `<span class="b-wontfix" style="width:${tally.wontfix / t * 100}%"></span>`;
+  $("#progress-label").textContent =
+    `${tally.fixed} fixed, ${tally.progress} in progress, ${tally.wontfix} won't fix, ${tally.open} open of ${t}`;
+}
+
+$("#search").oninput = e => { state.q = e.target.value.trim().toLowerCase(); render(); };
+$("#reset").onclick = () => {
+  ["status", "sev", "cat", "file"].forEach(k => state[k].clear());
+  state.q = ""; $("#search").value = ""; render();
+};
+render();
+</script>
+</body>
+</html>
