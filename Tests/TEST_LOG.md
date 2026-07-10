@@ -1725,3 +1725,13 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `swift test --filter 'RemoteTrashUndoTests|RemoteFileProviderTests|ServerDeployerTests|WindowsWatchChannelTests'`
   PASS: 22 tests, 0 failures. Covers retained unit behavior after fake-only
   remote/deployment/watch tests moved to real integration fixtures.
+
+- 2026-07-10 14:11 CEST: Foundry `swift test --filter RemoteIntegrationTests`
+  PASS: 30 tests, 0 failures. Covers real helper RPC copy, local/remote queue
+  transfers, real trash/undo and rename, atomic SSH deployment, and concurrent
+  persistent request routing with a multi-chunk response.
+
+- 2026-07-10 14:12 CEST: Foundry
+  `resources/scripts/wintest.sh WindowsRemoteLiveTests/testUnwatchCancelsIdleReadAndNextWatchAcceptsWork`
+  FAIL: no tests ran because the runner required GNU `timeout`, which is not
+  installed on Foundry. The runner is being made portable before retrying.
