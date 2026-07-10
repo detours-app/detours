@@ -1655,3 +1655,21 @@ Spotlight search has no unit test (depends on the live, async-built system index
 - 2026-07-10 12:13 CEST: Spectre `swift test --filter IconLoadLifecycleTests`
   PASS: 3 tests, 0 failures. Covers icon load lifecycle on the NSCache backing
   store.
+
+- 2026-07-10 12:19 CEST: Foundry `resources/scripts/uitest.sh` (full XCUI suite)
+  86 tests, 1 skipped, 4 failures. 82 passed, including SmokeTests app launch,
+  UndoUITests, PasteSelectionUITests, and WindowPaneGeometryUITests. Run at
+  bb177c2 (code audit fixes).
+
+- 2026-07-10 12:47 CEST: Foundry `uitest.sh ChromePolishUITests/testSidebarMountedVolumesExposeEject`
+  PASS: 1 test, 0 failures. Failed in the suite run only because the fixture
+  volumes were not mounted; passes after `screenshot-setup.sh` stages them.
+
+- 2026-07-10 12:48 CEST: Foundry `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 uitest.sh ChromePolishScreenshotTests/testCaptureChromePolishScreenshots`
+  PASS: 1 test, 0 failures. Same cause as above: needs staged screenshot
+  fixtures and the `--screenshot-fixtures` build.
+
+| Test | Status | Time | Date |
+| ---- | ------ | ---- | ---- |
+| FolderExpansionUITests/testBothPanesIndependentExpansion (XCTest cannot double-click the outline row: "No unoccluded regions for OutlineRow", the row's label covers the row's own frame; reproduced identically at parent commit c1aceae, so not caused by the code audit fixes; needs a fix to the row's hit region) | FAIL | 23.5s | 2026-07-10 |
+| FolderExpansionUITests/testTabsHaveIndependentExpansion (same root cause, reproduced identically at c1aceae, as the row above) | FAIL | 19.9s | 2026-07-10 |
