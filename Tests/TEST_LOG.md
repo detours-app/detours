@@ -1746,3 +1746,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `resources/scripts/uitest.sh UndoUITests/testUndoDelete`
   PASS: 1 test, 0 failures. Covers deletion disappearance through an XCTest
   wait and successful undo restoration without a fixed delete sleep.
+
+- 2026-07-10 14:15 CEST: Foundry
+  `resources/scripts/wintest.sh WindowsRemoteLiveTests/testUnwatchCancelsIdleReadAndNextWatchAcceptsWork`
+  FAIL: the portable runner exited cleanly, but XCTest again skipped the test
+  because SSH to `win-carriercall` (`10.250.55.49:22`) timed out. The real
+  Windows cancellation behavior remains unverified.
