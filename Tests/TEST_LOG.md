@@ -1752,3 +1752,8 @@ Spotlight search has no unit test (depends on the live, async-built system index
   FAIL: the portable runner exited cleanly, but XCTest again skipped the test
   because SSH to `win-carriercall` (`10.250.55.49:22`) timed out. The real
   Windows cancellation behavior remains unverified.
+
+- 2026-07-10 16:20 CEST: Foundry
+  `resources/scripts/wintest.sh WindowsRemoteLiveTests/testUnwatchCancelsIdleReadAndNextWatchAcceptsWork`
+  PASS: 1 test, 0 failures. Covers cancellation of an idle Windows watch read
+  and successful event delivery through a replacement watch on the real host.

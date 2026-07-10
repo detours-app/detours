@@ -207,7 +207,7 @@
   <header>
     <h1>Detours Test Audit</h1>
     <div class="meta">Generated 2026-07-10. Frameworks: Swift Package Manager, XCTest, Swift Testing, and XCUITest. Mutation tooling: not detected; no mutation run performed. Inventory: 121 Swift test files, 93 XCTest classes, 869 test methods, and 191 production Swift files.</div>
-      text: "Twenty-seven findings are fixed; one Medium real-Windows verification remains in progress because the configured host is unreachable."
+    <div class="posture"><span id="grade" class="grade A">A</span><span id="postureText">All 28 findings are fixed and verified across focused unit, real SSH, real Windows, and XCUITest coverage.</span></div>
   </header>
   <div class="layout">
     <aside>
@@ -227,7 +227,7 @@
         <summary>Plain-language summary</summary>
         <p>All Critical and High findings are fixed. Destructive confirmation, archive traversal, Keychain storage, remote retry behavior, transfer validation, malformed RPC recovery, and real SSH deployment and file operations now have focused coverage.</p>
         <p>Theater and timing findings were closed by exercising production geometry, replacing conditional or shape-only assertions, synchronizing watcher/progress/UI behavior, and making launched-helper timeouts fail. Fake-only remote tests were moved to real SSH integration fixtures.</p>
-        <p>Twenty-seven findings are fixed. The real Windows idle-watch replacement test is implemented but remains in progress because SSH to win-carriercall times out from both Spectre and Foundry.</p>
+        <p>All 28 findings are fixed. The final Windows idle-watch replacement test passed against win-carriercall after the host became available.</p>
       </details>
       <div class="stats">
         <div class="stat"><strong id="openCount">0</strong>Open</div>
@@ -273,14 +273,14 @@
       { sev: "Medium", cat: "Smell", type: "Smelly", verdict: "Tighten", conf: 97, status: "fixed", file: "Tests/FileOperationQueueTests+Undo.swift", line: 24, production: "src/Operations/FileOperationQueue+FastLane.swift", productionLine: 255, desc: "The local undo test sleeps 500 ms before checking a production closure that restores synchronously on this path. Resolution: implemented and verified with focused unit, integration, or UI coverage.", suggestion: "Remove the sleep and assert the synchronous restoration contract immediately after undo." },
       { sev: "Medium", cat: "Smell", type: "Smelly", verdict: "Tighten", conf: 95, status: "fixed", file: "Tests/RemoteHomeDirectoryProbeTests.swift", line: 34, production: "src/Windows/MainSplitViewController.swift", productionLine: 66, desc: "Home-directory parser tests stringify typed errors, so a different error with the same text satisfies the assertion. Resolution: implemented and verified with focused unit, integration, or UI coverage.", suggestion: "Assert the concrete Equatable error case and its associated detail." },
       { sev: "Medium", cat: "Convention", type: "Convention", verdict: "Rewrite", conf: 98, status: "fixed", file: "Tests/RemoteFileProviderTests.swift", line: 67, production: "src/Services/FileProvider/RemoteFileProvider.swift", productionLine: 387, desc: "The RPC copy test supplies the encoded result it expects and inspects messages captured by a fake client. Resolution: implemented and verified with focused unit, integration, or UI coverage.", suggestion: "Exercise the copy request through the real helper protocol and a remote temporary directory.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"" },
-      { sev: "Medium", cat: "Isolation", type: "Over-mocked", verdict: "Rewrite", conf: 93, status: "progress", file: "Tests/WindowsWatchChannelTests.swift", line: 106, production: "src/Remote/Windows/WindowsWatchChannel.swift", productionLine: 117, desc: "The leaked-continuation test parks and resumes a continuation implemented by the fake transport, then asserts only the fake's stop count. Resolution pending: the real Windows fixture test is implemented, but win-carriercall is unreachable from Foundry.", suggestion: "Exercise cancellation through a real channel transport and assert the read terminates and the channel accepts subsequent work.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"" },
+      { sev: "Medium", cat: "Isolation", type: "Over-mocked", verdict: "Rewrite", conf: 93, status: "fixed", file: "Tests/WindowsWatchChannelTests.swift", line: 106, production: "src/Remote/Windows/WindowsWatchChannel.swift", productionLine: 117, desc: "The leaked-continuation test parks and resumes a continuation implemented by the fake transport, then asserts only the fake's stop count. Resolution: replaced with a real Windows fixture test that verifies idle-read cancellation and event delivery through a replacement watch.", suggestion: "Exercise cancellation through a real channel transport and assert the read terminates and the channel accepts subsequent work.", cite: "CLAUDE.md: \"No mocks - use real filesystem with temp directories\"" },
       { sev: "Medium", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "I", conf: 95, status: "fixed", file: "Tests/SSHHostTrustTests.swift", line: 6, production: "src/Remote/SSHHostTrust.swift", productionLine: 61, desc: "Host-trust tests assert that known_hosts exists but not that preparation removes group and world access. Resolution: implemented and verified with focused unit, integration, or UI coverage.", suggestion: "Create permissive directory and file modes, prepare known_hosts, and assert directory 0700 and file 0600." },
       { sev: "Medium", cat: "Coverage", type: "Missing", verdict: "Add-coverage", zombies: "M", conf: 86, status: "fixed", file: "Tests/RemoteConnectionTeardownTests.swift", line: 7, production: "src/Remote/RemoteConnectionRegistry.swift", productionLine: 45, desc: "Registering a second connection for the same host is untested even though it overwrites the first live handle without disconnecting it. Resolution: implemented and verified with focused unit, integration, or UI coverage.", suggestion: "Register two handles under one host ID and assert the replaced handle is disconnected during replacement and the current handle during teardown." }
     ];
 
     const POSTURE = {
-      grade: "B",
-      text: "Twenty-seven findings are fixed; one Medium real-Windows verification remains in progress because the configured host is unreachable."
+      grade: "A",
+      text: "All 28 findings are fixed and verified across focused unit, real SSH, real Windows, and XCUITest coverage."
     };
     const state = { status: new Set(), severity: new Set(), category: new Set(), file: new Set(), query: "", showDeferred: false };
     const $ = id => document.getElementById(id);
