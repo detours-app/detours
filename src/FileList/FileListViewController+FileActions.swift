@@ -233,17 +233,18 @@ extension FileListViewController {
         controller.present(from: window)
     }
 
-    func extractSelectedArchive(password: String? = nil) {
+    func extractSelectedArchive() {
         let locations = selectedLocations
         guard locations.count == 1, let archiveLocation = locations.first else { return }
         guard Self.isExtractableArchiveLocation(archiveLocation) else { return }
 
         Task { @MainActor in
             do {
-                let extractedLocation = try await FileOperationQueue.shared.extract(archive: archiveLocation, password: password)
+                let extractedLocation = try await FileOperationQueue.shared.extract(archive: archiveLocation, password: nil)
                 self.reloadCurrentListing(selecting: extractedLocation)
             } catch FileOperationError.archivePasswordRequired {
-                self.promptForArchivePassword(archive: URL(fileURLWithPath: archiveLocation.path))
+                // No backend accepts a password, so asking the user for one would only lead to a refusal.
+                FileOperationQueue.shared.presentError(FileOperationError.archivePasswordUnsupported)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -270,30 +271,6 @@ extension FileListViewController {
         case .remote:
             return true
         }
-    }
-
-    private func promptForArchivePassword(archive: URL) {
-        guard let window = view.window else { return }
-
-        let alert = NSAlert()
-        alert.messageText = "Password Required"
-        alert.informativeText = "\"\(archive.lastPathComponent)\" is password-protected."
-        alert.addButton(withTitle: "Extract")
-        alert.addButton(withTitle: "Cancel")
-
-        let passwordField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        passwordField.placeholderString = "Password"
-        alert.accessoryView = passwordField
-
-        alert.beginSheetModal(for: window) { [weak self] response in
-            guard response == .alertFirstButtonReturn else { return }
-            let enteredPassword = passwordField.stringValue
-            guard !enteredPassword.isEmpty else { return }
-            self?.extractSelectedArchive(password: enteredPassword)
-        }
-
-        // Focus the password field after sheet appears
-        alert.window.initialFirstResponder = passwordField
     }
 
     func createNewFolder() {

@@ -185,21 +185,28 @@ extension FileOperationQueue {
                 let destinationReserved = isReserved(initialDestination)
 
                 if destinationExists {
-                    let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
-                    if resolution.applyToAll {
-                        conflictChoice = resolution.choice
-                    }
-
-                    switch resolution.choice {
-                    case .skip:
+                    if isSameFilesystemPath(source, initialDestination) {
+                        // Moving an item into the folder it already occupies is a no-op, not a
+                        // conflict with itself. Resolving it would trash the source.
                         skipped = true
                         destinationURL = initialDestination
-                    case .replace:
-                        // Replacing must not permanently destroy the existing file: move it to the Trash.
-                        try await runFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
-                        destinationURL = initialDestination
-                    case .keepBoth:
-                        destinationURL = uniqueCopyDestination(for: source, in: targetDir)
+                    } else {
+                        let resolution = await resolveConflict(source: source, destination: initialDestination, cachedChoice: conflictChoice)
+                        if resolution.applyToAll {
+                            conflictChoice = resolution.choice
+                        }
+
+                        switch resolution.choice {
+                        case .skip:
+                            skipped = true
+                            destinationURL = initialDestination
+                        case .replace:
+                            // Replacing must not permanently destroy the existing file: move it to the Trash.
+                            try await runFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
+                            destinationURL = initialDestination
+                        case .keepBoth:
+                            destinationURL = uniqueCopyDestination(for: source, in: targetDir)
+                        }
                     }
                 } else if destinationReserved {
                     destinationURL = uniqueCopyDestination(for: source, in: targetDir)

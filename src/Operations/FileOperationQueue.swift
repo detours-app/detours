@@ -146,9 +146,12 @@ final class FileOperationQueue {
 
         guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
             let hostIDs = remoteHostIDs(from: items, destination: destination)
+            // Built outside the closure: a reconnect retry re-invokes the closure, and the state is
+            // what tells the retry which items already reached the host.
+            let resume = RemoteCopyResumeState(items: items)
             return try await enqueue(remoteHosts: hostIDs) {
                 if self.isSingleRemoteHostOperation(items: items, destination: destination) {
-                    return try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager)
+                    return try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager, resume: resume)
                 }
                 return try await self.performProviderTransfer(items: items, to: destination, isMove: false, undoManager: undoManager)
             }
@@ -256,6 +259,12 @@ final class FileOperationQueue {
                     throw FileProviderError.unsupportedOperation("Mixed rename is not implemented yet")
                 }
                 let provider = try self.remoteProvider(for: hostID)
+                // The local path refuses a name that is already taken. Do the same here rather than
+                // letting the server's bare move surface as a raw error.
+                let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
+                if (try? await provider.stat(destination)) != nil {
+                    throw FileOperationError.destinationExists(URL(fileURLWithPath: destination.path))
+                }
                 return try await provider.rename(item, to: newName)
             }
         }

@@ -216,16 +216,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return (0, "Main window content view is missing")
         }
 
-        let windowFrame = window.frame.insetBy(dx: -1, dy: -1)
-        var frames: [UITestTextFrame] = []
-        var seenFrames = Set<String>()
-        collectUITestTextFrames(
-            in: contentView,
-            window: window,
-            windowFrame: windowFrame,
-            seenFrames: &seenFrames,
-            frames: &frames
-        )
+        var scan = UITestTextFrameScan(window: window, windowFrame: window.frame.insetBy(dx: -1, dy: -1))
+        collectUITestTextFrames(in: contentView, scan: &scan)
+        let frames = scan.frames
 
         guard frames.count > 8 else {
             return (frames.count, "Expected visible chrome text, found only \(frames.count) text frames")
@@ -278,62 +271,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func collectUITestTextFrames(
-        in view: NSView,
-        window: NSWindow,
-        windowFrame: NSRect,
-        seenFrames: inout Set<String>,
-        frames: inout [UITestTextFrame]
-    ) {
+    private struct UITestTextFrameScan {
+        let window: NSWindow
+        let windowFrame: NSRect
+        var seenFrames = Set<String>()
+        var frames: [UITestTextFrame] = []
+    }
+
+    private func collectUITestTextFrames(in view: NSView, scan: inout UITestTextFrameScan) {
         guard !view.isHidden, view.alphaValue > 0.01, view.window != nil else { return }
 
         if let textField = view as? NSTextField {
-            collectUITestTextFrame(
-                label: textField.stringValue,
-                from: textField,
-                window: window,
-                windowFrame: windowFrame,
-                seenFrames: &seenFrames,
-                frames: &frames
-            )
+            collectUITestTextFrame(label: textField.stringValue, from: textField, scan: &scan)
         }
 
         if let pathControl = view as? NSPathControl {
             collectUITestTextFrame(
                 label: pathControl.pathItems.map(\.title).joined(separator: " / "),
                 from: pathControl,
-                window: window,
-                windowFrame: windowFrame,
-                seenFrames: &seenFrames,
-                frames: &frames
+                scan: &scan
             )
         }
 
         for subview in view.subviews {
-            collectUITestTextFrames(
-                in: subview,
-                window: window,
-                windowFrame: windowFrame,
-                seenFrames: &seenFrames,
-                frames: &frames
-            )
+            collectUITestTextFrames(in: subview, scan: &scan)
         }
     }
 
-    private func collectUITestTextFrame(
-        label rawLabel: String,
-        from view: NSView,
-        window: NSWindow,
-        windowFrame: NSRect,
-        seenFrames: inout Set<String>,
-        frames: inout [UITestTextFrame]
-    ) {
+    private func collectUITestTextFrame(label rawLabel: String, from view: NSView, scan: inout UITestTextFrameScan) {
         let label = rawLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let frame = window.convertToScreen(view.convert(view.bounds, to: nil))
+        let frame = scan.window.convertToScreen(view.convert(view.bounds, to: nil))
         guard !label.isEmpty,
               frame.width > 0.5,
               frame.height > 0.5,
-              windowFrame.intersects(frame) else {
+              scan.windowFrame.intersects(frame) else {
             return
         }
 
@@ -344,9 +315,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             String(Int(frame.width.rounded())),
             String(Int(frame.height.rounded()))
         ].joined(separator: "|")
-        guard seenFrames.insert(key).inserted else { return }
+        guard scan.seenFrames.insert(key).inserted else { return }
 
-        frames.append(UITestTextFrame(label: label, frame: frame))
+        scan.frames.append(UITestTextFrame(label: label, frame: frame))
     }
 
     private func firstUITestTextOverlap(in frames: [UITestTextFrame]) -> (UITestTextFrame, UITestTextFrame)? {

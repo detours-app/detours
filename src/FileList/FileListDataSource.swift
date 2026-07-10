@@ -23,11 +23,9 @@ final class FolderSizeCache {
     /// stays visible until a fresh recalculation replaces it, avoiding the
     /// "—" placeholder blink during background activity.
     func markStale(url: URL) {
+        // Nothing cached yet means there is nothing to keep visible, so there is nothing to mark.
         if cache[url] != nil {
             stale.insert(url)
-        } else {
-            // Nothing cached yet — nothing to keep visible.
-            cache.removeValue(forKey: url)
         }
     }
 

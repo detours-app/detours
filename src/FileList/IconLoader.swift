@@ -7,7 +7,13 @@ private let logger = Logger(subsystem: "com.detours", category: "iconloader")
 actor IconLoader {
     static let shared = IconLoader()
 
-    private var cache: [URL: NSImage] = [:]
+    /// NSCache, not a Dictionary: browsing large trees would otherwise retain an NSImage per
+    /// distinct path for the lifetime of the app, with eviction only on explicit invalidation.
+    private let cache: NSCache<NSURL, NSImage> = {
+        let cache = NSCache<NSURL, NSImage>()
+        cache.countLimit = 4096
+        return cache
+    }()
 
     private let operationQueue: OperationQueue = {
         let queue = OperationQueue()
@@ -26,7 +32,7 @@ actor IconLoader {
     }()
 
     func icon(for url: URL, isDirectory: Bool, isPackage: Bool, isNetworkVolume: Bool = false) async -> NSImage {
-        if let cached = cache[url] {
+        if let cached = cache.object(forKey: url as NSURL) {
             return cached
         }
 
@@ -38,7 +44,7 @@ actor IconLoader {
             image = await loadIcon(for: url)
         }
 
-        cache[url] = image
+        cache.setObject(image, forKey: url as NSURL)
         return image
     }
 
@@ -67,10 +73,10 @@ actor IconLoader {
     }
 
     func invalidate(_ url: URL) {
-        cache.removeValue(forKey: url)
+        cache.removeObject(forKey: url as NSURL)
     }
 
     func invalidateAll() {
-        cache.removeAll()
+        cache.removeAllObjects()
     }
 }

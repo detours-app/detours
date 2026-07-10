@@ -374,9 +374,11 @@ struct ArchiveOperations {
         process.standardError = errorPipe
 
         try process.run()
+
+        let drain = PipeDrain.start(reading: errorPipe.fileHandleForReading)
         process.waitUntilExit()
 
-        let data = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        let data = drain.wait()
         let stderr = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? ""
         return ServerProcessResult(status: process.terminationStatus, stderr: stderr)
     }

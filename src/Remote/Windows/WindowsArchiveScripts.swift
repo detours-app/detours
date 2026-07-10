@@ -60,29 +60,21 @@ enum WindowsArchiveScripts {
 
         switch ($format) {
             'zip' {
+                Assert-NoPassword -Password $Arguments.password
                 $tool = Resolve-ArchiveTool @('7z.exe', '7z')
                 $arguments = @('a', '-tzip', $archivePath)
                 $arguments += $items
-                if (-not [string]::IsNullOrEmpty($Arguments.password)) {
-                    $arguments += "-p$($Arguments.password)"
-                    $arguments += '-mem=AES256'
-                }
                 Invoke-ArchiveTool -FilePath $tool -Arguments $arguments -WorkingDirectory $null
             }
             'sevenZ' {
+                Assert-NoPassword -Password $Arguments.password
                 $tool = Resolve-ArchiveTool @('7z.exe', '7z')
                 $arguments = @('a', '-t7z', $archivePath)
                 $arguments += $items
-                if (-not [string]::IsNullOrEmpty($Arguments.password)) {
-                    $arguments += "-p$($Arguments.password)"
-                    $arguments += '-mhe=on'
-                }
                 Invoke-ArchiveTool -FilePath $tool -Arguments $arguments -WorkingDirectory $null
             }
             default {
-                if (-not [string]::IsNullOrEmpty($Arguments.password)) {
-                    throw "Password-protected TAR archives are not supported."
-                }
+                Assert-NoPassword -Password $Arguments.password
                 $tool = Resolve-ArchiveTool @('tar.exe', 'tar')
                 $flag = Get-TarCompressionFlag -Format $format
                 $leafNames = foreach ($path in $items) { (Get-Item -LiteralPath $path -Force).Name }
@@ -143,18 +135,14 @@ enum WindowsArchiveScripts {
         try {
             switch ($format) {
                 { $_ -in 'zip', 'sevenZ' } {
+                    Assert-NoPassword -Password $Arguments.password
                     $tool = Resolve-ArchiveTool @('7z.exe', '7z')
                     $arguments = @('x', '-y', "-o$tempDirectory")
-                    if (-not [string]::IsNullOrEmpty($Arguments.password)) {
-                        $arguments += "-p$($Arguments.password)"
-                    }
                     $arguments += $archivePath
                     Invoke-ArchiveTool -FilePath $tool -Arguments $arguments -WorkingDirectory $null
                 }
                 default {
-                    if (-not [string]::IsNullOrEmpty($Arguments.password)) {
-                        throw "Password-protected TAR archives are not supported."
-                    }
+                    Assert-NoPassword -Password $Arguments.password
                     $tool = Resolve-ArchiveTool @('tar.exe', 'tar')
                     $flag = Get-TarCompressionFlag -Format $format
                     Invoke-ArchiveTool -FilePath $tool -Arguments @("-x$($flag)f", $archivePath, '-C', $tempDirectory) -WorkingDirectory $null
@@ -169,6 +157,14 @@ enum WindowsArchiveScripts {
     )
 
     static let commonHelpers = #"""
+    function Assert-NoPassword($Password) {
+        # 7z takes its password as -pSECRET on the command line, where every other local account on
+        # this host can read it. Detours does not support archive passwords on any backend.
+        if (-not [string]::IsNullOrEmpty($Password)) {
+            throw "Password-protected archives are not supported."
+        }
+    }
+
     function Get-ArchiveParent($Items) {
         $itemsArray = @($Items)
         if ($itemsArray.Count -eq 0) { throw "No items selected for archive." }

@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- **Pasting into the same folder no longer risks the file** - Cutting a file and
+  pasting it back into the folder it already lives in is now a no-op instead of
+  a conflict with itself that could move the original to the Trash.
+- **Remote hosts no longer stall on archive work** - The remote helper reads a
+  running tool's output as it is produced, so a talkative archive or git command
+  can no longer wedge the connection or report a false timeout.
+- **Interrupted remote copies resume** - A copy interrupted by a dropped
+  connection now continues with the items that never arrived, instead of
+  restarting and duplicating the files it had already transferred.
+- **Git status shows for every filename** - Files with accented, non-Latin, or
+  quoted characters in their names now display their git status badge.
+- **Remote rename declines a taken name quietly** - Renaming a remote file to a
+  name already in use now refuses the same way local renames do, without an
+  error alert.
+- **Icon memory stays bounded** - Browsing large directory trees no longer
+  accumulates icons for the lifetime of the app.
+
+### Security
+
+- **Archive passwords are never exposed on Windows hosts** - Password-protected
+  archives are declined on Windows remote hosts, matching every other backend,
+  so a password can no longer appear in the host's process list.
+
 ## 1.10.0 - 2026-07-07
 
 ### Chrome Polish

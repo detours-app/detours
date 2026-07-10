@@ -279,6 +279,9 @@ final class RenameController: NSObject, NSTextFieldDelegate {
                 }
 
                 delegate?.renameController(self, didRename: item, to: newURL)
+            } catch FileOperationError.destinationExists {
+                // Matches the local path's refusal: a taken name is not worth an alert.
+                NSSound.beep()
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }

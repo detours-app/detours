@@ -58,6 +58,8 @@ struct GitOperations {
         process.standardError = FileHandle.nullDevice
 
         try process.run()
+
+        let drain = PipeDrain.start(reading: outputPipe.fileHandleForReading)
         guard waitUntilExit(process, timeout: gitCommandTimeout) else {
             throw ServerRPCError.unsupportedCommand("git \(arguments.joined(separator: " ")) timed out")
         }
@@ -66,7 +68,7 @@ struct GitOperations {
             throw ServerRPCError.unsupportedCommand("git \(arguments.joined(separator: " "))")
         }
 
-        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let data = drain.wait()
         return String(data: data, encoding: .utf8) ?? ""
     }
 
@@ -103,7 +105,7 @@ struct GitOperations {
     /// Decodes git's C-style quoting (octal \nnn escapes plus \\, \", \t, \n, \r) back into the real bytes.
     /// git --porcelain quotes any filename with non-ASCII or special characters when core.quotepath is on
     /// (the default), so stripping the surrounding quotes alone leaves literal escape sequences in the path.
-    private static func unquoteCQuoted(_ value: String) -> String {
+    static func unquoteCQuoted(_ value: String) -> String {
         let scalars = Array(value.utf8)
         var bytes: [UInt8] = []
         var index = 0

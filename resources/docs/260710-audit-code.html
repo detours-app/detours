@@ -35,7 +35,7 @@ h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: -0.01em; }
 .grade {
   display: inline-flex; align-items: center; justify-content: center;
   width: 42px; height: 42px; border-radius: 10px; font-size: 22px; font-weight: 650;
-  background: var(--imp); color: #fff; margin-right: 14px; flex: none;
+  background: var(--fixed); color: #fff; margin-right: 14px; flex: none;
 }
 .posture { display: flex; align-items: center; gap: 0; margin: 0 0 24px; }
 .posture p { margin: 0; font-size: 14px; }
@@ -128,8 +128,8 @@ aside h3:first-of-type { margin-top: 0; }
   <div class="sub">2026-07-10 &middot; 310 Swift source files &middot; 5 review agents, 34 raw findings, 13 cleared the confidence threshold of 80</div>
 
   <div class="posture">
-    <div class="grade" id="grade">C</div>
-    <p id="grade-why">Two Critical findings and a cluster of six Important ones, concentrated almost entirely in the file operation queue and the archive/transfer paths. The rest of the codebase is clean.</p>
+    <div class="grade" id="grade">A</div>
+    <p id="grade-why">All thirteen findings are fixed and verified: build clean, swiftlint clean, and every affected test suite green. No findings remain open above the confidence threshold.</p>
   </div>
 
   <div class="bar" id="bar"></div>
@@ -140,6 +140,7 @@ aside h3:first-of-type { margin-top: 0; }
     <p>The audit found two problems that can cost a user their data or their session. A cut-and-paste into the folder a file already lives in is treated as a name collision with itself; choosing "Replace" moves the original to the Trash and then fails, leaving the folder empty of the file the user was trying to keep. Separately, the remote helper daemon can be wedged indefinitely by an archive tool that writes enough diagnostic output, because the helper waits for the tool to finish before it ever reads what the tool is saying, and the tool cannot finish until someone reads it. Every later request on that connection stalls behind it.</p>
     <p>Six further findings are real but bounded. An interrupted copy to a remote host restarts from the beginning on reconnect and duplicates everything it had already transferred under numbered names. Git status badges silently fail to appear for any file whose name contains a non-ASCII character, because the local parser never learned the escaping that the remote parser already handles. Archive passwords on Windows hosts are still passed on the command line where any other local account can read them, even though the same exposure was closed on the macOS and Linux paths. A password dialog is shown for encrypted archives that the app then unconditionally refuses to open.</p>
     <p>The five Minor findings are unreachable guard clauses, a no-op branch, an unbounded icon cache, and a missing pre-check that turns a rename collision on a remote host into a raw error alert instead of the polite refusal the local path gives. Twenty-one further candidate findings were verified and discarded as false positives or nitpicks; four more landed at confidence 75, just under the threshold, and are not reported here.</p>
+    <p>All thirteen were fixed in the same pass. A same-folder move now short-circuits to a no-op on both the fast and heavy lanes, so nothing reaches the Trash. The remote helper drains a child process's output while it runs rather than after it exits, on both the archive and git paths. Remote copy transfers one item per request and remembers what already landed, so a reconnect resumes rather than restarts. The app decodes git's C-style filename escaping the same way the helper does, with a test that fails if the two ever diverge again. Archive passwords are refused on the Windows backend as they already were everywhere else, and the dialog that collected them is gone. The icon cache evicts under memory pressure, remote rename refuses a taken name without an alert, and the unreachable guards and the no-op branch are deleted. Build and swiftlint are clean and every affected test suite passes.</p>
   </details>
 
   <div id="list"></div>
@@ -147,67 +148,67 @@ aside h3:first-of-type { margin-top: 0; }
 </div>
 <script>
 const FINDINGS = [
-  { sev:"Critical", cat:"Logic", conf:90, status:"open",
+  { sev:"Critical", cat:"Logic", conf:90, status:"fixed",
     file:"src/Operations/FileOperationQueue+FastLane.swift", line:118,
     desc:"performFastMove has no isSameFilesystemPath check, unlike performFastCopy directly above it. Cut a file, then paste it into the folder it already lives in: the destination is treated as a name conflict against the source itself, and choosing Replace trashes the source before the moveItem that then fails because the source no longer exists. ClipboardManager.paste does no same-folder pre-filtering; the drag-and-drop path does. Fix: add the isSameFilesystemPath(source, initialDestination) short-circuit that performFastCopy already uses.",
     cite:"CLAUDE.md: \"All file deletion MUST go to Trash via <code>FileManager.trashItem</code>\" &mdash; the file does reach the Trash, but as the outcome of an operation the user asked to complete, not delete." },
 
-  { sev:"Critical", cat:"Bugs", conf:85, status:"open",
+  { sev:"Critical", cat:"Bugs", conf:85, status:"fixed",
     file:"Server/ArchiveOperations.swift", line:376,
     desc:"runProcess assigns standardError to a Pipe, calls waitUntilExit(), and only then calls readDataToEndOfFile(). An archive tool that writes more than the 64KB pipe buffer to stderr blocks on write() and never exits, so waitUntilExit() never returns. RPCHandler.run() is a single synchronous loop with no per-request threading and no timeout here, so one wedged extract stalls every subsequent request on that connection forever. Fix: drain errorPipe concurrently while the process runs, or add a bounded wait with forced termination as GitOperations already does.",
     cite:null },
 
-  { sev:"Important", cat:"Bugs", conf:90, status:"open",
+  { sev:"Important", cat:"Bugs", conf:90, status:"fixed",
     file:"src/Operations/FileOperationQueue+Coordination.swift", line:257,
     desc:"performQueuedRemoteAwareWork retries an interrupted operation by re-invoking the whole work closure, which closes over the original unfiltered items array. performRemoteCopy therefore re-sends every source, and the server's copyDestination appends a numbered suffix rather than skipping when a destination already exists. A remote copy interrupted midway and resumed on reconnect duplicates each already-transferred file under a \" 2\" name. Fix: track which sources completed before the interruption and retry only the remainder.",
     cite:null },
 
-  { sev:"Important", cat:"Bugs", conf:90, status:"open",
+  { sev:"Important", cat:"Bugs", conf:90, status:"fixed",
     file:"Server/GitOperations.swift", line:60,
     desc:"runGit polls process.isRunning in a sleep loop and reads outputPipe only after that loop returns. A repository whose `git status --porcelain -uall` output exceeds the pipe buffer makes git block on write, the 5s timeout fires, and the request is reported as timed out even though git was working correctly. Fix: drain outputPipe incrementally inside the polling loop.",
     cite:null },
 
-  { sev:"Important", cat:"Architecture", conf:97, status:"open",
+  { sev:"Important", cat:"Architecture", conf:97, status:"fixed",
     file:"src/Services/GitStatusProvider.swift", line:116,
     desc:"Both the local and remote git-status parsers run `git status --porcelain -uall` with neither `-z` nor `core.quotePath=false`, so git emits C-style octal escaping for non-ASCII names. Server/GitOperations.unquoteCQuoted decodes it; GitStatusProvider.parseGitStatus only strips the surrounding quote characters, then builds a URL from the literal escaped text. Git status badges silently never appear for a file named café.txt, or any name with a quote or backslash. Fix: decode C-quoted paths in parseGitStatus using the same logic the server already implements.",
     cite:null },
 
-  { sev:"Important", cat:"Security", conf:85, status:"open",
+  { sev:"Important", cat:"Security", conf:85, status:"fixed",
     file:"src/Remote/Windows/WindowsArchiveScripts.swift", line:66,
     desc:"Archive passwords are appended to 7z.exe's argument array as -p$($Arguments.password), for both create and extract. Any other local account or administrator on the Windows host can read the password from the process command line while the operation runs. The same exposure was already identified and closed on the macOS and Linux paths, which reject non-empty passwords outright; the Windows path was left carrying the real password end-to-end. Fix: reject non-empty passwords on the Windows path as the other backends do.",
     cite:"resources/docs/SECURITY_REVIEW.md records the fix as \"archive passwords are disabled instead of exposed in argv\" &mdash; true of the local and server paths, not of this one." },
 
-  { sev:"Important", cat:"Logic", conf:80, status:"open",
+  { sev:"Important", cat:"Logic", conf:80, status:"fixed",
     file:"src/Operations/FileOperationQueue+Extraction.swift", line:6,
     desc:"performExtract throws archivePasswordUnsupported for any non-empty password before it dispatches on format. promptForArchivePassword is not gated on that, so a user who opens an encrypted archive gets a password dialog, types a password, and is always told password-protected archives are disabled. The dialog can never succeed. Fix: either drop the prompt and report the unsupported-feature error immediately, or implement password support.",
     cite:null },
 
-  { sev:"Important", cat:"Logic", conf:90, status:"open",
+  { sev:"Important", cat:"Logic", conf:90, status:"fixed",
     file:"src/Operations/FileOperationQueue+Operations.swift", line:187,
     desc:"performMove lacks the isSameFilesystemPath short-circuit that performCopy has at line 49 of the same file. This is the heavy-lane twin of the FastLane defect: reached through the same unfiltered ClipboardManager.paste call once the transfer is large enough, with the same trash-then-fail sequence. Fix: add the isSameFilesystemPath short-circuit performCopy uses.",
     cite:null },
 
-  { sev:"Minor", cat:"Bugs", conf:85, status:"open",
+  { sev:"Minor", cat:"Bugs", conf:85, status:"fixed",
     file:"src/Operations/RenameController.swift", line:222,
     desc:"commitRename checks FileManager.fileExists on the destination only inside the .local branch. A remote rename onto an existing name reaches the server's bare moveItem, throws, and surfaces as a raw error alert instead of the beep-and-refuse the local path gives for the identical conflict. Fix: pre-check the destination for the remote case, or catch the file-exists error and beep.",
     cite:null },
 
-  { sev:"Minor", cat:"Bugs", conf:85, status:"open",
+  { sev:"Minor", cat:"Bugs", conf:85, status:"fixed",
     file:"src/FileList/IconLoader.swift", line:10,
     desc:"The icon cache is a plain [URL: NSImage] dictionary inside an actor, not an NSCache. Entries are removed only by explicit invalidate calls, so every distinct file path browsed retains its NSImage for the lifetime of the app, with no eviction under memory pressure. Fix: use NSCache<NSURL, NSImage> with a count or cost limit.",
     cite:null },
 
-  { sev:"Minor", cat:"Logic", conf:90, status:"open",
+  { sev:"Minor", cat:"Logic", conf:90, status:"fixed",
     file:"src/Operations/FileOperationQueue+Extraction.swift", line:170,
     desc:"extractZipWithUnzip and extractSevenZip each carry their own password guard that throws on a non-empty password. performExtract already threw for that case before either function is called, so neither guard can fire, and neither function ever passes a password to unzip or 7z even hypothetically. Fix: delete the unreachable branches, or wire real password support through them.",
     cite:null },
 
-  { sev:"Minor", cat:"Logic", conf:80, status:"open",
+  { sev:"Minor", cat:"Logic", conf:80, status:"fixed",
     file:"src/Operations/FileOperationQueue+Archive.swift", line:157,
     desc:"runZip's password guard is unreachable: performArchive, its only caller, rejects any non-empty password first, and ArchiveFormat.supportsPassword is hardcoded false for every format. Fix: delete the guard, or comment it as deliberate defence against a future direct caller.",
     cite:null },
 
-  { sev:"Minor", cat:"Logic", conf:80, status:"open",
+  { sev:"Minor", cat:"Logic", conf:80, status:"fixed",
     file:"src/FileList/FileListDataSource.swift", line:25,
     desc:"markStale's else branch calls cache.removeValue(forKey:) in exactly the case where the enclosing condition has established cache[url] is nil. The class is @MainActor-isolated, so there is no concurrency window that would make the removal meaningful. Fix: delete the else branch.",
     cite:null }

@@ -154,6 +154,11 @@ actor WindowsRemoteProvider: FileProvider {
         guard !items.isEmpty else {
             throw FileOperationError.archiveProcessFailed("No items selected for archive.")
         }
+        // A password reaching 7z.exe would sit in the Windows host's process command line, readable
+        // by any other local account. The local and Unix-remote backends refuse it; so does this one.
+        guard password?.isEmpty ?? true else {
+            throw FileOperationError.archivePasswordUnsupported
+        }
         let arguments = try ArchiveCreateArguments(
             items: items.map { try nativePath(from: windowsPath(from: $0)) },
             format: format.rawValue,
@@ -178,6 +183,10 @@ actor WindowsRemoteProvider: FileProvider {
     func archiveExtract(_ archive: Location, password: String?) async throws -> Location {
         guard let format = ArchiveFormat.detect(from: URL(fileURLWithPath: archive.path)) else {
             throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.lastPathComponent)")
+        }
+        // See archiveCreate: a password would be exposed in the remote host's process command line.
+        guard password?.isEmpty ?? true else {
+            throw FileOperationError.archivePasswordUnsupported
         }
         let usesBuiltInZip = format == .zip && (password?.isEmpty ?? true)
         if !usesBuiltInZip {

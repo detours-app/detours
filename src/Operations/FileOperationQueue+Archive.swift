@@ -101,9 +101,9 @@ extension FileOperationQueue {
         // Build and run the compression process
         switch format {
         case .zip:
-            try await runZip(items: items, destination: archiveURL, password: password, sourceSize: sourceSize)
+            try await runZip(items: items, destination: archiveURL, sourceSize: sourceSize)
         case .sevenZ:
-            try await runSevenZip(items: items, destination: archiveURL, password: password, sourceSize: sourceSize)
+            try await runSevenZip(items: items, destination: archiveURL, sourceSize: sourceSize)
         case .tarGz:
             try await runTar(items: items, destination: archiveURL, flag: "z", sourceSize: sourceSize)
         case .tarBz2:
@@ -146,16 +146,13 @@ extension FileOperationQueue {
         return total
     }
 
-    private func runZip(items: [URL], destination: URL, password: String?, sourceSize: Int64) async throws {
+    private func runZip(items: [URL], destination: URL, sourceSize: Int64) async throws {
         let parentDir = items[0].deletingLastPathComponent().path
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.zip.path)
         process.currentDirectoryURL = URL(fileURLWithPath: parentDir)
 
         var arguments = ["-r", "-q"]
-        if let password, !password.isEmpty {
-            throw FileOperationError.archivePasswordUnsupported
-        }
         arguments.append(destination.path)
         for item in items {
             arguments.append(item.lastPathComponent)
@@ -169,14 +166,11 @@ extension FileOperationQueue {
         try await runProcess(process, errorPipe: errorPipe, partialFile: destination, progressMode: mode)
     }
 
-    private func runSevenZip(items: [URL], destination: URL, password: String?, sourceSize: Int64) async throws {
+    private func runSevenZip(items: [URL], destination: URL, sourceSize: Int64) async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
 
         var arguments = ["a", "-t7z", "-bsp2"]
-        if let password, !password.isEmpty {
-            throw FileOperationError.archivePasswordUnsupported
-        }
         arguments.append(destination.path)
         for item in items {
             arguments.append(item.path)

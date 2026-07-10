@@ -13,9 +13,9 @@ extension FileOperationQueue {
         // Route ZIP to dedicated ditto-based extraction, everything else to existing logic
         switch format {
         case .zip:
-            return try await performExtractZip(archive: archive, format: format, password: password)
+            return try await performExtractZip(archive: archive, format: format)
         case .sevenZ, .tarGz, .tarBz2, .tarXz:
-            return try await performExtractNonZip(archive: archive, format: format, password: password)
+            return try await performExtractNonZip(archive: archive, format: format)
         }
     }
 
@@ -24,7 +24,7 @@ extension FileOperationQueue {
     /// Extract ZIP archives using ditto. Extracts to a temp dir first to discover
     /// actual filenames (avoids encoding issues with unzip -Z1), then moves results
     /// into place with proper conflict handling.
-    private func performExtractZip(archive: URL, format: ArchiveFormat, password: String?) async throws -> URL {
+    private func performExtractZip(archive: URL, format: ArchiveFormat) async throws -> URL {
         let operation = FileOperation.extract(archive: archive, format: format)
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
@@ -47,14 +47,9 @@ extension FileOperationQueue {
 
         try checkCancelled()
 
-        // Extract into temp dir
-        // Use ditto for non-encrypted (handles legacy filename encoding correctly),
-        // fall back to unzip for password-protected (ditto --password needs a real TTY)
-        if let password, !password.isEmpty {
-            try await extractZipWithUnzip(archive: archive, destination: tempDir, password: password)
-        } else {
-            try await extractZipWithDitto(archive: archive, destination: tempDir)
-        }
+        // ditto handles legacy filename encoding correctly. Encrypted zips never reach here:
+        // performExtract rejects passwords outright.
+        try await extractZipWithDitto(archive: archive, destination: tempDir)
 
         // Scan temp dir for top-level items (real filenames from the filesystem, no encoding issues)
         let extractedItems = try fileManager.contentsOfDirectory(atPath: tempDir.path)
@@ -160,28 +155,9 @@ extension FileOperationQueue {
         try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: true, progressMode: mode)
     }
 
-    /// Extract password-protected ZIP with unzip.
-    /// ditto --password requires a real TTY (readpassphrase), so we use unzip for encrypted zips.
-    /// This is fine because the encoding bug only affects unencrypted zips with legacy filenames.
-    private func extractZipWithUnzip(archive: URL, destination: URL, password: String) async throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: CompressionTool.unzip.path)
-        guard password.isEmpty else {
-            throw FileOperationError.archivePasswordUnsupported
-        }
-        process.arguments = ["-o", "-q", archive.path, "-d", destination.path]
-
-        let errorPipe = Pipe()
-        process.standardError = errorPipe
-
-        let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
-        let mode: ArchiveProgressMode = archiveSize > 0 ? .pollFileSize(sourceSize: archiveSize * 3) : .none
-        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: true, progressMode: mode)
-    }
-
     // MARK: - Non-ZIP Extraction (tar, 7z)
 
-    private func performExtractNonZip(archive: URL, format: ArchiveFormat, password: String?) async throws -> URL {
+    private func performExtractNonZip(archive: URL, format: ArchiveFormat) async throws -> URL {
         let operation = FileOperation.extract(archive: archive, format: format)
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
@@ -199,9 +175,7 @@ extension FileOperationQueue {
         enterProtectedPaths([archive, parentDir])
         defer { leaveProtectedPaths([archive, parentDir]) }
 
-        let topLevelEntries = await listArchiveTopLevelEntries(
-            archive: archive, format: format, password: password
-        )
+        let topLevelEntries = await listArchiveTopLevelEntries(archive: archive, format: format)
         let archiveName = archive.lastPathComponent
         let needsWrapperFolder = topLevelEntries.count > 1
 
@@ -286,7 +260,7 @@ extension FileOperationQueue {
         do {
             switch format {
             case .sevenZ:
-                try await extractSevenZip(archive: archive, destination: extractionDir, password: password)
+                try await extractSevenZip(archive: archive, destination: extractionDir)
             case .tarGz, .tarBz2, .tarXz:
                 try await extractTar(archive: archive, destination: extractionDir)
             case .zip:
@@ -346,8 +320,7 @@ extension FileOperationQueue {
 
     private func listArchiveTopLevelEntries(
         archive: URL,
-        format: ArchiveFormat,
-        password: String?
+        format: ArchiveFormat
     ) async -> Set<String> {
         let process = Process()
         let outputPipe = Pipe()
@@ -361,12 +334,7 @@ extension FileOperationQueue {
             return []
         case .sevenZ:
             process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
-            var args = ["l", "-slt"]
-            if let password, !password.isEmpty {
-                return []
-            }
-            args.append(archive.path)
-            process.arguments = args
+            process.arguments = ["l", "-slt", archive.path]
         case .tarGz, .tarBz2, .tarXz:
             process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
             process.arguments = ["-tf", archive.path]
@@ -470,22 +438,16 @@ extension FileOperationQueue {
         }
     }
 
-    private func extractSevenZip(archive: URL, destination: URL, password: String?) async throws {
+    private func extractSevenZip(archive: URL, destination: URL) async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
-
-        var arguments = ["x", "-y", "-bsp2", "-o\(destination.path)"]
-        if let password, !password.isEmpty {
-            throw FileOperationError.archivePasswordUnsupported
-        }
-        arguments.append(archive.path)
-        process.arguments = arguments
+        process.arguments = ["x", "-y", "-bsp2", "-o\(destination.path)", archive.path]
 
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
         let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
-        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: password == nil, progressMode: .parseStderr(referenceSize: archiveSize))
+        try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: true, progressMode: .parseStderr(referenceSize: archiveSize))
     }
 
     private func extractTar(archive: URL, destination: URL) async throws {

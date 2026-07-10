@@ -169,7 +169,7 @@ final class ThemeTests: XCTestCase {
             ("dark", .dark),
             ("foolscap", .foolscap),
             ("drafting", .drafting),
-            ("custom high contrast", Self.customTheme(
+            ("custom high contrast", Self.customTheme(ThemeHexPalette(
                 background: "#101214",
                 surface: "#171A1D",
                 border: "#5E6770",
@@ -178,8 +178,8 @@ final class ThemeTests: XCTestCase {
                 textTertiary: "#AAB2BB",
                 accent: "#88D4C3",
                 accentText: "#071010"
-            )),
-            ("custom restrained contrast", Self.customTheme(
+            ))),
+            ("custom restrained contrast", Self.customTheme(ThemeHexPalette(
                 background: "#F7F5EF",
                 surface: "#ECE8DD",
                 border: "#BDB5A5",
@@ -188,7 +188,7 @@ final class ThemeTests: XCTestCase {
                 textTertiary: "#655F55",
                 accent: "#526B35",
                 accentText: "#FFFFFF"
-            )),
+            ))),
         ]
 
         for (name, theme) in themes {
@@ -257,8 +257,7 @@ final class ThemeTests: XCTestCase {
             on: background,
             minimum: ChromeContrast.minimumNormalTextContrast,
             label,
-            file: file,
-            line: line
+            at: SourceRef(file: file, line: line)
         )
     }
 
@@ -274,8 +273,7 @@ final class ThemeTests: XCTestCase {
             on: background,
             minimum: ChromeContrast.minimumStateIndicatorContrast,
             label,
-            file: file,
-            line: line
+            at: SourceRef(file: file, line: line)
         )
     }
 
@@ -284,38 +282,44 @@ final class ThemeTests: XCTestCase {
         on background: NSColor,
         minimum: CGFloat,
         _ label: String,
-        file: StaticString,
-        line: UInt
+        at source: SourceRef
     ) {
         let ratio = ChromeContrast.contrastRatio(foreground: foreground, background: background)
         XCTAssertGreaterThanOrEqual(
             ratio,
             minimum,
             "\(label) contrast \(String(format: "%.2f", Double(ratio))) is below \(String(format: "%.1f", Double(minimum))):1",
-            file: file,
-            line: line
+            file: source.file,
+            line: source.line
         )
     }
 
-    private static func customTheme(
-        background: String,
-        surface: String,
-        border: String,
-        textPrimary: String,
-        textSecondary: String,
-        textTertiary: String,
-        accent: String,
-        accentText: String
-    ) -> Theme {
+    private struct SourceRef {
+        let file: StaticString
+        let line: UInt
+    }
+
+    private struct ThemeHexPalette {
+        let background: String
+        let surface: String
+        let border: String
+        let textPrimary: String
+        let textSecondary: String
+        let textTertiary: String
+        let accent: String
+        let accentText: String
+    }
+
+    private static func customTheme(_ palette: ThemeHexPalette) -> Theme {
         Theme.custom(from: CustomThemeColors(
-            background: CodableColor(hex: background),
-            surface: CodableColor(hex: surface),
-            border: CodableColor(hex: border),
-            textPrimary: CodableColor(hex: textPrimary),
-            textSecondary: CodableColor(hex: textSecondary),
-            textTertiary: CodableColor(hex: textTertiary),
-            accent: CodableColor(hex: accent),
-            accentText: CodableColor(hex: accentText),
+            background: CodableColor(hex: palette.background),
+            surface: CodableColor(hex: palette.surface),
+            border: CodableColor(hex: palette.border),
+            textPrimary: CodableColor(hex: palette.textPrimary),
+            textSecondary: CodableColor(hex: palette.textSecondary),
+            textTertiary: CodableColor(hex: palette.textTertiary),
+            accent: CodableColor(hex: palette.accent),
+            accentText: CodableColor(hex: palette.accentText),
             fontName: "SF Pro",
             uiFontName: "SF Pro"
         ))

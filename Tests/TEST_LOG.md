@@ -1615,3 +1615,43 @@ Spotlight search has no unit test (depends on the live, async-built system index
 - 2026-07-06 11:11 CEST: Foundry `swift test --filter DisconnectedQueueTests`
   PASS: 4 tests, 0 failures. Covers same-host remote copy queue
   pause/resume/requeue behavior on the build host.
+
+- 2026-07-10 12:12 CEST: Spectre `swift test --filter GitPorcelainUnquoteTests`
+  PASS: 4 tests, 0 failures. New suite. Covers git C-style filename unquoting in
+  the app and the remote helper, and asserts the two decoders agree.
+
+- 2026-07-10 12:12 CEST: Spectre `swift test --filter ThemeTests`
+  PASS: 7 tests, 0 failures. Rerun after the assertContrast/customTheme helper
+  signatures were reshaped to clear swiftlint parameter-count warnings.
+
+- 2026-07-10 12:12 CEST: Spectre `swift test --filter ArchiveOperationTests`
+  PASS: 29 tests, 0 failures. Covers archive create/extract after the dead
+  password guards were removed from the zip and 7z paths.
+
+- 2026-07-10 12:12 CEST: Spectre `swift test --filter FileOperationQueueTests`
+  PASS: 67 tests, 0 failures. Covers the same-folder move no-op short-circuit
+  added to performFastMove and performMove.
+
+- 2026-07-10 12:12 CEST: Spectre `swift test --filter FileOperationsServerTests`
+  PASS: 5 tests, 0 failures. Covers the remote helper after the stderr and git
+  stdout pipes were switched to concurrent draining.
+
+- 2026-07-10 12:12 CEST: Spectre `swift test --filter RemoteFileProviderTests`
+  PASS: 10 tests, 0 failures. Covers the remote provider after remote copy was
+  made resumable across a reconnect retry.
+
+- 2026-07-10 12:12 CEST: Spectre `swift test --filter WindowsRemoteProviderTests`
+  PASS: 10 tests, 0 failures. Covers the Windows provider after archive
+  passwords were rejected instead of passed on the 7z command line.
+
+- 2026-07-10 12:12 CEST: Spectre `swift test --filter IconLoaderTests`
+  PASS: 2 tests, 0 failures. Covers the icon cache after the backing store was
+  switched from a Dictionary to an NSCache.
+
+- 2026-07-10 12:12 CEST: Spectre `swift test --filter IconLoaderNetworkVolumeTests`
+  PASS: 6 tests, 0 failures. Covers extension-based icon lookup on the NSCache
+  backing store.
+
+- 2026-07-10 12:13 CEST: Spectre `swift test --filter IconLoadLifecycleTests`
+  PASS: 3 tests, 0 failures. Covers icon load lifecycle on the NSCache backing
+  store.
