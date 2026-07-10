@@ -1673,3 +1673,16 @@ Spotlight search has no unit test (depends on the live, async-built system index
 | ---- | ------ | ---- | ---- |
 | FolderExpansionUITests/testBothPanesIndependentExpansion (XCTest cannot double-click the outline row: "No unoccluded regions for OutlineRow", the row's label covers the row's own frame; reproduced identically at parent commit c1aceae, so not caused by the code audit fixes; needs a fix to the row's hit region) | FAIL | 23.5s | 2026-07-10 |
 | FolderExpansionUITests/testTabsHaveIndependentExpansion (same root cause, reproduced identically at c1aceae, as the row above) | FAIL | 19.9s | 2026-07-10 |
+
+- 2026-07-10 13:22 CEST: Foundry `uitest.sh FolderExpansionUITests/testTabsHaveIndependentExpansion`
+  PASS: 1 test, 0 failures. Fixed: the row lookup matched the sidebar favorite
+  named after the test folder; a sidebar row is fully covered by its own cell,
+  so XCTest had no free point to double-click. Now scoped to the pane's outline.
+
+- 2026-07-10 13:23 CEST: Foundry `uitest.sh FolderExpansionUITests/testBothPanesIndependentExpansion`
+  PASS: 1 test, 0 failures. Same fix as the row above.
+
+- 2026-07-10 13:49 CEST: Foundry `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 uitest.sh`
+  PASS: 86 tests, 1 skipped, 0 failures. Full XCUI suite green at 3b9fb8e with
+  the screenshot fixture volumes mounted. Supersedes the two FolderExpansion
+  FAIL rows above.
