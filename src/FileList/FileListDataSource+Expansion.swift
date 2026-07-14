@@ -32,8 +32,9 @@ extension FileListDataSource {
             return false
         }
 
-        // For network volumes, load children asynchronously
-        if VolumeMonitor.isNetworkVolume(fileItem.url) {
+        // Remote filesystems and local File Provider domains can both block while
+        // resolving metadata. Never enumerate either one from this AppKit callback.
+        if VolumeMonitor.requiresAsynchronousDirectoryAccess(fileItem.url) {
             loadChildrenAsync(for: fileItem, in: outlineView)
             return false // Don't expand yet; will expand after async load
         }
@@ -46,8 +47,11 @@ extension FileListDataSource {
         return true
     }
 
-    /// Load children asynchronously for a folder (used on network volumes)
+    /// Load children asynchronously for a folder backed by a network filesystem or File Provider.
     private func loadChildrenAsync(for item: FileItem, in outlineView: NSOutlineView) {
+        let itemID = ObjectIdentifier(item)
+        guard pendingChildLoads.insert(itemID).inserted else { return }
+
         // Show a spinner in the row while loading
         let row = outlineView.row(forItem: item)
         var spinner: NSProgressIndicator?
@@ -69,6 +73,7 @@ extension FileListDataSource {
 
         Task { @MainActor [weak self] in
             defer {
+                self?.pendingChildLoads.remove(itemID)
                 spinner?.stopAnimation(nil)
                 spinner?.removeFromSuperview()
             }
@@ -82,11 +87,22 @@ extension FileListDataSource {
                 }
                 outlineView.reloadItem(item, reloadChildren: true)
                 outlineView.expandItem(item)
+                self.restoreSavedChildExpansions(of: item, in: outlineView)
             } catch {
                 // Expansion failed - set empty children so folder shows as empty
                 item.children = []
                 outlineView.reloadItem(item, reloadChildren: true)
             }
+        }
+    }
+
+    /// A full directory reload recreates FileItem instances. Once an asynchronously
+    /// loaded parent is available, continue restoring any saved nested expansions.
+    /// Expanding a not-yet-loaded child re-enters the asynchronous path above.
+    private func restoreSavedChildExpansions(of item: FileItem, in outlineView: NSOutlineView) {
+        guard let children = item.children else { return }
+        for child in children where child.isNavigableFolder && expandedFolders.contains(child.expansionURL) {
+            outlineView.expandItem(child)
         }
     }
 

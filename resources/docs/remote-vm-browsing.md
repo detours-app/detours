@@ -1,6 +1,6 @@
 # Remote VM Browsing
 
-Detours remote panes connect to x86_64 Linux development machines and Intel macOS hosts over the system `/usr/bin/ssh`. Detours does not mount SMB, NFS, sshfs, or a Finder-visible volume. It starts its own helper on the remote host and browses files through that helper over SSH.
+Detours remote panes connect over the system `/usr/bin/ssh` to x86_64 Linux, Intel macOS, and Windows OpenSSH hosts whose default shell is Windows PowerShell. Detours does not mount SMB, NFS, sshfs, or a Finder-visible volume. It browses macOS and Linux through its own helper and uses a PowerShell backend on Windows.
 
 ## SSH Configuration
 
@@ -31,28 +31,31 @@ Remote panes are normal Detours panes for the commands that have been routed thr
 
 - Browse folders, tabs, breadcrumbs, sorting, hidden-file toggling, and folder expansion
 - Copy, cut, paste, F5 copy-to-other-pane, and F6 move-to-other-pane between the Mac and remote hosts
-- Move to Trash, Undo restore, and Delete Immediately after confirmation
+- Move to Trash and Undo restore
 - New Folder and New File
 - Rename
 - Get Info and Copy Path
 - Quick Look and Open With round trips
 - Drag files out to Finder or other apps
+- Archive and Extract Here, with formats based on host tool availability
 - Git status markers
 - File watching with polling fallback when needed
 
 Current remote exceptions:
 
-- Duplicate, Duplicate Structure, Archive, and Extract Here are local-only because those app commands still operate on local URL selections instead of provider-backed locations.
+- Duplicate and Duplicate Structure are local-only because those commands still operate on local URL selections.
 - Reveal in Finder and Share are local-only because Finder and macOS sharing services require local files. Drag-out and Open With are the supported materialization paths for remote files.
+- Delete Immediately currently moves remote items to host-side Trash; permanent deletion is local-only.
+- Password-protected archive creation and extraction are disabled on every backend so passwords never appear in a local or remote process list.
 - Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported because this release bundles only `x86_64 Linux` and `x86_64 macOS` helpers.
 
 ## Remote Quick Open
 
-Command-P follows the active tab. In a remote tab, Quick Open searches the active SSH host by file and folder name through the helper instead of searching the Mac. The scope header reads `Searching <host> - entire host`, results stream as the helper finds them, and recent remote places are scoped to the active host. A disconnected remote tab shows a Reconnect action and never falls back to local search.
+Command-P follows the active tab and never falls back to searching the Mac from a remote tab. On macOS and Linux hosts, Quick Open searches the remote home folder and `/opt` through the helper and streams results as they arrive. On Windows hosts, it searches from the active folder through PowerShell. Recent places remain scoped to the active host, and a disconnected remote tab shows a Reconnect action.
 
-## Helper Binary
+## Unix Helper and Windows Backend
 
-On first connect, Detours installs the helper binary here on the remote host:
+On first connect to supported macOS and Linux hosts, Detours installs the helper binary here:
 
 ```text
 ~/.detours-server/detours-server
@@ -67,6 +70,8 @@ Bundled helper names:
 
 Apple Silicon macOS hosts (`Darwin arm64`) are not supported in this release.
 
+Windows hosts do not receive a helper binary. Detours detects Windows automatically, runs one-shot PowerShell operations over the shared SSH connection, uses a dedicated PowerShell watcher for live updates, and uses SFTP for large transfers when the host exposes it.
+
 To remove the helper manually:
 
 ```bash
@@ -77,7 +82,7 @@ Replace `<target>` with the same SSH alias or target used in Detours.
 
 ## Remote Trash
 
-Remote deletes do not use the Mac Trash. They move files into the remote host's FreeDesktop trash location:
+Remote deletes do not use the Mac Trash. On macOS and Linux hosts, they move files into the remote user's FreeDesktop trash location:
 
 ```text
 ~/.local/share/Trash/
@@ -97,6 +102,8 @@ Its restore metadata is stored below:
 
 Undo in Detours restores remote items by reading the `.trashinfo` metadata.
 
+Windows hosts use a Detours-managed `.detours-trash` folder below the signed-in user's profile. Restore tokens remain inside Detours; Undo moves the item back to its original Windows path.
+
 To empty the remote trash manually:
 
 ```bash
@@ -107,8 +114,8 @@ Run that command only when you are sure you no longer need anything in the remot
 
 ## Connection Notes
 
-Only x86_64 Linux and x86_64 macOS hosts are supported in this release. Unsupported architectures are refused before helper install.
+Unix helper deployment supports x86_64 Linux and x86_64 macOS. Windows OpenSSH hosts are supported separately when their default shell is Windows PowerShell; Detours detects them before Unix helper deployment. Unsupported Unix architectures and Windows hosts with a Unix-style default shell are refused.
 
-Large transfers use a second SSH channel so directory listings, git status, and watch events can continue on the metadata channel. Interrupted transfers write to a temporary partial file and remove that partial before retrying.
+Large transfers use a second SSH channel so directory listings, git status, and watch events can continue on the metadata channel. Temporary paths keep incomplete files away from final destinations, and interrupted multi-item remote copies resume with the items that did not arrive.
 
 Remote directory listings complete before git status markers arrive. Git status runs asynchronously after the list refresh and the helper gives each git command a five-second timeout, so a slow or wedged repository should not leave a remote tab spinning indefinitely.

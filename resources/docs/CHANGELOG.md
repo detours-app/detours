@@ -4,6 +4,10 @@
 
 ### Bug Fixes
 
+- **Cloud-backed folders stay responsive** - Expanding iCloud Drive and other
+  File Provider folders no longer blocks the app while macOS resolves remote
+  metadata, and repeated background size or icon refreshes no longer trigger
+  whole-list redraws.
 - **Pasting into the same folder no longer risks the file** - Cutting a file and
   pasting it back into the folder it already lives in is now a no-op instead of
   a conflict with itself that could move the original to the Trash.

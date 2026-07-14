@@ -2,7 +2,9 @@
 
 ## Input and Shortcuts
 
-- (none currently)
+- Remote **Delete Immediately** shows the permanent-deletion confirmation but
+  currently routes through the Unix/Windows provider delete paths, which move
+  the item to host-side Trash instead of permanently erasing it.
 
 ## Testing Gaps
 

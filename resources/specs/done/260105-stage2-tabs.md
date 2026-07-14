@@ -1,9 +1,10 @@
 # Stage 2: Tab System
 
 ## Meta
+
 - Status: Complete
 - Branch: feature/stage2-tabs
-- Parent: [260105-detours-overview.md](260105-detours-overview.md)
+- Parent: [260105-detour-overview.md](260105-detour-overview.md)
 
 ## Goal
 
@@ -23,6 +24,7 @@ PaneViewController
 ```
 
 Each tab is represented by a `PaneTab` model that owns:
+
 - Directory URL
 - Navigation history (back/forward stacks)
 - Associated `FileListViewController` instance
@@ -30,6 +32,7 @@ Each tab is represented by a `PaneTab` model that owns:
 ### Files to Create
 
 **src/Panes/PaneTab.swift**
+
 - Model class representing a single tab
 - Properties:
   - `id: UUID` - unique identifier
@@ -46,6 +49,7 @@ Each tab is represented by a `PaneTab` model that owns:
   - `fullPath: String` - computed, returns full path for tooltip
 
 **src/Panes/PaneTabBar.swift**
+
 - Custom `NSView` subclass for the tab bar
 - Height: 32px (per spec)
 - Contains:
@@ -74,6 +78,7 @@ Each tab is represented by a `PaneTab` model that owns:
 - Tooltip: show `fullPath` on hover over tab
 
 **src/Panes/PaneTabBarDelegate.swift**
+
 - Protocol defining tab bar callbacks:
   - `tabBarDidSelectTab(at index: Int)`
   - `tabBarDidRequestCloseTab(at index: Int)`
@@ -86,6 +91,7 @@ Each tab is represented by a `PaneTab` model that owns:
 ### Files to Modify
 
 **src/Panes/PaneViewController.swift**
+
 - Major refactor - becomes the tab manager
 - Remove: direct `FileListViewController` reference, navigation history
 - Add:
@@ -112,6 +118,7 @@ Each tab is represented by a `PaneTab` model that owns:
 - Implement `FileListNavigationDelegate` (forward to selected tab)
 
 **src/Windows/MainSplitViewController.swift**
+
 - Add methods for cross-pane tab operations:
   - `moveTab(_ tab: PaneTab, fromPane: PaneViewController, toPane: PaneViewController, atIndex: Int)`
 - Persist open tabs and selected index per pane using `UserDefaults`
@@ -119,13 +126,16 @@ Each tab is represented by a `PaneTab` model that owns:
 - Add keyboard shortcut handling for tab operations (or delegate to pane)
 
 **src/App/AppDelegate.swift**
+
 - Save session state on terminate
 
 **scripts/build.sh** / **scripts/build-app.sh**
+
 - Codesign `build/Detours.app` with a stable local identity to avoid repeated TCC prompts
 - Support overrides via `CODESIGN_IDENTITY` and `CODESIGN_KEYCHAIN`
 
 **src/App/MainMenu.swift**
+
 - Add View menu items:
   - New Tab (Cmd-T)
   - Close Tab (Cmd-W) - note: replaces Close Window
@@ -137,6 +147,7 @@ Each tab is represented by a `PaneTab` model that owns:
   - Close Window moves to Cmd-Shift-W (or just remove shortcut)
 
 **src/FileList/FileListViewController.swift**
+
 - Minor changes only
 - Remove any navigation history it might reference (now owned by PaneTab)
 - `navigationDelegate` stays but methods change slightly - delegate back to owning PaneTab/PaneViewController
@@ -146,11 +157,13 @@ Each tab is represented by a `PaneTab` model that owns:
 Tab dragging uses `NSPasteboardItem` with a custom UTI for internal drag.
 
 **Drag source (PaneTabBar):**
+
 - On drag start, write tab ID to pasteboard
 - Register as `NSDraggingSource`
 - Provide drag image (tab appearance)
 
 **Drop target (PaneTabBar):**
+
 - Register for drag types
 - On drop from same tab bar: reorder
 - On drop from different tab bar:
@@ -165,7 +178,7 @@ Tab dragging uses `NSPasteboardItem` with a custom UTI for internal drag.
 Tab bar per overview spec section "Component Specifications > Tabs":
 
 | Element | Value |
-|---------|-------|
+| ------- | ----- |
 | Tab bar height | 32px |
 | Tab max width | 160px |
 | Tab padding | 8px horizontal |
@@ -176,6 +189,7 @@ Tab bar per overview spec section "Component Specifications > Tabs":
 | Font | SF Pro 12px Medium (Semibold for active) |
 
 Colors (from overview):
+
 - Surface: `#F5F5F3` / `#242322`
 - Background: `#FAFAF8` / `#1A1918`
 - Text Primary: `#1A1918` / `#FAFAF8`
@@ -185,7 +199,7 @@ Colors (from overview):
 ### Keyboard Shortcuts
 
 | Action | Shortcut | Implementation |
-|--------|----------|----------------|
+| ------ | -------- | -------------- |
 | New Tab | Cmd-T | Menu item → `PaneViewController.createTab()` |
 | Close Tab | Cmd-W | Menu item → `PaneViewController.closeTab()` |
 | Next Tab | Cmd-Shift-] | Menu item → `PaneViewController.selectNextTab()` |
@@ -203,11 +217,13 @@ Colors (from overview):
 ## Implementation Plan
 
 ### Phase 1: Tab Model
+
 - [x] Create `PaneTab.swift` with properties and navigation methods
 - [x] Move navigation history logic from `PaneViewController` to `PaneTab`
 - [x] Unit test navigation methods (back/forward/up)
 
 ### Phase 2: Tab Bar UI
+
 - [x] Create `PaneTabBar.swift` with layout
 - [x] Implement tab rendering (active/inactive states)
 - [x] Implement hover states and close button visibility
@@ -216,6 +232,7 @@ Colors (from overview):
 - [x] Test visual appearance matches spec
 
 ### Phase 3: Pane Integration
+
 - [x] Refactor `PaneViewController` to use tabs array
 - [x] Add tab bar to pane layout (32px top)
 - [x] Implement tab selection (show/hide file list views)
@@ -223,18 +240,21 @@ Colors (from overview):
 - [x] Ensure single tab works identically to Stage 1
 
 ### Phase 4: Tab Operations
+
 - [x] Implement `createTab()` - new tab at current directory
 - [x] Implement `closeTab()` - with minimum-one-tab rule
 - [x] Implement `selectNextTab()` / `selectPreviousTab()`
 - [x] Add Cmd-Shift-Down for "open folder in new tab"
 
 ### Phase 5: Menu Integration
+
 - [x] Add View menu with tab items
 - [x] Wire Cmd-T to new tab
 - [x] Wire Cmd-W to close tab (update Close Window shortcut)
 - [x] Wire Cmd-Shift-[ and Cmd-Shift-] to tab switching
 
 ### Phase 6: Tab Dragging
+
 - [x] Implement drag source in `PaneTabBar`
 - [x] Implement drop target in `PaneTabBar`
 - [x] Handle reorder within same pane
@@ -242,12 +262,14 @@ Colors (from overview):
 - [x] Visual feedback during drag (insertion indicator)
 
 ### Phase 7: Polish
+
 - [x] Tab tooltip shows full path
 - [x] Tab title updates when directory changes
 - [x] Smooth tab bar scrolling when many tabs
 - [x] Memory management - ensure closed tabs release file list VCs
 
 ### Phase 8: Verify
+
 - [x] Launch shows one tab per pane at home directory
 - [x] Cmd-T creates new tab at current directory
 - [x] Cmd-W closes tab (minimum one remains)
@@ -263,6 +285,7 @@ Colors (from overview):
 - [x] Home and iCloud Drive shortcuts navigate correctly
 
 ### Phase 9: Navigation UI & Session
+
 - [x] Add back/forward buttons in the tab bar
 - [x] Add path bar with Home + iCloud Drive shortcuts
 - [x] Persist tab directories and selected index across launches

@@ -1,9 +1,10 @@
 # Stage 3: File Operations
 
 ## Meta
+
 - Status: Implemented
 - Branch: feature/stage3-operations
-- Parent: [260105-detours-overview.md](260105-detours-overview.md)
+- Parent: [260105-detour-overview.md](260105-detour-overview.md)
 
 ## Goal
 
@@ -22,6 +23,7 @@ Create `src/Operations/` to house all file operation logic.
 ### Files to Create
 
 **src/Operations/FileOperationQueue.swift**
+
 - Singleton `@MainActor` class managing async file operations
 - Properties:
   - `shared: FileOperationQueue` - singleton instance
@@ -42,6 +44,7 @@ Create `src/Operations/` to house all file operation logic.
   - Use `Task` with `@MainActor` isolation for UI callbacks
 
 **src/Operations/FileOperation.swift**
+
 - Enum defining operation types:
   - `case copy(sources: [URL], destination: URL)`
   - `case move(sources: [URL], destination: URL)`
@@ -52,6 +55,7 @@ Create `src/Operations/` to house all file operation logic.
 - Computed property `description: String` for progress UI
 
 **src/Operations/FileOperationProgress.swift**
+
 - Struct for progress reporting:
   - `operation: FileOperation`
   - `currentItem: URL?`
@@ -62,6 +66,7 @@ Create `src/Operations/` to house all file operation logic.
 - Computed: `fractionCompleted: Double`
 
 **src/Operations/FileOperationError.swift**
+
 - Enum with associated values:
   - `case destinationExists(URL)`
   - `case sourceNotFound(URL)`
@@ -73,6 +78,7 @@ Create `src/Operations/` to house all file operation logic.
 - Conform to `LocalizedError` for user-facing messages
 
 **src/Operations/ProgressWindowController.swift**
+
 - `NSWindowController` subclass hosting SwiftUI progress view
 - Shows for operations with >5 items or estimated time >2 seconds
 - Properties:
@@ -84,6 +90,7 @@ Create `src/Operations/` to house all file operation logic.
   - Shows: operation description, current file, progress bar, cancel button
 
 **src/Operations/ProgressView.swift**
+
 - SwiftUI view for operation progress
 - Layout:
   - Operation title (e.g., "Copying 12 items...")
@@ -94,6 +101,7 @@ Create `src/Operations/` to house all file operation logic.
 - Use `@Observable` for progress binding
 
 **src/Operations/ClipboardManager.swift**
+
 - Manages pasteboard state for copy/cut operations
 - Properties:
   - `shared: ClipboardManager` - singleton
@@ -114,6 +122,7 @@ Create `src/Operations/` to house all file operation logic.
 - Post `ClipboardManager.cutItemsDidChange` notification when cutItemURLs changes
 
 **src/Operations/RenameController.swift**
+
 - Handles inline rename in file list
 - Activated by Shift-Enter or F2
 - Uses `NSTextField` overlay on the selected row's name cell
@@ -130,6 +139,7 @@ Create `src/Operations/` to house all file operation logic.
 ### Files to Modify
 
 **src/FileList/FileListViewController.swift**
+
 - Add keyboard handlers for file operations:
   - Cmd-C: copy selected items
   - Cmd-X: cut selected items
@@ -154,32 +164,38 @@ Create `src/Operations/` to house all file operation logic.
   - `fileListDidRequestMoveToOtherPane(items: [URL])`
 
 **src/FileList/FileListDataSource.swift**
+
 - Add method to get items by row indexes:
   - `items(at indexes: IndexSet) -> [FileItem]`
 
 **src/FileList/FileListViewController.swift**
+
 - Add `DirectoryWatcher` property
 - Start watcher when loading a directory
 - Stop previous watcher when changing directories
 - On change callback: reload directory preserving selection
 
 **src/FileList/FileListCell.swift**
+
 - Check `ClipboardManager.shared.isItemCut(url)` when rendering
 - If cut: render text and icon at 50% opacity
 - Observe `ClipboardManager.cutItemsDidChange` to refresh when cut state changes
 
 **src/Panes/PaneViewController.swift**
+
 - Add property:
   - `currentDirectory: URL?` - computed from `selectedTab?.currentDirectory`
 - Implement new delegate method for move to other pane
 
 **src/Windows/MainSplitViewController.swift**
+
 - Add method:
   - `moveItems(_ items: [URL], toOtherPaneFrom pane: PaneViewController)`
 - Gets destination from other pane's current directory
 - Calls `FileOperationQueue.shared.move()`
 
 **src/App/MainMenu.swift**
+
 - Add Edit menu items:
   - Copy (Cmd-C) → `copy:` action
   - Cut (Cmd-X) → `cut:` action
@@ -197,7 +213,7 @@ Create `src/Operations/` to house all file operation logic.
 ### Keyboard Shortcuts
 
 | Action | Primary | Alt | Menu |
-|--------|---------|-----|------|
+| ------ | ------- | --- | ---- |
 | Copy to Clipboard | Cmd-C | — | Edit > Copy |
 | Copy to Other Pane | F5 | — | — |
 | Cut | Cmd-X | — | Edit > Cut |
@@ -213,6 +229,7 @@ Create `src/Operations/` to house all file operation logic.
 ### Responder Chain
 
 File operation actions flow through the responder chain:
+
 1. `FileListViewController` is first responder (via tableView)
 2. `copy:`, `cut:`, `paste:`, `delete:`, `duplicate:` selectors implemented there
 3. Menu items target `nil` (first responder)
@@ -221,6 +238,7 @@ File operation actions flow through the responder chain:
 ### Operation Implementation Details
 
 **Copy:**
+
 1. Get selected URLs
 2. For each source, construct destination path: `destination/sourceName`
 3. If destination exists, append " copy" or " copy 2", etc.
@@ -228,26 +246,31 @@ File operation actions flow through the responder chain:
 5. Report progress per file
 
 **Move:**
+
 1. Same as copy but use `FileManager.moveItem(at:to:)`
 2. After successful move from cut-paste, clear clipboard
 
 **Delete:**
+
 1. Use `NSWorkspace.shared.recycle(_:completionHandler:)` for trash
 2. This provides system undo support automatically
 3. Wrap in async/await using `withCheckedThrowingContinuation`
 
 **Rename:**
+
 1. Validate new name
 2. Construct new URL in same directory
 3. Use `FileManager.moveItem(at:to:)`
 4. Return new URL for selection update
 
 **Duplicate:**
+
 1. For each selected item, copy to same directory
 2. Name pattern: "filename copy", "filename copy 2", etc.
 3. Directories: duplicate recursively
 
 **New Folder:**
+
 1. If a folder is selected, create inside it and navigate into it
 2. Otherwise create in current directory
 3. Name: "Folder" (if exists, try "Folder 2", etc.)
@@ -256,6 +279,7 @@ File operation actions flow through the responder chain:
 6. Immediately begin rename with name selected
 
 **Rename UX:**
+
 - Select name only, not extension (for files)
 - For folders, select entire name
 - Esc cancels and restores focus to table (selection stays blue)
@@ -265,18 +289,21 @@ File operation actions flow through the responder chain:
 ### Error Handling
 
 Display errors via `NSAlert`:
+
 - Single failure: show error message
 - Partial failure: "X of Y items failed" with option to show details
 - Permission denied: suggest checking Disk Access in System Settings
 - Destination exists: offer Skip / Replace / Keep Both
 
 Conflict resolution (for copy/move):
+
 - Skip: continue without copying this item
 - Replace: delete destination, then copy
 - Keep Both: append number suffix to destination name
 - Apply to All: remember choice for remaining conflicts
 
 **src/FileList/DirectoryWatcher.swift**
+
 - Monitors a directory for changes using `DispatchSource.makeFileSystemObjectSource`
 - Properties:
   - `url: URL` - directory being watched
@@ -303,6 +330,7 @@ Conflict resolution (for copy/move):
 ## Implementation Plan
 
 ### Phase 0: Test Infrastructure
+
 - [x] Add test target to Xcode project (DetoursTests)
 - [x] Create `Tests/Helpers/TestHelpers.swift` with temp directory utilities
 - [x] Create `Tests/FileListDataSourceTests.swift` (5 tests)
@@ -312,6 +340,7 @@ Conflict resolution (for copy/move):
 - [x] Run `xcodebuild test` - all 32 Stage 1-2 tests pass
 
 ### Phase 1: Operation Infrastructure
+
 - [x] Create `src/Operations/` directory
 - [x] Create `FileOperation.swift` enum
 - [x] Create `FileOperationProgress.swift` struct
@@ -319,6 +348,7 @@ Conflict resolution (for copy/move):
 - [x] Create `FileOperationQueue.swift` skeleton with async method signatures
 
 ### Phase 2: Basic Operations
+
 - [x] Implement `FileOperationQueue.delete()` using `NSWorkspace.recycle`
 - [x] Implement `FileOperationQueue.createFolder()`
 - [x] Implement `FileOperationQueue.rename()`
@@ -328,6 +358,7 @@ Conflict resolution (for copy/move):
 - [x] Create `Tests/FileOperationQueueTests.swift` with tests for delete, createFolder, rename
 
 ### Phase 3: Clipboard Operations
+
 - [x] Create `ClipboardManager.swift`
 - [x] Implement `copy()` - write URLs to pasteboard
 - [x] Implement `cut()` - write URLs and set isCut flag
@@ -339,6 +370,7 @@ Conflict resolution (for copy/move):
 - [x] Add copy/move tests to FileOperationQueueTests
 
 ### Phase 4: Duplicate and Move
+
 - [x] Implement `FileOperationQueue.duplicate()`
 - [x] Wire Cmd-D in FileListViewController
 - [x] Add `fileListDidRequestMoveToOtherPane` to delegate protocol
@@ -347,6 +379,7 @@ Conflict resolution (for copy/move):
 - [x] Add duplicate tests to FileOperationQueueTests
 
 ### Phase 5: Rename
+
 - [x] Create `RenameController.swift`
 - [x] Implement inline text field overlay
 - [x] Wire Shift-Enter and F2 in FileListViewController
@@ -355,22 +388,26 @@ Conflict resolution (for copy/move):
 - [x] Select renamed item
 
 ### Phase 6: Menu Integration
+
 - [x] Add Edit menu items in MainMenu.swift
 - [x] Add File > New Folder menu item
 - [x] Implement `validateMenuItem:` in FileListViewController
 
 ### Phase 7: Progress UI
+
 - [x] Create `ProgressView.swift` SwiftUI view
 - [x] Create `ProgressWindowController.swift`
 - [x] Update `FileOperationQueue` to show progress for operations with >5 items
 - [x] Add cancel support (sets cancelled flag, operation checks between items)
 
 ### Phase 8: Error Handling
+
 - [x] Implement conflict resolution alert (Skip/Replace/Keep Both/Apply to All)
 - [x] Implement error alert for single failures
 - [x] Implement partial failure summary ("X of Y items failed")
 
 ### Phase 9: F-Key Shortcuts and Cut Dimming
+
 - [x] Wire F5 (copy to other pane), F7 (new folder), F8 (delete) in keyDown
 - [x] Update FileListCell to dim cut items (50% opacity)
 - [x] Observe `ClipboardManager.cutItemsDidChange` to refresh cells
@@ -382,6 +419,7 @@ Conflict resolution (for copy/move):
 - [x] Esc during rename restores focus to table (selection stays blue)
 
 ### Phase 10: Directory Watching
+
 - [x] Create `DirectoryWatcher.swift` using DispatchSource
 - [x] Add watcher property to FileListViewController
 - [x] Start/stop watcher on directory changes
@@ -390,6 +428,7 @@ Conflict resolution (for copy/move):
 - [x] Create `Tests/DirectoryWatcherTests.swift` (4 tests)
 
 ### Phase 10b: Session Persistence and UX
+
 - [x] Persist selections per tab across app restarts (tabSelections in UserDefaults)
 - [x] Persist active pane across app restarts (activePaneIndex in UserDefaults)
 - [x] Active pane indicator: only active pane shows blue selection, inactive shows nothing (Marta-style)
@@ -397,6 +436,7 @@ Conflict resolution (for copy/move):
 - [x] Validate paste menu item against clipboard files that still exist (hasValidItems)
 
 ### Phase 10c: iCloud Drive Integration
+
 - [x] iCloud button navigates to ~/Library/Mobile Documents (iCloud root)
 - [x] Use localizedName for file display (shows "Automator" instead of "com~apple~Automator")
 - [x] Show "Shared by X" label for iCloud shared items (ubiquitousItemIsShared, ownerNameComponents)
@@ -407,6 +447,7 @@ Conflict resolution (for copy/move):
 - [x] Show iCloud download status icon for not-downloaded files
 
 ### Phase 10d: UX Polish
+
 - [x] Teal accent color for file selection, tab highlight, and folder icons
 - [x] Lighter file list background (0.18/0.15 white banded rows)
 - [x] Refresh both panes after paste/move if viewing affected directories
@@ -417,6 +458,7 @@ Conflict resolution (for copy/move):
 - [x] Tests for Cmd-I, Cmd-Option-C, Show in Finder menu validation
 
 ### Phase 11: Verify
+
 - [x] Run `xcodebuild test -scheme Detours -destination 'platform=macOS'` - all 78 tests pass
 - [x] Cmd-C copies selected files to clipboard
 - [x] Cmd-V pastes files to current directory
@@ -446,12 +488,14 @@ Write and run these tests. All tests use real file system with temp directories.
 Run with: `xcodebuild test -scheme Detours -destination 'platform=macOS'`
 
 ### Create Tests/Helpers/TestHelpers.swift
+
 - `createTempDirectory()` - creates unique temp dir, returns URL
 - `createTestFile(in:name:content:)` - creates file with content
 - `createTestFolder(in:name:)` - creates subdirectory
 - `cleanupTempDirectory(_:)` - removes temp dir and contents
 
 ### Create Tests/FileListDataSourceTests.swift (5 tests)
+
 - [x] Write `testLoadDirectory` - loads files from directory into items array
 - [x] Write `testLoadDirectoryExcludesHidden` - hidden files (dot prefix) excluded by default
 - [x] Write `testLoadDirectorySortsFoldersFirst` - folders before files
@@ -459,18 +503,21 @@ Run with: `xcodebuild test -scheme Detours -destination 'platform=macOS'`
 - [x] Write `testLoadDirectoryHandlesEmptyDirectory` - empty directory returns empty items
 
 ### Create Tests/FileListResponderTests.swift (14 tests)
+
 - [x] Cover Cmd-C/Cmd-X/Cmd-V behavior and cut paste moves
 - [x] Cover Cmd-D duplicate and Cmd-R refresh
 - [x] Cover F2/Shift-Enter rename triggers
 - [x] Cover F5/F6/F7/F8 shortcuts and delegate notifications
 
 ### Create Tests/SystemKeyHandlerTests.swift (4 tests)
+
 - [x] Parse system-defined media key events for dictation/F5
 - [x] Route dictation key to copy in the active pane
 - [x] Route system-defined F5 to copy in the active pane
 - [x] Route global key-down F5 to copy in the active pane
 
 ### Create Tests/FileItemTests.swift (9 tests)
+
 - [x] Write `testInitFromFile` - FileItem loads name, size, date from file URL
 - [x] Write `testInitFromDirectory` - FileItem sets isDirectory=true, size=nil
 - [x] Write `testFormattedSizeBytes` - <1000 returns "X B"
@@ -482,6 +529,7 @@ Run with: `xcodebuild test -scheme Detours -destination 'platform=macOS'`
 - [x] Write `testSortFoldersFirst` - folders before files, each group alphabetical
 
 ### Create Tests/PaneTabTests.swift (10 tests)
+
 - [x] Write `testInitialState` - new tab has empty back/forward stacks
 - [x] Write `testNavigateAddsToBackStack` - navigate pushes previous to backStack
 - [x] Write `testGoBackMovesToForwardStack` - goBack pops back, pushes to forward
@@ -494,6 +542,7 @@ Run with: `xcodebuild test -scheme Detours -destination 'platform=macOS'`
 - [x] Write `testNavigateClearsForwardStack` - new navigation clears forward
 
 ### Create Tests/PaneViewControllerTests.swift (8 tests)
+
 - [x] Write `testCreateTabAddsToArray` - createTab adds tab to tabs array
 - [x] Write `testCreateTabSelectsNewTab` - new tab becomes selected
 - [x] Write `testCloseTabRemovesFromArray` - closeTab removes tab
@@ -504,6 +553,7 @@ Run with: `xcodebuild test -scheme Detours -destination 'platform=macOS'`
 - [x] Write `testSelectPreviousTabWraps` - selectPreviousTab wraps to last
 
 ### Create Tests/FileOperationQueueTests.swift (13 tests)
+
 - [x] Write `testCreateFolder` - creates directory at path
 - [x] Write `testCreateFolderNameCollision` - appends " 2", " 3" for conflicts
 - [x] Write `testRenameFile` - changes file name, returns new URL
@@ -519,6 +569,7 @@ Run with: `xcodebuild test -scheme Detours -destination 'platform=macOS'`
 - [x] Write `testDuplicateMultiple` - each gets unique copy name
 
 ### Create Tests/ClipboardManagerTests.swift (8 tests)
+
 - [x] Write `testCopyWritesToPasteboard` - URLs readable from pasteboard
 - [x] Write `testCutSetsIsCutFlag` - isCut is true after cut
 - [x] Write `testCopyClearsIsCutFlag` - isCut is false after copy

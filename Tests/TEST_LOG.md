@@ -2,6 +2,19 @@
 
 ## Latest Run
 
+### 2026-07-14 (Spectre)
+
+- Command: `swift test --filter
+  'VolumeMonitorNetworkTests|FolderExpansionTests|FileListDataSourceTests'`;
+  `swiftlint lint --strict`; `resources/scripts/build.sh`.
+- Status: PASS
+- Notes: File Provider domain detection, asynchronous nested folder expansion,
+  selection/expansion restoration, and de-duplicated folder-size refreshes are
+  green. The focused test run passed 42 XCTest cases plus 7 Swift Testing cases
+  with no failures, strict lint reported 0 violations across 315 files, and the
+  signed release build installed to `/Applications/Detours.app` and relaunched
+  successfully on Spectre.
+
 ### 2026-06-27 08:01 (Foundry XCUI)
 
 - Removed redundant `internal(set)` modifiers on PaneViewController `tabs`/`selectedTabIndex` that were emitting build warnings. Built clean on Spectre (no-install) and Foundry: no warnings, no errors.

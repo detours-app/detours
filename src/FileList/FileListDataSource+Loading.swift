@@ -49,7 +49,10 @@ extension FileListDataSource {
                 self.onLoadCompleted?(.success(()))
 
                 // Kick off async icon loads for visible items
-                self.loadIconsAsync(for: self.items, isNetwork: VolumeMonitor.isNetworkVolume(normalizedURL))
+                self.loadIconsAsync(
+                    for: self.items,
+                    isNetwork: VolumeMonitor.requiresAsynchronousDirectoryAccess(normalizedURL)
+                )
 
                 // Fetch git status asynchronously if enabled
                 if shouldFetchGitStatus && SettingsManager.shared.settings.gitStatusEnabled {

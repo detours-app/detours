@@ -1,9 +1,10 @@
 # Stage 1: Foundation
 
 ## Meta
+
 - Status: Implemented
 - Branch: feature/stage1-foundation
-- Parent: [260105-detours-overview.md](260105-detours-overview.md)
+- Parent: [260105-detour-overview.md](260105-detour-overview.md)
 
 ## Goal
 
@@ -14,6 +15,7 @@ Get a working dual-pane window displaying directory contents with basic keyboard
 ### Project Setup
 
 Create Xcode project with:
+
 - Product name: Detours
 - Bundle identifier: `com.detours.app`
 - Language: Swift
@@ -21,6 +23,7 @@ Create Xcode project with:
 - Deployment target: macOS 14.0
 
 Project structure per overview spec:
+
 ```
 detours/
 ├── Detours.xcodeproj
@@ -42,11 +45,13 @@ detours/
 ### Files to Create
 
 **src/App/AppDelegate.swift**
+
 - `NSApplicationDelegate` implementation
 - Creates and shows `MainWindowController` on `applicationDidFinishLaunching`
 - No dock icon menu, no recent documents for now
 
 **src/App/MainMenu.swift**
+
 - Programmatic menu bar setup (not XIB-based menus beyond the minimal MainMenu.xib)
 - Menus for Stage 1:
   - Detours menu: About, Quit
@@ -58,6 +63,7 @@ detours/
   - Help menu: (empty placeholder)
 
 **src/Windows/MainWindowController.swift**
+
 - `NSWindowController` subclass
 - Window configuration:
   - Title: "Detours"
@@ -68,6 +74,7 @@ detours/
 - Contains `MainSplitViewController` as content
 
 **src/Windows/MainSplitViewController.swift**
+
 - `NSSplitViewController` subclass
 - Two `NSSplitViewItem` children (left pane, right pane)
 - Each item holds a `PaneViewController`
@@ -81,6 +88,7 @@ detours/
 - Handle Tab key to switch focus between panes
 
 **src/Panes/PaneViewController.swift**
+
 - `NSViewController` subclass
 - Contains a single `FileListViewController` for now (tabs come in Stage 2)
 - Tracks current directory path
@@ -93,6 +101,7 @@ detours/
 - Initial directory: user's home directory (`~`)
 
 **src/FileList/FileListViewController.swift**
+
 - `NSViewController` subclass containing `NSScrollView` > `NSTableView`
 - Table configuration:
   - View-based (not cell-based)
@@ -112,6 +121,7 @@ detours/
   - Type-to-select: jump to first matching filename
 
 **src/FileList/FileListDataSource.swift**
+
 - Conforms to `NSTableViewDataSource`, `NSTableViewDelegate`
 - Holds array of `FileItem`
 - Methods:
@@ -120,6 +130,7 @@ detours/
 - Provide cell views for each column
 
 **src/FileList/FileItem.swift**
+
 - Model struct/class for a file system item:
   - `name: String`
   - `url: URL`
@@ -131,6 +142,7 @@ detours/
 - Computed property for formatted date ("Jan 5", "Dec 31, 2025" if older year)
 
 **src/FileList/FileListCell.swift**
+
 - Custom `NSTableCellView` subclass for the Name column
 - Contains: icon (16px) + spacing (8px) + filename label
 - Icon: `NSImageView`, 16×16
@@ -138,14 +150,17 @@ detours/
 - For Size/Date columns, standard `NSTextField` in cell view, right-aligned, SF Mono 12px
 
 **src/Utilities/KeyboardShortcuts.swift**
+
 - Enum or struct defining shortcut key codes
 - For Stage 1, minimal: just arrow keys, Enter, type-to-select handling
 - Most shortcuts handled via menu items (Cmd-[, Cmd-], Cmd-Up)
 
 **Resources/Assets.xcassets**
+
 - App icon placeholder (can be empty/default for now)
 
 **Resources/Info.plist**
+
 - Standard macOS app plist
 - `LSUIElement`: NO (we want dock icon)
 - `NSHumanReadableCopyright`: "Copyright © 2026"
@@ -154,6 +169,7 @@ detours/
 ### Visual Styling (Stage 1 - Minimal)
 
 Apply colors from overview spec where straightforward:
+
 - Window background: Background color (`#FAFAF8` light / `#1A1918` dark)
 - Respect system dark/light mode (use semantic colors where possible, custom colors where needed)
 - Selection color: Accent (`#2D6A6A` light / `#4A9D9D` dark)
@@ -178,6 +194,7 @@ Apply colors from overview spec where straightforward:
 ## Implementation Plan
 
 ### Phase 1: Project Skeleton
+
 - [x] Create Xcode project with correct settings
 - [x] Set up folder structure (src/, Resources/, Tests/, docs/)
 - [x] Configure build settings (deployment target 14.0, hardened runtime)
@@ -185,6 +202,7 @@ Apply colors from overview spec where straightforward:
 - [x] Verify app launches and shows empty window
 
 ### Phase 2: Window Structure
+
 - [x] Create MainWindowController.swift
 - [x] Configure window size, style, title
 - [x] Create MainSplitViewController.swift with two placeholder views
@@ -192,6 +210,7 @@ Apply colors from overview spec where straightforward:
 - [x] Implement double-click divider to reset 50/50
 
 ### Phase 3: Pane Foundation
+
 - [x] Create PaneViewController.swift
 - [x] Implement navigation history (back/forward stacks)
 - [x] Add navigate(to:), goBack(), goForward(), goUp() methods
@@ -199,6 +218,7 @@ Apply colors from overview spec where straightforward:
 - [x] Verify navigation methods work (even without visible file list)
 
 ### Phase 4: File List
+
 - [x] Create FileItem.swift model
 - [x] Create FileListDataSource.swift
 - [x] Implement loadDirectory() - scan and populate
@@ -208,6 +228,7 @@ Apply colors from overview spec where straightforward:
 - [x] Display files from home directory
 
 ### Phase 5: Keyboard Navigation
+
 - [x] Arrow key navigation (move selection up/down)
 - [x] Enter to open folder/file
 - [x] Cmd-Down as alias for Enter
@@ -217,6 +238,7 @@ Apply colors from overview spec where straightforward:
 - [x] Visual indicator for active pane (2px accent border on divider edge)
 
 ### Phase 6: Verify
+
 - [x] Both panes show home directory on launch
 - [x] Can navigate into folders independently in each pane
 - [x] Back/forward navigation works per pane (Cmd-Left/Right)

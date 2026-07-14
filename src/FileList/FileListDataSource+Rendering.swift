@@ -96,16 +96,14 @@ extension FileListDataSource {
         let cell = makeTextCell(text: cellText, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
 
         if needsRefresh {
-            Task { [weak outlineView] in
-                if let size = try? await LocalFileProvider.shared.folderSize(for: .local(url)) {
-                    FolderSizeCache.shared.store(size: size, for: url)
-                }
-                await MainActor.run {
-                    guard let outlineView else { return }
-                    let rowCount = outlineView.numberOfRows
-                    if rowCount > 0 {
-                        outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<rowCount), columnIndexes: IndexSet(integer: 1))
-                    }
+            FolderSizeCache.shared.calculateAsync(for: url) { [weak outlineView, weak item] _ in
+                guard let outlineView, let item else { return }
+                let row = outlineView.row(forItem: item)
+                if row >= 0 {
+                    outlineView.reloadData(
+                        forRowIndexes: IndexSet(integer: row),
+                        columnIndexes: IndexSet(integer: 1)
+                    )
                 }
             }
         }

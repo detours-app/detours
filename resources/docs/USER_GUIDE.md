@@ -108,7 +108,7 @@ Results are ranked by "frecency" - frequently and recently visited directories a
 
 **Tip:** Quick Open searches Documents, Downloads, Desktop, dev folders, and iCloud Drive. Enable "Include hidden files in Quick Open" in Preferences to also search hidden files.
 
-Remote Quick Open shows the scope line "Searching <host> - entire host", searches names case-insensitively, starts with the remote home folder and `/opt`, streams results as the helper finds them, and keeps recent places scoped to the active host.
+Remote Quick Open keeps recent places scoped to the active host and searches names case-insensitively. On macOS and Linux helper hosts, it searches the remote home folder and `/opt` and streams results as the helper finds them. On Windows hosts, it searches from the active folder through the PowerShell backend.
 
 ### Selection
 
@@ -187,17 +187,16 @@ Create and extract archives directly from the file list.
 
 - Select files/folders, then File > Archive... (or right-click > Archive...)
 - Five formats: ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ
-- ZIP and 7Z support optional password encryption
 - Formats requiring external tools (7z, xz, bzip2) are shown dimmed if not installed
 - Last-used format is remembered between sessions
 
 **Extracting archives:**
 
 - Select an archive, then File > Extract Here (or right-click > Extract Here, or double-click)
-- Password-protected archives prompt for password
+- Password-protected archives are rejected because Detours does not pass archive passwords to subprocesses or remote host command lines
 - Conflict dialog when extracting over existing items (Skip/Replace/Keep Both)
 
-Archive and Extract Here are currently local-only. Remote helper support exists below the app layer, but the app's archive dialog and extraction command still use local URL selections and are disabled for remote rows until those command paths are routed through provider-backed locations.
+Archive and Extract Here work locally and on supported remote hosts. Available formats depend on the tools installed on the Mac or remote host; Windows hosts can always create and extract unencrypted ZIP archives through the built-in PowerShell backend.
 
 ### Share
 
@@ -256,18 +255,19 @@ This release supports:
 
 - x86_64 Linux
 - Intel macOS (`Darwin x86_64`)
+- Windows OpenSSH hosts whose default shell is Windows PowerShell
 
-Apple Silicon macOS hosts, ARM Linux hosts, BSD hosts, and embedded sshd targets are refused before helper installation.
+Apple Silicon macOS hosts, ARM Linux hosts, BSD hosts, embedded sshd targets, and Windows SSH hosts configured with a Unix-style default shell are unsupported.
 
 ### Remote Helper
 
-On first connect, Detours installs a small helper on the remote host:
+On first connect to a supported macOS or Linux host, Detours installs a small helper:
 
 ```text
 ~/.detours-server/detours-server
 ```
 
-The helper powers remote listings, file operations, folder sizes, git status, watching, Quick Open search, and transfers. Detours silently redeploys it when the bundled helper changes.
+The helper powers remote listings, file operations, folder sizes, git status, watching, Quick Open search, and transfers. Detours silently redeploys it when the bundled helper changes. Windows hosts use PowerShell over SSH instead and do not receive a helper binary.
 
 ### Remote File Workflows
 
@@ -275,26 +275,29 @@ Remote panes support normal Detours workflows:
 
 - Browse folders, tabs, breadcrumbs, and folder expansion
 - Copy, cut, paste, F5 copy-to-other-pane, and F6 move-to-other-pane across Mac and remote panes
-- Move to Trash, Undo restore, and Delete Immediately after confirmation
+- Move to Trash and Undo restore
 - New Folder and New File
 - Rename
 - Get Info and Copy Path
 - Quick Look and Open With round trips
 - Drag files out to Finder or other apps
+- Archive and Extract Here, with formats based on host tool availability
 - Git status markers
 - File watching with polling fallback when needed
 
 Current remote exceptions:
 
-- Duplicate, Duplicate Structure, Archive, and Extract Here are local-only because those app commands still operate on local URL selections instead of provider-backed locations.
+- Duplicate and Duplicate Structure are local-only because those commands still operate on local URL selections.
 - Reveal in Finder and Share are local-only because Finder and macOS sharing services need local files. Use drag-out or Open With when you need a local materialized copy.
+- Delete Immediately currently moves remote items to host-side Trash; permanent deletion is local-only.
+- Password-protected archive creation and extraction are disabled on every backend so passwords never appear in a local or remote process list.
 - Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported because this release bundles only `x86_64 Linux` and `x86_64 macOS` helpers.
 
 Large transfers use a second SSH channel so listings, git status, Quick Open search, and watch events can continue on the metadata channel. Remote git status runs after the directory listing completes; a slow repository should not block the list refresh.
 
 ### Remote Trash
 
-Remote deletes do not use the Mac Trash. Detours moves remote items into the remote host's FreeDesktop trash and Undo restores them from there. The first remote delete shows an explainer; it is also available from Help → About Remote Trash.
+Remote deletes do not use the Mac Trash. On macOS and Linux hosts, Detours uses the remote user's FreeDesktop trash. On Windows hosts, it uses a Detours-managed `.detours-trash` folder in the user's profile. Undo restores items from the corresponding host-side trash. The first remote delete shows an explainer; it is also available from Help → About Remote Trash.
 
 ---
 
@@ -413,18 +416,19 @@ Open with **Cmd-,** (or Detours menu → Preferences)
 - Theme selection
 - Custom theme editor
 - Font size
+- File-list density: Compact, Comfortable, or Spacious
 - Date format customization
 
 ### Shortcuts
 
-Customize keyboard shortcuts for 13 actions:
+Customize keyboard shortcuts for 15 actions:
 
 - Quick Look, Open in Editor
 - Copy/Move to Other Pane
-- New Folder, Delete, Rename
+- New Folder, Move to Trash, Delete Immediately, Rename
 - Open in New Tab
 - Toggle Hidden Files
-- Quick Open, Refresh, Toggle Sidebar
+- Quick Open, Filter, Refresh, Toggle Sidebar, Add Remote Host
 
 Click a shortcut field and press your desired key combination. Click the reset button (↺) to restore the default.
 
@@ -442,6 +446,7 @@ Features that aren't immediately obvious:
 
 - **Drag** the divider between panes to resize
 - **Snap to center**: Divider snaps to equal width when dragged within 12px of center
+- **Equalize panes**: Press Ctrl-Cmd-= or choose View → Equalize Panes
 
 ### iCloud Drive
 

@@ -46,7 +46,15 @@ extension FileListDataSource {
                         // Only load children if not already loaded - avoid replacing existing children
                         // which would create new FileItem objects and break outline view references
                         if item.children == nil && !item.isVirtualSharedFolder {
-                            _ = item.loadChildren(showHidden: showHiddenFiles, sortDescriptor: sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
+                            if VolumeMonitor.requiresAsynchronousDirectoryAccess(item.url) {
+                                outlineView?.expandItem(item)
+                                continue
+                            }
+                            _ = item.loadChildren(
+                                showHidden: showHiddenFiles,
+                                sortDescriptor: sortDescriptor,
+                                foldersOnTop: SettingsManager.shared.foldersOnTop
+                            )
                         }
                         outlineView?.expandItem(item)
                     }

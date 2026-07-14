@@ -1,206 +1,91 @@
 # Deletion Safety Audit
 
-Last audited: 2026-03-02
+Last audited: 2026-07-14
 
-Detours follows a strict policy: **no file or folder is ever permanently deleted
-without going to Trash**, except when the user explicitly confirms permanent
-deletion. The only other use of `removeItem` is for temporary files and
-directories that the app itself created during an operation.
+Detours follows a strict policy: **no user file or folder is permanently deleted without explicit confirmation**. Normal deletion, conflict replacement, and undo cleanup use Trash. Direct filesystem removal is reserved for confirmed local Delete Immediately operations and app-created temporary files.
 
 ## The Incident
 
-On 2026-03-02, a bug in the archive extraction cancel path permanently deleted
-the user's ~/Downloads folder. The root cause: `runExtractProcess` called
-`FileManager.removeItem(at: destination)` when the user cancelled, and
-`destination` was the parent directory (~/Downloads) rather than a temp
-directory the app created. This was a catastrophic data loss bug.
+On 2026-03-02, a bug in the archive extraction cancel path permanently deleted the user's `~/Downloads` folder. `runExtractProcess` removed its destination on cancel even when that destination was the user's existing parent directory.
 
-## What Changed
+The extraction flow now tracks whether it created a destination, keeps cleanup in the caller that created it, and refuses generic cleanup for directories that do not use the `.detours-extract-` prefix.
 
-1. **Removed the dangerous `removeItem(at: destination)` from
-   `runExtractProcess`** — the cancel path now throws `.cancelled` with zero
-   cleanup. Only callers that know which directories they created handle
-   cleanup.
-2. **Added `removeAppCreatedDirectory()`** — a safety guard that checks the
-   `.detours-extract-` prefix before deleting. If the name doesn't match, it
-   logs a refusal and returns without deleting.
-3. **Added `appCreatedExtractionDir` flag** — extraction code explicitly tracks
-   whether it created a directory, instead of inferring from operation type.
-4. **Cancel now terminates the subprocess** — `cancelCurrentOperation()` calls
-   `currentProcess?.terminate()` directly, so cancel actually works.
+## Current Permanent-Deletion Surfaces
 
----
+### Confirmed local Delete Immediately
 
-## Every Permanent Deletion Call in the Codebase
+`FileListViewController.deleteSelectionImmediately()` is the common entry point for the menu, context-menu, and keyboard actions. It presents a destructive confirmation dialog before calling `FileOperationQueue.deleteImmediately`. The local implementation enumerates the confirmed selection and removes the deepest descendants first in `src/Operations/FileOperationQueue+OperationsContinued.swift`.
 
-There are exactly **7** calls to `FileManager.removeItem` in the entire `src/`
-directory. All 7 are in `FileOperationQueue.swift`. Zero are in any other file.
+No undo handler calls this path.
 
-### 1. Copy conflict "Replace" (line 287)
+### App-created temporary data
 
-```swift
-try await runFileIO { try FileManager.default.removeItem(at: initialDestination) }
-```
+Other filesystem `removeItem` calls clean up data created by Detours itself:
 
-- **What it deletes**: The existing file at the copy destination
-- **Guard**: User chose "Replace" in the conflict resolution dialog
-- **Safe**: Yes — user explicitly chose to replace this specific file
+- local, Unix-remote, and Windows transfer partials;
+- provider-transfer staging directories and new-file upload staging;
+- incomplete archive outputs and `.detours-extract-*` directories;
+- generated Quick Look previews and stale preview-cache entries;
+- drag-out partials and temporary Open With lookup directories;
+- test-only session roots created by the UI-test environment.
 
-### 2. Move conflict "Replace" (line 368)
+These paths are constructed by Detours under temporary/cache locations or use an operation-specific generated suffix. They are not caller-supplied user directories.
 
-```swift
-try await runFileIO { try FileManager.default.removeItem(at: initialDestination) }
-```
+## Trash and Replacement Surfaces
 
-- **What it deletes**: The existing file at the move destination
-- **Guard**: User chose "Replace" in the conflict resolution dialog
-- **Safe**: Yes — user explicitly chose to replace this specific file
+Normal Move to Trash operations are recoverable:
 
-### 3. Delete Immediately (line 528)
+- Local files use `NSWorkspace.recycle` or `FileManager.trashItem`.
+- Unix remote files use the remote user's FreeDesktop trash through the helper.
+- Windows remote files use a Detours-managed `.detours-trash` folder in the
+  signed-in user's profile.
+- Replace conflict handling moves the displaced destination to the appropriate
+  Trash before placing the replacement.
+- Undo cleanup for copied, duplicated, renamed, or newly created items uses the
+  same Trash-backed paths.
+- Archive extraction conflicts move replaced wrappers/items to Trash.
 
-```swift
-try await runFileIO { try FileManager.default.removeItem(at: file) }
-```
+Remote Delete Immediately currently routes through each provider's delete path, which is Trash-backed on the Unix and Windows providers. It therefore does not permanently erase a remote item, despite showing the confirmation used by the local command. This behavior is tracked in `resources/docs/ISSUES.md`.
 
-- **What it deletes**: User-selected files
-- **Guard**: `deleteSelectionImmediately()` shows a confirmation dialog with a
-  red destructive "Delete" button. All 3 entry points (main menu, context menu,
-  keyboard shortcut) go through this single function.
-- **Safe**: Yes — user confirmed via destructive dialog
+## Extraction Safeguards
 
-### 4. Archive cancel cleanup (line 984)
+### Process cancellation never removes the destination
 
-```swift
-try? FileManager.default.removeItem(at: partialFile)
-```
+`runExtractProcess` terminates the child and throws `.cancelled`. It does not delete the extraction destination because that URL may be an existing user directory.
 
-- **What it deletes**: The partial archive file being written (e.g.
-  `folder.zip`)
-- **Guard**: `partialFile` is constructed as
-  `uniqueArchiveDestination(in:baseName:format:)` — always a new file the app
-  is creating, never an existing user file
-- **Safe**: Yes — deletes an incomplete output file the app created
+### Cleanup is tied to app creation
 
-### 5. Archive error cleanup (line 998)
+`performExtractNonZip` sets `appCreatedExtractionDir` only after it creates the directory itself. Error cleanup is gated on that flag. When extraction writes directly into an existing parent directory, the flag remains false.
 
-```swift
-try? FileManager.default.removeItem(at: partialFile)
-```
+### Generic extraction cleanup validates the name
 
-- **What it deletes**: Same partial archive file, on process error
-- **Guard**: Same as #4
-- **Safe**: Yes — same reasoning
+`removeAppCreatedDirectory()` accepts only directories whose last path component begins with `.detours-extract-`. Any other path is refused and logged.
 
-### 6. Extract error cleanup (line 1303)
+### Archive creation touches only its output
 
-```swift
-try? fileManager.removeItem(at: extractionDir)
-```
-
-- **What it deletes**: The extraction directory, only on error
-- **Guard**: Protected by `if appCreatedExtractionDir` — a boolean that is only
-  set to `true` immediately after `fileManager.createDirectory()` calls in the
-  same function. When `extractionDir == parentDir` (the user's folder), this
-  flag is `false` and the `removeItem` is never reached.
-- **Safe**: Yes — only deletes directories the app created moments earlier
-
-### 7. Inside `removeAppCreatedDirectory()` (line 1762)
-
-```swift
-try? FileManager.default.removeItem(at: url)
-```
-
-- **What it deletes**: Temp extraction directories
-- **Guard**: Validates `url.lastPathComponent.hasPrefix(".detours-extract-")`
-  before deleting. If the prefix doesn't match, logs a refusal message and
-  returns without deleting.
-- **Safe**: Yes — prefix check prevents deletion of anything the app didn't
-  create. Called from `performExtractZip` defer block and `performExtractNonZip`
-  temp dir cleanup.
-
----
-
-## Every Trash Call in the Codebase
-
-These all use `trashItem` or `NSWorkspace.recycle` — recoverable from Trash.
-
-| Location | What | Trigger |
-| --- | --- | --- |
-| `FileOperationQueue.recycle()` | User files | Normal delete (Cmd+Delete) |
-| `FileOperationQueue.recycleSync()` | Various | All undo handlers (copy, duplicate, new folder, new file, delete redo) |
-| `performExtractZip` line 1096 | Wrapper dir | User chose "Replace" for existing wrapper |
-| `performExtractZip` line 1140 | Existing file | User chose "Replace" for existing file |
-| `performExtractNonZip` line 1232 | Wrapper dir | User chose "Replace" for existing wrapper |
-| `performExtractNonZip` line 1264 | Conflicting items | User chose "Replace" for conflicts |
-| `RenameController` line 104 | New folder | Undo "New Folder" (name unchanged) |
-| `RenameController` line 133 | New folder | Undo "New Folder" (renamed) |
-
----
-
-## Paths That Can NEVER Happen
-
-### User directory deleted by cancel
-
-**Before**: `runExtractProcess` did `removeItem(at: destination)` on cancel.
-When extracting without a wrapper folder, `destination` was the user's parent
-directory.
-
-**After**: `runExtractProcess` cancel path does zero cleanup — it only throws
-`.cancelled`. The callers (`performExtractZip`, `performExtractNonZip`) handle
-cleanup of directories they created via `defer` blocks and
-`appCreatedExtractionDir` guards.
-
-### User directory deleted by error
-
-**Before**: `performExtractNonZip` checked
-`needsWrapperFolder || extractToTemp` to decide whether to clean up.
-
-**After**: Uses `appCreatedExtractionDir` flag instead. This flag is only set
-to `true` immediately after a `createDirectory()` call. When
-`extractionDir == parentDir`, the flag stays `false` and cleanup is skipped.
-
-### Undo handler permanently deletes files
-
-All undo handlers use `recycleSync()` which calls `FileManager.trashItem`.
-Zero undo handlers use `removeItem`. Files always go to Trash and can be
-recovered.
-
-### Cancel during archive creation deletes source files
-
-The archive `runProcess` cancel path only deletes `partialFile` — the output
-archive being written. The source files are never touched.
-
----
+Cancel/error cleanup removes only the incomplete archive output selected by the operation. Source files are never cleanup targets.
 
 ## Safeguard Layers
 
-The codebase has three independent layers preventing involuntary deletion:
+The codebase uses independent controls against involuntary deletion:
 
-1. **No `removeItem` on user paths** — `runExtractProcess` has zero cleanup
-   code. Only callers that create directories clean them up.
-2. **`appCreatedExtractionDir` flag** — explicit tracking of whether the app
-   created the extraction directory. Only `true` immediately after
-   `createDirectory()`.
-3. **`removeAppCreatedDirectory()` prefix check** — validates
-   `.detours-extract-` prefix before deleting. Refuses and logs if the name
-   doesn't match.
-
-For a user directory to be deleted, all three layers would have to fail
-simultaneously — which requires the directory to have been created by the app,
-flagged as app-created, AND have a `.detours-extract-` prefix.
-
----
+1. UI confirmation gates the only local user-path `removeItem` workflow.
+2. Normal deletion, replacement, and undo use local or host-side Trash.
+3. Extraction cleanup records whether Detours created the directory.
+4. Generic extraction cleanup requires the `.detours-extract-` prefix.
+5. Transfer/archive/preview cleanup uses generated app-owned partial, staging,
+   cache, or temporary paths.
 
 ## Rules for Future Development
 
-1. **NEVER pass a user-provided path to `removeItem`** — extraction
-   destinations, parent directories, download folders, home directories are all
-   off-limits
-2. **Use Trash for user files** — `trashItem` or `NSWorkspace.recycle`, always
-3. **Track what you create** — if you create a temp directory, use the
-   `.detours-extract-` prefix and clean it up with `removeAppCreatedDirectory()`
-4. **Cleanup belongs to the creator** — low-level functions like
-   `runExtractProcess` do NOT clean up. The caller that created the directory is
-   responsible.
-5. **When in doubt, don't delete** — a leftover temp directory is infinitely
-   better than a deleted user folder
+1. **Never pass an unconfirmed user path to `removeItem`.** Extraction
+   destinations, parent directories, download folders, and home directories are
+   off-limits.
+2. **Use Trash for user files.** Prefer provider `trash`,
+   `FileManager.trashItem`, or `NSWorkspace.recycle`.
+3. **Track what the app creates.** Use generated operation-specific names and
+   keep cleanup coupled to the creator.
+4. **Keep low-level process runners cleanup-free.** The caller knows whether a
+   destination is app-owned.
+5. **When uncertain, leave the temporary data.** A cleanup leak is safer than
+   deleting a user directory.

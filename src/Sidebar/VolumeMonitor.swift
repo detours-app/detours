@@ -212,6 +212,42 @@ final class VolumeMonitor {
         }
     }
 
+    /// File Provider domains such as iCloud Desktop & Documents live on a local APFS
+    /// volume, but ordinary resource-value reads may synchronously cross into the
+    /// provider process. Walk ancestors using the domain xattr so callers can keep
+    /// those reads off the main thread without asking File Provider to identify itself.
+    nonisolated static func isFileProviderBacked(
+        _ url: URL,
+        domainAttributeName: String = "com.apple.file-provider-domain-id"
+    ) -> Bool {
+        var candidate = url.standardizedFileURL
+
+        while true {
+            let hasDomainAttribute = candidate.path.withCString { path in
+                domainAttributeName.withCString { attributeName in
+                    getxattr(path, attributeName, nil, 0, 0, 0) >= 0
+                }
+            }
+            if hasDomainAttribute {
+                return true
+            }
+
+            let parent = candidate.deletingLastPathComponent().standardizedFileURL
+            if parent.path == candidate.path {
+                return false
+            }
+            candidate = parent
+        }
+    }
+
+    /// Directory metadata can block when it comes from either a remote filesystem or
+    /// a local File Provider domain. Both must use the asynchronous loading path.
+    nonisolated static func requiresAsynchronousDirectoryAccess(_ url: URL) -> Bool {
+        // Check the xattr first. Asking a File Provider URL for volume metadata can
+        // itself cross XPC, which would defeat this main-thread safety check.
+        isFileProviderBacked(url) || isNetworkVolume(url)
+    }
+
     private func shouldSkipVolume(_ url: URL) -> Bool {
         let path = url.path
 

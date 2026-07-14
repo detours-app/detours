@@ -1,6 +1,6 @@
 # Detours
 
-Dual-pane file manager with tabs, folder expansion, SSH remote browsing, Quick Open, file-operation progress, and git status. Keyboard-first, fully themeable.
+Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macOS, Linux, and Windows hosts, Quick Open, file-operation progress, and git status. Keyboard-first, fully themeable.
 
 ![Detours screenshot](resources/docs/screenshot.png?v=2026-06-16)
 
@@ -9,10 +9,10 @@ Dual-pane file manager with tabs, folder expansion, SSH remote browsing, Quick O
 - **Dual-pane layout** - Two independent file browsers, side by side
 - **Tabs per pane** - Finder-style tabs within each pane
 - **Folder expansion** - Disclosure triangles to expand folders inline (like Finder list view)
-- **Quick Open** - Spotlight locally, whole-host name search on remote tabs, with frecency ranking (Cmd-P)
+- **Quick Open** - Spotlight locally and host-aware name search on remote tabs, with frecency ranking (Cmd-P)
 - **Git status indicators** - See modified, staged, and untracked files at a glance
-- **SSH remote browsing** - Browse supported remote hosts directly in Detours panes
-- **Remote file workflows** - Copy, move, trash, restore, new file/folder, Get Info, Quick Look, Open With, and drag out remote files
+- **SSH remote browsing** - Browse supported macOS, Linux, and Windows hosts directly in Detours panes
+- **Remote file workflows** - Copy, move, trash, restore, archive, extract, create files/folders, Get Info, Quick Look, Open With, and drag out remote files
 - **Inline operation progress** - Status bars show progress, transfer speed, completion, and error states
 - **Fast lane operations** - Small independent operations stay responsive while large transfers run
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
@@ -97,7 +97,7 @@ detours/
 │   ├── FileList/         # File list view
 │   ├── Navigation/       # Quick nav, frecency
 │   ├── Operations/       # Copy, move, delete
-│   ├── Remote/           # SSH connections, helper deploy, remote RPC
+│   ├── Remote/           # SSH connections, Unix helper RPC, Windows PowerShell backend
 │   ├── Services/         # File providers, git status
 │   ├── Sidebar/          # Favorites, volumes, network shares, remote hosts
 │   ├── Preferences/      # Settings UI

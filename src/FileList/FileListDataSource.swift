@@ -29,7 +29,7 @@ final class FolderSizeCache {
         }
     }
 
-    func calculateAsync(for url: URL, onComplete: @escaping @Sendable (Int64) -> Void) {
+    func calculateAsync(for url: URL, onComplete: @escaping @MainActor (Int64) -> Void) {
         let isStale = stale.contains(url)
 
         // Fresh cache hit — return immediately.
@@ -297,6 +297,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
 
     /// Active icon load tasks (cancelled when navigating away)
     var iconLoadTasks: [Task<Void, Never>] = []
+
+    /// Child loads currently crossing a remote filesystem or File Provider boundary.
+    /// NSOutlineView may ask to expand the same item repeatedly while a reload is in
+    /// progress; only one enumeration may be active for an item at a time.
+    var pendingChildLoads: Set<ObjectIdentifier> = []
 
     /// Callback for when async load starts (used by FileListViewController for loading state)
     var onLoadStarted: (() -> Void)?

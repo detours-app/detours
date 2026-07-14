@@ -1,9 +1,10 @@
 # Stage 4: Quick Navigation (Cmd-P)
 
 ## Meta
+
 - Status: Complete
 - Branch: feature/stage4-quick-nav
-- Parent: [260105-detours-overview.md](260105-detours-overview.md)
+- Parent: [260105-detour-overview.md](260105-detour-overview.md)
 
 ## Problem
 
@@ -16,6 +17,7 @@ Add a Cmd-P popover with substring search. Type partial directory names to find 
 ### What is Frecency?
 
 Frecency = frequency + recency. It's a scoring algorithm that ranks items by combining:
+
 - **Frequency:** How often you visit a directory
 - **Recency:** How recently you visited it
 
@@ -24,6 +26,7 @@ A directory visited 3 times today ranks higher than one visited 50 times last mo
 **Formula:** `score = visitCount * recencyWeight`
 
 Where `recencyWeight` is:
+
 - 1.0 if visited in last 4 hours
 - 0.7 if visited in last day
 - 0.5 if visited in last week
@@ -46,6 +49,7 @@ Persists directory visit history and calculates frecency scores.
 
 - Storage: JSON file at `~/Library/Application Support/Detours/frecency.json`
 - Data structure:
+
   ```
   struct FrecencyEntry: Codable {
       let path: String           // Full path like "/Users/marco/Dev/detours"
@@ -53,6 +57,7 @@ Persists directory visit history and calculates frecency scores.
       var lastVisit: Date        // Most recent visit
   }
   ```
+
 - Properties:
   - `shared: FrecencyStore` - singleton
   - `entries: [String: FrecencyEntry]` - keyed by path
@@ -78,6 +83,7 @@ Persists directory visit history and calculates frecency scores.
 SwiftUI view for the popover content.
 
 - Layout (from overview spec):
+
   ```
   ┌────────────────────────────────────────────┐
   │                                            │
@@ -92,6 +98,7 @@ SwiftUI view for the popover content.
   │  ↑↓ navigate   ↵ open   ⇥ autocomplete    │
   └────────────────────────────────────────────┘
   ```
+
 - Width: 400px fixed
 - Max results: 10
 - Properties:
@@ -136,6 +143,7 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 ### Files to Modify
 
 **src/App/MainMenu.swift**
+
 - Add Go menu (between Edit and Window):
   - Quick Open (Cmd-P) → `quickOpen:` action
   - Separator
@@ -145,6 +153,7 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 - Target: `nil` (first responder)
 
 **src/Windows/MainSplitViewController.swift**
+
 - Add property: `quickNavController: QuickNavController?`
 - Add method: `showQuickNav()` - creates controller if needed, shows popover
 - Add method: `quickOpen(_ sender: Any?)` - called from menu, calls `showQuickNav()`
@@ -152,10 +161,12 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 - After navigation: call `FrecencyStore.shared.recordVisit(url)`
 
 **src/Panes/PaneTab.swift**
+
 - Verify `navigate(to:)` exists and works (it should from Stage 1)
 - If not, add it: sets `currentDirectory`, clears forward stack, pushes to back stack
 
 **src/FileList/FileListViewController.swift**
+
 - In `loadDirectory(_:)` or equivalent: call `FrecencyStore.shared.recordVisit(url)`
 - This ensures every directory navigation is tracked, not just Cmd-P
 
@@ -183,6 +194,7 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 ## Implementation Plan
 
 ### Phase 1: Frecency Store
+
 - [x] Create `src/Navigation/` directory
 - [x] Create `FrecencyStore.swift` with entry struct and storage
 - [x] Implement `recordVisit()`, `load()`, `save()`
@@ -191,6 +203,7 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 - [x] Create `Tests/FrecencyStoreTests.swift`
 
 ### Phase 2: SwiftUI View
+
 - [x] Create `QuickNavView.swift` with layout
 - [x] Implement query binding and debounced search
 - [x] Implement keyboard navigation (Up/Down/Enter/Escape)
@@ -198,6 +211,7 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 - [x] Style according to overview spec (colors, fonts, spacing)
 
 ### Phase 3: AppKit Integration
+
 - [x] Create `QuickNavController.swift`
 - [x] Implement popover presentation and positioning
 - [x] Wire `onSelect` to dismiss and return URL
@@ -205,12 +219,14 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 - [x] Implement `showQuickNav()` and `quickOpen(_:)` methods
 
 ### Phase 4: Menu and Recording
+
 - [x] Add Go menu to `MainMenu.swift`
 - [x] Add Cmd-P shortcut for Quick Open
 - [x] Add `recordVisit()` call in `FileListViewController.loadDirectory()`
 - [x] Verify frecency updates on every navigation
 
 ### Phase 5: Verify
+
 - [x] Run all tests
 - [x] Cmd-P opens popover centered in window
 - [x] Typing filters results with substring matching
@@ -244,6 +260,7 @@ AppKit controller that hosts the SwiftUI view and manages the popover.
 ### Manual Verification
 
 After implementation:
+
 - [x] Popover appears centered, styled correctly
 - [x] Results update as you type (no lag)
 - [x] Keyboard navigation feels responsive

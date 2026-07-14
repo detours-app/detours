@@ -10,7 +10,7 @@ Current reconciliation: 2026-06-24
 
 1. AppleScript injection via unescaped file paths and window names - mitigated for the local Finder path; remote path replaced
 
-- Current status: `src/FileList/FileListViewController.swift` escapes backslashes and double quotes before interpolating local paths and Finder info-window names into AppleScript. Remote selections no longer use Finder AppleScript; `openRemoteInfoWindows(for:)` builds an in-app `RemoteInfoWindowController` snapshot from the remote provider.
+- Current status: `src/FileList/FileListViewController+ResponderActions.swift` escapes backslashes and double quotes before interpolating local paths and Finder info-window names into AppleScript. Remote selections no longer use Finder AppleScript; `openRemoteInfoWindows(for:)` builds an in-app `RemoteInfoWindowController` snapshot from the remote provider.
 - Remaining surface: Local Get Info still requires Finder Apple Events because macOS does not provide a public non-AppleScript API for Finder's Get Info window. Keep this path small and covered by escaping tests when it changes.
 
 ### High

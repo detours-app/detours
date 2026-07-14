@@ -19,6 +19,38 @@ struct VolumeMonitorNetworkTests {
         let homeURL = FileManager.default.homeDirectoryForCurrentUser
         #expect(VolumeMonitor.isNetworkVolume(homeURL) == false)
     }
+
+    @Test("File Provider domain marker is inherited from an ancestor")
+    func testFileProviderDomainAncestorDetection() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        let child = root.appendingPathComponent("nested/child")
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let attributeName = "com.detours.tests.file-provider-domain-id"
+        let value = Data("test-domain".utf8)
+        let result = root.path.withCString { path in
+            value.withUnsafeBytes { bytes in
+                setxattr(path, attributeName, bytes.baseAddress, bytes.count, 0, 0)
+            }
+        }
+        #expect(result == 0)
+        #expect(VolumeMonitor.isFileProviderBacked(child, domainAttributeName: attributeName))
+    }
+
+    @Test("Directory without File Provider marker stays on the local path")
+    func testNonFileProviderDirectoryDetection() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        #expect(!VolumeMonitor.isFileProviderBacked(
+            directory,
+            domainAttributeName: "com.detours.tests.missing-file-provider-domain-id"
+        ))
+    }
 }
 
 @Suite("NetworkDirectoryPoller Tests")

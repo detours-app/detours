@@ -134,6 +134,9 @@ extension FileListViewController {
         // Virtual Shared must load through outline expansion callback, not filesystem.
         guard !item.isVirtualSharedFolder else { return }
         guard item.isLocal else { return }
+        // Let NSOutlineView's expansion callback start an asynchronous load for
+        // network and File Provider-backed folders.
+        guard !VolumeMonitor.requiresAsynchronousDirectoryAccess(item.url) else { return }
         _ = item.loadChildren(showHidden: dataSource.showHiddenFiles, sortDescriptor: dataSource.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
     }
 
