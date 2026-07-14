@@ -46,7 +46,7 @@ The script:
 
 Do not separately launch the app after building. The script owns relaunch when it installs.
 
-**Always build after making changes** - never just edit files and call it done. Run the build script to verify changes work.
+**Always build after making changes** - never just edit files and call it done. Run the build script on Foundry to verify changes work. The only Spectre build is the final normal `resources/scripts/build.sh` install after Foundry verification.
 
 ### Linting
 
@@ -60,14 +60,16 @@ Run before committing. Fix all warnings/errors before commit.
 
 ### Testing
 
+**NEVER test Detours on Spectre.** All unit tests, integration tests, live Windows tests, XCUITests, test builds, runtime probes, screenshot fixtures, and test-data setup run on Foundry. Never run `swift test`, `resources/scripts/uitest.sh`, `resources/scripts/wintest.sh`, or an equivalent test command locally on Spectre. Never create test files, folders, mounted volumes, preferences, caches, or Trash entries on Spectre. If Foundry is unavailable, stop and report that verification is blocked; do not use Spectre as a fallback.
+
 **Never run the full test suite.** Target specific test classes:
 
 ```bash
-swift test --filter SomeTestClass
+ssh foundry 'cd ~/dev/detours && swift test --filter SomeTestClass'
 ```
 
 - Test files go in `Tests/`
-- No mocks - use real filesystem with temp directories
+- No mocks - use the real filesystem with temp directories on Foundry only
 - Update `Tests/TEST_LOG.md` immediately after EVERY test run
 - If a test fails, fix it. No "pre-existing" excuses.
 - **Any test marked FAIL in TEST_LOG.md must have a comment in the same table row explaining why** - no unexplained failures allowed
@@ -88,17 +90,7 @@ resources/scripts/uitest.sh FolderExpansionUITests/testDisclosureTriangleExpand
 - Tests target the installed `/Applications/Detours.app`
 - The script builds the app first, then runs tests
 
-**XCUI runs on Foundry: NO permission gate, ever.** Foundry is the dedicated build/test machine and is not in active use, so XCUI tests run there freely without asking Marco for permission, including reruns after failure. Just sync Foundry, run the tests, and update `Tests/TEST_LOG.md`. Never run XCUI on Spectre.
-
-**UI Test Procedure (MANDATORY, Spectre/local-focus runs only):**
-
-The ask-permission procedure below applies ONLY to UI test runs that would interrupt Marco's machine. It does NOT apply to Foundry XCUI runs (see the no-gate rule above). Follow this procedure exactly when a run would steal focus locally:
-
-1. **Check** - Review what tests need to be run
-2. **Check test log** - If test passed in the last 2-4 hours, do NOT rerun it. If you need to rerun a recent test, ask first.
-3. **Ask** - Ask Marco for permission for EVERY SINGLE test run, including reruns after failure
-4. **Run** - Only run the test after explicit approval
-5. **Update** - Update `Tests/TEST_LOG.md` immediately after the test completes
+**XCUI runs on Foundry: NO permission gate, ever.** Foundry is the dedicated build/test machine and is not in active use, so XCUI tests run there freely without asking Marco for permission, including reruns after failure. Just sync Foundry, run the tests, and update `Tests/TEST_LOG.md`. There is no Spectre/local-focus exception and no permission path for running a Detours test on Spectre.
 
 **NEVER use MCP `macos-ui-automation` tools for this project.** They trigger permission prompts. Use XCUITest exclusively.
 
@@ -153,19 +145,19 @@ rm -f temp.png temp2.png mask.png
 
 ### Machine Boundaries
 
-- **Spectre** is the source-of-truth development machine: edit source, run local tests, make commits, and manage repo state here.
-- **Foundry** is the build, runtime staging, and screenshot machine: use it only for builds, installed-app verification, screenshot fixtures, and capture setup.
+- **Spectre** is the source-of-truth editing and Git machine: edit source, make commits, manage repo state, and perform the final verified `/Applications` install here. Never test here.
+- **Foundry** is the exclusive Detours verification machine: unit/integration/live tests, test builds, runtime staging, installed-app verification, screenshot fixtures, and capture setup all happen here.
 - Before any command that changes Foundry app state, user preferences, screenshot fixtures, installed apps, or files outside the repo, state that it affects Foundry.
-- Do not stage screenshot fixtures, write Detours preferences, relaunch Detours, or mutate runtime state on Spectre during development and testing.
+- Do not run tests, stage fixtures, create test files/folders/volumes, write Detours preferences, populate caches, move test artifacts to Trash, relaunch Detours for a probe, or otherwise mutate Spectre runtime state during verification.
 - If a command touches both machines, call out both sides explicitly before running it.
 
 ### Build, Prove, Then Install on Spectre (MANDATORY FLOW)
 
 Every change follows this order. Do not skip ahead, and never declare a change done before it is proven crash-free on Foundry.
 
-1. **Edit + commit on Spectre.** Source changes and commits happen here.
-2. **Build and prove on Foundry.** Build with `build.sh` on Foundry and run the relevant XCUI tests there. **A launch crash MUST be caught here, not by Marco.** UI tests that launch the app (e.g. `waitForExistence` on the main window) fail when the app crashes on launch — so always run the UI suite after any change that touches window/view/controller setup, and treat a crash as a failing test to fix before continuing. If the build or any test is red, the change is not done.
-3. **When done, tested, and proven crash-free on Foundry, rebuild and install on Spectre.** Run `build.sh` on Spectre so Marco's running Detours gets the fix. This is the only sanctioned time to build/install/relaunch Detours on Spectre — it is required at the end of proven work, not optional. State that it relaunches Marco's Detours before running it.
+1. **Edit + commit on Spectre.** Source changes and commits happen here. No test or test-data command runs here.
+2. **Build and prove on Foundry.** Build with `build.sh` on Foundry and run every relevant unit, integration, live-host, runtime, and XCUI check there. **A launch crash MUST be caught here, not by Marco.** UI tests that launch the app (e.g. `waitForExistence` on the main window) fail when the app crashes on launch — so always run the UI suite after any change that touches window/view/controller setup, and treat a crash as a failing test to fix before continuing. If Foundry is unavailable or any build/test is red, the change is not done; never substitute Spectre.
+3. **When done, tested, and proven crash-free on Foundry, rebuild and install on Spectre.** Run the normal `build.sh` on Spectre so Marco's running Detours gets the fix. This is the only sanctioned Detours build/install/relaunch on Spectre. It is delivery only: do not run fixtures, probes, workflows, or tests against the installed app. State that it relaunches Marco's Detours before running it.
 
 A change is not complete until it is proven on Foundry AND installed on Spectre.
 
