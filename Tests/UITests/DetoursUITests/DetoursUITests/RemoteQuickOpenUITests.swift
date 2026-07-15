@@ -178,6 +178,7 @@ final class RemoteFileOperationsUITests: BaseUITest {
         selectLeftRow("FolderA")
         pressCharKey("/")
         app.typeText("Folder")
+        usleep(400_000) // Let the filter bar's layout animation finish before capturing geometry.
 
         let before = try requestRemotePaneState()
         XCTAssertEqual(before.focus, "filter")
