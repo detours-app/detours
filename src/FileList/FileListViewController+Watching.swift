@@ -6,6 +6,9 @@ private let logger = Logger(subsystem: "com.detours", category: "filelist")
 
 extension FileListViewController {
     func startWatching(_ location: Location, provider: any FileProvider) {
+        let normalizedLocation = Self.normalizedWatchLocation(location)
+        guard providerWatches[normalizedLocation] == nil else { return }
+
         directoryWatchTask?.cancel()
         let existingWatches = Array(providerWatches.values)
         providerWatches.removeAll()
@@ -15,14 +18,13 @@ extension FileListViewController {
                 await record.provider.unwatch(record.watch)
             }
             guard !Task.isCancelled else { return }
-            await self?.watchDirectoryThroughProvider(location, provider: provider)
+            await self?.watchDirectoryThroughProvider(normalizedLocation, provider: provider)
         }
     }
 
     /// Called when a folder is expanded - start watching it
     func watchExpandedDirectory(_ url: URL) {
         let normalized = url.standardizedFileURL
-        guard providerWatches[normalized] == nil else { return }
         let location: Location
         let provider: any FileProvider
         if case .remote(let hostID, _) = currentRemoteLocation,
@@ -33,6 +35,7 @@ extension FileListViewController {
             location = .local(normalized)
             provider = LocalFileProvider.shared
         }
+        guard providerWatches[Self.normalizedWatchLocation(location)] == nil else { return }
         Task { [weak self] in
             await self?.watchDirectoryThroughProvider(location, provider: provider)
         }
@@ -40,43 +43,90 @@ extension FileListViewController {
 
     /// Called when a folder is collapsed - stop watching it and its children
     func unwatchCollapsedDirectory(_ url: URL) {
-        let normalized = url.standardizedFileURL
-        guard let record = providerWatches.removeValue(forKey: normalized) else { return }
+        let collapsedLocation: Location
+        if case .remote(let hostID, _) = currentRemoteLocation {
+            collapsedLocation = .remote(hostID: hostID, path: url.path)
+        } else {
+            collapsedLocation = .local(url.standardizedFileURL)
+        }
+        let recordsToRemove = providerWatches.compactMap { location, record in
+            Self.isWatchLocation(location, inside: collapsedLocation) ? (location, record) : nil
+        }
+        for (location, _) in recordsToRemove {
+            providerWatches.removeValue(forKey: location)
+        }
         Task {
-            await record.provider.unwatch(record.watch)
+            for (_, record) in recordsToRemove {
+                await record.provider.unwatch(record.watch)
+            }
         }
     }
 
     private func watchDirectoryThroughProvider(_ location: Location, provider: any FileProvider) async {
-        let key = Self.watchKey(for: location)
-        guard providerWatches[key] == nil else { return }
+        let normalizedLocation = Self.normalizedWatchLocation(location)
+        guard providerWatches[normalizedLocation] == nil else { return }
 
         do {
             let watch = try await provider.watch(location) { [weak self] changedLocation in
                 DispatchQueue.main.async {
-                    self?.handleDirectoryChange(at: Self.watchKey(for: changedLocation))
+                    self?.handleDirectoryChange(
+                        at: changedLocation,
+                        watchedDirectory: normalizedLocation
+                    )
                 }
             }
             guard !Task.isCancelled else {
                 await provider.unwatch(watch)
                 return
             }
-            providerWatches[key] = ProviderWatchRecord(watch: watch, provider: provider)
+            providerWatches[normalizedLocation] = ProviderWatchRecord(watch: watch, provider: provider)
         } catch {
             logger.warning("Failed to watch directory through FileProvider: \(location.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
         }
     }
 
-    private static func watchKey(for location: Location) -> URL {
+    private static func normalizedWatchLocation(_ location: Location) -> Location {
         switch location {
         case .local(let url):
-            return url.standardizedFileURL
-        case .remote(_, let path):
-            return URL(fileURLWithPath: path).standardizedFileURL
+            return .local(url.standardizedFileURL)
+        case .remote(let hostID, let path):
+            return .remote(
+                hostID: hostID,
+                path: URL(fileURLWithPath: path).standardizedFileURL.path
+            )
         }
     }
 
-    private func handleDirectoryChange(at changedURL: URL) {
+    private static func isWatchLocation(_ location: Location, inside ancestor: Location) -> Bool {
+        switch (normalizedWatchLocation(location), normalizedWatchLocation(ancestor)) {
+        case (.local(let locationURL), .local(let ancestorURL)):
+            return isPath(locationURL.path, inside: ancestorURL.path)
+        case let (.remote(locationHost, locationPath), .remote(ancestorHost, ancestorPath)):
+            return locationHost == ancestorHost && isPath(locationPath, inside: ancestorPath)
+        default:
+            return false
+        }
+    }
+
+    private static func isPath(_ path: String, inside ancestorPath: String) -> Bool {
+        guard path != ancestorPath else { return true }
+        let prefix = ancestorPath == "/" ? "/" : ancestorPath + "/"
+        return path.hasPrefix(prefix)
+    }
+
+    private func handleDirectoryChange(
+        at changedLocation: Location,
+        watchedDirectory: Location
+    ) {
+        if case .remote = watchedDirectory {
+            remoteRefreshCoordinator?.requestRefresh(
+                affectedLocation: watchedDirectory,
+                reason: .watch
+            )
+            return
+        }
+
+        guard case .local(let changedURL) = changedLocation else { return }
         // Invalidate the cached size for the folder whose contents actually
         // changed (and any expanded ancestor up to currentDirectory). Sibling
         // folders are unaffected, so their sizes must not blink.
@@ -112,10 +162,6 @@ extension FileListViewController {
     }
 
     private func performDirectoryReload() {
-        if let currentRemoteLocation, let currentRemoteProvider {
-            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true, showSpinner: false)
-            return
-        }
         guard let currentDirectory else { return }
         loadDirectory(currentDirectory, preserveExpansion: true, showSpinner: false)
     }

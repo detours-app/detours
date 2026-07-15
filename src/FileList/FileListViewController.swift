@@ -40,7 +40,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var currentICloudListingMode: ICloudListingMode = .normal
     var hasLoadedDirectory = false
     let renameController = RenameController()
-    var providerWatches: [URL: ProviderWatchRecord] = [:]
+    var providerWatches: [Location: ProviderWatchRecord] = [:]
     var currentRemoteHost: RemoteHost?
     var currentRemoteLocation: Location?
     var currentRemoteProvider: (any FileProvider)?
