@@ -158,7 +158,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 ### Unit Tests (`Tests/`)
 
 - [x] **T1** `FileItemOpeningTests.testEnterOpensEverySelectedOrdinaryFileInVisibleOrder` - Enter dispatches every eligible selected file exactly once without launching external applications.
-- [ ] **T2** `FileItemOpeningTests.testCommandOpenCommandDownAndContextMenuMatchEnter` - Every Open entry point yields the same ordered batch.
+- [x] **T2** `FileItemOpeningTests.testCommandOpenCommandDownAndContextMenuMatchEnter` - Every Open entry point yields the same ordered batch.
 - [ ] **T3** `FileItemOpeningTests.testMixedSelectionSkipsSpecialItems` - A mixed selection opens ordinary files and leaves folders, archives, and disk images untouched.
 - [ ] **T4** `FileItemOpeningTests.testSelectionWithoutOrdinaryFilesUsesFocusedItemAction` - A special-only selection preserves the focused item's single-item behavior.
 - [ ] **T5** `FileItemOpeningTests.testBatchContinuesAndAggregatesFailures` - Successful files open and all failed names appear in one result.
@@ -224,3 +224,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C19** Expanded the UI-test remote into a root-confined mutable provider with recursive file and directory transfers, trash and restore, rename, creation, upload and download, exact changed-parent watches, per-call listing gates, one-shot operation failures, and structured histories. Added request-and-response pane snapshots for expansion, selection, scroll offsets, focus, filtering, sorting, active drop targets, visible rows, and refresh-in-flight state.
 - **C20** Ran the release build through `resources/scripts/build.sh --no-install` on Foundry. Corrected the UI-test provider's resource-key type and moved synchronous directory enumeration out of the actor's async context; the resulting build completes without warnings.
 - **T1** Added an injected opening-action seam and verified on Foundry that an ordered visible selection dispatches every ordinary file exactly once without invoking the workspace.
+- **T2** Drove the controller's real Enter, Command-O, Command-Down, and context-menu paths on Foundry and verified that each produces the same ordered two-file dispatch.
