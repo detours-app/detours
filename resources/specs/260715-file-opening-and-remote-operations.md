@@ -190,14 +190,14 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 
 ### UI Tests (`Tests/UITests/DetoursUITests/`)
 
-- [ ] **T27** `MultiFileOpenUITests.testEnterAndCommandOpenDispatchAllSelectedFiles` - Test-only opening records every selected filename for both keyboard paths.
-- [ ] **T28** `RemoteFileOperationsUITests.testExpandedTreeNeverDisappearsDuringMutationRefresh` - A held refresh keeps a nested expanded row continuously present until the mutation appears.
-- [ ] **T29** `RemoteFileOperationsUITests.testMutationPreservesScrollSelectionFilterAndFocus` - The pane state remains stable and keyboard navigation works immediately after completion.
-- [ ] **T30** `RemoteFileOperationsUITests.testRemoteFolderHighlightsAndAcceptsDrop` - A remote folder exposes its drop state during the gesture and receives the item afterward.
-- [ ] **T31** `RemoteFileOperationsUITests.testLocalRemoteAndCrossHostDragSemantics` - Cross-pane gestures copy or move files and folders according to boundaries and modifiers.
-- [ ] **T32** `RemoteFileOperationsUITests.testRemoteCutNavigateAndPaste` - Command-X, navigation, and Command-V move the item to the intended folder without collapsing the tree.
-- [ ] **T33** `RemoteFileOperationsUITests.testFailedPasteKeepsCutFeedbackAndCanRetry` - A forced failure retains the accessible cut state and a second paste succeeds.
-- [ ] **T34** `RemoteFileOperationsUITests.testTwoPanesShowingSameRemoteFolderUpdateOnce` - Both matching panes receive one stable update after one operation.
+- [x] **T27** `MultiFileOpenUITests.testEnterAndCommandOpenDispatchAllSelectedFiles` - Test-only opening records every selected filename for both keyboard paths.
+- [x] **T28** `RemoteFileOperationsUITests.testExpandedTreeNeverDisappearsDuringMutationRefresh` - A held refresh keeps a nested expanded row continuously present until the mutation appears.
+- [x] **T29** `RemoteFileOperationsUITests.testMutationPreservesScrollSelectionFilterAndFocus` - The pane state remains stable and keyboard navigation works immediately after completion.
+- [x] **T30** `RemoteFileOperationsUITests.testRemoteFolderHighlightsAndAcceptsDrop` - A remote folder exposes its drop state during the gesture and receives the item afterward.
+- [x] **T31** `RemoteFileOperationsUITests.testLocalRemoteAndCrossHostDragSemantics` - Cross-pane gestures copy or move files and folders according to boundaries and modifiers.
+- [x] **T32** `RemoteFileOperationsUITests.testRemoteCutNavigateAndPaste` - Command-X, navigation, and Command-V move the item to the intended folder without collapsing the tree.
+- [x] **T33** `RemoteFileOperationsUITests.testFailedPasteKeepsCutFeedbackAndCanRetry` - A forced failure retains the accessible cut state and a second paste succeeds.
+- [x] **T34** `RemoteFileOperationsUITests.testTwoPanesShowingSameRemoteFolderUpdateOnce` - Both matching panes receive one stable update after one operation.
 
 ---
 
@@ -250,3 +250,11 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T24** Ran same-host copy and move through the real `devtest` helper on Foundry, verifying exact contents, retained copy source, and removed move source.
 - **T25** Ran recursive folder transfers through the real helper and queue on Foundry in local-to-remote, remote-to-local, and distinct-host-identity directions, verifying nested contents and retained copy sources.
 - **T26** Routed two exact Windows remote locations through copy and move on Foundry, verifying native source arrays, distinct destinations, response locations, and PowerShell operation order.
+- **T27** Selected two visible files in the installed Foundry app and verified Enter and Command-O each dispatch both names exactly once in pane order through the test-only opening recorder.
+- **T28** Held the mutation-triggered root listing on Foundry after expanding a nested remote branch, verified the descendant stays continuously visible while refresh is in flight, then released the gate and observed the renamed item without tree collapse.
+- **T29** Mutated a filtered, expanded remote pane on Foundry and verified expansion, selection, inset-aware viewport, focus, filter, and sort state remain exact; Down Arrow then returned focus to the list and navigated immediately. The run exposed and fixed manual scroll clamping that discarded AppKit's valid negative inset origin.
+- **T30** Observed `/FolderC` as the live remote drop target during a held Foundry gesture, then completed a standard drag and verified the provider performs the same-host move and materializes the file in that folder.
+- **T31** Exercised remote-to-local copy, Command-forced local-to-remote folder move, and a distinct-host remote-to-remote copy through real cross-pane gestures on Foundry, verifying the expected retained or removed sources and recursive destination.
+- **T32** Cut a remote item with Command-X on Foundry, verified its accessible pending-move state, navigated into another remote folder, pasted, and confirmed the moved row appears with cut feedback cleared.
+- **T33** Forced the first remote move paste to fail on Foundry, dismissed the operation error, navigated back to verify accessible pending-move feedback remains, then retried successfully and observed the feedback clear.
+- **T34** Opened the same remote root in both Foundry panes, renamed one item, verified both panes update stably, and counted exactly one follow-up root listing per pane.
