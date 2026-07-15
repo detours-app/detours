@@ -13,6 +13,23 @@ struct FileItemOpenFailure {
     let error: any Error
 }
 
+enum FileItemOpeningError: LocalizedError {
+    case failedToOpen(String)
+    case permissionDenied(String)
+    case remoteProviderUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .failedToOpen(let name):
+            return "The system could not open \"\(name)\"."
+        case .permissionDenied(let name):
+            return "Permission denied: \"\(name)\"."
+        case .remoteProviderUnavailable:
+            return "The remote connection is unavailable."
+        }
+    }
+}
+
 struct FileItemOpenBatchResult {
     let attemptedItems: [FileItem]
     let openedItems: [FileItem]

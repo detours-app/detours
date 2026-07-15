@@ -107,7 +107,7 @@ extension FileListViewController {
                 getInfo(nil)
                 return true
             case "o":
-                openSelectedItem()
+                openSelectedItems()
                 return true
             default:
                 break
@@ -122,7 +122,7 @@ extension FileListViewController {
 
         // Cmd-Down: open (same as Enter)
         if modifiers == .command && event.keyCode == 125 {
-            openSelectedItem()
+            openSelectedItems()
             return true
         }
 
@@ -163,7 +163,7 @@ extension FileListViewController {
 
         switch event.keyCode {
         case 36: // Enter
-            openSelectedItem()
+            openSelectedItems()
             return true
         case 48: // Tab without modifiers switches pane
             if modifiers.isEmpty {

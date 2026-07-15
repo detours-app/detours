@@ -140,25 +140,87 @@ extension FileListViewController {
         _ = item.loadChildren(showHidden: dataSource.showHiddenFiles, sortDescriptor: dataSource.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
     }
 
-    func openSelectedItem() {
-        let row = tableView.selectedRow
-        guard row >= 0, let item = dataSource.item(at: row) else { return }
+    func openSelectedItems() {
+        let focusedItem = dataSource.item(at: tableView.selectedRow)
+        open(items: selectedItems, focusedItem: focusedItem)
+    }
 
-        if case .remote = item.location {
-            openRemoteItem(item)
-            return
-        }
+    func open(items: [FileItem], focusedItem: FileItem?) {
+        let dispatcher = FileItemOpeningDispatcher(
+            confirmsOpening: { [weak self] fileCount in
+                self?.confirmOpening(fileCount: fileCount) ?? false
+            },
+            performsAction: { [weak self] item, action in
+                guard let self else {
+                    return .failure(FileItemOpeningError.failedToOpen(item.name))
+                }
+                return self.performOpenAction(action, for: item)
+            }
+        )
+        _ = dispatcher.open(items: items, focusedItem: focusedItem)
+    }
 
-        let url = item.url
-        if item.isVirtualSharedFolder {
-            navigationDelegate?.fileListDidRequestICloudSharedNavigation(cloudDocsURL: url)
-        } else if item.isNavigableFolder {
-            navigationDelegate?.fileListDidRequestNavigation(to: url)
-        } else if Self.isExtractableArchiveLocation(item.location) {
+    private func confirmOpening(fileCount: Int) -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Open \(fileCount) files?"
+        alert.informativeText = "Each file will open in its default application."
+        alert.addButton(withTitle: "Open")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func performOpenAction(
+        _ action: FileItemOpenAction,
+        for item: FileItem
+    ) -> Result<Void, any Error> {
+        switch action {
+        case .ordinaryFile:
+            return openOrdinaryFile(item)
+        case .virtualSharedFolder:
+            navigationDelegate?.fileListDidRequestICloudSharedNavigation(cloudDocsURL: item.url)
+        case .folder:
+            if item.isRemote {
+                openRemoteItem(item)
+            } else {
+                navigationDelegate?.fileListDidRequestNavigation(to: item.url)
+            }
+        case .archive:
+            selectOnly(item)
             extractSelectedArchive()
-        } else {
-            NSWorkspace.shared.open(url)
+        case .diskImage:
+            if item.isRemote {
+                return openOrdinaryFile(item)
+            }
+            Task { @MainActor [weak self] in
+                guard let mountPoint = await FileOpenHelper.openAndMount(item.url) else { return }
+                self?.navigationDelegate?.fileListDidRequestNavigation(to: mountPoint)
+            }
         }
+        return .success(())
+    }
+
+    private func openOrdinaryFile(_ item: FileItem) -> Result<Void, any Error> {
+        if item.isRemote {
+            guard currentRemoteProvider != nil else {
+                return .failure(FileItemOpeningError.remoteProviderUnavailable)
+            }
+            guard item.isReadable else {
+                return .failure(FileItemOpeningError.permissionDenied(item.name))
+            }
+            openRemoteItem(item)
+            return .success(())
+        }
+
+        return FileOpenHelper.open(item.url)
+            ? .success(())
+            : .failure(FileItemOpeningError.failedToOpen(item.name))
+    }
+
+    private func selectOnly(_ item: FileItem) {
+        let row = tableView.row(forItem: item)
+        guard row >= 0 else { return }
+        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
     }
 
     func openSelectedItemInNewTab() {
