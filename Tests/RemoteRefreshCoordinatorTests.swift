@@ -228,25 +228,35 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         let items = (0..<12).map {
             item(hostID: hostID, path: "/\($0).txt", name: "\($0).txt")
         }
-        let controller = configuredController(root: root, items: items)
+        let sortedItems = FileItem.sorted(
+            items,
+            by: .defaultSort,
+            foldersOnTop: SettingsManager.shared.foldersOnTop
+        )
+        let controller = configuredController(root: root, items: sortedItems)
         controller.view.frame = NSRect(x: 0, y: 0, width: 420, height: 180)
         controller.view.layoutSubtreeIfNeeded()
-        controller.tableView.selectRowIndexes(IndexSet(integer: 7), byExtendingSelection: false)
+        let deletedItem = items[7]
+        let deletedRow = controller.tableView.row(forItem: deletedItem)
+        controller.tableView.selectRowIndexes(IndexSet(integer: deletedRow), byExtendingSelection: false)
         controller.scrollView.contentView.scroll(to: NSPoint(x: 0, y: 60))
-        let before = controller.scrollView.contentView.bounds.origin
-        let survivors = items.enumerated().compactMap { index, item in index == 7 ? nil : entry(from: item) }
+        controller.scrollView.reflectScrolledClipView(controller.scrollView.contentView)
+        let before = controller.captureRemotePaneState()
+        let survivors = sortedItems.compactMap { item in item === deletedItem ? nil : entry(from: item) }
 
         controller.applyRemoteRefresh(RemoteRefreshSnapshot(
             request: request(directory: root, generation: 1),
             entries: survivors
         ))
 
-        XCTAssertEqual(controller.tableView.selectedRow, 7)
+        let after = controller.captureRemotePaneState()
+        XCTAssertEqual(controller.tableView.selectedRow, deletedRow)
         XCTAssertEqual(
-            (controller.tableView.item(atRow: 7) as? FileItem)?.name,
+            (controller.tableView.item(atRow: deletedRow) as? FileItem)?.name,
             "8.txt"
         )
-        XCTAssertEqual(controller.scrollView.contentView.bounds.origin.y, before.y, accuracy: 0.5)
+        XCTAssertEqual(after.topVisibleLocation, before.topVisibleLocation)
+        XCTAssertEqual(after.topVisibleOffset, before.topVisibleOffset, accuracy: 0.5)
     }
 
     private func configuredController(root: Location, items: [FileItem]) -> FileListViewController {
