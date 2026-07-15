@@ -152,8 +152,8 @@ final class RemoteFileOperationsUITests: BaseUITest {
     }
 
     func testExpandedTreeNeverDisappearsDuringMutationRefresh() throws {
-        expandRemoteFolder("FolderA")
-        expandRemoteFolder("SubfolderA1")
+        expandRemoteFolder("FolderA", revealing: "SubfolderA1")
+        expandRemoteFolder("SubfolderA1", revealing: "file.txt")
         let nestedFile = app.leftPaneOutlineView.outlineRow(withStaticText: "file.txt")
         XCTAssertTrue(nestedFile.waitForExistence(timeout: 3))
 
@@ -174,7 +174,7 @@ final class RemoteFileOperationsUITests: BaseUITest {
     }
 
     func testMutationPreservesScrollSelectionFilterAndFocus() throws {
-        expandRemoteFolder("FolderA")
+        expandRemoteFolder("FolderA", revealing: "SubfolderA1")
         selectLeftRow("FolderA")
         pressCharKey("/")
         app.typeText("Folder")
@@ -339,13 +339,13 @@ final class RemoteFileOperationsUITests: BaseUITest {
         row.staticTexts[name].click()
     }
 
-    private func expandRemoteFolder(_ name: String) {
+    private func expandRemoteFolder(_ name: String, revealing childName: String) {
         let row = leftRow(name)
         XCTAssertTrue(row.waitForExistence(timeout: 3), "\(name) should exist")
-        if !row.isExpanded {
+        if !leftRow(childName).exists {
             row.disclosureTriangle.click()
         }
-        XCTAssertTrue(waitForCondition(timeout: 3) { row.isExpanded })
+        XCTAssertTrue(leftRow(childName).waitForExistence(timeout: 3), "\(childName) should be revealed")
     }
 
     private func rootListStartCount() -> Int {
