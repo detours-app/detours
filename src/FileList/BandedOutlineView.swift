@@ -196,8 +196,8 @@ final class BandedOutlineView: NSOutlineView {
         true
     }
 
-    override func drawBackground(in clipRect: NSRect) {
-        super.drawBackground(in: clipRect)
+    override func drawBackground(inClipRect clipRect: NSRect) {
+        super.drawBackground(inClipRect: clipRect)
         guard isBackgroundDropTarget else { return }
         let theme = Theme.currentSnapshot()
         theme.accent.withAlphaComponent(0.10).setFill()
