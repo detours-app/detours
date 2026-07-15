@@ -103,14 +103,26 @@ extension FileListDataSource {
         } else {
             promiseHasLocalDestination = !hasFilePromises
         }
-        guard promiseHasLocalDestination,
-              FileDropValidator.validate(
-                  sources: sourceLocations,
-                  destination: context.location,
-                  destinationIsDirectory: true,
-                  destinationIsWritable: context.isWritable,
-                  allowsEmptySources: hasFilePromises
-              ) == nil else {
+        guard promiseHasLocalDestination else {
+            clearDropTarget()
+            return []
+        }
+
+        if internalLocations != nil || !sourceLocations.isEmpty {
+            return validateInternalDrop(
+                locations: sourceLocations,
+                proposedItem: item,
+                modifiers: NSEvent.modifierFlags
+            )
+        }
+
+        guard FileDropValidator.validate(
+            sources: sourceLocations,
+            destination: context.location,
+            destinationIsDirectory: true,
+            destinationIsWritable: context.isWritable,
+            allowsEmptySources: hasFilePromises
+        ) == nil else {
             clearDropTarget()
             return []
         }
@@ -143,27 +155,11 @@ extension FileListDataSource {
         if let internalLocations = InternalFileDragSessionStore.shared.locations(
             on: info.draggingPasteboard
         ), !internalLocations.isEmpty {
-            guard FileDropValidator.validate(
-                sources: internalLocations,
-                destination: destination,
-                destinationIsDirectory: true,
-                destinationIsWritable: context.isWritable
-            ) == nil else {
-                clearDropTarget()
-                return false
-            }
-            let operation = FileDropOperationResolver.resolve(
-                sources: internalLocations,
-                destination: destination,
+            return acceptInternalDrop(
+                locations: internalLocations,
+                proposedItem: item,
                 modifiers: NSEvent.modifierFlags
             )
-            dropDelegate?.handleDrop(
-                locations: internalLocations,
-                to: destination,
-                operation: operation
-            )
-            clearDropTarget()
-            return true
         }
 
         // Handle file promises first (e.g., from Mail attachments)
@@ -231,6 +227,65 @@ extension FileListDataSource {
         )
         clearDropTarget()
 
+        return true
+    }
+
+    func validateInternalDrop(
+        locations: [Location],
+        proposedItem: Any?,
+        modifiers: NSEvent.ModifierFlags
+    ) -> NSDragOperation {
+        guard let context = dropDestinationContext(
+            proposedItem: proposedItem,
+            requireCurrentItem: false
+        ), FileDropValidator.validate(
+            sources: locations,
+            destination: context.location,
+            destinationIsDirectory: true,
+            destinationIsWritable: context.isWritable
+        ) == nil else {
+            clearDropTarget()
+            return []
+        }
+
+        dropTargetItem = context.item
+        (outlineView as? BandedOutlineView)?.isBackgroundDropTarget = context.isBackground
+        return FileDropOperationResolver.resolve(
+            sources: locations,
+            destination: context.location,
+            modifiers: modifiers
+        ).appKitOperation
+    }
+
+    func acceptInternalDrop(
+        locations: [Location],
+        proposedItem: Any?,
+        modifiers: NSEvent.ModifierFlags
+    ) -> Bool {
+        guard let context = dropDestinationContext(
+            proposedItem: proposedItem,
+            requireCurrentItem: true
+        ), FileDropValidator.validate(
+            sources: locations,
+            destination: context.location,
+            destinationIsDirectory: true,
+            destinationIsWritable: context.isWritable
+        ) == nil else {
+            clearDropTarget()
+            return false
+        }
+
+        let operation = FileDropOperationResolver.resolve(
+            sources: locations,
+            destination: context.location,
+            modifiers: modifiers
+        )
+        dropDelegate?.handleDrop(
+            locations: locations,
+            to: context.location,
+            operation: operation
+        )
+        clearDropTarget()
         return true
     }
 
