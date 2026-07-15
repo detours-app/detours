@@ -185,7 +185,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 ### Integration Tests (`Tests/`)
 
 - [x] **T24** `RemoteIntegrationTests.testSameHostCopyAndMoveThroughRealHelper` - Real remote copy and move preserve contents and remove the source only for move.
-- [ ] **T25** `RemoteIntegrationTests.testLocalRemoteAndCrossHostFolderTransfers` - File and folder transfers work in both local-remote directions and across remote hosts.
+- [x] **T25** `RemoteIntegrationTests.testLocalRemoteAndCrossHostFolderTransfers` - File and folder transfers work in both local-remote directions and across remote hosts.
 - [ ] **T26** `WindowsRemoteProviderTests.testLocationBasedDragAndPasteRouting` - Windows remote operations receive the exact multi-item source and destination locations.
 
 ### UI Tests (`Tests/UITests/DetoursUITests/`)
@@ -248,3 +248,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T22** Drove responder paste twice on Foundry and verified copy calls the provider without consuming clipboard sources, while cut calls move to the same exact destination and clears its successful pending move.
 - **T23** Verified on Foundry that a remote file still supplies `NSFilePromiseProvider` to AppKit, preserving safe external drag materialization alongside internal location drags.
 - **T24** Ran same-host copy and move through the real `devtest` helper on Foundry, verifying exact contents, retained copy source, and removed move source.
+- **T25** Ran recursive folder transfers through the real helper and queue on Foundry in local-to-remote, remote-to-local, and distinct-host-identity directions, verifying nested contents and retained copy sources.
