@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: fix/file-opening-and-remote-operations
 
 ---
@@ -39,23 +39,23 @@ Open every eligible file in a selection, keep remote folder trees stable while t
 
 ### Acceptance Criteria
 
-- [ ] **A1** Enter, Command-O, Command-Down, and Open in the shortcut menu open every selected ordinary file exactly once and in the order shown.
-- [ ] **A2** A mixed selection opens its ordinary files without navigating into folders, extracting archives, or mounting disk images from that selection.
-- [ ] **A3** A selection with no ordinary files keeps the focused item's existing Open behavior.
-- [ ] **A4** A batch with one or more failures opens the files that can be opened and presents one summary naming all failures.
-- [ ] **A5** Copying, moving, renaming, pasting, or deleting in a remote tab never blanks the visible list or visibly collapses and reopens expanded folders.
-- [ ] **A6** Remote updates preserve expanded folders, selected items, scroll position, keyboard focus, sorting, filter text, and filter visibility.
-- [ ] **A7** A failed remote update leaves the current contents usable and presents one accessible retry message.
-- [ ] **A8** Files and folders can be dragged within one remote host, across remote hosts, and in both directions between local and remote panes.
-- [ ] **A9** Valid remote destination folders and pane backgrounds show a drop target before release, and invalid destinations never accept the drop.
-- [ ] **A10** Dragging moves within one local volume or remote host, copies across boundaries, honors Option for copy, and honors Command for a cross-boundary move.
-- [ ] **A11** Command-X on remote items visibly and accessibly marks every selected item as pending move.
-- [ ] **A12** Command-V uses one deliberately selected folder or else the folder shown by the tab, without being redirected by an automatic selection.
-- [ ] **A13** Successful remote cut-and-paste clears the pending move, while a failed or cancelled paste preserves it for another attempt.
-- [ ] **A14** One file operation causes one stable visible update in every open pane showing an affected remote folder.
-- [ ] **A15** Dragging a remote file from Detours to another application continues to create the promised file safely.
-- [ ] **A16** Single-item Open performs the correct action for the focused item, whether opening a file, mounting a disk image, extracting an archive, or entering a folder, identically across Enter, Command-O, Command-Down, the shortcut menu, and double-click, and local file operations remain unchanged.
-- [ ] **A17** When a selection would open more than five ordinary files, Detours first presents one confirmation; opening five or fewer opens without a prompt, and skipped folders, archives, and disk images never count toward the five.
+- [x] **A1** Enter, Command-O, Command-Down, and Open in the shortcut menu open every selected ordinary file exactly once and in the order shown.
+- [x] **A2** A mixed selection opens its ordinary files without navigating into folders, extracting archives, or mounting disk images from that selection.
+- [x] **A3** A selection with no ordinary files keeps the focused item's existing Open behavior.
+- [x] **A4** A batch with one or more failures opens the files that can be opened and presents one summary naming all failures.
+- [x] **A5** Copying, moving, renaming, pasting, or deleting in a remote tab never blanks the visible list or visibly collapses and reopens expanded folders.
+- [x] **A6** Remote updates preserve expanded folders, selected items, scroll position, keyboard focus, sorting, filter text, and filter visibility.
+- [x] **A7** A failed remote update leaves the current contents usable and presents one accessible retry message.
+- [x] **A8** Files and folders can be dragged within one remote host, across remote hosts, and in both directions between local and remote panes.
+- [x] **A9** Valid remote destination folders and pane backgrounds show a drop target before release, and invalid destinations never accept the drop.
+- [x] **A10** Dragging moves within one local volume or remote host, copies across boundaries, honors Option for copy, and honors Command for a cross-boundary move.
+- [x] **A11** Command-X on remote items visibly and accessibly marks every selected item as pending move.
+- [x] **A12** Command-V uses one deliberately selected folder or else the folder shown by the tab, without being redirected by an automatic selection.
+- [x] **A13** Successful remote cut-and-paste clears the pending move, while a failed or cancelled paste preserves it for another attempt.
+- [x] **A14** One file operation causes one stable visible update in every open pane showing an affected remote folder.
+- [x] **A15** Dragging a remote file from Detours to another application continues to create the promised file safely.
+- [x] **A16** Single-item Open performs the correct action for the focused item, whether opening a file, mounting a disk image, extracting an archive, or entering a folder, identically across Enter, Command-O, Command-Down, the shortcut menu, and double-click, and local file operations remain unchanged.
+- [x] **A17** When a selection would open more than five ordinary files, Detours first presents one confirmation; opening five or fewer opens without a prompt, and skipped folders, archives, and disk images never count toward the five.
 
 ### Out of scope
 
@@ -258,3 +258,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T32** Cut a remote item with Command-X on Foundry, verified its accessible pending-move state, navigated into another remote folder, pasted, and confirmed the moved row appears with cut feedback cleared.
 - **T33** Forced the first remote move paste to fail on Foundry, dismissed the operation error, navigated back to verify accessible pending-move feedback remains, then retried successfully and observed the feedback clear.
 - **T34** Opened the same remote root in both Foundry panes, renamed one item, verified both panes update stably, and counted exactly one follow-up root listing per pane.
+- **Final verification** Ran the complete `swift test` suite on Foundry with the login keychain unlocked in the same SSH session. The full XCTest and Swift Testing run exited successfully, including all 32 real remote-integration tests and all 44 Swift Testing cases.
+- **Final verification** Isolated the remote Enter surface test through the opening-action seam so the new unavailable-provider failure path is asserted without presenting an interactive modal during the suite; the focused test and complete suite both pass.
+- **Final verification** Reviewed the complete branch diff for redundant paths and state ownership, ran changed-file lint and `git diff --check`, and retained the shared dispatcher, refresh coordinator, location-based drag model, and explicit selection-origin boundaries as the smallest cohesive implementation.
+- **Final verification** Ran `resources/scripts/build.sh --no-install` on a clean, commit-matched Foundry checkout. The production build, app bundle creation, and codesigning all completed successfully without warnings.
