@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.10.2 - 2026-07-15
 
-### File Opening and Remote Operations
+### Bug Fixes
 
 - **Open acts on the complete selection** - Enter, Command-O, Command-Down,
   double-click, and the Open menu now share one action classifier, open every
