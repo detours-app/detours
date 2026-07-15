@@ -420,18 +420,7 @@ actor UITestRemoteProvider: FileProvider {
     }
 
     func folderSize(for location: Location) async throws -> Int64 {
-        let root = try confinedURL(for: location, mustExist: true)
-        var total: Int64 = 0
-        if let enumerator = FileManager.default.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]
-        ) {
-            for case let url as URL in enumerator {
-                let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
-                if values.isRegularFile == true { total += Int64(values.fileSize ?? 0) }
-            }
-        }
-        return total
+        try Self.calculateFolderSize(at: confinedURL(for: location, mustExist: true))
     }
 
     func readSymlink(_ location: Location) async throws -> Location {
@@ -549,7 +538,7 @@ actor UITestRemoteProvider: FileProvider {
 
     // MARK: - Confinement and records
 
-    private static let resourceKeys: Set<URLResourceKey> = [
+    private static let resourceKeys: [URLResourceKey] = [
         .isDirectoryKey,
         .isPackageKey,
         .isAliasFileKey,
@@ -562,7 +551,7 @@ actor UITestRemoteProvider: FileProvider {
 
     private func makeEntry(_ localURL: URL) throws -> LoadedFileEntry {
         try requireConfined(localURL, mustExist: true)
-        let values = try localURL.resourceValues(forKeys: Self.resourceKeys)
+        let values = try localURL.resourceValues(forKeys: Set(Self.resourceKeys))
         let path = remotePath(forLocal: localURL)
         return LoadedFileEntry(
             location: .remote(hostID: hostID, path: path),
@@ -638,6 +627,25 @@ actor UITestRemoteProvider: FileProvider {
 
     private static func isControlFile(_ name: String) -> Bool {
         name.hasPrefix(".detours-")
+    }
+
+    private static func calculateFolderSize(at directory: URL) throws -> Int64 {
+        var total: Int64 = 0
+        let children = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .fileSizeKey]
+        )
+        for child in children where !isControlFile(child.lastPathComponent) {
+            let values = try child.resourceValues(
+                forKeys: [.isDirectoryKey, .isRegularFileKey, .fileSizeKey]
+            )
+            if values.isDirectory == true {
+                total += try calculateFolderSize(at: child)
+            } else if values.isRegularFile == true {
+                total += Int64(values.fileSize ?? 0)
+            }
+        }
+        return total
     }
 
     private func notifyChangedParents(_ parents: Set<Location>) {
