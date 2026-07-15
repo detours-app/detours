@@ -149,6 +149,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         tableView.onActivate = { [weak self] in
             self?.navigationDelegate?.fileListDidBecomeActive()
         }
+        tableView.onSelectionOriginChange = { [weak self] origin in
+            self?.selectionOrigin = origin
+        }
         renameController.delegate = self
         renameController.onSwitchPane = { [weak self] in
             self?.navigationDelegate?.fileListDidRequestSwitchPane()

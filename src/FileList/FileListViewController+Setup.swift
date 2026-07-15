@@ -154,7 +154,7 @@ extension FileListViewController {
         // Note: fileListDidBecomeActive() is NOT called here because selection can change
         // programmatically (git status, refresh, session restore) and we only want to
         // change active pane on USER interaction. User clicks trigger onActivate instead.
-        selectionOrigin = tableView.activeSelectionOrigin ?? .user
+        selectionOrigin = tableView.latestSelectionOrigin
         navigationDelegate?.fileListDidChangeSelection()
         if let panel = QLPreviewPanel.shared(), panel.isVisible {
             refreshQuickLookPanel()

@@ -81,6 +81,7 @@ final class BandedOutlineView: NSOutlineView {
     weak var keyHandler: FileListKeyHandling?
     weak var contextMenuDelegate: FileListContextMenuDelegate?
     var onActivate: (() -> Void)?
+    var onSelectionOriginChange: ((FileListSelectionOrigin) -> Void)?
     var isBackgroundDropTarget = false {
         didSet {
             if isBackgroundDropTarget != oldValue {
@@ -89,6 +90,17 @@ final class BandedOutlineView: NSOutlineView {
         }
     }
     private(set) var activeSelectionOrigin: FileListSelectionOrigin?
+    private(set) var latestSelectionOrigin: FileListSelectionOrigin = .automatic
+
+    override func selectRowIndexes(
+        _ indexes: IndexSet,
+        byExtendingSelection extend: Bool
+    ) {
+        let origin = activeSelectionOrigin ?? .user
+        latestSelectionOrigin = origin
+        onSelectionOriginChange?(origin)
+        super.selectRowIndexes(indexes, byExtendingSelection: extend)
+    }
 
     func selectRows(
         _ indexes: IndexSet,
