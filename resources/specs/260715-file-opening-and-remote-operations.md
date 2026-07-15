@@ -171,7 +171,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T11** `RemoteRefreshCoordinatorTests.testOlderResponseCannotReplaceNewerContent` - Releasing gated requests in reverse order leaves the newest listing visible.
 - [x] **T12** `RemoteRefreshCoordinatorTests.testListingFailureKeepsTreeAndOffersRetry` - A failed refresh preserves content and state, and a retry applies later content.
 - [x] **T13** `RemoteRefreshCoordinatorTests.testSameLocationRefreshRetainsWatches` - Root and expanded-branch watches are not removed and re-added during reconciliation.
-- [ ] **T14** `RemoteRefreshCoordinatorTests.testDeletedSelectionChoosesNearestSurvivorWithoutJump` - Deletion chooses a predictable nearby row and retains a valid viewport.
+- [x] **T14** `RemoteRefreshCoordinatorTests.testDeletedSelectionChoosesNearestSurvivorWithoutJump` - Deletion chooses a predictable nearby row and retains a valid viewport.
 - [ ] **T15** `FileListDragDropTests.testRemoteFolderAndPaneBackgroundAreValidTargets` - Remote folders and the current remote directory expose the expected drop operation and target state.
 - [ ] **T16** `FileListDragDropTests.testInternalDropRoutesExactLocations` - Acceptance sends every source location and the destination location to the operation queue.
 - [ ] **T17** `FileListDragDropTests.testBoundaryAndModifierRules` - Local volume identity, remote host identity, Option, Command, and combined modifiers select the approved copy or move operation.
@@ -237,3 +237,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T11** Held an older generation while queuing a newer mutation on Foundry and verified the older result is discarded and only the follow-up content is applied.
 - **T12** Forced a listing failure on Foundry, verified the existing row and accessible retry banner remain, then clicked Retry and confirmed the later listing replaces the content and clears the banner.
 - **T13** Reconciled the displayed root on Foundry and verified the exact root and expanded-branch watch tokens remain registered without churn.
+- **T14** Removed the selected row from a scrolled, sorted remote list on Foundry and verified selection moves to the next visual survivor while the top-visible location and pixel offset remain fixed.
