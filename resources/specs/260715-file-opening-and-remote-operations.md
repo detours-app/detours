@@ -180,7 +180,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T20** `ClipboardManagerTests.testRemoteCutLocationsRemainRetryableUntilSuccess` - Remote cut locations survive failure and clear only after a successful move.
 - [x] **T21** `FileListResponderTests.testRemotePasteUsesExplicitFolderOrCurrentDirectory` - User selection chooses one folder while automatic, restored, result, and multiple-folder selections use the displayed directory.
 - [x] **T22** `FileListResponderTests.testRemoteCopyAndCutPasteRouteCorrectOperations` - Copy retains sources and clipboard contents while cut moves sources and clears successful cut state.
-- [ ] **T23** `RemoteDragOutTests.testRemoteFileDragStillUsesFilePromiseProvider` - Existing external remote-file drag behavior remains intact.
+- [x] **T23** `RemoteDragOutTests.testRemoteFileDragStillUsesFilePromiseProvider` - Existing external remote-file drag behavior remains intact.
 
 ### Integration Tests (`Tests/`)
 
@@ -246,3 +246,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T20** Forced the first remote cut paste to fail and the second to succeed on Foundry, verifying source locations and pending-cut state survive the failure and clear only after the successful move.
 - **T21** Verified every selection origin on Foundry and fixed origin retention for unchanged programmatic selections; exactly one user-selected folder redirects paste, while automatic, restored, result, and multi-folder states use the displayed root.
 - **T22** Drove responder paste twice on Foundry and verified copy calls the provider without consuming clipboard sources, while cut calls move to the same exact destination and clears its successful pending move.
+- **T23** Verified on Foundry that a remote file still supplies `NSFilePromiseProvider` to AppKit, preserving safe external drag materialization alongside internal location drags.
