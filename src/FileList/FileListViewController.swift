@@ -152,6 +152,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         tableView.onSelectionOriginChange = { [weak self] origin in
             self?.selectionOrigin = origin
         }
+        if UITestEnvironment.recordsOpenedItems {
+            openingActionOverride = { item, _ in
+                UITestEnvironment.recordOpenedItem(item.name)
+                return .success(())
+            }
+        }
         renameController.delegate = self
         renameController.onSwitchPane = { [weak self] in
             self?.navigationDelegate?.fileListDidRequestSwitchPane()

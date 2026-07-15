@@ -64,6 +64,154 @@ extension XCUIElement {
 }
 
 extension BaseUITest {
+    struct RemotePaneState: Decodable {
+        let id: String
+        let pane: String
+        let displayedLocation: String?
+        let expandedLocations: [String]
+        let selectedLocations: [String]
+        let topVisibleLocation: String?
+        let topVisibleOffset: Double
+        let horizontalOffset: Double
+        let focus: String
+        let filterText: String
+        let filterVisible: Bool
+        let sortColumn: String
+        let sortAscending: Bool
+        let activeDropTarget: String?
+        let refreshInFlight: Bool
+        let visibleRowCount: Int
+    }
+
+    struct RemoteProviderCall: Decodable {
+        let sequence: UInt64
+        let operation: String
+        let sources: [String]
+        let destination: String?
+        let changedParents: [String]
+        let phase: String
+    }
+
+    private struct PaneStateRequest: Encodable {
+        let id: String
+        let pane: String
+    }
+
+    private struct RemoteFailureControl: Encodable {
+        let id: String
+        let operation: String
+        let message: String
+    }
+
+    private struct RemoteMutationControl: Encodable {
+        let id: String
+        let sourcePath: String
+        let newName: String
+    }
+
+    private struct ListingGateNotice: Decodable {
+        let sequence: UInt64
+        let path: String
+        let callNumber: Int
+    }
+
+    func resetOpenedItemsHistory() {
+        try? FileManager.default.removeItem(
+            at: uiTestRootURL.appendingPathComponent(".detours-opened-items-history.json")
+        )
+    }
+
+    func openedItemsHistory() -> [String] {
+        let url = uiTestRootURL.appendingPathComponent(".detours-opened-items-history.json")
+        guard let data = try? Data(contentsOf: url) else { return [] }
+        return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+    }
+
+    func requestRemotePaneState(
+        pane: String = "left",
+        timeout: TimeInterval = 3
+    ) throws -> RemotePaneState {
+        let request = PaneStateRequest(id: UUID().uuidString, pane: pane)
+        let requestURL = uiTestRootURL.appendingPathComponent(".detours-pane-state-request.json")
+        let responseURL = uiTestRootURL.appendingPathComponent(".detours-pane-state-response.json")
+        try? FileManager.default.removeItem(at: responseURL)
+        try JSONEncoder().encode(request).write(to: requestURL, options: .atomic)
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: responseURL),
+               let response = try? JSONDecoder().decode(RemotePaneState.self, from: data),
+               response.id == request.id {
+                return response
+            }
+            usleep(25_000)
+        }
+        throw UITestControlError.timedOut("pane state")
+    }
+
+    func waitForRemoteListingGate(timeout: TimeInterval = 3) throws -> UInt64 {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let urls = (try? FileManager.default.contentsOfDirectory(
+                at: uiTestRootURL,
+                includingPropertiesForKeys: nil
+            )) ?? []
+            for url in urls where url.lastPathComponent.hasPrefix(".detours-remote-list-gate-")
+                && url.lastPathComponent.hasSuffix(".waiting.json") {
+                if let data = try? Data(contentsOf: url),
+                   let notice = try? JSONDecoder().decode(ListingGateNotice.self, from: data) {
+                    return notice.sequence
+                }
+            }
+            usleep(25_000)
+        }
+        throw UITestControlError.timedOut("remote listing gate")
+    }
+
+    func releaseRemoteListingGate(sequence: UInt64) throws {
+        let url = uiTestRootURL.appendingPathComponent(
+            ".detours-remote-list-gate-\(sequence).release"
+        )
+        try Data().write(to: url, options: .atomic)
+    }
+
+    func forceNextRemoteFailure(operation: String, message: String = "Controlled UI-test failure") throws {
+        let control = RemoteFailureControl(
+            id: UUID().uuidString,
+            operation: operation,
+            message: message
+        )
+        let url = uiTestRootURL.appendingPathComponent(".detours-remote-provider-failure.json")
+        try JSONEncoder().encode(control).write(to: url, options: .atomic)
+    }
+
+    func performRemoteRename(sourcePath: String, newName: String) throws {
+        let control = RemoteMutationControl(
+            id: UUID().uuidString,
+            sourcePath: sourcePath,
+            newName: newName
+        )
+        let url = uiTestRootURL.appendingPathComponent(".detours-remote-mutation-command.json")
+        try JSONEncoder().encode(control).write(to: url, options: .atomic)
+    }
+
+    func remoteProviderHistory() -> [RemoteProviderCall] {
+        let url = uiTestRootURL.appendingPathComponent(".detours-remote-provider-history.json")
+        guard let data = try? Data(contentsOf: url) else { return [] }
+        return (try? JSONDecoder().decode([RemoteProviderCall].self, from: data)) ?? []
+    }
+
+    func waitForCondition(
+        timeout: TimeInterval = 3,
+        _ condition: () -> Bool
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            usleep(25_000)
+        }
+        return condition()
+    }
+
     /// Press a special key with optional modifiers
     func pressKey(_ key: XCUIKeyboardKey, modifiers: XCUIElement.KeyModifierFlags = []) {
         app.typeKey(key, modifierFlags: modifiers)
@@ -351,5 +499,16 @@ extension BaseUITest {
             return nameText.value as? String ?? nameText.label
         }
         return nil
+    }
+}
+
+private enum UITestControlError: LocalizedError {
+    case timedOut(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .timedOut(let operation):
+            "Timed out waiting for \(operation)"
+        }
     }
 }

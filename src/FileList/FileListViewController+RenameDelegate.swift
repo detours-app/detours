@@ -5,6 +5,37 @@ import os.log
 // MARK: - RenameControllerDelegate
 
 extension FileListViewController: RenameControllerDelegate {
+    func performUITestRemoteRename(sourcePath: String, newName: String) {
+        guard UITestEnvironment.isEnabled,
+              let currentRemoteLocation,
+              case .remote(let hostID, _) = currentRemoteLocation else {
+            return
+        }
+
+        let normalizedPath = sourcePath.hasPrefix("/") ? sourcePath : "/" + sourcePath
+        let source = Location.remote(hostID: hostID, path: normalizedPath)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await FileOperationQueue.shared.rename(item: source, to: newName)
+                let affectedDirectories: Set<Location> = [
+                    source.deletingLastPathComponent(),
+                    result.deletingLastPathComponent(),
+                ]
+                requestRemoteMutationRefreshes(
+                    affectedDirectories: affectedDirectories,
+                    preferredResultLocations: [result]
+                )
+                navigationDelegate?.fileListDidRequestRefreshSourceLocations(
+                    affectedDirectories,
+                    preferredResultLocations: [result]
+                )
+            } catch {
+                FileOperationQueue.shared.presentError(error)
+            }
+        }
+    }
+
     func performUITestRename(relativePath: String, to newName: String) {
         guard UITestEnvironment.isEnabled,
               let commandRoot = UITestEnvironment.rootDirectory else {

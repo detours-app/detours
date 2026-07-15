@@ -367,6 +367,14 @@ extension MainSplitViewController {
         )
     }
 
+    func performUITestRemoteMutation(_ command: UITestEnvironment.RemoteMutationCommand) {
+        guard UITestEnvironment.isEnabled else { return }
+        leftPane.selectedTab?.fileListViewController.performUITestRemoteRename(
+            sourcePath: command.sourcePath,
+            newName: command.newName
+        )
+    }
+
     func setActivePaneFromChild(_ pane: PaneViewController) {
         // Don't change active pane during session restore - it would override the saved value
         guard !isRestoringSession else { return }
