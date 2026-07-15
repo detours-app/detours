@@ -9,7 +9,7 @@ final class FileListDragDropTests: XCTestCase {
         let root = Location.remote(hostID: hostID, path: "/")
         let source = Location.remote(hostID: hostID, path: "/Source/item.txt")
         let folder = makeItem(hostID: hostID, path: "/Folder", isDirectory: true)
-        let (dataSource, outline, _) = makeDataSource(root: root, items: [folder])
+        let (dataSource, outline, delegate) = makeDataSource(root: root, items: [folder])
 
         let folderOperation = dataSource.validateInternalDrop(
             locations: [source],
@@ -31,6 +31,7 @@ final class FileListDragDropTests: XCTestCase {
         XCTAssertEqual(backgroundOperation, .move)
         XCTAssertNil(dataSource.dropTargetItem)
         XCTAssertTrue(outline.isBackgroundDropTarget)
+        withExtendedLifetime(delegate) {}
     }
 
     func testInternalDropRoutesExactLocations() {
