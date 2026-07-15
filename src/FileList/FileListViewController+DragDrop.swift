@@ -7,11 +7,15 @@ extension FileListViewController: FileListDropDelegate {
         return currentRemoteLocation ?? currentDirectory.map(Location.local)
     }
 
-    func handleDrop(locations: [Location], to destination: Location, isCopy: Bool) {
+    func handleDrop(
+        locations: [Location],
+        to destination: Location,
+        operation: FileDropOperation
+    ) {
         guard currentICloudListingMode != .sharedTopLevel else { return }
         Task { @MainActor in
             do {
-                if isCopy {
+                if operation == .copy {
                     _ = try await FileOperationQueue.shared.copy(
                         items: locations,
                         to: destination,

@@ -123,10 +123,11 @@ extension FileListDataSource {
             return .copy
         }
 
-        // Check for Option key (force copy)
-        let isCopy = NSEvent.modifierFlags.contains(.option)
-
-        return isCopy ? .copy : .move
+        return FileDropOperationResolver.resolve(
+            sources: sourceLocations,
+            destination: context.location,
+            modifiers: NSEvent.modifierFlags
+        ).appKitOperation
     }
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: any NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
@@ -151,11 +152,15 @@ extension FileListDataSource {
                 clearDropTarget()
                 return false
             }
-            let isCopy = NSEvent.modifierFlags.contains(.option)
+            let operation = FileDropOperationResolver.resolve(
+                sources: internalLocations,
+                destination: destination,
+                modifiers: NSEvent.modifierFlags
+            )
             dropDelegate?.handleDrop(
                 locations: internalLocations,
                 to: destination,
-                isCopy: isCopy
+                operation: operation
             )
             clearDropTarget()
             return true
@@ -184,7 +189,7 @@ extension FileListDataSource {
                             self?.dropDelegate?.handleDrop(
                                 locations: [],
                                 to: dest,
-                                isCopy: true
+                                operation: .copy
                             )
                         }
                     }
@@ -213,12 +218,16 @@ extension FileListDataSource {
             return false
         }
 
-        let isCopy = NSEvent.modifierFlags.contains(.option)
+        let operation = FileDropOperationResolver.resolve(
+            sources: locations,
+            destination: destination,
+            modifiers: NSEvent.modifierFlags
+        )
 
         dropDelegate?.handleDrop(
             locations: locations,
             to: destination,
-            isCopy: isCopy
+            operation: operation
         )
         clearDropTarget()
 
