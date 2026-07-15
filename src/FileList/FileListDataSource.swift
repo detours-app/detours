@@ -263,6 +263,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
         }
     }
 
+    /// True while AppKit is validating an in-progress drag over this outline.
+    /// Drag hover is only a destination preview; it must never spring-load or
+    /// expand folders as the pointer crosses them.
+    var isDropHoverActive = false
+
     private func updateDropTargetRow(_ item: FileItem, isDropTarget: Bool) {
         let row = outlineView?.row(forItem: item) ?? -1
         guard row >= 0 else { return }

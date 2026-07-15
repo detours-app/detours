@@ -224,7 +224,10 @@ extension MainSplitViewController {
         guard !items.isEmpty else { return }
         let destinationPane = otherPane(from: pane)
         // Use effective destination: if a folder is selected, copy into it
-        guard let destination = destinationPane.effectiveDestinationLocation else { return }
+        guard let destination = destinationPane.effectiveDestinationLocation else {
+            NSSound.beep()
+            return
+        }
 
         Task { @MainActor in
             do {
@@ -354,7 +357,27 @@ extension MainSplitViewController {
     }
 
     private func copySelectedItemsToOtherPane() {
-        copyItems(activePane.selectedTab?.fileListViewController.selectedLocations ?? [], toOtherPaneFrom: activePane)
+        let sourcePane = focusedFileListPane() ?? activePane
+        let locations = sourcePane.selectedTab?.fileListViewController.selectedLocations ?? []
+        guard !locations.isEmpty else {
+            NSSound.beep()
+            return
+        }
+        copyItems(locations, toOtherPaneFrom: sourcePane)
+    }
+
+    /// Global F5 handling runs before the focused outline receives the event,
+    /// so resolve the source from the actual first responder instead of relying
+    /// on active-pane bookkeeping that can lag behind mouse and drag tracking.
+    func focusedFileListPane() -> PaneViewController? {
+        guard let responderView = view.window?.firstResponder as? NSView else { return nil }
+        for pane in [leftPane, rightPane] {
+            let paneView = pane.view
+            if responderView === paneView || responderView.isDescendant(of: paneView) {
+                return pane
+            }
+        }
+        return nil
     }
 
     func otherPane(from pane: PaneViewController) -> PaneViewController {

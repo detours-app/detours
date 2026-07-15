@@ -34,6 +34,30 @@ final class FileListDragDropTests: XCTestCase {
         withExtendedLifetime(delegate) {}
     }
 
+    func testDragHoverNeverExpandsFolder() {
+        let hostID = UUID()
+        let root = Location.remote(hostID: hostID, path: "/")
+        let source = Location.remote(hostID: hostID, path: "/Source/item.txt")
+        let folder = makeItem(hostID: hostID, path: "/Folder", isDirectory: true)
+        folder.children = [makeItem(hostID: hostID, path: "/Folder/child.txt", isDirectory: false)]
+        let (dataSource, outline, delegate) = makeDataSource(root: root, items: [folder])
+
+        XCTAssertEqual(dataSource.validateInternalDrop(
+            locations: [source],
+            proposedItem: folder,
+            modifiers: []
+        ), .move)
+        XCTAssertFalse(dataSource.outlineView(outline, shouldExpandItem: folder))
+        outline.expandItem(folder)
+        XCTAssertFalse(outline.isItemExpanded(folder))
+
+        dataSource.clearDropTarget()
+        XCTAssertTrue(dataSource.outlineView(outline, shouldExpandItem: folder))
+        outline.expandItem(folder)
+        XCTAssertTrue(outline.isItemExpanded(folder))
+        withExtendedLifetime(delegate) {}
+    }
+
     func testInternalDropRoutesExactLocations() {
         let hostID = UUID()
         let root = Location.remote(hostID: hostID, path: "/")

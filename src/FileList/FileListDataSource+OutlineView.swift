@@ -69,11 +69,13 @@ extension FileListDataSource {
     // MARK: - Drop Target
 
     func clearDropTarget() {
+        isDropHoverActive = false
         dropTargetItem = nil
         (outlineView as? BandedOutlineView)?.isBackgroundDropTarget = false
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: any NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
+        isDropHoverActive = true
         guard let context = dropDestinationContext(
             proposedItem: item,
             requireCurrentItem: false
@@ -235,6 +237,7 @@ extension FileListDataSource {
         proposedItem: Any?,
         modifiers: NSEvent.ModifierFlags
     ) -> NSDragOperation {
+        isDropHoverActive = true
         guard let context = dropDestinationContext(
             proposedItem: proposedItem,
             requireCurrentItem: false

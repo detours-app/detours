@@ -4,6 +4,7 @@ extension FileListDataSource {
     // MARK: - Expansion Events
 
     func outlineView(_ outlineView: NSOutlineView, shouldExpandItem item: Any) -> Bool {
+        guard !isDropHoverActive else { return false }
         guard let fileItem = item as? FileItem else { return false }
 
         if fileItem.isVirtualSharedFolder {

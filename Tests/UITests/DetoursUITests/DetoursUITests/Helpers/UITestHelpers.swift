@@ -297,6 +297,12 @@ extension BaseUITest {
         postKeyEvent(keyCode: 36, flags: modifiers)
     }
 
+    /// Post F5 as a real HID event so the app's global shortcut monitor sees
+    /// the same event path as a physical keyboard.
+    func postF5KeyEvent() {
+        postKeyEvent(keyCode: 96)
+    }
+
     /// Post Escape as a real HID event without XCUITest's typeKey idle snapshot.
     func postEscapeKeyEvent() {
         postKeyEvent(keyCode: 53)

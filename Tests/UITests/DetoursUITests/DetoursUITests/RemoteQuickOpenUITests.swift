@@ -142,6 +142,8 @@ final class MultiFileOpenUITests: BaseUITest {
 /// T28-T34: end-to-end remote refresh, drag-and-drop, and clipboard behavior.
 final class RemoteFileOperationsUITests: BaseUITest {
     override func configureLaunchEnvironment(_ environment: inout [String: String]) {
+        let f5Source = uiTestRootURL.appendingPathComponent("FolderC/f5-source.txt")
+        try? Data("f5-copy".utf8).write(to: f5Source, options: .atomic)
         environment["DETOURS_UI_TEST_REMOTE"] = "connected"
         if name.contains("testExpandedTreeNeverDisappearsDuringMutationRefresh") {
             environment["DETOURS_UI_TEST_REMOTE_LISTING_GATES"] = "/#2"
@@ -245,6 +247,46 @@ final class RemoteFileOperationsUITests: BaseUITest {
         XCTAssertTrue(waitForCondition(timeout: 5) {
             FileManager.default.fileExists(atPath: self.uiTestRootURL.appendingPathComponent("FolderC/file1.txt").path)
         })
+    }
+
+    func testDragHoverNeverExpandsRemoteFolder() throws {
+        let source = leftRow("file2.txt")
+        let destination = leftRow("FolderA")
+        XCTAssertTrue(source.waitForExistence(timeout: 2))
+        XCTAssertTrue(destination.waitForExistence(timeout: 2))
+        XCTAssertFalse(try requestRemotePaneState().expandedLocations.contains("/FolderA"))
+
+        source.press(
+            forDuration: 0.5,
+            thenDragTo: destination,
+            withVelocity: .slow,
+            thenHoldForDuration: 1.5
+        )
+
+        XCTAssertFalse(
+            try requestRemotePaneState().expandedLocations.contains("/FolderA"),
+            "Drag hover must not expand a destination folder"
+        )
+    }
+
+    func testF5CopiesFocusedLocalFileToRemotePane() throws {
+        let localFolder = rightRow("FolderC")
+        XCTAssertTrue(localFolder.waitForExistence(timeout: 3))
+        localFolder.staticTexts["FolderC"].doubleClick()
+
+        let source = rightRow("f5-source.txt")
+        XCTAssertTrue(source.waitForExistence(timeout: 3))
+        source.staticTexts["f5-source.txt"].click()
+        postF5KeyEvent()
+
+        XCTAssertTrue(waitForCondition(timeout: 5) {
+            self.remoteProviderHistory().contains {
+                $0.operation == "upload"
+                    && $0.destination == "/f5-source.txt"
+                    && $0.phase == "completed"
+            }
+        }, "F5 should upload the focused local selection to the remote pane")
+        XCTAssertTrue(leftRow("f5-source.txt").waitForExistence(timeout: 5))
     }
 
     func testLocalRemoteAndCrossHostDragSemantics() throws {
