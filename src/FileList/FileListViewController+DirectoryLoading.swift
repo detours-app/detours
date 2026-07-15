@@ -94,6 +94,24 @@ extension FileListViewController {
         }
     }
 
+    /// Reveal the destination of an explicit copy or move. Unlike drag hover,
+    /// operation completion deliberately expands the chosen folder so the new
+    /// items are visible and selected.
+    func revealOperationResults(
+        _ locations: [Location],
+        in destination: Location,
+        completion: (() -> Void)? = nil
+    ) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if destination != self.currentDirectoryLocation {
+                await self.expandAncestorChain(to: destination)
+            }
+            _ = self.selectLocations(locations)
+            completion?()
+        }
+    }
+
     private func expandRemoteAncestorChain(to folderPath: String) async {
         guard case .remote(_, let currentRemotePath)? = currentRemoteLocation else { return }
         let baseURL = URL(fileURLWithPath: currentRemotePath).standardizedFileURL
@@ -117,6 +135,7 @@ extension FileListViewController {
             if let item = urlToItem[current], item.isNavigableFolder {
                 if item.isRemote {
                     await dataSource.loadRemoteChildrenForExpansionRestore(item)
+                    tableView.reloadItem(item, reloadChildren: true)
                 } else {
                     loadChildrenIfNeededForExpansion(item)
                 }

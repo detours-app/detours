@@ -142,8 +142,6 @@ final class MultiFileOpenUITests: BaseUITest {
 /// T28-T34: end-to-end remote refresh, drag-and-drop, and clipboard behavior.
 final class RemoteFileOperationsUITests: BaseUITest {
     override func configureLaunchEnvironment(_ environment: inout [String: String]) {
-        let f5Source = uiTestRootURL.appendingPathComponent("FolderC/f5-source.txt")
-        try? Data("f5-copy".utf8).write(to: f5Source, options: .atomic)
         environment["DETOURS_UI_TEST_REMOTE"] = "connected"
         if name.contains("testExpandedTreeNeverDisappearsDuringMutationRefresh") {
             environment["DETOURS_UI_TEST_REMOTE_LISTING_GATES"] = "/#2"
@@ -270,23 +268,32 @@ final class RemoteFileOperationsUITests: BaseUITest {
     }
 
     func testF5CopiesFocusedLocalFileToRemotePane() throws {
-        let localFolder = rightRow("FolderC")
-        XCTAssertTrue(localFolder.waitForExistence(timeout: 3))
-        localFolder.staticTexts["FolderC"].doubleClick()
+        let remoteDestination = leftRow("FolderA")
+        XCTAssertTrue(remoteDestination.waitForExistence(timeout: 3))
+        remoteDestination.staticTexts["FolderA"].click()
+        XCTAssertFalse(try requestRemotePaneState().expandedLocations.contains("/FolderA"))
 
-        let source = rightRow("f5-source.txt")
+        let localFolder = rightRow("FolderB")
+        XCTAssertTrue(localFolder.waitForExistence(timeout: 3))
+        localFolder.staticTexts["FolderB"].doubleClick()
+
+        let source = rightRow("unique-in-B.txt")
         XCTAssertTrue(source.waitForExistence(timeout: 3))
-        source.staticTexts["f5-source.txt"].click()
+        source.staticTexts["unique-in-B.txt"].click()
         postF5KeyEvent()
 
         XCTAssertTrue(waitForCondition(timeout: 5) {
             self.remoteProviderHistory().contains {
                 $0.operation == "upload"
-                    && $0.destination == "/f5-source.txt"
+                    && $0.destination == "/FolderA/unique-in-B.txt"
                     && $0.phase == "completed"
             }
         }, "F5 should upload the focused local selection to the remote pane")
-        XCTAssertTrue(leftRow("f5-source.txt").waitForExistence(timeout: 5))
+        XCTAssertTrue(leftRow("unique-in-B.txt").waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            try requestRemotePaneState().expandedLocations.contains("/FolderA"),
+            "A completed F5 copy should expand its deliberately selected destination"
+        )
     }
 
     func testLocalRemoteAndCrossHostDragSemantics() throws {

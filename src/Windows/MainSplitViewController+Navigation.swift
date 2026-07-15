@@ -257,8 +257,11 @@ extension MainSplitViewController {
                     preferredResultLocations: Set(actualLocations)
                 )
                 if let flvc = destinationPane.selectedTab?.fileListViewController {
-                    setActivePaneFromChild(destinationPane)
-                    view.window?.makeFirstResponder(flvc.tableView)
+                    flvc.revealOperationResults(actualLocations, in: destination) { [weak self, weak flvc] in
+                        guard let self, let flvc else { return }
+                        self.setActivePaneFromChild(destinationPane)
+                        self.view.window?.makeFirstResponder(flvc.tableView)
+                    }
                 }
             } catch {
                 FileOperationQueue.shared.presentError(error)

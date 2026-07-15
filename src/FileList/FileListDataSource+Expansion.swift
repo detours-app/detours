@@ -164,7 +164,10 @@ extension FileListDataSource {
     }
 
     func loadRemoteChildrenForExpansionRestore(_ item: FileItem) async {
-        guard let provider = currentRemoteProvider, item.children == nil else { return }
+        guard let provider = currentRemoteProvider,
+              item.children == nil || staleRemoteDirectories.contains(item.location) else {
+            return
+        }
         do {
             let entries = try await provider.list(item.location, showHidden: showHiddenFiles)
             _ = reconcileRemoteEntries(entries, in: item.location)

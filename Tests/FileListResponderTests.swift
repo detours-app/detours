@@ -97,6 +97,45 @@ final class FileListResponderTests: XCTestCase {
         XCTAssertEqual(inlineRenameFieldCount(in: viewController.tableView), 1)
     }
 
+    func testRemoteOperationResultExpandsClosedDestinationAndSelectsCopiedItem() async throws {
+        let originalExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+        SettingsManager.shared.folderExpansionEnabled = true
+        defer { SettingsManager.shared.folderExpansionEnabled = originalExpansionEnabled }
+
+        let hostID = UUID()
+        let root = Location.remote(hostID: hostID, path: "/home/marco")
+        let destination = Location.remote(hostID: hostID, path: "/home/marco/FolderA")
+        let copied = Location.remote(hostID: hostID, path: "/home/marco/FolderA/copied.txt")
+        let provider = FileListRemoteProvider(
+            hostID: hostID,
+            listings: [
+                root.path: [
+                    .remoteDirectory(hostID: hostID, path: destination.path, name: "FolderA"),
+                ],
+                destination.path: [
+                    .remoteFile(hostID: hostID, path: copied.path, name: "copied.txt"),
+                ],
+            ]
+        )
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        let host = RemoteHost(id: hostID, displayName: "Wraith", sshTarget: "wraith")
+
+        viewController.loadRemoteDirectory(host: host, path: root.path, provider: provider)
+        let loaded = await waitForRowCount(1, in: viewController.tableView)
+        XCTAssertTrue(loaded)
+        let folder = try XCTUnwrap(viewController.dataSource.items.first)
+        XCTAssertFalse(viewController.tableView.isItemExpanded(folder))
+
+        viewController.dataSource.markRemoteDirectoryStale(destination)
+        viewController.revealOperationResults([copied], in: destination)
+
+        let selected = await waitForSelectedLocations([copied], in: viewController)
+        XCTAssertTrue(selected)
+        XCTAssertTrue(viewController.tableView.isItemExpanded(folder))
+        XCTAssertEqual(viewController.selectedLocations, [copied])
+    }
+
     func testRemoteF8DeleteRoutesToTrashProvider() async throws {
         try await assertRemoteDeleteShortcutRoutesToTrash(
             makeFunctionKeyEvent(keyCode: 100, functionKey: NSF8FunctionKey)
