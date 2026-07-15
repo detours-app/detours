@@ -128,7 +128,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 - [x] **C7** Extend `FileListViewController+SelectionState.swift` to preserve expansion, multi-selection, top-visible item and offset, horizontal scroll, focus, sort, and filter state without selection-driven scrolling.
 - [x] **C8** Update `FileListViewController+Watching.swift` to retain stable root and branch watches and route changed locations through the refresh coordinator.
 - [x] **C9** Route copy, move, rename, paste, and delete completion from `FileListViewController+FileActions.swift` and `MainSplitViewController+Navigation.swift` through affected-directory refresh requests.
-- [ ] **C10** Add a non-blocking accessible remote refresh error with retry while retaining the last usable tree and view state.
+- [x] **C10** Add a non-blocking accessible remote refresh error with retry while retaining the last usable tree and view state.
 
 **Phase 3: Location-Based Drag-and-Drop**
 
@@ -212,3 +212,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C7** Added complete remote pane snapshots and no-scroll restoration for expanded locations, multi-selection, nearest surviving row, top-visible item plus pixel offset, horizontal origin, list or filter focus, sort descriptor, filter text, and filter visibility. Preferred operation results replace the restored selection only when they are visible.
 - **C8** Provider watches are now keyed by normalized `Location`, retaining remote host identity and stable root or expanded-branch registrations across refreshes. Collapsing a folder removes only its watch subtree, while remote callbacks request a coalesced refresh for the watched branch and local callbacks retain the existing debounced reload path.
 - **C9** Paste, delete, and rename completions now publish exact affected remote directories and preferred results; cross-pane copy and move do the same for every loaded tab in both panes. Matching roots and expanded branches request coordinated mutations, collapsed branches become stale, and local refresh behavior remains on its existing path.
+- **C10** Background refresh failures now leave the reconciled tree and pane state untouched and show a compact accessible banner over the pane with the directory, failure reason, and an exact-directory Retry action. A successful retry removes the banner; no modal or full-list error overlay is used.

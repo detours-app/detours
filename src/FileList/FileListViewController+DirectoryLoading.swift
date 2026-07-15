@@ -194,6 +194,7 @@ extension FileListViewController {
         clearQuickLookPreviewState()
         hideLoadingIndicator()
         hideErrorOverlay()
+        hideRemoteRefreshError()
 
         let normalizedURL = url.standardizedFileURL
         if let previousRemoteHost = currentRemoteHost {
@@ -398,6 +399,7 @@ extension FileListViewController {
         dataSource.cancelCurrentLoad()
         hideLoadingIndicator()
         hideErrorOverlay()
+        hideRemoteRefreshError()
         currentRemoteLocation = location
         currentRemoteProvider = provider
         currentDirectory = nil
@@ -480,6 +482,7 @@ extension FileListViewController {
         ) else {
             return
         }
+        hideRemoteRefreshError(for: snapshot.request.directory)
 
         if let parentItem = reconciliation.parentItem {
             tableView.reloadItem(parentItem, reloadChildren: true)

@@ -151,6 +151,93 @@ extension FileListViewController {
         errorOverlay = nil
     }
 
+    func showRemoteRefreshError(
+        request: RemoteRefreshRequest,
+        error: any Error
+    ) {
+        remoteRefreshErrorBanner?.removeFromSuperview()
+        failedRemoteRefreshRequest = request
+
+        let banner = NSView()
+        banner.translatesAutoresizingMaskIntoConstraints = false
+        banner.wantsLayer = true
+        banner.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.18).cgColor
+        banner.setAccessibilityElement(true)
+        banner.setAccessibilityRole(.group)
+        banner.setAccessibilityIdentifier("remoteRefreshErrorBanner")
+
+        let directoryName = request.directory.lastPathComponent.isEmpty
+            ? request.directory.path
+            : request.directory.lastPathComponent
+        let message = "Could not refresh \"\(directoryName)\". \(error.localizedDescription)"
+        banner.setAccessibilityLabel("Remote refresh failed. \(message)")
+
+        let label = NSTextField(labelWithString: message)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.font = ThemeManager.shared.currentTheme.uiFont(size: 12)
+        label.textColor = ThemeManager.shared.currentTheme.textPrimary
+        label.lineBreakMode = .byTruncatingMiddle
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.setAccessibilityIdentifier("remoteRefreshErrorLabel")
+
+        let retryButton = NSButton(
+            title: "Retry",
+            target: self,
+            action: #selector(retryRemoteRefresh)
+        )
+        retryButton.translatesAutoresizingMaskIntoConstraints = false
+        retryButton.bezelStyle = .rounded
+        retryButton.controlSize = .small
+        retryButton.setAccessibilityIdentifier("remoteRefreshRetryButton")
+        retryButton.setAccessibilityLabel("Retry remote refresh")
+
+        banner.addSubview(label)
+        banner.addSubview(retryButton)
+        view.addSubview(banner, positioned: .above, relativeTo: scrollView)
+        NSLayoutConstraint.activate([
+            banner.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 6),
+            banner.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 8),
+            banner.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -8),
+            label.leadingAnchor.constraint(equalTo: banner.leadingAnchor, constant: 10),
+            label.centerYAnchor.constraint(equalTo: banner.centerYAnchor),
+            retryButton.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
+            retryButton.trailingAnchor.constraint(equalTo: banner.trailingAnchor, constant: -8),
+            retryButton.topAnchor.constraint(equalTo: banner.topAnchor, constant: 5),
+            retryButton.bottomAnchor.constraint(equalTo: banner.bottomAnchor, constant: -5),
+        ])
+        remoteRefreshErrorBanner = banner
+
+        let userInfo: [NSAccessibility.NotificationUserInfoKey: Any] = [
+            .announcement: "Remote refresh failed. Retry is available.",
+            .priority: NSAccessibilityPriorityLevel.high.rawValue,
+        ]
+        NSAccessibility.post(
+            element: banner,
+            notification: .announcementRequested,
+            userInfo: userInfo
+        )
+    }
+
+    func hideRemoteRefreshError(for directory: Location? = nil) {
+        if let directory,
+           failedRemoteRefreshRequest?.directory != directory {
+            return
+        }
+        remoteRefreshErrorBanner?.removeFromSuperview()
+        remoteRefreshErrorBanner = nil
+        failedRemoteRefreshRequest = nil
+    }
+
+    @objc private func retryRemoteRefresh() {
+        guard let request = failedRemoteRefreshRequest else { return }
+        hideRemoteRefreshError()
+        remoteRefreshCoordinator?.requestRefresh(
+            affectedLocation: request.directory,
+            reason: .retry,
+            preferredResultLocations: request.preferredResultLocations
+        )
+    }
+
     @objc private func retryLoad() {
         retryCurrentLoad()
     }

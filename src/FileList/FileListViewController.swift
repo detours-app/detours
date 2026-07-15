@@ -80,6 +80,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     // Loading state
     var loadingSpinner: NSProgressIndicator?
     var errorOverlay: NSView?
+    var remoteRefreshErrorBanner: NSView?
+    var failedRemoteRefreshRequest: RemoteRefreshRequest?
     var quickLookPreviewItems: [DetoursQuickLookItem] = []
     var quickLookGenerationTask: Task<Void, Never>?
     var quickLookRequestID = UUID()
@@ -125,7 +127,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             apply: { [weak self] snapshot in
                 self?.applyRemoteRefresh(snapshot)
             },
-            handleFailure: { _, _ in }
+            handleFailure: { [weak self] request, error in
+                self?.showRemoteRefreshError(request: request, error: error)
+            }
         )
 
         setupScrollView()
