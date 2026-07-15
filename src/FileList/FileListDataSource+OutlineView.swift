@@ -63,17 +63,24 @@ extension FileListDataSource {
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         dropDelegate?.endInternalDrag(on: session.draggingPasteboard)
-        dropTargetItem = nil
+        clearDropTarget()
     }
 
     // MARK: - Drop Target
 
     func clearDropTarget() {
         dropTargetItem = nil
+        (outlineView as? BandedOutlineView)?.isBackgroundDropTarget = false
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: any NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
-        guard let currentDirectory = dropDelegate?.currentDirectoryLocation else { return [] }
+        guard let context = dropDestinationContext(
+            proposedItem: item,
+            requireCurrentItem: false
+        ) else {
+            clearDropTarget()
+            return []
+        }
 
         let internalLocations = InternalFileDragSessionStore.shared.locations(
             on: info.draggingPasteboard
@@ -90,33 +97,26 @@ extension FileListDataSource {
         let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] ?? []
         let sourceLocations = internalLocations ?? urls.map(Location.local)
 
-        // Must have either file URLs or file promises
-        guard !sourceLocations.isEmpty || hasFilePromises else {
+        let promiseHasLocalDestination: Bool
+        if hasFilePromises, case .local = context.location {
+            promiseHasLocalDestination = true
+        } else {
+            promiseHasLocalDestination = !hasFilePromises
+        }
+        guard promiseHasLocalDestination,
+              FileDropValidator.validate(
+                  sources: sourceLocations,
+                  destination: context.location,
+                  destinationIsDirectory: true,
+                  destinationIsWritable: context.isWritable,
+                  allowsEmptySources: hasFilePromises
+              ) == nil else {
+            clearDropTarget()
             return []
         }
 
-        // Determine destination
-        let destination: Location
-        if let fileItem = item as? FileItem,
-           let dropDestination = fileItem.dropDestinationLocation {
-            // Dropping on a folder or alias to a folder
-            destination = dropDestination
-            dropTargetItem = fileItem
-        } else {
-            // Dropping on background - use current directory
-            destination = currentDirectory
-            dropTargetItem = nil
-        }
-
-        // Don't allow dropping into itself, a descendant, or the same parent.
-        for source in sourceLocations {
-            if destination == source
-                || destination.path.hasPrefix(source.path + "/")
-                || source.deletingLastPathComponent() == destination {
-                dropTargetItem = nil
-                return []
-            }
-        }
+        dropTargetItem = context.item
+        (outlineView as? BandedOutlineView)?.isBackgroundDropTarget = context.isBackground
 
         // File promises are always copy operations
         if hasFilePromises && urls.isEmpty {
@@ -130,34 +130,41 @@ extension FileListDataSource {
     }
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: any NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
-        guard let currentDirectory = dropDelegate?.currentDirectoryLocation else { return false }
-
-        // Determine destination (resolve aliases to their target directory)
-        let destination: Location
-        if let fileItem = item as? FileItem,
-           let dropDestination = fileItem.dropDestinationLocation {
-            destination = dropDestination
-        } else {
-            destination = currentDirectory
+        guard let context = dropDestinationContext(
+            proposedItem: item,
+            requireCurrentItem: true
+        ) else {
+            clearDropTarget()
+            return false
         }
+        let destination = context.location
 
         if let internalLocations = InternalFileDragSessionStore.shared.locations(
             on: info.draggingPasteboard
         ), !internalLocations.isEmpty {
+            guard FileDropValidator.validate(
+                sources: internalLocations,
+                destination: destination,
+                destinationIsDirectory: true,
+                destinationIsWritable: context.isWritable
+            ) == nil else {
+                clearDropTarget()
+                return false
+            }
             let isCopy = NSEvent.modifierFlags.contains(.option)
             dropDelegate?.handleDrop(
                 locations: internalLocations,
                 to: destination,
                 isCopy: isCopy
             )
-            dropTargetItem = nil
+            clearDropTarget()
             return true
         }
 
         // Handle file promises first (e.g., from Mail attachments)
         if let promises = info.draggingPasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil) as? [NSFilePromiseReceiver], !promises.isEmpty {
             guard case .local(let destinationURL) = destination else {
-                dropTargetItem = nil
+                clearDropTarget()
                 return false
             }
             let queue = OperationQueue()
@@ -184,26 +191,82 @@ extension FileListDataSource {
                 }
                 promise.receivePromisedFiles(atDestination: destinationURL, options: [:], operationQueue: queue, reader: handler)
             }
-            dropTargetItem = nil
+            clearDropTarget()
             return true
         }
 
         // Handle regular file URLs
         guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
               !urls.isEmpty else {
-            dropTargetItem = nil
+            clearDropTarget()
+            return false
+        }
+
+        let locations = urls.map(Location.local)
+        guard FileDropValidator.validate(
+            sources: locations,
+            destination: destination,
+            destinationIsDirectory: true,
+            destinationIsWritable: context.isWritable
+        ) == nil else {
+            clearDropTarget()
             return false
         }
 
         let isCopy = NSEvent.modifierFlags.contains(.option)
 
         dropDelegate?.handleDrop(
-            locations: urls.map(Location.local),
+            locations: locations,
             to: destination,
             isCopy: isCopy
         )
-        dropTargetItem = nil
+        clearDropTarget()
 
         return true
     }
+
+    private func dropDestinationContext(
+        proposedItem: Any?,
+        requireCurrentItem: Bool
+    ) -> DropDestinationContext? {
+        guard let currentDirectory = dropDelegate?.currentDirectoryLocation else { return nil }
+
+        if let fileItem = proposedItem as? FileItem {
+            if requireCurrentItem {
+                guard dataSourceContains(fileItem) else { return nil }
+            }
+            guard let location = fileItem.dropDestinationLocation else { return nil }
+            return DropDestinationContext(
+                location: location,
+                item: fileItem,
+                isBackground: false,
+                isWritable: fileItem.isWritableDropDestination
+            )
+        }
+
+        let isWritable: Bool
+        switch currentDirectory {
+        case .local(let url):
+            isWritable = FileManager.default.isWritableFile(atPath: url.path)
+        case .remote:
+            isWritable = currentRemoteProvider != nil
+        }
+        return DropDestinationContext(
+            location: currentDirectory,
+            item: nil,
+            isBackground: true,
+            isWritable: isWritable
+        )
+    }
+
+    private func dataSourceContains(_ item: FileItem) -> Bool {
+        findItem(withLocation: item.location, in: items) === item
+    }
+}
+
+private struct DropDestinationContext {
+    let location: Location
+    let item: FileItem?
+    let isBackground: Bool
+    let isWritable: Bool
 }

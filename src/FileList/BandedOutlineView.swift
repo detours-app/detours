@@ -74,6 +74,13 @@ final class BandedOutlineView: NSOutlineView {
     weak var keyHandler: FileListKeyHandling?
     weak var contextMenuDelegate: FileListContextMenuDelegate?
     var onActivate: (() -> Void)?
+    var isBackgroundDropTarget = false {
+        didSet {
+            if isBackgroundDropTarget != oldValue {
+                needsDisplay = true
+            }
+        }
+    }
 
     /// Currently hovered row (-1 = none)
     private var hoveredRow: Int = -1
@@ -187,6 +194,17 @@ final class BandedOutlineView: NSOutlineView {
         // Allow click-through when app is inactive - clicking a pane should
         // activate the app AND select the clicked item/pane
         true
+    }
+
+    override func drawBackground(in clipRect: NSRect) {
+        super.drawBackground(in: clipRect)
+        guard isBackgroundDropTarget else { return }
+        let theme = Theme.currentSnapshot()
+        theme.accent.withAlphaComponent(0.10).setFill()
+        clipRect.fill()
+        theme.accent.withAlphaComponent(0.65).setStroke()
+        let border = bounds.insetBy(dx: 1, dy: 1)
+        NSBezierPath(rect: border).stroke()
     }
 
     override func mouseDown(with event: NSEvent) {

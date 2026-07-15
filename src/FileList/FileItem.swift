@@ -495,6 +495,16 @@ extension FileItem {
         return isDir ? .local(resolved) : nil
     }
 
+    var isWritableDropDestination: Bool {
+        guard let destination = dropDestinationLocation else { return false }
+        switch destination {
+        case .local(let url):
+            return FileManager.default.isWritableFile(atPath: url.path)
+        case .remote:
+            return isReadable
+        }
+    }
+
     /// Sorts items by the given descriptor with optional folders-on-top grouping.
     /// Within each group (or all items if foldersOnTop is false), items are sorted by
     /// the specified column and direction. Ties are broken by name for stability.

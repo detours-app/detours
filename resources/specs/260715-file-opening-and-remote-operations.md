@@ -134,7 +134,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 
 - [x] **C11** Add an app-owned internal drag session that captures every selected `Location` while preserving the existing remote-file promise writer for external applications.
 - [x] **C12** Replace URL-only current-directory and destination helpers in `FileListViewController+DragDrop.swift`, `FileListDataSource+OutlineView.swift`, and `FileItem.swift` with location-based equivalents.
-- [ ] **C13** Add location-aware drop validation for writable folder rows and pane backgrounds, including highlight state and self, descendant, regular-file, missing-target, and same-parent rejection.
+- [x] **C13** Add location-aware drop validation for writable folder rows and pane backgrounds, including highlight state and self, descendant, regular-file, missing-target, and same-parent rejection.
 - [ ] **C14** Route accepted multi-file and folder drops through `FileOperationQueue` location operations with same-volume and same-host boundary detection plus Option and Command overrides.
 - [ ] **C15** Preserve source and destination pane state through drag completion, select visible results, clear drop highlighting, and aggregate operation errors.
 
@@ -215,3 +215,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C10** Background refresh failures now leave the reconciled tree and pane state untouched and show a compact accessible banner over the pane with the directory, failure reason, and an exact-directory Retry action. A successful retry removes the banner; no modal or full-list error overlay is used.
 - **C11** Added an app-owned internal drag token and registry. AppKit's full dragged `FileItem` set is captured as ordered `Location` values when a session begins and removed when it ends, while local URL writers and the existing remote `NSFilePromiseProvider` remain the external drag representations.
 - **C12** Replaced URL-only drag helpers with location-based current folders, row destinations, source sets, and operation calls. Remote directories now remain valid destinations with host identity intact; local Finder aliases still resolve to local locations, and external file promises require a concrete local destination URL.
+- **C13** Added a host-aware `FileDropValidator` used during hover and acceptance. Writable folder rows and pane backgrounds now expose distinct target highlights, while regular files, missing rows, unwritable folders, self and descendant drops, same-parent no-ops, and remote paths on the wrong host are rejected consistently.
