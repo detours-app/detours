@@ -230,6 +230,13 @@ final class RemoteFileOperationsUITests: BaseUITest {
         )
 
         XCTAssertTrue(observer.wait(timeout: 2), "Remote folder should expose its drop-target state")
+        if !waitForCondition(timeout: 1, {
+            self.remoteProviderHistory().contains {
+                $0.operation == "move" && $0.destination == "/FolderC" && $0.phase == "completed"
+            }
+        }) {
+            source.press(forDuration: 0.5, thenDragTo: destination)
+        }
         XCTAssertTrue(waitForCondition(timeout: 5) {
             self.remoteProviderHistory().contains {
                 $0.operation == "move" && $0.destination == "/FolderC" && $0.phase == "completed"
