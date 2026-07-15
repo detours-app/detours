@@ -31,6 +31,9 @@ Remote panes are normal Detours panes for the commands that have been routed thr
 
 - Browse folders, tabs, breadcrumbs, sorting, hidden-file toggling, and folder expansion
 - Copy, cut, paste, F5 copy-to-other-pane, and F6 move-to-other-pane between the Mac and remote hosts
+- Drag files and folders within one remote host, across remote hosts, and in both
+  directions between local and remote panes; valid targets highlight without
+  opening folders during hover
 - Move to Trash and Undo restore
 - New Folder and New File
 - Rename
@@ -117,5 +120,7 @@ Run that command only when you are sure you no longer need anything in the remot
 Unix helper deployment supports x86_64 Linux and x86_64 macOS. Windows OpenSSH hosts are supported separately when their default shell is Windows PowerShell; Detours detects them before Unix helper deployment. Unsupported Unix architectures and Windows hosts with a Unix-style default shell are refused.
 
 Large transfers use a second SSH channel so directory listings, git status, and watch events can continue on the metadata channel. Temporary paths keep incomplete files away from final destinations, and interrupted multi-item remote copies resume with the items that did not arrive.
+
+Remote mutation refreshes reconcile the affected folder in place. Expanded branches, selection, scrolling, keyboard focus, sorting, and active filters stay stable, while a completed transfer into a selected closed folder expands it and reveals the result.
 
 Remote directory listings complete before git status markers arrive. Git status runs asynchronously after the list refresh and the helper gives each git command a five-second timeout, so a slow or wedged repository should not leave a remote tab spinning indefinitely.

@@ -62,11 +62,13 @@ Run before committing. Fix all warnings/errors before commit.
 
 **NEVER test Detours on Spectre.** All unit tests, integration tests, live Windows tests, XCUITests, test builds, runtime probes, screenshot fixtures, and test-data setup run on Foundry. Never run `swift test`, `resources/scripts/uitest.sh`, `resources/scripts/wintest.sh`, or an equivalent test command locally on Spectre. Never create test files, folders, mounted volumes, preferences, caches, or Trash entries on Spectre. If Foundry is unavailable, stop and report that verification is blocked; do not use Spectre as a fallback.
 
-**Never run the full test suite.** Target specific test classes:
+During iteration, target the smallest relevant test class or method:
 
 ```bash
 ssh foundry 'cd ~/dev/detours && swift test --filter SomeTestClass'
 ```
+
+Run the full Foundry suite once as a final confirmation when the change spans shared file operations, remote providers, release automation, or another broad integration surface.
 
 - Test files go in `Tests/`
 - No mocks - use the real filesystem with temp directories on Foundry only
@@ -166,9 +168,9 @@ A change is not complete until it is proven on Foundry AND installed on Spectre.
 - Commit on Spectre first. Do not leave source changes as the source of truth on Foundry.
 - Before using Foundry for builds, screenshots, or runtime verification, check `git status --short --branch` and `git rev-parse HEAD` on both Spectre and Foundry.
 - Foundry must be clean and at the same commit as Spectre before runtime or screenshot work starts.
-- **Sync Foundry with `git pull`.** When Foundry is clean (the normal case), bring it to the latest commit with `git fetch && git checkout <branch> && git pull`. A clean tree fast-forwards; this is the default and only sync command.
+- **Sync Foundry with an ff-only pull.** Push the Spectre commit to `origin`, then, when Foundry is clean, bring it to the same branch with `git fetch && git checkout <branch> && git pull --ff-only`.
 - **Never `git reset --hard` a clean Foundry.** Reset is destructive and is reserved for the one case where Foundry is genuinely dirty or has diverged and `git pull` refuses to fast-forward. If you reach for reset on a clean tree, stop, you are overcomplicating it.
-- If files were temporarily copied to Foundry for staging, reconcile them by committing on Spectre, pushing, then `git pull` on Foundry.
+- If files were temporarily copied to Foundry for staging, reconcile them by committing on Spectre, pushing, then `git pull --ff-only` on Foundry.
 - Do not leave Foundry with uncommitted repo changes after a task. If Foundry is dirty, stop and cleanly reconcile it before continuing.
 
 ---

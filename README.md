@@ -12,7 +12,9 @@ Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macO
 - **Quick Open** - Spotlight locally and host-aware name search on remote tabs, with frecency ranking (Cmd-P)
 - **Git status indicators** - See modified, staged, and untracked files at a glance
 - **SSH remote browsing** - Browse supported macOS, Linux, and Windows hosts directly in Detours panes
-- **Remote file workflows** - Copy, move, trash, restore, archive, extract, create files/folders, Get Info, Quick Look, Open With, and drag out remote files
+- **Remote file workflows** - Copy, move, cut, paste, trash, restore, archive,
+  extract, create files/folders, Get Info, Quick Look, Open With, and drag files
+  within or between local and remote panes
 - **Inline operation progress** - Status bars show progress, transfer speed, completion, and error states
 - **Fast lane operations** - Small independent operations stay responsive while large transfers run
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
@@ -20,7 +22,9 @@ Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macO
 - **Sidebar** - Quick access to remote hosts, mounted volumes, network shares, and favorite folders
 - **Path bar** - Click to navigate, drag to terminal, right-click to copy path
 - **Quick Look** - Preview files with spacebar, including enhanced Detours-styled code and Markdown previews
-- **Drag and drop** - Between panes, to/from Finder, from Mail attachments, to favorites
+- **Drag and drop** - Move within one volume or remote host, copy across local,
+  remote, volume, or host boundaries, and exchange files with Finder, Mail, and
+  favorites
 - **Duplicate folder structure** - Copy folder hierarchy without files (great for year-based templates)
 - **Delete Immediately** - Permanent deletion option bypassing Trash (Cmd-Option-Delete)
 - **Truncation tooltips** - Hover to see full filename when truncated
@@ -56,7 +60,7 @@ All shortcuts are customizable in Preferences (Cmd-,).
 
 | Action | Default |
 | ------ | -------- |
-| Open | Cmd-O / Enter |
+| Open selected items | Cmd-O / Cmd-Down / Enter |
 | Quick Look | Space |
 | Quick Open | Cmd-P |
 | New Tab | Cmd-T |

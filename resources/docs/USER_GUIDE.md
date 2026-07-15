@@ -84,7 +84,7 @@ The sidebar shows remote hosts, mounted volumes, network shares, and favorite fo
 | Action | Shortcut |
 | ------ | -------- |
 | Move selection | Arrow keys |
-| Open file/folder | Enter or Cmd-O |
+| Open selected items or focused folder | Enter, Cmd-O, or Cmd-Down |
 | Go to parent folder | Cmd-Up |
 | Go back | Cmd-Left |
 | Go forward | Cmd-Right |
@@ -119,6 +119,8 @@ Remote Quick Open keeps recent places scoped to the active host and searches nam
 | Select all | Cmd-A |
 | Clear multi-selection | Click empty space |
 
+Open acts on every selected ordinary file in the order shown. Folders, archives, and disk images in a mixed selection remain untouched. When the selection has no ordinary files, Open keeps the focused item's normal behavior, such as entering a folder, extracting an archive, or mounting a disk image. Opening more than five ordinary files requires confirmation first.
+
 ---
 
 ## File Operations
@@ -152,6 +154,8 @@ Move or copy files directly to the other pane:
 | Move to other pane | F6 |
 
 After the operation, the moved/copied files are automatically selected in the destination pane.
+
+If the destination is a deliberately selected closed folder, a completed F5 copy opens that folder and reveals the copied item. Paste also uses exactly one deliberately selected folder; automatic or multiple-folder selections paste into the directory shown by the tab.
 
 Cross-pane copy and move work between local panes, a local pane and a remote pane, and remote panes. Transfers that cross providers are staged through Detours' operation queue with progress and cancellation.
 
@@ -280,7 +284,9 @@ Remote panes support normal Detours workflows:
 - Rename
 - Get Info and Copy Path
 - Quick Look and Open With round trips
-- Drag files out to Finder or other apps
+- Drag files and folders within a remote host, across remote hosts, and between
+  local and remote panes
+- Drag remote files out to Finder or other apps
 - Archive and Extract Here, with formats based on host tool availability
 - Git status markers
 - File watching with polling fallback when needed
@@ -480,7 +486,12 @@ With "Restore session" enabled:
 
 ### Drag and Drop
 
-- Drag files between panes to move them
+- A normal drag moves within one local volume or remote host and copies across
+  volumes, remote hosts, or a local/remote boundary
+- Hold Option to force a copy or Command to force a cross-boundary move; Option
+  takes priority when both are held
+- Valid folder and pane-background destinations highlight during the drag;
+  hovering never opens folders
 - Drag files to Finder to copy
 - Drag files to other apps (e.g., attach to email)
 - Drop files from Mail attachments (and other apps using file promises) into panes
@@ -511,7 +522,7 @@ With "Restore session" enabled:
 
 | Action | Shortcut |
 | ------ | -------- |
-| Open | Enter or Cmd-O |
+| Open | Enter, Cmd-O, or Cmd-Down |
 | Quick Look | Space |
 | Open in Editor | F4 |
 | Get Info | Cmd-I |
