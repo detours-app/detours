@@ -300,7 +300,7 @@ extension BaseUITest {
     /// Type F5 through XCUITest's function-key API so the event is delivered
     /// through the application's normal keyboard path.
     func pressF5Key() {
-        app.typeKey(XCUIKeyboardKeyF5, modifierFlags: [])
+        app.typeKey(XCUIKeyboardKey.F5, modifierFlags: [])
     }
 
     /// Post Escape as a real HID event without XCUITest's typeKey idle snapshot.
