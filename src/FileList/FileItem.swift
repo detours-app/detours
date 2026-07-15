@@ -32,18 +32,18 @@ final class FileItem {
         if case .remote = location { return true }
         return false
     }
-    let isDirectory: Bool
-    let isPackage: Bool
-    let isAliasFile: Bool
-    let isSymbolicLink: Bool
-    let isReadable: Bool
-    let isHiddenFile: Bool
-    let size: Int64?
-    let dateModified: Date
+    var isDirectory: Bool
+    var isPackage: Bool
+    var isAliasFile: Bool
+    var isSymbolicLink: Bool
+    var isReadable: Bool
+    var isHiddenFile: Bool
+    var size: Int64?
+    var dateModified: Date
     var icon: NSImage
-    let sharedRole: SharedItemRole?
-    let isVirtualSharedFolder: Bool
-    let iCloudStatus: ICloudStatus
+    var sharedRole: SharedItemRole?
+    var isVirtualSharedFolder: Bool
+    var iCloudStatus: ICloudStatus
     var gitStatus: GitStatus?
 
     // Tree support for folder expansion
@@ -318,6 +318,21 @@ final class FileItem {
     }
 
     // MARK: - Tree Operations
+
+    func updateListingMetadata(from updatedItem: FileItem) {
+        guard location == updatedItem.location else { return }
+        isDirectory = updatedItem.isDirectory
+        isPackage = updatedItem.isPackage
+        isAliasFile = updatedItem.isAliasFile
+        isSymbolicLink = updatedItem.isSymbolicLink
+        isReadable = updatedItem.isReadable
+        isHiddenFile = updatedItem.isHiddenFile
+        size = updatedItem.size
+        dateModified = updatedItem.dateModified
+        sharedRole = updatedItem.sharedRole
+        isVirtualSharedFolder = updatedItem.isVirtualSharedFolder
+        iCloudStatus = updatedItem.iCloudStatus
+    }
 
     /// Loads children for this directory. Returns nil for files.
     /// Empty array means directory is empty (not same as nil which means not loaded).

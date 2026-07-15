@@ -303,6 +303,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     /// progress; only one enumeration may be active for an item at a time.
     var pendingChildLoads: Set<ObjectIdentifier> = []
 
+    /// Remote directories whose loaded children must be fetched on their next expansion.
+    var staleRemoteDirectories: Set<Location> = []
+
     /// Callback for when async load starts (used by FileListViewController for loading state)
     var onLoadStarted: (() -> Void)?
 
