@@ -31,7 +31,7 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
     func testRefreshPreservesCompletePaneState() throws {
         let hostID = UUID()
         let root = Location.remote(hostID: hostID, path: "/")
-        let folder = item(hostID: hostID, path: "/Folder", name: "Folder", isDirectory: true)
+        let folder = item(hostID: hostID, path: "/Folder", name: "item-Folder", isDirectory: true)
         folder.children = [item(hostID: hostID, path: "/Folder/nested.txt", name: "nested.txt")]
         folder.children?.first?.parent = folder
         let files = (0..<18).map {
@@ -43,17 +43,18 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         controller.view.frame = window.contentView?.bounds ?? .zero
         controller.view.layoutSubtreeIfNeeded()
 
+        controller.dataSource.sortDescriptor = SortDescriptor(column: .dateModified, ascending: false)
+        controller.filterBar.filterText = "item"
+        controller.dataSource.filterPredicate = "item"
+        controller.isFilterBarVisible = true
+        controller.filterBar.isHidden = false
+        controller.dataSource.resort()
         controller.tableView.expandItem(folder)
         let selectedRows = IndexSet([
             controller.tableView.row(forItem: files[6]),
             controller.tableView.row(forItem: files[7]),
         ])
         controller.tableView.selectRowIndexes(selectedRows, byExtendingSelection: false)
-        controller.dataSource.sortDescriptor = SortDescriptor(column: .dateModified, ascending: false)
-        controller.filterBar.filterText = "item"
-        controller.dataSource.filterPredicate = "item"
-        controller.isFilterBarVisible = true
-        controller.filterBar.isHidden = false
         window.makeFirstResponder(controller.tableView)
         controller.scrollView.contentView.scroll(to: NSPoint(x: 9, y: 80))
         controller.scrollView.reflectScrolledClipView(controller.scrollView.contentView)
