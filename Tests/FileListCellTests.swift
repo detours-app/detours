@@ -72,6 +72,43 @@ final class FileListCellTests: XCTestCase {
         }
     }
 
+    func testDropTargetAndCutStatesAreVisibleAndAccessible() throws {
+        let hostID = UUID()
+        let location = Location.remote(hostID: hostID, path: "/Pending.txt")
+        let item = FileItem(
+            name: "Pending.txt",
+            location: location,
+            isDirectory: false,
+            size: 10,
+            dateModified: Date(),
+            icon: NSImage(size: NSSize(width: 16, height: 16))
+        )
+        ClipboardManager.shared.cut(items: [location])
+        defer { ClipboardManager.shared.clear() }
+
+        let cell = FileListCell(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        cell.configure(with: item, isDropTarget: true)
+        cell.layoutSubtreeIfNeeded()
+
+        let iconView = try XCTUnwrap(cell.imageView)
+        let nameLabel = try XCTUnwrap(cell.textField)
+        XCTAssertEqual(iconView.alphaValue, 0.5, accuracy: 0.01)
+        XCTAssertEqual(nameLabel.alphaValue, 0.5, accuracy: 0.01)
+        XCTAssertEqual(cell.layer?.borderWidth, 2)
+        XCTAssertNotNil(cell.layer?.borderColor)
+        XCTAssertEqual(cell.accessibilityLabel(), "Pending.txt, pending move")
+        XCTAssertEqual(cell.accessibilityHelp(), "This item will move when you paste it.")
+
+        ClipboardManager.shared.copy(items: [location])
+        cell.configure(with: item, isDropTarget: false)
+
+        XCTAssertEqual(iconView.alphaValue, 1, accuracy: 0.01)
+        XCTAssertEqual(nameLabel.alphaValue, 1, accuracy: 0.01)
+        XCTAssertEqual(cell.layer?.borderWidth, 0)
+        XCTAssertEqual(cell.accessibilityLabel(), "Pending.txt")
+        XCTAssertNil(cell.accessibilityHelp())
+    }
+
     private func makeAccessoryItem(
         name: String,
         iCloudStatus: ICloudStatus = .local,
