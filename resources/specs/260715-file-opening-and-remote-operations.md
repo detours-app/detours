@@ -178,7 +178,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T18** `FileListDragDropTests.testInvalidTargetsAreRejectedTwice` - Self, descendant, same-parent, regular-file, and disappeared destinations fail during validation or final acceptance.
 - [x] **T19** `FileListCellTests.testDropTargetAndCutStatesAreVisibleAndAccessible` - Drop and pending-cut states have both visual treatment and accessibility descriptions.
 - [x] **T20** `ClipboardManagerTests.testRemoteCutLocationsRemainRetryableUntilSuccess` - Remote cut locations survive failure and clear only after a successful move.
-- [ ] **T21** `FileListResponderTests.testRemotePasteUsesExplicitFolderOrCurrentDirectory` - User selection chooses one folder while automatic, restored, result, and multiple-folder selections use the displayed directory.
+- [x] **T21** `FileListResponderTests.testRemotePasteUsesExplicitFolderOrCurrentDirectory` - User selection chooses one folder while automatic, restored, result, and multiple-folder selections use the displayed directory.
 - [ ] **T22** `FileListResponderTests.testRemoteCopyAndCutPasteRouteCorrectOperations` - Copy retains sources and clipboard contents while cut moves sources and clears successful cut state.
 - [ ] **T23** `RemoteDragOutTests.testRemoteFileDragStillUsesFilePromiseProvider` - Existing external remote-file drag behavior remains intact.
 
@@ -244,3 +244,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T18** Verified on Foundry that self, descendant, same-parent, regular-file, and disappeared targets are rejected during hover and rechecked at acceptance, with host identity preventing false descendant matches.
 - **T19** Configured a remote row as both pending move and a drop target on Foundry, verifying dimming, border treatment, accessibility label and help, plus complete reset when both states clear.
 - **T20** Forced the first remote cut paste to fail and the second to succeed on Foundry, verifying source locations and pending-cut state survive the failure and clear only after the successful move.
+- **T21** Verified every selection origin on Foundry and fixed origin retention for unchanged programmatic selections; exactly one user-selected folder redirects paste, while automatic, restored, result, and multi-folder states use the displayed root.
