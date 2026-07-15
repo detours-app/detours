@@ -92,6 +92,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     weak var remoteQuickLookProgressOverlay: NSView?
     var suppressLoadingSpinner = false
 
+    // Injectable opening collaborators keep keyboard and menu entry-point tests from launching
+    // external applications. Production leaves these nil and uses the normal UI and open paths.
+    var openingConfirmationOverride: FileItemOpeningDispatcher.ConfirmationHandler?
+    var openingActionOverride: FileItemOpeningDispatcher.ActionPerformer?
+    var openingResultObserver: ((FileItemOpenBatchResult) -> Void)?
+
     // Filter bar
     let filterBar = FilterBarView()
     var isFilterBarVisible = false

@@ -305,16 +305,20 @@ extension FileListViewController {
     func open(items: [FileItem], focusedItem: FileItem?) {
         let dispatcher = FileItemOpeningDispatcher(
             confirmsOpening: { [weak self] fileCount in
-                self?.confirmOpening(fileCount: fileCount) ?? false
+                guard let self else { return false }
+                return self.openingConfirmationOverride?(fileCount)
+                    ?? self.confirmOpening(fileCount: fileCount)
             },
             performsAction: { [weak self] item, action in
                 guard let self else {
                     return .failure(FileItemOpeningError.failedToOpen(item.name))
                 }
-                return self.performOpenAction(action, for: item)
+                return self.openingActionOverride?(item, action)
+                    ?? self.performOpenAction(action, for: item)
             }
         )
         let result = dispatcher.open(items: items, focusedItem: focusedItem)
+        openingResultObserver?(result)
         presentOpenFailures(result.failures)
     }
 
