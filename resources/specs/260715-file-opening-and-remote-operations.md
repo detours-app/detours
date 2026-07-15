@@ -166,7 +166,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T6** `RemoteRefreshCoordinatorTests.testTreeRemainsVisibleWhileListingIsHeld` - A gated listing leaves the current root and expanded children present throughout the request.
 - [x] **T7** `RemoteRefreshCoordinatorTests.testRefreshPreservesCompletePaneState` - Expansion, selection, scroll origins, focus, sort, and filter state match before and after reconciliation.
 - [x] **T8** `RemoteRefreshCoordinatorTests.testChangedExpandedFolderRefreshesOnlyItsBranch` - A branch event lists that branch once without listing the root or unaffected siblings.
-- [ ] **T9** `RemoteRefreshCoordinatorTests.testMutationAndWatchEventCoalesce` - Operation completion and its matching watch event cause one listing request for each affected directory.
+- [x] **T9** `RemoteRefreshCoordinatorTests.testMutationAndWatchEventCoalesce` - Operation completion and its matching watch event cause one listing request for each affected directory.
 - [ ] **T10** `RemoteRefreshCoordinatorTests.testBurstCoalescesByAffectedDirectory` - A callback burst yields one request for each distinct loaded branch.
 - [ ] **T11** `RemoteRefreshCoordinatorTests.testOlderResponseCannotReplaceNewerContent` - Releasing gated requests in reverse order leaves the newest listing visible.
 - [ ] **T12** `RemoteRefreshCoordinatorTests.testListingFailureKeepsTreeAndOffersRetry` - A failed refresh preserves content and state, and a retry applies later content.
@@ -232,3 +232,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T6** Held a coordinated listing at its fetch boundary on Foundry and verified that the existing visible tree remains unchanged until the explicit release applies the new result.
 - **T7** Reconciled a filtered, sorted, expanded, multi-selected, scrolled, keyboard-focused remote pane on Foundry and verified its complete pane snapshot is preserved.
 - **T8** Verified on Foundry that an expanded-branch change fetches exactly that branch once and never substitutes a root listing.
+- **T9** Verified on Foundry that mutation and watcher reasons for the same directory merge into one listing request containing both causes.
