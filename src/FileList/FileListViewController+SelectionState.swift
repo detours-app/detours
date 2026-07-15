@@ -153,8 +153,11 @@ extension FileListViewController {
                 restoredOrigin.y = tableView.rect(ofRow: topRow).minY + snapshot.topVisibleOffset
             }
         }
-        let maximumY = max(0, tableView.bounds.height - scrollView.contentView.bounds.height)
-        restoredOrigin.y = min(max(0, restoredOrigin.y), maximumY)
+        let proposedBounds = NSRect(
+            origin: restoredOrigin,
+            size: scrollView.contentView.bounds.size
+        )
+        restoredOrigin = scrollView.contentView.constrainBoundsRect(proposedBounds).origin
         scrollView.contentView.scroll(to: restoredOrigin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
 
