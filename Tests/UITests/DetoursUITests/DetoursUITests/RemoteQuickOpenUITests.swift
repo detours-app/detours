@@ -216,12 +216,12 @@ final class RemoteFileOperationsUITests: BaseUITest {
 
     func testRemoteFolderHighlightsAndAcceptsDrop() throws {
         let observer = RemoteDropTargetObserver(root: uiTestRootURL, expectedPath: "/FolderC")
-        observer.start()
 
         let source = leftRow("file1.txt")
         let destination = leftRow("FolderC")
         XCTAssertTrue(source.waitForExistence(timeout: 2))
         XCTAssertTrue(destination.waitForExistence(timeout: 2))
+        observer.start()
         source.press(
             forDuration: 0.5,
             thenDragTo: destination,
