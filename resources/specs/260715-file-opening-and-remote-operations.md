@@ -161,7 +161,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T2** `FileItemOpeningTests.testCommandOpenCommandDownAndContextMenuMatchEnter` - Every Open entry point yields the same ordered batch.
 - [x] **T3** `FileItemOpeningTests.testMixedSelectionSkipsSpecialItems` - A mixed selection opens ordinary files and leaves folders, archives, and disk images untouched.
 - [x] **T4** `FileItemOpeningTests.testSelectionWithoutOrdinaryFilesUsesFocusedItemAction` - A special-only selection preserves the focused item's single-item behavior.
-- [ ] **T5** `FileItemOpeningTests.testBatchContinuesAndAggregatesFailures` - Successful files open and all failed names appear in one result.
+- [x] **T5** `FileItemOpeningTests.testBatchContinuesAndAggregatesFailures` - Successful files open and all failed names appear in one result.
 - [ ] **T35** `FileItemOpeningTests.testOpeningMoreThanFiveFilesConfirmsFirst` - Six selected files trigger one confirmation before any open, while five open without a prompt.
 - [ ] **T6** `RemoteRefreshCoordinatorTests.testTreeRemainsVisibleWhileListingIsHeld` - A gated listing leaves the current root and expanded children present throughout the request.
 - [ ] **T7** `RemoteRefreshCoordinatorTests.testRefreshPreservesCompletePaneState` - Expansion, selection, scroll origins, focus, sort, and filter state match before and after reconciliation.
@@ -227,3 +227,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T2** Drove the controller's real Enter, Command-O, Command-Down, and context-menu paths on Foundry and verified that each produces the same ordered two-file dispatch.
 - **T3** Verified on Foundry that mixed selections dispatch only ordinary files, in order, while folders, archives, and disk images remain skipped and untouched.
 - **T4** Verified on Foundry that a special-only multi-selection dispatches exactly the focused item's classified action and does not act on the other selected special items.
+- **T5** Verified on Foundry that a failed open does not stop later files, successful items remain recorded, and every failed filename and reason is returned in one ordered batch result.
