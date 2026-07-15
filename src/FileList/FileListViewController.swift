@@ -113,7 +113,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                     showHidden: self.dataSource.showHiddenFiles
                 )
             },
-            apply: { _ in },
+            apply: { [weak self] snapshot in
+                self?.applyRemoteRefresh(snapshot)
+            },
             handleFailure: { _, _ in }
         )
 

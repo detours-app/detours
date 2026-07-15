@@ -381,6 +381,20 @@ extension FileListViewController {
         preserveExpansion: Bool,
         showSpinner: Bool = true
     ) {
+        let canReconcileInPlace = preserveExpansion
+            && currentRemoteLocation == location
+            && currentRemoteProvider != nil
+            && hasLoadedDirectory
+            && !dataSource.items.isEmpty
+        if canReconcileInPlace {
+            currentRemoteProvider = provider
+            remoteRefreshCoordinator?.requestRefresh(
+                affectedLocation: location,
+                reason: .manual
+            )
+            return
+        }
+
         dataSource.cancelCurrentLoad()
         hideLoadingIndicator()
         hideErrorOverlay()
@@ -450,6 +464,53 @@ extension FileListViewController {
         dataSource.loadRemoteDirectory(location, provider: provider, preserveExpansion: preserveExpansion)
         hasLoadedDirectory = true
         FrecencyStore.shared.recordVisit(location)
+    }
+
+    func applyRemoteRefresh(_ snapshot: RemoteRefreshSnapshot) {
+        guard let currentRemoteLocation,
+              snapshot.request.directory == currentRemoteLocation
+                || isRemoteDescendant(snapshot.request.directory, of: currentRemoteLocation),
+              let reconciliation = dataSource.reconcileRemoteEntries(
+                  snapshot.entries,
+                  in: snapshot.request.directory
+              ) else {
+            return
+        }
+
+        if let parentItem = reconciliation.parentItem {
+            tableView.reloadItem(parentItem, reloadChildren: true)
+        } else {
+            tableView.reloadData()
+        }
+        tableView.needsLayout = true
+
+        if SettingsManager.shared.settings.gitStatusEnabled,
+           let currentRemoteProvider {
+            dataSource.fetchRemoteGitStatus(
+                for: snapshot.request.directory,
+                provider: currentRemoteProvider
+            )
+        }
+
+        let action = pendingPostLoadAction
+        pendingPostLoadAction = nil
+        action?()
+        navigationDelegate?.fileListDidLoadDirectory(self)
+    }
+
+    private func isRemoteDescendant(_ location: Location, of ancestor: Location) -> Bool {
+        guard case .remote(let locationHost, let locationPath) = location,
+              case .remote(let ancestorHost, let ancestorPath) = ancestor,
+              locationHost == ancestorHost else {
+            return false
+        }
+        let normalizedLocation = URL(fileURLWithPath: locationPath).standardizedFileURL.path
+        let normalizedAncestor = URL(fileURLWithPath: ancestorPath).standardizedFileURL.path
+        guard normalizedLocation != normalizedAncestor else { return false }
+        let ancestorPrefix = normalizedAncestor == "/"
+            ? "/"
+            : normalizedAncestor + "/"
+        return normalizedLocation.hasPrefix(ancestorPrefix)
     }
 
     private func restoreRemoteSelection(
