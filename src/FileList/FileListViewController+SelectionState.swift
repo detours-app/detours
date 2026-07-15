@@ -3,6 +3,20 @@ import os.log
 @preconcurrency import Quartz
 
 extension FileListViewController {
+    struct RemotePaneStateSnapshot {
+        let selectedLocations: [Location]
+        let selectedRow: Int
+        let expandedLocations: Set<Location>
+        let topVisibleLocation: Location?
+        let topVisibleOffset: CGFloat
+        let scrollOrigin: NSPoint
+        let tableHadKeyboardFocus: Bool
+        let filterHadKeyboardFocus: Bool
+        let sortDescriptor: SortDescriptor
+        let filterText: String
+        let filterWasVisible: Bool
+    }
+
     var selectedItems: [FileItem] {
         dataSource.items(at: tableView.selectedRowIndexes)
     }
@@ -20,6 +34,108 @@ extension FileListViewController {
 
     var restorableSelectedURLs: [URL] {
         selectedItems.map { URL(fileURLWithPath: $0.location.path) }
+    }
+
+    func captureRemotePaneState() -> RemotePaneStateSnapshot {
+        let visibleRows = tableView.rows(in: tableView.visibleRect)
+        let topRow = visibleRows.location == NSNotFound ? -1 : visibleRows.location
+        let topItem = topRow >= 0 ? dataSource.item(at: topRow) : nil
+        let topOffset = topRow >= 0
+            ? tableView.visibleRect.minY - tableView.rect(ofRow: topRow).minY
+            : 0
+
+        return RemotePaneStateSnapshot(
+            selectedLocations: selectedLocations,
+            selectedRow: tableView.selectedRow,
+            expandedLocations: expandedRemoteLocations(in: dataSource.items),
+            topVisibleLocation: topItem?.location,
+            topVisibleOffset: topOffset,
+            scrollOrigin: scrollView.contentView.bounds.origin,
+            tableHadKeyboardFocus: view.window?.firstResponder === tableView,
+            filterHadKeyboardFocus: filterBar.hasKeyboardFocus,
+            sortDescriptor: dataSource.sortDescriptor,
+            filterText: filterBar.filterText,
+            filterWasVisible: isFilterBarVisible
+        )
+    }
+
+    func restoreRemotePaneState(
+        _ snapshot: RemotePaneStateSnapshot,
+        preferredResultLocations: Set<Location> = []
+    ) {
+        dataSource.sortDescriptor = snapshot.sortDescriptor
+        dataSource.filterPredicate = snapshot.filterText.isEmpty ? nil : snapshot.filterText
+        filterBar.filterText = snapshot.filterText
+        isFilterBarVisible = snapshot.filterWasVisible
+        filterBar.isHidden = !snapshot.filterWasVisible
+        filterBarHeightConstraint?.constant = snapshot.filterWasVisible ? Self.filterBarHeight : 0
+
+        dataSource.suppressCollapseNotifications = true
+        let sortedExpandedLocations = snapshot.expandedLocations.sorted {
+            $0.path.split(separator: "/").count < $1.path.split(separator: "/").count
+        }
+        for location in sortedExpandedLocations {
+            if let item = dataSource.findItem(withLocation: location, in: dataSource.items),
+               item.isNavigableFolder {
+                tableView.expandItem(item)
+            }
+        }
+        dataSource.expandedFolders = Set(snapshot.expandedLocations.map {
+            URL(fileURLWithPath: $0.path).standardizedFileURL
+        })
+        dataSource.suppressCollapseNotifications = false
+
+        let selectionToRestore = preferredResultLocations.isEmpty
+            ? Set(snapshot.selectedLocations)
+            : preferredResultLocations
+        var restoredRows = IndexSet()
+        for location in selectionToRestore {
+            if let item = dataSource.findItem(withLocation: location, in: dataSource.items) {
+                let row = tableView.row(forItem: item)
+                if row >= 0 {
+                    restoredRows.insert(row)
+                }
+            }
+        }
+        if restoredRows.isEmpty,
+           snapshot.selectedRow >= 0,
+           tableView.numberOfRows > 0 {
+            restoredRows.insert(min(snapshot.selectedRow, tableView.numberOfRows - 1))
+        }
+        tableView.selectRowIndexes(restoredRows, byExtendingSelection: false)
+
+        tableView.layoutSubtreeIfNeeded()
+        var restoredOrigin = snapshot.scrollOrigin
+        if let topLocation = snapshot.topVisibleLocation,
+           let topItem = dataSource.findItem(withLocation: topLocation, in: dataSource.items) {
+            let topRow = tableView.row(forItem: topItem)
+            if topRow >= 0 {
+                restoredOrigin.y = tableView.rect(ofRow: topRow).minY + snapshot.topVisibleOffset
+            }
+        }
+        let maximumY = max(0, tableView.bounds.height - scrollView.contentView.bounds.height)
+        restoredOrigin.y = min(max(0, restoredOrigin.y), maximumY)
+        scrollView.contentView.scroll(to: restoredOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        if snapshot.filterHadKeyboardFocus {
+            filterBar.focusSearchField()
+        } else if snapshot.tableHadKeyboardFocus {
+            view.window?.makeFirstResponder(tableView)
+        }
+    }
+
+    private func expandedRemoteLocations(in items: [FileItem]) -> Set<Location> {
+        var result: Set<Location> = []
+        for item in items {
+            if item.isRemote, tableView.isItemExpanded(item) {
+                result.insert(item.location)
+            }
+            if let children = item.children {
+                result.formUnion(expandedRemoteLocations(in: children))
+            }
+        }
+        return result
     }
 
     /// Returns the effective destination for file operations based on current selection.

@@ -182,7 +182,7 @@ extension FileListDataSource {
         return nil
     }
 
-    private func findItem(withLocation location: Location, in items: [FileItem]) -> FileItem? {
+    func findItem(withLocation location: Location, in items: [FileItem]) -> FileItem? {
         for item in items {
             if item.location == location {
                 return item

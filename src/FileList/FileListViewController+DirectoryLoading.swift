@@ -469,11 +469,15 @@ extension FileListViewController {
     func applyRemoteRefresh(_ snapshot: RemoteRefreshSnapshot) {
         guard let currentRemoteLocation,
               snapshot.request.directory == currentRemoteLocation
-                || isRemoteDescendant(snapshot.request.directory, of: currentRemoteLocation),
-              let reconciliation = dataSource.reconcileRemoteEntries(
-                  snapshot.entries,
-                  in: snapshot.request.directory
-              ) else {
+                || isRemoteDescendant(snapshot.request.directory, of: currentRemoteLocation) else {
+            return
+        }
+
+        let paneState = captureRemotePaneState()
+        guard let reconciliation = dataSource.reconcileRemoteEntries(
+            snapshot.entries,
+            in: snapshot.request.directory
+        ) else {
             return
         }
 
@@ -483,6 +487,10 @@ extension FileListViewController {
             tableView.reloadData()
         }
         tableView.needsLayout = true
+        restoreRemotePaneState(
+            paneState,
+            preferredResultLocations: snapshot.request.preferredResultLocations
+        )
 
         if SettingsManager.shared.settings.gitStatusEnabled,
            let currentRemoteProvider {

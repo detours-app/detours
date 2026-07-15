@@ -249,7 +249,7 @@ extension FileListDataSource {
             parentItem = nil
             existingItems = items
         } else {
-            guard let foundParent = findRemoteItem(at: directory, in: items) else { return nil }
+            guard let foundParent = findItem(withLocation: directory, in: items) else { return nil }
             parentItem = foundParent
             existingItems = foundParent.children ?? []
         }
@@ -303,22 +303,6 @@ extension FileListDataSource {
     func markRemoteDirectoryStale(_ directory: Location) {
         guard case .remote = directory else { return }
         staleRemoteDirectories.insert(directory)
-    }
-
-    private func findRemoteItem(
-        at location: Location,
-        in candidateItems: [FileItem]
-    ) -> FileItem? {
-        for item in candidateItems {
-            if item.location == location {
-                return item
-            }
-            if let children = item.children,
-               let found = findRemoteItem(at: location, in: children) {
-                return found
-            }
-        }
-        return nil
     }
 
     private func loadICloudRootItems(mobileDocsURL: URL, showHidden: Bool) async throws -> [FileItem] {
