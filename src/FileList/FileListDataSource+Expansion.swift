@@ -74,6 +74,8 @@ extension FileListDataSource {
 
         let showHidden = showHiddenFiles
         let statuses = gitStatuses
+        let sort = sortDescriptor
+        let foldersTop = SettingsManager.shared.foldersOnTop
         Task { @MainActor [weak self] in
             defer {
                 self?.pendingChildLoads.remove(itemID)
@@ -137,8 +139,6 @@ extension FileListDataSource {
         }
 
         let showHidden = showHiddenFiles
-        let sort = sortDescriptor
-        let foldersTop = SettingsManager.shared.foldersOnTop
 
         Task { @MainActor [weak self] in
             defer {
