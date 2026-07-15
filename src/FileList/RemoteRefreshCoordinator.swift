@@ -53,7 +53,7 @@ final class RemoteRefreshCoordinator {
     private var states: [Location: DirectoryState] = [:]
 
     init(
-        debounceInterval: TimeInterval = 0.1,
+        debounceInterval: TimeInterval,
         fetch: @escaping FetchHandler,
         apply: @escaping ApplyHandler,
         handleFailure: @escaping FailureHandler
