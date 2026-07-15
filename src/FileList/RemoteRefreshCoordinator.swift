@@ -32,9 +32,9 @@ enum RemoteRefreshCoordinatorError: LocalizedError {
 
 @MainActor
 final class RemoteRefreshCoordinator {
-    typealias FetchHandler = (RemoteRefreshRequest) async throws -> [LoadedFileEntry]
-    typealias ApplyHandler = (RemoteRefreshSnapshot) -> Void
-    typealias FailureHandler = (RemoteRefreshRequest, any Error) -> Void
+    typealias FetchHandler = @MainActor (RemoteRefreshRequest) async throws -> [LoadedFileEntry]
+    typealias ApplyHandler = @MainActor (RemoteRefreshSnapshot) -> Void
+    typealias FailureHandler = @MainActor (RemoteRefreshRequest, any Error) -> Void
 
     private struct DirectoryState {
         var nextGeneration: UInt64 = 0
