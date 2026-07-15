@@ -163,7 +163,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T4** `FileItemOpeningTests.testSelectionWithoutOrdinaryFilesUsesFocusedItemAction` - A special-only selection preserves the focused item's single-item behavior.
 - [x] **T5** `FileItemOpeningTests.testBatchContinuesAndAggregatesFailures` - Successful files open and all failed names appear in one result.
 - [x] **T35** `FileItemOpeningTests.testOpeningMoreThanFiveFilesConfirmsFirst` - Six selected files trigger one confirmation before any open, while five open without a prompt.
-- [ ] **T6** `RemoteRefreshCoordinatorTests.testTreeRemainsVisibleWhileListingIsHeld` - A gated listing leaves the current root and expanded children present throughout the request.
+- [x] **T6** `RemoteRefreshCoordinatorTests.testTreeRemainsVisibleWhileListingIsHeld` - A gated listing leaves the current root and expanded children present throughout the request.
 - [ ] **T7** `RemoteRefreshCoordinatorTests.testRefreshPreservesCompletePaneState` - Expansion, selection, scroll origins, focus, sort, and filter state match before and after reconciliation.
 - [ ] **T8** `RemoteRefreshCoordinatorTests.testChangedExpandedFolderRefreshesOnlyItsBranch` - A branch event lists that branch once without listing the root or unaffected siblings.
 - [ ] **T9** `RemoteRefreshCoordinatorTests.testMutationAndWatchEventCoalesce` - Operation completion and its matching watch event cause one listing request for each affected directory.
@@ -229,3 +229,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T4** Verified on Foundry that a special-only multi-selection dispatches exactly the focused item's classified action and does not act on the other selected special items.
 - **T5** Verified on Foundry that a failed open does not stop later files, successful items remain recorded, and every failed filename and reason is returned in one ordered batch result.
 - **T35** Verified on Foundry that six ordinary files prompt before dispatch and cancellation opens none, while five files dispatch without invoking confirmation.
+- **T6** Held a coordinated listing at its fetch boundary on Foundry and verified that the existing visible tree remains unchanged until the explicit release applies the new result.
