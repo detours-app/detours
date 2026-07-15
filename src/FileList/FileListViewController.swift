@@ -48,6 +48,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var directoryWatchTask: Task<Void, Never>?
     var directoryChangeDebounce: DispatchWorkItem?
     lazy var remoteRefreshCoordinator = RemoteRefreshCoordinator(
+        debounceInterval: 0.1,
         fetch: { [weak self] request in
             guard let self, let provider = self.currentRemoteProvider else {
                 throw RemoteRefreshCoordinatorError.providerUnavailable
