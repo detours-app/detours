@@ -18,6 +18,8 @@ enum UITestEnvironment {
     static let duplicateStructureDismissedFileName = ".detours-duplicate-structure-dismissed.json"
     static let appearanceSettingsCommandFileName = ".detours-appearance-settings.json"
     static let appearanceSettingsAcknowledgementFileName = ".detours-appearance-settings-applied.json"
+    static let paneStateRequestFileName = ".detours-pane-state-request.json"
+    static let paneStateResponseFileName = ".detours-pane-state-response.json"
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
@@ -71,6 +73,11 @@ enum UITestEnvironment {
         let fileListRowDensity: String
     }
 
+    struct PaneStateRequest: Decodable {
+        let id: String
+        let pane: String
+    }
+
     struct ShowNetworkShareDialogAcknowledgement: Encodable {
         let id: String
     }
@@ -104,6 +111,25 @@ enum UITestEnvironment {
         let applied: Bool
         let checkedTextCount: Int
         let failure: String?
+    }
+
+    struct PaneStateResponse: Encodable {
+        let id: String
+        let pane: String
+        let displayedLocation: String?
+        let expandedLocations: [String]
+        let selectedLocations: [String]
+        let topVisibleLocation: String?
+        let topVisibleOffset: Double
+        let horizontalOffset: Double
+        let focus: String
+        let filterText: String
+        let filterVisible: Bool
+        let sortColumn: String
+        let sortAscending: Bool
+        let activeDropTarget: String?
+        let refreshInFlight: Bool
+        let visibleRowCount: Int
     }
 
     static var isEnabled: Bool {
@@ -227,6 +253,14 @@ enum UITestEnvironment {
         rootDirectory?.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
     }
 
+    static var paneStateRequestURL: URL? {
+        rootDirectory?.appendingPathComponent(paneStateRequestFileName)
+    }
+
+    static var paneStateResponseURL: URL? {
+        rootDirectory?.appendingPathComponent(paneStateResponseFileName)
+    }
+
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
         guard let url = resizeMainWindowCommandURL,
               let data = try? Data(contentsOf: url),
@@ -327,6 +361,16 @@ enum UITestEnvironment {
         return try? JSONDecoder().decode(AppearanceSettingsCommand.self, from: data)
     }
 
+    static func currentPaneStateRequest() -> PaneStateRequest? {
+        guard let url = paneStateRequestURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(PaneStateRequest.self, from: data)
+    }
+
     static func acknowledgeShowNetworkShareDialogCommand(id: String) {
         guard let url = showNetworkShareDialogAcknowledgementURL,
               let data = try? JSONEncoder().encode(ShowNetworkShareDialogAcknowledgement(id: id)) else {
@@ -398,6 +442,15 @@ enum UITestEnvironment {
                 checkedTextCount: checkedTextCount,
                 failure: failure
               )) else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func writePaneStateResponse(_ response: PaneStateResponse) {
+        guard let url = paneStateResponseURL,
+              let data = try? JSONEncoder().encode(response) else {
             return
         }
 

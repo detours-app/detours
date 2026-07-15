@@ -98,6 +98,12 @@ final class RemoteRefreshCoordinator {
         states.removeAll()
     }
 
+    var isRefreshInFlight: Bool {
+        states.values.contains { state in
+            state.isFetching || state.debounceTask != nil
+        }
+    }
+
     static func normalizedDirectory(
         for affectedLocation: Location,
         isDirectory: Bool

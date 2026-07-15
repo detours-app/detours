@@ -146,7 +146,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 
 **Phase 5: Deterministic Test Surface and Build**
 
-- [ ] **C19** Extend `UITestRemoteProvider` with root-confined mutable operations, watches, controlled listing gates, deterministic failures, call histories, and test-only pane-state responses.
+- [x] **C19** Extend `UITestRemoteProvider` with root-confined mutable operations, watches, controlled listing gates, deterministic failures, call histories, and test-only pane-state responses.
 - [ ] **C20** Build with `resources/scripts/build.sh` and resolve every build, lint, and warning failure.
 
 ---
@@ -221,3 +221,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C16** Clipboard cut identity is now stored and queried as `Location`, with the URL API retained as a local compatibility view. Clipboard notifications update both local and remote cells; every pending-move row dims consistently and exposes a "pending move" accessibility label and paste help text.
 - **C17** Added explicit user, automatic, restored, and operation-result selection origins across outline, loading, reconciliation, filtering, sorting, and result selection. Paste targets exactly one user-selected folder; every other selection shape or origin uses the location displayed by the tab.
 - **C18** Clipboard paste now snapshots cut intent and its owning pasteboard generation. A thrown failure or cancellation leaves remote cut locations intact, a successful move clears only the clipboard entry it owns, an externally replaced pasteboard is never erased, copied locations remain reusable, and successful mutations already refresh every affected pane through the coordinator.
+- **C19** Expanded the UI-test remote into a root-confined mutable provider with recursive file and directory transfers, trash and restore, rename, creation, upload and download, exact changed-parent watches, per-call listing gates, one-shot operation failures, and structured histories. Added request-and-response pane snapshots for expansion, selection, scroll offsets, focus, filtering, sorting, active drop targets, visible rows, and refresh-in-flight state.

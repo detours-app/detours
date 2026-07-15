@@ -17,6 +17,42 @@ extension FileListViewController {
         let filterWasVisible: Bool
     }
 
+    func makeUITestPaneStateResponse(
+        id: String,
+        pane: String
+    ) -> UITestEnvironment.PaneStateResponse {
+        let snapshot = captureRemotePaneState()
+        let focus: String
+        if view.window?.firstResponder === tableView {
+            focus = "fileList"
+        } else if filterBar.hasKeyboardFocus {
+            focus = "filter"
+        } else {
+            focus = "other"
+        }
+        let dropTarget = dataSource.dropTargetItem?.location.path
+            ?? (tableView.isBackgroundDropTarget ? currentDirectoryLocation?.path : nil)
+
+        return UITestEnvironment.PaneStateResponse(
+            id: id,
+            pane: pane,
+            displayedLocation: currentDirectoryLocation?.path,
+            expandedLocations: snapshot.expandedLocations.map(\.path).sorted(),
+            selectedLocations: snapshot.selectedLocations.map(\.path),
+            topVisibleLocation: snapshot.topVisibleLocation?.path,
+            topVisibleOffset: Double(snapshot.topVisibleOffset),
+            horizontalOffset: Double(snapshot.scrollOrigin.x),
+            focus: focus,
+            filterText: snapshot.filterText,
+            filterVisible: snapshot.filterWasVisible,
+            sortColumn: snapshot.sortDescriptor.column.rawValue,
+            sortAscending: snapshot.sortDescriptor.ascending,
+            activeDropTarget: dropTarget,
+            refreshInFlight: remoteRefreshCoordinator?.isRefreshInFlight ?? false,
+            visibleRowCount: tableView.numberOfRows
+        )
+    }
+
     var selectedItems: [FileItem] {
         dataSource.items(at: tableView.selectedRowIndexes)
     }

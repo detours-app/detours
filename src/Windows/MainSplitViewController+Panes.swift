@@ -346,6 +346,27 @@ extension MainSplitViewController {
         return leftPane.performUITestRemoteFailureForSelectedHost()
     }
 
+    func writeUITestPaneState(request: UITestEnvironment.PaneStateRequest) {
+        guard UITestEnvironment.isEnabled else { return }
+        let pane: PaneViewController
+        let paneName: String
+        switch request.pane {
+        case "left":
+            pane = leftPane
+            paneName = "left"
+        case "right":
+            pane = rightPane
+            paneName = "right"
+        default:
+            pane = activePane
+            paneName = activePaneIndex == 0 ? "left" : "right"
+        }
+        guard let fileList = pane.selectedTab?.fileListViewController else { return }
+        UITestEnvironment.writePaneStateResponse(
+            fileList.makeUITestPaneStateResponse(id: request.id, pane: paneName)
+        )
+    }
+
     func setActivePaneFromChild(_ pane: PaneViewController) {
         // Don't change active pane during session restore - it would override the saved value
         guard !isRestoringSession else { return }
