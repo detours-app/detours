@@ -136,7 +136,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 - [x] **C12** Replace URL-only current-directory and destination helpers in `FileListViewController+DragDrop.swift`, `FileListDataSource+OutlineView.swift`, and `FileItem.swift` with location-based equivalents.
 - [x] **C13** Add location-aware drop validation for writable folder rows and pane backgrounds, including highlight state and self, descendant, regular-file, missing-target, and same-parent rejection.
 - [x] **C14** Route accepted multi-file and folder drops through `FileOperationQueue` location operations with same-volume and same-host boundary detection plus Option and Command overrides.
-- [ ] **C15** Preserve source and destination pane state through drag completion, select visible results, clear drop highlighting, and aggregate operation errors.
+- [x] **C15** Preserve source and destination pane state through drag completion, select visible results, clear drop highlighting, and aggregate operation errors.
 
 **Phase 4: Remote Cut-and-Paste**
 
@@ -217,3 +217,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C12** Replaced URL-only drag helpers with location-based current folders, row destinations, source sets, and operation calls. Remote directories now remain valid destinations with host identity intact; local Finder aliases still resolve to local locations, and external file promises require a concrete local destination URL.
 - **C13** Added a host-aware `FileDropValidator` used during hover and acceptance. Writable folder rows and pane backgrounds now expose distinct target highlights, while regular files, missing rows, unwritable folders, self and descendant drops, same-parent no-ops, and remote paths on the wrong host are rejected consistently.
 - **C14** Added one drop-operation resolver shared by hover and acceptance. Every source and folder is routed through `FileOperationQueue`'s location overloads; one local volume or remote host defaults to move, crossing a volume, host, or local/remote boundary defaults to copy, Command forces move, and Option takes priority as copy.
+- **C15** Drop completion now feeds returned result locations into coordinated source and destination refreshes, so pane snapshots survive and visible results are selected without scrolling. Target highlighting clears on acceptance, rejection, drag exit, and session end; failed or partial operations refresh possible successes and use the queue's single aggregated error presentation.

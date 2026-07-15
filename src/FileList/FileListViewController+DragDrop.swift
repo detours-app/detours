@@ -13,34 +13,55 @@ extension FileListViewController: FileListDropDelegate {
         operation: FileDropOperation
     ) {
         guard currentICloudListingMode != .sharedTopLevel else { return }
+        var affectedDirectories: Set<Location> = [destination]
+        if operation == .move {
+            for location in locations {
+                affectedDirectories.insert(location.deletingLastPathComponent())
+            }
+        }
+
         Task { @MainActor in
             do {
+                let resultLocations: [Location]
                 if operation == .copy {
-                    _ = try await FileOperationQueue.shared.copy(
+                    resultLocations = try await FileOperationQueue.shared.copy(
                         items: locations,
                         to: destination,
                         undoManager: undoManager
                     )
                 } else {
-                    _ = try await FileOperationQueue.shared.move(
+                    resultLocations = try await FileOperationQueue.shared.move(
                         items: locations,
                         to: destination,
                         undoManager: undoManager
                     )
                 }
-                // Refresh the view
+
                 dataSource.invalidateGitStatus()
-                if let current = currentDirectory {
-                    loadDirectory(current, preserveExpansion: true)
+                if currentDirectory != nil {
+                    let resultURLs = resultLocations.compactMap { location -> URL? in
+                        guard case .local(let url) = location else { return nil }
+                        return url
+                    }
+                    refreshSelectingItems(at: resultURLs)
+                } else {
+                    requestRemoteMutationRefreshes(
+                        affectedDirectories: affectedDirectories,
+                        preferredResultLocations: Set(resultLocations)
+                    )
                 }
-                // Notify to refresh source directories
-                var directoriesToRefresh = Set<Location>()
-                for location in locations {
-                    directoriesToRefresh.insert(location.deletingLastPathComponent())
-                }
-                directoriesToRefresh.insert(destination)
-                navigationDelegate?.fileListDidRequestRefreshSourceLocations(directoriesToRefresh)
+                navigationDelegate?.fileListDidRequestRefreshSourceLocations(
+                    affectedDirectories,
+                    preferredResultLocations: Set(resultLocations)
+                )
             } catch {
+                requestRemoteMutationRefreshes(
+                    affectedDirectories: affectedDirectories
+                )
+                navigationDelegate?.fileListDidRequestRefreshSourceLocations(
+                    affectedDirectories,
+                    preferredResultLocations: []
+                )
                 FileOperationQueue.shared.presentError(error)
             }
         }
