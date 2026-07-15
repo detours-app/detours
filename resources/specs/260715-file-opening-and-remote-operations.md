@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Draft
+- Status: Reviewed
 - Branch: fix/file-opening-and-remote-operations
 
 ---
@@ -22,6 +22,7 @@ Open every eligible file in a selection, keep remote folder trees stable while t
 - Enter, Command-O, Command-Down, and Open in the shortcut menu open every selected ordinary file in the order shown in the pane.
 - When a selection mixes ordinary files with folders, archives, or disk images, Detours opens the ordinary files and leaves the other items untouched.
 - When a selection contains no ordinary files, Open performs the existing action for the focused item, such as entering a folder, extracting an archive, or mounting a disk image.
+- Opening more than five files at once first asks for confirmation.
 - A problem opening one selected file does not stop the others. Detours finishes the batch and presents one summary naming every file it could not open.
 - A remote folder tree stays visible while Detours updates it after a copy, move, rename, paste, or deletion. Expanded folders do not visibly collapse and reopen.
 - Remote updates preserve expanded folders, selected items, the visible scroll position, keyboard focus, sorting, and an active filter.
@@ -53,7 +54,8 @@ Open every eligible file in a selection, keep remote folder trees stable while t
 - [ ] **A13** Successful remote cut-and-paste clears the pending move, while a failed or cancelled paste preserves it for another attempt.
 - [ ] **A14** One file operation causes one stable visible update in every open pane showing an affected remote folder.
 - [ ] **A15** Dragging a remote file from Detours to another application continues to create the promised file safely.
-- [ ] **A16** Existing single-item Open behavior and local file operations remain unchanged.
+- [ ] **A16** Single-item Open performs the correct action for the focused item, whether opening a file, mounting a disk image, extracting an archive, or entering a folder, identically across Enter, Command-O, Command-Down, the shortcut menu, and double-click, and local file operations remain unchanged.
+- [ ] **A17** When a selection would open more than five ordinary files, Detours first presents one confirmation; opening five or fewer opens without a prompt, and skipped folders, archives, and disk images never count toward the five.
 
 ### Out of scope
 
@@ -70,9 +72,9 @@ Open every eligible file in a selection, keep remote folder trees stable while t
 
 ### Approach
 
-Create one item-opening dispatcher in `src/FileList/` and route `openSelectedItem()`, `openFromContextMenu(_:)`, Command-Down handling, and the single-item double-click path through it. The dispatcher reads `tableView.selectedRowIndexes`, resolves each visible row through the outline view, and retains that visible order. For a multi-selection it classifies items with the same rules already used by the single-item path, sends ordinary local and remote files through `FileOpenHelper`, and skips folders, recognized archives, and disk images. If no ordinary file is eligible, it performs the existing single-item action for the focused row. Opening results are collected without stopping the batch, then one accessible error summary names all failed items. Inject the opening collaborators so tests record dispatches without launching external applications.
+Create one item-opening dispatcher in `src/FileList/` and route `openSelectedItem()`, `openFromContextMenu(_:)`, Command-Down handling, and the single-item double-click path through it, unifying all five entry points on the working double-click classification in `handleDoubleClick(row:)` so Enter and Command-O mount disk images and open files the same way a double-click already does. The dispatcher reads `tableView.selectedRowIndexes`, resolves each visible row through the outline view, and retains that visible order. For a multi-selection it classifies each item, routes ordinary local files through `FileOpenHelper.open`, routes ordinary remote files through `RemoteOpenWithCoordinator` while preserving native-editor detection and download coordination, and skips folders, extractable archives (`CompressionTools.isExtractable`), and disk images (`FileOpenHelper.isDiskImage`). If no ordinary file is eligible, it performs the focused row's single-item action using the double-click behavior: mount a disk image with `FileOpenHelper.openAndMount` and navigate to the mount point, extract an archive, or enter a folder. Before opening more than five files at once, the dispatcher presents one confirmation. Synchronously detectable local failures are collected without stopping the batch, then one accessible error summary names all failed items; asynchronous remote download and launch failures continue to surface through `RemoteOpenWithCoordinator`'s existing per-file error path. Inject the opening collaborators so tests record dispatches without launching external applications.
 
-Add a per-pane remote refresh coordinator in `src/FileList/` that accepts an affected `Location`, a refresh reason, and preferred result locations from completed operations. Normalize file changes to their parent directory and group requests by remote host and directory. Requests for the same directory within the existing short debounce interval become one fetch; a request arriving during an active fetch marks that directory dirty and causes at most one additional fetch. Give each directory a monotonically increasing generation and discard responses older than the last applied generation.
+Add a per-pane remote refresh coordinator in `src/FileList/` that accepts an affected `Location`, a refresh reason, and preferred result locations from completed operations. Normalize file changes to their parent directory and group requests by remote host and directory. Requests for the same directory within the existing 0.1-second directory-change debounce interval become one fetch; a request arriving during an active fetch marks that directory dirty and causes at most one additional fetch. Give each directory a monotonically increasing generation and discard responses older than the last applied generation.
 
 Replace root-wide remote reloads for same-location updates with location-keyed tree reconciliation in `FileListDataSource+Loading.swift` and `FileListDataSource+Expansion.swift`. Fetch a listing while the current tree remains visible, reuse each existing `FileItem` whose `Location` still exists, update its metadata, retain its loaded children and expansion identity, insert new items, and remove missing items in one main-actor update. A change inside an expanded branch reloads that branch only. A change inside a collapsed branch marks its children stale for the next expansion. A broad provider event may refresh the displayed root. A failed listing retains the current tree instead of clearing it.
 
@@ -98,7 +100,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 
 | Risk | Mitigation |
 | --- | --- |
-| A large multi-selection opens too many applications or starts many remote downloads at once | Preserve visible ordering, use the existing open helper and operation limits, and aggregate failures into one result instead of one alert per file |
+| A large multi-selection opens too many applications or starts many remote downloads at once | Preserve visible ordering, confirm before opening more than five files, and aggregate failures into one result instead of one alert per file |
 | A remote event identifies a file or a directory at a different level than the visible branch | Normalize file events to their parent, refresh the nearest loaded ancestor, and use the displayed root only for broad events |
 | A slow older listing overwrites a newer mutation result | Track a generation per host and directory and discard every response older than the last applied generation |
 | Reusing tree items leaves changed metadata or sorting stale | Update all listing-owned metadata before one sort and outline update, while retaining only identity and loaded child state |
@@ -114,7 +116,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 
 **Phase 1: Shared Open Behavior**
 
-- [ ] **C1** Add a shared item-opening dispatcher under `src/FileList/` that preserves existing single-item actions and returns per-file batch results.
+- [ ] **C1** Add a shared item-opening dispatcher under `src/FileList/` that unifies every Open entry point on the double-click classification, confirms before opening more than five files, and returns per-file batch results.
 - [ ] **C2** Update `FileListViewController+SelectionState.swift`, `FileListViewController+Keyboard.swift`, `FileListViewController+ContextMenu.swift`, and the double-click path in `FileListViewController+Setup.swift` to use the dispatcher.
 - [ ] **C3** Add one accessible batch-open error summary that names failed items after every eligible file has been attempted.
 
@@ -160,6 +162,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [ ] **T3** `FileItemOpeningTests.testMixedSelectionSkipsSpecialItems` - A mixed selection opens ordinary files and leaves folders, archives, and disk images untouched.
 - [ ] **T4** `FileItemOpeningTests.testSelectionWithoutOrdinaryFilesUsesFocusedItemAction` - A special-only selection preserves the focused item's single-item behavior.
 - [ ] **T5** `FileItemOpeningTests.testBatchContinuesAndAggregatesFailures` - Successful files open and all failed names appear in one result.
+- [ ] **T35** `FileItemOpeningTests.testOpeningMoreThanFiveFilesConfirmsFirst` - Six selected files trigger one confirmation before any open, while five open without a prompt.
 - [ ] **T6** `RemoteRefreshCoordinatorTests.testTreeRemainsVisibleWhileListingIsHeld` - A gated listing leaves the current root and expanded children present throughout the request.
 - [ ] **T7** `RemoteRefreshCoordinatorTests.testRefreshPreservesCompletePaneState` - Expansion, selection, scroll origins, focus, sort, and filter state match before and after reconciliation.
 - [ ] **T8** `RemoteRefreshCoordinatorTests.testChangedExpandedFolderRefreshesOnlyItsBranch` - A branch event lists that branch once without listing the root or unaffected siblings.
