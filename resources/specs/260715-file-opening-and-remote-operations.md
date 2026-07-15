@@ -169,7 +169,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T9** `RemoteRefreshCoordinatorTests.testMutationAndWatchEventCoalesce` - Operation completion and its matching watch event cause one listing request for each affected directory.
 - [x] **T10** `RemoteRefreshCoordinatorTests.testBurstCoalescesByAffectedDirectory` - A callback burst yields one request for each distinct loaded branch.
 - [x] **T11** `RemoteRefreshCoordinatorTests.testOlderResponseCannotReplaceNewerContent` - Releasing gated requests in reverse order leaves the newest listing visible.
-- [ ] **T12** `RemoteRefreshCoordinatorTests.testListingFailureKeepsTreeAndOffersRetry` - A failed refresh preserves content and state, and a retry applies later content.
+- [x] **T12** `RemoteRefreshCoordinatorTests.testListingFailureKeepsTreeAndOffersRetry` - A failed refresh preserves content and state, and a retry applies later content.
 - [ ] **T13** `RemoteRefreshCoordinatorTests.testSameLocationRefreshRetainsWatches` - Root and expanded-branch watches are not removed and re-added during reconciliation.
 - [ ] **T14** `RemoteRefreshCoordinatorTests.testDeletedSelectionChoosesNearestSurvivorWithoutJump` - Deletion chooses a predictable nearby row and retains a valid viewport.
 - [ ] **T15** `FileListDragDropTests.testRemoteFolderAndPaneBackgroundAreValidTargets` - Remote folders and the current remote directory expose the expected drop operation and target state.
@@ -235,3 +235,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T9** Verified on Foundry that mutation and watcher reasons for the same directory merge into one listing request containing both causes.
 - **T10** Sent repeated callbacks for two branches on Foundry and verified the burst reduces to exactly one listing per affected directory.
 - **T11** Held an older generation while queuing a newer mutation on Foundry and verified the older result is discarded and only the follow-up content is applied.
+- **T12** Forced a listing failure on Foundry, verified the existing row and accessible retry banner remain, then clicked Retry and confirmed the later listing replaces the content and clears the banner.
