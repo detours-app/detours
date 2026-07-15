@@ -7,6 +7,10 @@ final class FileListCellTests: XCTestCase {
         resetSettingsForTests()
     }
 
+    override func tearDown() async throws {
+        resetSettingsForTests()
+    }
+
     func testCompactDensityMatchesCurrentLayout() throws {
         SettingsManager.shared.fileListRowDensity = .compact
         SettingsManager.shared.folderExpansionEnabled = false

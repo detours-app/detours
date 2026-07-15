@@ -57,6 +57,10 @@ final class FileListResponderTests: XCTestCase {
     }
 
     func testRemoteNewFolderInSelectedFolderSelectsCreatedChildForRename() async throws {
+        let originalExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+        SettingsManager.shared.folderExpansionEnabled = true
+        defer { SettingsManager.shared.folderExpansionEnabled = originalExpansionEnabled }
+
         let hostID = UUID()
         let root = Location.remote(hostID: hostID, path: "/home/marco")
         let parent = Location.remote(hostID: hostID, path: "/home/marco/Parent")
