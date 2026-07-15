@@ -170,7 +170,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T10** `RemoteRefreshCoordinatorTests.testBurstCoalescesByAffectedDirectory` - A callback burst yields one request for each distinct loaded branch.
 - [x] **T11** `RemoteRefreshCoordinatorTests.testOlderResponseCannotReplaceNewerContent` - Releasing gated requests in reverse order leaves the newest listing visible.
 - [x] **T12** `RemoteRefreshCoordinatorTests.testListingFailureKeepsTreeAndOffersRetry` - A failed refresh preserves content and state, and a retry applies later content.
-- [ ] **T13** `RemoteRefreshCoordinatorTests.testSameLocationRefreshRetainsWatches` - Root and expanded-branch watches are not removed and re-added during reconciliation.
+- [x] **T13** `RemoteRefreshCoordinatorTests.testSameLocationRefreshRetainsWatches` - Root and expanded-branch watches are not removed and re-added during reconciliation.
 - [ ] **T14** `RemoteRefreshCoordinatorTests.testDeletedSelectionChoosesNearestSurvivorWithoutJump` - Deletion chooses a predictable nearby row and retains a valid viewport.
 - [ ] **T15** `FileListDragDropTests.testRemoteFolderAndPaneBackgroundAreValidTargets` - Remote folders and the current remote directory expose the expected drop operation and target state.
 - [ ] **T16** `FileListDragDropTests.testInternalDropRoutesExactLocations` - Acceptance sends every source location and the destination location to the operation queue.
@@ -236,3 +236,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T10** Sent repeated callbacks for two branches on Foundry and verified the burst reduces to exactly one listing per affected directory.
 - **T11** Held an older generation while queuing a newer mutation on Foundry and verified the older result is discarded and only the follow-up content is applied.
 - **T12** Forced a listing failure on Foundry, verified the existing row and accessible retry banner remain, then clicked Retry and confirmed the later listing replaces the content and clears the banner.
+- **T13** Reconciled the displayed root on Foundry and verified the exact root and expanded-branch watch tokens remain registered without churn.
