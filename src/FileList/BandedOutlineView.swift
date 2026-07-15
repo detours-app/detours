@@ -196,17 +196,6 @@ final class BandedOutlineView: NSOutlineView {
         true
     }
 
-    override func drawBackground(inClipRect clipRect: NSRect) {
-        super.drawBackground(inClipRect: clipRect)
-        guard isBackgroundDropTarget else { return }
-        let theme = Theme.currentSnapshot()
-        theme.accent.withAlphaComponent(0.10).setFill()
-        clipRect.fill()
-        theme.accent.withAlphaComponent(0.65).setStroke()
-        let border = bounds.insetBy(dx: 1, dy: 1)
-        NSBezierPath(rect: border).stroke()
-    }
-
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         let clickedRow = row(at: point)
@@ -312,6 +301,13 @@ final class BandedOutlineView: NSOutlineView {
             }
             y += rowH
             idx += 1
+        }
+
+        if isBackgroundDropTarget {
+            theme.accent.withAlphaComponent(0.10).setFill()
+            clipRect.fill()
+            theme.accent.withAlphaComponent(0.65).setStroke()
+            NSBezierPath(rect: bounds.insetBy(dx: 1, dy: 1)).stroke()
         }
     }
 }
