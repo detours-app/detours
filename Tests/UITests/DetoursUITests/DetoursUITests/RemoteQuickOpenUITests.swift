@@ -280,7 +280,7 @@ final class RemoteFileOperationsUITests: BaseUITest {
         let source = rightRow("unique-in-B.txt")
         XCTAssertTrue(source.waitForExistence(timeout: 3))
         source.staticTexts["unique-in-B.txt"].click()
-        postF5KeyEvent()
+        pressF5Key()
 
         XCTAssertTrue(waitForCondition(timeout: 5) {
             self.remoteProviderHistory().contains {
