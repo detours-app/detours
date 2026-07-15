@@ -168,7 +168,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T8** `RemoteRefreshCoordinatorTests.testChangedExpandedFolderRefreshesOnlyItsBranch` - A branch event lists that branch once without listing the root or unaffected siblings.
 - [x] **T9** `RemoteRefreshCoordinatorTests.testMutationAndWatchEventCoalesce` - Operation completion and its matching watch event cause one listing request for each affected directory.
 - [x] **T10** `RemoteRefreshCoordinatorTests.testBurstCoalescesByAffectedDirectory` - A callback burst yields one request for each distinct loaded branch.
-- [ ] **T11** `RemoteRefreshCoordinatorTests.testOlderResponseCannotReplaceNewerContent` - Releasing gated requests in reverse order leaves the newest listing visible.
+- [x] **T11** `RemoteRefreshCoordinatorTests.testOlderResponseCannotReplaceNewerContent` - Releasing gated requests in reverse order leaves the newest listing visible.
 - [ ] **T12** `RemoteRefreshCoordinatorTests.testListingFailureKeepsTreeAndOffersRetry` - A failed refresh preserves content and state, and a retry applies later content.
 - [ ] **T13** `RemoteRefreshCoordinatorTests.testSameLocationRefreshRetainsWatches` - Root and expanded-branch watches are not removed and re-added during reconciliation.
 - [ ] **T14** `RemoteRefreshCoordinatorTests.testDeletedSelectionChoosesNearestSurvivorWithoutJump` - Deletion chooses a predictable nearby row and retains a valid viewport.
@@ -234,3 +234,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T8** Verified on Foundry that an expanded-branch change fetches exactly that branch once and never substitutes a root listing.
 - **T9** Verified on Foundry that mutation and watcher reasons for the same directory merge into one listing request containing both causes.
 - **T10** Sent repeated callbacks for two branches on Foundry and verified the burst reduces to exactly one listing per affected directory.
+- **T11** Held an older generation while queuing a newer mutation on Foundry and verified the older result is discarded and only the follow-up content is applied.
