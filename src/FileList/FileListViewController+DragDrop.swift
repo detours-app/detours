@@ -43,9 +43,23 @@ extension FileListViewController: FileListDropDelegate {
         return RemoteFilePromiseProvider.make(item: item, provider: provider)
     }
 
+    func beginInternalDrag(items: [FileItem], on pasteboard: NSPasteboard) {
+        _ = InternalFileDragSessionStore.shared.begin(
+            locations: items.map(\.location),
+            on: pasteboard
+        )
+    }
+
+    func endInternalDrag(on pasteboard: NSPasteboard) {
+        InternalFileDragSessionStore.shared.end(on: pasteboard)
+    }
+
     func setupDragDrop() {
         // Register for file URL and file promise drop types (promises for Mail, etc.)
-        var dragTypes: [NSPasteboard.PasteboardType] = [.fileURL]
+        var dragTypes: [NSPasteboard.PasteboardType] = [
+            .fileURL,
+            .detoursInternalFileDrag,
+        ]
         dragTypes.append(contentsOf: NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
         tableView.registerForDraggedTypes(dragTypes)
         tableView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)

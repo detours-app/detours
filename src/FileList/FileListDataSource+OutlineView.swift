@@ -54,10 +54,15 @@ extension FileListDataSource {
     }
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
-        // Use standard drag image behavior
+        let fileItems = draggedItems.compactMap { $0 as? FileItem }
+        dropDelegate?.beginInternalDrag(
+            items: fileItems,
+            on: session.draggingPasteboard
+        )
     }
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        dropDelegate?.endInternalDrag(on: session.draggingPasteboard)
         dropTargetItem = nil
     }
 

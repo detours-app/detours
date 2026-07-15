@@ -132,7 +132,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 
 **Phase 3: Location-Based Drag-and-Drop**
 
-- [ ] **C11** Add an app-owned internal drag session that captures every selected `Location` while preserving the existing remote-file promise writer for external applications.
+- [x] **C11** Add an app-owned internal drag session that captures every selected `Location` while preserving the existing remote-file promise writer for external applications.
 - [ ] **C12** Replace URL-only current-directory and destination helpers in `FileListViewController+DragDrop.swift`, `FileListDataSource+OutlineView.swift`, and `FileItem.swift` with location-based equivalents.
 - [ ] **C13** Add location-aware drop validation for writable folder rows and pane backgrounds, including highlight state and self, descendant, regular-file, missing-target, and same-parent rejection.
 - [ ] **C14** Route accepted multi-file and folder drops through `FileOperationQueue` location operations with same-volume and same-host boundary detection plus Option and Command overrides.
@@ -213,3 +213,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C8** Provider watches are now keyed by normalized `Location`, retaining remote host identity and stable root or expanded-branch registrations across refreshes. Collapsing a folder removes only its watch subtree, while remote callbacks request a coalesced refresh for the watched branch and local callbacks retain the existing debounced reload path.
 - **C9** Paste, delete, and rename completions now publish exact affected remote directories and preferred results; cross-pane copy and move do the same for every loaded tab in both panes. Matching roots and expanded branches request coordinated mutations, collapsed branches become stale, and local refresh behavior remains on its existing path.
 - **C10** Background refresh failures now leave the reconciled tree and pane state untouched and show a compact accessible banner over the pane with the directory, failure reason, and an exact-directory Retry action. A successful retry removes the banner; no modal or full-list error overlay is used.
+- **C11** Added an app-owned internal drag token and registry. AppKit's full dragged `FileItem` set is captured as ordered `Location` values when a session begins and removed when it ends, while local URL writers and the existing remote `NSFilePromiseProvider` remain the external drag representations.

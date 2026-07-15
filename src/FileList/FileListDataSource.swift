@@ -218,6 +218,8 @@ final class InactiveHidingRowView: NSTableRowView {
 protocol FileListDropDelegate: AnyObject {
     func handleDrop(urls: [URL], to destination: URL, isCopy: Bool)
     func pasteboardWriter(for item: FileItem) -> (any NSPasteboardWriting)?
+    func beginInternalDrag(items: [FileItem], on pasteboard: NSPasteboard)
+    func endInternalDrag(on pasteboard: NSPasteboard)
     var currentDirectoryURL: URL? { get }
 }
 
