@@ -482,17 +482,17 @@ extension FileItem {
         }
     }
 
-    /// Returns the resolved directory URL if this item can accept dropped files.
-    /// For directories, returns self.url. For Finder aliases to directories, returns the resolved target.
+    /// Returns the resolved directory location if this item can accept dropped files.
+    /// For directories, returns its location. For local Finder aliases to directories, returns the resolved target.
     /// Returns nil if this item is not a valid drop target.
-    var dropDestination: URL? {
+    var dropDestinationLocation: Location? {
         guard !isVirtualSharedFolder else { return nil }
+        if isDirectory { return location }
         guard case .local(let url) = location else { return nil }
-        if isDirectory { return url }
         guard isAliasFile else { return nil }
         guard let resolved = try? URL(resolvingAliasFileAt: url, options: [.withoutUI, .withoutMounting]) else { return nil }
         let isDir = (try? resolved.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-        return isDir ? resolved : nil
+        return isDir ? .local(resolved) : nil
     }
 
     /// Sorts items by the given descriptor with optional folders-on-top grouping.

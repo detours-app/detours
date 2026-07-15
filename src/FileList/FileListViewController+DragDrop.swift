@@ -2,19 +2,27 @@ import AppKit
 import UniformTypeIdentifiers
 
 extension FileListViewController: FileListDropDelegate {
-    var currentDirectoryURL: URL? {
+    var currentDirectoryLocation: Location? {
         guard currentICloudListingMode != .sharedTopLevel else { return nil }
-        return currentDirectory
+        return currentRemoteLocation ?? currentDirectory.map(Location.local)
     }
 
-    func handleDrop(urls: [URL], to destination: URL, isCopy: Bool) {
+    func handleDrop(locations: [Location], to destination: Location, isCopy: Bool) {
         guard currentICloudListingMode != .sharedTopLevel else { return }
         Task { @MainActor in
             do {
                 if isCopy {
-                    try await FileOperationQueue.shared.copy(items: urls, to: destination, undoManager: undoManager)
+                    _ = try await FileOperationQueue.shared.copy(
+                        items: locations,
+                        to: destination,
+                        undoManager: undoManager
+                    )
                 } else {
-                    try await FileOperationQueue.shared.move(items: urls, to: destination, undoManager: undoManager)
+                    _ = try await FileOperationQueue.shared.move(
+                        items: locations,
+                        to: destination,
+                        undoManager: undoManager
+                    )
                 }
                 // Refresh the view
                 dataSource.invalidateGitStatus()
@@ -22,12 +30,12 @@ extension FileListViewController: FileListDropDelegate {
                     loadDirectory(current, preserveExpansion: true)
                 }
                 // Notify to refresh source directories
-                var directoriesToRefresh = Set<URL>()
-                for url in urls {
-                    directoriesToRefresh.insert(url.deletingLastPathComponent().standardizedFileURL)
+                var directoriesToRefresh = Set<Location>()
+                for location in locations {
+                    directoriesToRefresh.insert(location.deletingLastPathComponent())
                 }
-                directoriesToRefresh.insert(destination.standardizedFileURL)
-                navigationDelegate?.fileListDidRequestRefreshSourceDirectories(directoriesToRefresh)
+                directoriesToRefresh.insert(destination)
+                navigationDelegate?.fileListDidRequestRefreshSourceLocations(directoriesToRefresh)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
