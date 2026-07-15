@@ -116,7 +116,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 
 **Phase 1: Shared Open Behavior**
 
-- [ ] **C1** Add a shared item-opening dispatcher under `src/FileList/` that unifies every Open entry point on the double-click classification, confirms before opening more than five files, and returns per-file batch results.
+- [x] **C1** Add a shared item-opening dispatcher under `src/FileList/` that unifies every Open entry point on the double-click classification, confirms before opening more than five files, and returns per-file batch results.
 - [ ] **C2** Update `FileListViewController+SelectionState.swift`, `FileListViewController+Keyboard.swift`, `FileListViewController+ContextMenu.swift`, and the double-click path in `FileListViewController+Setup.swift` to use the dispatcher.
 - [ ] **C3** Add one accessible batch-open error summary that names failed items after every eligible file has been attempted.
 
@@ -203,4 +203,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 
 ## Build Log
 
-Populated at implement time with evidence keyed to the matching task and acceptance identifiers. Empty until implementation starts.
+- **C1** Added `FileItemOpeningDispatcher`, which classifies items with the established double-click rules, keeps visible input order, confirms batches above five eligible files, skips special items in mixed selections, falls back to the focused special item, and returns ordered success and failure details.
