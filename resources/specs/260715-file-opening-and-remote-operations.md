@@ -159,7 +159,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 
 - [x] **T1** `FileItemOpeningTests.testEnterOpensEverySelectedOrdinaryFileInVisibleOrder` - Enter dispatches every eligible selected file exactly once without launching external applications.
 - [x] **T2** `FileItemOpeningTests.testCommandOpenCommandDownAndContextMenuMatchEnter` - Every Open entry point yields the same ordered batch.
-- [ ] **T3** `FileItemOpeningTests.testMixedSelectionSkipsSpecialItems` - A mixed selection opens ordinary files and leaves folders, archives, and disk images untouched.
+- [x] **T3** `FileItemOpeningTests.testMixedSelectionSkipsSpecialItems` - A mixed selection opens ordinary files and leaves folders, archives, and disk images untouched.
 - [ ] **T4** `FileItemOpeningTests.testSelectionWithoutOrdinaryFilesUsesFocusedItemAction` - A special-only selection preserves the focused item's single-item behavior.
 - [ ] **T5** `FileItemOpeningTests.testBatchContinuesAndAggregatesFailures` - Successful files open and all failed names appear in one result.
 - [ ] **T35** `FileItemOpeningTests.testOpeningMoreThanFiveFilesConfirmsFirst` - Six selected files trigger one confirmation before any open, while five open without a prompt.
@@ -225,3 +225,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C20** Ran the release build through `resources/scripts/build.sh --no-install` on Foundry. Corrected the UI-test provider's resource-key type and moved synchronous directory enumeration out of the actor's async context; the resulting build completes without warnings.
 - **T1** Added an injected opening-action seam and verified on Foundry that an ordered visible selection dispatches every ordinary file exactly once without invoking the workspace.
 - **T2** Drove the controller's real Enter, Command-O, Command-Down, and context-menu paths on Foundry and verified that each produces the same ordered two-file dispatch.
+- **T3** Verified on Foundry that mixed selections dispatch only ordinary files, in order, while folders, archives, and disk images remain skipped and untouched.
