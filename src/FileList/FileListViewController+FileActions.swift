@@ -200,7 +200,11 @@ extension FileListViewController {
             let rowCount = self.tableView.numberOfRows
             if rowCount > 0 && selectedIndex >= 0 {
                 let newIndex = min(selectedIndex, rowCount - 1)
-                self.tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                self.tableView.selectRowIndexes(
+                    IndexSet(integer: newIndex),
+                    byExtendingSelection: false,
+                    origin: .operationResult
+                )
                 self.tableView.scrollRowToVisible(newIndex)
             }
         }
@@ -471,12 +475,19 @@ extension FileListViewController {
 
     /// Selects the item at the given URL. Returns true if found and selected, false otherwise.
     @discardableResult
-    func selectItem(at url: URL) -> Bool {
+    func selectItem(
+        at url: URL,
+        origin: FileListSelectionOrigin = .operationResult
+    ) -> Bool {
         // Search entire tree including expanded folders
         if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
             let row = tableView.row(forItem: item)
             if row >= 0 {
-                tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                tableView.selectRowIndexes(
+                    IndexSet(integer: row),
+                    byExtendingSelection: false,
+                    origin: origin
+                )
                 tableView.scrollRowToVisible(row)
                 return true
             }

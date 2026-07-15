@@ -51,7 +51,10 @@ extension FileListViewController {
     }
 
     @discardableResult
-    private func selectLocations(_ locations: [Location]) -> Bool {
+    private func selectLocations(
+        _ locations: [Location],
+        origin: FileListSelectionOrigin = .operationResult
+    ) -> Bool {
         var indexes = IndexSet()
         for location in locations {
             switch location {
@@ -69,7 +72,11 @@ extension FileListViewController {
             }
         }
         if !indexes.isEmpty {
-            tableView.selectRowIndexes(indexes, byExtendingSelection: false)
+            tableView.selectRowIndexes(
+                indexes,
+                byExtendingSelection: false,
+                origin: origin
+            )
             if let first = indexes.first {
                 tableView.scrollRowToVisible(first)
             }
@@ -145,7 +152,11 @@ extension FileListViewController {
                 }
             }
             if !indicesToSelect.isEmpty {
-                self.tableView.selectRowIndexes(IndexSet(indicesToSelect), byExtendingSelection: false)
+                self.tableView.selectRowIndexes(
+                    IndexSet(indicesToSelect),
+                    byExtendingSelection: false,
+                    origin: .operationResult
+                )
                 self.tableView.scrollRowToVisible(indicesToSelect.first!)
             }
 
@@ -274,11 +285,19 @@ extension FileListViewController {
                     // If URL-based restore didn't find items, fall back to nearby row
                     if self.tableView.selectedRow < 0 && previousSelectedRow >= 0 && self.tableView.numberOfRows > 0 {
                         let newIndex = min(previousSelectedRow, self.tableView.numberOfRows - 1)
-                        self.tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                        self.tableView.selectRowIndexes(
+                            IndexSet(integer: newIndex),
+                            byExtendingSelection: false,
+                            origin: .restored
+                        )
                     }
                 } else if !self.dataSource.items.isEmpty {
                     // Default: select first item
-                    self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                    self.tableView.selectRowIndexes(
+                        IndexSet(integer: 0),
+                        byExtendingSelection: false,
+                        origin: .automatic
+                    )
                 }
 
                 // Restore scroll position for same-directory reloads so
@@ -363,7 +382,10 @@ extension FileListViewController {
     /// Select a remote row by its absolute path. Remote `FileItem`s have no local file URL, so
     /// selection matches on the standardized path rather than going through `findItem(withURL:)`.
     @discardableResult
-    func selectRemoteItem(atPath path: String) -> Bool {
+    func selectRemoteItem(
+        atPath path: String,
+        origin: FileListSelectionOrigin = .operationResult
+    ) -> Bool {
         let target = URL(fileURLWithPath: path).standardizedFileURL
         guard let item = dataSource.findItem(withURL: target, in: dataSource.items),
               item.isRemote else {
@@ -371,7 +393,11 @@ extension FileListViewController {
         }
         let row = tableView.row(forItem: item)
         guard row >= 0 else { return false }
-        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        tableView.selectRowIndexes(
+            IndexSet(integer: row),
+            byExtendingSelection: false,
+            origin: origin
+        )
         tableView.scrollRowToVisible(row)
         return true
     }
@@ -566,13 +592,21 @@ extension FileListViewController {
     ) {
         if shouldPreserveExpansion && !previousSelectedLocations.isEmpty {
             tableView.deselectAll(nil)
-            selectLocations(previousSelectedLocations)
+            selectLocations(previousSelectedLocations, origin: .restored)
             if tableView.selectedRow < 0 && previousSelectedRow >= 0 && tableView.numberOfRows > 0 {
                 let newIndex = min(previousSelectedRow, tableView.numberOfRows - 1)
-                tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                tableView.selectRowIndexes(
+                    IndexSet(integer: newIndex),
+                    byExtendingSelection: false,
+                    origin: .restored
+                )
             }
         } else if !dataSource.items.isEmpty {
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            tableView.selectRowIndexes(
+                IndexSet(integer: 0),
+                byExtendingSelection: false,
+                origin: .automatic
+            )
         }
     }
 

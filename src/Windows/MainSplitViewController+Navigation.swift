@@ -321,7 +321,11 @@ extension MainSplitViewController {
         let itemCount = tab.fileListViewController.dataSource.items.count
         if itemCount > 0 && selectedIndex >= 0 {
             let newIndex = min(selectedIndex, itemCount - 1)
-            tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+            tableView.selectRowIndexes(
+                IndexSet(integer: newIndex),
+                byExtendingSelection: false,
+                origin: .restored
+            )
             tableView.scrollRowToVisible(newIndex)
         }
     }

@@ -141,7 +141,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 **Phase 4: Remote Cut-and-Paste**
 
 - [x] **C16** Extend `ClipboardManager` and `FileListCell` with location-based pending-cut queries, remote row dimming, notifications, and an accessible cut description.
-- [ ] **C17** Track user, automatic, restored, and operation-result selection origins and update `effectivePasteDestinationLocation` to use only one deliberately selected folder.
+- [x] **C17** Track user, automatic, restored, and operation-result selection origins and update `effectivePasteDestinationLocation` to use only one deliberately selected folder.
 - [ ] **C18** Keep remote cut state after cancellation or failure, clear it after successful move, retain copied items for repeated paste, and refresh affected panes through the coordinator.
 
 **Phase 5: Deterministic Test Surface and Build**
@@ -219,3 +219,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C14** Added one drop-operation resolver shared by hover and acceptance. Every source and folder is routed through `FileOperationQueue`'s location overloads; one local volume or remote host defaults to move, crossing a volume, host, or local/remote boundary defaults to copy, Command forces move, and Option takes priority as copy.
 - **C15** Drop completion now feeds returned result locations into coordinated source and destination refreshes, so pane snapshots survive and visible results are selected without scrolling. Target highlighting clears on acceptance, rejection, drag exit, and session end; failed or partial operations refresh possible successes and use the queue's single aggregated error presentation.
 - **C16** Clipboard cut identity is now stored and queried as `Location`, with the URL API retained as a local compatibility view. Clipboard notifications update both local and remote cells; every pending-move row dims consistently and exposes a "pending move" accessibility label and paste help text.
+- **C17** Added explicit user, automatic, restored, and operation-result selection origins across outline, loading, reconciliation, filtering, sorting, and result selection. Paste targets exactly one user-selected folder; every other selection shape or origin uses the location displayed by the tab.

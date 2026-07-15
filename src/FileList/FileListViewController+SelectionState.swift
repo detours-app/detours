@@ -102,7 +102,11 @@ extension FileListViewController {
            tableView.numberOfRows > 0 {
             restoredRows.insert(min(snapshot.selectedRow, tableView.numberOfRows - 1))
         }
-        tableView.selectRowIndexes(restoredRows, byExtendingSelection: false)
+        tableView.selectRowIndexes(
+            restoredRows,
+            byExtendingSelection: false,
+            origin: preferredResultLocations.isEmpty ? .restored : .operationResult
+        )
 
         tableView.layoutSubtreeIfNeeded()
         var restoredOrigin = snapshot.scrollOrigin
@@ -154,17 +158,14 @@ extension FileListViewController {
     }
 
     var effectivePasteDestinationLocation: Location? {
-        if let currentRemoteLocation {
-            if let selectedItem = selectedItems.first {
-                if selectedItem.isDirectory {
-                    return selectedItem.location
-                }
-                return selectedItem.location.deletingLastPathComponent()
-            }
-            return currentRemoteLocation
+        let displayedLocation = currentRemoteLocation ?? currentDirectory.map(Location.local)
+        guard selectionOrigin == .user,
+              selectedItems.count == 1,
+              let selectedItem = selectedItems.first,
+              selectedItem.isDirectory else {
+            return displayedLocation
         }
-
-        return effectivePasteDestination.map(Location.local)
+        return selectedItem.location
     }
 
     func restoreSelection(_ urls: [URL], scrollToVisible: Bool = true) {
@@ -180,7 +181,11 @@ extension FileListViewController {
             }
         }
         if !newSelection.isEmpty {
-            tableView.selectRowIndexes(newSelection, byExtendingSelection: false)
+            tableView.selectRowIndexes(
+                newSelection,
+                byExtendingSelection: false,
+                origin: .restored
+            )
             if scrollToVisible, let first = newSelection.first {
                 tableView.scrollRowToVisible(first)
             }
@@ -337,7 +342,11 @@ extension FileListViewController {
     private func selectOnly(_ item: FileItem) {
         let row = tableView.row(forItem: item)
         guard row >= 0 else { return }
-        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        tableView.selectRowIndexes(
+            IndexSet(integer: row),
+            byExtendingSelection: false,
+            origin: .automatic
+        )
     }
 
     private func presentOpenFailures(_ failures: [FileItemOpenFailure]) {

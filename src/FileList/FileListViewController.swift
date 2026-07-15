@@ -61,6 +61,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var pendingPostLoadAction: (() -> Void)?
     var selectionAnchor: Int?
     var selectionCursor: Int?
+    var selectionOrigin: FileListSelectionOrigin = .automatic
     /// Tracks whether folder expansion was enabled before the last settings change
     var wasFolderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
     /// Tracks the density applied to the table before the last settings change

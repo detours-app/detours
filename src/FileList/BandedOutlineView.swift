@@ -10,6 +10,13 @@ protocol FileListContextMenuDelegate: AnyObject {
     func buildContextMenu(for selection: IndexSet, clickedRow: Int) -> NSMenu?
 }
 
+enum FileListSelectionOrigin {
+    case user
+    case automatic
+    case restored
+    case operationResult
+}
+
 // MARK: - Themed Header View
 
 /// Header view that draws themed background
@@ -80,6 +87,17 @@ final class BandedOutlineView: NSOutlineView {
                 needsDisplay = true
             }
         }
+    }
+    private(set) var activeSelectionOrigin: FileListSelectionOrigin?
+
+    func selectRowIndexes(
+        _ indexes: IndexSet,
+        byExtendingSelection extend: Bool,
+        origin: FileListSelectionOrigin
+    ) {
+        activeSelectionOrigin = origin
+        selectRowIndexes(indexes, byExtendingSelection: extend)
+        activeSelectionOrigin = nil
     }
 
     /// Currently hovered row (-1 = none)
@@ -308,6 +326,24 @@ final class BandedOutlineView: NSOutlineView {
             clipRect.fill()
             theme.accent.withAlphaComponent(0.65).setStroke()
             NSBezierPath(rect: bounds.insetBy(dx: 1, dy: 1)).stroke()
+        }
+    }
+}
+
+extension NSOutlineView {
+    func selectRowIndexes(
+        _ indexes: IndexSet,
+        byExtendingSelection extend: Bool,
+        origin: FileListSelectionOrigin
+    ) {
+        if let bandedOutlineView = self as? BandedOutlineView {
+            bandedOutlineView.selectRowIndexes(
+                indexes,
+                byExtendingSelection: extend,
+                origin: origin
+            )
+        } else {
+            selectRowIndexes(indexes, byExtendingSelection: extend)
         }
     }
 }

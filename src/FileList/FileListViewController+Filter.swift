@@ -39,7 +39,11 @@ extension FileListViewController {
 
         // Select first item if selection was lost
         if tableView.selectedRow < 0 && tableView.numberOfRows > 0 {
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            tableView.selectRowIndexes(
+                IndexSet(integer: 0),
+                byExtendingSelection: false,
+                origin: .automatic
+            )
         }
 
         filterBarHeightConstraint?.constant = 0
@@ -75,13 +79,21 @@ extension FileListViewController {
         if let previous = previousSelection {
             let row = tableView.row(forItem: previous)
             if row >= 0 {
-                tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                tableView.selectRowIndexes(
+                    IndexSet(integer: row),
+                    byExtendingSelection: false,
+                    origin: .restored
+                )
                 return
             }
         }
 
         if tableView.numberOfRows > 0 {
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            tableView.selectRowIndexes(
+                IndexSet(integer: 0),
+                byExtendingSelection: false,
+                origin: .automatic
+            )
         }
 
         // Update status bar counts after filter change

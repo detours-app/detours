@@ -41,7 +41,11 @@ extension FileListDataSource {
             }
         }
         if !rowIndexes.isEmpty {
-            outlineView.selectRowIndexes(rowIndexes, byExtendingSelection: false)
+            outlineView.selectRowIndexes(
+                rowIndexes,
+                byExtendingSelection: false,
+                origin: .restored
+            )
         }
     }
 

@@ -226,7 +226,11 @@ extension FileListDataSource {
             if folderRow >= 0 {
                 // Defer selection change until after collapse completes
                 DispatchQueue.main.async {
-                    outlineView.selectRowIndexes(IndexSet(integer: folderRow), byExtendingSelection: false)
+                    outlineView.selectRowIndexes(
+                        IndexSet(integer: folderRow),
+                        byExtendingSelection: false,
+                        origin: .automatic
+                    )
                 }
             }
         }
