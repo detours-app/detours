@@ -90,7 +90,7 @@ final class BandedOutlineView: NSOutlineView {
     }
     private(set) var activeSelectionOrigin: FileListSelectionOrigin?
 
-    func selectRowIndexes(
+    func selectRows(
         _ indexes: IndexSet,
         byExtendingSelection extend: Bool,
         origin: FileListSelectionOrigin
@@ -337,7 +337,7 @@ extension NSOutlineView {
         origin: FileListSelectionOrigin
     ) {
         if let bandedOutlineView = self as? BandedOutlineView {
-            bandedOutlineView.selectRowIndexes(
+            bandedOutlineView.selectRows(
                 indexes,
                 byExtendingSelection: extend,
                 origin: origin
