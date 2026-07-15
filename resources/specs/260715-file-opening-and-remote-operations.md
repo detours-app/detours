@@ -29,6 +29,8 @@ Open every eligible file in a selection, keep remote folder trees stable while t
 - If a remote update fails, the current contents remain usable and one non-blocking message offers another attempt.
 - Files and folders can be dragged within a remote host, between remote hosts, and between local and remote panes.
 - A valid destination folder and a valid pane background visibly light up while an item is dragged over them. Invalid destinations show that the drop is not allowed.
+- Dragging over a folder never opens it. Hovering only identifies whether the folder is a valid destination.
+- A completed cross-pane copy into a selected closed folder opens that folder and reveals the copied item.
 - A normal drag moves items within the same local volume or remote host and copies items when crossing a local, remote, or host boundary.
 - Holding Option forces a copy. Holding Command forces a move across a boundary. Option takes priority when both keys are held.
 - Command-X marks selected remote items as pending moves and dims their rows. The same state is available to people using VoiceOver.
@@ -56,6 +58,8 @@ Open every eligible file in a selection, keep remote folder trees stable while t
 - [x] **A15** Dragging a remote file from Detours to another application continues to create the promised file safely.
 - [x] **A16** Single-item Open performs the correct action for the focused item, whether opening a file, mounting a disk image, extracting an archive, or entering a folder, identically across Enter, Command-O, Command-Down, the shortcut menu, and double-click, and local file operations remain unchanged.
 - [x] **A17** When a selection would open more than five ordinary files, Detours first presents one confirmation; opening five or fewer opens without a prompt, and skipped folders, archives, and disk images never count toward the five.
+- [x] **A18** Hovering a dragged item over folders never opens them, while valid destinations still show their drop-target highlight and accept the drop.
+- [x] **A19** F5 copies from the focused pane into the deliberately selected folder in the other pane, opening a closed destination after completion and revealing the copied item.
 
 ### Out of scope
 
@@ -148,6 +152,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 
 - [x] **C19** Extend `UITestRemoteProvider` with root-confined mutable operations, watches, controlled listing gates, deterministic failures, call histories, and test-only pane-state responses.
 - [x] **C20** Build with `resources/scripts/build.sh` and resolve every build, lint, and warning failure.
+- [x] **C21** Prevent drag-hover expansion and reveal completed cross-pane copy results inside a closed selected remote destination.
 
 ---
 
@@ -181,6 +186,8 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T21** `FileListResponderTests.testRemotePasteUsesExplicitFolderOrCurrentDirectory` - User selection chooses one folder while automatic, restored, result, and multiple-folder selections use the displayed directory.
 - [x] **T22** `FileListResponderTests.testRemoteCopyAndCutPasteRouteCorrectOperations` - Copy retains sources and clipboard contents while cut moves sources and clears successful cut state.
 - [x] **T23** `RemoteDragOutTests.testRemoteFileDragStillUsesFilePromiseProvider` - Existing external remote-file drag behavior remains intact.
+- [x] **T36** `FileListDragDropTests.testDragHoverNeverExpandsFolder` - Drag validation suppresses outline expansion while retaining the valid drop target.
+- [x] **T37** `FileListResponderTests.testRemoteOperationResultExpandsClosedDestinationAndSelectsCopiedItem` - A result inside a closed remote folder loads and expands its ancestors and selects the nested item.
 
 ### Integration Tests (`Tests/`)
 
@@ -198,6 +205,8 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T32** `RemoteFileOperationsUITests.testRemoteCutNavigateAndPaste` - Command-X, navigation, and Command-V move the item to the intended folder without collapsing the tree.
 - [x] **T33** `RemoteFileOperationsUITests.testFailedPasteKeepsCutFeedbackAndCanRetry` - A forced failure retains the accessible cut state and a second paste succeeds.
 - [x] **T34** `RemoteFileOperationsUITests.testTwoPanesShowingSameRemoteFolderUpdateOnce` - Both matching panes receive one stable update after one operation.
+- [x] **T38** `RemoteFileOperationsUITests.testDragHoverNeverExpandsRemoteFolder` - A held drag over a closed remote folder leaves it closed.
+- [x] **T39** `RemoteFileOperationsUITests.testF5CopiesFocusedLocalFileToRemotePane` - F5 copies the focused local file into the selected closed remote folder, which opens and reveals the result.
 
 ---
 
@@ -223,6 +232,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C18** Clipboard paste now snapshots cut intent and its owning pasteboard generation. A thrown failure or cancellation leaves remote cut locations intact, a successful move clears only the clipboard entry it owns, an externally replaced pasteboard is never erased, copied locations remain reusable, and successful mutations already refresh every affected pane through the coordinator.
 - **C19** Expanded the UI-test remote into a root-confined mutable provider with recursive file and directory transfers, trash and restore, rename, creation, upload and download, exact changed-parent watches, per-call listing gates, one-shot operation failures, and structured histories. Added request-and-response pane snapshots for expansion, selection, scroll offsets, focus, filtering, sorting, active drop targets, visible rows, and refresh-in-flight state.
 - **C20** Ran the release build through `resources/scripts/build.sh --no-install` on Foundry. Corrected the UI-test provider's resource-key type and moved synchronous directory enumeration out of the actor's async context; the resulting build completes without warnings.
+- **C21** Drag validation now blocks outline spring expansion without suppressing target highlighting or acceptance. Completed cross-pane copies reload stale closed branches, expand the destination chain, and select nested results; global F5 resolves the pane that actually owns keyboard focus.
 - **T1** Added an injected opening-action seam and verified on Foundry that an ordered visible selection dispatches every ordinary file exactly once without invoking the workspace.
 - **T2** Drove the controller's real Enter, Command-O, Command-Down, and context-menu paths on Foundry and verified that each produces the same ordered two-file dispatch.
 - **T3** Verified on Foundry that mixed selections dispatch only ordinary files, in order, while folders, archives, and disk images remain skipped and untouched.
@@ -247,6 +257,8 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T21** Verified every selection origin on Foundry and fixed origin retention for unchanged programmatic selections; exactly one user-selected folder redirects paste, while automatic, restored, result, and multi-folder states use the displayed root.
 - **T22** Drove responder paste twice on Foundry and verified copy calls the provider without consuming clipboard sources, while cut calls move to the same exact destination and clears its successful pending move.
 - **T23** Verified on Foundry that a remote file still supplies `NSFilePromiseProvider` to AppKit, preserving safe external drag materialization alongside internal location drags.
+- **T36** Verified on Foundry that drag validation cannot expand a folder while the same row remains the active valid drop target.
+- **T37** Verified on Foundry that a copied remote result refreshes a stale closed destination, expands it, and selects the nested item through recursive location lookup.
 - **T24** Ran same-host copy and move through the real `devtest` helper on Foundry, verifying exact contents, retained copy source, and removed move source.
 - **T25** Ran recursive folder transfers through the real helper and queue on Foundry in local-to-remote, remote-to-local, and distinct-host-identity directions, verifying nested contents and retained copy sources.
 - **T26** Routed two exact Windows remote locations through copy and move on Foundry, verifying native source arrays, distinct destinations, response locations, and PowerShell operation order.
@@ -258,6 +270,8 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T32** Cut a remote item with Command-X on Foundry, verified its accessible pending-move state, navigated into another remote folder, pasted, and confirmed the moved row appears with cut feedback cleared.
 - **T33** Forced the first remote move paste to fail on Foundry, dismissed the operation error, navigated back to verify accessible pending-move feedback remains, then retried successfully and observed the feedback clear.
 - **T34** Opened the same remote root in both Foundry panes, renamed one item, verified both panes update stably, and counted exactly one follow-up root listing per pane.
+- **T38** Held a real drag over closed `/FolderA` for 1.5 seconds in the Foundry app and verified it remained closed; the adjacent target-highlight and drop-acceptance UI test also passed.
+- **T39** Sent F5 through XCTest with a focused local `unique-in-B.txt` and selected closed remote `/FolderA`; the Foundry provider received `/FolderA/unique-in-B.txt`, then the folder expanded and exposed the copied row.
 - **Final verification** Ran the complete `swift test` suite on Foundry with the login keychain unlocked in the same SSH session. The full XCTest and Swift Testing run exited successfully, including all 32 real remote-integration tests and all 44 Swift Testing cases.
 - **Final verification** Isolated the remote Enter surface test through the opening-action seam so the new unavailable-provider failure path is asserted without presenting an interactive modal during the suite; the focused test and complete suite both pass.
 - **Final verification** Reviewed the complete branch diff for redundant paths and state ownership, ran changed-file lint and `git diff --check`, and retained the shared dispatcher, refresh coordinator, location-based drag model, and explicit selection-origin boundaries as the smallest cohesive implementation.
