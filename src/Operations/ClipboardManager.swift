@@ -94,15 +94,33 @@ final class ClipboardManager {
     func paste(to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
         let items = readLocations()
         guard !items.isEmpty else { return [] }
+        let operationIsCut = isCut
+        let owningPasteboardChangeCount = storedPasteboardChangeCount
 
         let pastedItems: [Location]
-        if isCut {
+        if operationIsCut {
             pastedItems = try await FileOperationQueue.shared.move(items: items, to: destination, undoManager: undoManager)
-            clear()
+            finishSuccessfulCutPaste(
+                owningPasteboardChangeCount: owningPasteboardChangeCount
+            )
         } else {
             pastedItems = try await FileOperationQueue.shared.copy(items: items, to: destination, undoManager: undoManager)
         }
         return pastedItems
+    }
+
+    private func finishSuccessfulCutPaste(owningPasteboardChangeCount: Int) {
+        guard storedIsCut else { return }
+        if pasteboard.changeCount == owningPasteboardChangeCount {
+            clear()
+            return
+        }
+
+        storedLocations = []
+        storedCutItemLocations = []
+        storedIsCut = false
+        storedPasteboardChangeCount = pasteboard.changeCount
+        NotificationCenter.default.post(name: Self.cutItemsDidChange, object: nil)
     }
 
     func clear() {

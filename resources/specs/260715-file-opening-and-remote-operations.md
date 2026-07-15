@@ -142,7 +142,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 
 - [x] **C16** Extend `ClipboardManager` and `FileListCell` with location-based pending-cut queries, remote row dimming, notifications, and an accessible cut description.
 - [x] **C17** Track user, automatic, restored, and operation-result selection origins and update `effectivePasteDestinationLocation` to use only one deliberately selected folder.
-- [ ] **C18** Keep remote cut state after cancellation or failure, clear it after successful move, retain copied items for repeated paste, and refresh affected panes through the coordinator.
+- [x] **C18** Keep remote cut state after cancellation or failure, clear it after successful move, retain copied items for repeated paste, and refresh affected panes through the coordinator.
 
 **Phase 5: Deterministic Test Surface and Build**
 
@@ -220,3 +220,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C15** Drop completion now feeds returned result locations into coordinated source and destination refreshes, so pane snapshots survive and visible results are selected without scrolling. Target highlighting clears on acceptance, rejection, drag exit, and session end; failed or partial operations refresh possible successes and use the queue's single aggregated error presentation.
 - **C16** Clipboard cut identity is now stored and queried as `Location`, with the URL API retained as a local compatibility view. Clipboard notifications update both local and remote cells; every pending-move row dims consistently and exposes a "pending move" accessibility label and paste help text.
 - **C17** Added explicit user, automatic, restored, and operation-result selection origins across outline, loading, reconciliation, filtering, sorting, and result selection. Paste targets exactly one user-selected folder; every other selection shape or origin uses the location displayed by the tab.
+- **C18** Clipboard paste now snapshots cut intent and its owning pasteboard generation. A thrown failure or cancellation leaves remote cut locations intact, a successful move clears only the clipboard entry it owns, an externally replaced pasteboard is never erased, copied locations remain reusable, and successful mutations already refresh every affected pane through the coordinator.
