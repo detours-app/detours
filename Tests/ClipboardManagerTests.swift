@@ -139,4 +139,70 @@ final class ClipboardManagerTests: XCTestCase {
         XCTAssertFalse(ClipboardManager.shared.hasItems)
         XCTAssertTrue(ClipboardManager.shared.locations.isEmpty)
     }
+
+    func testRemoteCutLocationsRemainRetryableUntilSuccess() async throws {
+        let hostID = UUID()
+        let source = Location.remote(hostID: hostID, path: "/Source/file.txt")
+        let destination = Location.remote(hostID: hostID, path: "/Destination")
+        let moved = Location.remote(hostID: hostID, path: "/Destination/file.txt")
+        let provider = RetryableCutProvider(movedLocation: moved)
+        FileOperationQueue.shared.registerRemoteFileProvider(provider, for: hostID)
+        defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: hostID) }
+        ClipboardManager.shared.cut(items: [source])
+
+        do {
+            _ = try await ClipboardManager.shared.paste(to: destination)
+            XCTFail("The first controlled move should fail")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Controlled move failure")
+        }
+
+        XCTAssertTrue(ClipboardManager.shared.isCut)
+        XCTAssertEqual(ClipboardManager.shared.locations, [source])
+        XCTAssertEqual(ClipboardManager.shared.cutItemLocations, Set([source]))
+
+        let result = try await ClipboardManager.shared.paste(to: destination)
+
+        XCTAssertEqual(result, [moved])
+        XCTAssertFalse(ClipboardManager.shared.isCut)
+        XCTAssertTrue(ClipboardManager.shared.locations.isEmpty)
+        XCTAssertTrue(ClipboardManager.shared.cutItemLocations.isEmpty)
+        let moveCallCount = await provider.moveCallCount()
+        XCTAssertEqual(moveCallCount, 2)
+    }
+}
+
+private actor RetryableCutProvider: FileProvider {
+    private let movedLocation: Location
+    private var moveCalls = 0
+
+    init(movedLocation: Location) {
+        self.movedLocation = movedLocation
+    }
+
+    func moveCallCount() -> Int { moveCalls }
+    func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] { [] }
+    func stat(_ location: Location) async throws -> LoadedFileEntry { throw FileProviderError.unsupportedOperation("stat") }
+    func copy(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+    func move(_ sources: [Location], to destination: Location) async throws -> [Location] {
+        moveCalls += 1
+        if moveCalls == 1 {
+            throw FileProviderError.unsupportedOperation("Controlled move failure")
+        }
+        return [movedLocation]
+    }
+    func delete(_ items: [Location]) async throws {}
+    func trash(_ items: [Location]) async throws -> [TrashedItem] { [] }
+    func restoreFromTrash(_ items: [TrashedItem]) async throws -> [Location] { [] }
+    func rename(_ item: Location, to newName: String) async throws -> Location { item }
+    func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location { items[0] }
+    func archiveExtract(_ archive: Location, password: String?) async throws -> Location { archive }
+    func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        FileProviderWatch(id: UUID(), location: location)
+    }
+    func unwatch(_ watch: FileProviderWatch) async {}
+    func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
+    func folderSize(for location: Location) async throws -> Int64 { 0 }
+    func readSymlink(_ location: Location) async throws -> Location { location }
+    func openForQuickLook(_ location: Location) async throws -> URL { URL(fileURLWithPath: "/tmp/unused") }
 }
