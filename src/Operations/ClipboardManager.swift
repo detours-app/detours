@@ -7,7 +7,7 @@ final class ClipboardManager {
 
     private let pasteboard = NSPasteboard.general
     private var storedLocations: [Location] = []
-    private var storedCutItemURLs: Set<URL> = []
+    private var storedCutItemLocations: Set<Location> = []
     private var storedIsCut = false
     private var storedPasteboardChangeCount = 0
 
@@ -18,7 +18,14 @@ final class ClipboardManager {
     }
 
     var cutItemURLs: Set<URL> {
-        hasActiveStoredLocations ? storedCutItemURLs : []
+        Set(cutItemLocations.compactMap { location in
+            guard case .local(let url) = location else { return nil }
+            return url
+        })
+    }
+
+    var cutItemLocations: Set<Location> {
+        hasActiveStoredLocations ? storedCutItemLocations : []
     }
 
     var items: [URL] {
@@ -59,7 +66,7 @@ final class ClipboardManager {
     func copy(items: [Location]) {
         write(locations: items)
         storedIsCut = false
-        storedCutItemURLs = []
+        storedCutItemLocations = []
         NotificationCenter.default.post(name: Self.cutItemsDidChange, object: nil)
     }
 
@@ -70,10 +77,7 @@ final class ClipboardManager {
     func cut(items: [Location]) {
         write(locations: items)
         storedIsCut = true
-        storedCutItemURLs = Set(items.compactMap { location in
-            if case .local(let url) = location { return url }
-            return nil
-        })
+        storedCutItemLocations = Set(items)
         NotificationCenter.default.post(name: Self.cutItemsDidChange, object: nil)
     }
 
@@ -90,28 +94,50 @@ final class ClipboardManager {
     func paste(to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
         let items = readLocations()
         guard !items.isEmpty else { return [] }
+        let operationIsCut = isCut
+        let owningPasteboardChangeCount = storedPasteboardChangeCount
 
         let pastedItems: [Location]
-        if isCut {
+        if operationIsCut {
             pastedItems = try await FileOperationQueue.shared.move(items: items, to: destination, undoManager: undoManager)
-            clear()
+            finishSuccessfulCutPaste(
+                owningPasteboardChangeCount: owningPasteboardChangeCount
+            )
         } else {
             pastedItems = try await FileOperationQueue.shared.copy(items: items, to: destination, undoManager: undoManager)
         }
         return pastedItems
     }
 
+    private func finishSuccessfulCutPaste(owningPasteboardChangeCount: Int) {
+        guard storedIsCut else { return }
+        if pasteboard.changeCount == owningPasteboardChangeCount {
+            clear()
+            return
+        }
+
+        storedLocations = []
+        storedCutItemLocations = []
+        storedIsCut = false
+        storedPasteboardChangeCount = pasteboard.changeCount
+        NotificationCenter.default.post(name: Self.cutItemsDidChange, object: nil)
+    }
+
     func clear() {
         pasteboard.clearContents()
         storedLocations = []
         storedIsCut = false
-        storedCutItemURLs = []
+        storedCutItemLocations = []
         storedPasteboardChangeCount = pasteboard.changeCount
         NotificationCenter.default.post(name: Self.cutItemsDidChange, object: nil)
     }
 
     func isItemCut(_ url: URL) -> Bool {
-        cutItemURLs.contains(url)
+        isItemCut(.local(url))
+    }
+
+    func isItemCut(_ location: Location) -> Bool {
+        cutItemLocations.contains(location)
     }
 
     // MARK: - Pasteboard

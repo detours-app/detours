@@ -1,6 +1,14 @@
 import AppKit
 
 extension FileListDataSource {
+    struct RemoteBranchReconciliation {
+        let directory: Location
+        let parentItem: FileItem?
+        let reconciledItems: [FileItem]
+        let insertedLocations: Set<Location>
+        let removedLocations: Set<Location>
+    }
+
     func loadDirectory(_ url: URL, preserveExpansion: Bool = false, iCloudListingMode: ICloudListingMode = .normal) {
         // Cancel any in-flight load and icon tasks
         cancelCurrentLoad()
@@ -227,6 +235,74 @@ extension FileListDataSource {
             placeholder = IconLoader.placeholderFileIcon
         }
         return FileItem(entry: entry, icon: placeholder)
+    }
+
+    func reconcileRemoteEntries(
+        _ entries: [LoadedFileEntry],
+        in directory: Location
+    ) -> RemoteBranchReconciliation? {
+        guard case .remote = directory else { return nil }
+
+        let parentItem: FileItem?
+        let existingItems: [FileItem]
+        if currentRemoteDirectoryForGit == directory {
+            parentItem = nil
+            existingItems = items
+        } else {
+            guard let foundParent = findItem(withLocation: directory, in: items) else { return nil }
+            parentItem = foundParent
+            existingItems = foundParent.children ?? []
+        }
+
+        var existingByLocation = Dictionary(
+            uniqueKeysWithValues: existingItems.map { ($0.location, $0) }
+        )
+        var insertedLocations: Set<Location> = []
+        var reconciledItems: [FileItem] = []
+        reconciledItems.reserveCapacity(entries.count)
+
+        for entry in entries {
+            if let existingItem = existingByLocation.removeValue(forKey: entry.location) {
+                existingItem.updateListingMetadata(from: makeFileItem(from: entry))
+                existingItem.gitStatus = remoteGitStatuses[entry.location]
+                reconciledItems.append(existingItem)
+            } else {
+                let newItem = makeFileItem(from: entry)
+                newItem.gitStatus = remoteGitStatuses[entry.location]
+                insertedLocations.insert(entry.location)
+                reconciledItems.append(newItem)
+            }
+        }
+
+        reconciledItems = FileItem.sorted(
+            reconciledItems,
+            by: sortDescriptor,
+            foldersOnTop: SettingsManager.shared.foldersOnTop
+        )
+        for item in reconciledItems {
+            item.parent = parentItem
+        }
+
+        if let parentItem {
+            parentItem.children = reconciledItems
+        } else {
+            items = reconciledItems
+        }
+        staleRemoteDirectories.remove(directory)
+        _cachedFilteredItems = nil
+
+        return RemoteBranchReconciliation(
+            directory: directory,
+            parentItem: parentItem,
+            reconciledItems: reconciledItems,
+            insertedLocations: insertedLocations,
+            removedLocations: Set(existingByLocation.keys)
+        )
+    }
+
+    func markRemoteDirectoryStale(_ directory: Location) {
+        guard case .remote = directory else { return }
+        staleRemoteDirectories.insert(directory)
     }
 
     private func loadICloudRootItems(mobileDocsURL: URL, showHidden: Bool) async throws -> [FileItem] {

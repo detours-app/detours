@@ -18,6 +18,10 @@ enum UITestEnvironment {
     static let duplicateStructureDismissedFileName = ".detours-duplicate-structure-dismissed.json"
     static let appearanceSettingsCommandFileName = ".detours-appearance-settings.json"
     static let appearanceSettingsAcknowledgementFileName = ".detours-appearance-settings-applied.json"
+    static let paneStateRequestFileName = ".detours-pane-state-request.json"
+    static let paneStateResponseFileName = ".detours-pane-state-response.json"
+    static let openedItemsHistoryFileName = ".detours-opened-items-history.json"
+    static let remoteMutationCommandFileName = ".detours-remote-mutation-command.json"
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
@@ -71,6 +75,17 @@ enum UITestEnvironment {
         let fileListRowDensity: String
     }
 
+    struct PaneStateRequest: Decodable {
+        let id: String
+        let pane: String
+    }
+
+    struct RemoteMutationCommand: Decodable {
+        let id: String
+        let sourcePath: String
+        let newName: String
+    }
+
     struct ShowNetworkShareDialogAcknowledgement: Encodable {
         let id: String
     }
@@ -106,6 +121,25 @@ enum UITestEnvironment {
         let failure: String?
     }
 
+    struct PaneStateResponse: Encodable {
+        let id: String
+        let pane: String
+        let displayedLocation: String?
+        let expandedLocations: [String]
+        let selectedLocations: [String]
+        let topVisibleLocation: String?
+        let topVisibleOffset: Double
+        let horizontalOffset: Double
+        let focus: String
+        let filterText: String
+        let filterVisible: Bool
+        let sortColumn: String
+        let sortAscending: Bool
+        let activeDropTarget: String?
+        let refreshInFlight: Bool
+        let visibleRowCount: Int
+    }
+
     static var isEnabled: Bool {
         guard let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"] else {
             return false
@@ -132,6 +166,21 @@ enum UITestEnvironment {
     static var disablesInlineRename: Bool {
         guard isEnabled else { return false }
         return ProcessInfo.processInfo.environment["DETOURS_UI_TEST_DISABLE_INLINE_RENAME"] == "1"
+    }
+
+    static var recordsOpenedItems: Bool {
+        guard isEnabled else { return false }
+        return ProcessInfo.processInfo.environment["DETOURS_UI_TEST_RECORD_OPENS"] == "1"
+    }
+
+    static var mirrorsRemoteInBothPanes: Bool {
+        guard isEnabled else { return false }
+        return ProcessInfo.processInfo.environment["DETOURS_UI_TEST_REMOTE_BOTH_PANES"] == "1"
+    }
+
+    static var usesSecondRemoteHost: Bool {
+        guard isEnabled else { return false }
+        return ProcessInfo.processInfo.environment["DETOURS_UI_TEST_REMOTE_SECOND_HOST"] == "1"
     }
 
     /// Stable host identity for the UI-test remote so the seam and tests agree on the display name.
@@ -225,6 +274,22 @@ enum UITestEnvironment {
 
     static var appearanceSettingsAcknowledgementURL: URL? {
         rootDirectory?.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
+    }
+
+    static var paneStateRequestURL: URL? {
+        rootDirectory?.appendingPathComponent(paneStateRequestFileName)
+    }
+
+    static var paneStateResponseURL: URL? {
+        rootDirectory?.appendingPathComponent(paneStateResponseFileName)
+    }
+
+    static var openedItemsHistoryURL: URL? {
+        rootDirectory?.appendingPathComponent(openedItemsHistoryFileName)
+    }
+
+    static var remoteMutationCommandURL: URL? {
+        rootDirectory?.appendingPathComponent(remoteMutationCommandFileName)
     }
 
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
@@ -327,6 +392,26 @@ enum UITestEnvironment {
         return try? JSONDecoder().decode(AppearanceSettingsCommand.self, from: data)
     }
 
+    static func currentPaneStateRequest() -> PaneStateRequest? {
+        guard let url = paneStateRequestURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(PaneStateRequest.self, from: data)
+    }
+
+    static func currentRemoteMutationCommand() -> RemoteMutationCommand? {
+        guard let url = remoteMutationCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(RemoteMutationCommand.self, from: data)
+    }
+
     static func acknowledgeShowNetworkShareDialogCommand(id: String) {
         guard let url = showNetworkShareDialogAcknowledgementURL,
               let data = try? JSONEncoder().encode(ShowNetworkShareDialogAcknowledgement(id: id)) else {
@@ -401,6 +486,26 @@ enum UITestEnvironment {
             return
         }
 
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func writePaneStateResponse(_ response: PaneStateResponse) {
+        guard let url = paneStateResponseURL,
+              let data = try? JSONEncoder().encode(response) else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func recordOpenedItem(_ name: String) {
+        guard recordsOpenedItems, let url = openedItemsHistoryURL else { return }
+        var names: [String] = []
+        if let data = try? Data(contentsOf: url) {
+            names = (try? JSONDecoder().decode([String].self, from: data)) ?? []
+        }
+        names.append(name)
+        guard let data = try? JSONEncoder().encode(names) else { return }
         try? data.write(to: url, options: .atomic)
     }
 }

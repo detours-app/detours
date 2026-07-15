@@ -57,13 +57,23 @@ extension FileListViewController {
         Task { @MainActor in
             do {
                 let pastedLocations = try await ClipboardManager.shared.paste(to: pasteDestination, undoManager: undoManager)
-                refreshSelectingLocations(pastedLocations, expandingTo: locationToExpand)
+                if currentRemoteLocation != nil {
+                    requestRemoteMutationRefreshes(
+                        affectedDirectories: locationsToRefresh,
+                        preferredResultLocations: Set(pastedLocations)
+                    )
+                } else {
+                    refreshSelectingLocations(pastedLocations, expandingTo: locationToExpand)
+                }
                 // Refresh other pane if showing affected directories
                 if !localDirectoriesToRefresh.isEmpty {
                     navigationDelegate?.fileListDidRequestRefreshSourceDirectories(localDirectoriesToRefresh)
                 }
                 if hasRemoteRefreshLocation {
-                    navigationDelegate?.fileListDidRequestRefreshSourceLocations(locationsToRefresh)
+                    navigationDelegate?.fileListDidRequestRefreshSourceLocations(
+                        locationsToRefresh,
+                        preferredResultLocations: Set(pastedLocations)
+                    )
                 }
                 // Keep focus on destination pane (where we pasted)
                 view.window?.makeFirstResponder(tableView)
@@ -107,7 +117,11 @@ extension FileListViewController {
         Task { @MainActor in
             do {
                 try await FileOperationQueue.shared.delete(items: locations, undoManager: undoManager)
-                reloadAfterDeleting(fallbackLocation: fallbackLocation, selectedIndex: selectedIndex)
+                reloadAfterDeleting(
+                    deletedLocations: locations,
+                    fallbackLocation: fallbackLocation,
+                    selectedIndex: selectedIndex
+                )
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -164,27 +178,44 @@ extension FileListViewController {
         Task { @MainActor in
             do {
                 try await FileOperationQueue.shared.deleteImmediately(items: locations)
-                reloadAfterDeleting(fallbackLocation: fallbackLocation, selectedIndex: selectedIndex)
+                reloadAfterDeleting(
+                    deletedLocations: locations,
+                    fallbackLocation: fallbackLocation,
+                    selectedIndex: selectedIndex
+                )
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
         }
     }
 
-    private func reloadAfterDeleting(fallbackLocation: Location, selectedIndex: Int) {
+    private func reloadAfterDeleting(
+        deletedLocations: [Location],
+        fallbackLocation: Location,
+        selectedIndex: Int
+    ) {
         dataSource.invalidateGitStatus()
         pendingPostLoadAction = { [weak self] in
             guard let self else { return }
             let rowCount = self.tableView.numberOfRows
             if rowCount > 0 && selectedIndex >= 0 {
                 let newIndex = min(selectedIndex, rowCount - 1)
-                self.tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                self.tableView.selectRowIndexes(
+                    IndexSet(integer: newIndex),
+                    byExtendingSelection: false,
+                    origin: .operationResult
+                )
                 self.tableView.scrollRowToVisible(newIndex)
             }
         }
 
-        if let currentRemoteLocation, let currentRemoteProvider {
-            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
+        if currentRemoteLocation != nil {
+            let affectedDirectories = Set(deletedLocations.map { $0.deletingLastPathComponent() })
+            requestRemoteMutationRefreshes(affectedDirectories: affectedDirectories)
+            navigationDelegate?.fileListDidRequestRefreshSourceLocations(
+                affectedDirectories,
+                preferredResultLocations: []
+            )
             return
         }
 
@@ -444,12 +475,19 @@ extension FileListViewController {
 
     /// Selects the item at the given URL. Returns true if found and selected, false otherwise.
     @discardableResult
-    func selectItem(at url: URL) -> Bool {
+    func selectItem(
+        at url: URL,
+        origin: FileListSelectionOrigin = .operationResult
+    ) -> Bool {
         // Search entire tree including expanded folders
         if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
             let row = tableView.row(forItem: item)
             if row >= 0 {
-                tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                tableView.selectRowIndexes(
+                    IndexSet(integer: row),
+                    byExtendingSelection: false,
+                    origin: origin
+                )
                 tableView.scrollRowToVisible(row)
                 return true
             }

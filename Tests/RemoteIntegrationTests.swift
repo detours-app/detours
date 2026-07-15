@@ -636,6 +636,85 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(message, "Remote symbolic link \"missing-link\" is broken or unreachable")
     }
 
+    func testSameHostCopyAndMoveThroughRealHelper() async throws {
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH(
+            "mkdir \(Self.shellQuote(remoteRoot + "/copy-destination")) "
+                + "\(Self.shellQuote(remoteRoot + "/move-destination")); "
+                + "printf copy-body > \(Self.shellQuote(remoteRoot + "/copy-source.txt")); "
+                + "printf move-body > \(Self.shellQuote(remoteRoot + "/move-source.txt"))"
+        )
+        let copySource = Location.remote(hostID: session.hostID, path: remoteRoot + "/copy-source.txt")
+        let moveSource = Location.remote(hostID: session.hostID, path: remoteRoot + "/move-source.txt")
+        let copyDestination = Location.remote(hostID: session.hostID, path: remoteRoot + "/copy-destination")
+        let moveDestination = Location.remote(hostID: session.hostID, path: remoteRoot + "/move-destination")
+
+        let copied = try await session.provider.copy([copySource], to: copyDestination)
+        let moved = try await session.provider.move([moveSource], to: moveDestination)
+
+        XCTAssertEqual(copied, [copyDestination.appendingPathComponent("copy-source.txt")])
+        XCTAssertEqual(moved, [moveDestination.appendingPathComponent("move-source.txt")])
+        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(copied[0].path))"), "copy-body")
+        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(moved[0].path))"), "move-body")
+        XCTAssertTrue(try Self.remotePathExists(copySource.path))
+        XCTAssertFalse(try Self.remotePathExists(moveSource.path))
+    }
+
+    @MainActor
+    func testLocalRemoteAndCrossHostFolderTransfers() async throws {
+        let sessionA = try RemoteIntegrationSession.make()
+        let sessionB = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH(
+            "mkdir -p \(Self.shellQuote(remoteRoot + "/to-remote")) "
+                + "\(Self.shellQuote(remoteRoot + "/remote-folder")) "
+                + "\(Self.shellQuote(remoteRoot + "/cross-source")) "
+                + "\(Self.shellQuote(remoteRoot + "/cross-destination")); "
+                + "printf remote-folder-body > \(Self.shellQuote(remoteRoot + "/remote-folder/nested.txt")); "
+                + "printf cross-host-body > \(Self.shellQuote(remoteRoot + "/cross-source/child.txt"))"
+        )
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let localFolder = try createTestFolder(in: localRoot, name: "local-folder")
+        _ = try createTestFile(in: localFolder, name: "nested.txt", content: "local-folder-body")
+        let localDestination = try createTestFolder(in: localRoot, name: "from-remote")
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(sessionA.provider, for: sessionA.hostID)
+        queue.registerRemoteFileProvider(sessionB.provider, for: sessionB.hostID)
+        defer {
+            queue.unregisterRemoteFileProvider(for: sessionA.hostID)
+            queue.unregisterRemoteFileProvider(for: sessionB.hostID)
+        }
+
+        let remoteDestination = Location.remote(hostID: sessionA.hostID, path: remoteRoot + "/to-remote")
+        let localToRemote = try await queue.copy(items: [.local(localFolder)], to: remoteDestination)
+        let remoteFolder = Location.remote(hostID: sessionA.hostID, path: remoteRoot + "/remote-folder")
+        let remoteToLocal = try await queue.copy(items: [remoteFolder], to: .local(localDestination))
+        let crossSource = Location.remote(hostID: sessionA.hostID, path: remoteRoot + "/cross-source")
+        let crossDestination = Location.remote(hostID: sessionB.hostID, path: remoteRoot + "/cross-destination")
+        let crossHost = try await queue.copy(items: [crossSource], to: crossDestination)
+
+        XCTAssertEqual(localToRemote, [remoteDestination.appendingPathComponent("local-folder")])
+        XCTAssertEqual(
+            try Self.runSSH("cat \(Self.shellQuote(localToRemote[0].path + "/nested.txt"))"),
+            "local-folder-body"
+        )
+        XCTAssertEqual(remoteToLocal, [.local(localDestination.appendingPathComponent("remote-folder"))])
+        XCTAssertEqual(
+            try String(contentsOf: remoteToLocal[0].url.appendingPathComponent("nested.txt"), encoding: .utf8),
+            "remote-folder-body"
+        )
+        XCTAssertEqual(crossHost, [crossDestination.appendingPathComponent("cross-source")])
+        XCTAssertEqual(
+            try Self.runSSH("cat \(Self.shellQuote(crossHost[0].path + "/child.txt"))"),
+            "cross-host-body"
+        )
+        XCTAssertTrue(try Self.remotePathExists(crossSource.path + "/child.txt"))
+    }
+
     private static func makeRemoteFixtureRoot() throws -> String {
         try makeRemoteFixtureRoot(target: "devtest")
     }

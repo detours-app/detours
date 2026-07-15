@@ -32,18 +32,18 @@ final class FileItem {
         if case .remote = location { return true }
         return false
     }
-    let isDirectory: Bool
-    let isPackage: Bool
-    let isAliasFile: Bool
-    let isSymbolicLink: Bool
-    let isReadable: Bool
-    let isHiddenFile: Bool
-    let size: Int64?
-    let dateModified: Date
+    var isDirectory: Bool
+    var isPackage: Bool
+    var isAliasFile: Bool
+    var isSymbolicLink: Bool
+    var isReadable: Bool
+    var isHiddenFile: Bool
+    var size: Int64?
+    var dateModified: Date
     var icon: NSImage
-    let sharedRole: SharedItemRole?
-    let isVirtualSharedFolder: Bool
-    let iCloudStatus: ICloudStatus
+    var sharedRole: SharedItemRole?
+    var isVirtualSharedFolder: Bool
+    var iCloudStatus: ICloudStatus
     var gitStatus: GitStatus?
 
     // Tree support for folder expansion
@@ -319,6 +319,21 @@ final class FileItem {
 
     // MARK: - Tree Operations
 
+    func updateListingMetadata(from updatedItem: FileItem) {
+        guard location == updatedItem.location else { return }
+        isDirectory = updatedItem.isDirectory
+        isPackage = updatedItem.isPackage
+        isAliasFile = updatedItem.isAliasFile
+        isSymbolicLink = updatedItem.isSymbolicLink
+        isReadable = updatedItem.isReadable
+        isHiddenFile = updatedItem.isHiddenFile
+        size = updatedItem.size
+        dateModified = updatedItem.dateModified
+        sharedRole = updatedItem.sharedRole
+        isVirtualSharedFolder = updatedItem.isVirtualSharedFolder
+        iCloudStatus = updatedItem.iCloudStatus
+    }
+
     /// Loads children for this directory. Returns nil for files.
     /// Empty array means directory is empty (not same as nil which means not loaded).
     /// If children are already loaded, returns existing children without reloading.
@@ -467,17 +482,27 @@ extension FileItem {
         }
     }
 
-    /// Returns the resolved directory URL if this item can accept dropped files.
-    /// For directories, returns self.url. For Finder aliases to directories, returns the resolved target.
+    /// Returns the resolved directory location if this item can accept dropped files.
+    /// For directories, returns its location. For local Finder aliases to directories, returns the resolved target.
     /// Returns nil if this item is not a valid drop target.
-    var dropDestination: URL? {
+    var dropDestinationLocation: Location? {
         guard !isVirtualSharedFolder else { return nil }
+        if isDirectory { return location }
         guard case .local(let url) = location else { return nil }
-        if isDirectory { return url }
         guard isAliasFile else { return nil }
         guard let resolved = try? URL(resolvingAliasFileAt: url, options: [.withoutUI, .withoutMounting]) else { return nil }
         let isDir = (try? resolved.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-        return isDir ? resolved : nil
+        return isDir ? .local(resolved) : nil
+    }
+
+    var isWritableDropDestination: Bool {
+        guard let destination = dropDestinationLocation else { return false }
+        switch destination {
+        case .local(let url):
+            return FileManager.default.isWritableFile(atPath: url.path)
+        case .remote:
+            return isReadable
+        }
     }
 
     /// Sorts items by the given descriptor with optional folders-on-top grouping.

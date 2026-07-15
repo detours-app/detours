@@ -8,7 +8,7 @@ final class FileListCell: NSTableCellView {
     private let lockIcon = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
     private let sharedLabel = NSTextField(labelWithString: "")
-    private var itemURL: URL?
+    private var itemLocation: Location?
     private var isDropTarget: Bool = false
     private var isHiddenFile: Bool = false
     private var isNavigableFolder: Bool = false
@@ -198,11 +198,7 @@ final class FileListCell: NSTableCellView {
     }
 
     func configure(with item: FileItem, isDropTarget: Bool = false) {
-        if case .local(let url) = item.location {
-            itemURL = url
-        } else {
-            itemURL = nil
-        }
+        itemLocation = item.location
         self.isDropTarget = isDropTarget
         self.isHiddenFile = item.isHiddenFile
         self.isNavigableFolder = item.isNavigableFolder
@@ -317,8 +313,8 @@ final class FileListCell: NSTableCellView {
     }
 
     private func updateCutAppearance() {
-        guard let url = itemURL else { return }
-        let isCut = ClipboardManager.shared.isItemCut(url)
+        guard let itemLocation else { return }
+        let isCut = ClipboardManager.shared.isItemCut(itemLocation)
         // Cut items at 0.5, hidden files at 0.6, normal at 1.0
         let alpha: CGFloat
         if isCut {
@@ -336,6 +332,8 @@ final class FileListCell: NSTableCellView {
         lockIcon.alphaValue = alpha
         nameLabel.alphaValue = alpha
         sharedLabel.alphaValue = alpha
+        setAccessibilityLabel(isCut ? "\(itemName), pending move" : itemName)
+        setAccessibilityHelp(isCut ? "This item will move when you paste it." : nil)
     }
 
     deinit {

@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class RemoteDragOutTests: XCTestCase {
-    func testRemoteFileDragUsesFilePromiseProvider() {
+    func testRemoteFileDragStillUsesFilePromiseProvider() {
         let hostID = UUID()
         let item = FileItem(
             name: "remote.txt",

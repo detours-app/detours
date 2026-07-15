@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### File Opening and Remote Operations
+
+- **Open acts on the complete selection** - Enter, Command-O, Command-Down,
+  double-click, and the Open menu now share one action classifier, open every
+  selected ordinary file in pane order, confirm large batches, and summarize
+  failures without stopping successful opens.
+- **Remote panes stay stable during file work** - Copy, move, rename, paste,
+  delete, and watcher updates reconcile affected folders in place while
+  preserving expansion, selection, scrolling, focus, sorting, and filters.
+- **Remote drag-and-drop works across panes and hosts** - Files and folders can
+  move within a host or copy across local, remote, and host boundaries, with
+  standard Option and Command overrides and visible valid drop targets, without
+  opening every folder crossed during a drag.
+- **Completed transfers reveal their result** - F5 uses the pane that owns
+  keyboard focus, and a successful copy into a selected closed folder opens the
+  destination and reveals the copied item.
+- **Remote cut-and-paste is retryable** - Remote rows expose an accessible
+  pending-move state, deliberate folder selections control paste destinations,
+  and a failed paste keeps the cut available for another attempt.
+
 ## 1.10.1 - 2026-07-14
 
 ### Bug Fixes

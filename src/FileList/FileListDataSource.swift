@@ -216,9 +216,15 @@ final class InactiveHidingRowView: NSTableRowView {
 
 @MainActor
 protocol FileListDropDelegate: AnyObject {
-    func handleDrop(urls: [URL], to destination: URL, isCopy: Bool)
+    func handleDrop(
+        locations: [Location],
+        to destination: Location,
+        operation: FileDropOperation
+    )
     func pasteboardWriter(for item: FileItem) -> (any NSPasteboardWriting)?
-    var currentDirectoryURL: URL? { get }
+    func beginInternalDrag(items: [FileItem], on pasteboard: NSPasteboard)
+    func endInternalDrag(on pasteboard: NSPasteboard)
+    var currentDirectoryLocation: Location? { get }
 }
 
 @MainActor
@@ -256,6 +262,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             }
         }
     }
+
+    /// True while AppKit is validating an in-progress drag over this outline.
+    /// Drag hover is only a destination preview; it must never spring-load or
+    /// expand folders as the pointer crosses them.
+    var isDropHoverActive = false
 
     private func updateDropTargetRow(_ item: FileItem, isDropTarget: Bool) {
         let row = outlineView?.row(forItem: item) ?? -1
@@ -302,6 +313,9 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     /// NSOutlineView may ask to expand the same item repeatedly while a reload is in
     /// progress; only one enumeration may be active for an item at a time.
     var pendingChildLoads: Set<ObjectIdentifier> = []
+
+    /// Remote directories whose loaded children must be fetched on their next expansion.
+    var staleRemoteDirectories: Set<Location> = []
 
     /// Callback for when async load starts (used by FileListViewController for loading state)
     var onLoadStarted: (() -> Void)?

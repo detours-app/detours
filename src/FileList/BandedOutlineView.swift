@@ -10,6 +10,13 @@ protocol FileListContextMenuDelegate: AnyObject {
     func buildContextMenu(for selection: IndexSet, clickedRow: Int) -> NSMenu?
 }
 
+enum FileListSelectionOrigin {
+    case user
+    case automatic
+    case restored
+    case operationResult
+}
+
 // MARK: - Themed Header View
 
 /// Header view that draws themed background
@@ -74,6 +81,36 @@ final class BandedOutlineView: NSOutlineView {
     weak var keyHandler: FileListKeyHandling?
     weak var contextMenuDelegate: FileListContextMenuDelegate?
     var onActivate: (() -> Void)?
+    var onSelectionOriginChange: ((FileListSelectionOrigin) -> Void)?
+    var isBackgroundDropTarget = false {
+        didSet {
+            if isBackgroundDropTarget != oldValue {
+                needsDisplay = true
+            }
+        }
+    }
+    private(set) var activeSelectionOrigin: FileListSelectionOrigin?
+    private(set) var latestSelectionOrigin: FileListSelectionOrigin = .automatic
+
+    override func selectRowIndexes(
+        _ indexes: IndexSet,
+        byExtendingSelection extend: Bool
+    ) {
+        let origin = activeSelectionOrigin ?? .user
+        latestSelectionOrigin = origin
+        onSelectionOriginChange?(origin)
+        super.selectRowIndexes(indexes, byExtendingSelection: extend)
+    }
+
+    func selectRows(
+        _ indexes: IndexSet,
+        byExtendingSelection extend: Bool,
+        origin: FileListSelectionOrigin
+    ) {
+        activeSelectionOrigin = origin
+        selectRowIndexes(indexes, byExtendingSelection: extend)
+        activeSelectionOrigin = nil
+    }
 
     /// Currently hovered row (-1 = none)
     private var hoveredRow: Int = -1
@@ -294,6 +331,31 @@ final class BandedOutlineView: NSOutlineView {
             }
             y += rowH
             idx += 1
+        }
+
+        if isBackgroundDropTarget {
+            theme.accent.withAlphaComponent(0.10).setFill()
+            clipRect.fill()
+            theme.accent.withAlphaComponent(0.65).setStroke()
+            NSBezierPath(rect: bounds.insetBy(dx: 1, dy: 1)).stroke()
+        }
+    }
+}
+
+extension NSOutlineView {
+    func selectRowIndexes(
+        _ indexes: IndexSet,
+        byExtendingSelection extend: Bool,
+        origin: FileListSelectionOrigin
+    ) {
+        if let bandedOutlineView = self as? BandedOutlineView {
+            bandedOutlineView.selectRows(
+                indexes,
+                byExtendingSelection: extend,
+                origin: origin
+            )
+        } else {
+            selectRowIndexes(indexes, byExtendingSelection: extend)
         }
     }
 }

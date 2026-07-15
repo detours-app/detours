@@ -171,25 +171,33 @@ final class RemoteUISurfaceTests: XCTestCase {
         XCTAssertEqual(cell.textField?.stringValue, "remote.txt")
     }
 
-    func testEnterOnRemoteFileDoesNotRequestLocalURL() {
+    func testEnterOnRemoteFileDispatchesOrdinaryOpenWithoutChangingSelection() {
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        viewController.dataSource.items = [
-            FileItem(
-                name: "remote.txt",
-                location: .remote(hostID: UUID(), path: "/home/maf/remote.txt"),
-                isDirectory: false,
-                size: 12,
-                dateModified: Date(),
-                icon: NSImage()
-            ),
-        ]
+        let remoteItem = FileItem(
+            name: "remote.txt",
+            location: .remote(hostID: UUID(), path: "/home/maf/remote.txt"),
+            isDirectory: false,
+            size: 12,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+        var openedItem: FileItem?
+        var openAction: FileItemOpenAction?
+        viewController.openingActionOverride = { item, action in
+            openedItem = item
+            openAction = action
+            return .success(())
+        }
+        viewController.dataSource.items = [remoteItem]
         viewController.tableView.reloadData()
         viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         let event = makeKeyEvent(characters: "\r", keyCode: 36)
 
         XCTAssertTrue(viewController.handleKeyDown(event))
+        XCTAssertTrue(openedItem === remoteItem)
+        XCTAssertEqual(openAction, .ordinaryFile)
         XCTAssertEqual(viewController.tableView.selectedRow, 0)
     }
 

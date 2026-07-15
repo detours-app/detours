@@ -16,7 +16,11 @@ extension FileListViewController: FilterBarDelegate {
     func filterBarDidRequestFocusList(_ filterBar: FilterBarView) {
         view.window?.makeFirstResponder(tableView)
         if tableView.selectedRow < 0 && tableView.numberOfRows > 0 {
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            tableView.selectRowIndexes(
+                IndexSet(integer: 0),
+                byExtendingSelection: false,
+                origin: .automatic
+            )
         }
     }
 }

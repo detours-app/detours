@@ -125,11 +125,13 @@ enum FileOpenHelper {
     /// Opens a file with the appropriate method.
     /// Uses hdiutil for disk images (workaround for macOS Sequoia bug where NSWorkspace.open doesn't mount DMGs)
     @MainActor
-    static func open(_ url: URL) {
+    @discardableResult
+    static func open(_ url: URL) -> Bool {
         if isDiskImage(url) {
             mountDiskImage(url)
+            return true
         } else {
-            NSWorkspace.shared.open(url)
+            return NSWorkspace.shared.open(url)
         }
     }
 

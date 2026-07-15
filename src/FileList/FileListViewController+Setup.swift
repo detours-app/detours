@@ -126,7 +126,11 @@ extension FileListViewController {
         }
 
         if !rowIndexes.isEmpty {
-            tableView.selectRowIndexes(rowIndexes, byExtendingSelection: false)
+            tableView.selectRowIndexes(
+                rowIndexes,
+                byExtendingSelection: false,
+                origin: .restored
+            )
         }
     }
 
@@ -150,6 +154,7 @@ extension FileListViewController {
         // Note: fileListDidBecomeActive() is NOT called here because selection can change
         // programmatically (git status, refresh, session restore) and we only want to
         // change active pane on USER interaction. User clicks trigger onActivate instead.
+        selectionOrigin = tableView.latestSelectionOrigin
         navigationDelegate?.fileListDidChangeSelection()
         if let panel = QLPreviewPanel.shared(), panel.isVisible {
             refreshQuickLookPanel()
@@ -225,30 +230,8 @@ extension FileListViewController {
 
     @objc private func tableViewDidDoubleClick(_ sender: Any?) {
         let row = tableView.clickedRow
-        guard row >= 0 else { return }
-        handleDoubleClick(row: row)
-    }
-
-    private func handleDoubleClick(row: Int) {
         guard row >= 0, let item = dataSource.item(at: row) else { return }
-
-        if case .remote = item.location {
-            openRemoteItem(item)
-        } else if item.isVirtualSharedFolder {
-            navigationDelegate?.fileListDidRequestICloudSharedNavigation(cloudDocsURL: item.url)
-        } else if item.isNavigableFolder {
-            navigationDelegate?.fileListDidRequestNavigation(to: item.url)
-        } else if CompressionTools.isExtractable(item.url) {
-            tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-            extractSelectedArchive()
-        } else if FileOpenHelper.isDiskImage(item.url) {
-            Task { @MainActor in
-                guard let mountPoint = await FileOpenHelper.openAndMount(item.url) else { return }
-                navigationDelegate?.fileListDidRequestNavigation(to: mountPoint)
-            }
-        } else {
-            FileOpenHelper.open(item.url)
-        }
+        open(items: [item], focusedItem: item)
     }
 
     func openRemoteItem(_ item: FileItem, applicationURL: URL? = nil) {

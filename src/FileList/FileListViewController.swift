@@ -25,6 +25,15 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidLoadDirectory(_ controller: FileListViewController)
 }
 
+extension FileListNavigationDelegate {
+    func fileListDidRequestRefreshSourceLocations(
+        _ locations: Set<Location>,
+        preferredResultLocations: Set<Location>
+    ) {
+        fileListDidRequestRefreshSourceLocations(locations)
+    }
+}
+
 final class FileListViewController: NSViewController, FileListKeyHandling, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     let tableView = BandedOutlineView()
     let scrollView = NSScrollView()
@@ -40,17 +49,19 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var currentICloudListingMode: ICloudListingMode = .normal
     var hasLoadedDirectory = false
     let renameController = RenameController()
-    var providerWatches: [URL: ProviderWatchRecord] = [:]
+    var providerWatches: [Location: ProviderWatchRecord] = [:]
     var currentRemoteHost: RemoteHost?
     var currentRemoteLocation: Location?
     var currentRemoteProvider: (any FileProvider)?
     var remoteInfoWindows: [RemoteInfoWindowController] = []
     var directoryWatchTask: Task<Void, Never>?
     var directoryChangeDebounce: DispatchWorkItem?
+    var remoteRefreshCoordinator: RemoteRefreshCoordinator?
     /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
     var pendingPostLoadAction: (() -> Void)?
     var selectionAnchor: Int?
     var selectionCursor: Int?
+    var selectionOrigin: FileListSelectionOrigin = .automatic
     /// Tracks whether folder expansion was enabled before the last settings change
     var wasFolderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
     /// Tracks the density applied to the table before the last settings change
@@ -70,6 +81,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     // Loading state
     var loadingSpinner: NSProgressIndicator?
     var errorOverlay: NSView?
+    var remoteRefreshErrorBanner: NSView?
+    var failedRemoteRefreshRequest: RemoteRefreshRequest?
     var quickLookPreviewItems: [DetoursQuickLookItem] = []
     var quickLookGenerationTask: Task<Void, Never>?
     var quickLookRequestID = UUID()
@@ -78,6 +91,12 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var remoteQuickLookRequestLocation: Location?
     weak var remoteQuickLookProgressOverlay: NSView?
     var suppressLoadingSpinner = false
+
+    // Injectable opening collaborators keep keyboard and menu entry-point tests from launching
+    // external applications. Production leaves these nil and uses the normal UI and open paths.
+    var openingConfirmationOverride: FileItemOpeningDispatcher.ConfirmationHandler?
+    var openingActionOverride: FileItemOpeningDispatcher.ActionPerformer?
+    var openingResultObserver: ((FileItemOpenBatchResult) -> Void)?
 
     // Filter bar
     let filterBar = FilterBarView()
@@ -101,6 +120,25 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        remoteRefreshCoordinator = RemoteRefreshCoordinator(
+            debounceInterval: 0.1,
+            fetch: { [weak self] request in
+                guard let self, let provider = self.currentRemoteProvider else {
+                    throw RemoteRefreshCoordinatorError.providerUnavailable
+                }
+                return try await provider.list(
+                    request.directory,
+                    showHidden: self.dataSource.showHiddenFiles
+                )
+            },
+            apply: { [weak self] snapshot in
+                self?.applyRemoteRefresh(snapshot)
+            },
+            handleFailure: { [weak self] request, error in
+                self?.showRemoteRefreshError(request: request, error: error)
+            }
+        )
+
         setupScrollView()
         setupTableView()
         setupColumns()
@@ -110,6 +148,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         tableView.contextMenuDelegate = self
         tableView.onActivate = { [weak self] in
             self?.navigationDelegate?.fileListDidBecomeActive()
+        }
+        tableView.onSelectionOriginChange = { [weak self] origin in
+            self?.selectionOrigin = origin
+        }
+        if UITestEnvironment.recordsOpenedItems {
+            openingActionOverride = { item, _ in
+                UITestEnvironment.recordOpenedItem(item.name)
+                return .success(())
+            }
         }
         renameController.delegate = self
         renameController.onSwitchPane = { [weak self] in

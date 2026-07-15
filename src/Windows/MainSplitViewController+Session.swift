@@ -106,8 +106,39 @@ extension MainSplitViewController {
             kind: isWindowsFailureMode ? .windows : nil
         )
         let provider = UITestRemoteProvider(hostID: host.id, base: root)
+        FileOperationQueue.shared.registerRemoteFileProvider(
+            provider,
+            for: host.id,
+            displayName: host.displayName
+        )
         guard let tab = leftPane.selectedTab else { return }
         tab.fileListViewController.loadRemoteDirectory(host: host, path: "/", provider: provider)
+        if UITestEnvironment.mirrorsRemoteInBothPanes,
+           let rightTab = rightPane.selectedTab {
+            rightTab.fileListViewController.loadRemoteDirectory(
+                host: host,
+                path: "/",
+                provider: provider
+            )
+        } else if UITestEnvironment.usesSecondRemoteHost,
+                  let rightTab = rightPane.selectedTab {
+            let secondHost = RemoteHost(
+                displayName: "UITest Server 2",
+                sshTarget: "uitest-2@localhost"
+            )
+            let secondProvider = UITestRemoteProvider(hostID: secondHost.id, base: root)
+            FileOperationQueue.shared.registerRemoteFileProvider(
+                secondProvider,
+                for: secondHost.id,
+                displayName: secondHost.displayName
+            )
+            rightTab.fileListViewController.loadRemoteDirectory(
+                host: secondHost,
+                path: "/",
+                provider: secondProvider
+            )
+            RemoteConnectionStateStore.shared.setState(.connected, for: secondHost.id)
+        }
         switch mode {
         case .connected:
             RemoteConnectionStateStore.shared.setState(.connected, for: host.id)

@@ -4,6 +4,7 @@ extension FileListDataSource {
     // MARK: - Expansion Events
 
     func outlineView(_ outlineView: NSOutlineView, shouldExpandItem item: Any) -> Bool {
+        guard !isDropHoverActive else { return false }
         guard let fileItem = item as? FileItem else { return false }
 
         if fileItem.isVirtualSharedFolder {
@@ -11,6 +12,12 @@ extension FileListDataSource {
                 return true
             }
             loadVirtualSharedChildrenAsync(for: fileItem, in: outlineView)
+            return false
+        }
+
+        if fileItem.isRemote,
+           staleRemoteDirectories.contains(fileItem.location) {
+            loadRemoteChildrenAsync(for: fileItem, in: outlineView)
             return false
         }
 
@@ -70,7 +77,6 @@ extension FileListDataSource {
         let statuses = gitStatuses
         let sort = sortDescriptor
         let foldersTop = SettingsManager.shared.foldersOnTop
-
         Task { @MainActor [weak self] in
             defer {
                 self?.pendingChildLoads.remove(itemID)
@@ -134,8 +140,6 @@ extension FileListDataSource {
         }
 
         let showHidden = showHiddenFiles
-        let sort = sortDescriptor
-        let foldersTop = SettingsManager.shared.foldersOnTop
 
         Task { @MainActor [weak self] in
             defer {
@@ -146,12 +150,7 @@ extension FileListDataSource {
             do {
                 guard let self else { return }
                 let entries = try await provider.list(item.location, showHidden: showHidden)
-                let children = FileItem.sorted(self.baseFileItems(for: entries), by: sort, foldersOnTop: foldersTop)
-                for child in children {
-                    child.parent = item
-                    child.gitStatus = self.remoteGitStatuses[child.location]
-                }
-                item.children = children
+                _ = self.reconcileRemoteEntries(entries, in: item.location)
                 outlineView.reloadItem(item, reloadChildren: true)
                 outlineView.expandItem(item)
                 if SettingsManager.shared.settings.gitStatusEnabled {
@@ -165,19 +164,13 @@ extension FileListDataSource {
     }
 
     func loadRemoteChildrenForExpansionRestore(_ item: FileItem) async {
-        guard let provider = currentRemoteProvider, item.children == nil else { return }
+        guard let provider = currentRemoteProvider,
+              item.children == nil || staleRemoteDirectories.contains(item.location) else {
+            return
+        }
         do {
             let entries = try await provider.list(item.location, showHidden: showHiddenFiles)
-            let children = FileItem.sorted(
-                baseFileItems(for: entries),
-                by: sortDescriptor,
-                foldersOnTop: SettingsManager.shared.foldersOnTop
-            )
-            for child in children {
-                child.parent = item
-                child.gitStatus = remoteGitStatuses[child.location]
-            }
-            item.children = children
+            _ = reconcileRemoteEntries(entries, in: item.location)
             if SettingsManager.shared.settings.gitStatusEnabled {
                 fetchRemoteGitStatus(for: item.location, provider: provider)
             }
@@ -237,7 +230,11 @@ extension FileListDataSource {
             if folderRow >= 0 {
                 // Defer selection change until after collapse completes
                 DispatchQueue.main.async {
-                    outlineView.selectRowIndexes(IndexSet(integer: folderRow), byExtendingSelection: false)
+                    outlineView.selectRowIndexes(
+                        IndexSet(integer: folderRow),
+                        byExtendingSelection: false,
+                        origin: .automatic
+                    )
                 }
             }
         }

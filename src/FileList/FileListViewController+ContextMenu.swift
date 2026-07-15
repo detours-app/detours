@@ -292,18 +292,7 @@ extension FileListViewController: FileListContextMenuDelegate {
     // MARK: - Context Menu Actions
 
     @objc func openFromContextMenu(_ sender: Any?) {
-        let row = tableView.selectedRow
-        guard row >= 0, let item = dataSource.item(at: row) else { return }
-
-        if case .remote = item.location {
-            openRemoteItem(item)
-        } else if item.isNavigableFolder {
-            navigationDelegate?.fileListDidRequestNavigation(to: item.url)
-        } else if CompressionTools.isExtractable(item.url) {
-            extractSelectedArchive()
-        } else {
-            NSWorkspace.shared.open(item.url)
-        }
+        openSelectedItems()
     }
 
     @objc func showPackageContentsFromContextMenu(_ sender: Any?) {

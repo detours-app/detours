@@ -2,33 +2,66 @@ import AppKit
 import UniformTypeIdentifiers
 
 extension FileListViewController: FileListDropDelegate {
-    var currentDirectoryURL: URL? {
+    var currentDirectoryLocation: Location? {
         guard currentICloudListingMode != .sharedTopLevel else { return nil }
-        return currentDirectory
+        return currentRemoteLocation ?? currentDirectory.map(Location.local)
     }
 
-    func handleDrop(urls: [URL], to destination: URL, isCopy: Bool) {
+    func handleDrop(
+        locations: [Location],
+        to destination: Location,
+        operation: FileDropOperation
+    ) {
         guard currentICloudListingMode != .sharedTopLevel else { return }
+        var affectedDirectories: Set<Location> = [destination]
+        if operation == .move {
+            for location in locations {
+                affectedDirectories.insert(location.deletingLastPathComponent())
+            }
+        }
+
         Task { @MainActor in
             do {
-                if isCopy {
-                    try await FileOperationQueue.shared.copy(items: urls, to: destination, undoManager: undoManager)
+                let resultLocations: [Location]
+                if operation == .copy {
+                    resultLocations = try await FileOperationQueue.shared.copy(
+                        items: locations,
+                        to: destination,
+                        undoManager: undoManager
+                    )
                 } else {
-                    try await FileOperationQueue.shared.move(items: urls, to: destination, undoManager: undoManager)
+                    resultLocations = try await FileOperationQueue.shared.move(
+                        items: locations,
+                        to: destination,
+                        undoManager: undoManager
+                    )
                 }
-                // Refresh the view
+
                 dataSource.invalidateGitStatus()
-                if let current = currentDirectory {
-                    loadDirectory(current, preserveExpansion: true)
+                if currentDirectory != nil {
+                    let resultURLs = resultLocations.compactMap { location -> URL? in
+                        guard case .local(let url) = location else { return nil }
+                        return url
+                    }
+                    refreshSelectingItems(at: resultURLs)
+                } else {
+                    requestRemoteMutationRefreshes(
+                        affectedDirectories: affectedDirectories,
+                        preferredResultLocations: Set(resultLocations)
+                    )
                 }
-                // Notify to refresh source directories
-                var directoriesToRefresh = Set<URL>()
-                for url in urls {
-                    directoriesToRefresh.insert(url.deletingLastPathComponent().standardizedFileURL)
-                }
-                directoriesToRefresh.insert(destination.standardizedFileURL)
-                navigationDelegate?.fileListDidRequestRefreshSourceDirectories(directoriesToRefresh)
+                navigationDelegate?.fileListDidRequestRefreshSourceLocations(
+                    affectedDirectories,
+                    preferredResultLocations: Set(resultLocations)
+                )
             } catch {
+                requestRemoteMutationRefreshes(
+                    affectedDirectories: affectedDirectories
+                )
+                navigationDelegate?.fileListDidRequestRefreshSourceLocations(
+                    affectedDirectories,
+                    preferredResultLocations: []
+                )
                 FileOperationQueue.shared.presentError(error)
             }
         }
@@ -43,9 +76,23 @@ extension FileListViewController: FileListDropDelegate {
         return RemoteFilePromiseProvider.make(item: item, provider: provider)
     }
 
+    func beginInternalDrag(items: [FileItem], on pasteboard: NSPasteboard) {
+        _ = InternalFileDragSessionStore.shared.begin(
+            locations: items.map(\.location),
+            on: pasteboard
+        )
+    }
+
+    func endInternalDrag(on pasteboard: NSPasteboard) {
+        InternalFileDragSessionStore.shared.end(on: pasteboard)
+    }
+
     func setupDragDrop() {
         // Register for file URL and file promise drop types (promises for Mail, etc.)
-        var dragTypes: [NSPasteboard.PasteboardType] = [.fileURL]
+        var dragTypes: [NSPasteboard.PasteboardType] = [
+            .fileURL,
+            .detoursInternalFileDrag,
+        ]
         dragTypes.append(contentsOf: NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
         tableView.registerForDraggedTypes(dragTypes)
         tableView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)

@@ -55,6 +55,8 @@ func resetSettingsForTests() {
     manager.dateFormatCurrentYear = defaultsSettings.dateFormatCurrentYear
     manager.dateFormatOtherYears = defaultsSettings.dateFormatOtherYears
     manager.showStatusBar = defaultsSettings.showStatusBar
+    manager.folderExpansionEnabled = defaultsSettings.folderExpansionEnabled
+    manager.foldersOnTop = defaultsSettings.foldersOnTop
     manager.sidebarVisible = defaultsSettings.sidebarVisible
     manager.favorites = defaultsSettings.favorites
     manager.gitStatusEnabled = defaultsSettings.gitStatusEnabled

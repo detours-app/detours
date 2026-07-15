@@ -51,7 +51,10 @@ extension FileListViewController {
     }
 
     @discardableResult
-    private func selectLocations(_ locations: [Location]) -> Bool {
+    private func selectLocations(
+        _ locations: [Location],
+        origin: FileListSelectionOrigin = .operationResult
+    ) -> Bool {
         var indexes = IndexSet()
         for location in locations {
             switch location {
@@ -62,14 +65,20 @@ extension FileListViewController {
                 }
             case .remote(_, let path):
                 let target = URL(fileURLWithPath: path).standardizedFileURL
-                for item in dataSource.items where item.isRemote && item.expansionURL == target {
+                if let item = dataSource.findItem(withLocation: location, in: dataSource.items),
+                   item.isRemote,
+                   item.expansionURL == target {
                     let row = tableView.row(forItem: item)
                     if row >= 0 { indexes.insert(row) }
                 }
             }
         }
         if !indexes.isEmpty {
-            tableView.selectRowIndexes(indexes, byExtendingSelection: false)
+            tableView.selectRowIndexes(
+                indexes,
+                byExtendingSelection: false,
+                origin: origin
+            )
             if let first = indexes.first {
                 tableView.scrollRowToVisible(first)
             }
@@ -84,6 +93,24 @@ extension FileListViewController {
             expandAncestorChain(to: url)
         case .remote(_, let path):
             await expandRemoteAncestorChain(to: path)
+        }
+    }
+
+    /// Reveal the destination of an explicit copy or move. Unlike drag hover,
+    /// operation completion deliberately expands the chosen folder so the new
+    /// items are visible and selected.
+    func revealOperationResults(
+        _ locations: [Location],
+        in destination: Location,
+        completion: (() -> Void)? = nil
+    ) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if destination != self.currentDirectoryLocation {
+                await self.expandAncestorChain(to: destination)
+            }
+            _ = self.selectLocations(locations)
+            completion?()
         }
     }
 
@@ -110,6 +137,7 @@ extension FileListViewController {
             if let item = urlToItem[current], item.isNavigableFolder {
                 if item.isRemote {
                     await dataSource.loadRemoteChildrenForExpansionRestore(item)
+                    tableView.reloadItem(item, reloadChildren: true)
                 } else {
                     loadChildrenIfNeededForExpansion(item)
                 }
@@ -145,7 +173,11 @@ extension FileListViewController {
                 }
             }
             if !indicesToSelect.isEmpty {
-                self.tableView.selectRowIndexes(IndexSet(indicesToSelect), byExtendingSelection: false)
+                self.tableView.selectRowIndexes(
+                    IndexSet(indicesToSelect),
+                    byExtendingSelection: false,
+                    origin: .operationResult
+                )
                 self.tableView.scrollRowToVisible(indicesToSelect.first!)
             }
 
@@ -194,6 +226,7 @@ extension FileListViewController {
         clearQuickLookPreviewState()
         hideLoadingIndicator()
         hideErrorOverlay()
+        hideRemoteRefreshError()
 
         let normalizedURL = url.standardizedFileURL
         if let previousRemoteHost = currentRemoteHost {
@@ -273,11 +306,19 @@ extension FileListViewController {
                     // If URL-based restore didn't find items, fall back to nearby row
                     if self.tableView.selectedRow < 0 && previousSelectedRow >= 0 && self.tableView.numberOfRows > 0 {
                         let newIndex = min(previousSelectedRow, self.tableView.numberOfRows - 1)
-                        self.tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                        self.tableView.selectRowIndexes(
+                            IndexSet(integer: newIndex),
+                            byExtendingSelection: false,
+                            origin: .restored
+                        )
                     }
                 } else if !self.dataSource.items.isEmpty {
                     // Default: select first item
-                    self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                    self.tableView.selectRowIndexes(
+                        IndexSet(integer: 0),
+                        byExtendingSelection: false,
+                        origin: .automatic
+                    )
                 }
 
                 // Restore scroll position for same-directory reloads so
@@ -362,7 +403,10 @@ extension FileListViewController {
     /// Select a remote row by its absolute path. Remote `FileItem`s have no local file URL, so
     /// selection matches on the standardized path rather than going through `findItem(withURL:)`.
     @discardableResult
-    func selectRemoteItem(atPath path: String) -> Bool {
+    func selectRemoteItem(
+        atPath path: String,
+        origin: FileListSelectionOrigin = .operationResult
+    ) -> Bool {
         let target = URL(fileURLWithPath: path).standardizedFileURL
         guard let item = dataSource.findItem(withURL: target, in: dataSource.items),
               item.isRemote else {
@@ -370,7 +414,11 @@ extension FileListViewController {
         }
         let row = tableView.row(forItem: item)
         guard row >= 0 else { return false }
-        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        tableView.selectRowIndexes(
+            IndexSet(integer: row),
+            byExtendingSelection: false,
+            origin: origin
+        )
         tableView.scrollRowToVisible(row)
         return true
     }
@@ -381,9 +429,24 @@ extension FileListViewController {
         preserveExpansion: Bool,
         showSpinner: Bool = true
     ) {
+        let canReconcileInPlace = preserveExpansion
+            && currentRemoteLocation == location
+            && currentRemoteProvider != nil
+            && hasLoadedDirectory
+            && !dataSource.items.isEmpty
+        if canReconcileInPlace {
+            currentRemoteProvider = provider
+            remoteRefreshCoordinator?.requestRefresh(
+                affectedLocation: location,
+                reason: .manual
+            )
+            return
+        }
+
         dataSource.cancelCurrentLoad()
         hideLoadingIndicator()
         hideErrorOverlay()
+        hideRemoteRefreshError()
         currentRemoteLocation = location
         currentRemoteProvider = provider
         currentDirectory = nil
@@ -452,6 +515,97 @@ extension FileListViewController {
         FrecencyStore.shared.recordVisit(location)
     }
 
+    func applyRemoteRefresh(_ snapshot: RemoteRefreshSnapshot) {
+        guard let currentRemoteLocation,
+              snapshot.request.directory == currentRemoteLocation
+                || isRemoteDescendant(snapshot.request.directory, of: currentRemoteLocation) else {
+            return
+        }
+
+        let paneState = captureRemotePaneState()
+        guard let reconciliation = dataSource.reconcileRemoteEntries(
+            snapshot.entries,
+            in: snapshot.request.directory
+        ) else {
+            return
+        }
+        hideRemoteRefreshError(for: snapshot.request.directory)
+
+        if let parentItem = reconciliation.parentItem {
+            tableView.reloadItem(parentItem, reloadChildren: true)
+        } else {
+            tableView.reloadData()
+        }
+        tableView.needsLayout = true
+        restoreRemotePaneState(
+            paneState,
+            preferredResultLocations: snapshot.request.preferredResultLocations
+        )
+
+        if SettingsManager.shared.settings.gitStatusEnabled,
+           let currentRemoteProvider {
+            dataSource.fetchRemoteGitStatus(
+                for: snapshot.request.directory,
+                provider: currentRemoteProvider
+            )
+        }
+
+        let action = pendingPostLoadAction
+        pendingPostLoadAction = nil
+        action?()
+        navigationDelegate?.fileListDidLoadDirectory(self)
+    }
+
+    func isRemoteDescendant(_ location: Location, of ancestor: Location) -> Bool {
+        guard case .remote(let locationHost, let locationPath) = location,
+              case .remote(let ancestorHost, let ancestorPath) = ancestor,
+              locationHost == ancestorHost else {
+            return false
+        }
+        let normalizedLocation = URL(fileURLWithPath: locationPath).standardizedFileURL.path
+        let normalizedAncestor = URL(fileURLWithPath: ancestorPath).standardizedFileURL.path
+        guard normalizedLocation != normalizedAncestor else { return false }
+        let ancestorPrefix = normalizedAncestor == "/"
+            ? "/"
+            : normalizedAncestor + "/"
+        return normalizedLocation.hasPrefix(ancestorPrefix)
+    }
+
+    func requestRemoteMutationRefreshes(
+        affectedDirectories: Set<Location>,
+        preferredResultLocations: Set<Location> = []
+    ) {
+        guard let currentRemoteLocation else { return }
+        for directory in affectedDirectories {
+            guard directory == currentRemoteLocation
+                    || isRemoteDescendant(directory, of: currentRemoteLocation) else {
+                continue
+            }
+
+            if directory == currentRemoteLocation {
+                remoteRefreshCoordinator?.requestRefresh(
+                    affectedLocation: directory,
+                    reason: .mutation,
+                    preferredResultLocations: preferredResultLocations
+                )
+                continue
+            }
+
+            if let branch = dataSource.findItem(
+                withLocation: directory,
+                in: dataSource.items
+            ), branch.children != nil, tableView.isItemExpanded(branch) {
+                remoteRefreshCoordinator?.requestRefresh(
+                    affectedLocation: directory,
+                    reason: .mutation,
+                    preferredResultLocations: preferredResultLocations
+                )
+            } else {
+                dataSource.markRemoteDirectoryStale(directory)
+            }
+        }
+    }
+
     private func restoreRemoteSelection(
         previousSelectedLocations: [Location],
         previousSelectedRow: Int,
@@ -459,13 +613,21 @@ extension FileListViewController {
     ) {
         if shouldPreserveExpansion && !previousSelectedLocations.isEmpty {
             tableView.deselectAll(nil)
-            selectLocations(previousSelectedLocations)
+            selectLocations(previousSelectedLocations, origin: .restored)
             if tableView.selectedRow < 0 && previousSelectedRow >= 0 && tableView.numberOfRows > 0 {
                 let newIndex = min(previousSelectedRow, tableView.numberOfRows - 1)
-                tableView.selectRowIndexes(IndexSet(integer: newIndex), byExtendingSelection: false)
+                tableView.selectRowIndexes(
+                    IndexSet(integer: newIndex),
+                    byExtendingSelection: false,
+                    origin: .restored
+                )
             }
         } else if !dataSource.items.isEmpty {
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            tableView.selectRowIndexes(
+                IndexSet(integer: 0),
+                byExtendingSelection: false,
+                origin: .automatic
+            )
         }
     }
 

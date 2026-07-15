@@ -21,6 +21,11 @@ final class FilterBarView: NSView {
         set { searchField.stringValue = newValue }
     }
 
+    var hasKeyboardFocus: Bool {
+        guard let firstResponder = window?.firstResponder else { return false }
+        return firstResponder === searchField || firstResponder === searchField.currentEditor()
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setup()

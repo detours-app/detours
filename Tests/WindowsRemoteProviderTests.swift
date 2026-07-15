@@ -164,6 +164,47 @@ final class WindowsRemoteProviderTests: XCTestCase {
         XCTAssertEqual(moved, [.remote(hostID: hostID, path: "/C:/Users/sans/Dest/Move.txt")])
     }
 
+    func testLocationBasedDragAndPasteRouting() async throws {
+        let hostID = UUID()
+        let transport = ProviderScriptTransport(responses: [
+            "Copy": #"["C:\\Target\\one.txt","C:\\Target\\Folder"]"#,
+            "Move": #"["D:\\Paste\\one.txt","D:\\Paste\\Folder"]"#,
+        ])
+        let channel = PowerShellChannel(transport: transport)
+        let provider = WindowsRemoteProvider(
+            hostID: hostID,
+            channel: channel,
+            transferChannel: WindowsTransferChannel(
+                powerShellChannel: channel,
+                sftpClient: FakeWindowsSFTPClient()
+            )
+        )
+        let sources = [
+            Location.remote(hostID: hostID, path: "/C:/Source/one.txt"),
+            Location.remote(hostID: hostID, path: "/C:/Source/Folder"),
+        ]
+        let dragDestination = Location.remote(hostID: hostID, path: "/C:/Target")
+        let pasteDestination = Location.remote(hostID: hostID, path: "/D:/Paste")
+
+        let copied = try await provider.copy(sources, to: dragDestination)
+        let moved = try await provider.move(sources, to: pasteDestination)
+        let requests = await transport.requests
+
+        XCTAssertEqual(copied, [
+            .remote(hostID: hostID, path: "/C:/Target/one.txt"),
+            .remote(hostID: hostID, path: "/C:/Target/Folder"),
+        ])
+        XCTAssertEqual(moved, [
+            .remote(hostID: hostID, path: "/D:/Paste/one.txt"),
+            .remote(hostID: hostID, path: "/D:/Paste/Folder"),
+        ])
+        XCTAssertEqual(requests.map(\.operation), ["Copy", "Move"])
+        XCTAssertTrue(requests[0].argumentsJSON.contains(#""sources":["C:\\Source\\one.txt","C:\\Source\\Folder"]"#))
+        XCTAssertTrue(requests[0].argumentsJSON.contains(#""destination":"C:\\Target""#))
+        XCTAssertTrue(requests[1].argumentsJSON.contains(#""sources":["C:\\Source\\one.txt","C:\\Source\\Folder"]"#))
+        XCTAssertTrue(requests[1].argumentsJSON.contains(#""destination":"D:\\Paste""#))
+    }
+
     func testTrashDeleteAndRestoreUseDetoursTrashContract() async throws {
         let hostID = UUID()
         let transport = ProviderScriptTransport(responses: [

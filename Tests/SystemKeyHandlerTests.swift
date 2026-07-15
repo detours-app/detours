@@ -33,6 +33,20 @@ final class SystemKeyHandlerTests: XCTestCase {
         XCTAssertTrue(splitVC.handleGlobalKeyDown(event))
     }
 
+    func testGlobalF5UsesFocusedPaneWhenActivePaneStateIsStale() throws {
+        let splitVC = MainSplitViewController()
+        splitVC.loadViewIfNeeded()
+        let window = NSWindow(contentViewController: splitVC)
+        let rightFileList = try XCTUnwrap(splitVC.rightPane.selectedTab?.fileListViewController)
+
+        splitVC.setActivePane(0)
+        XCTAssertTrue(window.makeFirstResponder(rightFileList.tableView))
+
+        XCTAssertTrue(splitVC.focusedFileListPane() === splitVC.rightPane)
+        XCTAssertTrue(splitVC.activePane === splitVC.leftPane)
+        withExtendedLifetime(window) {}
+    }
+
     private func makeSystemDefinedKeyEvent(keyCode: Int, keyDown: Bool) -> NSEvent {
         let keyState = keyDown ? SystemMediaKey.keyDownFlag : 0xB
         let data1 = (keyCode << 16) | (keyState << 8)

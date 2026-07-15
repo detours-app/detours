@@ -14,6 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUITestUndoMenuTitleRequestID: String?
     private var lastUITestDuplicateStructureShowRequestID: String?
     private var lastUITestAppearanceSettingsCommandID: String?
+    private var lastUITestPaneStateRequestID: String?
+    private var lastUITestRemoteMutationCommandID: String?
 
     private struct UITestTextFrame {
         let label: String
@@ -122,6 +124,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lastUITestUndoMenuTitleRequestID = UITestEnvironment.currentUndoMenuTitleRequest()?.id
         lastUITestDuplicateStructureShowRequestID = UITestEnvironment.currentDuplicateStructureShowRequest()?.id
         lastUITestAppearanceSettingsCommandID = UITestEnvironment.currentAppearanceSettingsCommand()?.id
+        lastUITestPaneStateRequestID = UITestEnvironment.currentPaneStateRequest()?.id
+        lastUITestRemoteMutationCommandID = UITestEnvironment.currentRemoteMutationCommand()?.id
     }
 
     private func pollUITestCommands() {
@@ -183,6 +187,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            command.id != lastUITestAppearanceSettingsCommandID {
             lastUITestAppearanceSettingsCommandID = command.id
             applyAppearanceSettingsForUITest(command)
+        }
+
+        if let request = UITestEnvironment.currentPaneStateRequest(),
+           request.id != lastUITestPaneStateRequestID {
+            lastUITestPaneStateRequestID = request.id
+            mainWindowController?.splitViewController.writeUITestPaneState(request: request)
+        }
+
+        if let command = UITestEnvironment.currentRemoteMutationCommand(),
+           command.id != lastUITestRemoteMutationCommandID {
+            lastUITestRemoteMutationCommandID = command.id
+            mainWindowController?.splitViewController.performUITestRemoteMutation(command)
         }
     }
 
