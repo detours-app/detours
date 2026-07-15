@@ -175,7 +175,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T15** `FileListDragDropTests.testRemoteFolderAndPaneBackgroundAreValidTargets` - Remote folders and the current remote directory expose the expected drop operation and target state.
 - [x] **T16** `FileListDragDropTests.testInternalDropRoutesExactLocations` - Acceptance sends every source location and the destination location to the operation queue.
 - [x] **T17** `FileListDragDropTests.testBoundaryAndModifierRules` - Local volume identity, remote host identity, Option, Command, and combined modifiers select the approved copy or move operation.
-- [ ] **T18** `FileListDragDropTests.testInvalidTargetsAreRejectedTwice` - Self, descendant, same-parent, regular-file, and disappeared destinations fail during validation or final acceptance.
+- [x] **T18** `FileListDragDropTests.testInvalidTargetsAreRejectedTwice` - Self, descendant, same-parent, regular-file, and disappeared destinations fail during validation or final acceptance.
 - [ ] **T19** `FileListCellTests.testDropTargetAndCutStatesAreVisibleAndAccessible` - Drop and pending-cut states have both visual treatment and accessibility descriptions.
 - [ ] **T20** `ClipboardManagerTests.testRemoteCutLocationsRemainRetryableUntilSuccess` - Remote cut locations survive failure and clear only after a successful move.
 - [ ] **T21** `FileListResponderTests.testRemotePasteUsesExplicitFolderOrCurrentDirectory` - User selection chooses one folder while automatic, restored, result, and multiple-folder selections use the displayed directory.
@@ -241,3 +241,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T15** Validated same-host remote drops on Foundry and verified folder-row and pane-background targets both advertise move while exposing only their corresponding highlight state.
 - **T16** Accepted a two-item internal remote drop on Foundry and verified the delegate receives both ordered source locations, the exact folder destination, and the resolved operation before highlights clear.
 - **T17** Covered same and cross local volumes, same and cross remote hosts, local-remote boundaries, Command, Option, and combined modifiers on Foundry; every case resolves to the specified copy or move.
+- **T18** Verified on Foundry that self, descendant, same-parent, regular-file, and disappeared targets are rejected during hover and rechecked at acceptance, with host identity preventing false descendant matches.
