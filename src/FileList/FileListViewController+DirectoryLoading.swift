@@ -65,7 +65,9 @@ extension FileListViewController {
                 }
             case .remote(_, let path):
                 let target = URL(fileURLWithPath: path).standardizedFileURL
-                for item in dataSource.items where item.isRemote && item.expansionURL == target {
+                if let item = dataSource.findItem(withLocation: location, in: dataSource.items),
+                   item.isRemote,
+                   item.expansionURL == target {
                     let row = tableView.row(forItem: item)
                     if row >= 0 { indexes.insert(row) }
                 }
