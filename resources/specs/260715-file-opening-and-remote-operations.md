@@ -118,7 +118,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 
 - [x] **C1** Add a shared item-opening dispatcher under `src/FileList/` that unifies every Open entry point on the double-click classification, confirms before opening more than five files, and returns per-file batch results.
 - [x] **C2** Update `FileListViewController+SelectionState.swift`, `FileListViewController+Keyboard.swift`, `FileListViewController+ContextMenu.swift`, and the double-click path in `FileListViewController+Setup.swift` to use the dispatcher.
-- [ ] **C3** Add one accessible batch-open error summary that names failed items after every eligible file has been attempted.
+- [x] **C3** Add one accessible batch-open error summary that names failed items after every eligible file has been attempted.
 
 **Phase 2: Remote Refresh Coordination**
 
@@ -205,3 +205,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 
 - **C1** Added `FileItemOpeningDispatcher`, which classifies items with the established double-click rules, keeps visible input order, confirms batches above five eligible files, skips special items in mixed selections, falls back to the focused special item, and returns ordered success and failure details.
 - **C2** Routed Enter, Command-O, Command-Down, context-menu Open, and double-click through the dispatcher. Shared action handling now preserves focused folder, archive, disk-image, local-file, and remote-file behavior, with local launch failures and unavailable remote actions represented as dispatcher results.
+- **C3** Added a single post-batch warning that lists every failed filename and its reason after dispatch completes, plus a high-priority accessibility announcement for the failure count.

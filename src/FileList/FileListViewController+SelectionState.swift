@@ -157,7 +157,8 @@ extension FileListViewController {
                 return self.performOpenAction(action, for: item)
             }
         )
-        _ = dispatcher.open(items: items, focusedItem: focusedItem)
+        let result = dispatcher.open(items: items, focusedItem: focusedItem)
+        presentOpenFailures(result.failures)
     }
 
     private func confirmOpening(fileCount: Int) -> Bool {
@@ -221,6 +222,34 @@ extension FileListViewController {
         let row = tableView.row(forItem: item)
         guard row >= 0 else { return }
         tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+    }
+
+    private func presentOpenFailures(_ failures: [FileItemOpenFailure]) {
+        guard !failures.isEmpty else { return }
+
+        let message = failures.count == 1
+            ? "1 file could not be opened"
+            : "\(failures.count) files could not be opened"
+        let details = failures.map { failure in
+            "\(failure.item.name): \(failure.error.localizedDescription)"
+        }.joined(separator: "\n")
+
+        let userInfo: [NSAccessibility.NotificationUserInfoKey: Any] = [
+            .announcement: message,
+            .priority: NSAccessibilityPriorityLevel.high.rawValue,
+        ]
+        NSAccessibility.post(
+            element: tableView,
+            notification: .announcementRequested,
+            userInfo: userInfo
+        )
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = message
+        alert.informativeText = details
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     func openSelectedItemInNewTab() {
