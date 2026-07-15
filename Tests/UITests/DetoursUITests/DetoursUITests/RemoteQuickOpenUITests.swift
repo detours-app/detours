@@ -178,10 +178,9 @@ final class RemoteFileOperationsUITests: BaseUITest {
         selectLeftRow("FolderA")
         pressCharKey("/")
         app.typeText("Folder")
-        pressKey(.return)
 
         let before = try requestRemotePaneState()
-        XCTAssertEqual(before.focus, "fileList")
+        XCTAssertEqual(before.focus, "filter")
         XCTAssertEqual(before.filterText, "Folder")
         XCTAssertTrue(before.filterVisible)
 
@@ -207,6 +206,8 @@ final class RemoteFileOperationsUITests: BaseUITest {
         XCTAssertEqual(after.sortColumn, before.sortColumn)
         XCTAssertEqual(after.sortAscending, before.sortAscending)
 
+        pressKey(.downArrow)
+        XCTAssertEqual(try requestRemotePaneState().focus, "fileList")
         pressKey(.downArrow)
         let navigated = try requestRemotePaneState()
         XCTAssertNotEqual(navigated.selectedLocations, after.selectedLocations)
