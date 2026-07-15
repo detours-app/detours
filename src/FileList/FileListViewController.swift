@@ -47,6 +47,19 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var remoteInfoWindows: [RemoteInfoWindowController] = []
     var directoryWatchTask: Task<Void, Never>?
     var directoryChangeDebounce: DispatchWorkItem?
+    lazy var remoteRefreshCoordinator = RemoteRefreshCoordinator(
+        fetch: { [weak self] request in
+            guard let self, let provider = self.currentRemoteProvider else {
+                throw RemoteRefreshCoordinatorError.providerUnavailable
+            }
+            return try await provider.list(
+                request.directory,
+                showHidden: self.dataSource.showHiddenFiles
+            )
+        },
+        apply: { _ in },
+        handleFailure: { _, _ in }
+    )
     /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
     var pendingPostLoadAction: (() -> Void)?
     var selectionAnchor: Int?

@@ -122,7 +122,7 @@ Extend `UITestRemoteProvider` from a listing-only provider into a mutable local-
 
 **Phase 2: Remote Refresh Coordination**
 
-- [ ] **C4** Add a per-pane remote refresh coordinator that normalizes affected locations, coalesces requests, serializes directory fetches, and rejects stale generations.
+- [x] **C4** Add a per-pane remote refresh coordinator that normalizes affected locations, coalesces requests, serializes directory fetches, and rejects stale generations.
 - [ ] **C5** Add location-keyed branch reconciliation to `FileListDataSource+Loading.swift` and `FileListDataSource+Expansion.swift`, reusing unchanged `FileItem` identities and loaded children.
 - [ ] **C6** Update `FileListViewController+DirectoryLoading.swift` to keep the current remote tree visible during same-location updates and apply one reconciled outline update.
 - [ ] **C7** Extend `FileListViewController+SelectionState.swift` to preserve expansion, multi-selection, top-visible item and offset, horizontal scroll, focus, sort, and filter state without selection-driven scrolling.
@@ -206,3 +206,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **C1** Added `FileItemOpeningDispatcher`, which classifies items with the established double-click rules, keeps visible input order, confirms batches above five eligible files, skips special items in mixed selections, falls back to the focused special item, and returns ordered success and failure details.
 - **C2** Routed Enter, Command-O, Command-Down, context-menu Open, and double-click through the dispatcher. Shared action handling now preserves focused folder, archive, disk-image, local-file, and remote-file behavior, with local launch failures and unavailable remote actions represented as dispatcher results.
 - **C3** Added a single post-batch warning that lists every failed filename and its reason after dispatch completes, plus a high-priority accessibility announcement for the failure count.
+- **C4** Added a per-pane `RemoteRefreshCoordinator` with normalized host-and-directory keys, file-to-parent normalization, 0.1-second coalescing, one active fetch plus one dirty follow-up per directory, monotonically increasing generations, and stale-response rejection. The controller-owned instance fetches through the active remote provider; reconciliation and error presentation are wired by the following tasks.
