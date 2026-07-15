@@ -173,7 +173,7 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - [x] **T13** `RemoteRefreshCoordinatorTests.testSameLocationRefreshRetainsWatches` - Root and expanded-branch watches are not removed and re-added during reconciliation.
 - [x] **T14** `RemoteRefreshCoordinatorTests.testDeletedSelectionChoosesNearestSurvivorWithoutJump` - Deletion chooses a predictable nearby row and retains a valid viewport.
 - [x] **T15** `FileListDragDropTests.testRemoteFolderAndPaneBackgroundAreValidTargets` - Remote folders and the current remote directory expose the expected drop operation and target state.
-- [ ] **T16** `FileListDragDropTests.testInternalDropRoutesExactLocations` - Acceptance sends every source location and the destination location to the operation queue.
+- [x] **T16** `FileListDragDropTests.testInternalDropRoutesExactLocations` - Acceptance sends every source location and the destination location to the operation queue.
 - [ ] **T17** `FileListDragDropTests.testBoundaryAndModifierRules` - Local volume identity, remote host identity, Option, Command, and combined modifiers select the approved copy or move operation.
 - [ ] **T18** `FileListDragDropTests.testInvalidTargetsAreRejectedTwice` - Self, descendant, same-parent, regular-file, and disappeared destinations fail during validation or final acceptance.
 - [ ] **T19** `FileListCellTests.testDropTargetAndCutStatesAreVisibleAndAccessible` - Drop and pending-cut states have both visual treatment and accessibility descriptions.
@@ -239,3 +239,4 @@ All tests, runtime checks, fixtures, and UI automation run on Foundry only. Spec
 - **T13** Reconciled the displayed root on Foundry and verified the exact root and expanded-branch watch tokens remain registered without churn.
 - **T14** Removed the selected row from a scrolled, sorted remote list on Foundry and verified selection moves to the next visual survivor while the top-visible location and pixel offset remain fixed.
 - **T15** Validated same-host remote drops on Foundry and verified folder-row and pane-background targets both advertise move while exposing only their corresponding highlight state.
+- **T16** Accepted a two-item internal remote drop on Foundry and verified the delegate receives both ordered source locations, the exact folder destination, and the resolved operation before highlights clear.
