@@ -57,8 +57,20 @@ extension FileListViewController: RenameControllerDelegate {
                 self?.selectItem(at: newURL)
             }
         }
-        if let currentRemoteLocation, let currentRemoteProvider {
-            loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
+        if case .remote(let hostID, _) = item.location {
+            let renamedLocation = Location.remote(hostID: hostID, path: newURL.path)
+            let affectedDirectories: Set<Location> = [
+                item.location.deletingLastPathComponent(),
+                renamedLocation.deletingLastPathComponent(),
+            ]
+            requestRemoteMutationRefreshes(
+                affectedDirectories: affectedDirectories,
+                preferredResultLocations: [renamedLocation]
+            )
+            navigationDelegate?.fileListDidRequestRefreshSourceLocations(
+                affectedDirectories,
+                preferredResultLocations: [renamedLocation]
+            )
         } else if let currentDirectory {
             loadDirectory(currentDirectory, preserveExpansion: true)
         }

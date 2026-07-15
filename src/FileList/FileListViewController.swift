@@ -25,6 +25,15 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidLoadDirectory(_ controller: FileListViewController)
 }
 
+extension FileListNavigationDelegate {
+    func fileListDidRequestRefreshSourceLocations(
+        _ locations: Set<Location>,
+        preferredResultLocations: Set<Location>
+    ) {
+        fileListDidRequestRefreshSourceLocations(locations)
+    }
+}
+
 final class FileListViewController: NSViewController, FileListKeyHandling, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     let tableView = BandedOutlineView()
     let scrollView = NSScrollView()

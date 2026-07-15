@@ -506,7 +506,7 @@ extension FileListViewController {
         navigationDelegate?.fileListDidLoadDirectory(self)
     }
 
-    private func isRemoteDescendant(_ location: Location, of ancestor: Location) -> Bool {
+    func isRemoteDescendant(_ location: Location, of ancestor: Location) -> Bool {
         guard case .remote(let locationHost, let locationPath) = location,
               case .remote(let ancestorHost, let ancestorPath) = ancestor,
               locationHost == ancestorHost else {
@@ -519,6 +519,41 @@ extension FileListViewController {
             ? "/"
             : normalizedAncestor + "/"
         return normalizedLocation.hasPrefix(ancestorPrefix)
+    }
+
+    func requestRemoteMutationRefreshes(
+        affectedDirectories: Set<Location>,
+        preferredResultLocations: Set<Location> = []
+    ) {
+        guard let currentRemoteLocation else { return }
+        for directory in affectedDirectories {
+            guard directory == currentRemoteLocation
+                    || isRemoteDescendant(directory, of: currentRemoteLocation) else {
+                continue
+            }
+
+            if directory == currentRemoteLocation {
+                remoteRefreshCoordinator?.requestRefresh(
+                    affectedLocation: directory,
+                    reason: .mutation,
+                    preferredResultLocations: preferredResultLocations
+                )
+                continue
+            }
+
+            if let branch = dataSource.findItem(
+                withLocation: directory,
+                in: dataSource.items
+            ), branch.children != nil, tableView.isItemExpanded(branch) {
+                remoteRefreshCoordinator?.requestRefresh(
+                    affectedLocation: directory,
+                    reason: .mutation,
+                    preferredResultLocations: preferredResultLocations
+                )
+            } else {
+                dataSource.markRemoteDirectoryStale(directory)
+            }
+        }
     }
 
     private func restoreRemoteSelection(

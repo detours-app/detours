@@ -81,6 +81,18 @@ extension PaneViewController: FileListNavigationDelegate {
         }
     }
 
+    func fileListDidRequestRefreshSourceLocations(
+        _ locations: Set<Location>,
+        preferredResultLocations: Set<Location>
+    ) {
+        if let splitVC = parent as? MainSplitViewController {
+            splitVC.refreshPanes(
+                matching: locations,
+                preferredResultLocations: preferredResultLocations
+            )
+        }
+    }
+
     func fileListDidChangeSelection() {
         updateStatusBar()
         scheduleSessionSave()
