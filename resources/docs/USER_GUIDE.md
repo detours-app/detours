@@ -192,15 +192,20 @@ Create and extract archives directly from the file list.
 - Select files/folders, then File > Archive... (or right-click > Archive...)
 - Five formats: ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ
 - Formats requiring external tools (7z, xz, bzip2) are shown dimmed if not installed
+- ZIP and 7Z offer **Encrypt with password**. TAR formats do not support passwords.
+- ZIP passwords may contain up to 80 UTF-8 bytes. 7Z passwords do not have this Detours limit.
 - Last-used format is remembered between sessions
 
 **Extracting archives:**
 
 - Select an archive, then File > Extract Here (or right-click > Extract Here, or double-click)
-- Password-protected archives are rejected because Detours does not pass archive passwords to subprocesses or remote host command lines
+- ZIP and 7Z archives ask for a password when needed. An incorrect password opens another prompt and leaves no partial extracted items.
+- ZIP passwords longer than 80 UTF-8 bytes remain in the prompt with a validation message and do not start extraction.
 - Conflict dialog when extracting over existing items (Skip/Replace/Keep Both)
 
-Archive and Extract Here work locally and on supported remote hosts. Available formats depend on the tools installed on the Mac or remote host; Windows hosts can always create and extract unencrypted ZIP archives through the built-in PowerShell backend.
+Archive and Extract Here work locally and on supported remote hosts. Password-protected ZIP and 7Z work locally and through the bundled helper on supported macOS and Linux hosts. Windows remote hosts support unencrypted archives only and can always create and extract unencrypted ZIP archives through the built-in PowerShell backend. Available formats otherwise depend on the tools installed on the Mac or remote host.
+
+Detours sends archive passwords only through an echo-disabled terminal prompt. It never puts them in the archive tool's command-line arguments, progress text, or error text. This protects the password from ordinary process-list inspection; it does not change the archive format's encryption algorithm or protect caller-owned memory from privileged inspection.
 
 ### Share
 
@@ -296,7 +301,7 @@ Current remote exceptions:
 - Duplicate and Duplicate Structure are local-only because those commands still operate on local URL selections.
 - Reveal in Finder and Share are local-only because Finder and macOS sharing services need local files. Use drag-out or Open With when you need a local materialized copy.
 - Delete Immediately currently moves remote items to host-side Trash; permanent deletion is local-only.
-- Password-protected archive creation and extraction are disabled on every backend so passwords never appear in a local or remote process list.
+- Windows remote hosts do not support password-protected archives. Supported macOS and Linux helper hosts support password-protected ZIP and 7Z without placing passwords in process arguments.
 - Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported because this release bundles only `x86_64 Linux` and `x86_64 macOS` helpers.
 
 Large transfers use a second SSH channel so listings, git status, Quick Open search, and watch events can continue on the metadata channel. Remote git status runs after the directory listing completes; a slow repository should not block the list refresh.

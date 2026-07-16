@@ -49,7 +49,7 @@ Current remote exceptions:
 - Duplicate and Duplicate Structure are local-only because those commands still operate on local URL selections.
 - Reveal in Finder and Share are local-only because Finder and macOS sharing services require local files. Drag-out and Open With are the supported materialization paths for remote files.
 - Delete Immediately currently moves remote items to host-side Trash; permanent deletion is local-only.
-- Password-protected archive creation and extraction are disabled on every backend so passwords never appear in a local or remote process list.
+- Password-protected ZIP and 7Z work through the bundled helper on supported macOS and Linux hosts. Windows remote hosts support unencrypted archives only.
 - Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported because this release bundles only `x86_64 Linux` and `x86_64 macOS` helpers.
 
 ## Remote Quick Open
@@ -74,6 +74,14 @@ Bundled helper names:
 Apple Silicon macOS hosts (`Darwin arm64`) are not supported in this release.
 
 Windows hosts do not receive a helper binary. Detours detects Windows automatically, runs one-shot PowerShell operations over the shared SSH connection, uses a dedicated PowerShell watcher for live updates, and uses SFTP for large transfers when the host exposes it.
+
+## Password-Protected Archives
+
+Supported macOS and Linux helper hosts can create and extract password-protected ZIP and 7Z archives. ZIP passwords are limited to 80 UTF-8 bytes; the app and helper reject longer input before starting an archive tool. Detours does not impose that limit on 7Z passwords.
+
+The helper starts `zip`, `unzip`, or `7z` with a controlling terminal and sends the password only after the tool disables terminal echo. The password is absent from command-line arguments, environment values, progress frames, and error text. Incorrect passwords return to the Detours password sheet, and failed extraction removes the helper-created temporary output before retrying. This command-line secrecy does not change ZIP or 7Z encryption algorithms and does not claim protection from privileged memory inspection.
+
+Windows remote hosts do not use the helper and do not support password-protected archive creation or extraction. Their unencrypted ZIP and tool-backed archive behavior is unchanged.
 
 To remove the helper manually:
 
