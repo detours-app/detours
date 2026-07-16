@@ -1867,3 +1867,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   helper discarded that signal because `unzip` returned a status other than 1.
   Explicit password diagnostics must map to retry independently of the tool's
   platform-dependent nonzero status.
+
+- 2026-07-16 16:55 CEST: Foundry `resources/scripts/build.sh --no-install`
+  PASS: the cache-invalidated Linux helper rebuilt with 14 DetoursProcess and
+  13 server archive tests passing; Linux and Intel macOS helpers and the release
+  Detours app compiled, bundled, and codesigned. No repository warning was
+  emitted. The static Swift Foundation archive emitted its upstream `mktemp`
+  linker diagnostic while producing the successful Linux binary.
