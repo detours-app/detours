@@ -188,3 +188,22 @@ private final class LockedBox<Value>: @unchecked Sendable {
         }
     }
 }
+
+#if os(Linux)
+private func createTempDirectory() throws -> URL {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    return url
+}
+
+@discardableResult
+private func createTestFile(in directory: URL, name: String, content: String = "test") throws -> URL {
+    let url = directory.appendingPathComponent(name)
+    try Data(content.utf8).write(to: url)
+    return url
+}
+
+private func cleanupTempDirectory(_ url: URL) {
+    try? FileManager.default.removeItem(at: url)
+}
+#endif
