@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 enum ServerGitStatus: String, Equatable, Sendable {
