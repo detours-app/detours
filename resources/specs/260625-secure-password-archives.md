@@ -165,5 +165,5 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 ## Build Log
 
 - **C1** Added the shared library and test targets, wired the app, helper, and tests to the library, and limited `libutil` linking to Linux. `swift package describe` resolves both new targets and their dependency graph.
-- **C2** Extended the helper cache over shared sources and focused helper tests. The generated Noble package runs both shared-runner and server-archive suites before its static release build and cleans its remote workspace on every exit.
+- **C2** Extended the helper cache over shared sources and focused helper tests. The generated Noble package installs the real ZIP, unzip, and 7Z tools, runs both shared-runner and server-archive suites before its static release build, restores mounted-workspace ownership, and cleans its remote workspace on every exit.
 - **C3** Added the Darwin/Glibc PTY runner with controlling-terminal spawn, echo-aware scripted replies, bounded streaming diagnostics, prompt timeout, task cancellation, process-session termination, exit decoding, reaping, and mutable secret-buffer clearing. Dedicated behavior coverage follows in T1-T9.
