@@ -328,7 +328,7 @@ final class ServerArchiveOperationsTests: XCTestCase {
             password: nil
         )
 
-        XCTAssertEqual(capturedDirectory.value?.standardizedFileURL, temp.standardizedFileURL)
+        XCTAssertEqual(capturedDirectory.value?.standardizedFileURL.path, temp.standardizedFileURL.path)
         XCTAssertTrue(capturedArguments.value.contains("-nw"))
         let delimiter = try XCTUnwrap(capturedArguments.value.firstIndex(of: "--"))
         XCTAssertEqual(Array(capturedArguments.value.suffix(from: delimiter + 1)), ["Alpha/-TT", "Beta/two.txt"])
