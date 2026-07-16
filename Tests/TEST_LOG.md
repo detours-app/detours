@@ -2006,3 +2006,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 1 test, 0 failures. Display-level capture produced a non-empty inline
   rename screenshot, and typing immediately afterward renamed `file1.txt` to
   `renameproof.txt`, proving the editor remained active and focused.
+
+- 2026-07-16 19:24 CEST: Foundry full
+  `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 resources/scripts/uitest.sh`
+  PASS: deterministic screenshot capture passed, followed by 85 main UI tests
+  with 84 passing, 1 expected live-Windows skip, and 0 failures. The same run
+  passed F7 creation/rename selection, rename/paste/delete/move outcomes,
+  folder expansion and watcher refresh, Quick Nav, real remote Cmd-R, delayed
+  real connection, inline rename visual capture, undo, and geometry coverage.
