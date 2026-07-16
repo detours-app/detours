@@ -1807,3 +1807,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   warning. The remote-helper cache was reused, so this run did not re-exercise
   the generated Linux package manifest; the cache hash must include its build
   script before the warning fix can be verified.
+
+- 2026-07-16 16:37 CEST: Foundry `resources/scripts/build.sh --no-install`
+  PASS: a cache-invalidated Linux helper rebuild completed with 14 shared tests
+  and 13 server archive tests passing, no unhandled-file warning, and successful
+  Linux and Intel macOS helper builds. The release app compiled, bundled, and
+  codesigned successfully.
