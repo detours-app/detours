@@ -114,7 +114,7 @@ Research and code inspection support the revised approach:
 
 **Phase 3: Local extraction and prompting**
 
-- [ ] **C7** Route password-bearing ZIP retries in `src/Operations/FileOperationQueue+Extraction.swift` through `/usr/bin/unzip -o -q` on the PTY, enforce the 80-UTF-8-byte preflight, map exit 82 and password-specific exit-1 diagnostics to `archivePasswordRequired`, keep other failures distinct, and preserve app-created-directory cleanup.
+- [x] **C7** Route password-bearing ZIP retries in `src/Operations/FileOperationQueue+Extraction.swift` through `/usr/bin/unzip -o -q` on the PTY, enforce the 80-UTF-8-byte preflight, map exit 82 and password-specific exit-1 diagnostics to `archivePasswordRequired`, keep other failures distinct, and preserve app-created-directory cleanup.
 - [ ] **C8** Route password-bearing 7Z listing and extraction through `7z l -slt -p` and `7z x -y -bsp2 -p`, stream extraction progress, materialize results from an app-created temporary directory only after success, and distinguish wrong passwords from corruption.
 - [ ] **C9** Restore the `Location`-based archive password sheet and incorrect-password retry loop in `src/FileList/FileListViewController+FileActions.swift` for local and remote extraction, and keep the sheet open with the exact ZIP byte-limit message when validation fails.
 
@@ -170,3 +170,4 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 - **C4** Restored password capability for ZIP and 7Z and added one ZIP-only validator shared by the dialog model and local operation preflight. Exactly 80 UTF-8 bytes remain valid; longer input yields the specified message before archive launch.
 - **C5** Routed encrypted ZIP creation through `zip -er -q` with two echo-disabled PTY replies. The branch retains working-directory item names, file-size polling, queue cancellation, and partial-archive cleanup while leaving unencrypted ZIP creation unchanged.
 - **C6** Routed encrypted 7Z creation through prompt-mode `7z` with header encryption, bounded one-or-two prompt handling, streamed percentage parsing, queue cancellation, and partial-file cleanup. Unencrypted 7Z creation still uses its original process path.
+- **C7** Routed password-bearing ZIP extraction through prompt-mode `unzip`, with an empty response to repeated prompts, defense-in-depth byte validation, bounded progress, cancellation, and temporary-directory cleanup. Exit 82 and password-specific exit-1 text retry; generic failures remain archive errors.

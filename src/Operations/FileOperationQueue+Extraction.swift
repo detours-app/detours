@@ -1,19 +1,23 @@
 import AppKit
+import DetoursProcess
 import Foundation
 
 extension FileOperationQueue {
     func performExtract(archive: URL, password: String?) async throws -> URL {
-        if let password, !password.isEmpty {
-            throw FileOperationError.archivePasswordUnsupported
-        }
         guard let format = ArchiveFormat.detect(from: archive) else {
             throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.pathExtension)")
+        }
+        if let password, !password.isEmpty {
+            guard format.supportsPassword else {
+                throw FileOperationError.archivePasswordUnsupported
+            }
+            try ArchivePasswordValidation.validate(password, format: format)
         }
 
         // Route ZIP to dedicated ditto-based extraction, everything else to existing logic
         switch format {
         case .zip:
-            return try await performExtractZip(archive: archive, format: format)
+            return try await performExtractZip(archive: archive, format: format, password: password)
         case .sevenZ, .tarGz, .tarBz2, .tarXz:
             return try await performExtractNonZip(archive: archive, format: format)
         }
@@ -24,7 +28,7 @@ extension FileOperationQueue {
     /// Extract ZIP archives using ditto. Extracts to a temp dir first to discover
     /// actual filenames (avoids encoding issues with unzip -Z1), then moves results
     /// into place with proper conflict handling.
-    private func performExtractZip(archive: URL, format: ArchiveFormat) async throws -> URL {
+    private func performExtractZip(archive: URL, format: ArchiveFormat, password: String?) async throws -> URL {
         let operation = FileOperation.extract(archive: archive, format: format)
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
@@ -47,9 +51,11 @@ extension FileOperationQueue {
 
         try checkCancelled()
 
-        // ditto handles legacy filename encoding correctly. Encrypted zips never reach here:
-        // performExtract rejects passwords outright.
-        try await extractZipWithDitto(archive: archive, destination: tempDir)
+        if let password, !password.isEmpty {
+            try await extractZipWithPassword(archive: archive, destination: tempDir, password: password)
+        } else {
+            try await extractZipWithDitto(archive: archive, destination: tempDir)
+        }
 
         // Scan temp dir for top-level items (real filenames from the filesystem, no encoding issues)
         let extractedItems = try fileManager.contentsOfDirectory(atPath: tempDir.path)
@@ -153,6 +159,80 @@ extension FileOperationQueue {
         let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
         let mode: ArchiveProgressMode = archiveSize > 0 ? .pollFileSize(sourceSize: archiveSize * 3) : .none
         try await runExtractProcess(process, errorPipe: errorPipe, destination: destination, passwordProtected: true, progressMode: mode)
+    }
+
+    private func extractZipWithPassword(
+        archive: URL,
+        destination: URL,
+        password: String
+    ) async throws {
+        try ArchivePasswordValidation.validate(password, format: .zip)
+        let invocation = PtyProcessInvocation(
+            executable: CompressionTool.unzip.path,
+            arguments: ["-o", "-q", archive.path, "-d", destination.path],
+            password: password,
+            responses: [.password, .empty],
+            minimumResponses: 1
+        )
+        let runnerTask = Task {
+            try await PtyProcessRunner().run(invocation)
+        }
+        currentIOCancellable = AnyCancellableTask(runnerTask)
+        defer { currentIOCancellable = nil }
+
+        let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
+        let progressTask = startEncryptedExtractionSizePolling(
+            destination: destination,
+            expectedSize: archiveSize * 3
+        )
+        defer { progressTask.cancel() }
+
+        do {
+            let result = try await runnerTask.value
+            try checkCancelled()
+            guard result.status == 0 else {
+                let diagnostic = result.outputString.trimmingCharacters(in: .whitespacesAndNewlines)
+                if Self.isZipPasswordFailure(diagnostic, status: result.status) {
+                    throw FileOperationError.archivePasswordRequired
+                }
+                let message = diagnostic.isEmpty ? "Process exited with code \(result.status)" : diagnostic
+                throw FileOperationError.archiveProcessFailed(message)
+            }
+        } catch is CancellationError {
+            throw FileOperationError.cancelled
+        }
+    }
+
+    private func startEncryptedExtractionSizePolling(
+        destination: URL,
+        expectedSize: Int64
+    ) -> Task<Void, Never> {
+        Task { [weak self] in
+            guard expectedSize > 0 else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard !Task.isCancelled, let self, let operation = self.currentOperation else { return }
+                self.updateProgress(
+                    operation: operation,
+                    currentItem: destination,
+                    completed: 0,
+                    total: 0,
+                    bytesCompleted: Self.directorySize(at: destination),
+                    bytesTotal: expectedSize
+                )
+            }
+        }
+    }
+
+    nonisolated private static func isZipPasswordFailure(_ message: String, status: Int32) -> Bool {
+        if status == 82 { return true }
+        guard status == 1 else { return false }
+        let lowercased = message.lowercased()
+        return lowercased.contains("incorrect password")
+            || lowercased.contains("wrong password")
+            || lowercased.contains("bad password")
+            || (lowercased.contains("skipping:") && lowercased.contains("password"))
+            || (lowercased.contains("skipping:") && lowercased.contains("encrypted"))
     }
 
     // MARK: - Non-ZIP Extraction (tar, 7z)
