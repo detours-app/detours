@@ -4,29 +4,48 @@ import Security
 
 @MainActor
 final class KeychainCredentialStoreTests: XCTestCase {
-    func testSaveHasAndDeleteAreIsolatedByAccount() throws {
-        let keychainURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("detours-tests-\(UUID().uuidString).keychain-db")
-        let keychainPassword = "detours-test-keychain"
-        var testKeychain: SecKeychain?
-        let createStatus = keychainPassword.utf8CString.withUnsafeBufferPointer { password in
-            SecKeychainCreate(
-                keychainURL.path,
-                UInt32(password.count - 1),
-                password.baseAddress,
-                false,
-                nil,
-                &testKeychain
-            )
+    private final class FakeKeychain {
+        private struct Key: Hashable {
+            let service: String
+            let account: String
         }
-        XCTAssertEqual(createStatus, errSecSuccess)
-        let keychain = try XCTUnwrap(testKeychain)
-        defer { SecKeychainDelete(keychain) }
 
+        private var items: Set<Key> = []
+
+        func add(_ query: CFDictionary) -> OSStatus {
+            guard let key = key(from: query) else { return errSecParam }
+            guard items.insert(key).inserted else { return errSecDuplicateItem }
+            return errSecSuccess
+        }
+
+        func delete(_ query: CFDictionary) -> OSStatus {
+            guard let key = key(from: query) else { return errSecParam }
+            return items.remove(key) == nil ? errSecItemNotFound : errSecSuccess
+        }
+
+        func copyStatus(_ query: CFDictionary) -> OSStatus {
+            guard let key = key(from: query) else { return errSecParam }
+            return items.contains(key) ? errSecSuccess : errSecItemNotFound
+        }
+
+        private func key(from query: CFDictionary) -> Key? {
+            let attributes = query as NSDictionary
+            guard let service = attributes[kSecAttrService] as? String,
+                  let account = attributes[kSecAttrAccount] as? String else {
+                return nil
+            }
+            return Key(service: service, account: account)
+        }
+    }
+
+    func testSaveHasAndDeleteAreIsolatedByAccount() throws {
+        let keychain = FakeKeychain()
         let store = KeychainCredentialStore(
             service: "com.detours.tests.\(UUID().uuidString)",
             accessControlFlags: [],
-            keychain: keychain
+            addItem: keychain.add,
+            deleteItem: keychain.delete,
+            copyItemStatus: keychain.copyStatus
         )
         let account = "detours-tests-\(UUID().uuidString)"
         let otherAccount = "detours-tests-\(UUID().uuidString)"

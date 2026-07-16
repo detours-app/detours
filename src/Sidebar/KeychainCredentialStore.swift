@@ -45,23 +45,25 @@ final class KeychainCredentialStore {
 
     private let service: String
     private let accessControlFlags: SecAccessControlCreateFlags
-    private let keychain: SecKeychain?
+    private let addItem: (CFDictionary) -> OSStatus
+    private let deleteItem: (CFDictionary) -> OSStatus
+    private let copyItemStatus: (CFDictionary) -> OSStatus
 
     init(
         service: String = "com.detours.network",
         accessControlFlags: SecAccessControlCreateFlags = .userPresence,
-        keychain: SecKeychain? = nil
+        addItem: ((CFDictionary) -> OSStatus)? = nil,
+        deleteItem: ((CFDictionary) -> OSStatus)? = nil,
+        copyItemStatus: ((CFDictionary) -> OSStatus)? = nil
     ) {
         self.service = service
         self.accessControlFlags = accessControlFlags
-        self.keychain = keychain
-    }
-
-    private func scopedQuery(_ query: [String: Any]) -> [String: Any] {
-        guard let keychain else { return query }
-        var scoped = query
-        scoped[kSecUseKeychain as String] = keychain
-        return scoped
+        self.addItem = addItem ?? { SecItemAdd($0, nil) }
+        self.deleteItem = deleteItem ?? { SecItemDelete($0) }
+        self.copyItemStatus = copyItemStatus ?? { query in
+            var result: AnyObject?
+            return SecItemCopyMatching(query, &result)
+        }
     }
 
     // MARK: - Save
@@ -105,7 +107,7 @@ final class KeychainCredentialStore {
             query[kSecAttrAccessControl as String] = accessControl
         }
 
-        let status = SecItemAdd(scopedQuery(query) as CFDictionary, nil)
+        let status = addItem(query as CFDictionary)
         if status != errSecSuccess {
             logger.error("Failed to save credentials for \(server): \(status)")
             throw KeychainError.saveFailed(status)
@@ -129,13 +131,13 @@ final class KeychainCredentialStore {
         let context = LAContext()
         context.localizedReason = "Access credentials for \(server)"
 
-        let query = scopedQuery([
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: server,
             kSecReturnData as String: true,
             kSecUseAuthenticationContext as String: context,
-        ])
+        ]
 
         let cfQuery = query as CFDictionary
 
@@ -173,13 +175,13 @@ final class KeychainCredentialStore {
 
     /// Delete stored credentials for a server
     func delete(server: String) throws {
-        let query = scopedQuery([
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: server,
-        ])
+        ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = deleteItem(query as CFDictionary)
         if status != errSecSuccess && status != errSecItemNotFound {
             logger.error("Failed to delete credentials for \(server): \(status)")
             throw KeychainError.deleteFailed(status)
@@ -192,15 +194,14 @@ final class KeychainCredentialStore {
 
     /// Check if credentials exist for a server (without requiring authentication)
     func hasCredential(server: String) -> Bool {
-        let query = scopedQuery([
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: server,
             kSecUseAuthenticationUI as String: kSecUseAuthenticationUISkip,
-        ])
+        ]
 
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = copyItemStatus(query as CFDictionary)
 
         // errSecInteractionNotAllowed means item exists but requires auth
         return status == errSecSuccess || status == errSecInteractionNotAllowed
