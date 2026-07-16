@@ -1944,3 +1944,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   window, accounting for the remaining cascading failures. The first failing
   surface is
   `RealRemoteFileOperationsUITests/testDelayedRealConnectionLoadsPaneCapturedBeforeFocusSwitch`.
+
+- 2026-07-16 18:14 CEST: Foundry
+  `swift test --filter DirectoryWatcherTests.testImmediateUnwatchDuringAsyncStart`
+  PASS: 1 Swift Testing test, 0 failures. One hundred immediate watch/unwatch
+  cycles completed while asynchronous directory opens and main-queue dispatch
+  source setup drained without releasing an inactive source.
