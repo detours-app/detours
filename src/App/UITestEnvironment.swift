@@ -22,6 +22,7 @@ enum UITestEnvironment {
     static let paneStateResponseFileName = ".detours-pane-state-response.json"
     static let openedItemsHistoryFileName = ".detours-opened-items-history.json"
     static let remoteMutationCommandFileName = ".detours-remote-mutation-command.json"
+    static let keychainLifecycleResultFileName = ".detours-keychain-lifecycle-result.json"
 
     struct ResizeMainWindowCommand: Decodable {
         let id: String
@@ -84,6 +85,11 @@ enum UITestEnvironment {
         let id: String
         let sourcePath: String
         let newName: String
+    }
+
+    struct KeychainLifecycleResult: Encodable {
+        let success: Bool
+        let failure: String?
     }
 
     struct ShowNetworkShareDialogAcknowledgement: Encodable {
@@ -166,6 +172,11 @@ enum UITestEnvironment {
     static var recordsOpenedItems: Bool {
         guard isEnabled else { return false }
         return ProcessInfo.processInfo.environment["DETOURS_UI_TEST_RECORD_OPENS"] == "1"
+    }
+
+    static var runsKeychainLifecycle: Bool {
+        guard isEnabled else { return false }
+        return ProcessInfo.processInfo.environment["DETOURS_UI_TEST_KEYCHAIN_LIFECYCLE"] == "1"
     }
 
     static var mirrorsRemoteInBothPanes: Bool {
@@ -306,6 +317,10 @@ enum UITestEnvironment {
 
     static var remoteMutationCommandURL: URL? {
         rootDirectory?.appendingPathComponent(remoteMutationCommandFileName)
+    }
+
+    static var keychainLifecycleResultURL: URL? {
+        rootDirectory?.appendingPathComponent(keychainLifecycleResultFileName)
     }
 
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
@@ -508,6 +523,18 @@ enum UITestEnvironment {
     static func writePaneStateResponse(_ response: PaneStateResponse) {
         guard let url = paneStateResponseURL,
               let data = try? JSONEncoder().encode(response) else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func writeKeychainLifecycleResult(success: Bool, failure: String? = nil) {
+        guard let url = keychainLifecycleResultURL,
+              let data = try? JSONEncoder().encode(KeychainLifecycleResult(
+                success: success,
+                failure: failure
+              )) else {
             return
         }
 

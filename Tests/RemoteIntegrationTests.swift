@@ -49,22 +49,20 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testArchiveWrongPasswordMapsRealHelperErrorToRetry() async throws {
-        let sevenZip = try Self.runSSH("command -v 7z || command -v 7zz")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !sevenZip.isEmpty else {
-            throw XCTSkip("devtest has no 7z executable for encrypted archive coverage")
-        }
         let session = try RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
-        try Self.runSSH(
-            "cd \(Self.shellQuote(remoteRoot)); printf secret > secret.txt; "
-                + "\(Self.shellQuote(sevenZip)) a -tzip -pcorrect-password -mem=AES256 encrypted.zip secret.txt >/dev/null"
+        try Self.runSSH("printf secret > \(Self.shellQuote(remoteRoot + "/secret.txt"))")
+        let archive = try await session.provider.archiveCreate(
+            [.remote(hostID: session.hostID, path: remoteRoot + "/secret.txt")],
+            format: .zip,
+            archiveName: "encrypted",
+            password: "correct-password"
         )
 
         do {
             _ = try await session.provider.archiveExtract(
-                .remote(hostID: session.hostID, path: remoteRoot + "/encrypted.zip"),
+                archive,
                 password: "wrong-password"
             )
             XCTFail("Expected archive password retry")

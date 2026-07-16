@@ -106,6 +106,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func installUITestHooks() {
         guard UITestEnvironment.isEnabled else { return }
 
+        if UITestEnvironment.runsKeychainLifecycle {
+            Task { @MainActor [weak self] in
+                await self?.runKeychainLifecycleForUITest()
+            }
+        }
         seedUITestCommandStateFromExistingFiles()
         uiTestCommandPollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
@@ -113,6 +118,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try? await Task.sleep(nanoseconds: 100_000_000)
             }
         }
+    }
+
+    private func runKeychainLifecycleForUITest() async {
+        let store = KeychainCredentialStore(
+            service: "com.detours.uitests.\(UUID().uuidString)",
+            accessControlFlags: []
+        )
+        let account = "detours-uitest-\(UUID().uuidString)"
+        let otherAccount = "detours-uitest-\(UUID().uuidString)"
+        defer {
+            try? store.delete(server: account)
+            try? store.delete(server: otherAccount)
+        }
+
+        do {
+            guard !store.hasCredential(server: account),
+                  !store.hasCredential(server: otherAccount) else {
+                throw keychainLifecycleError("isolated accounts were not initially empty")
+            }
+
+            try store.save(server: account, username: "test-user", password: "test-password")
+            guard store.hasCredential(server: account),
+                  !store.hasCredential(server: otherAccount) else {
+                throw keychainLifecycleError("saved credential was not isolated by account")
+            }
+
+            let credential = try await store.retrieve(server: account)
+            guard credential?.username == "test-user", credential?.password == "test-password" else {
+                throw keychainLifecycleError("retrieved credential did not match the saved value")
+            }
+
+            try store.delete(server: account)
+            let deletedCredential = try await store.retrieve(server: account)
+            guard !store.hasCredential(server: account) else {
+                throw keychainLifecycleError("deleted credential remained visible")
+            }
+            guard case nil = deletedCredential else {
+                throw keychainLifecycleError("deleted credential remained accessible")
+            }
+            UITestEnvironment.writeKeychainLifecycleResult(success: true)
+        } catch {
+            UITestEnvironment.writeKeychainLifecycleResult(success: false, failure: error.localizedDescription)
+        }
+    }
+
+    private func keychainLifecycleError(_ message: String) -> NSError {
+        NSError(domain: "DetoursUITestKeychain", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }
 
     private func seedUITestCommandStateFromExistingFiles() {

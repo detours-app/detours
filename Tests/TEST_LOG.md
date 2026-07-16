@@ -1833,3 +1833,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   process, and the real archive wrong-password test lost the helper's final RPC
   frame. The Keychain check needs a signed host and the archive check needs a
   deterministic provider-level request lifecycle.
+
+- 2026-07-16 16:45 CEST: Foundry focused audit-fix `swift test --filter` rerun
+  FAIL: 211 of 212 XCTest cases and all 45 Swift Testing cases passed. The
+  temporary Security.framework keychain accepted the save but its lookup was
+  not scoped consistently, producing three assertions; its deprecated creation
+  APIs also emitted two warnings. The real helper now returned an error frame,
+  exposing that zip extraction reports generic `processFailed("zip failed")`
+  instead of the required `wrongPassword` contract.
