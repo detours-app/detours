@@ -1874,3 +1874,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Detours app compiled, bundled, and codesigned. No repository warning was
   emitted. The static Swift Foundation archive emitted its upstream `mktemp`
   linker diagnostic while producing the successful Linux binary.
+
+- 2026-07-16 16:56 CEST: Foundry
+  `swift test --filter RemoteIntegrationTests/testArchiveWrongPasswordMapsRealHelperErrorToRetry`
+  PASS: 1 test, 0 failures. The harness deployed the current bundled Linux
+  helper, and explicit wrong-password diagnostics mapped reliably to the app's
+  password-retry contract.
