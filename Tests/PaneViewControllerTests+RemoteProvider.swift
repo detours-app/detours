@@ -341,22 +341,22 @@ private final class PaneRemoteProvider: FileProvider, @unchecked Sendable {
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
-        lock.lock()
-        defer { lock.unlock() }
-        listCallCounts[location.path, default: 0] += 1
-        return listings[location.path] ?? []
+        lock.withLock {
+            listCallCounts[location.path, default: 0] += 1
+            return listings[location.path] ?? []
+        }
     }
 
     func setListing(_ entries: [LoadedFileEntry], for path: String) {
-        lock.lock()
-        defer { lock.unlock() }
-        listings[path] = entries
+        lock.withLock {
+            listings[path] = entries
+        }
     }
 
     func listCallCount(for path: String) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        listCallCounts[path, default: 0]
+        lock.withLock {
+            listCallCounts[path, default: 0]
+        }
     }
 
     func stat(_ location: Location) async throws -> LoadedFileEntry { throw FileProviderError.unsupportedOperation("stat") }
