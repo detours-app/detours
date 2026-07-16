@@ -37,6 +37,8 @@ final class NewFolderUITests: BaseUITest {
         // Step 4: Create a new folder (should create INSIDE BBB_Second)
         print("DEBUG: Creating new folder inside BBB_Second")
         chooseFileMenuItem("New Folder")
+        XCTAssertTrue(waitForRow(named: "Folder", timeout: 3), "Default folder should appear before typing")
+        XCTAssertEqual(selectedRowName(), "Folder", "Default folder should own the active selection")
         let createdName = "NestedFolderProof-\(UUID().uuidString.prefix(8))"
         // Typing into the app and committing proves the inline editor owns first
         // responder; if it is absent or interrupted, the renamed row never appears.
@@ -70,6 +72,8 @@ final class NewFolderUITests: BaseUITest {
 
         // Create new folder
         chooseFileMenuItem("New Folder")
+        XCTAssertTrue(waitForRow(named: "Folder", timeout: 3), "Default folder should appear before typing")
+        XCTAssertEqual(selectedRowName(), "Folder", "Default folder should own the active selection")
         let createdName = "RootFolderProof-\(UUID().uuidString.prefix(8))"
         app.typeText(createdName)
         app.typeKey(.return, modifierFlags: [])
@@ -88,10 +92,12 @@ final class NewFolderUITests: BaseUITest {
     func testEscapeExplicitlyCancelsNewFolder() throws {
         selectRow(named: "file1.txt")
         chooseFileMenuItem("New Folder")
+        let defaultFolderRow = outlineRow(named: "Folder")
+        XCTAssertTrue(defaultFolderRow.waitForExistence(timeout: 3))
+        XCTAssertEqual(selectedRowName(), "Folder")
         app.typeKey(.escape, modifierFlags: [])
 
-        let defaultFolderRow = outlineRow(named: "Folder")
-        XCTAssertFalse(defaultFolderRow.waitForExistence(timeout: 3), "Escape should remove only the uncommitted new folder")
+        XCTAssertTrue(defaultFolderRow.waitForNonExistence(timeout: 3), "Escape should remove only the uncommitted new folder")
         XCTAssertTrue(rowExists(named: "file1.txt"))
     }
 
