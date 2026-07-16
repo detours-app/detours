@@ -556,6 +556,7 @@ extension FileListViewController {
     }
 }
 
+@MainActor
 private final class ArchivePasswordSheet: NSObject {
     private let archive: Location
     private let completion: (String) -> Void
