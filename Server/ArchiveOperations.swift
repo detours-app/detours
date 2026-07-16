@@ -448,6 +448,17 @@ struct ArchiveOperations {
     }
 
     private static func resolveToolOnPath(_ tool: String) -> String? {
+        if tool == "7z" {
+            let installedCandidates = [
+                "/opt/homebrew/bin/7z",
+                "/opt/homebrew/bin/7zz",
+                "/usr/local/bin/7z",
+                "/usr/local/bin/7zz",
+            ]
+            if let installed = installedCandidates.first(where: FileManager.default.fileExists(atPath:)) {
+                return installed
+            }
+        }
         let candidates = tool == "7z" ? ["7z", "7zz"] : [tool]
         for candidate in candidates {
             if let path = resolveExecutableOnPath(candidate) {

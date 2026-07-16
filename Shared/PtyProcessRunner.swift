@@ -351,7 +351,9 @@ public struct PtyProcessRunner: Sendable {
         guard let text = String(bytes: bytes, encoding: .utf8) else { return false }
         let line = text.split(omittingEmptySubsequences: false, whereSeparator: { $0 == "\n" || $0 == "\r" }).last ?? ""
         let trimmed = String(line).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-        return trimmed.lowercased().contains("password") && trimmed.hasSuffix(":")
+        let lowercased = trimmed.lowercased()
+        guard let passwordRange = lowercased.range(of: "password", options: .backwards) else { return false }
+        return lowercased[passwordRange.upperBound...].contains(":")
     }
 
     private func terminalEchoIsDisabled(_ descriptor: Int32) -> Bool {
