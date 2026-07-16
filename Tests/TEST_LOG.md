@@ -2014,3 +2014,8 @@ Spotlight search has no unit test (depends on the live, async-built system index
   passed F7 creation/rename selection, rename/paste/delete/move outcomes,
   folder expansion and watcher refresh, Quick Nav, real remote Cmd-R, delayed
   real connection, inline rename visual capture, undo, and geometry coverage.
+
+- 2026-07-16 19:27 CEST: Foundry full `swift test`
+  PASS: 800 XCTest cases (17 expected platform skips) and 46 Swift Testing
+  cases, 0 failures. The immediate watch/unwatch race regression completed its
+  100 cycles, and all configured real SSH/RPC integration tests passed.
