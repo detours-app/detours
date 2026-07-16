@@ -1854,3 +1854,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   covering real save, account isolation, retrieval, deletion, and post-delete
   absence. The XCUI target emitted a repository warning for an unused optional
   SSH cleanup result, so the build is not clean until that warning is fixed.
+
+- 2026-07-16 16:50 CEST: Foundry
+  `uitest.sh KeychainCredentialStoreUITests/testSignedAppSaveRetrieveIsolationAndDelete`
+  PASS: 1 test, 0 failures with a clean repository build. The signed Detours
+  process verified real Security.framework save, account isolation, retrieval,
+  deletion, and post-delete absence without deprecated APIs or test doubles.
