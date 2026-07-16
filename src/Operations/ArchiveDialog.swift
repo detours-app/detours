@@ -144,11 +144,14 @@ struct ArchiveDialog: View {
                 Picker("", selection: $model.format) {
                     ForEach(ArchiveFormat.allCases, id: \.self) { format in
                         if CompressionTools.isFormatAvailable(format) {
-                            Text(format.displayName).tag(format)
+                            Text(format.displayName)
+                                .tag(format)
+                                .accessibilityIdentifier("archiveFormat-\(format.rawValue)")
                         } else {
                             Text("\(format.displayName) (not installed)")
                                 .foregroundStyle(.secondary)
                                 .tag(format)
+                                .accessibilityIdentifier("archiveFormat-\(format.rawValue)")
                         }
                     }
                 }

@@ -12,16 +12,16 @@ final class ArchivePasswordUITests: BaseUITest {
         XCTAssertTrue(formatPicker.waitForExistence(timeout: 2))
         XCTAssertTrue(passwordToggle.waitForExistence(timeout: 2))
 
-        chooseArchiveFormat(index: 0, in: formatPicker)
+        chooseArchiveFormat("zip", in: formatPicker)
         XCTAssertTrue(passwordToggle.isEnabled)
-        chooseArchiveFormat(index: 1, in: formatPicker)
+        chooseArchiveFormat("sevenZ", in: formatPicker)
         XCTAssertTrue(passwordToggle.isEnabled)
-        for (index, format) in ["TAR.GZ", "TAR.BZ2", "TAR.XZ"].enumerated() {
-            chooseArchiveFormat(index: index + 2, in: formatPicker)
-            XCTAssertFalse(passwordToggle.isEnabled, "\(format) should disable password encryption")
+        for (identifier, displayName) in [("tarGz", "TAR.GZ"), ("tarBz2", "TAR.BZ2"), ("tarXz", "TAR.XZ")] {
+            chooseArchiveFormat(identifier, in: formatPicker)
+            XCTAssertFalse(passwordToggle.isEnabled, "\(displayName) should disable password encryption")
         }
 
-        chooseArchiveFormat(index: 0, in: formatPicker)
+        chooseArchiveFormat("zip", in: formatPicker)
         passwordToggle.click()
         let passwordField = sheet.secureTextFields["archivePasswordField"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 2))
@@ -72,13 +72,11 @@ final class ArchivePasswordUITests: BaseUITest {
         XCTAssertFalse(hasTemporaryExtractionDirectory())
     }
 
-    private func chooseArchiveFormat(index: Int, in picker: XCUIElement) {
+    private func chooseArchiveFormat(_ identifier: String, in picker: XCUIElement) {
         picker.click()
-        app.typeKey(.home, modifierFlags: [])
-        for _ in 0..<index {
-            app.typeKey(.downArrow, modifierFlags: [])
-        }
-        app.typeKey(.return, modifierFlags: [])
+        let item = app.descendants(matching: .any)["archiveFormat-\(identifier)"]
+        XCTAssertTrue(item.waitForExistence(timeout: 2), "\(identifier) archive format should exist")
+        item.click()
     }
 
     private func submitExtractionPassword(_ password: String) {
