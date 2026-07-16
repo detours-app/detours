@@ -109,6 +109,21 @@ if [ -n "$1" ]; then
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
         -only-testing:"DetoursUITests/$1"
+elif [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
+    # Screenshot capture depends on the deterministic session written by
+    # screenshot-configure.sh. Run it before any other UI test can save a
+    # different pane session, then exclude it from the remaining full suite.
+    DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" xcodebuild test \
+        -project "$XCODEPROJ" \
+        -scheme DetoursUITests \
+        -destination "$UITEST_DESTINATION" \
+        -only-testing:"DetoursUITests/ChromePolishScreenshotTests"
+
+    DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" xcodebuild test \
+        -project "$XCODEPROJ" \
+        -scheme DetoursUITests \
+        -destination "$UITEST_DESTINATION" \
+        -skip-testing:"DetoursUITests/ChromePolishScreenshotTests"
 else
     # Run all tests
     DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" xcodebuild test \

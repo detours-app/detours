@@ -151,6 +151,24 @@ final class RemoteFileOperationsUITests: BaseUITest {
         }
     }
 
+    func testCommandRRefreshesChangedRemoteListing() throws {
+        let externalFile = uiTestRootURL.appendingPathComponent("cmd-r-remote-proof.txt")
+        defer { try? FileManager.default.removeItem(at: externalFile) }
+
+        XCTAssertFalse(leftRow(externalFile.lastPathComponent).exists)
+        let initialLists = rootListStartCount()
+        XCTAssertTrue(FileManager.default.createFile(atPath: externalFile.path, contents: Data("proof".utf8)))
+
+        pressCharKey("r", modifiers: .command)
+
+        XCTAssertTrue(
+            leftRow(externalFile.lastPathComponent).waitForExistence(timeout: 5),
+            "Cmd-R should reveal a file added outside the remote provider"
+        )
+        XCTAssertTrue(waitForCondition(timeout: 5) { self.rootListStartCount() > initialLists })
+        XCTAssertEqual(rootListStartCount() - initialLists, 1, "Cmd-R should request one remote root listing")
+    }
+
     func testExpandedTreeNeverDisappearsDuringMutationRefresh() throws {
         expandRemoteFolder("FolderA", revealing: "SubfolderA1")
         expandRemoteFolder("SubfolderA1", revealing: "file.txt")

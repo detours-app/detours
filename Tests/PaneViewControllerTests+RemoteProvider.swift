@@ -252,7 +252,7 @@ extension PaneViewControllerTests {
         XCTAssertEqual(pane.tabSelections, [[selectedFile]])
     }
 
-    func testRemoteRefreshPreservesSelectedItem() throws {
+    func testRemoteRefreshReloadsListingAndPreservesSelectedItem() async throws {
         let host = RemoteHost(displayName: "Wraith", sshTarget: "wraith")
         let remoteDirectory = "/home/marco/projects/api"
         let selectedFile = URL(fileURLWithPath: "\(remoteDirectory)/database.py")
@@ -273,12 +273,37 @@ extension PaneViewControllerTests {
         XCTAssertGreaterThanOrEqual(selectedRow, 0)
         fileList.tableView.selectRowIndexes(IndexSet(integer: selectedRow), byExtendingSelection: false)
 
-        fileList.refresh()
+        await provider.setListing(
+            [
+                .remoteFile(hostID: host.id, path: "\(remoteDirectory)/app.py", name: "app.py"),
+                .remoteFile(hostID: host.id, path: selectedFile.path, name: "database.py"),
+                .remoteFile(hostID: host.id, path: "\(remoteDirectory)/routes.py", name: "routes.py"),
+            ],
+            for: remoteDirectory
+        )
+
+        let event = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: .command,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "r",
+            charactersIgnoringModifiers: "r",
+            isARepeat: false,
+            keyCode: 15
+        )
+        XCTAssertTrue(fileList.handleKeyDown(try XCTUnwrap(event)))
 
         waitUntil(
-            fileList.tableView.selectedRow >= 0 &&
+            fileList.tableView.numberOfRows == 3 &&
+                fileList.tableView.selectedRow >= 0 &&
                 (fileList.tableView.item(atRow: fileList.tableView.selectedRow) as? FileItem)?.location.path == selectedFile.path
         )
+        let listCallCount = await provider.listCallCount(for: remoteDirectory)
+        XCTAssertEqual(listCallCount, 2)
+        XCTAssertNotNil(fileList.dataSource.items.first { $0.name == "routes.py" })
         let refreshedSelection = try XCTUnwrap(fileList.tableView.item(atRow: fileList.tableView.selectedRow) as? FileItem)
         XCTAssertEqual(refreshedSelection.location.path, selectedFile.path)
     }
@@ -307,14 +332,24 @@ extension PaneViewControllerTests {
 }
 
 private actor PaneRemoteProvider: FileProvider {
-    private let listings: [String: [LoadedFileEntry]]
+    private var listings: [String: [LoadedFileEntry]]
+    private var listCallCounts: [String: Int] = [:]
 
     init(listings: [String: [LoadedFileEntry]] = [:]) {
         self.listings = listings
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
+        listCallCounts[location.path, default: 0] += 1
         return listings[location.path] ?? []
+    }
+
+    func setListing(_ entries: [LoadedFileEntry], for path: String) {
+        listings[path] = entries
+    }
+
+    func listCallCount(for path: String) -> Int {
+        listCallCounts[path, default: 0]
     }
 
     func stat(_ location: Location) async throws -> LoadedFileEntry { throw FileProviderError.unsupportedOperation("stat") }
