@@ -1916,3 +1916,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   companion passed. All 30 folder-expansion tests, the signed-app Keychain
   lifecycle, F7 new-folder selection, rename/paste/delete selection, watcher,
   undo, archive, and geometry coverage passed.
+
+- 2026-07-16 17:43 CEST: Foundry
+  `resources/scripts/uitest.sh QuickNavCmdEnterUITests`
+  PASS: 2 tests, 0 failures. The Quick Open helper now targets the SwiftUI
+  field's exported `TextField` accessibility type; Cmd-Enter selection and
+  Enter-versus-Cmd-Enter behavior both passed.
