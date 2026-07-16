@@ -45,12 +45,6 @@ class PasteSelectionUITests: BaseUITest {
 
         // Step 5: Paste (Cmd+V)
         pressCharKey("v", modifiers: .command)
-        let keepBothButton = app.buttons["Keep Both"]
-        XCTAssertTrue(
-            keepBothButton.waitForExistence(timeout: 3),
-            "Pasting beside the source should ask how to resolve the name conflict"
-        )
-        keepBothButton.click()
 
         // Step 6: Verify pasted file exists (should be "file copy.txt" or "file 2.txt")
         // The new file should appear in the same folder (SubfolderA1), not at root

@@ -200,11 +200,12 @@ extension FileListViewController {
         let displayedLocation = currentRemoteLocation ?? currentDirectory.map(Location.local)
         guard selectionOrigin == .user,
               selectedItems.count == 1,
-              let selectedItem = selectedItems.first,
-              selectedItem.isDirectory else {
+              let selectedItem = selectedItems.first else {
             return displayedLocation
         }
-        return selectedItem.location
+        return selectedItem.isDirectory
+            ? selectedItem.location
+            : selectedItem.location.deletingLastPathComponent()
     }
 
     func restoreSelection(_ urls: [URL], scrollToVisible: Bool = true) {

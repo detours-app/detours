@@ -3,17 +3,26 @@ import XCTest
 @testable import Detours
 
 extension FileListResponderTests {
-    func testRemotePasteUsesExplicitFolderOrCurrentDirectory() {
+    func testRemotePasteUsesExplicitFolderFileParentOrCurrentDirectory() {
         let hostID = UUID()
         let root = Location.remote(hostID: hostID, path: "/Root")
         let folderA = remoteFolder(hostID: hostID, path: "/Root/A")
         let folderB = remoteFolder(hostID: hostID, path: "/Root/B")
-        let controller = remotePasteController(root: root, items: [folderA, folderB])
+        let nestedFile = remoteFile(hostID: hostID, path: "/Root/A/nested.txt")
+        let controller = remotePasteController(root: root, items: [folderA, folderB, nestedFile])
         let rowA = controller.tableView.row(forItem: folderA)
         let rowB = controller.tableView.row(forItem: folderB)
+        let nestedFileRow = controller.tableView.row(forItem: nestedFile)
 
         controller.tableView.selectRowIndexes(
             IndexSet(integer: rowA),
+            byExtendingSelection: false,
+            origin: .user
+        )
+        XCTAssertEqual(controller.effectivePasteDestinationLocation, folderA.location)
+
+        controller.tableView.selectRowIndexes(
+            IndexSet(integer: nestedFileRow),
             byExtendingSelection: false,
             origin: .user
         )
@@ -97,6 +106,17 @@ extension FileListResponderTests {
             location: .remote(hostID: hostID, path: path),
             isDirectory: true,
             size: nil,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+    }
+
+    private func remoteFile(hostID: UUID, path: String) -> FileItem {
+        FileItem(
+            name: URL(fileURLWithPath: path).lastPathComponent,
+            location: .remote(hostID: hostID, path: path),
+            isDirectory: false,
+            size: 1,
             dateModified: Date(),
             icon: NSImage()
         )
