@@ -1977,3 +1977,8 @@ Spotlight search has no unit test (depends on the live, async-built system index
   regressions passed in the same run. The sole failure was
   `RenameVisualUITests/testCaptureInlineRenameEditor`: XCUITest failed to
   create the requested screenshot after the inline rename editor appeared.
+
+- 2026-07-16 18:51 CEST: Foundry
+  `resources/scripts/uitest.sh RenameVisualUITests/testCaptureInlineRenameEditor`
+  FAIL: the UI-test target did not compile because this XCTest SDK's
+  `XCUIElement` has no `hasKeyboardFocus` member. No test executed.
