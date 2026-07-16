@@ -105,8 +105,9 @@ final class MultiDirectoryWatcher: @unchecked Sendable {
 private final class SingleDirectoryWatcher: @unchecked Sendable {
     let url: URL
     private let onChange: () -> Void
-    private var fileDescriptor: Int32 = -1
+    private let stateLock = NSLock()
     private var source: DispatchSourceFileSystemObject?
+    private var generation: UInt64 = 0
 
     init(url: URL, onChange: @escaping () -> Void) {
         self.url = url
@@ -118,7 +119,13 @@ private final class SingleDirectoryWatcher: @unchecked Sendable {
     }
 
     func start(onReady: @escaping @Sendable () -> Void = {}) {
-        stop()
+        let startGeneration: UInt64 = stateLock.withLock {
+            generation &+= 1
+            let previousSource = source
+            source = nil
+            previousSource?.cancel()
+            return generation
+        }
 
         let path = url.path
         // Open file descriptor on background queue to avoid blocking main thread
@@ -140,25 +147,36 @@ private final class SingleDirectoryWatcher: @unchecked Sendable {
                     return
                 }
 
-                self.fileDescriptor = fd
-
-                self.source = DispatchSource.makeFileSystemObjectSource(
+                let newSource = DispatchSource.makeFileSystemObjectSource(
                     fileDescriptor: fd,
                     eventMask: [.write, .link, .rename, .delete],
                     queue: .main
                 )
 
-                self.source?.setEventHandler { [weak self] in
+                newSource.setEventHandler { [weak self] in
                     self?.onChange()
                 }
-
-                self.source?.setCancelHandler { [weak self] in
-                    guard let self, self.fileDescriptor >= 0 else { return }
-                    Darwin.close(self.fileDescriptor)
-                    self.fileDescriptor = -1
+                newSource.setCancelHandler {
+                    Darwin.close(fd)
                 }
 
-                self.source?.resume()
+                let didStart = self.stateLock.withLock {
+                    guard self.generation == startGeneration else { return false }
+                    // Publish only after activation while holding the same lock used by
+                    // stop(). A concurrent stop can therefore never release an inactive
+                    // dispatch source.
+                    newSource.resume()
+                    self.source = newSource
+                    return true
+                }
+                guard didStart else {
+                    // Dispatch sources must be activated before cancellation, even when
+                    // this asynchronous open completed after the watch was invalidated.
+                    newSource.resume()
+                    newSource.cancel()
+                    onReady()
+                    return
+                }
                 logger.debug("Started watching: \(path)")
                 onReady()
             }
@@ -166,9 +184,13 @@ private final class SingleDirectoryWatcher: @unchecked Sendable {
     }
 
     func stop() {
-        if let source {
-            source.cancel()
-            self.source = nil
+        let sourceToCancel: DispatchSourceFileSystemObject? = stateLock.withLock {
+            generation &+= 1
+            defer { source = nil }
+            return source
+        }
+        if let sourceToCancel {
+            sourceToCancel.cancel()
             logger.debug("Stopped watching: \(self.url.path)")
         }
     }

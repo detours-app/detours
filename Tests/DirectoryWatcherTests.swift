@@ -203,6 +203,26 @@ struct MultiDirectoryWatcherTests {
         watcher.unwatchAll()
     }
 
+    @Test("Immediate unwatch cannot release an inactive dispatch source")
+    func testImmediateUnwatchDuringAsyncStart() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        // Opening the directory and creating its dispatch source happen on separate
+        // queues. Repeating the immediate teardown crosses the lifecycle window that
+        // previously crashed when stop() raced source creation before resume().
+        for _ in 0..<100 {
+            let watcher = MultiDirectoryWatcher { _ in }
+            watcher.watch(tempDir)
+            watcher.unwatchAll()
+            await Task.yield()
+        }
+
+        // Allow all pending opens and main-queue source setup blocks to drain. A stale
+        // setup must activate then cancel its source without emitting a callback/crash.
+        try await Task.sleep(for: .milliseconds(250))
+    }
+
     @Test("Detects file content modification (touch)")
     func testDetectsContentModification() async throws {
         let tempDir = try makeTempDir()
