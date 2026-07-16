@@ -1956,3 +1956,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   FAIL: 1 test, 1 failure. The inactive-dispatch-source crash did not recur,
   but the app exposed no main window within the test's 10-second readiness
   deadline. The delayed real-connection launch path remains unresolved.
+
+- 2026-07-16 18:18 CEST: Foundry delayed real-connection UI rerun
+  FAIL: 1 test, 1 failure. The crash-recovery dialog was dismissed, but the
+  diagnostic launcher was then terminated with a signal, causing AppKit to
+  restore the same crash marker before this rerun. The app again exposed no
+  test window; no new Detours crash report was generated.
