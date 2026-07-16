@@ -1,6 +1,12 @@
 import CryptoKit
 import Foundation
 
+enum UITestRemoteCallPhase: String, Codable, Sendable {
+    case started
+    case completed
+    case failed
+}
+
 /// A mutable, local-directory-backed remote host used exclusively by UI tests.
 ///
 /// Every translated path is confined to `base`, including paths that pass through symlinks. The
@@ -9,19 +15,13 @@ import Foundation
 /// relying on sleeps.
 actor UITestRemoteProvider: FileProvider {
     struct CallRecord: Codable, Sendable {
-        enum Phase: String, Codable, Sendable {
-            case started
-            case completed
-            case failed
-        }
-
         let sequence: UInt64
         let hostID: UUID
         let operation: String
         let sources: [String]
         let destination: String?
         let changedParents: [String]
-        let phase: Phase
+        let phase: UITestRemoteCallPhase
         let detail: String?
     }
 

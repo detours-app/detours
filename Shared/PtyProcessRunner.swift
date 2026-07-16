@@ -108,12 +108,12 @@ public struct PtyProcessRunner: Sendable {
         var passwordBytes = Array((invocation.password ?? "").utf8)
         defer { _ = passwordBytes.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) } }
 
-        var masterDescriptor: Int32 = -1
+        var primaryDescriptor: Int32 = -1
         var replicaDescriptor: Int32 = -1
-        guard openpty(&masterDescriptor, &replicaDescriptor, nil, nil, nil) == 0 else {
+        guard openpty(&primaryDescriptor, &replicaDescriptor, nil, nil, nil) == 0 else {
             throw systemError("openpty")
         }
-        defer { close(masterDescriptor) }
+        defer { close(primaryDescriptor) }
 
         guard let replicaNamePointer = ttyname(replicaDescriptor) else {
             close(replicaDescriptor)
@@ -126,7 +126,7 @@ public struct PtyProcessRunner: Sendable {
         do {
             processID = try spawn(
                 invocation,
-                masterDescriptor: masterDescriptor,
+                primaryDescriptor: primaryDescriptor,
                 replicaPath: replicaPath
             )
         } catch {
@@ -135,9 +135,9 @@ public struct PtyProcessRunner: Sendable {
         controller.register(processID: processID)
         defer { controller.clear(processID: processID) }
 
-        let currentFlags = fcntl(masterDescriptor, F_GETFL)
+        let currentFlags = fcntl(primaryDescriptor, F_GETFL)
         guard currentFlags >= 0,
-              fcntl(masterDescriptor, F_SETFL, currentFlags | O_NONBLOCK) == 0 else {
+              fcntl(primaryDescriptor, F_SETFL, currentFlags | O_NONBLOCK) == 0 else {
             terminateAndReap(processID)
             throw systemError("fcntl")
         }
@@ -170,7 +170,7 @@ public struct PtyProcessRunner: Sendable {
                 signalSession(processID, signal: SIGTERM)
             }
 
-            var descriptor = pollfd(fd: masterDescriptor, events: Int16(POLLIN | POLLHUP), revents: 0)
+            var descriptor = pollfd(fd: primaryDescriptor, events: Int16(POLLIN | POLLHUP), revents: 0)
             let pollResult = poll(&descriptor, 1, 25)
             if pollResult < 0, errno != EINTR {
                 terminateAndReap(processID)
@@ -179,7 +179,7 @@ public struct PtyProcessRunner: Sendable {
 
             if pollResult > 0, descriptor.revents & Int16(POLLIN | POLLHUP) != 0 {
                 outputClosed = try drainOutput(
-                    masterDescriptor,
+                    primaryDescriptor,
                     promptBytes: &promptBytes,
                     diagnosticTail: &diagnosticTail,
                     onOutput: onOutput
@@ -188,7 +188,7 @@ public struct PtyProcessRunner: Sendable {
 
             if responseIndex < invocation.responses.count,
                containsPasswordPrompt(promptBytes),
-               terminalEchoIsDisabled(masterDescriptor) {
+               terminalEchoIsDisabled(primaryDescriptor) {
                 usleep(Self.preSendDelayMicroseconds)
                 var responseBytes: [UInt8]
                 switch invocation.responses[responseIndex] {
@@ -198,7 +198,7 @@ public struct PtyProcessRunner: Sendable {
                     responseBytes = []
                 }
                 responseBytes.append(0x0A)
-                try writeAll(responseBytes, to: masterDescriptor)
+                try writeAll(responseBytes, to: primaryDescriptor)
                 _ = responseBytes.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) }
                 responseIndex += 1
                 promptBytes.removeAll(keepingCapacity: true)
@@ -235,12 +235,12 @@ public struct PtyProcessRunner: Sendable {
 
     private func spawn(
         _ invocation: PtyProcessInvocation,
-        masterDescriptor: Int32,
+        primaryDescriptor: Int32,
         replicaPath: String
     ) throws -> pid_t {
         #if canImport(Darwin)
-        var actions: posix_spawn_file_actions_t? = nil
-        var attributes: posix_spawnattr_t? = nil
+        var actions: posix_spawn_file_actions_t?
+        var attributes: posix_spawnattr_t?
         #else
         var actions = posix_spawn_file_actions_t()
         var attributes = posix_spawnattr_t()
@@ -261,7 +261,7 @@ public struct PtyProcessRunner: Sendable {
             result = posix_spawn_file_actions_adddup2(&actions, STDIN_FILENO, descriptor)
             guard result == 0 else { throw systemError("posix_spawn_file_actions_adddup2", code: result) }
         }
-        result = posix_spawn_file_actions_addclose(&actions, masterDescriptor)
+        result = posix_spawn_file_actions_addclose(&actions, primaryDescriptor)
         guard result == 0 else { throw systemError("posix_spawn_file_actions_addclose", code: result) }
 
         if let currentDirectory = invocation.currentDirectory {
