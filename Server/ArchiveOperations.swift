@@ -431,13 +431,15 @@ struct ArchiveOperations {
         let diagnostic = result.stderr.lowercased()
         switch format {
         case .zip:
-            if result.status == 82 { return true }
-            guard result.status == 1 else { return false }
-            return diagnostic.contains("incorrect password")
+            if diagnostic.contains("incorrect password")
                 || diagnostic.contains("password incorrect")
                 || diagnostic.contains("wrong password")
-                || diagnostic.contains("bad password")
-                || (diagnostic.contains("skipping:") && diagnostic.contains("password"))
+                || diagnostic.contains("bad password") {
+                return true
+            }
+            if result.status == 82 { return true }
+            guard result.status == 1 else { return false }
+            return (diagnostic.contains("skipping:") && diagnostic.contains("password"))
                 || (diagnostic.contains("skipping:") && diagnostic.contains("encrypted"))
         case .sevenZ:
             return diagnostic.contains("wrong password")

@@ -1860,3 +1860,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 1 test, 0 failures with a clean repository build. The signed Detours
   process verified real Security.framework save, account isolation, retrieval,
   deletion, and post-delete absence without deprecated APIs or test doubles.
+
+- 2026-07-16 16:52 CEST: Foundry focused audit-fix `swift test --filter` rerun
+  FAIL: 210 of 211 XCTest cases and all 45 Swift Testing cases passed. The real
+  encrypted-ZIP diagnostic explicitly reported `password incorrect`, but the
+  helper discarded that signal because `unzip` returned a status other than 1.
+  Explicit password diagnostics must map to retry independently of the tool's
+  platform-dependent nonzero status.
