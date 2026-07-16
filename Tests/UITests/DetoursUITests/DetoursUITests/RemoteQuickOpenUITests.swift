@@ -63,7 +63,7 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
     override func tearDownWithError() throws {
         app?.terminate()
         if !remoteDirectoryName.isEmpty {
-            try? runSSH("rm -rf \"$HOME/\(remoteDirectoryName)\"")
+            _ = try? runSSH("rm -rf \"$HOME/\(remoteDirectoryName)\"")
         }
     }
 

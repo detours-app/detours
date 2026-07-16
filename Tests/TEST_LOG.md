@@ -1847,3 +1847,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 1 test, 0 failures. The deployed helper created the encrypted ZIP and a
   wrong-password extraction crossed the real SSH/RPC boundary into the
   provider's password-retry error contract.
+
+- 2026-07-16 16:49 CEST: Foundry
+  `uitest.sh KeychainCredentialStoreUITests/testSignedAppSaveRetrieveIsolationAndDelete`
+  FAIL: the signed-app Keychain lifecycle itself passed (1 test, 0 failures),
+  covering real save, account isolation, retrieval, deletion, and post-delete
+  absence. The XCUI target emitted a repository warning for an unused optional
+  SSH cleanup result, so the build is not clean until that warning is fixed.
