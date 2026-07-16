@@ -304,8 +304,10 @@ final class ServerArchiveOperationsTests: XCTestCase {
     func testZipCreateUsesSafeOptionBoundaryAndCommonAncestorLayout() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
-        let alpha = try createTestFolder(in: temp, name: "Alpha")
-        let beta = try createTestFolder(in: temp, name: "Beta")
+        let alpha = temp.appendingPathComponent("Alpha", isDirectory: true)
+        let beta = temp.appendingPathComponent("Beta", isDirectory: true)
+        try FileManager.default.createDirectory(at: alpha, withIntermediateDirectories: false)
+        try FileManager.default.createDirectory(at: beta, withIntermediateDirectories: false)
         let first = try createTestFile(in: alpha, name: "-TT", content: "one")
         let second = try createTestFile(in: beta, name: "two.txt", content: "two")
         let capturedArguments = LockedBox<[String]>([])
