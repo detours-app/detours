@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/secure-password-archives
 
 ---
@@ -28,14 +28,14 @@ Re-enable the "Encrypt with password" option for ZIP and 7Z, and let Detours ope
 
 ### Acceptance Criteria
 
-- [ ] **A1** Selecting ZIP or 7Z enables the "Encrypt with password" checkbox; selecting TAR.GZ, TAR.BZ2, or TAR.XZ disables it.
-- [ ] **A2** Ticking the checkbox reveals a password field, and creating an archive with a non-empty password creates an archive that requires that password.
-- [ ] **A3** Detours opens its password-protected ZIP and 7Z archives with the correct password, and the extracted contents match the originals.
-- [ ] **A4** A wrong password displays an incorrect-password message and another prompt without leaving partial extracted files or folders.
-- [ ] **A5** During encrypted creation, listing, or extraction, inspecting how the compression tool was started does not reveal the password, and Detours never includes it in progress or error text.
-- [ ] **A6** Password-protected ZIP and 7Z creation and extraction work through the bundled helper on supported macOS and Linux remote machines.
-- [ ] **A7** Unencrypted ZIP and 7Z operations and every TAR operation retain their current progress, cancellation, naming, conflict, and cleanup behavior.
-- [ ] **A8** ZIP passwords of 80 UTF-8 bytes are accepted, longer ZIP passwords are rejected in the app and helper before an archive tool starts, and 7Z passwords are not subject to this Detours limit.
+- [x] **A1** Selecting ZIP or 7Z enables the "Encrypt with password" checkbox; selecting TAR.GZ, TAR.BZ2, or TAR.XZ disables it.
+- [x] **A2** Ticking the checkbox reveals a password field, and creating an archive with a non-empty password creates an archive that requires that password.
+- [x] **A3** Detours opens its password-protected ZIP and 7Z archives with the correct password, and the extracted contents match the originals.
+- [x] **A4** A wrong password displays an incorrect-password message and another prompt without leaving partial extracted files or folders.
+- [x] **A5** During encrypted creation, listing, or extraction, inspecting how the compression tool was started does not reveal the password, and Detours never includes it in progress or error text.
+- [x] **A6** Password-protected ZIP and 7Z creation and extraction work through the bundled helper on supported macOS and Linux remote machines.
+- [x] **A7** Unencrypted ZIP and 7Z operations and every TAR operation retain their current progress, cancellation, naming, conflict, and cleanup behavior.
+- [x] **A8** ZIP passwords of 80 UTF-8 bytes are accepted, longer ZIP passwords are rejected in the app and helper before an archive tool starts, and 7Z passwords are not subject to this Detours limit.
 
 ### Out of scope
 
@@ -50,7 +50,7 @@ Re-enable the "Encrypt with password" option for ZIP and 7Z, and let Detours ope
 
 ### Approach
 
-Audit commit `862884b` disabled archive passwords after finding `zip -P`, `unzip -P`, and `7z -pPASSWORD` in local and remote flows. Those forms place the secret in the child argument vector. The installed tools expose their argv-free password path through an interactive terminal: `zip -er` prompts for entry and confirmation, while `unzip` and `7z` read a password from a terminal when their password switch has no inline value.
+Audit commit `862884b` disabled archive passwords after finding `zip -P`, `unzip -P`, and `7z -pPASSWORD` in local and remote flows. Those forms place the secret in the child argument vector. The installed tools expose argv-free password paths through an interactive terminal: `zip -er` and `7z` creation with a bare `-p` prompt for a password, `unzip` prompts without `-P`, and `7z` listing or extraction prompts when the password switch is omitted.
 
 Add a shared `DetoursProcess` library target at `Shared/`, with platform branches for Darwin and Glibc, and make the app, bundled helper, and PTY tests depend on it. The Linux linker settings include `libutil`. The Linux helper build script copies and hashes `Shared/` and `SharedTests/`, declares the shared target in its generated package, runs the shared tests in the Swift 6.2 Noble container, and then builds the helper.
 
@@ -115,7 +115,7 @@ Research and code inspection support the revised approach:
 **Phase 3: Local extraction and prompting**
 
 - [x] **C7** Route password-bearing ZIP retries in `src/Operations/FileOperationQueue+Extraction.swift` through `/usr/bin/unzip -o -q` on the PTY, enforce the 80-UTF-8-byte preflight, map exit 82 and password-specific exit-1 diagnostics to `archivePasswordRequired`, keep other failures distinct, and preserve app-created-directory cleanup.
-- [x] **C8** Route password-bearing 7Z listing and extraction through `7z l -slt -p` and `7z x -y -bsp2 -p`, stream extraction progress, materialize results from an app-created temporary directory only after success, and distinguish wrong passwords from corruption.
+- [x] **C8** Route password-bearing 7Z listing and extraction through prompt-mode `7z l -slt` and `7z x -y -bsp2`, stream extraction progress, materialize results from an app-created temporary directory only after success, and distinguish wrong passwords from corruption.
 - [x] **C9** Restore the `Location`-based archive password sheet and incorrect-password retry loop in `src/FileList/FileListViewController+FileActions.swift` for local and remote extraction, and keep the sheet open with the exact ZIP byte-limit message when validation fails.
 
 **Phase 4: Remote helper and cleanup**
@@ -151,16 +151,16 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 - [x] **T12** `ArchiveOperationTests.testCreateListAndExtractEncrypted7zRoundTrips` covers encrypted 7Z creation, password-bearing listing, temporary extraction, materialization, progress callbacks, and matching contents.
 - [x] **T13** `ArchiveOperationTests.testEncrypted7zWrongPasswordDiffersFromCorruption` confirms only encrypted-data diagnostics request another password and both failures clean app-created output.
 - [x] **T14** `ArchiveOperationTests.testSupportsPasswordFlags` confirms ZIP and 7Z support passwords while all TAR formats do not.
-- [ ] **T15** `ServerArchiveOperationsTests.testEncryptedZipRoundTripsThroughPtyRunner` confirms on macOS and in the generated Linux test target that the helper creates and extracts an encrypted ZIP through the real PTY runner.
-- [ ] **T16** `ServerArchiveOperationsTests.testWrongPasswordMapsToRetryAndCleansTemporaryOutput` confirms the helper error survives the RPC mapping as `archivePasswordRequired` without partial output.
-- [ ] **T17** Existing unencrypted ZIP, 7Z, TAR, local, and helper archive tests continue to pass unchanged.
+- [x] **T15** `ServerArchiveOperationsTests.testEncryptedZipRoundTripsThroughPtyRunner` confirms on macOS and in the generated Linux test target that the helper creates and extracts an encrypted ZIP through the real PTY runner.
+- [x] **T16** `ServerArchiveOperationsTests.testWrongPasswordMapsToRetryAndCleansTemporaryOutput` confirms the helper error survives the RPC mapping as `archivePasswordRequired` without partial output.
+- [x] **T17** Existing unencrypted ZIP, 7Z, TAR, local, and helper archive tests continue to pass unchanged.
 
 ### UI Tests (`Tests/UITests/DetoursUITests/DetoursUITests/`)
 
-- [ ] **T18** `ArchivePasswordUITests.testCreationControlsFollowSelectedFormat` confirms ZIP and 7Z enable the checkbox, TAR formats disable it, ticking the box reveals the secure field, and an 81-byte ZIP password shows the exact limit message and disables Archive.
-- [ ] **T19** `ArchivePasswordUITests.testWrongPasswordShowsRetrySheet` confirms an encrypted archive prompts after first extraction, labels a wrong retry, keeps the prompt open without launching work for an 81-byte ZIP password, and succeeds after the correct password without partial output.
-- [ ] **T20** `ArchivePasswordValidationTests.testZipPasswordByteLimit` confirms the app and local operation preflights accept exactly 80 UTF-8 bytes, reject 81 bytes including a multibyte boundary case with the exact message, and do not apply the limit to 7Z.
-- [ ] **T21** `ServerArchiveOperationsTests.testZipPasswordByteLimit` confirms helper ZIP create and extract requests reject 81 UTF-8 bytes before process launch, accept exactly 80 bytes, and leave 7Z unrestricted by this Detours limit.
+- [x] **T18** `ArchivePasswordUITests.testCreationControlsFollowSelectedFormat` confirms ZIP and 7Z enable the checkbox, TAR formats disable it, ticking the box reveals the secure field, and an 81-byte ZIP password shows the exact limit message and disables Archive.
+- [x] **T19** `ArchivePasswordUITests.testWrongPasswordShowsRetrySheet` confirms an encrypted archive prompts after first extraction, labels a wrong retry, keeps the prompt open without launching work for an 81-byte ZIP password, and succeeds after the correct password without partial output.
+- [x] **T20** `ArchivePasswordValidationTests.testZipPasswordByteLimit` confirms the app and local operation preflights accept exactly 80 UTF-8 bytes, reject 81 bytes including a multibyte boundary case with the exact message, and do not apply the limit to 7Z.
+- [x] **T21** `ServerArchiveOperationsTests.testZipPasswordByteLimit` confirms helper ZIP create and extract requests reject 81 UTF-8 bytes before process launch, accept exactly 80 bytes, and leave 7Z unrestricted by this Detours limit.
 
 ## Build Log
 
@@ -180,3 +180,8 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 - **C14** `resources/scripts/build.sh --no-install` on Foundry built the Linux helper, Intel macOS helper, and app successfully; `swiftlint lint --quiet` on Spectre completed with no findings. Foundry has no SwiftLint executable, so lint ran on the identical committed source tree on Spectre.
 - **T1-T9** Added real cross-platform child-process coverage for status/output, controlling-terminal access, split echo-disabled prompts, confirmation/retry policies, timeout and session reaping, cancellation, streamed bounded diagnostics, and secret absence from argv, environment, and output. The suite runs on macOS and in the generated Noble package.
 - **T10-T14** Added real encrypted ZIP and 7Z round trips, mixed-ZIP wrong-password cleanup and exit classification, streamed 7Z progress and temporary materialization, corruption separation, and restored format-capability assertions.
+- **T15-T17** Verified real helper ZIP round trips on macOS and Linux, real helper 7Z round trips in the generated Linux target, RPC retry mapping, cleanup, and the complete Foundry unit/integration suite: 793 XCTest cases with 17 tool-gated skips and no failures, plus 44 Swift Testing cases with no failures.
+- **T18-T19** Ran both Foundry UI tests individually. Creation-format controls, secure-field visibility, ZIP byte validation, incorrect-password retry, partial-output cleanup, and successful retry all passed.
+- **T20-T21** Verified exact 80-byte acceptance, multibyte 81-byte rejection before process launch, and unrestricted 7Z behavior in the local and helper validation suites.
+- **A1-A8** Acceptance is covered by the unit, helper, real-tool, RPC, and UI suites above. Passwords remain absent from arguments, environment, streamed output, and diagnostics; a manual implementation review also rejected the `7zz` alias because that executable leaves terminal echo enabled at its password prompt.
+- **Final verification** Foundry `resources/scripts/build.sh --no-install` passed at commit `2803670`, including 9 Linux PTY tests, 12 Linux helper archive tests, both remote helper builds, and the release app bundle. Spectre `swiftlint lint --quiet` and the changed-file lint suite completed with no findings.
