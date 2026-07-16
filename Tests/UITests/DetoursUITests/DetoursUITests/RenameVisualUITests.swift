@@ -14,15 +14,21 @@ final class RenameVisualUITests: BaseUITest {
 
         pressKey(.return, modifiers: [.shift])
 
+        let renameField = app.textFields["inlineRenameField"]
+        XCTAssertTrue(renameField.waitForExistence(timeout: 2), "Inline rename editor should exist before capture")
+        XCTAssertTrue(renameField.hasKeyboardFocus, "Inline rename editor should have keyboard focus before capture")
+
         let outputDirectory = URL(
             fileURLWithPath: ProcessInfo.processInfo.environment["DETOURS_RENAME_CAPTURE_DIR"] ?? NSTemporaryDirectory(),
             isDirectory: true
         )
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 
-        usleep(500_000)
         let screenshotURL = outputDirectory.appendingPathComponent("rename-inline-editor.png")
-        let screenshot = app.windows.firstMatch.screenshot()
+        // Element snapshots occasionally fail to render after a long UI-test run even
+        // though the accessibility hierarchy is healthy. Capture the display directly;
+        // the assertions above still prove that the rename editor is visible and active.
+        let screenshot = XCUIScreen.main.screenshot()
         try screenshot.pngRepresentation.write(to: screenshotURL, options: .atomic)
         XCTAssertGreaterThan(try Data(contentsOf: screenshotURL).count, 20_000, "Screenshot should not be empty")
 

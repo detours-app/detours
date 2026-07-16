@@ -1968,3 +1968,12 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 1 test, 0 failures after clearing AppKit's crash marker through a
   normal application quit. The delayed real SSH connection completed in the
   pane captured at connection start after focus moved to the other pane.
+
+- 2026-07-16 18:47 CEST: Foundry full
+  `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 resources/scripts/uitest.sh`
+  FAIL: the screenshot fixture capture passed; the main run executed 85 tests
+  with 83 passing, 1 expected Windows-live skip, and 1 failure. All operation,
+  selection, Quick Nav, watcher, real remote Cmd-R, and delayed-connection
+  regressions passed in the same run. The sole failure was
+  `RenameVisualUITests/testCaptureInlineRenameEditor`: XCUITest failed to
+  create the requested screenshot after the inline rename editor appeared.
