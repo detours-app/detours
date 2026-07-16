@@ -1903,5 +1903,16 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 800 XCTest cases (17 expected skips) and 45 Swift Testing cases, 0
   failures. The skips were 14 Windows live cases verified separately above,
   two Intel Darwin-helper cases unavailable without Rosetta on Foundry, and one
-  machine-specific default-application case; all configured Unix and Intel macOS SSH/RPC
-  integration tests executed successfully.
+  machine-specific default-application case; all configured Unix and Intel
+  macOS SSH/RPC integration tests executed successfully.
+
+- 2026-07-16 17:38 CEST: Foundry full `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1
+  resources/scripts/uitest.sh`
+  FAIL: the screenshot capture passed, then 85 UI tests executed with 80
+  passing, 1 expected Windows-live skip, and 4 failures. Both Quick Nav
+  Cmd-Enter tests and the local Quick Nav scope test could not observe the
+  search field after the Quick Open panel appeared. The real remote Cmd-R test
+  separately failed during app accessibility launch; its delayed-connection
+  companion passed. All 30 folder-expansion tests, the signed-app Keychain
+  lifecycle, F7 new-folder selection, rename/paste/delete selection, watcher,
+  undo, archive, and geometry coverage passed.

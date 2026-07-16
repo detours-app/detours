@@ -340,7 +340,7 @@ extension BaseUITest {
         chooseGoMenuItem("Quick Open", timeout: timeout)
 
         let scopeHeader = app.staticTexts["quickNavScopeHeader"]
-        let searchField = app.searchFields["quickNavSearchField"]
+        let searchField = app.textFields["quickNavSearchField"]
         XCTAssertTrue(
             scopeHeader.waitForExistence(timeout: timeout),
             "Quick Open scope should become ready"
@@ -353,7 +353,7 @@ extension BaseUITest {
 
     func openQuickNavForKeyboardInput() {
         openQuickNav(timeout: 5)
-        let searchField = app.searchFields["quickNavSearchField"]
+        let searchField = app.textFields["quickNavSearchField"]
         XCTAssertTrue(searchField.isHittable, "Quick Open search field should accept keyboard input")
         searchField.click()
     }
