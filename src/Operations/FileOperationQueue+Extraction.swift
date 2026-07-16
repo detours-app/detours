@@ -229,7 +229,7 @@ extension FileOperationQueue {
         }
     }
 
-    nonisolated private static func isZipPasswordFailure(_ message: String, status: Int32) -> Bool {
+    nonisolated static func isZipPasswordFailure(_ message: String, status: Int32) -> Bool {
         if status == 82 { return true }
         guard status == 1 else { return false }
         let lowercased = message.lowercased()

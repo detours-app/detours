@@ -146,11 +146,11 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 
 ### Archive Tests (`Tests/`)
 
-- [ ] **T10** `ArchiveOperationTests.testCreateAndExtractEncryptedZipRoundTrips` creates and extracts a password ZIP, compares contents, and replaces the disabled-password creation test.
-- [ ] **T11** `ArchiveOperationTests.testEncryptedZipWrongPasswordRetriesWithoutPartialOutput` confirms the repeated prompt receives an empty response, exit 82 and a mixed encrypted/unencrypted ZIP's password-specific exit-1 diagnostic map to `archivePasswordRequired`, generic exit-1 failures do not, and cleanup removes app-created output.
-- [ ] **T12** `ArchiveOperationTests.testCreateListAndExtractEncrypted7zRoundTrips` covers encrypted 7Z creation, password-bearing listing, temporary extraction, materialization, progress callbacks, and matching contents.
-- [ ] **T13** `ArchiveOperationTests.testEncrypted7zWrongPasswordDiffersFromCorruption` confirms only encrypted-data diagnostics request another password and both failures clean app-created output.
-- [ ] **T14** `ArchiveOperationTests.testSupportsPasswordFlags` confirms ZIP and 7Z support passwords while all TAR formats do not.
+- [x] **T10** `ArchiveOperationTests.testCreateAndExtractEncryptedZipRoundTrips` creates and extracts a password ZIP, compares contents, and replaces the disabled-password creation test.
+- [x] **T11** `ArchiveOperationTests.testEncryptedZipWrongPasswordRetriesWithoutPartialOutput` confirms the repeated prompt receives an empty response, exit 82 and a mixed encrypted/unencrypted ZIP's password-specific exit-1 diagnostic map to `archivePasswordRequired`, generic exit-1 failures do not, and cleanup removes app-created output.
+- [x] **T12** `ArchiveOperationTests.testCreateListAndExtractEncrypted7zRoundTrips` covers encrypted 7Z creation, password-bearing listing, temporary extraction, materialization, progress callbacks, and matching contents.
+- [x] **T13** `ArchiveOperationTests.testEncrypted7zWrongPasswordDiffersFromCorruption` confirms only encrypted-data diagnostics request another password and both failures clean app-created output.
+- [x] **T14** `ArchiveOperationTests.testSupportsPasswordFlags` confirms ZIP and 7Z support passwords while all TAR formats do not.
 - [ ] **T15** `ServerArchiveOperationsTests.testEncryptedZipRoundTripsThroughPtyRunner` confirms on macOS and in the generated Linux test target that the helper creates and extracts an encrypted ZIP through the real PTY runner.
 - [ ] **T16** `ServerArchiveOperationsTests.testWrongPasswordMapsToRetryAndCleansTemporaryOutput` confirms the helper error survives the RPC mapping as `archivePasswordRequired` without partial output.
 - [ ] **T17** Existing unencrypted ZIP, 7Z, TAR, local, and helper archive tests continue to pass unchanged.
@@ -179,3 +179,4 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 - **C13** Updated both user guides for local and supported helper password workflows, ZIP's 80-byte limit, wrong-password cleanup, the Windows boundary, and the precise command-line secrecy guarantee.
 - **C14** `resources/scripts/build.sh --no-install` on Foundry built the Linux helper, Intel macOS helper, and app successfully; `swiftlint lint --quiet` on Spectre completed with no findings. Foundry has no SwiftLint executable, so lint ran on the identical committed source tree on Spectre.
 - **T1-T9** Added real cross-platform child-process coverage for status/output, controlling-terminal access, split echo-disabled prompts, confirmation/retry policies, timeout and session reaping, cancellation, streamed bounded diagnostics, and secret absence from argv, environment, and output. The suite runs on macOS and in the generated Noble package.
+- **T10-T14** Added real encrypted ZIP and 7Z round trips, mixed-ZIP wrong-password cleanup and exit classification, streamed 7Z progress and temporary materialization, corruption separation, and restored format-capability assertions.
