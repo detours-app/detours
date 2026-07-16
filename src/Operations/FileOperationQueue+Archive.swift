@@ -490,7 +490,7 @@ extension FileOperationQueue {
     }
 }
 
-private final class ArchivePercentageParser: @unchecked Sendable {
+final class ArchivePercentageParser: @unchecked Sendable {
     private let lock = NSLock()
     private var bufferedText = ""
 

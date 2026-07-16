@@ -18,7 +18,12 @@ extension FileOperationQueue {
         switch format {
         case .zip:
             return try await performExtractZip(archive: archive, format: format, password: password)
-        case .sevenZ, .tarGz, .tarBz2, .tarXz:
+        case .sevenZ:
+            if let password, !password.isEmpty {
+                return try await performExtractEncryptedSevenZip(archive: archive, password: password)
+            }
+            return try await performExtractNonZip(archive: archive, format: format)
+        case .tarGz, .tarBz2, .tarXz:
             return try await performExtractNonZip(archive: archive, format: format)
         }
     }
@@ -233,6 +238,198 @@ extension FileOperationQueue {
             || lowercased.contains("bad password")
             || (lowercased.contains("skipping:") && lowercased.contains("password"))
             || (lowercased.contains("skipping:") && lowercased.contains("encrypted"))
+    }
+
+    // MARK: - Password-protected 7Z extraction
+
+    private func performExtractEncryptedSevenZip(archive: URL, password: String) async throws -> URL {
+        let format = ArchiveFormat.sevenZ
+        let operation = FileOperation.extract(archive: archive, format: format)
+        startOperation(operation, totalCount: 1)
+        defer { finishOperation() }
+
+        guard CompressionTools.canExtract(format) else {
+            throw FileOperationError.archiveToolNotFound(CompressionTool.sevenZip.displayName)
+        }
+
+        let parentDirectory = archive.deletingLastPathComponent()
+        enterProtectedPaths([archive, parentDirectory])
+        defer { leaveProtectedPaths([archive, parentDirectory]) }
+
+        let temporaryDirectory = parentDirectory.appendingPathComponent(".detours-extract-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { Self.removeAppCreatedDirectory(temporaryDirectory) }
+
+        try checkCancelled()
+        _ = try await listEncryptedSevenZip(archive: archive, password: password)
+        try await extractEncryptedSevenZip(
+            archive: archive,
+            destination: temporaryDirectory,
+            password: password
+        )
+
+        let result = try await materialiseEncryptedSevenZip(
+            temporaryDirectory: temporaryDirectory,
+            archive: archive
+        )
+        updateProgress(operation: operation, currentItem: result, completed: 1, total: 1)
+        return result
+    }
+
+    private func listEncryptedSevenZip(archive: URL, password: String) async throws -> Set<String> {
+        let invocation = PtyProcessInvocation(
+            executable: CompressionTool.sevenZip.path,
+            arguments: ["l", "-slt", "-p", archive.path],
+            password: password,
+            responses: [.password],
+            minimumResponses: 1
+        )
+        let result = try await runArchivePty(invocation)
+        guard result.status == 0 else {
+            throw Self.sevenZipFailure(result)
+        }
+        return Self.parseSevenZipTopLevelEntries(result.outputString)
+    }
+
+    private func extractEncryptedSevenZip(
+        archive: URL,
+        destination: URL,
+        password: String
+    ) async throws {
+        let invocation = PtyProcessInvocation(
+            executable: CompressionTool.sevenZip.path,
+            arguments: ["x", "-y", "-bsp2", "-p", "-o\(destination.path)", archive.path],
+            password: password,
+            responses: [.password],
+            minimumResponses: 1
+        )
+        let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
+        let parser = ArchivePercentageParser()
+        let result = try await runArchivePty(invocation) { [weak self] data in
+            guard let percent = parser.consume(data) else { return }
+            Task { @MainActor [weak self] in
+                guard let self, let operation = self.currentOperation else { return }
+                let fraction = min(Double(percent) / 100, 1)
+                self.updateProgress(
+                    operation: operation,
+                    currentItem: destination,
+                    completed: 0,
+                    total: 0,
+                    bytesCompleted: Int64(Double(archiveSize) * fraction),
+                    bytesTotal: archiveSize
+                )
+            }
+        }
+        guard result.status == 0 else {
+            throw Self.sevenZipFailure(result)
+        }
+    }
+
+    private func runArchivePty(
+        _ invocation: PtyProcessInvocation,
+        onOutput: (@Sendable (Data) -> Void)? = nil
+    ) async throws -> PtyProcessResult {
+        let runnerTask = Task {
+            try await PtyProcessRunner().run(invocation, onOutput: onOutput)
+        }
+        currentIOCancellable = AnyCancellableTask(runnerTask)
+        defer { currentIOCancellable = nil }
+        do {
+            let result = try await runnerTask.value
+            try checkCancelled()
+            return result
+        } catch is CancellationError {
+            throw FileOperationError.cancelled
+        }
+    }
+
+    private func materialiseEncryptedSevenZip(
+        temporaryDirectory: URL,
+        archive: URL
+    ) async throws -> URL {
+        let fileManager = FileManager.default
+        let items = try fileManager.contentsOfDirectory(
+            at: temporaryDirectory,
+            includingPropertiesForKeys: nil
+        ).filter { !$0.lastPathComponent.hasPrefix(".") }
+        guard !items.isEmpty else {
+            throw FileOperationError.archiveProcessFailed("Archive appears to be empty")
+        }
+
+        let parentDirectory = archive.deletingLastPathComponent()
+        if items.count == 1, let item = items.first {
+            var destination = parentDirectory.appendingPathComponent(item.lastPathComponent)
+            if fileManager.fileExists(atPath: destination.path) {
+                switch await resolveExtractConflict(
+                    conflictingItems: [destination.lastPathComponent],
+                    destination: parentDirectory
+                ) {
+                case .replace:
+                    try fileManager.trashItem(at: destination, resultingItemURL: nil)
+                case .keepBoth:
+                    destination = uniqueCopyDestination(for: destination, in: parentDirectory)
+                case .stop:
+                    throw FileOperationError.cancelled
+                }
+            }
+            try fileManager.moveItem(at: item, to: destination)
+            return destination
+        }
+
+        var wrapperName = archive.deletingPathExtension().lastPathComponent
+        if wrapperName.hasSuffix(".tar") {
+            wrapperName = String(wrapperName.dropLast(4))
+        }
+        var wrapper = parentDirectory.appendingPathComponent(wrapperName)
+        if fileManager.fileExists(atPath: wrapper.path) {
+            switch await resolveExtractConflict(
+                conflictingItems: [wrapperName],
+                destination: parentDirectory
+            ) {
+            case .replace:
+                try fileManager.trashItem(at: wrapper, resultingItemURL: nil)
+            case .keepBoth:
+                wrapper = uniqueCopyDestination(for: wrapper, in: parentDirectory)
+            case .stop:
+                throw FileOperationError.cancelled
+            }
+        }
+        try fileManager.createDirectory(at: wrapper, withIntermediateDirectories: true)
+        for item in items {
+            try fileManager.moveItem(at: item, to: wrapper.appendingPathComponent(item.lastPathComponent))
+        }
+        return wrapper
+    }
+
+    nonisolated private static func sevenZipFailure(_ result: PtyProcessResult) -> FileOperationError {
+        let diagnostic = result.outputString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowercased = diagnostic.lowercased()
+        if lowercased.contains("wrong password")
+            || lowercased.contains("incorrect password")
+            || lowercased.contains("data error in encrypted file") {
+            return .archivePasswordRequired
+        }
+        let message = diagnostic.isEmpty ? "Process exited with code \(result.status)" : diagnostic
+        return .archiveProcessFailed(message)
+    }
+
+    nonisolated private static func parseSevenZipTopLevelEntries(_ output: String) -> Set<String> {
+        var entries = Set<String>()
+        var seenSeparator = false
+        for line in output.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("----------") {
+                seenSeparator = true
+                continue
+            }
+            guard seenSeparator, trimmed.hasPrefix("Path = ") else { continue }
+            let path = String(trimmed.dropFirst("Path = ".count))
+            let components = path.split(separator: "/", omittingEmptySubsequences: true)
+            if let first = components.first, first != "." {
+                entries.insert(String(first))
+            }
+        }
+        return entries
     }
 
     // MARK: - Non-ZIP Extraction (tar, 7z)
