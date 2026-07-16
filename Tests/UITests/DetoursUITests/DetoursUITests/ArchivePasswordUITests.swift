@@ -25,6 +25,7 @@ final class ArchivePasswordUITests: BaseUITest {
         passwordToggle.click()
         let passwordField = sheet.secureTextFields["archivePasswordField"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 2))
+        passwordField.click()
         passwordField.typeText(String(repeating: "a", count: 81))
 
         let limitMessage = sheet.staticTexts["ZIP passwords are limited to 80 UTF-8 bytes"]
