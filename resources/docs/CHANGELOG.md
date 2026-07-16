@@ -22,6 +22,15 @@
   pending-move state, deliberate folder selections control paste destinations,
   and a failed paste keeps the cut available for another attempt.
 
+### Security
+
+- **Password-protected ZIP and 7Z archives are private and retryable** - Local
+  and supported macOS/Linux remote archive operations, including AES-encrypted
+  ZIPs and current Homebrew `7zz`, deliver passwords through an echo-disabled
+  terminal instead of process arguments, retry incorrect passwords without
+  partial output, and enforce ZIP's 80-byte compatibility limit before
+  launching a tool.
+
 ## 1.10.1 - 2026-07-14
 
 ### Bug Fixes

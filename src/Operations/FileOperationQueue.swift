@@ -480,8 +480,10 @@ final class FileOperationQueue {
                 return ("\(tool) isn't installed.", "Install it with Homebrew: brew install \(tool)")
             case let .archiveProcessFailed(message):
                 return ("The archive couldn't be created.", message)
-            case .archivePasswordUnsupported:
-                return ("Password-protected archives are disabled.", operationError.localizedDescription)
+            case let .archiveExtractionFailed(message):
+                return ("The archive couldn't be extracted.", message)
+            case let .archivePasswordInvalid(message):
+                return (message, "Enter a shorter ZIP password and try again.")
             case .cancelled, .archivePasswordRequired, .partialFailure:
                 // Handled before reaching here; provide a safe fallback.
                 return ("The operation couldn't be completed.", "")

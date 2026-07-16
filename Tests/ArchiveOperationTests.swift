@@ -1,3 +1,4 @@
+import DetoursProcess
 import XCTest
 @testable import Detours
 
@@ -111,24 +112,173 @@ final class ArchiveOperationTests: XCTestCase {
         XCTAssertEqual(result.lastPathComponent, "bundle.zip")
     }
 
-    func testCreateZipWithPasswordIsDisabled() async throws {
+    func testCreateAndExtractEncryptedZipRoundTrips() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "secret.txt", content: "classified payload")
 
-        try createTestFile(in: temp, name: "secret.txt", content: "Secret data")
-        let file = temp.appendingPathComponent("secret.txt")
+        let archive = try await FileOperationQueue.shared.archive(
+            items: [source],
+            format: .zip,
+            archiveName: "encrypted",
+            password: "correct horse"
+        )
+        try FileManager.default.removeItem(at: source)
+        let extracted = try await FileOperationQueue.shared.extract(
+            archive: archive,
+            password: "correct horse"
+        )
+
+        XCTAssertEqual(try String(contentsOf: extracted, encoding: .utf8), "classified payload")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: archive.path))
+    }
+
+    func testEncryptedZipWrongPasswordRetriesWithoutPartialOutput() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let publicFile = try createTestFile(in: temp, name: "public.txt", content: "public")
+        let secretFile = try createTestFile(in: temp, name: "secret.txt", content: "secret")
+        let archive = temp.appendingPathComponent("mixed.zip")
+
+        try runProcess(
+            executable: CompressionTool.zip.path,
+            arguments: ["-q", archive.path, publicFile.lastPathComponent],
+            currentDirectory: temp
+        )
+        let appendResult = try await PtyProcessRunner().run(PtyProcessInvocation(
+            executable: CompressionTool.zip.path,
+            arguments: ["-e", "-q", archive.path, secretFile.lastPathComponent],
+            currentDirectory: temp,
+            password: "right-password",
+            responses: [.password, .password]
+        ))
+        XCTAssertEqual(appendResult.status, 0, appendResult.outputString)
+        try FileManager.default.removeItem(at: publicFile)
+        try FileManager.default.removeItem(at: secretFile)
 
         do {
-            _ = try await FileOperationQueue.shared.archive(
-                items: [file],
-                format: .zip,
-                archiveName: "encrypted",
-                password: "testpass123"
-            )
-            XCTFail("Expected password-protected archive creation to be disabled")
-        } catch FileOperationError.archivePasswordUnsupported {
-            XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent("encrypted.zip").path))
+            _ = try await FileOperationQueue.shared.extract(archive: archive, password: "wrong-password")
+            XCTFail("Expected a password retry")
+        } catch FileOperationError.archivePasswordRequired {}
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: publicFile.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: secretFile.path))
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: temp.path).contains {
+            $0.hasPrefix(".detours-extract-")
+        })
+        XCTAssertTrue(FileOperationQueue.isZipPasswordFailure("incorrect password", status: 1))
+        XCTAssertTrue(FileOperationQueue.isZipPasswordFailure("password incorrect--reenter:", status: 1))
+        XCTAssertTrue(FileOperationQueue.isZipPasswordFailure("", status: 82))
+        XCTAssertFalse(FileOperationQueue.isZipPasswordFailure("central directory corrupt", status: 1))
+    }
+
+    func testCreateListAndExtractEncrypted7zRoundTrips() async throws {
+        guard CompressionTools.isAvailable(.sevenZip) else { throw XCTSkip("7z is unavailable") }
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let payload = Data(repeating: 0x5A, count: 2 * 1_024 * 1_024)
+        let source = temp.appendingPathComponent("payload.bin")
+        try payload.write(to: source)
+        var progressUpdates = 0
+        FileOperationQueue.shared.onProgressUpdate = { progress in
+            if progress.bytesTotal > 0 { progressUpdates += 1 }
         }
+        defer { FileOperationQueue.shared.onProgressUpdate = nil }
+
+        let archive = try await FileOperationQueue.shared.archive(
+            items: [source],
+            format: .sevenZ,
+            archiveName: "encrypted",
+            password: "seven-secret"
+        )
+        try FileManager.default.removeItem(at: source)
+        let extracted = try await FileOperationQueue.shared.extract(
+            archive: archive,
+            password: "seven-secret"
+        )
+
+        XCTAssertEqual(try Data(contentsOf: extracted), payload)
+        XCTAssertGreaterThan(progressUpdates, 0)
+    }
+
+    func testEncrypted7zWrongPasswordDiffersFromCorruption() async throws {
+        guard CompressionTools.isAvailable(.sevenZip) else { throw XCTSkip("7z is unavailable") }
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "secret.txt", content: "seven secret")
+        let archive = try await FileOperationQueue.shared.archive(
+            items: [source],
+            format: .sevenZ,
+            archiveName: "protected",
+            password: "right-password"
+        )
+        try FileManager.default.removeItem(at: source)
+
+        do {
+            _ = try await FileOperationQueue.shared.extract(archive: archive, password: "wrong-password")
+            XCTFail("Expected password retry")
+        } catch FileOperationError.archivePasswordRequired {}
+
+        let corrupt = temp.appendingPathComponent("corrupt.7z")
+        try Data("not an archive".utf8).write(to: corrupt)
+        do {
+            _ = try await FileOperationQueue.shared.extract(archive: corrupt, password: "any-password")
+            XCTFail("Expected corruption failure")
+        } catch let FileOperationError.archiveExtractionFailed(message) {
+            XCTAssertFalse(message.lowercased().contains("wrong password"))
+        }
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: temp.path).contains {
+            $0.hasPrefix(".detours-extract-")
+        })
+    }
+
+    func testEncryptedAESZipPromptsAndRoundTripsThroughSevenZip() async throws {
+        guard CompressionTools.isAvailable(.sevenZip) else { throw XCTSkip("7z is unavailable") }
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "aes-secret.txt", content: "AES secret")
+        let archive = temp.appendingPathComponent("aes-encrypted.zip")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
+        process.arguments = [
+            "a", "-bd", "-y", "-tzip", "-mem=AES256", "-pright-password",
+            archive.path, source.path,
+        ]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+        try FileManager.default.removeItem(at: source)
+
+        let metadata = try XCTUnwrap(ZipArchiveMetadata.read(from: archive))
+        XCTAssertTrue(metadata.isEncrypted)
+        XCTAssertTrue(metadata.requiresSevenZip)
+
+        do {
+            _ = try await FileOperationQueue.shared.extract(archive: archive)
+            XCTFail("Expected the encrypted ZIP to request a password")
+        } catch FileOperationError.archivePasswordRequired {}
+
+        do {
+            _ = try await FileOperationQueue.shared.extract(archive: archive, password: "wrong-password")
+            XCTFail("Expected an incorrect password retry")
+        } catch FileOperationError.archivePasswordRequired {}
+
+        let extracted = try await FileOperationQueue.shared.extract(
+            archive: archive,
+            password: "right-password"
+        )
+        XCTAssertEqual(try String(contentsOf: extracted, encoding: .utf8), "AES secret")
+    }
+
+    func testExtractionFailurePresentationNamesExtraction() {
+        let presentation = FileOperationQueue.errorPresentation(
+            for: FileOperationError.archiveExtractionFailed("unsupported compression")
+        )
+
+        XCTAssertEqual(presentation.title, "The archive couldn't be extracted.")
+        XCTAssertEqual(presentation.body, "unsupported compression")
     }
 
     func testCreateTarGzArchive() async throws {
@@ -275,33 +425,12 @@ final class ArchiveOperationTests: XCTestCase {
             _ = try await FileOperationQueue.shared.extract(archive: archive)
             XCTFail("Expected parent-traversal member to be rejected")
         } catch let error as FileOperationError {
-            guard case let .archiveProcessFailed(message) = error else {
-                return XCTFail("Expected archiveProcessFailed, got \(error)")
+            guard case let .archiveExtractionFailed(message) = error else {
+                return XCTFail("Expected archiveExtractionFailed, got \(error)")
             }
             XCTAssertTrue(message.contains("unsafe path"))
         }
         XCTAssertEqual(try String(contentsOf: escaped, encoding: .utf8), "sentinel")
-    }
-
-    func testExtractPasswordZipIsDisabled() async throws {
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-
-        try createTestFile(in: temp, name: "private.txt", content: "Top secret")
-        let file = temp.appendingPathComponent("private.txt")
-        let archive = try await FileOperationQueue.shared.archive(
-            items: [file],
-            format: .zip,
-            archiveName: "private",
-            password: nil
-        )
-
-        do {
-            _ = try await FileOperationQueue.shared.extract(archive: archive, password: "mypass")
-            XCTFail("Expected password-protected archive extraction to be disabled")
-        } catch FileOperationError.archivePasswordUnsupported {
-            XCTAssertTrue(FileManager.default.fileExists(atPath: archive.path))
-        }
     }
 
     func testExtractKeepsBothOnConflict() async throws {
@@ -382,8 +511,24 @@ final class ArchiveOperationTests: XCTestCase {
         XCTAssertFalse(ArchiveFormat.tarXz.supportsPassword)
     }
 
-    func testPasswordDisabledForZipAnd7z() {
-        XCTAssertFalse(ArchiveFormat.zip.supportsPassword)
-        XCTAssertFalse(ArchiveFormat.sevenZ.supportsPassword)
+    func testSupportsPasswordFlags() {
+        XCTAssertTrue(ArchiveFormat.zip.supportsPassword)
+        XCTAssertTrue(ArchiveFormat.sevenZ.supportsPassword)
+        XCTAssertFalse(ArchiveFormat.tarGz.supportsPassword)
+        XCTAssertFalse(ArchiveFormat.tarBz2.supportsPassword)
+        XCTAssertFalse(ArchiveFormat.tarXz.supportsPassword)
+    }
+
+    private func runProcess(executable: String, arguments: [String], currentDirectory: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.currentDirectoryURL = currentDirectory
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+        try process.run()
+        process.waitUntilExit()
+        let error = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        XCTAssertEqual(process.terminationStatus, 0, error)
     }
 }

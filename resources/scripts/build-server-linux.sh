@@ -13,6 +13,12 @@ REMOTE_TMP="/tmp/$REMOTE_DIR"
 REMOTE_TMP_Q="$(printf '%q' "$REMOTE_TMP")"
 DOCKER_IMAGE_Q="$(printf '%q' "$DOCKER_IMAGE")"
 
+cleanup() {
+    # shellcheck disable=SC2029
+    ssh "$REMOTE_HOST" "rm -rf $REMOTE_TMP_Q" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
 mkdir -p resources/Servers
 
 if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_HOST" true >/dev/null 2>&1; then
@@ -24,7 +30,12 @@ fi
 # shellcheck disable=SC2029
 ssh "$REMOTE_HOST" "rm -rf $REMOTE_TMP_Q && mkdir -p $REMOTE_TMP_Q"
 # shellcheck disable=SC2029
-COPYFILE_DISABLE=1 tar --no-xattrs -czf - Server | ssh "$REMOTE_HOST" "tar -xzf - -C $REMOTE_TMP_Q"
+COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
+    Server \
+    Shared \
+    SharedTests \
+    Tests/ServerArchiveOperationsTests.swift \
+    | ssh "$REMOTE_HOST" "tar -xzf - -C $REMOTE_TMP_Q"
 # shellcheck disable=SC2029
 ssh "$REMOTE_HOST" "cat > $REMOTE_TMP_Q/Package.swift" <<'EOF'
 // swift-tools-version: 6.2
@@ -37,18 +48,33 @@ let package = Package(
         .executable(name: "detours-server", targets: ["detours-server"]),
     ],
     targets: [
+        .target(
+            name: "DetoursProcess",
+            path: "Shared",
+            linkerSettings: [.linkedLibrary("util")]
+        ),
         .executableTarget(
             name: "detours-server",
+            dependencies: ["DetoursProcess"],
             path: "Server"
+        ),
+        .testTarget(
+            name: "DetoursProcessTests",
+            dependencies: ["DetoursProcess"],
+            path: "SharedTests"
+        ),
+        .testTarget(
+            name: "ServerArchiveOperationsTests",
+            dependencies: ["detours-server", "DetoursProcess"],
+            path: "Tests",
+            sources: ["ServerArchiveOperationsTests.swift"]
         ),
     ]
 )
 EOF
 # shellcheck disable=SC2029
-ssh "$REMOTE_HOST" "cd $REMOTE_TMP_Q && docker run --rm --user \"\$(id -u):\$(id -g)\" -e HOME=/tmp -v \"\$PWD:/workspace\" -w /workspace $DOCKER_IMAGE_Q swift build -c release --product detours-server -Xswiftc -static-stdlib"
+ssh "$REMOTE_HOST" "cd $REMOTE_TMP_Q && docker run --rm -e HOME=/tmp -v \"\$PWD:/workspace\" -w /workspace $DOCKER_IMAGE_Q sh -c 'owner=\"\$(stat -c %u:%g /workspace)\"; trap \"chown -R \$owner /workspace\" EXIT; apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zip unzip p7zip-full && swift test --filter DetoursProcessTests && swift test --filter ServerArchiveOperationsTests && swift build -c release --product detours-server -Xswiftc -static-stdlib'"
 scp "$REMOTE_HOST:$REMOTE_TMP/.build/release/detours-server" "$SERVER_BINARY"
-# shellcheck disable=SC2029
-ssh "$REMOTE_HOST" "rm -rf $REMOTE_TMP_Q"
 chmod 0755 "$SERVER_BINARY"
 echo "$HASH" > "$SERVER_HASH_FILE"
 

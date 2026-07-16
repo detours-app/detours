@@ -1,7 +1,134 @@
+import DetoursProcess
 import XCTest
 @testable import detours_server
 
 final class ServerArchiveOperationsTests: XCTestCase {
+    func testEncryptedZipRoundTripsThroughPtyRunner() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "secret.txt", content: "helper secret")
+        let operations = ArchiveOperations()
+
+        let archivePath = try operations.createArchive(
+            items: [source.path],
+            format: "zip",
+            archiveName: "encrypted",
+            password: "helper-password"
+        )
+        try FileManager.default.removeItem(at: source)
+        let extractedPath = try operations.extractArchive(
+            archive: archivePath,
+            password: "helper-password"
+        )
+
+        XCTAssertEqual(try String(contentsOfFile: extractedPath, encoding: .utf8), "helper secret")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: archivePath))
+    }
+
+    func testEncryptedSevenZRoundTripsThroughPtyRunner() throws {
+        guard executableOnPath("7z") != nil else { throw XCTSkip("7z is unavailable") }
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "secret.txt", content: "helper seven secret")
+        let operations = ArchiveOperations()
+
+        let archivePath = try operations.createArchive(
+            items: [source.path],
+            format: "sevenZ",
+            archiveName: "encrypted",
+            password: "helper-password"
+        )
+        try FileManager.default.removeItem(at: source)
+        let extractedPath = try operations.extractArchive(
+            archive: archivePath,
+            password: "helper-password"
+        )
+
+        XCTAssertEqual(try String(contentsOfFile: extractedPath, encoding: .utf8), "helper seven secret")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: archivePath))
+    }
+
+    func testWrongPasswordMapsToRetryAndCleansTemporaryOutput() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "secret.txt", content: "helper secret")
+        let operations = ArchiveOperations()
+        let archivePath = try operations.createArchive(
+            items: [source.path],
+            format: "zip",
+            archiveName: "encrypted",
+            password: "right-password"
+        )
+        try FileManager.default.removeItem(at: source)
+
+        XCTAssertThrowsError(try operations.extractArchive(archive: archivePath, password: "wrong-password")) {
+            XCTAssertEqual($0 as? ArchiveOperationsError, .wrongPassword)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: temp.path).contains {
+            $0.hasPrefix(".detours-extract-")
+        })
+    }
+
+    func testZipPasswordByteLimit() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "secret.txt", content: "helper secret")
+        let zipArchive = temp.appendingPathComponent("input.zip")
+        try Data("placeholder".utf8).write(to: zipArchive)
+        let ptyInvocations = LockedBox<[PtyProcessInvocation]>([])
+        let toolResolutions = LockedBox(0)
+        let operations = ArchiveOperations(
+            resolveTool: { tool in
+                toolResolutions.value += 1
+                return "/usr/bin/\(tool)"
+            },
+            runPtyProcess: { invocation in
+                ptyInvocations.value.append(invocation)
+                return PtyProcessResult(status: 0, output: Data())
+            }
+        )
+        let eightyBytes = String(repeating: "a", count: 80)
+        let multibyteEightyOneBytes = String(repeating: "a", count: 79) + "é"
+
+        _ = try operations.createArchive(
+            items: [source.path],
+            format: "zip",
+            archiveName: "accepted",
+            password: eightyBytes
+        )
+        XCTAssertThrowsError(
+            try operations.createArchive(
+                items: [source.path],
+                format: "zip",
+                archiveName: "rejected",
+                password: multibyteEightyOneBytes
+            )
+        ) {
+            XCTAssertEqual(
+                $0 as? ArchiveOperationsError,
+                .invalidPassword("ZIP passwords are limited to 80 UTF-8 bytes")
+            )
+        }
+        XCTAssertThrowsError(
+            try operations.extractArchive(archive: zipArchive.path, password: String(repeating: "b", count: 81))
+        ) {
+            XCTAssertEqual(
+                $0 as? ArchiveOperationsError,
+                .invalidPassword("ZIP passwords are limited to 80 UTF-8 bytes")
+            )
+        }
+        _ = try operations.createArchive(
+            items: [source.path],
+            format: "sevenZ",
+            archiveName: "unlimited",
+            password: String(repeating: "c", count: 200)
+        )
+
+        XCTAssertEqual(ptyInvocations.value.count, 2)
+        XCTAssertEqual(toolResolutions.value, 2)
+    }
+
     func testCreateZipArchivePreservesSourcesAndReportsProgress() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -125,25 +252,33 @@ final class ServerArchiveOperationsTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent("bundle.zip").path))
     }
 
-    func testPasswordArchiveCreationIsRejectedBeforeProcessLaunch() throws {
+    func testPasswordArchiveCreationUsesPtyRunnerWithoutProcessArguments() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
         let source = try createTestFile(in: temp, name: "hello.txt", content: "Hello")
         let didRunProcess = LockedBox(false)
+        let invocation = LockedBox<PtyProcessInvocation?>(nil)
         let operations = ArchiveOperations(
             runProcess: { _, _, _ in
                 didRunProcess.value = true
                 return ServerProcessResult(status: 0, stderr: "")
+            },
+            runPtyProcess: { captured in
+                invocation.value = captured
+                return PtyProcessResult(status: 1, output: Data("expected failure".utf8))
             }
         )
 
         XCTAssertThrowsError(
             try operations.createArchive(items: [source.path], format: "zip", archiveName: "bundle", password: "secret")
         ) { error in
-            XCTAssertEqual(error as? ArchiveOperationsError, .passwordUnsupported)
+            XCTAssertEqual(error as? ArchiveOperationsError, .processFailed("expected failure"))
         }
         XCTAssertFalse(didRunProcess.value)
+        XCTAssertEqual(invocation.value?.executable, "/usr/bin/zip")
+        XCTAssertEqual(invocation.value?.password, "secret")
+        XCTAssertFalse(invocation.value?.arguments.contains(where: { $0.contains("secret") }) ?? true)
     }
 
     func testTarCreateUsesOptionDelimiterBeforeItemNames() throws {
@@ -167,6 +302,20 @@ final class ServerArchiveOperationsTests: XCTestCase {
     }
 }
 
+private func executableOnPath(_ name: String) -> String? {
+    let process = Process()
+    let pipe = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["which", name]
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    try? process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else { return nil }
+    return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 private final class LockedBox<Value>: @unchecked Sendable {
     private let lock = NSLock()
     private var storedValue: Value
@@ -188,3 +337,22 @@ private final class LockedBox<Value>: @unchecked Sendable {
         }
     }
 }
+
+#if os(Linux)
+private func createTempDirectory() throws -> URL {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    return url
+}
+
+@discardableResult
+private func createTestFile(in directory: URL, name: String, content: String = "test") throws -> URL {
+    let url = directory.appendingPathComponent(name)
+    try Data(content.utf8).write(to: url)
+    return url
+}
+
+private func cleanupTempDirectory(_ url: URL) {
+    try? FileManager.default.removeItem(at: url)
+}
+#endif

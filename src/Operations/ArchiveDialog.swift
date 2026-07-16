@@ -11,15 +11,7 @@ final class ArchiveModel {
     var password: String = ""
 
     var isValid: Bool {
-        let trimmed = archiveName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        if trimmed.contains("/") || trimmed.contains(":") || trimmed.contains("\0") {
-            return false
-        }
-        if !CompressionTools.isFormatAvailable(format) {
-            return false
-        }
-        return true
+        validationError == nil
     }
 
     var validationError: String? {
@@ -34,6 +26,10 @@ final class ArchiveModel {
             if let tool = CompressionTools.unavailableToolName(for: format) {
                 return "\(tool) is not installed"
             }
+        }
+        if includePassword,
+           let message = ArchivePasswordValidation.errorMessage(for: password, format: format) {
+            return message
         }
         return nil
     }
@@ -148,16 +144,20 @@ struct ArchiveDialog: View {
                 Picker("", selection: $model.format) {
                     ForEach(ArchiveFormat.allCases, id: \.self) { format in
                         if CompressionTools.isFormatAvailable(format) {
-                            Text(format.displayName).tag(format)
+                            Text(format.displayName)
+                                .tag(format)
+                                .accessibilityIdentifier("archiveFormat-\(format.rawValue)")
                         } else {
                             Text("\(format.displayName) (not installed)")
                                 .foregroundStyle(.secondary)
                                 .tag(format)
+                                .accessibilityIdentifier("archiveFormat-\(format.rawValue)")
                         }
                     }
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
+                .accessibilityIdentifier("archiveFormatPicker")
                 .onChange(of: model.format) { _, newValue in
                     if !newValue.supportsPassword {
                         model.includePassword = false
@@ -177,11 +177,13 @@ struct ArchiveDialog: View {
                     .toggleStyle(.checkbox)
                     .font(labelFont)
                     .disabled(!model.format.supportsPassword)
+                    .accessibilityIdentifier("archivePasswordToggle")
 
                 if model.includePassword && model.format.supportsPassword {
                     SecureField("Password", text: $model.password)
                         .textFieldStyle(.roundedBorder)
                         .font(monoFont)
+                        .accessibilityIdentifier("archivePasswordField")
                 }
             }
 
@@ -201,6 +203,7 @@ struct ArchiveDialog: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.isValid)
+                .accessibilityIdentifier("archiveConfirmButton")
             }
         }
         .padding(20)

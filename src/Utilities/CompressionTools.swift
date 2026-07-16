@@ -38,7 +38,10 @@ enum ArchiveFormat: String, CaseIterable, Codable {
     }
 
     var supportsPassword: Bool {
-        false
+        switch self {
+        case .zip, .sevenZ: true
+        case .tarGz, .tarBz2, .tarXz: false
+        }
     }
 
     var requiredTools: [CompressionTool] {
@@ -72,6 +75,22 @@ enum ArchiveFormat: String, CaseIterable, Codable {
     }
 }
 
+enum ArchivePasswordValidation {
+    static let zipByteLimit = 80
+    static let zipByteLimitMessage = "ZIP passwords are limited to 80 UTF-8 bytes"
+
+    static func errorMessage(for password: String, format: ArchiveFormat) -> String? {
+        guard format == .zip, password.utf8.count > zipByteLimit else { return nil }
+        return zipByteLimitMessage
+    }
+
+    static func validate(_ password: String, format: ArchiveFormat) throws {
+        if let message = errorMessage(for: password, format: format) {
+            throw FileOperationError.archivePasswordInvalid(message)
+        }
+    }
+}
+
 enum CompressionTool: String {
     case zip
     case unzip
@@ -86,7 +105,10 @@ enum CompressionTool: String {
         switch self {
         case .zip: return "/usr/bin/zip"
         case .unzip: return "/usr/bin/unzip"
-        case .sevenZip: return "/opt/homebrew/bin/7z"
+        case .sevenZip:
+            return ["/opt/homebrew/bin/7z", "/opt/homebrew/bin/7zz"]
+                .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+                ?? "/opt/homebrew/bin/7z"
         case .tar: return "/usr/bin/tar"
         case .gzip: return "/usr/bin/gzip"
         case .bzip2: return "/usr/bin/bzip2"

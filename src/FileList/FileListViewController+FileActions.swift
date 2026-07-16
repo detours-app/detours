@@ -277,17 +277,43 @@ extension FileListViewController {
         guard locations.count == 1, let archiveLocation = locations.first else { return }
         guard Self.isExtractableArchiveLocation(archiveLocation) else { return }
 
+        extractArchive(archiveLocation, password: nil)
+    }
+
+    private func extractArchive(_ archiveLocation: Location, password: String?) {
         Task { @MainActor in
             do {
-                let extractedLocation = try await FileOperationQueue.shared.extract(archive: archiveLocation, password: nil)
+                let extractedLocation = try await FileOperationQueue.shared.extract(
+                    archive: archiveLocation,
+                    password: password
+                )
                 self.reloadCurrentListing(selecting: extractedLocation)
             } catch FileOperationError.archivePasswordRequired {
-                // No backend accepts a password, so asking the user for one would only lead to a refusal.
-                FileOperationQueue.shared.presentError(FileOperationError.archivePasswordUnsupported)
+                self.promptForArchivePassword(
+                    archive: archiveLocation,
+                    incorrectPassword: password != nil
+                ) { [weak self] enteredPassword in
+                    self?.extractArchive(archiveLocation, password: enteredPassword)
+                }
+            } catch FileOperationError.cancelled {
+                return
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
         }
+    }
+
+    private func promptForArchivePassword(
+        archive: Location,
+        incorrectPassword: Bool,
+        completion: @escaping (String) -> Void
+    ) {
+        guard let window = view.window else { return }
+        ArchivePasswordSheet(
+            archive: archive,
+            incorrectPassword: incorrectPassword,
+            completion: completion
+        ).present(from: window)
     }
 
     private func reloadCurrentListing(selecting location: Location) {
@@ -527,5 +553,75 @@ extension FileListViewController {
             }
         }
         controller.present(from: window)
+    }
+}
+
+@MainActor
+private final class ArchivePasswordSheet: NSObject {
+    private let archive: Location
+    private let completion: (String) -> Void
+    private let alert = NSAlert()
+    private let passwordField = NSSecureTextField(frame: NSRect(x: 0, y: 28, width: 300, height: 24))
+    private let validationLabel = NSTextField(labelWithString: "")
+    private var submittedPassword: String?
+    private var retainedSelf: ArchivePasswordSheet?
+
+    init(archive: Location, incorrectPassword: Bool, completion: @escaping (String) -> Void) {
+        self.archive = archive
+        self.completion = completion
+        super.init()
+
+        alert.messageText = incorrectPassword ? "Incorrect Password" : "Password Required"
+        alert.informativeText = incorrectPassword
+            ? "The password for \"\(archive.lastPathComponent)\" was incorrect. Try again."
+            : "\"\(archive.lastPathComponent)\" is password-protected."
+        alert.addButton(withTitle: "Extract")
+        alert.addButton(withTitle: "Cancel")
+
+        passwordField.placeholderString = "Password"
+        passwordField.setAccessibilityIdentifier("archiveExtractionPasswordField")
+        validationLabel.frame = NSRect(x: 0, y: 0, width: 300, height: 20)
+        validationLabel.setAccessibilityIdentifier("archiveExtractionValidation")
+        validationLabel.textColor = .systemRed
+        validationLabel.lineBreakMode = .byWordWrapping
+        validationLabel.maximumNumberOfLines = 2
+
+        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 52))
+        accessory.addSubview(passwordField)
+        accessory.addSubview(validationLabel)
+        alert.accessoryView = accessory
+    }
+
+    func present(from window: NSWindow) {
+        retainedSelf = self
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            defer { self.retainedSelf = nil }
+            guard response == .alertFirstButtonReturn, let password = self.submittedPassword else { return }
+            self.completion(password)
+        }
+
+        let extractButton = alert.buttons[0]
+        extractButton.setAccessibilityIdentifier("archiveExtractionConfirmButton")
+        extractButton.target = self
+        extractButton.action = #selector(submit)
+        alert.window.initialFirstResponder = passwordField
+    }
+
+    @objc private func submit() {
+        let password = passwordField.stringValue
+        guard !password.isEmpty else {
+            validationLabel.stringValue = "Enter a password"
+            return
+        }
+        if ArchiveFormat.detect(from: URL(fileURLWithPath: archive.path)) == .zip,
+           let message = ArchivePasswordValidation.errorMessage(for: password, format: .zip) {
+            validationLabel.stringValue = message
+            return
+        }
+
+        submittedPassword = password
+        guard let parent = alert.window.sheetParent else { return }
+        parent.endSheet(alert.window, returnCode: .alertFirstButtonReturn)
     }
 }
