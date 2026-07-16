@@ -33,7 +33,7 @@ ssh "$REMOTE_HOST" "rm -rf $REMOTE_TMP_Q && mkdir -p $REMOTE_TMP_Q"
 COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     Server \
     Shared \
-    SharedTests \
+    Tests/DetoursProcessTests \
     Tests/ServerArchiveOperationsTests.swift \
     | ssh "$REMOTE_HOST" "tar -xzf - -C $REMOTE_TMP_Q"
 # shellcheck disable=SC2029
@@ -61,7 +61,7 @@ let package = Package(
         .testTarget(
             name: "DetoursProcessTests",
             dependencies: ["DetoursProcess"],
-            path: "SharedTests"
+            path: "Tests/DetoursProcessTests"
         ),
         .testTarget(
             name: "ServerArchiveOperationsTests",

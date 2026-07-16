@@ -72,6 +72,33 @@ actor IntegrationDeploymentClient: ServerDeploymentClient {
     func finalizeBinary(tempPath: String, finalPath: String) async throws {}
 }
 
+/// Exercises ServerDeployer's failure cleanup through real SSH and scp. Only the final
+/// destination is redirected to a path that cannot be written; every transport operation is
+/// performed by SSHServerDeploymentClient against the Foundry `devtest` fixture.
+struct FailingFinalizationSSHDeploymentClient: ServerDeploymentClient {
+    let base: SSHServerDeploymentClient
+
+    func architecture() async throws -> RemoteArchitecture { try await base.architecture() }
+    func currentUsername() async throws -> String { try await base.currentUsername() }
+    func installedBinaryInfo(at path: String) async throws -> RemoteBinaryInfo? {
+        try await base.installedBinaryInfo(at: path)
+    }
+    func installedBinaryHash(at path: String) async throws -> String? {
+        try await base.installedBinaryHash(at: path)
+    }
+    func prepareInstallDirectory(_ path: String) async throws { try await base.prepareInstallDirectory(path) }
+    func removePartialBinary(at path: String) async throws { try await base.removePartialBinary(at: path) }
+    func uploadBinary(localFile: URL, remotePath: String) async throws {
+        try await base.uploadBinary(localFile: localFile, remotePath: remotePath)
+    }
+    func finalizeBinary(tempPath: String, finalPath: String) async throws {
+        try await base.finalizeBinary(
+            tempPath: tempPath,
+            finalPath: "/proc/detours-tests-\(UUID().uuidString)"
+        )
+    }
+}
+
 final class PersistentRemoteRPCSession: @unchecked Sendable {
     private let process: Process
     private let stdin: Pipe

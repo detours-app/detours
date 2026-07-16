@@ -12,6 +12,67 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertTrue(entries.contains { $0.name == "hosts" })
     }
 
+    func testListChunksAndQuickLookCrossRealSSHHelperBoundary() async throws {
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH(
+            "printf preview-body > \(Self.shellQuote(remoteRoot + "/preview.txt")); "
+                + "mkdir \(Self.shellQuote(remoteRoot + "/folder")); "
+                + "truncate -s \(RemoteFileCache.quickLookMaximumBytes + 1) "
+                + Self.shellQuote(remoteRoot + "/too-large.bin")
+        )
+        let root = Location.remote(hostID: session.hostID, path: remoteRoot)
+        var names: Set<String> = []
+
+        for try await chunk in await session.provider.listChunks(root, showHidden: true) {
+            names.formUnion(chunk.map(\.name))
+            XCTAssertTrue(chunk.allSatisfy { entry in
+                guard case .remote(let hostID, _) = entry.location else { return false }
+                return hostID == session.hostID
+            })
+        }
+        let quickLookURL = try await session.provider.openForQuickLook(
+            root.appendingPathComponent("preview.txt")
+        )
+        defer { try? FileManager.default.removeItem(at: quickLookURL.deletingLastPathComponent()) }
+
+        XCTAssertEqual(names, ["folder", "preview.txt", "too-large.bin"])
+        XCTAssertEqual(try String(contentsOf: quickLookURL, encoding: .utf8), "preview-body")
+
+        do {
+            _ = try await session.provider.openForQuickLook(root.appendingPathComponent("too-large.bin"))
+            XCTFail("Expected real remote Quick Look size rejection")
+        } catch FileProviderError.unsupportedOperation(let message) {
+            XCTAssertTrue(message.contains("100 MB"))
+        }
+    }
+
+    func testArchiveWrongPasswordMapsRealHelperErrorToRetry() async throws {
+        let sevenZip = try Self.runSSH("command -v 7z || command -v 7zz")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sevenZip.isEmpty else {
+            throw XCTSkip("devtest has no 7z executable for encrypted archive coverage")
+        }
+        let session = try RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH(
+            "cd \(Self.shellQuote(remoteRoot)); printf secret > secret.txt; "
+                + "\(Self.shellQuote(sevenZip)) a -tzip -pcorrect-password -mem=AES256 encrypted.zip secret.txt >/dev/null"
+        )
+
+        do {
+            _ = try await session.provider.archiveExtract(
+                .remote(hostID: session.hostID, path: remoteRoot + "/encrypted.zip"),
+                password: "wrong-password"
+            )
+            XCTFail("Expected archive password retry")
+        } catch FileOperationError.archivePasswordRequired {
+            // The real helper's wrong-password error must retain the provider-level retry contract.
+        }
+    }
+
     func testCopyRemoteToLocal() async throws {
         let session = try RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
@@ -204,6 +265,45 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertFalse(try Self.remotePathExists(finalPath + ".tmp"))
     }
 
+    func testServerDeployerRemovesRealSCPPartialAfterRemoteFinalizeFailureAndRetries() async throws {
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let bundle = try createTestFile(in: localRoot, name: "detours-server", content: "retry-helper")
+        let installDirectory = remoteRoot + "/install"
+        let baseClient = SSHServerDeploymentClient(sshTarget: "devtest")
+        let failingDeployer = ServerDeployer(
+            client: FailingFinalizationSSHDeploymentClient(base: baseClient),
+            bundledBinaryURL: bundle,
+            installDirectory: installDirectory
+        )
+
+        do {
+            _ = try await failingDeployer.deployIfNeeded()
+            XCTFail("Expected real remote finalization to fail")
+        } catch let error as ServerDeployerError {
+            guard case .commandFailed = error else {
+                XCTFail("Expected commandFailed, got \(error)")
+                return
+            }
+        }
+        XCTAssertFalse(try Self.remotePathExists(installDirectory + "/detours-server.tmp"))
+
+        let retry = try await ServerDeployer(
+            client: baseClient,
+            bundledBinaryURL: bundle,
+            installDirectory: installDirectory
+        ).deployIfNeeded()
+
+        XCTAssertEqual(retry, ServerDeploymentResult(deployed: true, reason: .missing))
+        XCTAssertEqual(
+            try Self.runSSH("cat \(Self.shellQuote(installDirectory + "/detours-server"))"),
+            "retry-helper"
+        )
+        XCTAssertFalse(try Self.remotePathExists(installDirectory + "/detours-server.tmp"))
+    }
+
     func testPersistentRPCClientRoutesConcurrentMultiChunkResponsesByRequestID() async throws {
         try Self.runSSH("test -x ~/.detours-server/detours-server")
         let remoteRoot = try Self.makeRemoteFixtureRoot()
@@ -252,6 +352,57 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(values.0.count, 1_003)
         XCTAssertEqual(values.1.name, "first.txt")
         XCTAssertEqual(values.2.name, "second.txt")
+    }
+
+    func testCancellingPendingRealRPCDoesNotConsumeNextResponse() async throws {
+        try Self.runSSH("test -x ~/.detours-server/detours-server")
+        let controlRoot = URL(fileURLWithPath: "/tmp")
+            .appendingPathComponent("dtssh-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        defer { cleanupTempDirectory(controlRoot) }
+        let connection = SSHConnection(
+            configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"),
+            controlDirectory: controlRoot.appendingPathComponent("ssh", isDirectory: true),
+            hostTrust: SSHHostTrust(
+                knownHostsURL: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/known_hosts")
+            )
+        )
+        let client = SSHRemoteRPCClient(connection: connection)
+        try await connection.connect()
+        do {
+            let impossibleQuery = Data("detours-no-match-\(UUID().uuidString)".utf8)
+            let pending = Task {
+                try await client.send(.find(query: impossibleQuery, cap: Int64.max))
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+            let cancelledAt = Date()
+            pending.cancel()
+
+            do {
+                _ = try await pending.value
+                XCTFail("Expected the pending real RPC to be cancelled")
+            } catch is CancellationError {
+                XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 1)
+            }
+
+            let response = try await client.send(.protocolVersion(1))
+            var reader = RPCBinaryReader(data: try XCTUnwrap(response.first))
+            XCTAssertEqual(try reader.readInt64(), 1)
+            try reader.requireComplete()
+        } catch {
+            await connection.disconnect()
+            throw error
+        }
+        await connection.disconnect()
+    }
+
+    func testUnixHostKindProbeUsesRealSSHProcessAndPowerShellFailure() async throws {
+        _ = try Self.runSSH("uname -s", target: "devtest")
+
+        let kind = await RemoteHostKindProbe(
+            client: SSHRemoteHostKindProbeClient(sshTarget: "devtest")
+        ).probe()
+
+        XCTAssertEqual(kind, .unix)
     }
 
     @MainActor

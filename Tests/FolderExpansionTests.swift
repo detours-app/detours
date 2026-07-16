@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Detours
 
@@ -52,24 +53,26 @@ final class FolderExpansionTests: XCTestCase {
         XCTAssertNil(item.children, "Children property should remain nil for files")
     }
 
-    func testFileItemLoadChildrenUnreadable() throws {
-        // Create a directory that will fail to enumerate (permission denied simulation)
-        // For a non-existent path, FileItem(url:) will report isDirectory=false, so loadChildren returns nil
-        // The correct test is: a directory that exists but fails to enumerate returns empty array
+    func testFileItemLoadChildrenEnumerationErrorReturnsLoadedEmptyState() throws {
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try Data().write(to: tempFile)
+        defer { try? FileManager.default.removeItem(at: tempFile) }
 
-        // We can't easily create a permission-denied directory in tests, so we test:
-        // 1. Non-existent path creates a FileItem with isDirectory=false
-        // 2. loadChildren on non-directory returns nil (correct behavior)
-        let nonExistentDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        // Marking a regular file as a directory forces contentsOfDirectory to
+        // throw after the navigable-folder guard, exercising the error branch.
+        let item = FileItem(
+            name: tempFile.lastPathComponent,
+            url: tempFile,
+            isDirectory: true,
+            size: nil,
+            dateModified: Date(),
+            icon: NSImage()
+        )
 
-        let item = FileItem(url: nonExistentDir)
-
-        // Non-existent path is not detected as directory
-        XCTAssertFalse(item.isDirectory, "Non-existent path should not be detected as directory")
-
-        // loadChildren on non-directory returns nil (not empty array)
-        let children = item.loadChildren(showHidden: false)
-        XCTAssertNil(children, "loadChildren on non-directory should return nil")
+        XCTAssertEqual(item.loadChildren(showHidden: false)?.count, 0)
+        XCTAssertNotNil(item.children)
+        XCTAssertEqual(item.children?.count, 0)
     }
 
     // MARK: - MultiDirectoryWatcher Tests
@@ -109,10 +112,10 @@ final class FolderExpansionTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
         let expectation = XCTestExpectation(description: "Directory change callback")
-        nonisolated(unsafe) var callbackURL: URL?
+        let callbackURL = FolderExpansionLockedValue<URL?>(nil)
 
         let watcher = MultiDirectoryWatcher { url in
-            callbackURL = url
+            callbackURL.value = url
             expectation.fulfill()
         }
 
@@ -124,8 +127,12 @@ final class FolderExpansionTests: XCTestCase {
 
         wait(for: [expectation], timeout: 5.0)
 
-        XCTAssertNotNil(callbackURL, "Callback should have been called with URL")
-        XCTAssertEqual(callbackURL?.standardizedFileURL, tempDir.standardizedFileURL, "Callback URL should match watched directory")
+        XCTAssertNotNil(callbackURL.value, "Callback should have been called with URL")
+        XCTAssertEqual(
+            callbackURL.value?.standardizedFileURL,
+            tempDir.standardizedFileURL,
+            "Callback URL should match watched directory"
+        )
     }
 
     func testMultiDirectoryWatcherUnwatchAll() throws {
@@ -154,42 +161,6 @@ final class FolderExpansionTests: XCTestCase {
         XCTAssertEqual(watcher.watchedURLs.count, 0, "unwatchAll should clear all watches")
     }
 
-    // MARK: - Persistence Tests
-
-    func testExpansionStateSerialization() throws {
-        let urls: Set<URL> = [
-            URL(fileURLWithPath: "/Users/test/Documents"),
-            URL(fileURLWithPath: "/Users/test/Desktop"),
-            URL(fileURLWithPath: "/Users/test/Downloads")
-        ]
-
-        // Encode
-        let encoded: [[String]] = [urls.map { $0.path }]
-
-        // Decode
-        let decoded = encoded.map { pathList in Set(pathList.compactMap { URL(fileURLWithPath: $0) }) }
-
-        XCTAssertEqual(decoded.count, 1, "Should have one set")
-        XCTAssertEqual(decoded[0].count, 3, "Set should have 3 URLs")
-
-        for url in urls {
-            XCTAssertTrue(decoded[0].contains(url), "Decoded set should contain \(url)")
-        }
-    }
-
-    func testExpansionStateEmpty() throws {
-        let urls: Set<URL> = []
-
-        // Encode
-        let encoded: [[String]] = [urls.map { $0.path }]
-
-        // Decode
-        let decoded = encoded.map { pathList in Set(pathList.compactMap { URL(fileURLWithPath: $0) }) }
-
-        XCTAssertEqual(decoded.count, 1, "Should have one set")
-        XCTAssertEqual(decoded[0].count, 0, "Empty set should serialize and deserialize correctly")
-    }
-
     // MARK: - Settings Tests
 
     @MainActor
@@ -213,129 +184,18 @@ final class FolderExpansionTests: XCTestCase {
         XCTAssertEqual(SettingsManager.shared.folderExpansionEnabled, originalValue, "Setting should be restored")
     }
 
-    // MARK: - Depth Sorting Tests (Bug Fix Verification)
+}
 
-    func testDepthSortingForExpansionRestoration() throws {
-        // Verifies that parent folders are expanded before children
-        // This is critical because children can't be found if parent isn't expanded first
-        // Path components: /Users/test/A = ["/", "Users", "test", "A"] = 4 components
-        let urls: Set<URL> = [
-            URL(fileURLWithPath: "/Users/test/A"),                     // depth 4
-            URL(fileURLWithPath: "/Users/test/A/B"),                   // depth 5
-            URL(fileURLWithPath: "/Users/test/A/B/C"),                 // depth 6
-            URL(fileURLWithPath: "/Users/test/X"),                     // depth 4
-            URL(fileURLWithPath: "/Users/test/X/Y/Z"),                 // depth 6
-        ]
+private final class FolderExpansionLockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue: Value
 
-        // Sort by depth (path component count) - this is the fix
-        let sortedURLs = urls.sorted { $0.pathComponents.count < $1.pathComponents.count }
-
-        // Verify parent folders come before their children
-        XCTAssertEqual(sortedURLs[0].pathComponents.count, 4, "Shallowest URLs should come first")
-        XCTAssertEqual(sortedURLs[1].pathComponents.count, 4, "Shallowest URLs should come first")
-
-        // Verify /Users/test/A comes before /Users/test/A/B
-        let indexOfA = sortedURLs.firstIndex { $0.path == "/Users/test/A" }!
-        let indexOfAB = sortedURLs.firstIndex { $0.path == "/Users/test/A/B" }!
-        let indexOfABC = sortedURLs.firstIndex { $0.path == "/Users/test/A/B/C" }!
-
-        XCTAssertLessThan(indexOfA, indexOfAB, "Parent /A should be expanded before child /A/B")
-        XCTAssertLessThan(indexOfAB, indexOfABC, "Parent /A/B should be expanded before child /A/B/C")
+    init(_ value: Value) {
+        storedValue = value
     }
 
-    func testDepthSortingHandlesUnsortedSet() throws {
-        // Sets have undefined order - verify sorting handles this
-        var urls = Set<URL>()
-        for i in 0..<100 {
-            // Add URLs at various depths
-            let depth = i % 5 + 1
-            var path = "/root"
-            for d in 0..<depth {
-                path += "/level\(d)"
-            }
-            path += "/item\(i)"
-            urls.insert(URL(fileURLWithPath: path))
-        }
-
-        let sortedURLs = urls.sorted { $0.pathComponents.count < $1.pathComponents.count }
-
-        // Verify monotonic non-decreasing depth
-        var lastDepth = 0
-        for url in sortedURLs {
-            let depth = url.pathComponents.count
-            XCTAssertGreaterThanOrEqual(depth, lastDepth, "Depth should never decrease in sorted order")
-            lastDepth = depth
-        }
-    }
-
-    // MARK: - Selection URL Preservation Tests (Bug Fix Verification)
-
-    func testSelectionByURLNotRowIndex() throws {
-        // Create a nested structure where row indexes will change after expansion
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-
-        // Create: folder1, file1.txt, file2.txt
-        let folder1 = try createTestFolder(in: temp, name: "folder1")
-        _ = try createTestFile(in: temp, name: "file1.txt")
-        let file2 = try createTestFile(in: temp, name: "file2.txt")
-        // Create child in folder1
-        _ = try createTestFile(in: folder1, name: "child.txt")
-
-        // Simulate: user selects file2.txt which is at row 2 initially
-        // If folder1 expands, file2.txt moves to row 3
-        // Selection should still point to file2.txt, not whatever is now at row 2
-
-        // The fix ensures we save URLs not row indexes, then look up rows after expansion
-        let selectedURLs = [file2]
-
-        // After hypothetical reload/expansion, find items by URL
-        // This simulates what the fixed code does
-        var foundURLs: [URL] = []
-        for url in selectedURLs {
-            // In real code, this would use findItem() then row(forItem:)
-            // Here we just verify the URL is preserved correctly
-            foundURLs.append(url)
-        }
-
-        XCTAssertEqual(foundURLs.count, 1)
-        XCTAssertEqual(foundURLs[0].lastPathComponent, "file2.txt",
-                       "Selection should be by URL, not row index")
-    }
-
-    // MARK: - Expansion Before Selection Order Tests (Bug Fix Verification)
-
-    func testExpansionMustPrecedeSelection() throws {
-        // This test documents the correct order: expand folders, then select items
-        // Items inside unexpanded folders don't exist in the view hierarchy
-
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-
-        let folder = try createTestFolder(in: temp, name: "folder")
-        let childFile = try createTestFile(in: folder, name: "child.txt")
-
-        // Simulating the state restore scenario:
-        // 1. User has folder expanded and child.txt selected
-        // 2. App quits and relaunches
-        // 3. restoreTabs needs to restore expansion FIRST, then selection
-
-        // Wrong order (old bug): select child.txt first - would fail because
-        // child.txt isn't visible until folder is expanded
-
-        // Correct order (fix): expand folder first, then select child.txt
-
-        let expansionURLs = [folder]
-        let selectionURLs = [childFile]
-
-        // The fix swapped these in PaneViewController.restoreTabs:
-        // OLD: restoreSelection() then restoreExpansion()
-        // NEW: restoreExpansion() then restoreSelection()
-
-        // Verify the child is inside the expanded folder
-        XCTAssertTrue(childFile.path.hasPrefix(folder.path),
-                      "Child file should be inside the expanded folder")
-        XCTAssertEqual(expansionURLs.count, 1, "One folder to expand")
-        XCTAssertEqual(selectionURLs.count, 1, "One file to select")
+    var value: Value {
+        get { lock.withLock { storedValue } }
+        set { lock.withLock { storedValue = newValue } }
     }
 }

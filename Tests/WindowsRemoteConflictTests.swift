@@ -243,46 +243,6 @@ extension FileOperationQueueTests {
         XCTAssertEqual(survived, "original")
     }
 
-    @MainActor
-    func testWindowsRemoteReplaceUndoRestoresDisplacedOriginal() async throws {
-        let hostID = UUID()
-        let fs = WindowsFakeFSTransport()
-        await fs.seedDirectory("C:\\src")
-        await fs.seedFile("C:\\src\\A.txt", content: "new")
-        await fs.seedDirectory("C:\\dst")
-        await fs.seedFile("C:\\dst\\A.txt", content: "original")
-        let provider = makeWindowsProvider(hostID: hostID, transport: fs)
-
-        let queue = FileOperationQueue.shared
-        queue.registerRemoteFileProvider(provider, for: hostID)
-        queue.conflictChoiceOverrideForTesting = .replace
-        defer {
-            queue.conflictChoiceOverrideForTesting = nil
-            queue.unregisterRemoteFileProvider(for: hostID)
-        }
-
-        let undoManager = UndoManager()
-        _ = try await queue.move(
-            items: [.remote(hostID: hostID, path: "/C:/src/A.txt")],
-            to: .remote(hostID: hostID, path: "/C:/dst"),
-            undoManager: undoManager
-        )
-
-        // After Replace, the destination holds the new content and the source moved out.
-        let afterReplace = await fs.contentTag("C:\\dst\\A.txt")
-        XCTAssertEqual(afterReplace, "new")
-        let sourceGone = await fs.exists("C:\\src\\A.txt")
-        XCTAssertFalse(sourceGone)
-
-        undoManager.undo()
-        try await Task.sleep(nanoseconds: 200_000_000)
-
-        // Undo restores the displaced original to its original path and the moved item to source.
-        let restoredOriginal = await fs.contentTag("C:\\dst\\A.txt")
-        XCTAssertEqual(restoredOriginal, "original", "undo must restore the displaced original, not just remove the new copy")
-        let sourceBack = await fs.contentTag("C:\\src\\A.txt")
-        XCTAssertEqual(sourceBack, "new")
-    }
 }
 
 // MARK: - T21 / T23: provider-level overwrite safety and failure recoverability
@@ -310,41 +270,6 @@ extension WindowsRemoteProviderTests {
         XCTAssertTrue(WindowsRemoteProvider.moveItemScript.contains("Destination already exists"))
     }
 
-    @MainActor
-    func testCopyMovePartialFailureLeavesOriginalRecoverable() async throws {
-        let hostID = UUID()
-        let fs = WindowsFakeFSTransport()
-        await fs.seedDirectory("C:\\src")
-        await fs.seedFile("C:\\src\\A.txt", content: "new")
-        await fs.seedDirectory("C:\\dst")
-        await fs.seedFile("C:\\dst\\A.txt", content: "original")
-        // Force the staged write during a Replace to fail.
-        await fs.setFailTransfer(toTargetContaining: ".detours-replace-")
-        let provider = makeWindowsProvider(hostID: hostID, transport: fs)
-
-        let queue = FileOperationQueue.shared
-        queue.registerRemoteFileProvider(provider, for: hostID)
-        queue.conflictChoiceOverrideForTesting = .replace
-        defer {
-            queue.conflictChoiceOverrideForTesting = nil
-            queue.unregisterRemoteFileProvider(for: hostID)
-        }
-
-        await assertThrowsAsync(try await queue.copy(
-            items: [.remote(hostID: hostID, path: "/C:/src/A.txt")],
-            to: .remote(hostID: hostID, path: "/C:/dst")
-        ))
-
-        // The original target is never lost: the staged write failed before it was displaced.
-        let original = await fs.contentTag("C:\\dst\\A.txt")
-        XCTAssertEqual(original, "original")
-        let sourceIntact = await fs.contentTag("C:\\src\\A.txt")
-        XCTAssertEqual(sourceIntact, "new")
-    }
-}
-
-extension WindowsFakeFSTransport {
-    func setFailTransfer(toTargetContaining marker: String) { failTransferToTargetContaining = marker }
 }
 
 @MainActor

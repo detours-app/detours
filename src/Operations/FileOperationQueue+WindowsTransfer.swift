@@ -140,6 +140,11 @@ extension FileOperationQueue {
                 throw FileProviderError.unsupportedOperation("Windows replace produced no restore token")
             }
             displaced = token
+            #if DEBUG
+            if windowsReplacementFailureProbeForTesting?() == true {
+                throw CancellationError()
+            }
+            #endif
             _ = try await provider.rename(tempTarget, to: target.lastPathComponent)
             return token
         } catch {

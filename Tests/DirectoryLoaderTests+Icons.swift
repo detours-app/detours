@@ -32,20 +32,25 @@ struct IconLoaderTests {
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let fileURL = tempDir.appendingPathComponent("icon_test.txt")
+        let fileURL = tempDir.appendingPathComponent("icon_test")
         try "test".write(to: fileURL, atomically: true, encoding: .utf8)
 
         let loader = IconLoader()
         let icon1 = await loader.icon(for: fileURL, isDirectory: false, isPackage: false)
+        #expect(icon1 !== IconLoader.placeholderFileIcon)
 
-        // Invalidate cache
         await loader.invalidate(fileURL)
 
-        let icon2 = await loader.icon(for: fileURL, isDirectory: false, isPackage: false)
+        let icon2 = await loader.icon(
+            for: fileURL,
+            isDirectory: false,
+            isPackage: false,
+            isNetworkVolume: true
+        )
 
-        // Both should be valid NSImage objects (may or may not be same instance after re-fetch)
-        #expect(icon1.size.width > 0)
-        #expect(icon2.size.width > 0)
+        // The network route returns the placeholder for an extensionless path.
+        // A no-op invalidation would return the cached local workspace icon.
+        #expect(icon2 === IconLoader.placeholderFileIcon)
     }
 }
 
@@ -100,21 +105,23 @@ struct IconLoaderNetworkVolumeTests {
         #expect(icon1 === icon2)
     }
 
-    @Test("Local file uses workspace icon lookup, not extension-based")
+    @Test("Local extensionless file uses workspace lookup, not the network placeholder branch")
     func testLocalFileUsesWorkspaceLookup() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let fileURL = tempDir.appendingPathComponent("test.txt")
-        try "content".write(to: fileURL, atomically: true, encoding: .utf8)
+        let fileURL = tempDir.appendingPathComponent("executable")
+        try "#!/bin/sh\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fileURL.path)
 
         let loader = IconLoader()
         let icon = await loader.icon(for: fileURL, isDirectory: false, isPackage: false, isNetworkVolume: false)
 
-        // Should return a valid icon loaded via NSWorkspace.shared.icon(forFile:)
-        #expect(icon.size.width > 0)
+        // The extension-based branch returns this singleton for an extensionless
+        // path. The local branch must ask NSWorkspace about the actual file.
+        #expect(icon !== IconLoader.placeholderFileIcon)
     }
 }
 
@@ -126,20 +133,33 @@ struct IconLoadLifecycleTests {
         let loader = IconLoader()
 
         // Load a few icons
-        let url1 = URL(fileURLWithPath: "/Volumes/share/a.pdf")
-        let url2 = URL(fileURLWithPath: "/Volumes/share/b.jpg")
-        let url3 = URL(fileURLWithPath: "/Volumes/share/c.png")
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let url1 = tempDir.appendingPathComponent("a")
+        let url2 = tempDir.appendingPathComponent("b")
+        let url3 = tempDir.appendingPathComponent("c")
+        FileManager.default.createFile(atPath: url1.path, contents: Data())
+        FileManager.default.createFile(atPath: url2.path, contents: Data())
+        FileManager.default.createFile(atPath: url3.path, contents: Data())
 
-        _ = await loader.icon(for: url1, isDirectory: false, isPackage: false, isNetworkVolume: true)
-        _ = await loader.icon(for: url2, isDirectory: false, isPackage: false, isNetworkVolume: true)
-        _ = await loader.icon(for: url3, isDirectory: false, isPackage: false, isNetworkVolume: true)
+        let cached1 = await loader.icon(for: url1, isDirectory: false, isPackage: false)
+        let cached2 = await loader.icon(for: url2, isDirectory: false, isPackage: false)
+        let cached3 = await loader.icon(for: url3, isDirectory: false, isPackage: false)
+        #expect(cached1 !== IconLoader.placeholderFileIcon)
+        #expect(cached2 !== IconLoader.placeholderFileIcon)
+        #expect(cached3 !== IconLoader.placeholderFileIcon)
 
         // Invalidate all
         await loader.invalidateAll()
 
-        // Load again - should get fresh icons (not necessarily same object)
         let fresh1 = await loader.icon(for: url1, isDirectory: false, isPackage: false, isNetworkVolume: true)
-        #expect(fresh1.size.width > 0)
+        let fresh2 = await loader.icon(for: url2, isDirectory: false, isPackage: false, isNetworkVolume: true)
+        let fresh3 = await loader.icon(for: url3, isDirectory: false, isPackage: false, isNetworkVolume: true)
+        #expect(fresh1 === IconLoader.placeholderFileIcon)
+        #expect(fresh2 === IconLoader.placeholderFileIcon)
+        #expect(fresh3 === IconLoader.placeholderFileIcon)
     }
 
     @Test("DirectoryLoader loadChildren is equivalent to loadDirectory")

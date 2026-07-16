@@ -132,10 +132,104 @@ extension FileOperationQueueTests {
         do {
             _ = try await queue.copy(items: [source], to: destinationDirectory)
             XCTFail("Expected replacement copy to fail")
-        } catch {}
+        } catch let error as FileOperationError {
+            guard case .cancelled = error else {
+                return XCTFail("Expected cancellation after replacement displacement, got \(error)")
+            }
+        }
 
         XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+    }
+
+    func testFastMoveReplaceCancellationRollsBackAndRetryUndoRestoresBothItems() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let sourceDirectory = try createTestFolder(in: temp, name: "Source")
+        let destinationDirectory = try createTestFolder(in: temp, name: "Destination")
+        let source = try createTestFile(in: sourceDirectory, name: "same.txt", content: "new")
+        let destination = try createTestFile(in: destinationDirectory, name: "same.txt", content: "original")
+        let queue = FileOperationQueue.shared
+        let savedStart = queue.onOperationStart
+        var heavyStarts = 0
+        queue.onOperationStart = { _, _ in heavyStarts += 1 }
+        queue.conflictChoiceOverrideForTesting = .replace
+        queue.moveReplacementCancellationProbeForTesting = { true }
+        defer {
+            queue.onOperationStart = savedStart
+            queue.conflictChoiceOverrideForTesting = nil
+            queue.moveReplacementCancellationProbeForTesting = nil
+        }
+
+        do {
+            _ = try await queue.move(items: [source], to: destinationDirectory)
+            XCTFail("Expected fast replacement move cancellation")
+        } catch let error as FileOperationError {
+            guard case .cancelled = error else {
+                return XCTFail("Expected cancellation after replacement displacement, got \(error)")
+            }
+        }
+        XCTAssertEqual(heavyStarts, 0, "The small-file operation must use the fast lane")
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "new")
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
+
+        queue.moveReplacementCancellationProbeForTesting = nil
+        let undoManager = UndoManager()
+        _ = try await queue.move(items: [source], to: destinationDirectory, undoManager: undoManager)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "new")
+        XCTAssertTrue(undoManager.canUndo)
+
+        undoManager.undo()
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "new")
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
+        XCTAssertEqual(heavyStarts, 0, "Retry and undo must remain on the fast lane")
+    }
+
+    func testHeavyMoveReplaceCancellationRollsBackAndRetryUndoRestoresBothItems() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let sourceDirectory = try createTestFolder(in: temp, name: "Source")
+        let destinationDirectory = try createTestFolder(in: temp, name: "Destination")
+        let source = sourceDirectory.appendingPathComponent("same.bin")
+        let newPayload = Data(repeating: 0x4E, count: 11 * 1_024 * 1_024)
+        try newPayload.write(to: source)
+        let destination = try createTestFile(in: destinationDirectory, name: "same.bin", content: "original")
+        let queue = FileOperationQueue.shared
+        let savedStart = queue.onOperationStart
+        var heavyStarts = 0
+        queue.onOperationStart = { _, _ in heavyStarts += 1 }
+        queue.conflictChoiceOverrideForTesting = .replace
+        queue.moveReplacementCancellationProbeForTesting = { true }
+        defer {
+            queue.onOperationStart = savedStart
+            queue.conflictChoiceOverrideForTesting = nil
+            queue.moveReplacementCancellationProbeForTesting = nil
+        }
+
+        do {
+            _ = try await queue.move(items: [source], to: destinationDirectory)
+            XCTFail("Expected heavy replacement move cancellation")
+        } catch let error as FileOperationError {
+            guard case .cancelled = error else {
+                return XCTFail("Expected cancellation after replacement displacement, got \(error)")
+            }
+        }
+        XCTAssertEqual(heavyStarts, 1, "The greater-than-10-MiB operation must use the heavy lane")
+        XCTAssertEqual(try Data(contentsOf: source), newPayload)
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
+
+        queue.moveReplacementCancellationProbeForTesting = nil
+        let undoManager = UndoManager()
+        _ = try await queue.move(items: [source], to: destinationDirectory, undoManager: undoManager)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertEqual(try Data(contentsOf: destination), newPayload)
+        XCTAssertTrue(undoManager.canUndo)
+
+        undoManager.undo()
+        XCTAssertEqual(try Data(contentsOf: source), newPayload)
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
+        XCTAssertEqual(heavyStarts, 2, "Cancellation and retry must each enter the heavy lane")
     }
 
     func testDuplicateUndo() async throws {

@@ -78,6 +78,12 @@ final class FileOperationQueue {
     /// Test seam: forces every conflict resolution to this choice instead of the
     /// keep-both default, so Replace/Skip paths can be exercised without a dialog.
     var conflictChoiceOverrideForTesting: ConflictChoice?
+    /// Test seam used after a Replace destination has been displaced but before
+    /// the source move starts. This makes the rollback boundary deterministic.
+    var moveReplacementCancellationProbeForTesting: (() -> Bool)?
+    /// Test seam used after a real Windows target has moved to the recycle bin and before
+    /// the staged item is renamed. Live-host tests use it to exercise remote rollback.
+    var windowsReplacementFailureProbeForTesting: (() -> Bool)?
     #endif
 
     var pendingCount: Int { pending.count }

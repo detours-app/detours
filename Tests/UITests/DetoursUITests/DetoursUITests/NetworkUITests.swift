@@ -52,28 +52,6 @@ final class NetworkUITests: BaseUITest {
         )
     }
 
-    // MARK: - Connect to Network Share Menu
-
-    /// Test that the File menu exposes the Connect to Network Share command.
-    func testConnectToNetworkShareMenuItemExists() throws {
-        assertConnectToNetworkShareMenuItemAvailable()
-    }
-
-    /// Test Connect to Network Share remains enabled from the standard file-list focus.
-    func testConnectToNetworkShareMenuItemIsEnabled() throws {
-        assertConnectToNetworkShareMenuItemAvailable()
-    }
-
-    /// Test the File menu can close cleanly after checking the network-share command.
-    func testConnectToNetworkShareMenuClosesWithEscape() throws {
-        assertConnectToNetworkShareMenuItemAvailable()
-    }
-
-    /// Test the network-share command remains available after pane setup navigation.
-    func testConnectToNetworkShareMenuItemAvailableAfterPaneSetup() throws {
-        assertConnectToNetworkShareMenuItemAvailable()
-    }
-
     // MARK: - Menu Item
 
     /// Test File menu has remote-host and network-share actions
@@ -88,16 +66,6 @@ final class NetworkUITests: BaseUITest {
         XCTAssertTrue(shareItem.isEnabled, "Connect to Network Share menu item should be enabled")
 
         // Press Escape to close menu
-        app.typeKey(.escape, modifierFlags: [])
-    }
-
-    private func assertConnectToNetworkShareMenuItemAvailable() {
-        let fileMenu = openFileMenu()
-
-        let shareItem = fileMenu.menuItems["Connect to Network Share..."]
-        XCTAssertTrue(shareItem.waitForExistence(timeout: 2), "Connect to Network Share menu item should exist")
-        XCTAssertTrue(shareItem.isEnabled, "Connect to Network Share menu item should be enabled")
-
         app.typeKey(.escape, modifierFlags: [])
     }
 

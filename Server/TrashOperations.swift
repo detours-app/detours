@@ -20,28 +20,46 @@ struct TrashOperations {
     func trash(paths: [String]) throws -> [String] {
         try ensureTrashDirectories()
 
-        return try paths.map { path in
-            let sourceURL = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
-            guard fileManager.fileExists(atPath: sourceURL.path) else {
-                throw TrashOperationsError.missingItem(path)
+        var trashedItems: [(original: URL, trashed: URL, info: URL)] = []
+        do {
+            for path in paths {
+                let sourceURL = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
+                guard fileManager.fileExists(atPath: sourceURL.path) else {
+                    throw TrashOperationsError.missingItem(path)
+                }
+
+                let trashName = uniqueTrashName(for: sourceURL.lastPathComponent)
+                let trashedFileURL = filesDirectory.appendingPathComponent(trashName)
+                let trashInfoURL = infoDirectory.appendingPathComponent("\(trashName).trashinfo")
+                let trashInfo = Self.trashInfoContents(originalPath: sourceURL.path)
+
+                do {
+                    try trashInfo.write(to: trashInfoURL, atomically: true, encoding: .utf8)
+                    try setPermissions(0o600, at: trashInfoURL)
+                    try fileManager.moveItem(at: sourceURL, to: trashedFileURL)
+                } catch {
+                    try? fileManager.removeItem(at: trashInfoURL)
+                    throw error
+                }
+
+                trashedItems.append((
+                    original: sourceURL,
+                    trashed: trashedFileURL,
+                    info: trashInfoURL
+                ))
             }
-
-            let trashName = uniqueTrashName(for: sourceURL.lastPathComponent)
-            let trashedFileURL = filesDirectory.appendingPathComponent(trashName)
-            let trashInfoURL = infoDirectory.appendingPathComponent("\(trashName).trashinfo")
-            let trashInfo = Self.trashInfoContents(originalPath: sourceURL.path)
-
-            try trashInfo.write(to: trashInfoURL, atomically: true, encoding: .utf8)
-            try setPermissions(0o600, at: trashInfoURL)
-
-            do {
-                try fileManager.moveItem(at: sourceURL, to: trashedFileURL)
-            } catch {
-                try? fileManager.removeItem(at: trashInfoURL)
-                throw error
+            return trashedItems.map(\.info.path)
+        } catch {
+            let operationError = error
+            // These locations came from this invocation, so rollback does not
+            // re-parse caller-controlled trash metadata or apply the public
+            // restore-to-home restriction. Remote users may legitimately trash
+            // items outside their home directory.
+            for item in trashedItems.reversed() {
+                try fileManager.moveItem(at: item.trashed, to: item.original)
+                try fileManager.removeItem(at: item.info)
             }
-
-            return trashInfoURL.path
+            throw operationError
         }
     }
 

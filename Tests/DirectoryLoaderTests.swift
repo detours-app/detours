@@ -31,26 +31,6 @@ struct DirectoryLoaderTests {
         #expect(names.contains("subfolder"))
     }
 
-    @Test("loadDirectory throws timeout when load exceeds duration")
-    func testLoadDirectoryTimeout() async throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-
-        // Create some files so directory isn't empty
-        try "a".write(to: tempDir.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
-
-        // Use an extremely short timeout — the load should complete before this on local disk,
-        // but we test with a non-existent slow path. Since local FS is fast, we test the
-        // timeout mechanism by checking that a very short timeout works for the race pattern.
-        // For a real timeout test, we'd need a network share, so instead we test with a
-        // valid directory and a timeout that IS long enough (verifying it doesn't falsely timeout)
-        let loader = DirectoryLoader()
-        let entries = try await loader.loadDirectory(tempDir, showHidden: false, timeout: .seconds(10))
-        #expect(entries.count == 1)
-    }
-
     @Test("Timeout returns while filesystem enumeration remains blocked")
     func testTimeoutDoesNotAwaitBlockedEnumeration() async throws {
         let tempDir = FileManager.default.temporaryDirectory

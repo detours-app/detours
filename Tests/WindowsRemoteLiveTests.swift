@@ -19,6 +19,23 @@ final class WindowsRemoteLiveTests: XCTestCase {
         }
     }
 
+    func testHostKindProbeUsesRealSSHAndPowerShellOutput() async throws {
+        guard let target else {
+            throw XCTSkip("Set DETOURS_WINDOWS_TEST_TARGET to run Windows live tests.")
+        }
+        guard try await Self.canReachWindowsHost(target: target) else {
+            throw XCTSkip("Windows host \(target) is unreachable.")
+        }
+
+        let client = SSHRemoteHostKindProbeClient(sshTarget: target)
+        let output = try await client.run(RemoteHostKindProbe.windowsProbeCommand())
+        let kind = await RemoteHostKindProbe(client: client).probe()
+
+        XCTAssertTrue(output.contains("DETOURS_WINDOWS_PROBE"))
+        XCTAssertTrue(output.lowercased().contains("win"))
+        XCTAssertEqual(kind, .windows)
+    }
+
     func testCreateRenameCopyMoveDelete() async throws {
         try await withFixture { fixture in
             let source = fixture.root.appendingPathComponent("source")
@@ -195,6 +212,42 @@ final class WindowsRemoteLiveTests: XCTestCase {
         }
     }
 
+    func testQuietWatchSurvivesRealHeartbeatIntervalAndDeliversLaterChange() async throws {
+        try await withFixture { fixture in
+            let recorder = LiveWatchRecorder()
+            let eventReceived = expectation(description: "change after Windows watch heartbeat interval")
+            let watch = try await fixture.provider.watch(fixture.root) { location in
+                Task {
+                    await recorder.record(location)
+                    eventReceived.fulfill()
+                }
+            }
+
+            // The transport read timeout is 30 seconds and the real PowerShell watcher emits a
+            // heartbeat every 10 seconds. Remaining idle beyond 30 seconds proves those frames
+            // keep the actual SSH stream alive; heartbeats themselves must not invoke onChange.
+            try await Task.sleep(for: .seconds(32))
+            let locationsBeforeChange = await recorder.locations
+            XCTAssertTrue(locationsBeforeChange.isEmpty)
+
+            let created = fixture.root.appendingPathComponent("after-heartbeats.txt")
+            try await fixture.run(
+                operation: "CreateAfterHeartbeats",
+                source: """
+                param($Arguments)
+                Set-Content -LiteralPath $Arguments.path -Value 'alive' -Encoding UTF8
+                $true
+                """,
+                arguments: PathArguments(path: try fixture.nativePath(created))
+            )
+
+            await fulfillment(of: [eventReceived], timeout: 5)
+            await fixture.provider.unwatch(watch)
+            let locationsAfterChange = await recorder.locations
+            XCTAssertTrue(locationsAfterChange.contains(created))
+        }
+    }
+
     func testDriveRootWatchDoesNotBreakDriveReload() async throws {
         try await withFixture { fixture in
             let drives = try await fixture.provider.list(.remote(hostID: fixture.hostID, path: "/"), showHidden: false)
@@ -222,7 +275,12 @@ final class WindowsRemoteLiveTests: XCTestCase {
         try await withMainFixture { fixture in
             let queue = FileOperationQueue.shared
             queue.registerRemoteFileProvider(fixture.provider, for: fixture.hostID)
-            defer { queue.unregisterRemoteFileProvider(for: fixture.hostID) }
+            queue.conflictChoiceOverrideForTesting = .replace
+            defer {
+                queue.conflictChoiceOverrideForTesting = nil
+                queue.windowsReplacementFailureProbeForTesting = nil
+                queue.unregisterRemoteFileProvider(for: fixture.hostID)
+            }
 
             let dst = fixture.root.appendingPathComponent("dst")
             let src = fixture.root.appendingPathComponent("src")
@@ -232,14 +290,53 @@ final class WindowsRemoteLiveTests: XCTestCase {
             try await fixture.upload(Data("new".utf8), to: src.appendingPathComponent("A.txt"))
 
             // Replace then undo restores the displaced original (A1, A2).
-            let undoManager = UndoManager()
-            queue.conflictChoiceOverrideForTesting = .replace
-            _ = try await queue.copy(items: [src.appendingPathComponent("A.txt")], to: dst, undoManager: undoManager)
-            queue.conflictChoiceOverrideForTesting = nil
-            undoManager.undo()
-            try await Task.sleep(nanoseconds: 800_000_000)
-            let restored = try await fixture.provider.stat(dst.appendingPathComponent("A.txt"))
-            XCTAssertEqual(restored.name, "A.txt")
+            let copyUndoManager = UndoManager()
+            let sourceFile = src.appendingPathComponent("A.txt")
+            let destinationFile = dst.appendingPathComponent("A.txt")
+            _ = try await queue.copy(items: [sourceFile], to: dst, undoManager: copyUndoManager)
+            let copiedData = try await fixture.read(destinationFile)
+            XCTAssertEqual(copiedData, Data("new".utf8))
+            copyUndoManager.undo()
+            try await waitUntilLive(timeout: 5) {
+                (try? await fixture.read(destinationFile)) == Data("original".utf8)
+            }
+            let sourceAfterCopyUndo = try await fixture.read(sourceFile)
+            XCTAssertEqual(sourceAfterCopyUndo, Data("new".utf8))
+
+            // Move plus Replace crosses the real PowerShell scripts. Undo must restore both the
+            // moved source and the displaced destination, not merely remove the replacement.
+            let moveUndoManager = UndoManager()
+            _ = try await queue.move(items: [sourceFile], to: dst, undoManager: moveUndoManager)
+            let movedData = try await fixture.read(destinationFile)
+            XCTAssertEqual(movedData, Data("new".utf8))
+            await XCTAssertThrowsErrorAsync(try await fixture.provider.stat(sourceFile))
+
+            moveUndoManager.undo()
+            try await waitUntilLive(timeout: 5) {
+                let sourceData = try? await fixture.read(sourceFile)
+                let destinationData = try? await fixture.read(destinationFile)
+                return sourceData == Data("new".utf8) && destinationData == Data("original".utf8)
+            }
+            let sourceAfterMoveUndo = try await fixture.read(sourceFile)
+            let destinationAfterMoveUndo = try await fixture.read(destinationFile)
+            XCTAssertEqual(sourceAfterMoveUndo, Data("new".utf8))
+            XCTAssertEqual(destinationAfterMoveUndo, Data("original".utf8))
+
+            // Fail after the real target has been recycled. Rollback must restore the target and
+            // move the staged source back through the live PowerShell provider.
+            let rollbackSource = src.appendingPathComponent("rollback.txt")
+            let rollbackDestination = dst.appendingPathComponent("rollback.txt")
+            try await fixture.upload(Data("rollback-new".utf8), to: rollbackSource)
+            try await fixture.upload(Data("rollback-original".utf8), to: rollbackDestination)
+            queue.windowsReplacementFailureProbeForTesting = { true }
+
+            await XCTAssertThrowsErrorAsync(try await queue.move(items: [rollbackSource], to: dst))
+            queue.windowsReplacementFailureProbeForTesting = nil
+
+            let sourceAfterRollback = try await fixture.read(rollbackSource)
+            let destinationAfterRollback = try await fixture.read(rollbackDestination)
+            XCTAssertEqual(sourceAfterRollback, Data("rollback-new".utf8))
+            XCTAssertEqual(destinationAfterRollback, Data("rollback-original".utf8))
 
             // Folder copy onto an existing same-name folder merges, preserving existing contents (A3).
             let mergeSrc = fixture.root.appendingPathComponent("mergeSrc/folder")
@@ -456,6 +553,16 @@ private struct WindowsLiveFixture {
         let file = directory.appendingPathComponent(location.lastPathComponent)
         try data.write(to: file)
         try await provider.upload(file, to: location)
+    }
+
+    func read(_ location: Location) async throws -> Data {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("detours-live-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent(location.lastPathComponent)
+        try await provider.download(location, to: file)
+        return try Data(contentsOf: file)
     }
 
     func hostHasTool(_ names: String...) async throws -> Bool {

@@ -162,6 +162,12 @@ extension FileOperationQueue {
                 if !skipped {
                     reserveDestination(destinationURL)
                     do {
+                        #if DEBUG
+                        if displacedItem != nil,
+                           moveReplacementCancellationProbeForTesting?() == true {
+                            throw FileOperationError.cancelled
+                        }
+                        #endif
                         let sourceForTask = source
                         let destForTask = destinationURL
                         try await runUntrackedFileIO {

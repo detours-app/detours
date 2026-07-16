@@ -710,9 +710,8 @@ extension FileOperationQueue {
             for item in newItems {
                 ledger.createdItems.append(parentDir.appendingPathComponent(item))
             }
-            for item in ledger.displacedItems where
-                item.original.deletingLastPathComponent().standardizedFileURL == parentDir.standardizedFileURL
-            {
+            for item in ledger.displacedItems
+            where item.original.deletingLastPathComponent().standardizedFileURL == parentDir.standardizedFileURL {
                 ledger.createdItems.append(item.original)
             }
             if newItems.count == 1, let newItem = newItems.first {

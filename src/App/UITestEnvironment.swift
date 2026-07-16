@@ -178,6 +178,27 @@ enum UITestEnvironment {
         return ProcessInfo.processInfo.environment["DETOURS_UI_TEST_REMOTE_SECOND_HOST"] == "1"
     }
 
+    /// A Foundry-only UI integration target. Unlike `remoteMode`, this goes through the normal
+    /// SSH deployment, connection, RPC, transfer, and watcher stack.
+    static var realRemoteTarget: String? {
+        guard isEnabled,
+              let target = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_REAL_REMOTE_TARGET"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !target.isEmpty else {
+            return nil
+        }
+        return target
+    }
+
+    static var realRemoteConnectionDelay: Duration? {
+        guard realRemoteTarget != nil,
+              let rawValue = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_REMOTE_CONNECT_DELAY_MS"],
+              let milliseconds = Int64(rawValue), milliseconds > 0 else {
+            return nil
+        }
+        return .milliseconds(milliseconds)
+    }
+
     /// Stable host identity for the UI-test remote so the seam and tests agree on the display name.
     static let remoteHostDisplayName = "UITest Server"
     static let windowsRemoteHostDisplayName = "UITest Windows"

@@ -352,22 +352,17 @@ final class PaneViewControllerTests: XCTestCase {
 
     // MARK: - Bug Fix Verification Tests
 
-    /// Tests that restoreTabs correctly handles expansion and selection data.
-    /// This verifies the order: expansion should be restored before selection.
-    /// Note: Full expansion verification requires UI tests since it needs an outline view.
+    /// Tests that restoreTabs expands the saved folder before restoring its nested selection.
     func testRestoreTabsWithExpansionAndSelection() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()
 
-        // Create a nested structure
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
         let folder = try createTestFolder(in: temp, name: "Folder")
         let nestedFile = try createTestFile(in: folder, name: "nested.txt")
 
-        // Call restoreTabs with expansion and selection data
-        // The fix ensures expansion happens before selection
         pane.restoreTabs(
             from: [temp],
             selectedIndex: 0,
@@ -376,22 +371,26 @@ final class PaneViewControllerTests: XCTestCase {
             expansions: [Set([folder.standardizedFileURL])]
         )
 
-        // Verify tab was created (restoreTabs replaces existing tabs)
-        XCTAssertEqual(pane.tabs.count, 1, "restoreTabs should create exactly 1 tab")
+        let fileListVC = try XCTUnwrap(pane.tabs.first?.fileListViewController)
+        let normalizedFolder = folder.resolvingSymlinksInPath().standardizedFileURL
+        let normalizedNestedFile = nestedFile.resolvingSymlinksInPath().standardizedFileURL
 
-        // The key behavior: with the fix, expansion happens before selection,
-        // so the nested file can be found and selected.
-        // Without the fix, selection would fail because the folder isn't expanded yet.
-        let fileListVC = pane.tabs.first?.fileListViewController
-        XCTAssertNotNil(fileListVC, "FileListViewController should exist")
-        waitUntil((fileListVC?.dataSource.items.count ?? 0) == 1)
+        waitUntil(fileListVC.dataSource.expandedFolders.contains {
+            $0.resolvingSymlinksInPath().standardizedFileURL == normalizedFolder
+        })
+        waitUntil(fileListVC.restorableSelectedURLs.contains {
+            $0.resolvingSymlinksInPath().standardizedFileURL == normalizedNestedFile
+        })
 
-        // Verify the directory was loaded correctly
-        XCTAssertEqual(fileListVC?.dataSource.items.count, 1, "Should have 1 item (Folder)")
-        XCTAssertEqual(fileListVC?.dataSource.items.first?.name, "Folder", "Item should be Folder")
-
-        // Note: expandedFolders is managed by outline view delegate callbacks, not directly by restoreExpansion
-        // when there's no outline view. Full expansion state verification requires UI tests.
+        let folderItem = try XCTUnwrap(
+            fileListVC.dataSource.findItem(withURL: folder, in: fileListVC.dataSource.items)
+        )
+        let selectedItem = try XCTUnwrap(fileListVC.tableView.item(atRow: fileListVC.tableView.selectedRow) as? FileItem)
+        XCTAssertTrue(fileListVC.tableView.isItemExpanded(folderItem))
+        XCTAssertEqual(
+            selectedItem.url.resolvingSymlinksInPath().standardizedFileURL,
+            normalizedNestedFile
+        )
     }
 
     /// Tests that restoreTabs handles empty expansion and selection gracefully.
@@ -462,5 +461,40 @@ final class PaneViewControllerTests: XCTestCase {
             pane.tabs[tab1Index].fileListViewController.tableView.isItemExpanded(restoredItem),
             "Switching tabs should preserve the outline expansion state"
         )
+    }
+
+    func testFileDropOntoInactiveTabRegistersUndoOnlyOnDestinationTab() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let sourceDirectory = try createTestFolder(in: temp, name: "Source")
+        let destinationDirectory = try createTestFolder(in: temp, name: "Destination")
+        let source = try createTestFile(in: sourceDirectory, name: "move.txt", content: "payload")
+        let destination = destinationDirectory.appendingPathComponent(source.lastPathComponent)
+        let sourceTab = pane.createTab(at: sourceDirectory, select: true)
+        let destinationTab = pane.createTab(at: destinationDirectory, select: false)
+        let destinationIndex = try XCTUnwrap(pane.tabs.firstIndex { $0 === destinationTab })
+        let sourceUndoManager = try XCTUnwrap(sourceTab.fileListViewController.undoManager)
+        let destinationUndoManager = try XCTUnwrap(destinationTab.fileListViewController.undoManager)
+
+        pane.tabBarDidReceiveFileDrop(
+            urls: [source],
+            to: destinationDirectory,
+            at: destinationIndex,
+            isCopy: false
+        )
+
+        waitUntil(
+            FileManager.default.fileExists(atPath: destination.path)
+                && destinationUndoManager.canUndo
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertFalse(sourceUndoManager.canUndo)
+        XCTAssertTrue(destinationUndoManager.canUndo)
+
+        destinationUndoManager.undo()
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "payload")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
     }
 }

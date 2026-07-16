@@ -489,6 +489,51 @@ final class ArchiveOperationTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "original")
     }
 
+    func testExtractMultipleTopLevelItemsReplaceUndoRestoresCompleteWrapperTree() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let archivedA = try createTestFile(in: temp, name: "a.txt", content: "archived a")
+        let archivedB = try createTestFile(in: temp, name: "b.txt", content: "archived b")
+        let archive = try await FileOperationQueue.shared.archive(
+            items: [archivedA, archivedB],
+            format: .zip,
+            archiveName: "bundle",
+            password: nil
+        )
+        try FileManager.default.removeItem(at: archivedA)
+        try FileManager.default.removeItem(at: archivedB)
+
+        let wrapper = try createTestFolder(in: temp, name: "bundle")
+        let originalRootFile = try createTestFile(in: wrapper, name: "original.txt", content: "original root")
+        let originalNested = try createTestFolder(in: wrapper, name: "Nested")
+        let originalNestedFile = try createTestFile(in: originalNested, name: "old.txt", content: "original nested")
+        let queue = FileOperationQueue.shared
+        let undoManager = UndoManager()
+        queue.conflictChoiceOverrideForTesting = .replace
+        defer { queue.conflictChoiceOverrideForTesting = nil }
+
+        let extracted = try await queue.extract(archive: archive, undoManager: undoManager)
+        XCTAssertEqual(extracted.standardizedFileURL, wrapper.standardizedFileURL)
+        XCTAssertEqual(
+            try String(contentsOf: wrapper.appendingPathComponent("a.txt"), encoding: .utf8),
+            "archived a"
+        )
+        XCTAssertEqual(
+            try String(contentsOf: wrapper.appendingPathComponent("b.txt"), encoding: .utf8),
+            "archived b"
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: originalRootFile.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: originalNestedFile.path))
+        XCTAssertTrue(undoManager.canUndo)
+
+        undoManager.undo()
+        XCTAssertEqual(try String(contentsOf: originalRootFile, encoding: .utf8), "original root")
+        XCTAssertEqual(try String(contentsOf: originalNestedFile, encoding: .utf8), "original nested")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: wrapper.appendingPathComponent("a.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: wrapper.appendingPathComponent("b.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: archive.path))
+    }
+
     // MARK: - Dialog Model
 
     func testDialogDefaultNameSingleFile() {

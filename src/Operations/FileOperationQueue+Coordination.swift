@@ -388,6 +388,8 @@ extension FileOperationQueue {
         lastReceivedProgress = nil
         onOperationPaused = nil
         copyProgressCancellationProbeForTesting = nil
+        moveReplacementCancellationProbeForTesting = nil
+        windowsReplacementFailureProbeForTesting = nil
     }
     #endif
 }

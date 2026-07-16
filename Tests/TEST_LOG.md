@@ -1,13 +1,17 @@
 # Test Log
 
-## Latest Run
+## Evidence policy
 
-### 2026-07-14 (Spectre)
+Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
+
+## Invalid historical incident record
+
+### 2026-07-14 (Spectre — INVALID: prohibited test execution)
 
 - Command: `swift test --filter
   'VolumeMonitorNetworkTests|FolderExpansionTests|FileListDataSourceTests'`;
   `swiftlint lint --strict`; `resources/scripts/build.sh`.
-- Status: PASS
+- Status: INVALID INCIDENT RECORD (the prohibited command reported PASS)
 - Notes: File Provider domain detection, asynchronous nested folder expansion,
   selection/expansion restoration, and de-duplicated folder-size refreshes are
   green. The focused test run passed 42 XCTest cases plus 7 Swift Testing cases
@@ -493,12 +497,12 @@ Spotlight search has no unit test (depends on the live, async-built system index
 
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| DirectoryLoaderTests + NetworkDirectoryPollerTests + IconLoaderNetworkVolumeTests + LoadCancellationTests | FAIL | compile failed | 2026-06-14 13:54:17 |
-| DirectoryLoaderTests + NetworkDirectoryPollerTests + IconLoaderNetworkVolumeTests + LoadCancellationTests | FAIL | compile failed | 2026-06-14 13:54:50 |
+| DirectoryLoaderTests + NetworkDirectoryPollerTests + IconLoaderNetworkVolumeTests + LoadCancellationTests (`DirectoryLoader.loadDirectory` task-group closure lacked the explicit `return` required after adding its cancellation check; no tests ran) | FAIL | compile failed | 2026-06-14 13:54:17 |
+| DirectoryLoaderTests + NetworkDirectoryPollerTests + IconLoaderNetworkVolumeTests + LoadCancellationTests (second audit-fix compile attempt remained red; no tests ran; superseded by the PASS row below after the compile errors were corrected) | FAIL | compile failed | 2026-06-14 13:54:50 |
 | DirectoryLoaderTests + NetworkDirectoryPollerTests + IconLoaderNetworkVolumeTests + LoadCancellationTests | PASS | 2.105s | 2026-06-14 13:55:37 |
 | FileOperationQueueTests/testCancellationWithAsyncProcess + testCopyLargeFileCancellation | PASS | 0.037s | 2026-06-14 13:55:50 |
-| GitStatusTests + HousekeepingTests + PaneViewControllerTests/testExpansionPreservedOnTabSwitch + RemoteHomeDirectoryProbeTests + PermanentDeleteWarningTests + RemoteFileCacheTests + ReleaseScriptTests | FAIL | 4.355s | 2026-06-14 13:56:21 |
-| GitStatusTests + HousekeepingTests + PaneViewControllerTests/testExpansionPreservedOnTabSwitch + RemoteHomeDirectoryProbeTests + PermanentDeleteWarningTests + RemoteFileCacheTests + ReleaseScriptTests | FAIL | 2.315s | 2026-06-14 13:57:58 |
+| GitStatusTests + HousekeepingTests + PaneViewControllerTests/testExpansionPreservedOnTabSwitch + RemoteHomeDirectoryProbeTests + PermanentDeleteWarningTests + RemoteFileCacheTests + ReleaseScriptTests (focused audit-fix regression failed during iteration; superseded by the green rerun below after the failing assertions were corrected) | FAIL | 4.355s | 2026-06-14 13:56:21 |
+| GitStatusTests + HousekeepingTests + PaneViewControllerTests/testExpansionPreservedOnTabSwitch + RemoteHomeDirectoryProbeTests + PermanentDeleteWarningTests + RemoteFileCacheTests + ReleaseScriptTests (second focused audit-fix regression still failed; superseded by the green rerun below after the failing assertions were corrected) | FAIL | 2.315s | 2026-06-14 13:57:58 |
 | GitStatusTests + HousekeepingTests + PaneViewControllerTests/testExpansionPreservedOnTabSwitch + RemoteHomeDirectoryProbeTests + PermanentDeleteWarningTests + RemoteFileCacheTests + ReleaseScriptTests | PASS | 2.199s | 2026-06-14 13:58:27 |
 | OpenWithConflictTests + RemoteFileProviderTests + RemoteTrashUndoTests + RemoteWatcherClientTests + RemoteWatcherPollFallbackTests + ServerDeployerTests | PASS | 0.469s | 2026-06-14 13:58:45 |
 
@@ -506,9 +510,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
 
 | Test | Status | Duration | Last Run |
 | --- | --- | --- | --- |
-| ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests | FAIL | 1.165s | 2026-06-14 13:36:47 |
-| ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + NetworkTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests | FAIL | compile failed | 2026-06-14 13:39:00 |
-| ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + NetworkTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests | FAIL | 1.169s | 2026-06-14 13:39:56 |
+| ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests (`testCreateZipWithPassword` and `testExtractPasswordZip` still expected password archive support after production disabled it) | FAIL | 1.165s | 2026-06-14 13:36:47 |
+| ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + NetworkTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests (intermediate code-audit worktree did not compile; no tests ran; superseded by the green rerun below after compile errors were corrected) | FAIL | compile failed | 2026-06-14 13:39:00 |
+| ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + NetworkTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests (focused code-audit regression still had a failing assertion; superseded by the next green rerun after the remaining defect was corrected) | FAIL | 1.169s | 2026-06-14 13:39:56 |
 | ArchiveOperationTests + CopyfileHelperTests + FileOpenHelperTests + NetworkTests + RemoteDragOutTests + RemoteFileProviderTests + RemoteTransferChannelTests + ServerArchiveOperationsTests | PASS | 1.106s | 2026-06-14 13:40:24 |
 | RemoteTrashUndoTests (remote delete/undo plus remote rename routing) | PASS | 0.113s | 2026-06-14 13:41:06 |
 

@@ -165,16 +165,24 @@ final class PtyProcessRunnerTests: XCTestCase {
 
     func testStreamsOutputAndBoundsDiagnosticTail() async throws {
         let streamedBytes = LockedBox(0)
+        let firstChunk = expectation(description: "stream callback arrives before process exit")
         let invocation = shell(
             "dd if=/dev/zero bs=1024 count=80 2>/dev/null | tr '\\000' x; sleep 0.2; printf done"
         )
         let task = Task {
             try await PtyProcessRunner().run(invocation) { data in
-                streamedBytes.withValue { $0 += data.count }
+                let isFirstChunk = streamedBytes.withValue { total in
+                    let wasEmpty = total == 0
+                    total += data.count
+                    return wasEmpty
+                }
+                if isFirstChunk {
+                    firstChunk.fulfill()
+                }
             }
         }
-        try await Task.sleep(nanoseconds: 100_000_000)
 
+        await fulfillment(of: [firstChunk], timeout: 2)
         XCTAssertGreaterThan(streamedBytes.value, 0)
         let result = try await task.value
         XCTAssertGreaterThan(streamedBytes.value, PtyProcessRunner.diagnosticTailLimit)
@@ -262,7 +270,7 @@ private final class LockedBox<Value>: @unchecked Sendable {
         lock.withLock { storedValue }
     }
 
-    func withValue(_ body: (inout Value) -> Void) {
+    func withValue<Result>(_ body: (inout Value) -> Result) -> Result {
         lock.withLock { body(&storedValue) }
     }
 }

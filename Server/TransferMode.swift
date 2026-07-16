@@ -89,16 +89,17 @@ struct TransferMode {
         let destination = URL(fileURLWithPath: handshake.destination.string)
         let partial = destination.deletingLastPathComponent()
             .appendingPathComponent(destination.lastPathComponent + ".detours-partial")
+        var displacedTrashInfoPath: String?
         try? fileManager.removeItem(at: partial)
         if fileManager.fileExists(atPath: destination.path) {
-            _ = try trashOperations.trash(paths: [destination.path])
-        }
-        guard fileManager.createFile(atPath: partial.path, contents: nil) else {
-            throw CocoaError(.fileWriteUnknown)
+            displacedTrashInfoPath = try trashOperations.trash(paths: [destination.path]).first
         }
 
         var received: Int64 = 0
         do {
+            guard fileManager.createFile(atPath: partial.path, contents: nil) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
             let handle = try FileHandle(forWritingTo: partial)
             defer { try? handle.close() }
 
@@ -114,8 +115,12 @@ struct TransferMode {
             }
             try fileManager.moveItem(at: partial, to: destination)
         } catch {
+            let uploadError = error
             try? fileManager.removeItem(at: partial)
-            throw error
+            if let displacedTrashInfoPath {
+                _ = try trashOperations.restore(trashInfoPaths: [displacedTrashInfoPath])
+            }
+            throw uploadError
         }
     }
 

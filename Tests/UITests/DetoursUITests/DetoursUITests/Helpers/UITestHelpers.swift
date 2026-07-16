@@ -337,14 +337,25 @@ extension BaseUITest {
     }
 
     func openQuickNav(timeout: TimeInterval = 3) {
-        chooseGoMenuItem("Quick Open")
-        _ = timeout
-        usleep(1_000_000)
+        chooseGoMenuItem("Quick Open", timeout: timeout)
+
+        let scopeHeader = app.staticTexts["quickNavScopeHeader"]
+        let searchField = app.searchFields["quickNavSearchField"]
+        XCTAssertTrue(
+            scopeHeader.waitForExistence(timeout: timeout),
+            "Quick Open scope should become ready"
+        )
+        XCTAssertTrue(
+            searchField.waitForExistence(timeout: timeout),
+            "Quick Open search field should become ready"
+        )
     }
 
     func openQuickNavForKeyboardInput() {
         openQuickNav(timeout: 5)
-        usleep(300_000)
+        let searchField = app.searchFields["quickNavSearchField"]
+        XCTAssertTrue(searchField.isHittable, "Quick Open search field should accept keyboard input")
+        searchField.click()
     }
 
     func sendQuickNavCommand(query: String, action: String? = nil) {

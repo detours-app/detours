@@ -115,6 +115,9 @@ extension MainSplitViewController {
             defer { remoteConnectTasks[host.id] = nil }
             Self.postRemoteConnectionState(.connecting, for: host.id)
             do {
+                if let delay = UITestEnvironment.realRemoteConnectionDelay {
+                    try await Task.sleep(for: delay)
+                }
                 let kind = await RemoteHostKindProbe(
                     client: SSHRemoteHostKindProbeClient(sshTarget: host.sshTarget)
                 ).resolve(cachedKind: host.kind)

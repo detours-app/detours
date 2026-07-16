@@ -58,12 +58,22 @@ final class CrossProviderTransferTests: XCTestCase {
         do {
             _ = try await queue.move(items: [source], to: destinationDirectory)
             XCTFail("Expected source trash failure")
-        } catch {}
+        } catch let error as FileOperationError {
+            guard case let .unknown(underlying) = error,
+                  let remoteError = underlying as? RemoteOperationError else {
+                return XCTFail("Expected wrapped post-upload trash failure, got \(error)")
+            }
+            XCTAssertEqual(remoteError.underlying as? TransferTestError, .trashFailed)
+        }
 
         let sourceExists = await sourceProvider.contains(source)
         let destinationExists = await destinationProvider.contains(destination)
+        let destinationUploadCount = await destinationProvider.uploadCount
+        let destinationRollbackTrashCount = await destinationProvider.trashCount
         XCTAssertTrue(sourceExists)
         XCTAssertFalse(destinationExists)
+        XCTAssertEqual(destinationUploadCount, 1, "The upload must finish before source trash fails")
+        XCTAssertEqual(destinationRollbackTrashCount, 1, "The uploaded destination must be rolled back")
     }
 
     private func waitFor(
@@ -80,7 +90,7 @@ final class CrossProviderTransferTests: XCTestCase {
     }
 }
 
-private enum TransferTestError: Error {
+private enum TransferTestError: Error, Equatable {
     case missing
     case trashFailed
     case timedOut
@@ -90,6 +100,8 @@ private actor TransferTestProvider: FileProvider {
     let hostID: UUID
     let failTrash: Bool
     private var items: Set<Location>
+    private(set) var uploadCount = 0
+    private(set) var trashCount = 0
 
     init(hostID: UUID, initialItem: Location? = nil, failTrash: Bool = false) {
         self.hostID = hostID
@@ -118,6 +130,7 @@ private actor TransferTestProvider: FileProvider {
 
     func trash(_ deleting: [Location]) async throws -> [TrashedItem] {
         if failTrash { throw TransferTestError.trashFailed }
+        trashCount += 1
         return deleting.map { item in
             items.remove(item)
             return TrashedItem(
@@ -153,6 +166,7 @@ private actor TransferTestProvider: FileProvider {
 
     func upload(_ localURL: URL, to location: Location) async throws {
         _ = try Data(contentsOf: localURL)
+        uploadCount += 1
         items.insert(location)
     }
 }

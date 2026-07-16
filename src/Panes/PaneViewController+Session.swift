@@ -129,15 +129,11 @@ extension PaneViewController {
                 if let expansions, index < expansions.count {
                     tabs[index].fileListViewController.pendingExpansionRestore = expansions[index]
                 }
+                if let selections, index < selections.count {
+                    tabs[index].fileListViewController.setPendingSelection(at: selections[index])
+                }
                 if !isRemoteTab {
                     tabs[index].fileListViewController.loadDirectory(url, iCloudListingMode: tabs[index].iCloudListingMode)
-                }
-                if let selections, index < selections.count {
-                    if isRemoteTab {
-                        tabs[index].fileListViewController.setPendingSelection(at: selections[index])
-                    } else {
-                        tabs[index].fileListViewController.restoreSelection(selections[index])
-                    }
                 }
             } else {
                 // Store pending state for deferred loading

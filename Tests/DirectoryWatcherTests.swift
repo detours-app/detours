@@ -25,22 +25,14 @@ struct MultiDirectoryWatcherTests {
         let tempDir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        nonisolated(unsafe) var changeDetected = false
-
-        let watcher = MultiDirectoryWatcher { _ in
-            changeDetected = true
-        }
+        let callbacks = WatcherCallbackRecorder()
+        let watcher = MultiDirectoryWatcher { callbacks.record($0) }
         await watchWhenReady(tempDir, with: watcher)
 
         let testFile = tempDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        for _ in 0..<20 {
-            if changeDetected { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-
-        #expect(changeDetected)
+        #expect(callbacks.waitForCount(1))
         watcher.unwatchAll()
     }
 
@@ -52,21 +44,13 @@ struct MultiDirectoryWatcherTests {
         let testFile = tempDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        nonisolated(unsafe) var changeDetected = false
-
-        let watcher = MultiDirectoryWatcher { _ in
-            changeDetected = true
-        }
+        let callbacks = WatcherCallbackRecorder()
+        let watcher = MultiDirectoryWatcher { callbacks.record($0) }
         await watchWhenReady(tempDir, with: watcher)
 
         try FileManager.default.removeItem(at: testFile)
 
-        for _ in 0..<20 {
-            if changeDetected { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-
-        #expect(changeDetected)
+        #expect(callbacks.waitForCount(1))
         watcher.unwatchAll()
     }
 
@@ -78,22 +62,14 @@ struct MultiDirectoryWatcherTests {
         let testFile = tempDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        nonisolated(unsafe) var changeDetected = false
-
-        let watcher = MultiDirectoryWatcher { _ in
-            changeDetected = true
-        }
+        let callbacks = WatcherCallbackRecorder()
+        let watcher = MultiDirectoryWatcher { callbacks.record($0) }
         await watchWhenReady(tempDir, with: watcher)
 
         let renamedFile = tempDir.appendingPathComponent("renamed.txt")
         try FileManager.default.moveItem(at: testFile, to: renamedFile)
 
-        for _ in 0..<20 {
-            if changeDetected { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-
-        #expect(changeDetected)
+        #expect(callbacks.waitForCount(1))
         watcher.unwatchAll()
     }
 
@@ -102,10 +78,8 @@ struct MultiDirectoryWatcherTests {
         let tempDir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        nonisolated(unsafe) var callbackCount = 0
-        let watcher = MultiDirectoryWatcher { _ in
-            callbackCount += 1
-        }
+        let callbacks = WatcherCallbackRecorder()
+        let watcher = MultiDirectoryWatcher { callbacks.record($0) }
         await watchWhenReady(tempDir, with: watcher)
 
         try FileManager.default.createDirectory(
@@ -113,19 +87,15 @@ struct MultiDirectoryWatcherTests {
             withIntermediateDirectories: false
         )
 
-        for _ in 0..<20 {
-            if callbackCount > 0 { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        #expect(callbackCount > 0)
+        #expect(callbacks.waitForCount(1))
 
         // Let any immediate DispatchSource notifications settle, then cross a
         // complete metadata-polling interval. The count must stay unchanged.
         try await Task.sleep(nanoseconds: 500_000_000)
-        let settledCallbackCount = callbackCount
+        let settledCallbackCount = callbacks.count
         try await Task.sleep(nanoseconds: 2_200_000_000)
 
-        #expect(callbackCount == settledCallbackCount)
+        #expect(callbacks.count == settledCallbackCount)
         watcher.unwatchAll()
     }
 
@@ -136,23 +106,15 @@ struct MultiDirectoryWatcherTests {
         try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: rootDir) }
 
-        nonisolated(unsafe) var callbackURL: URL?
-
-        let watcher = MultiDirectoryWatcher { url in
-            callbackURL = url
-        }
+        let callbacks = WatcherCallbackRecorder()
+        let watcher = MultiDirectoryWatcher { callbacks.record($0) }
         await watchWhenReady(rootDir, with: watcher)
         await watchWhenReady(subDir, with: watcher)
 
         let testFile = subDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        for _ in 0..<20 {
-            if callbackURL != nil { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-
-        #expect(callbackURL == subDir.standardizedFileURL)
+        #expect(callbacks.waitForURL(subDir.standardizedFileURL))
         watcher.unwatchAll()
     }
 
@@ -165,11 +127,8 @@ struct MultiDirectoryWatcherTests {
             try? FileManager.default.removeItem(at: dir2)
         }
 
-        nonisolated(unsafe) var callbackURLs: [URL] = []
-
-        let watcher = MultiDirectoryWatcher { url in
-            callbackURLs.append(url)
-        }
+        let callbacks = WatcherCallbackRecorder()
+        let watcher = MultiDirectoryWatcher { callbacks.record($0) }
         await watchWhenReady(dir1, with: watcher)
         await watchWhenReady(dir2, with: watcher)
 
@@ -185,18 +144,13 @@ struct MultiDirectoryWatcherTests {
 
         // Wait to confirm no callback
         try await Task.sleep(nanoseconds: 500_000_000)
-        #expect(callbackURLs.isEmpty)
+        #expect(callbacks.isEmpty)
 
         // Create file in still-watched dir2 — should trigger callback
         let file2 = dir2.appendingPathComponent("test.txt")
         try "hello".write(to: file2, atomically: true, encoding: .utf8)
 
-        for _ in 0..<20 {
-            if !callbackURLs.isEmpty { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-
-        #expect(callbackURLs.contains(dir2.standardizedFileURL))
+        #expect(callbacks.waitForURL(dir2.standardizedFileURL))
         watcher.unwatchAll()
     }
 
@@ -209,11 +163,8 @@ struct MultiDirectoryWatcherTests {
             try? FileManager.default.removeItem(at: dir2)
         }
 
-        nonisolated(unsafe) var callbackCount = 0
-
-        let watcher = MultiDirectoryWatcher { _ in
-            callbackCount += 1
-        }
+        let callbacks = WatcherCallbackRecorder()
+        let watcher = MultiDirectoryWatcher { callbacks.record($0) }
         await watchWhenReady(dir1, with: watcher)
         await watchWhenReady(dir2, with: watcher)
 
@@ -228,7 +179,7 @@ struct MultiDirectoryWatcherTests {
         // Wait to confirm no callbacks
         try await Task.sleep(nanoseconds: 500_000_000)
 
-        #expect(callbackCount == 0)
+        #expect(callbacks.isEmpty)
     }
 
     @Test("Survives rewatch of same URL")
@@ -236,11 +187,8 @@ struct MultiDirectoryWatcherTests {
         let tempDir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        nonisolated(unsafe) var callbackCount = 0
-
-        let watcher = MultiDirectoryWatcher { _ in
-            callbackCount += 1
-        }
+        let callbacks = WatcherCallbackRecorder()
+        let watcher = MultiDirectoryWatcher { callbacks.record($0) }
         await watchWhenReady(tempDir, with: watcher)
         // Watch same URL again — should be idempotent (no duplicate watcher)
         watcher.watch(tempDir)
@@ -251,13 +199,7 @@ struct MultiDirectoryWatcherTests {
         let testFile = tempDir.appendingPathComponent("test.txt")
         FileManager.default.createFile(atPath: testFile.path, contents: Data("hello".utf8))
 
-        for _ in 0..<20 {
-            if callbackCount > 0 { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-
-        // At least one callback proves the watcher works after re-watch attempt
-        #expect(callbackCount >= 1)
+        #expect(callbacks.waitForCount(1))
         watcher.unwatchAll()
     }
 
@@ -269,23 +211,14 @@ struct MultiDirectoryWatcherTests {
         let testFile = tempDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        nonisolated(unsafe) var changeDetected = false
-
-        let watcher = MultiDirectoryWatcher { _ in
-            changeDetected = true
-        }
+        let callbacks = WatcherCallbackRecorder()
+        let watcher = MultiDirectoryWatcher { callbacks.record($0) }
         await watchWhenReady(tempDir, with: watcher)
 
         // Modify existing file content — DispatchSource alone can't detect this
         try "hello world".write(to: testFile, atomically: true, encoding: .utf8)
 
-        // Poller interval is 2s, so allow enough time
-        for _ in 0..<40 {
-            if changeDetected { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-
-        #expect(changeDetected)
+        #expect(callbacks.waitForCount(1, timeout: 4))
         watcher.unwatchAll()
     }
 
@@ -297,11 +230,8 @@ struct MultiDirectoryWatcherTests {
         let testFile = tempDir.appendingPathComponent("test.txt")
         try "hello".write(to: testFile, atomically: true, encoding: .utf8)
 
-        nonisolated(unsafe) var changeDetected = false
-
-        let watcher = MultiDirectoryWatcher { _ in
-            changeDetected = true
-        }
+        let callbacks = WatcherCallbackRecorder()
+        let watcher = MultiDirectoryWatcher { callbacks.record($0) }
         await watchWhenReady(tempDir, with: watcher)
 
         // Append to file using FileHandle
@@ -310,12 +240,46 @@ struct MultiDirectoryWatcherTests {
         handle.write(Data(" world".utf8))
         handle.closeFile()
 
-        for _ in 0..<40 {
-            if changeDetected { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-
-        #expect(changeDetected)
+        #expect(callbacks.waitForCount(1, timeout: 4))
         watcher.unwatchAll()
+    }
+}
+
+private final class WatcherCallbackRecorder: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var recordedURLs: [URL] = []
+
+    var count: Int {
+        condition.withLock { recordedURLs.count }
+    }
+
+    var isEmpty: Bool {
+        condition.withLock { recordedURLs.isEmpty }
+    }
+
+    func record(_ url: URL) {
+        condition.withLock {
+            recordedURLs.append(url.standardizedFileURL)
+            condition.broadcast()
+        }
+    }
+
+    func waitForCount(_ expectedCount: Int, timeout: TimeInterval = 2) -> Bool {
+        wait(timeout: timeout) { $0.count >= expectedCount }
+    }
+
+    func waitForURL(_ url: URL, timeout: TimeInterval = 2) -> Bool {
+        let expectedURL = url.standardizedFileURL
+        return wait(timeout: timeout) { $0.contains(expectedURL) }
+    }
+
+    private func wait(timeout: TimeInterval, until predicate: ([URL]) -> Bool) -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        let deadline = Date().addingTimeInterval(timeout)
+        while !predicate(recordedURLs) {
+            guard condition.wait(until: deadline) else { return predicate(recordedURLs) }
+        }
+        return true
     }
 }

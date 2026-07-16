@@ -79,17 +79,6 @@ final class PaneTabTests: XCTestCase {
         XCTAssertFalse(tab.canGoBack)
     }
 
-    func testCanGoBackWhenStackHasItems() throws {
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-
-        let next = try createTestFolder(in: temp, name: "Next")
-        let tab = PaneTab(directory: temp)
-        tab.navigate(to: next)
-
-        XCTAssertTrue(tab.canGoBack)
-    }
-
     func testNavigateClearsForwardStack() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

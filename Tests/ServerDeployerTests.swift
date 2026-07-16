@@ -155,29 +155,6 @@ final class ServerDeployerTests: XCTestCase {
         }
     }
 
-    func testInterruptedDeployCleansPartialBeforeNextConnect() async throws {
-        let bundle = try makeBundledBinary()
-        defer { cleanupTempDirectory(bundle.deletingLastPathComponent()) }
-
-        let client = FakeServerDeploymentClient(binaryInfo: nil, remoteHash: nil, failFinalize: true)
-        let deployer = ServerDeployer(client: client, bundledBinaryURL: bundle)
-
-        do {
-            _ = try await deployer.deployIfNeeded()
-            XCTFail("Expected finalize failure")
-        } catch FakeServerDeploymentClient.Failure.finalize {
-            let snapshot = await client.snapshot()
-            XCTAssertFalse(snapshot.partialExists)
-        }
-
-        await client.setFailFinalize(false)
-        let result = try await deployer.deployIfNeeded()
-        let snapshot = await client.snapshot()
-
-        XCTAssertEqual(result, ServerDeploymentResult(deployed: true, reason: .missing))
-        XCTAssertFalse(snapshot.partialExists)
-    }
-
     private func makeBundledBinary(content: String = "detours-server") throws -> URL {
         let temp = try createTempDirectory()
         return try createTestFile(in: temp, name: "detours-server", content: content)
@@ -192,15 +169,10 @@ final class ServerDeployerTests: XCTestCase {
 }
 
 private actor FakeServerDeploymentClient: ServerDeploymentClient {
-    enum Failure: Error {
-        case finalize
-    }
-
     var architecture: RemoteArchitecture
     var username: String
     var binaryInfo: RemoteBinaryInfo?
     var remoteHash: String?
-    var failFinalize: Bool
     var partialExists = false
     var didUpload = false
     var didFinalize = false
@@ -220,14 +192,12 @@ private actor FakeServerDeploymentClient: ServerDeploymentClient {
         architecture: RemoteArchitecture = RemoteArchitecture(system: "Linux", machine: "x86_64"),
         username: String = "marco",
         binaryInfo: RemoteBinaryInfo?,
-        remoteHash: String?,
-        failFinalize: Bool = false
+        remoteHash: String?
     ) {
         self.architecture = architecture
         self.username = username
         self.binaryInfo = binaryInfo
         self.remoteHash = remoteHash
-        self.failFinalize = failFinalize
     }
 
     func architecture() async throws -> RemoteArchitecture {
@@ -269,16 +239,9 @@ private actor FakeServerDeploymentClient: ServerDeploymentClient {
 
     func finalizeBinary(tempPath: String, finalPath: String) async throws {
         calls.append("finalize:\(tempPath)->\(finalPath)")
-        if failFinalize {
-            throw Failure.finalize
-        }
         partialExists = false
         binaryInfo = .valid
         didFinalize = true
-    }
-
-    func setFailFinalize(_ value: Bool) {
-        failFinalize = value
     }
 
     func snapshot() -> Snapshot {

@@ -47,12 +47,12 @@ let package = Package(
             name: "DetoursTests",
             dependencies: ["Detours", "DetoursProcess", "detours-server"],
             path: "Tests",
-            exclude: ["TEST_LOG.md", "UITests"]
+            exclude: ["TEST_LOG.md", "UITests", "DetoursProcessTests"]
         ),
         .testTarget(
             name: "DetoursProcessTests",
             dependencies: ["DetoursProcess"],
-            path: "SharedTests"
+            path: "Tests/DetoursProcessTests"
         ),
     ]
 )
