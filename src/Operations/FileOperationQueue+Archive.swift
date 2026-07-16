@@ -247,7 +247,13 @@ extension FileOperationQueue {
 
     private func runSevenZip(items: [URL], destination: URL, password: String?, sourceSize: Int64) async throws {
         if let password, !password.isEmpty {
-            throw FileOperationError.archivePasswordUnsupported
+            try await runEncryptedSevenZip(
+                items: items,
+                destination: destination,
+                password: password,
+                sourceSize: sourceSize
+            )
+            return
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
@@ -263,6 +269,55 @@ extension FileOperationQueue {
         process.standardError = errorPipe
 
         try await runProcess(process, errorPipe: errorPipe, partialFile: destination, progressMode: .parseStderr(referenceSize: sourceSize))
+    }
+
+    private func runEncryptedSevenZip(
+        items: [URL],
+        destination: URL,
+        password: String,
+        sourceSize: Int64
+    ) async throws {
+        let invocation = PtyProcessInvocation(
+            executable: CompressionTool.sevenZip.path,
+            arguments: ["a", "-t7z", "-bsp2", "-mhe=on", "-p", destination.path] + items.map(\.path),
+            password: password,
+            responses: [.password, .password],
+            minimumResponses: 1
+        )
+        let parser = ArchivePercentageParser()
+        let runnerTask = Task {
+            try await PtyProcessRunner().run(invocation) { [weak self] data in
+                guard let percent = parser.consume(data) else { return }
+                Task { @MainActor [weak self] in
+                    guard let self, let operation = self.currentOperation else { return }
+                    let fraction = min(Double(percent) / 100, 1)
+                    self.updateProgress(
+                        operation: operation,
+                        currentItem: destination,
+                        completed: 0,
+                        total: 0,
+                        bytesCompleted: Int64(Double(sourceSize) * fraction),
+                        bytesTotal: sourceSize
+                    )
+                }
+            }
+        }
+        currentIOCancellable = AnyCancellableTask(runnerTask)
+        defer { currentIOCancellable = nil }
+
+        do {
+            let result = try await runnerTask.value
+            try checkCancelled()
+            guard result.status == 0 else {
+                throw FileOperationError.archiveProcessFailed(Self.archiveDiagnostic(result))
+            }
+        } catch is CancellationError {
+            try? FileManager.default.removeItem(at: destination)
+            throw FileOperationError.cancelled
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
     }
 
     private func runTar(items: [URL], destination: URL, flag: String, sourceSize: Int64) async throws {
@@ -432,5 +487,29 @@ extension FileOperationQueue {
             }
             attempt += 1
         }
+    }
+}
+
+private final class ArchivePercentageParser: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bufferedText = ""
+
+    func consume(_ data: Data) -> Int? {
+        lock.lock()
+        defer { lock.unlock() }
+        bufferedText += String(data: data, encoding: .utf8) ?? ""
+        if bufferedText.count > 512 {
+            bufferedText = String(bufferedText.suffix(512))
+        }
+        let pattern = #"(\d{1,3})%"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.matches(
+                  in: bufferedText,
+                  range: NSRange(bufferedText.startIndex..., in: bufferedText)
+              ).last,
+              let range = Range(match.range(at: 1), in: bufferedText) else {
+            return nil
+        }
+        return Int(bufferedText[range])
     }
 }
