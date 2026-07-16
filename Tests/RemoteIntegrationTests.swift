@@ -3,7 +3,7 @@ import XCTest
 
 final class RemoteIntegrationTests: XCTestCase {
     func testListDirectoryReturnsExpectedEntries() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
 
         let started = Date()
         let entries = try await session.provider.list(.remote(hostID: session.hostID, path: "/etc"), showHidden: false)
@@ -13,7 +13,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testListChunksAndQuickLookCrossRealSSHHelperBoundary() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH(
@@ -49,7 +49,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testArchiveWrongPasswordMapsRealHelperErrorToRetry() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("printf secret > \(Self.shellQuote(remoteRoot + "/secret.txt"))")
@@ -72,7 +72,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testCopyRemoteToLocal() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("printf remote-body > \(Self.shellQuote(remoteRoot + "/remote.txt"))")
@@ -86,7 +86,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testCopyLocalToRemote() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         let localRoot = try createTempDirectory()
@@ -101,7 +101,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testRemoteProviderCopyUsesRealHelperProtocol() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH(
@@ -120,7 +120,7 @@ final class RemoteIntegrationTests: XCTestCase {
 
     @MainActor
     func testFileOperationQueueCopiesRemoteFileToLocalFilesystem() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("printf remote-payload > \(Self.shellQuote(remoteRoot + "/remote.txt"))")
@@ -142,7 +142,7 @@ final class RemoteIntegrationTests: XCTestCase {
 
     @MainActor
     func testFileOperationQueueCopiesLocalFileToRemoteFilesystem() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("mkdir \(Self.shellQuote(remoteRoot + "/destination"))")
@@ -164,7 +164,7 @@ final class RemoteIntegrationTests: XCTestCase {
 
     @MainActor
     func testFileOperationQueueMovesRemoteFileToLocalFilesystem() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("printf move-payload > \(Self.shellQuote(remoteRoot + "/move.txt"))")
@@ -200,7 +200,7 @@ final class RemoteIntegrationTests: XCTestCase {
     @MainActor
     func testFileOperationQueueRemoteDeleteUndoRestoresRealFile() async throws {
         RemoteTrashExplainer.markDismissed()
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("printf undo-payload > \(Self.shellQuote(remoteRoot + "/undo.txt"))")
@@ -222,7 +222,7 @@ final class RemoteIntegrationTests: XCTestCase {
 
     @MainActor
     func testFileOperationQueueRemoteRenameUsesRealProvider() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("printf rename-payload > \(Self.shellQuote(remoteRoot + "/old.txt"))")
@@ -405,7 +405,7 @@ final class RemoteIntegrationTests: XCTestCase {
 
     @MainActor
     func testRemoteOpenWithSessionUploadsBackToRealRemoteFile() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("printf original > \(Self.shellQuote(remoteRoot + "/notes.md"))")
@@ -433,7 +433,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testLargeTransferUsesRemoteTransferChannel() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("dd if=/dev/zero of=\(Self.shellQuote(remoteRoot + "/large.bin")) bs=1M count=100 status=none")
@@ -481,7 +481,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testTrashAndRestore() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("printf trash > \(Self.shellQuote(remoteRoot + "/trash.txt"))")
@@ -496,7 +496,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testGitStatusOverlay() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH(
@@ -518,7 +518,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testSymlinkFollowsResolvable() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("mkdir -p \(Self.shellQuote(remoteRoot + "/target")); ln -s target \(Self.shellQuote(remoteRoot + "/link"))")
@@ -529,7 +529,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testPermissionDeniedRendersLockBadge() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer {
             _ = try? Self.runSSH("chmod -R u+rwX \(Self.shellQuote(remoteRoot))")
@@ -786,7 +786,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testSameHostCopyAndMoveThroughRealHelper() async throws {
-        let session = try RemoteIntegrationSession.make()
+        let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH(
@@ -813,8 +813,8 @@ final class RemoteIntegrationTests: XCTestCase {
 
     @MainActor
     func testLocalRemoteAndCrossHostFolderTransfers() async throws {
-        let sessionA = try RemoteIntegrationSession.make()
-        let sessionB = try RemoteIntegrationSession.make()
+        let sessionA = try await RemoteIntegrationSession.make()
+        let sessionB = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH(

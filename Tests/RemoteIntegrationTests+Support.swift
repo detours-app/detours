@@ -5,8 +5,13 @@ struct RemoteIntegrationSession {
     let hostID: UUID
     let provider: RemoteFileProvider
 
-    static func make() throws -> RemoteIntegrationSession {
+    static func make() async throws -> RemoteIntegrationSession {
         try RemoteIntegrationTests.runSSH("test -x ~/.detours-server/detours-server")
+        let deployer = ServerDeployer(
+            client: SSHServerDeploymentClient(sshTarget: "devtest"),
+            bundledBinaryDirectoryURL: URL(fileURLWithPath: "resources/Servers")
+        )
+        _ = try await deployer.deployIfNeeded()
         return try make(sshTarget: "devtest")
     }
 
