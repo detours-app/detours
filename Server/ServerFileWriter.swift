@@ -36,7 +36,7 @@ enum ServerFileWriter {
             guard let baseAddress = bytes.baseAddress else { return }
             var offset = 0
             while offset < bytes.count {
-                let count = write(descriptor, baseAddress.advanced(by: offset), bytes.count - offset)
+                let count = systemWrite(descriptor, baseAddress.advanced(by: offset), bytes.count - offset)
                 if count > 0 {
                     offset += count
                 } else if count < 0, errno == EINTR {
@@ -47,6 +47,18 @@ enum ServerFileWriter {
             }
         }
         guard fsync(descriptor) == 0 else { throw posixError("fsync", path: destination.path) }
+    }
+
+    private static func systemWrite(
+        _ descriptor: Int32,
+        _ buffer: UnsafeRawPointer,
+        _ count: Int
+    ) -> Int {
+        #if canImport(Darwin)
+        Darwin.write(descriptor, buffer, count)
+        #else
+        Glibc.write(descriptor, buffer, count)
+        #endif
     }
 
     private static func posixError(_ operation: String, path: String) -> NSError {
