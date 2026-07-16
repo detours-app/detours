@@ -1950,3 +1950,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 1 Swift Testing test, 0 failures. One hundred immediate watch/unwatch
   cycles completed while asynchronous directory opens and main-queue dispatch
   source setup drained without releasing an inactive source.
+
+- 2026-07-16 18:16 CEST: Foundry
+  `resources/scripts/uitest.sh RealRemoteFileOperationsUITests/testDelayedRealConnectionLoadsPaneCapturedBeforeFocusSwitch`
+  FAIL: 1 test, 1 failure. The inactive-dispatch-source crash did not recur,
+  but the app exposed no main window within the test's 10-second readiness
+  deadline. The delayed real-connection launch path remains unresolved.
