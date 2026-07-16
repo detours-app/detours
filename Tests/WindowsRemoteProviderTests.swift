@@ -209,6 +209,7 @@ final class WindowsRemoteProviderTests: XCTestCase {
         let hostID = UUID()
         let transport = ProviderScriptTransport(responses: [
             "Trash": #"{"OriginalPath":"C:\\Users\\sans\\Old.txt","TrashToken":"restore-token"}"#,
+            "Delete": "null",
             "RestoreFromTrash": #""C:\\Users\\sans\\Old.txt""#,
         ])
         let channel = PowerShellChannel(transport: transport)

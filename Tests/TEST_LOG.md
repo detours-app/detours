@@ -1770,3 +1770,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `resources/scripts/wintest.sh WindowsRemoteLiveTests/testUnwatchCancelsIdleReadAndNextWatchAcceptsWork`
   PASS: 1 test, 0 failures. Covers cancellation of an idle Windows watch read
   and successful event delivery through a replacement watch on the real host.
+
+- 2026-07-16 15:51 CEST: Foundry
+  `swift test --filter 'ArchiveOperationTests|CrossProviderTransferTests|DirectoryLoaderTests|FileListResponderTests|FileOperationQueueTests|FindRPCCodecTests|OpenWithConflictTests|RemoteRefreshCoordinatorTests|FileOperationsServerTests|WindowsRemoteProviderTests'`
+  FAIL: 226 tests ran with 1 failure. The permanent-delete provider test did
+  not script the newly distinct `Delete` transport response; all production
+  code compiled and the other 225 tests passed.
