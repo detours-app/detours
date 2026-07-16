@@ -30,6 +30,7 @@ final class KeychainCredentialStoreTests: XCTestCase {
         try store.delete(server: account)
 
         XCTAssertFalse(store.hasCredential(server: account))
-        XCTAssertNil(try await store.retrieve(server: account))
+        let deletedCredential = try await store.retrieve(server: account)
+        XCTAssertNil(deletedCredential)
     }
 }

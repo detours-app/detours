@@ -309,7 +309,10 @@ final class WindowsRemoteLiveTests: XCTestCase {
             _ = try await queue.move(items: [sourceFile], to: dst, undoManager: moveUndoManager)
             let movedData = try await fixture.read(destinationFile)
             XCTAssertEqual(movedData, Data("new".utf8))
-            await XCTAssertThrowsErrorAsync(try await fixture.provider.stat(sourceFile))
+            do {
+                _ = try await fixture.provider.stat(sourceFile)
+                XCTFail("Move must remove the source before undo")
+            } catch {}
 
             moveUndoManager.undo()
             try await waitUntilLive(timeout: 5) {
@@ -330,7 +333,10 @@ final class WindowsRemoteLiveTests: XCTestCase {
             try await fixture.upload(Data("rollback-original".utf8), to: rollbackDestination)
             queue.windowsReplacementFailureProbeForTesting = { true }
 
-            await XCTAssertThrowsErrorAsync(try await queue.move(items: [rollbackSource], to: dst))
+            do {
+                _ = try await queue.move(items: [rollbackSource], to: dst)
+                XCTFail("Injected post-displacement failure must abort the move")
+            } catch {}
             queue.windowsReplacementFailureProbeForTesting = nil
 
             let sourceAfterRollback = try await fixture.read(rollbackSource)
@@ -409,6 +415,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
         }
     }
 
+    @MainActor
     private func waitUntilLive(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

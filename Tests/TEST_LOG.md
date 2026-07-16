@@ -1813,3 +1813,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   and 13 server archive tests passing, no unhandled-file warning, and successful
   Linux and Intel macOS helper builds. The release app compiled, bundled, and
   codesigned successfully.
+
+- 2026-07-16 16:39 CEST: Foundry focused audit-fix `swift test --filter` run
+  FAIL: test compilation stopped before execution. The new Keychain test awaited
+  inside an XCTest autoclosure, and the new Windows live Replace/undo coverage
+  crossed main-actor values into nonisolated async assertion helpers. Both test
+  surfaces require Swift 6 concurrency-safe assertions before rerunning.
