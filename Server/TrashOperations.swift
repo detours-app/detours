@@ -31,7 +31,7 @@ struct TrashOperations {
             let trashInfoURL = infoDirectory.appendingPathComponent("\(trashName).trashinfo")
             let trashInfo = Self.trashInfoContents(originalPath: sourceURL.path)
 
-            try ServerFileWriter.write(Data(trashInfo.utf8), to: trashInfoURL, atomically: true)
+            try trashInfo.write(to: trashInfoURL, atomically: true, encoding: .utf8)
             try setPermissions(0o600, at: trashInfoURL)
 
             do {

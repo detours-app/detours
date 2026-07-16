@@ -124,7 +124,7 @@ Research and code inspection support the revised approach:
 - [x] **C11** Add a distinct helper wrong-password error and map its existing RPC error-envelope text in `RemoteFileProvider` to `FileOperationError.archivePasswordRequired`.
 - [x] **C12** Remove the local and helper unsupported-password errors, guards, alerts, and dead branches after all password paths use the PTY runner.
 - [x] **C13** Update `resources/docs/USER_GUIDE.md` and `resources/docs/remote-vm-browsing.md` for local and macOS/Linux-helper password support, the Windows boundary, and command-line secrecy.
-- [ ] **C14** Build through `resources/scripts/build.sh` and resolve every Swift compiler and `swiftlint lint --quiet` finding.
+- [x] **C14** Build through `resources/scripts/build.sh` and resolve every Swift compiler and `swiftlint lint --quiet` finding.
 
 ---
 
@@ -177,3 +177,4 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 - **C11** Added the helper's distinct `wrongPassword` failure for ZIP and encrypted 7Z diagnostics. `RemoteFileProvider` maps that stable RPC envelope text to `archivePasswordRequired`, feeding remote failures into the shared retry sheet.
 - **C12** Removed the audit-era local/helper unsupported-password errors, presentations, sentinels, and obsolete rejection tests. Unsupported TAR input now uses validation, while Windows keeps its explicit boundary through the provider's standard unsupported-operation error.
 - **C13** Updated both user guides for local and supported helper password workflows, ZIP's 80-byte limit, wrong-password cleanup, the Windows boundary, and the precise command-line secrecy guarantee.
+- **C14** `resources/scripts/build.sh --no-install` on Foundry built the Linux helper, Intel macOS helper, and app successfully; `swiftlint lint --quiet` on Spectre completed with no findings. Foundry has no SwiftLint executable, so lint ran on the identical committed source tree on Spectre.
