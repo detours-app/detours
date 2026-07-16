@@ -121,7 +121,7 @@ Research and code inspection support the revised approach:
 **Phase 4: Remote helper and cleanup**
 
 - [x] **C10** Replace the ZIP and 7Z password sentinels in `Server/ArchiveOperations.swift` with prompt-mode commands, enforce the ZIP-only 80-UTF-8-byte preflight for create and extract requests, and route password-bearing helper invocations through `PtyProcessRunner`.
-- [ ] **C11** Add a distinct helper wrong-password error and map its existing RPC error-envelope text in `RemoteFileProvider` to `FileOperationError.archivePasswordRequired`.
+- [x] **C11** Add a distinct helper wrong-password error and map its existing RPC error-envelope text in `RemoteFileProvider` to `FileOperationError.archivePasswordRequired`.
 - [ ] **C12** Remove the local and helper unsupported-password errors, guards, alerts, and dead branches after all password paths use the PTY runner.
 - [ ] **C13** Update `resources/docs/USER_GUIDE.md` and `resources/docs/remote-vm-browsing.md` for local and macOS/Linux-helper password support, the Windows boundary, and command-line secrecy.
 - [ ] **C14** Build through `resources/scripts/build.sh` and resolve every Swift compiler and `swiftlint lint --quiet` finding.
@@ -174,3 +174,4 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 - **C8** Added a dedicated encrypted-7Z flow that performs prompt-mode listing and streamed extraction into an app-created temporary directory, then resolves conflicts and materializes only after success. Explicit encrypted-data password diagnostics retry; other corruption remains an archive failure.
 - **C9** Restored a `Location`-based password sheet for local and remote archives. Incorrect retries are labelled, Cancel is silent, empty input stays in the sheet, and overlong ZIP input shows the exact byte-limit message without launching extraction.
 - **C10** Replaced helper password sentinels with prompt-mode ZIP and 7Z PTY invocations for creation and extraction. The helper validates ZIP byte length before tool resolution, retains its progress envelope and temporary extraction boundary, and exposes a focused PTY test seam.
+- **C11** Added the helper's distinct `wrongPassword` failure for ZIP and encrypted 7Z diagnostics. `RemoteFileProvider` maps that stable RPC envelope text to `archivePasswordRequired`, feeding remote failures into the shared retry sheet.

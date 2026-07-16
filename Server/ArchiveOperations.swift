@@ -73,6 +73,7 @@ enum ArchiveOperationsError: Error, Equatable, Sendable {
     case processFailed(String)
     case emptyArchive(String)
     case invalidPassword(String)
+    case wrongPassword
     case passwordUnsupported
 }
 
@@ -187,6 +188,10 @@ struct ArchiveOperations {
                 result = try runProcess(command.executable, command.arguments, command.currentDirectory)
             }
             guard result.status == 0 else {
+                if password?.isEmpty == false,
+                   Self.isWrongPasswordFailure(format: format, result: result) {
+                    throw ArchiveOperationsError.wrongPassword
+                }
                 throw ArchiveOperationsError.processFailed(Self.errorMessage(result.stderr, fallback: format.fileExtension))
             }
 
@@ -417,6 +422,29 @@ struct ArchiveOperations {
 
     private static func serverResult(_ result: PtyProcessResult) -> ServerProcessResult {
         ServerProcessResult(status: result.status, stderr: result.outputString)
+    }
+
+    private static func isWrongPasswordFailure(
+        format: ServerArchiveFormat,
+        result: ServerProcessResult
+    ) -> Bool {
+        let diagnostic = result.stderr.lowercased()
+        switch format {
+        case .zip:
+            if result.status == 82 { return true }
+            guard result.status == 1 else { return false }
+            return diagnostic.contains("incorrect password")
+                || diagnostic.contains("wrong password")
+                || diagnostic.contains("bad password")
+                || (diagnostic.contains("skipping:") && diagnostic.contains("password"))
+                || (diagnostic.contains("skipping:") && diagnostic.contains("encrypted"))
+        case .sevenZ:
+            return diagnostic.contains("wrong password")
+                || diagnostic.contains("incorrect password")
+                || diagnostic.contains("data error in encrypted file")
+        case .tarGz, .tarBz2, .tarXz:
+            return false
+        }
     }
 
     private static func resolveToolOnPath(_ tool: String) -> String? {

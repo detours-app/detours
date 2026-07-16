@@ -446,13 +446,18 @@ actor RemoteFileProvider: FileProvider {
     }
 
     func archiveExtract(_ archive: Location, password: String?) async throws -> Location {
-        let paths = try decodePathList(
-            from: try await rpcClient.send(.archiveExtract(archive: remotePath(from: archive), password: password))
-        )
-        guard let path = paths.first else {
-            throw RemoteFileProviderError.invalidResponse("archiveExtract")
+        do {
+            let paths = try decodePathList(
+                from: try await rpcClient.send(.archiveExtract(archive: remotePath(from: archive), password: password))
+            )
+            guard let path = paths.first else {
+                throw RemoteFileProviderError.invalidResponse("archiveExtract")
+            }
+            return .remote(hostID: hostID, path: path.lossyDisplayString)
+        } catch RemoteFileProviderError.invalidResponse(let message)
+            where message.contains("wrongPassword") {
+            throw FileOperationError.archivePasswordRequired
         }
-        return .remote(hostID: hostID, path: path.lossyDisplayString)
     }
 
     func createDirectory(at location: Location, withIntermediateDirectories: Bool) async throws {
