@@ -1,8 +1,8 @@
-# Secure Password-Protected Archives (ZIP and 7Z)
+# Process-Private Password-Protected Archives (ZIP and 7Z)
 
 ## Meta
 
-- Status: Draft
+- Status: Reviewed
 - Branch: feature/secure-password-archives
 
 ---
@@ -11,35 +11,38 @@
 
 ### Goal
 
-Bring back password protection for archives. Detours can already create and open ZIP and 7Z archives; it used to let you put a password on them too, but that was switched off because the password was handed to the underlying compression tools in a way that other programs on the same Mac could read while the archive was being built. This change brings password protection back, this time keeping the password private the whole time.
+Bring back password protection for archives without exposing the password in the compression tool's command line. Detours can already create and open ZIP and 7Z archives, but password handling was switched off after an audit found that other programs on the same machine were able to read the password from the running tool's arguments.
 
 ### Proposal
 
-Re-enable the "Encrypt with password" option in the Create Archive dialog for ZIP and 7Z, and let Detours open password-protected ZIP and 7Z archives, with the password never exposed to other programs running on the machine.
+Re-enable the "Encrypt with password" option for ZIP and 7Z, and let Detours open password-protected ZIP and 7Z archives while keeping the password out of every compression tool's command line.
 
 ### Behaviors
 
-- **The "Encrypt with password" checkbox works again for ZIP and 7Z.** Choosing ZIP or 7Z in the Create Archive dialog enables the checkbox; ticking it reveals a password field. The TAR formats (TAR.GZ, TAR.BZ2, TAR.XZ) keep the checkbox disabled, because those formats cannot carry a password.
-- **Creating an encrypted archive.** With the checkbox ticked and a password typed, the finished archive requires that password to open. The archive name, format choice, and progress display behave exactly as they do today.
-- **Opening an encrypted archive.** When Detours is asked to extract an archive that turns out to be password-protected, it asks for the password and then extracts. If the password is wrong, it says so and asks again rather than failing silently or producing a broken result.
-- **Same behavior for archives on a connected server.** Creating and opening password-protected ZIP and 7Z archives works the same way when the files live on a remote server, not just on the Mac.
-- **The password stays private.** At no point can another program running on the same machine read the password by inspecting the running compression tool.
+- **The "Encrypt with password" checkbox works for ZIP and 7Z.** Choosing ZIP or 7Z enables the checkbox; ticking it reveals a password field. TAR.GZ, TAR.BZ2, and TAR.XZ keep the checkbox disabled because those formats do not carry passwords.
+- **Creating an encrypted archive.** With the checkbox ticked and a non-empty password entered, the finished archive requires that password to open. Archive naming, format selection, progress, and cancellation keep their current behavior.
+- **Opening an encrypted archive.** Detours asks for a password after an extraction attempt identifies a protected archive. A wrong password displays an incorrect-password message and another prompt without leaving extracted files behind.
+- **Remote parity on supported Unix machines.** Password-protected ZIP and 7Z creation and extraction behave the same through Detours' bundled macOS and Linux helper as they do on the Mac.
+- **The password stays private from other programs.** Inspecting how the compression tool was started does not reveal the password, and Detours never includes it in progress or error text.
+- **ZIP passwords have a clear compatibility limit.** ZIP creation and extraction accept passwords up to 80 UTF-8 bytes. A longer ZIP password keeps the archive dialog or password prompt open and displays "ZIP passwords are limited to 80 UTF-8 bytes" without starting an archive tool. Detours does not impose this limit on 7Z passwords.
 
 ### Acceptance Criteria
 
-- [ ] **A1** In the Create Archive dialog, selecting ZIP or 7Z enables the "Encrypt with password" checkbox; selecting any TAR format leaves it disabled.
-- [ ] **A2** Ticking the checkbox reveals a password field, and creating the archive with a password produces an archive that requires that password to open.
-- [ ] **A3** A ZIP or 7Z archive created with a password by Detours can be opened again by Detours using the correct password, and the extracted contents match the originals.
-- [ ] **A4** Opening a password-protected archive with the correct password succeeds; opening it with the wrong password reports that the password was incorrect and prompts again, and never leaves a partial or broken extraction behind.
-- [ ] **A5** While an encrypted archive is being created or opened, the password does not appear in the list of running processes or their arguments visible to other programs on the machine.
-- [ ] **A6** Creating and opening password-protected ZIP and 7Z archives on a connected remote server behaves the same as on the Mac.
-- [ ] **A7** Creating and opening archives without a password, and all TAR formats, behave exactly as they do today, including the progress display.
+- [ ] **A1** Selecting ZIP or 7Z enables the "Encrypt with password" checkbox; selecting TAR.GZ, TAR.BZ2, or TAR.XZ disables it.
+- [ ] **A2** Ticking the checkbox reveals a password field, and creating an archive with a non-empty password creates an archive that requires that password.
+- [ ] **A3** Detours opens its password-protected ZIP and 7Z archives with the correct password, and the extracted contents match the originals.
+- [ ] **A4** A wrong password displays an incorrect-password message and another prompt without leaving partial extracted files or folders.
+- [ ] **A5** During encrypted creation, listing, or extraction, inspecting how the compression tool was started does not reveal the password, and Detours never includes it in progress or error text.
+- [ ] **A6** Password-protected ZIP and 7Z creation and extraction work through the bundled helper on supported macOS and Linux remote machines.
+- [ ] **A7** Unencrypted ZIP and 7Z operations and every TAR operation retain their current progress, cancellation, naming, conflict, and cleanup behavior.
+- [ ] **A8** ZIP passwords of 80 UTF-8 bytes are accepted, longer ZIP passwords are rejected in the app and helper before an archive tool starts, and 7Z passwords are not subject to this Detours limit.
 
 ### Out of scope
 
-- Password protection for TAR-based formats (TAR.GZ, TAR.BZ2, TAR.XZ) — those formats have no native encryption and remain unencryptable.
-- Remembering, storing, or auto-filling archive passwords (no Keychain integration); each create and each extract asks for the password as needed.
-- Changing the set of supported archive formats or the compression tools used.
+- Password protection for TAR.GZ, TAR.BZ2, and TAR.XZ.
+- Password-protected archives on Windows remote machines.
+- Remembering, storing, or auto-filling archive passwords through Keychain or another credential store.
+- Changing the archive formats, compression tools, or encryption algorithms. ZIP creation keeps its current broadly compatible encryption; this work secures password delivery rather than strengthening the ZIP cipher.
 
 ---
 
@@ -47,95 +50,116 @@ Re-enable the "Encrypt with password" option in the Create Archive dialog for ZI
 
 ### Approach
 
-The reason passwords were disabled (audit commit `862884b`, 2026-06-14, finding: "Archive passwords are passed in subprocess argv for zip, unzip, and 7z flows") is that `zip -P`, `unzip -P`, and `7z -pPASSWORD` place the secret in the process argument vector, readable via `ps` by any process on the host. The compression CLIs offer no stdin, file-descriptor, or environment option for the password; their only non-argv path is the interactive terminal prompt. Therefore the secure mechanism is to run each tool attached to a pseudo-terminal (pty) and answer its password prompt by writing to the pty master. This is verified behavior: `zip -er` refuses to run unless its terminal is a tty and prompts twice (enter + verify); `unzip` reads the password from `/dev/tty` (a plain pipe does not work) and a single write covers the whole archive; `7z a -p` (switch with no inline value) and `7z x -p` prompt on the tty as well. Foundation's `Process`/NSTask cannot attach a controlling terminal, so the runner is built directly on `openpty()` + `posix_spawn` with `POSIX_SPAWN_SETSID` (available since macOS 10.15; the app targets 14.0+).
+Audit commit `862884b` disabled archive passwords after finding `zip -P`, `unzip -P`, and `7z -pPASSWORD` in local and remote flows. Those forms place the secret in the child argument vector. The installed tools expose their argv-free password path through an interactive terminal: `zip -er` prompts for entry and confirmation, while `unzip` and `7z` read a password from a terminal when their password switch has no inline value.
 
-A new shared library target, `DetoursProcess` (path `Shared/`), holds the pty runner so both the app (`src`) and the remote helper (`Server`) use one tested implementation; both executable targets and the test target depend on it. The runner spawns the tool on a pty, then feeds the password by responding to each prompt as it appears: it detects the prompt by waiting for the child to clear the terminal's ECHO flag (the moment the tool switches the tty to no-echo to read a secret), writes the password followed by a newline, and repeats for each subsequent prompt until the child either prompts no more or exits. Responding per-prompt rather than writing a fixed number of times absorbs the difference between tools that prompt once (extraction, official 7-Zip create) and twice (zip create, p7zip create). The runner reads all pty output into a buffer (for tools whose progress or errors now arrive on the pty), reaps the child, and returns exit status plus captured output. A short settle delay before each write avoids the known echo race where writing before the tool disables echo leaks the password into the tool's output stream.
+Add a shared `DetoursProcess` library target at `Shared/`, with platform branches for Darwin and Glibc, and make the app, bundled helper, and PTY tests depend on it. The Linux linker settings include `libutil`. The Linux helper build script copies and hashes `Shared/` and `SharedTests/`, declares the shared target in its generated package, runs the shared tests in the Swift 6.2 Noble container, and then builds the helper.
 
-Local create/extract live in `src/Operations/FileOperationQueue.swift`. `runZip` and `runSevenZip` switch to the pty runner when a non-empty password is present (and keep today's `Process`-based path when there is no password, preserving the existing `pollFileSize` progress for zip and the `parseStderr`/`-bsp2` progress for 7z). With a password, 7z's `-bsp2` progress arrives on the pty stream, so the 7z password path parses percentage from the pty buffer instead of a separate stderr pipe; zip's password path keeps `pollFileSize` (it only stats the growing output file, unaffected by the pty). Extraction (`performExtract`, `extractZipWithUnzip`, the 7z extract path, and the 7z listing path) routes encrypted archives through the pty runner with the supplied password. Wrong-password outcomes are mapped to a clear error so the existing caller re-prompts: `unzip` exit code 82 and a 7z encrypted-data failure both surface as the "incorrect password" path (reusing `archivePasswordRequired` so the caller's existing prompt loop runs again); a partial extraction directory is removed on failure via the existing app-created-temp cleanup.
+`PtyProcessRunner` allocates a primary/replica pair with `openpty()` and records the replica path. It starts the child with `posix_spawn`, `POSIX_SPAWN_SETSID`, and ordered file actions that open the replica as file descriptor 0 after the new session exists, duplicate descriptor 0 onto descriptors 1 and 2, and close unused descriptors. Opening the replica from the new session leader gives the child a controlling terminal, so tools that read `/dev/tty` work on both macOS and Linux. The runner does not use `forkpty()` inside the multithreaded app.
 
-Restoration work: `ArchiveFormat.supportsPassword` (`src/Utilities/CompressionTools.swift`) returns true for `.zip` and `.sevenZ` again and false for the TAR formats; the `archivePasswordUnsupported` throws added by the audit in `performArchive`, `runZip`, `runSevenZip`, `performExtract`, `extractZipWithUnzip`, the 7z extract path, and the 7z listing path are removed; the "Password Archives Disabled" alert branch in `FileOperationQueue` is removed (the `archivePasswordUnsupported` enum case in `FileOperationError.swift` is removed once unreferenced). `ArchiveDialog.swift` needs no structural change — the checkbox and SecureField are already wired and gated on `supportsPassword`; restoring the flag re-enables them.
+The runner accepts an invocation policy describing each permitted response: ZIP creation sends the password for entry and confirmation; 7Z creation accepts its one-prompt and two-prompt variants; 7Z listing and extraction send the password once; and ZIP extraction sends the password once, then sends an empty line if `unzip` requests another password so the tool exits with its documented bad-password status. It forces the child locale to `C`, buffers prompt bytes across read boundaries, and recognizes a case-insensitive prompt line containing `password` and ending in a colon only while terminal echo is disabled. New matched prompt bytes plus echo state distinguish consecutive prompts. After a prompt is observed it waits 50 milliseconds, writes the policy's response plus newline, and overwrites the mutable UTF-8 password buffer after its last use. A missing prompt fails after 10 seconds, terminates the child session, and returns an archive-process error naming the tool. The runner never appends the password to arguments, environment values, logs, errors, or returned output. Archive execution after password delivery has no duration limit and remains cancellable. A Swift task cancellation handler sends `SIGTERM` to the child session, waits one second, sends `SIGKILL` if any child remains, and reaps the session leader.
 
-Remote parity lives in `Server/ArchiveOperations.swift`. The audit replaced the password branches with a `["--passwords-disabled"]` sentinel argument and an up-front `passwordUnsupported` throw. Those are removed; `createCommand`/`extractCommand` build the real prompt-mode invocations (`zip -er`, `7z a -p`, `unzip`, `7z x -p`) and, when a password is present, the helper runs them through the shared pty runner instead of the default `ProcessRunner`. The `ProcessRunner` typealias gains an optional password so the helper can inject a test runner; the default runner uses the pty path when a password is supplied. The helper's coarse progress frames (starting/completed) are unchanged.
+PTY output is drained continuously to prevent the child from blocking. A streaming callback receives new output chunks for live 7Z progress parsing, while the result retains only the final 65,536 bytes for diagnostics plus the exit status. Prompt text is consumed by the state machine but may remain in the diagnostic tail; the password cannot because each write occurs only after echo is off.
+
+Local creation remains in `src/Operations/FileOperationQueue+Archive.swift`. `performArchive`, `runZip`, and `runSevenZip` accept the existing optional password again. Password-bearing ZIP and 7Z commands use `PtyProcessRunner`; unencrypted commands keep their current `Process` paths. ZIP continues to report progress by polling the growing archive. Encrypted 7Z creation parses streamed `-bsp2` percentages from the PTY callback. Both paths preserve existing cancellation and partial-file removal.
+
+Before spawning a ZIP tool, both the app and helper measure the password's UTF-8 representation and reject values longer than 80 bytes with `ZIP passwords are limited to 80 UTF-8 bytes`. The archive dialog disables its Archive action and shows that validation message; the extraction sheet validates before dismissing or launching work and remains open with the same message. The local operation layer and helper repeat the check as defense in depth. An 80-byte ZIP password is valid. The check applies to ZIP creation and extraction but not to 7Z.
+
+Local extraction remains in `src/Operations/FileOperationQueue+Extraction.swift`. An initial attempt without a password keeps the current `ditto` ZIP path or 7Z path so encrypted input raises `archivePasswordRequired`. A retry with a password routes ZIP to a new `/usr/bin/unzip` PTY path and routes 7Z listing and extraction through the PTY runner. Password-bearing extraction always writes into a new `.detours-extract-*` directory and moves results into place only after the tool exits successfully and conflicts are resolved. ZIP exit code 82, or exit code 1 accompanied by a diagnostic that explicitly identifies a bad or incorrect password or skipped encrypted entries, maps to `archivePasswordRequired`; generic CRC, malformed-archive, and I/O diagnostics remain archive failures. 7Z encrypted-data failures map to `archivePasswordRequired`; every failure removes only app-created temporary output. `src/FileList/FileListViewController+FileActions.swift` restores the password sheet for `Location`, labels retries as an incorrect password, treats Cancel as a silent stop, and repeats the same local or remote extraction call.
+
+Remote parity remains in `Server/ArchiveOperations.swift`. Password-bearing create and extract commands use prompt-mode arguments and the shared PTY runner. A distinct wrong-password server error travels through the existing error envelope and is mapped by `RemoteFileProvider` to `FileOperationError.archivePasswordRequired`, allowing the same password sheet to retry. The helper keeps its current starting/completed progress frames. The Windows provider continues to reject password-bearing archive requests.
+
+Once no call site references the audit guard, remove `archivePasswordUnsupported`, `ArchiveOperationsError.passwordUnsupported`, the disabled-password alert, and the sentinel arguments. Restore `ArchiveFormat.supportsPassword` only for ZIP and 7Z. Update the user guide and remote-machine guide to describe the supported macOS/Linux behavior and the Windows boundary.
 
 ### Approach Validation
 
-Researched the password-feeding options for `zip`, `unzip`, and the 7-Zip CLI, and the macOS pty mechanics, before settling on the design:
+Research and code inspection support the revised approach:
 
-- **No non-tty secret path exists for these tools**, so the audit's recommendation of "stdin / protected fd / 0600 temp file" is not directly achievable — none of the three CLIs read the password from stdin, a file, or an environment variable. `zip` explicitly errors if its terminal is not a tty; `unzip` reads from `/dev/tty`, not stdin; `7z` reads from the tty. The pty prompt path is the only argv-free mechanism, confirmed against the Info-ZIP man pages (`zip(1)` "the password prompt is repeated", `unzip(1)`) and the 7-Zip manual. Sources: linux.die.net/man/1/zip, man.archlinux.org unzip(1), 7-zip.org password docs.
-- **Prompt count differs across tools and 7z builds** (official 7-Zip prompts once on create, legacy p7zip twice; extraction and unzip prompt once). Driving the response off the terminal's ECHO-flag transition rather than a fixed write count, as recommended in pexpect's guidance on automating password prompts, handles all cases and avoids brittle prompt-string matching. The known echo race is mitigated with a small settle delay before writing. Source: pexpect documentation (`waitnoecho`, `delaybeforesend`).
-- **macOS pty plumbing is standard and available**: `openpty()` from `<util.h>` (no extra link flag under `import Darwin`) plus `posix_spawn` with `POSIX_SPAWN_SETSID` to give the child its own session and controlling terminal; `POSIX_SPAWN_SETSID` landed in macOS 10.15, well under the 14.0+ floor. `forkpty()` is the one-call alternative. Confirmed against Apple's xcode-man-pages for `openpty(3)` and `posix_spawnattr_setflags(3)`.
-- **Wrong-password detection** is reliable for `unzip` (dedicated exit code 82) and best-effort for 7z (exit code 2 covers encrypted-data failures but also generic corruption); both are mapped to the existing re-prompt path, which is the safe behavior either way (a genuinely corrupt archive simply re-prompts once and then reports failure).
-
-This is a niche capability with no meaningful external user-feedback corpus; the design goal is internal consistency with Detours' existing archive flows plus closing the audit finding, which it does.
+- **A PTY pair alone is insufficient.** Apple's `openpty(3)` documentation distinguishes allocation from `login_tty()`, which creates a session and makes the replica the controlling terminal. The runner therefore opens the replica during spawn after `POSIX_SPAWN_SETSID`, rather than inheriting and duplicating a replica opened before session creation. Sources: [Apple `openpty(3)`](https://keith.github.io/xcode-man-pages/openpty.3.html), [Linux `posix_spawn(3)`](https://man7.org/linux/man-pages/man3/posix_spawn.3.html).
+- **`forkpty()` is the wrong app-side fallback.** It establishes a controlling terminal, but fork-based PTY helpers carry a macOS warning when mixed with higher-level APIs. The spawn design avoids running Swift or Foundation work between `fork()` and `exec()`. Source: [Python PTY documentation](https://docs.python.org/3/library/pty.html).
+- **Echo-aware password sending addresses the known terminal race.** Password programs often disable echo only after printing a prompt; sending too early can copy the password into captured output. Waiting for no-echo and applying pexpect's documented 50-millisecond pre-send delay addresses that race. Source: [pexpect documentation](https://pexpect.readthedocs.io/en/stable/api/pexpect.html).
+- **Info-ZIP needs an explicit wrong-password exit path.** Interactive `unzip` asks again after a wrong password; an empty reply stops further prompts, and exit status 82 means no files were processed because the password was wrong. The ZIP extraction policy therefore sends the supplied password once and an empty reply to any retry prompt. Source: [Apple `unzip(1)`](https://keith.github.io/xcode-man-pages/unzip.1.html).
+- **Info-ZIP bounds interactive passwords at 80 bytes.** Apple's ZIP source defines `IZ_PWLEN` as 80 and allocates an 81-byte password buffer including its terminator. Detours applies the same byte limit before process launch so longer input returns deterministic validation instead of another terminal prompt. Source: [Apple ZIP `crypt.h`](https://github.com/apple-oss-distributions/zip/blob/main/zip/zip30/crypt.h#L118).
+- **Linux support needs explicit packaging and API handling.** `POSIX_SPAWN_SETSID` is a glibc extension available since 2.26, and spawn file actions run after the session attribute. Detours builds its x86_64 Linux helper in a Swift 6.2 Ubuntu Noble image, so the shared runner must compile and execute there rather than relying on Darwin-only imports. Source: [Linux `posix_spawn(3)`](https://man7.org/linux/man-pages/man3/posix_spawn.3.html).
+- **The security boundary is command-line secrecy, not a new ZIP cipher.** Apple's bundled `zip(1)` documentation describes command-line passwords as insecure and its ZIP encryption as relatively weak; keeping `/usr/bin/zip` preserves the existing compatibility choice while the PTY closes the process-argument leak. Source: [Apple `zip(1)`](https://keith.github.io/xcode-man-pages/zip.1.html).
 
 ### Risks
 
 | Risk | Mitigation |
 | ---- | ---------- |
-| pty echo race leaks the password into the tool's captured output | Wait for the child to clear the tty ECHO flag before writing, with a small settle delay; never write before the tool opens the tty |
-| A tool prompts a different number of times than expected (1 vs 2) | Respond per prompt (on each ECHO-disable transition) up to a small bound, not a fixed write count, so one-prompt and two-prompt tools both work |
-| 7z progress (`-bsp2`) now shares the pty with the password prompt and output | The 7z password path parses percentage from the pty buffer after the prompt phase; the no-password path keeps the existing separate-stderr parser untouched |
-| Hang if a tool waits on a prompt that never gets answered | The pty runner enforces an overall timeout and a per-prompt wait timeout; on timeout it terminates the child and returns failure |
-| Wrong 7z password is indistinguishable from a corrupt archive (exit 2) | Map to the re-prompt path; a corrupt archive re-prompts once then reports failure — no data loss, no silent success |
-| Partial/broken output left behind on failure | Remove the partial archive (create) or the `.detours-extract-*` temp directory (extract) on any non-zero exit, reusing the existing app-created-path cleanup |
-| Shared pty code drifts between app and helper | Single `DetoursProcess` library target depended on by both executables and the tests, not duplicated source |
-| Password bytes linger in memory longer than needed | Hold the password in a local buffer scoped to the runner call and overwrite/zero it after the child exits |
+| The child has PTY file descriptors but no controlling terminal | Open the replica from the spawned session leader and test both `isatty(0)` and opening `/dev/tty` on macOS and Linux |
+| A password is written before echo turns off | Wait for the no-echo state, then wait 50 milliseconds before writing |
+| ZIP and 7Z variants request different numbers of responses | Combine a per-invocation response bound with no-echo state and prompt-byte detection under `LC_ALL=C` |
+| PTY output blocks the child or consumes unbounded memory | Drain continuously, stream progress chunks, and retain only the final 65,536 bytes |
+| Cancellation leaves a child or terminal session running | Send `SIGTERM` to the session, wait one second, escalate with `SIGKILL`, and reap the session leader |
+| A wrong 7Z password resembles archive corruption | Map only encrypted-data diagnostics to the retry path; other exit-code-2 failures remain archive failures |
+| A mixed ZIP returns a warning status after skipping encrypted entries | Treat exit 1 as a password retry only when its diagnostic explicitly identifies a password or skipped encrypted content; keep other warnings as archive failures |
+| A failed operation leaves user-visible partial output | Reuse the current partial-archive and app-created-directory cleanup boundaries on every non-zero exit |
+| The shared runner compiles on macOS but fails in the Linux helper | Compile and execute the shared PTY tests in the helper's Swift 6.2 Noble build flow |
+| Password bytes remain in caller-owned Swift strings | Zero the runner-owned mutable UTF-8 buffer; do not claim protection from privileged memory inspection or caller-owned copies |
+| A ZIP password exceeds the tool's interactive input buffer | Validate the UTF-8 byte count in the UI, local operation layer, and helper before spawning; accept 80 bytes and reject 81 or more with one exact message |
 
 ### Implementation Plan
 
-**Phase 1: Shared pty runner**
+**Phase 1: Shared PTY runner**
 
-- [ ] **T1** Add a new library target `DetoursProcess` at path `Shared/` in `Package.swift`, and add it as a dependency of the `Detours`, `detours-server`, and `DetoursTests` targets.
-- [ ] **T2** Create `Shared/PtyProcessRunner.swift`: a `PtyProcessRunner` that runs an executable with given arguments and working directory attached to a pty via `openpty()` + `posix_spawn` (`POSIX_SPAWN_SETSID`, slave fd dup2'd onto the child's stdin/stdout/stderr). It accepts an optional password; when present it feeds the password by waiting for the child to clear the tty ECHO flag (`termios`), applying a short settle delay, then writing the password + newline, repeating for each subsequent ECHO-disable transition up to a small bound. It reads all pty output into a buffer, enforces an overall timeout and a per-prompt wait timeout (terminating the child on timeout), reaps the child, zeroes the password buffer, and returns exit status plus captured output. Handle BSD EOF-as-empty-read on child exit.
+- [ ] **C1** Add `DetoursProcess` and `DetoursProcessTests` targets at `Shared/` and `SharedTests/`, connect their app/helper/test dependencies in `Package.swift`, and add Linux `libutil` linking.
+- [ ] **C2** Update `resources/scripts/server-cache-hash.sh` and `resources/scripts/build-server-linux.sh` to include, test, and compile the shared PTY sources plus the password-bearing helper archive tests in the Swift 6.2 Noble helper build.
+- [ ] **C3** Implement `Shared/PtyProcessRunner.swift` with a 50-millisecond pre-send delay, 10-second prompt timeout, one-second cancellation grace, 65,536-byte diagnostic tail, prompt buffering across read boundaries, scripted password-or-empty responses, controlling-terminal spawn, streaming output, Swift task cancellation handling, exit mapping, reaping, and password-buffer clearing.
 
-**Phase 2: Local create**
+**Phase 2: Local creation**
 
-- [ ] **T3** In `src/Utilities/CompressionTools.swift`, restore `ArchiveFormat.supportsPassword` to return true for `.zip` and `.sevenZ` and false for `.tarGz`/`.tarBz2`/`.tarXz`.
-- [ ] **T4** In `src/Operations/FileOperationQueue.swift` `performArchive`, remove the `archivePasswordUnsupported` throw guard so a non-empty password proceeds.
-- [ ] **T5** In `src/Operations/FileOperationQueue.swift` `runZip`, remove the `archivePasswordUnsupported` throw; when a non-empty password is present, run `/usr/bin/zip -er -q <dest> <items>` through `PtyProcessRunner` with the password (keeping the working directory and `pollFileSize` progress); when no password, keep the existing `Process` path with `-r -q` unchanged.
-- [ ] **T6** In `src/Operations/FileOperationQueue.swift` `runSevenZip`, remove the `archivePasswordUnsupported` throw; when a non-empty password is present, run `7z a -t7z -bsp2 -mhe=on -p <dest> <items>` through `PtyProcessRunner` with the password and parse the `-bsp2` percentage from the pty output buffer for progress; when no password, keep the existing `Process` + separate-stderr `parseStderr` path unchanged.
+- [ ] **C4** Restore `ArchiveFormat.supportsPassword` for `.zip` and `.sevenZ` in `src/Utilities/CompressionTools.swift`, allow non-empty passwords through `performArchive`, and add the ZIP-only 80-UTF-8-byte validation to `ArchiveModel` plus the local creation preflight.
+- [ ] **C5** Route encrypted ZIP creation in `src/Operations/FileOperationQueue+Archive.swift` through `/usr/bin/zip -er -q` on the PTY while retaining file-size progress, cancellation, cleanup, working-directory, and unencrypted behavior.
+- [ ] **C6** Route encrypted 7Z creation through `7z a -t7z -bsp2 -mhe=on -p` on the PTY and feed streamed percentages into the current progress calculation while leaving the unencrypted path unchanged.
 
-**Phase 3: Local extract**
+**Phase 3: Local extraction and prompting**
 
-- [ ] **T7** In `src/Operations/FileOperationQueue.swift` `performExtract`, remove the `archivePasswordUnsupported` throw guard so a non-empty password proceeds.
-- [ ] **T8** In `src/Operations/FileOperationQueue.swift` `extractZipWithUnzip`, remove the `password.isEmpty` guard and the `archivePasswordUnsupported` throw; run `/usr/bin/unzip -o -q <archive> -d <dest>` through `PtyProcessRunner` with the supplied password; map a non-zero exit identified as a bad password (unzip exit code 82) to `FileOperationError.archivePasswordRequired` so the caller re-prompts, and remove the partial destination on failure.
-- [ ] **T9** In `src/Operations/FileOperationQueue.swift`, update the 7z extract path (the password branch that currently throws `archivePasswordUnsupported`) to run `7z x -y -bsp2 -p -o<dest> <archive>` through `PtyProcessRunner` with the password; on the encrypted-data failure exit, map to `FileOperationError.archivePasswordRequired` for re-prompt and remove the partial `.detours-extract-*` directory via the existing app-created-directory cleanup.
-- [ ] **T10** In `src/Operations/FileOperationQueue.swift`, update the 7z listing path that the audit changed to `return []` when a password is present so it runs `7z l -slt -p <archive>` through `PtyProcessRunner` with the password and returns the real entry list.
+- [ ] **C7** Route password-bearing ZIP retries in `src/Operations/FileOperationQueue+Extraction.swift` through `/usr/bin/unzip -o -q` on the PTY, enforce the 80-UTF-8-byte preflight, map exit 82 and password-specific exit-1 diagnostics to `archivePasswordRequired`, keep other failures distinct, and preserve app-created-directory cleanup.
+- [ ] **C8** Route password-bearing 7Z listing and extraction through `7z l -slt -p` and `7z x -y -bsp2 -p`, stream extraction progress, materialize results from an app-created temporary directory only after success, and distinguish wrong passwords from corruption.
+- [ ] **C9** Restore the `Location`-based archive password sheet and incorrect-password retry loop in `src/FileList/FileListViewController+FileActions.swift` for local and remote extraction, and keep the sheet open with the exact ZIP byte-limit message when validation fails.
 
-**Phase 4: UI and error cleanup**
+**Phase 4: Remote helper and cleanup**
 
-- [ ] **T11** In `src/Operations/FileOperationQueue.swift`, remove the `case .archivePasswordUnsupported` "Password Archives Disabled" alert branch; in `src/Operations/FileOperationError.swift`, remove the `archivePasswordUnsupported` case and its `localizedDescription` once no references remain.
-- [ ] **T12** Confirm `src/Operations/ArchiveDialog.swift` needs no change beyond the restored `supportsPassword` (the checkbox and SecureField are already wired); verify the checkbox enables for ZIP/7Z and the `onChange` clears the password when switching to a TAR format.
-
-**Phase 5: Remote helper parity**
-
-- [ ] **T13** In `Server/ArchiveOperations.swift` `createArchive`, remove the up-front `passwordUnsupported` throw, and in `createCommand` replace the `["--passwords-disabled"]` zip and 7z sentinels with real prompt-mode invocations (`zip -er -q`, `7z a -t7z -mhe=on -p`).
-- [ ] **T14** In `Server/ArchiveOperations.swift` `extractArchive`, remove the `passwordUnsupported` throw, and in `extractCommand` replace the `["--passwords-disabled"]` unzip and 7z sentinels with real prompt-mode invocations (`unzip -q`, `7z x -y -p`).
-- [ ] **T15** In `Server/ArchiveOperations.swift`, extend the `ProcessRunner` typealias and default `runProcess` to accept an optional password and route password-bearing invocations through the shared `PtyProcessRunner`; remove the `ArchiveOperationsError.passwordUnsupported` case once unreferenced.
-
-**Phase 6: Build**
-
-- [ ] **T16** Build the app and the helper with `resources/scripts/build.sh` and resolve all `swiftlint lint --quiet` findings.
+- [ ] **C10** Replace the ZIP and 7Z password sentinels in `Server/ArchiveOperations.swift` with prompt-mode commands, enforce the ZIP-only 80-UTF-8-byte preflight for create and extract requests, and route password-bearing helper invocations through `PtyProcessRunner`.
+- [ ] **C11** Add a distinct helper wrong-password error and map its existing RPC error-envelope text in `RemoteFileProvider` to `FileOperationError.archivePasswordRequired`.
+- [ ] **C12** Remove the local and helper unsupported-password errors, guards, alerts, and dead branches after all password paths use the PTY runner.
+- [ ] **C13** Update `resources/docs/USER_GUIDE.md` and `resources/docs/remote-vm-browsing.md` for local and macOS/Linux-helper password support, the Windows boundary, and command-line secrecy.
+- [ ] **C14** Build through `resources/scripts/build.sh` and resolve every Swift compiler and `swiftlint lint --quiet` finding.
 
 ---
 
 ## Testing
 
-Tests are implementation tasks. Numbering continues the `**T<n>**` sequence. Use real temp directories and real archives, no mocks, per project rules. 7z-dependent tests are skipped automatically when `/opt/homebrew/bin/7z` is absent (consistent with how the suite already gates on tool availability).
+Tests use temporary directories and real archive tools. The shared runner suite executes on macOS and in the Linux helper container. Tests requiring 7Z skip when the tool is absent.
 
-### Unit Tests (`Tests/`)
+### Shared Runner Tests (`SharedTests/`)
 
-- [ ] **T17** `PtyProcessRunnerTests.testRunsToolWithoutPasswordCapturesOutput` — running a simple tty-aware command through the runner returns its exit status and captured output, with no password supplied.
-- [ ] **T18** `PtyProcessRunnerTests.testFeedsPasswordToTwoPromptTool` — a stub script that disables echo and reads two lines (mimicking enter+verify) receives the password on both prompts and exits zero.
-- [ ] **T19** `PtyProcessRunnerTests.testTimesOutAndTerminatesHungChild` — a child that prompts but is never satisfiable is terminated at the timeout and the runner returns a non-zero/failure result rather than hanging.
-- [ ] **T20** `PtyProcessRunnerTests.testPasswordNotPresentInChildArguments` — the spawned child's argument vector contains no occurrence of the password string.
-- [ ] **T21** `ArchiveOperationTests.testCreateAndExtractEncryptedZipRoundTrips` — replacing `testCreateZipWithPasswordIsDisabled`: create a ZIP with a password, then extract it with the correct password and assert the contents match the originals.
-- [ ] **T22** `ArchiveOperationTests.testExtractEncryptedZipWrongPasswordReprompts` — replacing `testExtractPasswordZipIsDisabled`: extracting a password ZIP with the wrong password surfaces `archivePasswordRequired` (re-prompt) and leaves no partial extraction behind.
-- [ ] **T23** `ArchiveOperationTests.testCreateAndExtractEncrypted7zRoundTrips` — create a 7Z with a password and extract it with the correct password; contents match (skipped when 7z is unavailable).
-- [ ] **T24** `ArchiveOperationTests.testSupportsPasswordFlags` — replacing `testPasswordDisabledForZipAnd7z`/`testPasswordDisabledForTarFormats`: `supportsPassword` is true for `.zip` and `.sevenZ` and false for the three TAR formats.
-- [ ] **T25** `ServerArchiveOperationsTests.testCreateAndExtractEncryptedZipRoundTrips` — replacing `testPasswordArchiveCreationIsRejectedBeforeProcessLaunch`: the helper creates a password ZIP and extracts it with the correct password through the real pty path; contents match.
-- [ ] **T26** `ServerArchiveOperationsTests.testExtractEncryptedWrongPasswordFails` — the helper extracting an encrypted archive with the wrong password returns a failure and cleans up its temp directory.
+- [ ] **T1** `PtyProcessRunnerTests.testRunsWithoutPasswordAndCapturesOutput` confirms an unprompted child returns its exit status and output.
+- [ ] **T2** `PtyProcessRunnerTests.testChildHasControllingTerminal` confirms the child sees `isatty(0)` and can open `/dev/tty` on macOS and Linux.
+- [ ] **T3** `PtyProcessRunnerTests.testFeedsOnePromptWithoutEchoingPassword` splits a mixed-case password prompt across output chunks and confirms the no-echo prompt receives the password while neither streamed nor retained output contains it.
+- [ ] **T4** `PtyProcessRunnerTests.testFeedsTwoPromptsWithoutEchoingPassword` confirms split entry and confirmation prompts each receive the password once and unrelated colon-terminated output does not consume a response.
+- [ ] **T5** `PtyProcessRunnerTests.testEmptyRetryResponseEndsRepeatedPrompt` confirms a password response followed by an empty response ends an `unzip`-style retry without resending the secret.
+- [ ] **T6** `PtyProcessRunnerTests.testPromptTimeoutTerminatesAndReapsChild` confirms an unanswered prompt fails after 10 seconds without leaving the child running.
+- [ ] **T7** `PtyProcessRunnerTests.testCancellationTerminatesChildSession` confirms cancellation reaps the child and its session descendants.
+- [ ] **T8** `PtyProcessRunnerTests.testStreamsOutputAndBoundsDiagnosticTail` confirms chunk callbacks arrive before exit and retained output never exceeds 65,536 bytes.
+- [ ] **T9** `PtyProcessRunnerTests.testPasswordAbsentFromArgumentsEnvironmentAndOutput` confirms a password containing spaces, shell metacharacters, and non-ASCII characters appears only in the child's no-echo terminal input.
 
-### UI Tests (`Tests/UITests/DetoursUITests/`, run on Foundry)
+### Archive Tests (`Tests/`)
 
-- [ ] **T27** `ArchivePasswordUITests.testCheckboxEnabledForZipAndDisabledForTar` — in the Create Archive dialog, the "Encrypt with password" checkbox is enabled when ZIP (or 7Z) is selected and disabled when a TAR format is selected, and the password field appears when the box is ticked.
+- [ ] **T10** `ArchiveOperationTests.testCreateAndExtractEncryptedZipRoundTrips` creates and extracts a password ZIP, compares contents, and replaces the disabled-password creation test.
+- [ ] **T11** `ArchiveOperationTests.testEncryptedZipWrongPasswordRetriesWithoutPartialOutput` confirms the repeated prompt receives an empty response, exit 82 and a mixed encrypted/unencrypted ZIP's password-specific exit-1 diagnostic map to `archivePasswordRequired`, generic exit-1 failures do not, and cleanup removes app-created output.
+- [ ] **T12** `ArchiveOperationTests.testCreateListAndExtractEncrypted7zRoundTrips` covers encrypted 7Z creation, password-bearing listing, temporary extraction, materialization, progress callbacks, and matching contents.
+- [ ] **T13** `ArchiveOperationTests.testEncrypted7zWrongPasswordDiffersFromCorruption` confirms only encrypted-data diagnostics request another password and both failures clean app-created output.
+- [ ] **T14** `ArchiveOperationTests.testSupportsPasswordFlags` confirms ZIP and 7Z support passwords while all TAR formats do not.
+- [ ] **T15** `ServerArchiveOperationsTests.testEncryptedZipRoundTripsThroughPtyRunner` confirms on macOS and in the generated Linux test target that the helper creates and extracts an encrypted ZIP through the real PTY runner.
+- [ ] **T16** `ServerArchiveOperationsTests.testWrongPasswordMapsToRetryAndCleansTemporaryOutput` confirms the helper error survives the RPC mapping as `archivePasswordRequired` without partial output.
+- [ ] **T17** Existing unencrypted ZIP, 7Z, TAR, local, and helper archive tests continue to pass unchanged.
+
+### UI Tests (`Tests/UITests/DetoursUITests/DetoursUITests/`)
+
+- [ ] **T18** `ArchivePasswordUITests.testCreationControlsFollowSelectedFormat` confirms ZIP and 7Z enable the checkbox, TAR formats disable it, ticking the box reveals the secure field, and an 81-byte ZIP password shows the exact limit message and disables Archive.
+- [ ] **T19** `ArchivePasswordUITests.testWrongPasswordShowsRetrySheet` confirms an encrypted archive prompts after first extraction, labels a wrong retry, keeps the prompt open without launching work for an 81-byte ZIP password, and succeeds after the correct password without partial output.
+- [ ] **T20** `ArchivePasswordValidationTests.testZipPasswordByteLimit` confirms the app and local operation preflights accept exactly 80 UTF-8 bytes, reject 81 bytes including a multibyte boundary case with the exact message, and do not apply the limit to 7Z.
+- [ ] **T21** `ServerArchiveOperationsTests.testZipPasswordByteLimit` confirms helper ZIP create and extract requests reject 81 UTF-8 bytes before process launch, accept exactly 80 bytes, and leave 7Z unrestricted by this Detours limit.
+
+## Build Log
