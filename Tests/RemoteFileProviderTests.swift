@@ -2,6 +2,23 @@ import XCTest
 @testable import Detours
 
 final class RemoteFileProviderTests: XCTestCase {
+    func testArchiveWrongPasswordRPCMapsToRetry() async throws {
+        let hostID = UUID()
+        let provider = RemoteFileProvider(
+            hostID: hostID,
+            rpcClient: WrongPasswordRemoteRPCClient(),
+            transferChannel: RemoteTransferChannel(sshTarget: "devtest")
+        )
+
+        do {
+            _ = try await provider.archiveExtract(
+                .remote(hostID: hostID, path: "/home/marco/encrypted.zip"),
+                password: "wrong-password"
+            )
+            XCTFail("Expected archive password retry")
+        } catch FileOperationError.archivePasswordRequired {}
+    }
+
     func testListChunksPreserveRemoteLocations() async throws {
         let hostID = UUID()
         let first = RemoteFileProvider.encodeFileEntries([
@@ -187,6 +204,12 @@ final class RemoteFileProviderTests: XCTestCase {
         XCTAssertGreaterThan(after.generation, before.generation)
         XCTAssertFalse(after.hasReaderTask)
         XCTAssertNil(after.streamGeneration)
+    }
+}
+
+private struct WrongPasswordRemoteRPCClient: RemoteRPCClient {
+    func send(_ message: RPCMessage) async throws -> [Data] {
+        throw RemoteFileProviderError.invalidResponse("ArchiveOperationsError.wrongPassword")
     }
 }
 
