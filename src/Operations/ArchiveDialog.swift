@@ -154,6 +154,7 @@ struct ArchiveDialog: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
+                .accessibilityIdentifier("archiveFormatPicker")
                 .onChange(of: model.format) { _, newValue in
                     if !newValue.supportsPassword {
                         model.includePassword = false
@@ -173,11 +174,13 @@ struct ArchiveDialog: View {
                     .toggleStyle(.checkbox)
                     .font(labelFont)
                     .disabled(!model.format.supportsPassword)
+                    .accessibilityIdentifier("archivePasswordToggle")
 
                 if model.includePassword && model.format.supportsPassword {
                     SecureField("Password", text: $model.password)
                         .textFieldStyle(.roundedBorder)
                         .font(monoFont)
+                        .accessibilityIdentifier("archivePasswordField")
                 }
             }
 
@@ -197,6 +200,7 @@ struct ArchiveDialog: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.isValid)
+                .accessibilityIdentifier("archiveConfirmButton")
             }
         }
         .padding(20)

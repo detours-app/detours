@@ -579,7 +579,9 @@ private final class ArchivePasswordSheet: NSObject {
         alert.addButton(withTitle: "Cancel")
 
         passwordField.placeholderString = "Password"
+        passwordField.setAccessibilityIdentifier("archiveExtractionPasswordField")
         validationLabel.frame = NSRect(x: 0, y: 0, width: 300, height: 20)
+        validationLabel.setAccessibilityIdentifier("archiveExtractionValidation")
         validationLabel.textColor = .systemRed
         validationLabel.lineBreakMode = .byWordWrapping
         validationLabel.maximumNumberOfLines = 2
@@ -600,6 +602,7 @@ private final class ArchivePasswordSheet: NSObject {
         }
 
         let extractButton = alert.buttons[0]
+        extractButton.setAccessibilityIdentifier("archiveExtractionConfirmButton")
         extractButton.target = self
         extractButton.action = #selector(submit)
         alert.window.initialFirstResponder = passwordField
