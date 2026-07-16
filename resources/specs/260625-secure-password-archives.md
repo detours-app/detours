@@ -104,7 +104,7 @@ Research and code inspection support the revised approach:
 
 - [x] **C1** Add `DetoursProcess` and `DetoursProcessTests` targets at `Shared/` and `SharedTests/`, connect their app/helper/test dependencies in `Package.swift`, and add Linux `libutil` linking.
 - [x] **C2** Update `resources/scripts/server-cache-hash.sh` and `resources/scripts/build-server-linux.sh` to include, test, and compile the shared PTY sources plus the password-bearing helper archive tests in the Swift 6.2 Noble helper build.
-- [ ] **C3** Implement `Shared/PtyProcessRunner.swift` with a 50-millisecond pre-send delay, 10-second prompt timeout, one-second cancellation grace, 65,536-byte diagnostic tail, prompt buffering across read boundaries, scripted password-or-empty responses, controlling-terminal spawn, streaming output, Swift task cancellation handling, exit mapping, reaping, and password-buffer clearing.
+- [x] **C3** Implement `Shared/PtyProcessRunner.swift` with a 50-millisecond pre-send delay, 10-second prompt timeout, one-second cancellation grace, 65,536-byte diagnostic tail, prompt buffering across read boundaries, scripted password-or-empty responses, controlling-terminal spawn, streaming output, Swift task cancellation handling, exit mapping, reaping, and password-buffer clearing.
 
 **Phase 2: Local creation**
 
@@ -166,3 +166,4 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 
 - **C1** Added the shared library and test targets, wired the app, helper, and tests to the library, and limited `libutil` linking to Linux. `swift package describe` resolves both new targets and their dependency graph.
 - **C2** Extended the helper cache over shared sources and focused helper tests. The generated Noble package runs both shared-runner and server-archive suites before its static release build and cleans its remote workspace on every exit.
+- **C3** Added the Darwin/Glibc PTY runner with controlling-terminal spawn, echo-aware scripted replies, bounded streaming diagnostics, prompt timeout, task cancellation, process-session termination, exit decoding, reaping, and mutable secret-buffer clearing. Dedicated behavior coverage follows in T1-T9.
