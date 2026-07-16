@@ -80,7 +80,11 @@ extension FileListViewController {
         guard !relevantURLs.isEmpty else { return }
 
         // Reload and select the restored items
-        loadDirectory(currentDirectory, preserveExpansion: true)
+        loadDirectory(
+            currentDirectory,
+            preserveExpansion: true,
+            coalescingLocalMutationEvents: true
+        )
         restoreSelection(relevantURLs)
     }
 

@@ -163,11 +163,6 @@ enum UITestEnvironment {
         return RemoteMode(rawValue: raw)
     }
 
-    static var disablesInlineRename: Bool {
-        guard isEnabled else { return false }
-        return ProcessInfo.processInfo.environment["DETOURS_UI_TEST_DISABLE_INLINE_RENAME"] == "1"
-    }
-
     static var recordsOpenedItems: Bool {
         guard isEnabled else { return false }
         return ProcessInfo.processInfo.environment["DETOURS_UI_TEST_RECORD_OPENS"] == "1"

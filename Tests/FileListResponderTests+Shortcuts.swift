@@ -174,7 +174,8 @@ extension FileListResponderTests {
         let temp = try createTempDirectory()
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        await loadDirectoryAndWaitAsync(temp, in: viewController)
+        let loadSpy = NavigationDelegateSpy()
+        await loadDirectoryAndWaitAsync(temp, in: viewController, delegate: loadSpy)
 
         let cleanup = {
             cleanupTempDirectory(temp)
@@ -188,6 +189,110 @@ extension FileListResponderTests {
         let newFolder = temp.appendingPathComponent("Folder")
         let folderExists = await waitForFile(at: newFolder, exists: true)
         XCTAssertTrue(folderExists, "New folder should be created with name 'Folder'")
+
+        let selected = await waitForSelectedURL(newFolder, in: viewController)
+        XCTAssertTrue(selected, "New folder should be selected for inline rename")
+        XCTAssertEqual(inlineRenameFieldCount(in: viewController.tableView), 1)
+
+        // A table reload or focus transition may end editing without an Escape
+        // command. That must keep the newly created folder, not trash it.
+        viewController.renameController.controlTextDidEndEditing(
+            Notification(name: NSControl.textDidEndEditingNotification)
+        )
+        try await Task.sleep(nanoseconds: 2_500_000_000)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: newFolder.path))
+        XCTAssertEqual(viewController.selectedURLs.map(\.standardizedFileURL), [newFolder.standardizedFileURL])
+        XCTAssertEqual(loadSpy.directoryLoadCount, 2, "Creation should produce one explicit refresh")
+    }
+
+    func testLocalRenameKeepsResultSelectedWithoutWatcherReloads() async throws {
+        let temp = try createTempDirectory()
+        let source = try createTestFile(in: temp, name: "middle.txt")
+        _ = try createTestFile(in: temp, name: "last.txt")
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        let loadSpy = NavigationDelegateSpy()
+        await loadDirectoryAndWaitAsync(temp, in: viewController, delegate: loadSpy)
+        defer { cleanupTempDirectory(temp) }
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+        XCTAssertTrue(viewController.selectItem(at: source))
+        viewController.renameSelection()
+        let field = try XCTUnwrap(inlineRenameField(in: viewController.tableView))
+        field.stringValue = "renamed.txt"
+        viewController.renameController.commitRename()
+
+        let renamed = temp.appendingPathComponent("renamed.txt")
+        let renameCompleted = await waitForFile(at: renamed, exists: true)
+        let renameSelected = await waitForSelectedURL(renamed, in: viewController)
+        XCTAssertTrue(renameCompleted)
+        XCTAssertTrue(renameSelected)
+        try await Task.sleep(nanoseconds: 2_500_000_000)
+
+        XCTAssertEqual(viewController.selectedURLs.map(\.standardizedFileURL), [renamed.standardizedFileURL])
+        XCTAssertEqual(loadSpy.directoryLoadCount, 2, "Rename should produce one explicit refresh")
+    }
+
+    func testLocalDeleteKeepsNearbySelectionWithoutWatcherReloads() async throws {
+        let temp = try createTempDirectory()
+        _ = try createTestFile(in: temp, name: "a.txt")
+        let deleted = try createTestFile(in: temp, name: "b.txt")
+        let fallback = try createTestFile(in: temp, name: "c.txt")
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        let loadSpy = NavigationDelegateSpy()
+        await loadDirectoryAndWaitAsync(temp, in: viewController, delegate: loadSpy)
+        defer { cleanupTempDirectory(temp) }
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+        XCTAssertTrue(viewController.selectItem(at: deleted))
+        viewController.deleteSelection()
+
+        let deleteCompleted = await waitForFile(at: deleted, exists: false)
+        let fallbackSelected = await waitForSelectedURL(fallback, in: viewController)
+        XCTAssertTrue(deleteCompleted)
+        XCTAssertTrue(fallbackSelected)
+        try await Task.sleep(nanoseconds: 2_500_000_000)
+
+        XCTAssertEqual(viewController.selectedURLs.map(\.standardizedFileURL), [fallback.standardizedFileURL])
+        XCTAssertEqual(loadSpy.directoryLoadCount, 2, "Delete should produce one explicit refresh")
+    }
+
+    func testLocalMoveExpandsDestinationAndSelectsResultWithoutWatcherReloads() async throws {
+        let originalExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+        SettingsManager.shared.folderExpansionEnabled = true
+        defer { SettingsManager.shared.folderExpansionEnabled = originalExpansionEnabled }
+
+        let temp = try createTempDirectory()
+        let destination = try createTestFolder(in: temp, name: "Destination")
+        let source = try createTestFile(in: temp, name: "move-me.txt")
+        let moved = destination.appendingPathComponent(source.lastPathComponent)
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        let loadSpy = NavigationDelegateSpy()
+        await loadDirectoryAndWaitAsync(temp, in: viewController, delegate: loadSpy)
+        defer { cleanupTempDirectory(temp) }
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+        viewController.handleDrop(
+            locations: [.local(source)],
+            to: .local(destination),
+            operation: .move
+        )
+
+        let moveCompleted = await waitForFile(at: moved, exists: true)
+        let movedItemSelected = await waitForSelectedURL(moved, in: viewController)
+        XCTAssertTrue(moveCompleted)
+        XCTAssertTrue(movedItemSelected)
+        let destinationItem = try XCTUnwrap(
+            viewController.dataSource.findItem(withURL: destination, in: viewController.dataSource.items)
+        )
+        XCTAssertTrue(viewController.tableView.isItemExpanded(destinationItem))
+        try await Task.sleep(nanoseconds: 2_500_000_000)
+
+        XCTAssertEqual(viewController.selectedURLs.map(\.standardizedFileURL), [moved.standardizedFileURL])
+        XCTAssertEqual(loadSpy.directoryLoadCount, 2, "Move should produce one explicit refresh")
     }
 
     func testHandleKeyDownHandlesF7NewFolderInsideSelectedFolder() async throws {

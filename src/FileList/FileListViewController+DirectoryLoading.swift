@@ -15,6 +15,17 @@ extension FileListViewController {
         loadDirectory(currentDirectory, preserveExpansion: true)
     }
 
+    /// Reload after an app-initiated local filesystem mutation. This owns the
+    /// refresh for that mutation and coalesces duplicate local watcher events.
+    func refreshAfterLocalMutation() {
+        guard let currentDirectory else { return }
+        loadDirectory(
+            currentDirectory,
+            preserveExpansion: true,
+            coalescingLocalMutationEvents: true
+        )
+    }
+
     /// Refresh and select moved/copied files after load completes.
     /// If destination is a subfolder, expands the ancestor chain to reveal the files.
     /// - Parameters:
@@ -24,7 +35,7 @@ extension FileListViewController {
     func refreshSelectingItems(at urls: [URL], expandingTo subfolder: URL? = nil, completion: (() -> Void)? = nil) {
         guard currentDirectory != nil else { return }
         setPendingSelection(at: urls, expandingTo: subfolder, completion: completion)
-        refresh()
+        refreshAfterLocalMutation()
     }
 
     func refreshSelectingLocations(
@@ -47,7 +58,11 @@ extension FileListViewController {
                 completion?()
             }
         }
-        refresh()
+        if currentDirectory != nil {
+            refreshAfterLocalMutation()
+        } else {
+            refresh()
+        }
     }
 
     @discardableResult
@@ -220,7 +235,21 @@ extension FileListViewController {
         }
     }
 
-    func loadDirectory(_ url: URL, selectingItem itemToSelect: URL? = nil, preserveExpansion: Bool = false, iCloudListingMode requestedListingMode: ICloudListingMode? = nil, showSpinner: Bool = true) {
+    func loadDirectory(
+        _ url: URL,
+        selectingItem itemToSelect: URL? = nil,
+        preserveExpansion: Bool = false,
+        iCloudListingMode requestedListingMode: ICloudListingMode? = nil,
+        showSpinner: Bool = true,
+        coalescingLocalMutationEvents: Bool = false
+    ) {
+        let localMutationSuppressionGeneration: Int?
+        if coalescingLocalMutationEvents {
+            localMutationSuppressionGeneration = beginLocalMutationWatcherSuppression()
+        } else {
+            cancelLocalMutationWatcherSuppression()
+            localMutationSuppressionGeneration = nil
+        }
         // Cancel any in-progress load before starting a new one
         dataSource.cancelCurrentLoad()
         clearQuickLookPreviewState()
@@ -259,6 +288,11 @@ extension FileListViewController {
             pendingDirectory = normalizedURL
             pendingICloudListingMode = effectiveListingMode
             hasLoadedDirectory = false
+            if let localMutationSuppressionGeneration {
+                finishLocalMutationWatcherSuppression(
+                    generation: localMutationSuppressionGeneration
+                )
+            }
             return
         }
 
@@ -280,6 +314,14 @@ extension FileListViewController {
         dataSource.onLoadCompleted = { [weak self] result in
             guard let self else { return }
             self.hideLoadingIndicator()
+
+            defer {
+                if let localMutationSuppressionGeneration {
+                    self.finishLocalMutationWatcherSuppression(
+                        generation: localMutationSuppressionGeneration
+                    )
+                }
+            }
 
             switch result {
             case .success:
@@ -429,6 +471,7 @@ extension FileListViewController {
         preserveExpansion: Bool,
         showSpinner: Bool = true
     ) {
+        cancelLocalMutationWatcherSuppression()
         let canReconcileInPlace = preserveExpansion
             && currentRemoteLocation == location
             && currentRemoteProvider != nil

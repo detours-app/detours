@@ -220,7 +220,11 @@ extension FileListViewController {
         }
 
         let fallbackURL = URL(fileURLWithPath: fallbackLocation.path).deletingLastPathComponent()
-        loadDirectory(currentDirectory ?? fallbackURL, preserveExpansion: true)
+        loadDirectory(
+            currentDirectory ?? fallbackURL,
+            preserveExpansion: true,
+            coalescingLocalMutationEvents: true
+        )
     }
 
     func duplicateSelection() {
@@ -237,7 +241,11 @@ extension FileListViewController {
                         self?.selectItem(at: firstURL)
                     }
                 }
-                loadDirectory(currentDirectory ?? urls.first!.deletingLastPathComponent(), preserveExpansion: true)
+                loadDirectory(
+                    currentDirectory ?? urls.first!.deletingLastPathComponent(),
+                    preserveExpansion: true,
+                    coalescingLocalMutationEvents: true
+                )
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -323,7 +331,11 @@ extension FileListViewController {
         if let currentRemoteLocation, let currentRemoteProvider {
             loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
         } else if let currentDirectory {
-            loadDirectory(currentDirectory, preserveExpansion: true)
+            loadDirectory(
+                currentDirectory,
+                preserveExpansion: true,
+                coalescingLocalMutationEvents: true
+            )
         }
     }
 
@@ -379,13 +391,15 @@ extension FileListViewController {
                             await self.expandAncestorChain(to: destination)
                         }
                         guard self.selectLocation(newFolder) else { return }
-                        if !UITestEnvironment.disablesInlineRename {
-                            self.renameSelection(isNewItem: true)
-                        }
+                        self.renameSelection(isNewItem: true)
                     }
                 }
 
-                refresh()
+                if currentDirectory != nil {
+                    refreshAfterLocalMutation()
+                } else {
+                    refresh()
+                }
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -432,13 +446,15 @@ extension FileListViewController {
                             await self.expandAncestorChain(to: destination)
                         }
                         guard self.selectLocation(newFile) else { return }
-                        if !UITestEnvironment.disablesInlineRename {
-                            self.renameSelection(isNewItem: true)
-                        }
+                        self.renameSelection(isNewItem: true)
                     }
                 }
 
-                refresh()
+                if currentDirectory != nil {
+                    refreshAfterLocalMutation()
+                } else {
+                    refresh()
+                }
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -470,7 +486,7 @@ extension FileListViewController {
                     self.pendingPostLoadAction = { [weak self] in
                         self?.selectLocation(newFile)
                     }
-                    self.refresh()
+                    self.refreshAfterLocalMutation()
                 } catch {
                     FileOperationQueue.shared.presentError(error)
                 }
@@ -545,7 +561,12 @@ extension FileListViewController {
                         yearSubstitution: substitution
                     )
                     if let currentDirectory = self.currentDirectory {
-                        self.loadDirectory(currentDirectory, selectingItem: createdURL, preserveExpansion: true)
+                        self.loadDirectory(
+                            currentDirectory,
+                            selectingItem: createdURL,
+                            preserveExpansion: true,
+                            coalescingLocalMutationEvents: true
+                        )
                     }
                 } catch {
                     FileOperationQueue.shared.presentError(error)

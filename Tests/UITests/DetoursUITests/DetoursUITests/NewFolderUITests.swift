@@ -1,10 +1,6 @@
 import XCTest
 
 final class NewFolderUITests: BaseUITest {
-    override func configureLaunchEnvironment(_ environment: inout [String: String]) {
-        environment["DETOURS_UI_TEST_DISABLE_INLINE_RENAME"] = "1"
-    }
-
     override func setUpWithError() throws {
         try super.setUpWithError()
         // Ensure folder expansion is enabled for tests that need it
@@ -41,13 +37,18 @@ final class NewFolderUITests: BaseUITest {
         // Step 4: Create a new folder (should create INSIDE BBB_Second)
         print("DEBUG: Creating new folder inside BBB_Second")
         chooseFileMenuItem("New Folder")
-        usleep(1_500_000)
+        let renameField = app.textFields["inlineRenameField"]
+        XCTAssertTrue(renameField.waitForExistence(timeout: 3), "New folder should enter inline rename exactly once")
+        let createdName = "NestedFolderProof-\(UUID().uuidString.prefix(8))"
+        app.typeText(createdName)
+        app.typeKey(.return, modifierFlags: [])
+        sleep(3)
 
         // Step 5: Verify the new folder is selected
-        XCTAssertTrue(waitForRow(named: "Folder", timeout: 3), "New folder should appear")
+        XCTAssertTrue(waitForRow(named: createdName, timeout: 3), "Renamed folder should remain visible")
         let selectedName = selectedRowName()
         print("DEBUG: Selected row name: \(selectedName ?? "none")")
-        XCTAssertTrue(selectedName?.hasPrefix("Folder") ?? false, "Selected row should be 'Folder', got '\(selectedName ?? "none")'")
+        XCTAssertEqual(selectedName, createdName, "Created folder should remain selected after watcher settling")
 
         // Step 6: Verify the new folder is a CHILD of BBB_Second (visible after BBB_Second's existing children)
         // The new "Folder" should appear among BBB_Second's children, not at root level
@@ -69,14 +70,34 @@ final class NewFolderUITests: BaseUITest {
 
         // Create new folder
         chooseFileMenuItem("New Folder")
-        usleep(1_000_000)
+        let renameField = app.textFields["inlineRenameField"]
+        XCTAssertTrue(renameField.waitForExistence(timeout: 3), "New folder should enter inline rename")
+        let createdName = "RootFolderProof-\(UUID().uuidString.prefix(8))"
+        app.typeText(createdName)
+        app.typeKey(.return, modifierFlags: [])
+        sleep(3)
 
-        XCTAssertTrue(waitForRow(named: "Folder", timeout: 3), "New folder should appear")
+        XCTAssertTrue(waitForRow(named: createdName, timeout: 3), "New folder should remain after watcher settling")
         let selectedName = selectedRowName()
-        XCTAssertTrue(selectedName?.hasPrefix("Folder") ?? false, "Selected row should be 'Folder', got '\(selectedName ?? "none")'")
+        XCTAssertEqual(selectedName, createdName, "New folder should remain selected")
 
         // Verify file1.txt still exists
         XCTAssertTrue(rowExists(named: "file1.txt"), "file1.txt should still exist after creating new folder")
+    }
+
+    /// Escape is the only editor-ending path that should remove an uncommitted
+    /// new folder. Focus loss and watcher-driven table updates must keep it.
+    func testEscapeExplicitlyCancelsNewFolder() throws {
+        selectRow(named: "file1.txt")
+        chooseFileMenuItem("New Folder")
+
+        let renameField = app.textFields["inlineRenameField"]
+        XCTAssertTrue(renameField.waitForExistence(timeout: 3))
+        app.typeKey(.escape, modifierFlags: [])
+
+        let defaultFolderRow = outlineRow(named: "Folder")
+        XCTAssertFalse(defaultFolderRow.waitForExistence(timeout: 3), "Escape should remove only the uncommitted new folder")
+        XCTAssertTrue(rowExists(named: "file1.txt"))
     }
 
     /// Test the File menu exposes the New Folder command.

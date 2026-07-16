@@ -41,22 +41,26 @@ final class MultiDirectoryWatcher: @unchecked Sendable {
                 readiness.leave()
             }
         } else {
-            readiness.enter()
-            let watcher = SingleDirectoryWatcher(url: normalized) { [weak self] in
-                self?.onChange(normalized)
-            }
-            watchers[normalized] = watcher
-            watcher.start {
-                readiness.leave()
-            }
-
-            // Poll for in-place metadata changes (touch, echo >>) that kqueue can't detect
+            // Polling supplements kqueue for in-place metadata changes. When
+            // kqueue reports a structural change, immediately advance the
+            // poller's baseline so the same add/remove/rename is not emitted a
+            // second time on the next polling tick.
             readiness.enter()
             let poller = NetworkDirectoryPoller(url: normalized) { [weak self] in
                 self?.onChange(normalized)
             }
             pollers[normalized] = poller
             poller.start {
+                readiness.leave()
+            }
+
+            readiness.enter()
+            let watcher = SingleDirectoryWatcher(url: normalized) { [weak self, weak poller] in
+                poller?.refreshSnapshotAfterFilesystemEvent()
+                self?.onChange(normalized)
+            }
+            watchers[normalized] = watcher
+            watcher.start {
                 readiness.leave()
             }
         }
@@ -246,6 +250,13 @@ final class NetworkDirectoryPoller: @unchecked Sendable {
     func pollOnceForTesting() {
         pollQueue.sync {
             self.poll()
+        }
+    }
+
+    func refreshSnapshotAfterFilesystemEvent() {
+        pollQueue.async { [weak self] in
+            guard let self else { return }
+            self.lastSnapshot = self.takeSnapshot()
         }
     }
 

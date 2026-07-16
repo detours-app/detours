@@ -402,6 +402,19 @@ final class FileListResponderTests: XCTestCase {
         inlineRenameFieldCount(in: tableView as NSView)
     }
 
+    func inlineRenameField(in view: NSView) -> NSTextField? {
+        if let field = view as? NSTextField,
+           field.accessibilityIdentifier() == "inlineRenameField" {
+            return field
+        }
+        for subview in view.subviews {
+            if let field = inlineRenameField(in: subview) {
+                return field
+            }
+        }
+        return nil
+    }
+
     private func inlineRenameFieldCount(in view: NSView) -> Int {
         let current = (view as? NSTextField)?.accessibilityIdentifier() == "inlineRenameField" ? 1 : 0
         return view.subviews.reduce(current) { count, subview in

@@ -43,7 +43,16 @@ extension FileListViewController: FileListDropDelegate {
                         guard case .local(let url) = location else { return nil }
                         return url
                     }
-                    refreshSelectingItems(at: resultURLs)
+                    let locationToExpand = destination == currentDirectoryLocation
+                        ? nil
+                        : destination
+                    let folderToExpand: URL?
+                    if case .local(let url)? = locationToExpand {
+                        folderToExpand = url
+                    } else {
+                        folderToExpand = nil
+                    }
+                    refreshSelectingItems(at: resultURLs, expandingTo: folderToExpand)
                 } else {
                     requestRemoteMutationRefreshes(
                         affectedDirectories: affectedDirectories,

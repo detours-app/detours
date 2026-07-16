@@ -103,7 +103,11 @@ extension FileListViewController: RenameControllerDelegate {
                 preferredResultLocations: [renamedLocation]
             )
         } else if let currentDirectory {
-            loadDirectory(currentDirectory, preserveExpansion: true)
+            loadDirectory(
+                currentDirectory,
+                preserveExpansion: true,
+                coalescingLocalMutationEvents: true
+            )
         }
     }
 
@@ -142,7 +146,7 @@ extension FileListViewController: RenameControllerDelegate {
                 // Move to trash (not permanent delete) so user can recover if needed
                 // Don't register undo since user cancelled the creation - nothing to undo
                 try await FileOperationQueue.shared.delete(items: [item.location], undoManager: nil)
-                refresh()
+                refreshAfterLocalMutation()
                 if let restoreSelection {
                     selectItem(at: restoreSelection)
                 }

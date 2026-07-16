@@ -348,7 +348,14 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     }
 
     func controlTextDidEndEditing(_ notification: Notification) {
-        // Cancel rename when text field loses focus (e.g., clicking elsewhere)
-        cancelRename()
+        // A table reload can end field editing without an Escape command. For a
+        // newly created item, treating that focus loss as cancellation would
+        // move the item to Trash. Keep the default name (and its undo entry)
+        // unless the user explicitly cancels with Escape.
+        if isNewItem {
+            commitRename()
+        } else {
+            cancelRename()
+        }
     }
 }

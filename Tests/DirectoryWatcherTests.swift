@@ -97,6 +97,38 @@ struct MultiDirectoryWatcherTests {
         watcher.unwatchAll()
     }
 
+    @Test("Structural changes are not emitted again by the metadata poller")
+    func testStructuralChangeDoesNotRepeatAtPollingInterval() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        nonisolated(unsafe) var callbackCount = 0
+        let watcher = MultiDirectoryWatcher { _ in
+            callbackCount += 1
+        }
+        await watchWhenReady(tempDir, with: watcher)
+
+        try FileManager.default.createDirectory(
+            at: tempDir.appendingPathComponent("Folder"),
+            withIntermediateDirectories: false
+        )
+
+        for _ in 0..<20 {
+            if callbackCount > 0 { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        #expect(callbackCount > 0)
+
+        // Let any immediate DispatchSource notifications settle, then cross a
+        // complete metadata-polling interval. The count must stay unchanged.
+        try await Task.sleep(nanoseconds: 500_000_000)
+        let settledCallbackCount = callbackCount
+        try await Task.sleep(nanoseconds: 2_200_000_000)
+
+        #expect(callbackCount == settledCallbackCount)
+        watcher.unwatchAll()
+    }
+
     @Test("Detects subdirectory change")
     func testDetectsSubdirectoryChange() async throws {
         let rootDir = try makeTempDir()

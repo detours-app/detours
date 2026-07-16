@@ -56,6 +56,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var remoteInfoWindows: [RemoteInfoWindowController] = []
     var directoryWatchTask: Task<Void, Never>?
     var directoryChangeDebounce: DispatchWorkItem?
+    var localMutationWatcherSuppressionEnd: DispatchWorkItem?
+    var localMutationWatcherSuppressionGeneration = 0
+    var suppressLocalMutationWatcherReloads = false
     var remoteRefreshCoordinator: RemoteRefreshCoordinator?
     /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
     var pendingPostLoadAction: (() -> Void)?

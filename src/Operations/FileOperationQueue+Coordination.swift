@@ -78,6 +78,22 @@ extension FileOperationQueue {
         return false
     }
 
+    /// Local directory watchers defer while a long-running app operation owns
+    /// an overlapping source or destination. The operation's completion path
+    /// performs the one authoritative refresh and selection update.
+    func hasActiveLocalMutation(affecting directory: URL) -> Bool {
+        let directoryPath = directory.standardizedFileURL.path
+        let activePaths = activeProtectedPaths.union(reservedDestinations)
+        return activePaths.contains { activeURL in
+            let activePath = activeURL.standardizedFileURL.path
+            if activePath == directoryPath { return true }
+            let directoryPrefix = directoryPath == "/" ? "/" : directoryPath + "/"
+            let activePrefix = activePath == "/" ? "/" : activePath + "/"
+            return activePath.hasPrefix(directoryPrefix)
+                || directoryPath.hasPrefix(activePrefix)
+        }
+    }
+
     // MARK: - Fast-lane classifier
 
     /// Returns true when a copy/move/duplicate request is small enough for the

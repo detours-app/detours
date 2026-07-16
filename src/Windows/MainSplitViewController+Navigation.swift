@@ -194,9 +194,15 @@ extension MainSplitViewController {
                 }
                 let usesRemoteLocations = hasRemoteSource || destinationIsRemote
                 guard usesRemoteLocations else {
-                    pane.refresh()
+                    pane.selectedTab?.fileListViewController.refreshAfterLocalMutation()
                     if let flvc = destinationPane.selectedTab?.fileListViewController {
-                        flvc.refreshSelectingLocations(actualLocations) { [weak self] in
+                        let locationToExpand = destination == flvc.currentDirectoryLocation
+                            ? nil
+                            : destination
+                        flvc.refreshSelectingLocations(
+                            actualLocations,
+                            expandingTo: locationToExpand
+                        ) { [weak self] in
                             self?.setActivePaneFromChild(destinationPane)
                             self?.view.window?.makeFirstResponder(flvc.tableView)
                         }
@@ -245,7 +251,13 @@ extension MainSplitViewController {
                 let usesRemoteLocations = hasRemoteSource || destinationIsRemote
                 guard usesRemoteLocations else {
                     if let flvc = destinationPane.selectedTab?.fileListViewController {
-                        flvc.refreshSelectingLocations(actualLocations) { [weak self] in
+                        let locationToExpand = destination == flvc.currentDirectoryLocation
+                            ? nil
+                            : destination
+                        flvc.refreshSelectingLocations(
+                            actualLocations,
+                            expandingTo: locationToExpand
+                        ) { [weak self] in
                             self?.setActivePaneFromChild(destinationPane)
                             self?.view.window?.makeFirstResponder(flvc.tableView)
                         }
@@ -321,19 +333,10 @@ extension MainSplitViewController {
             pane.refresh()
             return
         }
-        let selectedIndex = tab.fileListViewController.tableView.selectedRow
-        pane.refresh()
-        let tableView = tab.fileListViewController.tableView
-        let itemCount = tab.fileListViewController.dataSource.items.count
-        if itemCount > 0 && selectedIndex >= 0 {
-            let newIndex = min(selectedIndex, itemCount - 1)
-            tableView.selectRowIndexes(
-                IndexSet(integer: newIndex),
-                byExtendingSelection: false,
-                origin: .restored
-            )
-            tableView.scrollRowToVisible(newIndex)
-        }
+        // loadDirectory captures and restores the selected locations after its
+        // asynchronous load. Selecting synchronously here races that load and
+        // can leave the pane on an arbitrary final row.
+        tab.fileListViewController.refreshAfterLocalMutation()
     }
 
     func handleSystemDefinedEvent(_ event: NSEvent) -> Bool {
