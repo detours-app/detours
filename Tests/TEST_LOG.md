@@ -1994,3 +1994,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   FAIL: 1 test, 1 failure. Explicitly setting the overlay field's AppKit
   accessibility element, role, label, and identifier still did not add it to
   the table's exported XCUITest child tree; the same existence assertion failed.
+
+- 2026-07-16 18:56 CEST: Foundry
+  `resources/scripts/uitest.sh RenameVisualUITests/testCaptureInlineRenameEditor`
+  FAIL: 1 test, 1 failure. AppKit kept the hidden filename label in the
+  accessibility tree while the overlay editor was active, so waiting for that
+  label to disappear was not a valid observable for entering rename mode.
