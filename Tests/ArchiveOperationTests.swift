@@ -111,26 +111,6 @@ final class ArchiveOperationTests: XCTestCase {
         XCTAssertEqual(result.lastPathComponent, "bundle.zip")
     }
 
-    func testCreateZipWithPasswordIsDisabled() async throws {
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-
-        try createTestFile(in: temp, name: "secret.txt", content: "Secret data")
-        let file = temp.appendingPathComponent("secret.txt")
-
-        do {
-            _ = try await FileOperationQueue.shared.archive(
-                items: [file],
-                format: .zip,
-                archiveName: "encrypted",
-                password: "testpass123"
-            )
-            XCTFail("Expected password-protected archive creation to be disabled")
-        } catch FileOperationError.archivePasswordUnsupported {
-            XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent("encrypted.zip").path))
-        }
-    }
-
     func testCreateTarGzArchive() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -281,27 +261,6 @@ final class ArchiveOperationTests: XCTestCase {
             XCTAssertTrue(message.contains("unsafe path"))
         }
         XCTAssertEqual(try String(contentsOf: escaped, encoding: .utf8), "sentinel")
-    }
-
-    func testExtractPasswordZipIsDisabled() async throws {
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-
-        try createTestFile(in: temp, name: "private.txt", content: "Top secret")
-        let file = temp.appendingPathComponent("private.txt")
-        let archive = try await FileOperationQueue.shared.archive(
-            items: [file],
-            format: .zip,
-            archiveName: "private",
-            password: nil
-        )
-
-        do {
-            _ = try await FileOperationQueue.shared.extract(archive: archive, password: "mypass")
-            XCTFail("Expected password-protected archive extraction to be disabled")
-        } catch FileOperationError.archivePasswordUnsupported {
-            XCTAssertTrue(FileManager.default.fileExists(atPath: archive.path))
-        }
     }
 
     func testExtractKeepsBothOnConflict() async throws {

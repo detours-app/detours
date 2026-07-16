@@ -74,7 +74,6 @@ enum ArchiveOperationsError: Error, Equatable, Sendable {
     case emptyArchive(String)
     case invalidPassword(String)
     case wrongPassword
-    case passwordUnsupported
 }
 
 struct ArchiveOperations {
@@ -225,7 +224,7 @@ struct ArchiveOperations {
     private func validatePassword(_ password: String?, format: ServerArchiveFormat) throws {
         guard let password, !password.isEmpty else { return }
         guard format == .zip || format == .sevenZ else {
-            throw ArchiveOperationsError.passwordUnsupported
+            throw ArchiveOperationsError.invalidPassword("\(format.fileExtension) does not support passwords")
         }
         if format == .zip, password.utf8.count > 80 {
             throw ArchiveOperationsError.invalidPassword("ZIP passwords are limited to 80 UTF-8 bytes")
@@ -294,7 +293,7 @@ struct ArchiveOperations {
                 minimumResponses: 1
             )
         case .tarGz, .tarBz2, .tarXz:
-            throw ArchiveOperationsError.passwordUnsupported
+            throw ArchiveOperationsError.invalidPassword("\(format.fileExtension) does not support passwords")
         }
     }
 
@@ -358,7 +357,7 @@ struct ArchiveOperations {
                 minimumResponses: 1
             )
         case .tarGz, .tarBz2, .tarXz:
-            throw ArchiveOperationsError.passwordUnsupported
+            throw ArchiveOperationsError.invalidPassword("\(format.fileExtension) does not support passwords")
         }
     }
 

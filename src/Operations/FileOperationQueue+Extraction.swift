@@ -9,7 +9,7 @@ extension FileOperationQueue {
         }
         if let password, !password.isEmpty {
             guard format.supportsPassword else {
-                throw FileOperationError.archivePasswordUnsupported
+                throw FileOperationError.archivePasswordInvalid("\(format.displayName) does not support passwords")
             }
             try ArchivePasswordValidation.validate(password, format: format)
         }

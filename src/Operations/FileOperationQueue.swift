@@ -482,8 +482,6 @@ final class FileOperationQueue {
                 return ("The archive couldn't be created.", message)
             case let .archivePasswordInvalid(message):
                 return (message, "Enter a shorter ZIP password and try again.")
-            case .archivePasswordUnsupported:
-                return ("Password-protected archives are disabled.", operationError.localizedDescription)
             case .cancelled, .archivePasswordRequired, .partialFailure:
                 // Handled before reaching here; provide a safe fallback.
                 return ("The operation couldn't be completed.", "")
