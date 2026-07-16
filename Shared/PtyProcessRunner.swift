@@ -282,7 +282,18 @@ public struct PtyProcessRunner: Sendable {
         var environment = ProcessInfo.processInfo.environment
         environment["LC_ALL"] = "C"
         environment["LANG"] = "C"
-        let argumentStrings = [invocation.executable] + invocation.arguments
+        #if canImport(Darwin)
+        // Apple's zip cannot reopen /dev/tty when it is the immediate posix_spawn image.
+        // A non-interactive shell preserves the new controlling terminal and immediately
+        // replaces itself with the requested executable. Positional arguments avoid
+        // interpolation, and the password remains exclusive to terminal input.
+        let spawnedExecutable = "/bin/sh"
+        let argumentStrings = [spawnedExecutable, "-c", "exec \"$@\"", "detours-pty", invocation.executable]
+            + invocation.arguments
+        #else
+        let spawnedExecutable = invocation.executable
+        let argumentStrings = [spawnedExecutable] + invocation.arguments
+        #endif
         let environmentStrings = environment.map { "\($0.key)=\($0.value)" }
         let argumentPointers = argumentStrings.map { strdup($0) }
         let environmentPointers = environmentStrings.map { strdup($0) }
@@ -293,7 +304,7 @@ public struct PtyProcessRunner: Sendable {
         var arguments = argumentPointers + [nil]
         var environmentValues = environmentPointers + [nil]
         var processID: pid_t = 0
-        result = invocation.executable.withCString { executable in
+        result = spawnedExecutable.withCString { executable in
             posix_spawn(&processID, executable, &actions, &attributes, &arguments, &environmentValues)
         }
         guard result == 0 else { throw systemError("posix_spawn", code: result) }
