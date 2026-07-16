@@ -1,7 +1,4 @@
 import AppKit
-import os.log
-
-private let logger = Logger(subsystem: "com.detours", category: "rename")
 
 @MainActor
 protocol RenameControllerDelegate: AnyObject {
@@ -24,7 +21,6 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     private var currentUndoManager: UndoManager?
 
     func beginRename(for item: FileItem, in tableView: NSTableView, at row: Int, isNewItem: Bool = false, undoManager: UndoManager? = nil) {
-        logger.info("Begin rename item=\(item.name, privacy: .public) new=\(isNewItem)")
         cancelRename()
 
         self.tableView = tableView
@@ -112,7 +108,6 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
     func commitRename() {
         guard let item = currentItem, let field = textField else { return }
-        logger.info("Commit rename item=\(item.name, privacy: .public) value=\(field.stringValue, privacy: .public) new=\(self.isNewItem)")
         let newName = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let invalidChars = CharacterSet(charactersIn: ":/")
 
@@ -223,9 +218,6 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         let wasNewItem = isNewItem
         let field = textField
         let obscuredCellTextField = obscuredCellTextField
-        if item != nil {
-            logger.info("Cancel rename item=\(item?.name ?? "nil", privacy: .public) new=\(wasNewItem)")
-        }
 
         // Clear state BEFORE removing field to prevent re-entrant calls
         textField = nil
@@ -274,7 +266,6 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     }
 
     func controlTextDidEndEditing(_ notification: Notification) {
-        logger.info("Rename editing ended new=\(self.isNewItem) responder=\(String(describing: self.tableView?.window?.firstResponder), privacy: .public)")
         // A table reload can end field editing without an Escape command. For a
         // newly created item, treating that focus loss as cancellation would
         // move the item to Trash. Keep the default name (and its undo entry)
