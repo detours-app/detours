@@ -12,16 +12,16 @@ final class ArchivePasswordUITests: BaseUITest {
         XCTAssertTrue(formatPicker.waitForExistence(timeout: 2))
         XCTAssertTrue(passwordToggle.waitForExistence(timeout: 2))
 
-        chooseArchiveFormat(prefix: "ZIP", in: formatPicker)
+        chooseArchiveFormat(index: 0, in: formatPicker)
         XCTAssertTrue(passwordToggle.isEnabled)
-        chooseArchiveFormat(prefix: "7Z", in: formatPicker)
+        chooseArchiveFormat(index: 1, in: formatPicker)
         XCTAssertTrue(passwordToggle.isEnabled)
-        for format in ["TAR.GZ", "TAR.BZ2", "TAR.XZ"] {
-            chooseArchiveFormat(prefix: format, in: formatPicker)
+        for (index, format) in ["TAR.GZ", "TAR.BZ2", "TAR.XZ"].enumerated() {
+            chooseArchiveFormat(index: index + 2, in: formatPicker)
             XCTAssertFalse(passwordToggle.isEnabled, "\(format) should disable password encryption")
         }
 
-        chooseArchiveFormat(prefix: "ZIP", in: formatPicker)
+        chooseArchiveFormat(index: 0, in: formatPicker)
         passwordToggle.click()
         let passwordField = sheet.secureTextFields["archivePasswordField"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 2))
@@ -72,11 +72,13 @@ final class ArchivePasswordUITests: BaseUITest {
         XCTAssertFalse(hasTemporaryExtractionDirectory())
     }
 
-    private func chooseArchiveFormat(prefix: String, in picker: XCUIElement) {
+    private func chooseArchiveFormat(index: Int, in picker: XCUIElement) {
         picker.click()
-        let item = app.menuItems.matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: 2), "\(prefix) archive format should exist")
-        item.click()
+        app.typeKey(.home, modifierFlags: [])
+        for _ in 0..<index {
+            app.typeKey(.downArrow, modifierFlags: [])
+        }
+        app.typeKey(.return, modifierFlags: [])
     }
 
     private func submitExtractionPassword(_ password: String) {
