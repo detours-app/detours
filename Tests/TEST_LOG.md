@@ -1819,3 +1819,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   inside an XCTest autoclosure, and the new Windows live Replace/undo coverage
   crossed main-actor values into nonisolated async assertion helpers. Both test
   surfaces require Swift 6 concurrency-safe assertions before rerunning.
+
+- 2026-07-16 16:40 CEST: Foundry focused audit-fix `swift test --filter` rerun
+  FAIL: the Keychain and main-actor Windows assertions compiled, but annotating
+  their shared polling helper exposed the separate nonisolated concurrent-watch
+  call as an actor crossing. The main-actor Replace checks need a dedicated
+  helper while the existing watch helper remains nonisolated.

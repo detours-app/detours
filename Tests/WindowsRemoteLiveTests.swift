@@ -297,7 +297,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
             let copiedData = try await fixture.read(destinationFile)
             XCTAssertEqual(copiedData, Data("new".utf8))
             copyUndoManager.undo()
-            try await waitUntilLive(timeout: 5) {
+            try await waitUntilLiveOnMainActor(timeout: 5) {
                 (try? await fixture.read(destinationFile)) == Data("original".utf8)
             }
             let sourceAfterCopyUndo = try await fixture.read(sourceFile)
@@ -315,7 +315,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
             } catch {}
 
             moveUndoManager.undo()
-            try await waitUntilLive(timeout: 5) {
+            try await waitUntilLiveOnMainActor(timeout: 5) {
                 let sourceData = try? await fixture.read(sourceFile)
                 let destinationData = try? await fixture.read(destinationFile)
                 return sourceData == Data("new".utf8) && destinationData == Data("original".utf8)
@@ -415,7 +415,6 @@ final class WindowsRemoteLiveTests: XCTestCase {
         }
     }
 
-    @MainActor
     private func waitUntilLive(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
@@ -475,6 +474,19 @@ final class WindowsRemoteLiveTests: XCTestCase {
         process.waitUntilExit()
         return process.terminationStatus == 0
     }
+}
+
+@MainActor
+private func waitUntilLiveOnMainActor(
+    timeout: TimeInterval,
+    _ condition: () async -> Bool
+) async throws {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if await condition() { return }
+        try await Task.sleep(nanoseconds: 100_000_000)
+    }
+    XCTFail("Live condition not met within \(timeout)s")
 }
 
 private actor LiveWatchRecorder {
