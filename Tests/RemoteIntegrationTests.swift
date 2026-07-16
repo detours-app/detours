@@ -1029,6 +1029,13 @@ struct ProcessRemoteRPCClient: RemoteRPCClient {
         let decoded = try frames.map { frame in
             try RPCEnvelope(encodedPayload: frame)
         }
+        if let error = decoded.first(where: { envelope in
+            envelope.id == 1 && envelope.kind == .error
+        }) {
+            var reader = RPCBinaryReader(data: error.payload)
+            let message = (try? reader.readString()) ?? "The remote server reported an error."
+            throw RemoteFileProviderError.invalidResponse(message)
+        }
         let responses = decoded.filter { envelope in
             envelope.id == 1 && envelope.kind == .response
         }

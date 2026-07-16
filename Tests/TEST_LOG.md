@@ -1825,3 +1825,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   their shared polling helper exposed the separate nonisolated concurrent-watch
   call as an actor crossing. The main-actor Replace checks need a dedicated
   helper while the existing watch helper remains nonisolated.
+
+- 2026-07-16 16:42 CEST: Foundry focused audit-fix `swift test --filter` rerun
+  FAIL: 212 XCTest cases executed with two failures; all 45 selected Swift
+  Testing cases passed. The real Keychain save returned
+  `errSecInteractionNotAllowed` (`-25308`) from the unsigned SwiftPM test
+  process, and the real archive wrong-password test lost the helper's final RPC
+  frame. The Keychain check needs a signed host and the archive check needs a
+  deterministic provider-level request lifecycle.
