@@ -433,6 +433,7 @@ struct ArchiveOperations {
             if result.status == 82 { return true }
             guard result.status == 1 else { return false }
             return diagnostic.contains("incorrect password")
+                || diagnostic.contains("password incorrect")
                 || diagnostic.contains("wrong password")
                 || diagnostic.contains("bad password")
                 || (diagnostic.contains("skipping:") && diagnostic.contains("password"))

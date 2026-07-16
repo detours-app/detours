@@ -234,6 +234,7 @@ extension FileOperationQueue {
         guard status == 1 else { return false }
         let lowercased = message.lowercased()
         return lowercased.contains("incorrect password")
+            || lowercased.contains("password incorrect")
             || lowercased.contains("wrong password")
             || lowercased.contains("bad password")
             || (lowercased.contains("skipping:") && lowercased.contains("password"))

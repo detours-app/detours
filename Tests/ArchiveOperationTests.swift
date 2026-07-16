@@ -167,6 +167,7 @@ final class ArchiveOperationTests: XCTestCase {
             $0.hasPrefix(".detours-extract-")
         })
         XCTAssertTrue(FileOperationQueue.isZipPasswordFailure("incorrect password", status: 1))
+        XCTAssertTrue(FileOperationQueue.isZipPasswordFailure("password incorrect--reenter:", status: 1))
         XCTAssertTrue(FileOperationQueue.isZipPasswordFailure("", status: 82))
         XCTAssertFalse(FileOperationQueue.isZipPasswordFailure("central directory corrupt", status: 1))
     }
