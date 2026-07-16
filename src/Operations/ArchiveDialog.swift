@@ -11,15 +11,7 @@ final class ArchiveModel {
     var password: String = ""
 
     var isValid: Bool {
-        let trimmed = archiveName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        if trimmed.contains("/") || trimmed.contains(":") || trimmed.contains("\0") {
-            return false
-        }
-        if !CompressionTools.isFormatAvailable(format) {
-            return false
-        }
-        return true
+        validationError == nil
     }
 
     var validationError: String? {
@@ -34,6 +26,10 @@ final class ArchiveModel {
             if let tool = CompressionTools.unavailableToolName(for: format) {
                 return "\(tool) is not installed"
             }
+        }
+        if includePassword,
+           let message = ArchivePasswordValidation.errorMessage(for: password, format: format) {
+            return message
         }
         return nil
     }

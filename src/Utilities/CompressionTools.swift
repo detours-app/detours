@@ -38,7 +38,10 @@ enum ArchiveFormat: String, CaseIterable, Codable {
     }
 
     var supportsPassword: Bool {
-        false
+        switch self {
+        case .zip, .sevenZ: true
+        case .tarGz, .tarBz2, .tarXz: false
+        }
     }
 
     var requiredTools: [CompressionTool] {
@@ -68,6 +71,22 @@ enum ArchiveFormat: String, CaseIterable, Codable {
         case "zip": return .zip
         case "7z": return .sevenZ
         default: return nil
+        }
+    }
+}
+
+enum ArchivePasswordValidation {
+    static let zipByteLimit = 80
+    static let zipByteLimitMessage = "ZIP passwords are limited to 80 UTF-8 bytes"
+
+    static func errorMessage(for password: String, format: ArchiveFormat) -> String? {
+        guard format == .zip, password.utf8.count > zipByteLimit else { return nil }
+        return zipByteLimitMessage
+    }
+
+    static func validate(_ password: String, format: ArchiveFormat) throws {
+        if let message = errorMessage(for: password, format: format) {
+            throw FileOperationError.archivePasswordInvalid(message)
         }
     }
 }

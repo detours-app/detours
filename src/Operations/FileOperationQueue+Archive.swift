@@ -71,7 +71,10 @@ extension FileOperationQueue {
 
     func performArchive(items: [URL], format: ArchiveFormat, archiveName: String, password: String?) async throws -> URL {
         if let password, !password.isEmpty {
-            throw FileOperationError.archivePasswordUnsupported
+            guard format.supportsPassword else {
+                throw FileOperationError.archivePasswordUnsupported
+            }
+            try ArchivePasswordValidation.validate(password, format: format)
         }
         let operation = FileOperation.archive(items: items, format: format)
         startOperation(operation, totalCount: items.count)
@@ -101,9 +104,9 @@ extension FileOperationQueue {
         // Build and run the compression process
         switch format {
         case .zip:
-            try await runZip(items: items, destination: archiveURL, sourceSize: sourceSize)
+            try await runZip(items: items, destination: archiveURL, password: password, sourceSize: sourceSize)
         case .sevenZ:
-            try await runSevenZip(items: items, destination: archiveURL, sourceSize: sourceSize)
+            try await runSevenZip(items: items, destination: archiveURL, password: password, sourceSize: sourceSize)
         case .tarGz:
             try await runTar(items: items, destination: archiveURL, flag: "z", sourceSize: sourceSize)
         case .tarBz2:
@@ -146,7 +149,10 @@ extension FileOperationQueue {
         return total
     }
 
-    private func runZip(items: [URL], destination: URL, sourceSize: Int64) async throws {
+    private func runZip(items: [URL], destination: URL, password: String?, sourceSize: Int64) async throws {
+        if let password, !password.isEmpty {
+            throw FileOperationError.archivePasswordUnsupported
+        }
         let parentDir = items[0].deletingLastPathComponent().path
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.zip.path)
@@ -166,7 +172,10 @@ extension FileOperationQueue {
         try await runProcess(process, errorPipe: errorPipe, partialFile: destination, progressMode: mode)
     }
 
-    private func runSevenZip(items: [URL], destination: URL, sourceSize: Int64) async throws {
+    private func runSevenZip(items: [URL], destination: URL, password: String?, sourceSize: Int64) async throws {
+        if let password, !password.isEmpty {
+            throw FileOperationError.archivePasswordUnsupported
+        }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
 
