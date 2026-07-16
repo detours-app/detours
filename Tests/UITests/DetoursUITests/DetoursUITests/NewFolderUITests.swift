@@ -35,15 +35,13 @@ final class NewFolderUITests: BaseUITest {
         usleep(300_000)
 
         // Step 4: Create a new folder (should create INSIDE BBB_Second)
-        print("DEBUG: Creating new folder inside BBB_Second")
-        chooseFileMenuItem("New Folder")
-        XCTAssertTrue(waitForRow(named: "Folder", timeout: 3), "Default folder should appear before typing")
+        pressF7Key()
         usleep(500_000)
-        let createdName = "NestedFolderProof-\(UUID().uuidString.prefix(8))"
-        // Typing into the app and committing proves the inline editor owns first
-        // responder; if it is absent or interrupted, the renamed row never appears.
-        app.typeText(createdName)
-        app.typeKey(.return, modifierFlags: [])
+        let createdName = "nestedfolderproof"
+        // Raw HID events avoid an accessibility snapshot disturbing the field
+        // editor before this assertion has proved it owns first responder.
+        postTextKeyEvents(createdName)
+        postReturnKeyEvent()
         sleep(3)
 
         // Step 5: Verify the new folder is selected
@@ -71,12 +69,11 @@ final class NewFolderUITests: BaseUITest {
         usleep(300_000)
 
         // Create new folder
-        chooseFileMenuItem("New Folder")
-        XCTAssertTrue(waitForRow(named: "Folder", timeout: 3), "Default folder should appear before typing")
+        pressF7Key()
         usleep(500_000)
-        let createdName = "RootFolderProof-\(UUID().uuidString.prefix(8))"
-        app.typeText(createdName)
-        app.typeKey(.return, modifierFlags: [])
+        let createdName = "rootfolderproof"
+        postTextKeyEvents(createdName)
+        postReturnKeyEvent()
         sleep(3)
 
         XCTAssertTrue(waitForRow(named: createdName, timeout: 3), "New folder should remain after watcher settling")
@@ -91,12 +88,11 @@ final class NewFolderUITests: BaseUITest {
     /// new folder. Focus loss and watcher-driven table updates must keep it.
     func testEscapeExplicitlyCancelsNewFolder() throws {
         selectRow(named: "file1.txt")
-        chooseFileMenuItem("New Folder")
-        let defaultFolderRow = outlineRow(named: "Folder")
-        XCTAssertTrue(defaultFolderRow.waitForExistence(timeout: 3))
+        pressF7Key()
         usleep(500_000)
-        app.typeKey(.escape, modifierFlags: [])
+        postEscapeKeyEvent()
 
+        let defaultFolderRow = outlineRow(named: "Folder")
         XCTAssertTrue(defaultFolderRow.waitForNonExistence(timeout: 3), "Escape should remove only the uncommitted new folder")
         XCTAssertTrue(rowExists(named: "file1.txt"))
     }

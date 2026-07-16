@@ -303,6 +303,12 @@ extension BaseUITest {
         app.typeKey(XCUIKeyboardKey.F5, modifierFlags: [])
     }
 
+    /// Type F7 through XCUITest's function-key API so new-folder coverage uses
+    /// the same responder path as the user-facing shortcut.
+    func pressF7Key() {
+        app.typeKey(XCUIKeyboardKey.F7, modifierFlags: [])
+    }
+
     /// Post Escape as a real HID event without XCUITest's typeKey idle snapshot.
     func postEscapeKeyEvent() {
         postKeyEvent(keyCode: 53)
