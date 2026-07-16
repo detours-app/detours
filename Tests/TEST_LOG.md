@@ -1880,3 +1880,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 1 test, 0 failures. The harness deployed the current bundled Linux
   helper, and explicit wrong-password diagnostics mapped reliably to the app's
   password-retry contract.
+
+- 2026-07-16 16:58 CEST: Foundry focused audit-fix `swift test --filter` rerun
+  PASS: 211 XCTest cases and 45 Swift Testing cases, 0 failures. Covers local
+  operation rollback/undo, watchers and icon invalidation, session restoration,
+  archives, transfer/trash atomicity, helper deployment, real Unix and Intel
+  macOS SSH/RPC behavior, and Windows conflict resolution.
