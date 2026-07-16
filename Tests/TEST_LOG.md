@@ -1988,3 +1988,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   FAIL: 1 test, 1 failure. The test compiled and launched, but AppKit did not
   expose the overlay `NSTextField` through XCUITest's `textFields` query under
   `inlineRenameField`, so the new pre-capture existence assertion failed.
+
+- 2026-07-16 18:54 CEST: Foundry
+  `resources/scripts/uitest.sh RenameVisualUITests/testCaptureInlineRenameEditor`
+  FAIL: 1 test, 1 failure. Explicitly setting the overlay field's AppKit
+  accessibility element, role, label, and identifier still did not add it to
+  the table's exported XCUITest child tree; the same existence assertion failed.
