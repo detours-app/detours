@@ -25,6 +25,28 @@ final class ServerArchiveOperationsTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: archivePath))
     }
 
+    func testEncryptedSevenZRoundTripsThroughPtyRunner() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "secret.txt", content: "helper seven secret")
+        let operations = ArchiveOperations()
+
+        let archivePath = try operations.createArchive(
+            items: [source.path],
+            format: "sevenZ",
+            archiveName: "encrypted",
+            password: "helper-password"
+        )
+        try FileManager.default.removeItem(at: source)
+        let extractedPath = try operations.extractArchive(
+            archive: archivePath,
+            password: "helper-password"
+        )
+
+        XCTAssertEqual(try String(contentsOfFile: extractedPath, encoding: .utf8), "helper seven secret")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: archivePath))
+    }
+
     func testWrongPasswordMapsToRetryAndCleansTemporaryOutput() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

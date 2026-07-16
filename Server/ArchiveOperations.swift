@@ -448,9 +448,19 @@ struct ArchiveOperations {
     }
 
     private static func resolveToolOnPath(_ tool: String) -> String? {
+        let candidates = tool == "7z" ? ["7z", "7zz"] : [tool]
+        for candidate in candidates {
+            if let path = resolveExecutableOnPath(candidate) {
+                return path
+            }
+        }
+        return nil
+    }
+
+    private static func resolveExecutableOnPath(_ executable: String) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["which", tool]
+        process.arguments = ["which", executable]
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
         process.standardError = FileHandle.nullDevice
