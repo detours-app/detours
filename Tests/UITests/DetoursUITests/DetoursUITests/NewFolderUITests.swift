@@ -38,10 +38,10 @@ final class NewFolderUITests: BaseUITest {
         pressF7Key()
         usleep(500_000)
         let createdName = "nestedfolderproof"
-        // Raw HID events avoid an accessibility snapshot disturbing the field
-        // editor before this assertion has proved it owns first responder.
-        postTextKeyEvents(createdName)
-        postReturnKeyEvent()
+        // Do not query the new row or editor before typing: the successful
+        // rename itself proves that F7 left the editor as first responder.
+        app.typeText(createdName)
+        app.typeKey(.return, modifierFlags: [])
         sleep(3)
 
         // Step 5: Verify the new folder is selected
@@ -72,8 +72,8 @@ final class NewFolderUITests: BaseUITest {
         pressF7Key()
         usleep(500_000)
         let createdName = "rootfolderproof"
-        postTextKeyEvents(createdName)
-        postReturnKeyEvent()
+        app.typeText(createdName)
+        app.typeKey(.return, modifierFlags: [])
         sleep(3)
 
         XCTAssertTrue(waitForRow(named: createdName, timeout: 3), "New folder should remain after watcher settling")
@@ -90,7 +90,7 @@ final class NewFolderUITests: BaseUITest {
         selectRow(named: "file1.txt")
         pressF7Key()
         usleep(500_000)
-        postEscapeKeyEvent()
+        app.typeKey(.escape, modifierFlags: [])
 
         let defaultFolderRow = outlineRow(named: "Folder")
         XCTAssertTrue(defaultFolderRow.waitForNonExistence(timeout: 3), "Escape should remove only the uncommitted new folder")
