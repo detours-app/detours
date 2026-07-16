@@ -252,6 +252,7 @@ extension FileListViewController {
         }
         // Cancel any in-progress load before starting a new one
         dataSource.cancelCurrentLoad()
+        remoteRefreshCoordinator?.cancelAll()
         clearQuickLookPreviewState()
         hideLoadingIndicator()
         hideErrorOverlay()
@@ -487,6 +488,7 @@ extension FileListViewController {
         }
 
         dataSource.cancelCurrentLoad()
+        remoteRefreshCoordinator?.cancelAll()
         hideLoadingIndicator()
         hideErrorOverlay()
         hideRemoteRefreshError()
@@ -559,11 +561,7 @@ extension FileListViewController {
     }
 
     func applyRemoteRefresh(_ snapshot: RemoteRefreshSnapshot) {
-        guard let currentRemoteLocation,
-              snapshot.request.directory == currentRemoteLocation
-                || isRemoteDescendant(snapshot.request.directory, of: currentRemoteLocation) else {
-            return
-        }
+        guard isCurrentRemoteRefreshDirectory(snapshot.request.directory) else { return }
 
         let paneState = captureRemotePaneState()
         guard let reconciliation = dataSource.reconcileRemoteEntries(
@@ -612,6 +610,12 @@ extension FileListViewController {
             ? "/"
             : normalizedAncestor + "/"
         return normalizedLocation.hasPrefix(ancestorPrefix)
+    }
+
+    func isCurrentRemoteRefreshDirectory(_ directory: Location) -> Bool {
+        guard let currentRemoteLocation else { return false }
+        return directory == currentRemoteLocation
+            || isRemoteDescendant(directory, of: currentRemoteLocation)
     }
 
     func requestRemoteMutationRefreshes(

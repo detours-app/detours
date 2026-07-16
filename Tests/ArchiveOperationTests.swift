@@ -465,6 +465,30 @@ final class ArchiveOperationTests: XCTestCase {
         XCTAssertEqual(extractedContent, "Archived content")
     }
 
+    func testExtractReplaceUndoRestoresDisplacedOriginal() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let file = try createTestFile(in: temp, name: "data.txt", content: "archived")
+        let archive = try await FileOperationQueue.shared.archive(
+            items: [file],
+            format: .zip,
+            archiveName: "data",
+            password: nil
+        )
+        try Data("original".utf8).write(to: file)
+
+        let queue = FileOperationQueue.shared
+        let undoManager = UndoManager()
+        queue.conflictChoiceOverrideForTesting = .replace
+        defer { queue.conflictChoiceOverrideForTesting = nil }
+        let extracted = try await queue.extract(archive: archive, undoManager: undoManager)
+
+        XCTAssertEqual(try String(contentsOf: extracted, encoding: .utf8), "archived")
+        XCTAssertTrue(undoManager.canUndo)
+        undoManager.undo()
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "original")
+    }
+
     // MARK: - Dialog Model
 
     func testDialogDefaultNameSingleFile() {

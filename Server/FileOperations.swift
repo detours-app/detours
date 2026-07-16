@@ -92,6 +92,14 @@ struct FileOperations {
         return encodePathList(infoPaths)
     }
 
+    /// Permanently removes user-selected items after the client has shown its
+    /// explicit, non-recoverable deletion confirmation.
+    func delete(items: [ServerRemotePath]) throws {
+        for item in items {
+            try fileManager.removeItem(at: URL(fileURLWithPath: item.string))
+        }
+    }
+
     func restoreFromTrash(items: [ServerRemotePath]) throws -> Data {
         let restored = try trashOperations.restore(trashInfoPaths: items.map(\.string)).map(ServerRemotePath.init)
         return encodePathList(restored)

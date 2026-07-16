@@ -320,12 +320,21 @@ extension PaneViewController: NSPathControlDelegate {
 
 extension PaneViewController: DroppablePathControlDelegate {
     func pathControlDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool) {
+        let undoManager = selectedTab?.fileListViewController.undoManager
         Task { @MainActor in
             do {
                 if isCopy {
-                    try await FileOperationQueue.shared.copy(items: urls, to: destination)
+                    try await FileOperationQueue.shared.copy(
+                        items: urls,
+                        to: destination,
+                        undoManager: undoManager
+                    )
                 } else {
-                    try await FileOperationQueue.shared.move(items: urls, to: destination)
+                    try await FileOperationQueue.shared.move(
+                        items: urls,
+                        to: destination,
+                        undoManager: undoManager
+                    )
                 }
                 // Refresh relevant directories
                 var directoriesToRefresh = Set<URL>()

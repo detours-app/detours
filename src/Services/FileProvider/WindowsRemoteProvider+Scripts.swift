@@ -158,6 +158,15 @@ extension WindowsRemoteProvider {
         """
     )
 
+    static let deleteScript = PowerShellScript.prelude(
+        operationBody: """
+        param($Arguments)
+        foreach ($path in $Arguments.paths) {
+            Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+        }
+        """
+    )
+
     static let restoreTrashScript = PowerShellScript.prelude(
         operationBody: """
         param($Arguments)

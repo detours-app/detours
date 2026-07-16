@@ -30,6 +30,7 @@ final class RemoteOpenWithCoordinator {
         let provider: any FileProvider
         let watcher: MultiDirectoryWatcher
         var isUploading = false
+        var hasPendingUpload = false
     }
 
     private var activeSessions: [URL: ActiveSession] = [:]
@@ -82,32 +83,64 @@ final class RemoteOpenWithCoordinator {
 
     private func uploadIfNeeded(localURL: URL) async {
         let key = localURL.standardizedFileURL
-        guard var active = activeSessions[key], !active.isUploading else { return }
+        guard var active = activeSessions[key] else { return }
+        if active.isUploading {
+            active.hasPendingUpload = true
+            activeSessions[key] = active
+            return
+        }
         active.isUploading = true
+        active.hasPendingUpload = false
         activeSessions[key] = active
 
-        do {
-            let choice = try await FileOpenHelper.finishRemoteOpenWith(
-                active.session,
-                provider: active.provider,
-                conflictResolver: { await FileOpenHelper.presentRemoteOpenConflict($0, fileName: localURL.lastPathComponent) }
-            )
-            if choice != .keepRemote && choice != .cancel {
-                let version = try await active.provider.version(of: active.session.remoteLocation)
-                active.session = RemoteOpenWithSession(
-                    remoteLocation: active.session.remoteLocation,
-                    localURL: active.session.localURL,
-                    originalVersion: version
+        while let upload = activeSessions[key] {
+            var refreshedSession: RemoteOpenWithSession?
+            do {
+                let choice = try await FileOpenHelper.finishRemoteOpenWith(
+                    upload.session,
+                    provider: upload.provider,
+                    conflictResolver: { await FileOpenHelper.presentRemoteOpenConflict($0, fileName: localURL.lastPathComponent) }
                 )
+                if choice != .keepRemote && choice != .cancel {
+                    let version = try await upload.provider.version(of: upload.session.remoteLocation)
+                    refreshedSession = RemoteOpenWithSession(
+                        remoteLocation: upload.session.remoteLocation,
+                        localURL: upload.session.localURL,
+                        originalVersion: version
+                    )
+                }
+            } catch {
+                FileOperationQueue.shared.presentError(error)
             }
-        } catch {
-            FileOperationQueue.shared.presentError(error)
-        }
-        active.isUploading = false
-        if activeSessions[key] != nil {
-            activeSessions[key] = active
+
+            guard var latest = activeSessions[key] else { return }
+            if let refreshedSession {
+                latest.session = refreshedSession
+            }
+            if latest.hasPendingUpload {
+                latest.hasPendingUpload = false
+                activeSessions[key] = latest
+                continue
+            }
+            latest.isUploading = false
+            activeSessions[key] = latest
+            return
         }
     }
+
+    #if DEBUG
+    func beginSessionForTesting(_ session: RemoteOpenWithSession, provider: any FileProvider) {
+        watch(session: session, provider: provider)
+    }
+
+    func uploadIfNeededForTesting(localURL: URL) async {
+        await uploadIfNeeded(localURL: localURL)
+    }
+
+    func endSessionForTesting(localURL: URL) {
+        activeSessions.removeValue(forKey: localURL.standardizedFileURL)
+    }
+    #endif
 }
 
 /// Helper for opening files with the appropriate method.

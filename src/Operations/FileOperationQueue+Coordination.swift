@@ -78,6 +78,18 @@ extension FileOperationQueue {
         return false
     }
 
+    private func deleteConflictsWithActiveHeavyOperation(_ sources: [URL]) -> Bool {
+        guard !activeProtectedPaths.isEmpty else { return false }
+        return sources.contains { source in
+            let sourcePath = source.standardizedFileURL.path
+            return activeProtectedPaths.contains { protected in
+                let protectedPath = protected.standardizedFileURL.path
+                return candidateTouchesProtectedPath(source, protected: protected)
+                    || protectedPath.hasPrefix(sourcePath + "/")
+            }
+        }
+    }
+
     /// Local directory watchers defer while a long-running app operation owns
     /// an overlapping source or destination. The operation's completion path
     /// performs the one authoritative refresh and selection update.
@@ -143,7 +155,7 @@ extension FileOperationQueue {
         guard let urls = localURLs(from: items) else {
             return false
         }
-        return urls.count <= Self.fastLaneMaxItems && !conflictsWithActiveHeavyOperation(sources: urls, destination: nil)
+        return urls.count <= Self.fastLaneMaxItems && !deleteConflictsWithActiveHeavyOperation(urls)
     }
 
     func localURLs(from locations: [Location]) -> [URL]? {

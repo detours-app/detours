@@ -313,8 +313,11 @@ struct ServerRPCBinaryReader {
         // the remaining bytes / 4. Cap the reservation to avoid an OOM crash from a malformed count;
         // an over-large count still fails fast in readRemotePath when the bytes run out.
         let maxPossible = max(0, (data.count - offset) / 4)
+        guard count <= maxPossible else {
+            throw ServerRPCProtocolError.truncatedMessage
+        }
         var paths: [ServerRemotePath] = []
-        paths.reserveCapacity(min(count, maxPossible))
+        paths.reserveCapacity(count)
         for _ in 0..<count {
             paths.append(try readRemotePath())
         }

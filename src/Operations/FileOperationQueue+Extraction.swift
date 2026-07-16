@@ -3,7 +3,11 @@ import DetoursProcess
 import Foundation
 
 extension FileOperationQueue {
-    func performExtract(archive: URL, password: String?) async throws -> URL {
+    func performExtract(
+        archive: URL,
+        password: String?,
+        undoManager: UndoManager?
+    ) async throws -> URL {
         guard let format = ArchiveFormat.detect(from: archive) else {
             throw FileOperationError.archiveExtractionFailed("Unsupported archive format: \(archive.pathExtension)")
         }
@@ -14,17 +18,54 @@ extension FileOperationQueue {
             try ArchivePasswordValidation.validate(password, format: format)
         }
 
-        // Route ZIP to dedicated ditto-based extraction, everything else to existing logic
-        switch format {
-        case .zip:
-            return try await performExtractZip(archive: archive, format: format, password: password)
-        case .sevenZ:
-            if let password, !password.isEmpty {
-                return try await performExtractEncryptedSevenZip(archive: archive, password: password)
+        let ledger = ExtractionReplacementLedger()
+        do {
+            let result: URL
+            switch format {
+            case .zip:
+                result = try await performExtractZip(
+                    archive: archive,
+                    format: format,
+                    password: password,
+                    ledger: ledger
+                )
+            case .sevenZ:
+                if let password, !password.isEmpty {
+                    result = try await performExtractEncryptedSevenZip(
+                        archive: archive,
+                        password: password,
+                        ledger: ledger
+                    )
+                } else {
+                    result = try await performExtractNonZip(
+                        archive: archive,
+                        format: format,
+                        ledger: ledger
+                    )
+                }
+            case .tarGz, .tarBz2, .tarXz:
+                result = try await performExtractNonZip(
+                    archive: archive,
+                    format: format,
+                    ledger: ledger
+                )
             }
-            return try await performExtractNonZip(archive: archive, format: format)
-        case .tarGz, .tarBz2, .tarXz:
-            return try await performExtractNonZip(archive: archive, format: format)
+            registerExtractionUndo(ledger: ledger, archive: archive, undoManager: undoManager)
+            return result
+        } catch {
+            let extractionError = error
+            guard !ledger.displacedItems.isEmpty || !ledger.createdItems.isEmpty else {
+                throw extractionError
+            }
+            do {
+                try await rollbackExtraction(ledger)
+            } catch {
+                throw replacementRollbackError(
+                    operationError: extractionError,
+                    rollbackError: error
+                )
+            }
+            throw extractionError
         }
     }
 
@@ -33,7 +74,12 @@ extension FileOperationQueue {
     /// Extract ZIP archives using ditto. Extracts to a temp dir first to discover
     /// actual filenames (avoids encoding issues with unzip -Z1), then moves results
     /// into place with proper conflict handling.
-    private func performExtractZip(archive: URL, format: ArchiveFormat, password: String?) async throws -> URL {
+    private func performExtractZip(
+        archive: URL,
+        format: ArchiveFormat,
+        password: String?,
+        ledger: ExtractionReplacementLedger
+    ) async throws -> URL {
         let operation = FileOperation.extract(archive: archive, format: format)
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
@@ -98,7 +144,7 @@ extension FileOperationQueue {
                 )
                 switch choice {
                 case .replace:
-                    try fileManager.trashItem(at: wrapperURL, resultingItemURL: nil)
+                    ledger.displacedItems.append(try await displaceLocalItem(wrapperURL))
                 case .keepBoth:
                     wrapperURL = uniqueCopyDestination(for: wrapperURL, in: parentDir)
                 case .stop:
@@ -107,6 +153,7 @@ extension FileOperationQueue {
             }
 
             try fileManager.createDirectory(at: wrapperURL, withIntermediateDirectories: true)
+            ledger.createdItems.append(wrapperURL)
 
             // Move all extracted items into wrapper
             for item in extractedItems {
@@ -142,7 +189,7 @@ extension FileOperationQueue {
                     )
                     switch choice {
                     case .replace:
-                        try fileManager.trashItem(at: dst, resultingItemURL: nil)
+                        ledger.displacedItems.append(try await displaceLocalItem(dst))
                     case .keepBoth:
                         dst = uniqueCopyDestination(for: dst, in: parentDir)
                     case .stop:
@@ -154,6 +201,7 @@ extension FileOperationQueue {
             }
 
             try fileManager.moveItem(at: src, to: dst)
+            ledger.createdItems.append(dst)
             resultURL = dst
         }
 
@@ -293,7 +341,11 @@ extension FileOperationQueue {
 
     // MARK: - Password-protected 7Z extraction
 
-    private func performExtractEncryptedSevenZip(archive: URL, password: String) async throws -> URL {
+    private func performExtractEncryptedSevenZip(
+        archive: URL,
+        password: String,
+        ledger: ExtractionReplacementLedger
+    ) async throws -> URL {
         let format = ArchiveFormat.sevenZ
         let operation = FileOperation.extract(archive: archive, format: format)
         startOperation(operation, totalCount: 1)
@@ -321,7 +373,8 @@ extension FileOperationQueue {
 
         let result = try await materialiseEncryptedSevenZip(
             temporaryDirectory: temporaryDirectory,
-            archive: archive
+            archive: archive,
+            ledger: ledger
         )
         updateProgress(operation: operation, currentItem: result, completed: 1, total: 1)
         return result
@@ -398,7 +451,8 @@ extension FileOperationQueue {
 
     private func materialiseEncryptedSevenZip(
         temporaryDirectory: URL,
-        archive: URL
+        archive: URL,
+        ledger: ExtractionReplacementLedger
     ) async throws -> URL {
         let fileManager = FileManager.default
         let items = try fileManager.contentsOfDirectory(
@@ -418,7 +472,7 @@ extension FileOperationQueue {
                     destination: parentDirectory
                 ) {
                 case .replace:
-                    try fileManager.trashItem(at: destination, resultingItemURL: nil)
+                    ledger.displacedItems.append(try await displaceLocalItem(destination))
                 case .keepBoth:
                     destination = uniqueCopyDestination(for: destination, in: parentDirectory)
                 case .stop:
@@ -426,6 +480,7 @@ extension FileOperationQueue {
                 }
             }
             try fileManager.moveItem(at: item, to: destination)
+            ledger.createdItems.append(destination)
             return destination
         }
 
@@ -440,7 +495,7 @@ extension FileOperationQueue {
                 destination: parentDirectory
             ) {
             case .replace:
-                try fileManager.trashItem(at: wrapper, resultingItemURL: nil)
+                ledger.displacedItems.append(try await displaceLocalItem(wrapper))
             case .keepBoth:
                 wrapper = uniqueCopyDestination(for: wrapper, in: parentDirectory)
             case .stop:
@@ -448,6 +503,7 @@ extension FileOperationQueue {
             }
         }
         try fileManager.createDirectory(at: wrapper, withIntermediateDirectories: true)
+        ledger.createdItems.append(wrapper)
         for item in items {
             try fileManager.moveItem(at: item, to: wrapper.appendingPathComponent(item.lastPathComponent))
         }
@@ -493,7 +549,11 @@ extension FileOperationQueue {
 
     // MARK: - Non-ZIP Extraction (tar, 7z)
 
-    private func performExtractNonZip(archive: URL, format: ArchiveFormat) async throws -> URL {
+    private func performExtractNonZip(
+        archive: URL,
+        format: ArchiveFormat,
+        ledger: ExtractionReplacementLedger
+    ) async throws -> URL {
         let operation = FileOperation.extract(archive: archive, format: format)
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
@@ -533,15 +593,17 @@ extension FileOperationQueue {
                 )
                 switch choice {
                 case .replace:
-                    try fileManager.trashItem(at: wrapperURL, resultingItemURL: nil)
+                    ledger.displacedItems.append(try await displaceLocalItem(wrapperURL))
                     try fileManager.createDirectory(at: wrapperURL, withIntermediateDirectories: true)
                     extractionDir = wrapperURL
                     appCreatedExtractionDir = true
+                    ledger.createdItems.append(wrapperURL)
                 case .keepBoth:
                     let uniqueURL = uniqueCopyDestination(for: wrapperURL, in: parentDir)
                     try fileManager.createDirectory(at: uniqueURL, withIntermediateDirectories: true)
                     extractionDir = uniqueURL
                     appCreatedExtractionDir = true
+                    ledger.createdItems.append(uniqueURL)
                 case .stop:
                     throw FileOperationError.cancelled
                 }
@@ -549,6 +611,7 @@ extension FileOperationQueue {
                 try fileManager.createDirectory(at: wrapperURL, withIntermediateDirectories: true)
                 extractionDir = wrapperURL
                 appCreatedExtractionDir = true
+                ledger.createdItems.append(wrapperURL)
             }
         } else {
             let conflictingItems = topLevelEntries.filter { entry in
@@ -565,7 +628,7 @@ extension FileOperationQueue {
                 case .replace:
                     for item in conflictingItems {
                         let itemURL = parentDir.appendingPathComponent(item)
-                        try fileManager.trashItem(at: itemURL, resultingItemURL: nil)
+                        ledger.displacedItems.append(try await displaceLocalItem(itemURL))
                     }
                 case .keepBoth:
                     extractToTemp = true
@@ -631,6 +694,7 @@ extension FileOperationQueue {
                     }
                     try fileManager.moveItem(at: sourceItem, to: finalDest)
                     movedItems.append(finalDest)
+                    ledger.createdItems.append(finalDest)
                 }
             } catch {
                 Self.removeAppCreatedDirectory(extractionDir)
@@ -643,6 +707,14 @@ extension FileOperationQueue {
                 resultURL = parentDir
             }
         } else {
+            for item in newItems {
+                ledger.createdItems.append(parentDir.appendingPathComponent(item))
+            }
+            for item in ledger.displacedItems where
+                item.original.deletingLastPathComponent().standardizedFileURL == parentDir.standardizedFileURL
+            {
+                ledger.createdItems.append(item.original)
+            }
             if newItems.count == 1, let newItem = newItems.first {
                 resultURL = parentDir.appendingPathComponent(newItem)
             } else {
@@ -738,6 +810,15 @@ extension FileOperationQueue {
         conflictingItems: [String],
         destination: URL
     ) async -> ExtractConflictChoice {
+        #if DEBUG
+        if let forced = conflictChoiceOverrideForTesting {
+            switch forced {
+            case .replace: return .replace
+            case .keepBoth: return .keepBoth
+            case .skip: return .stop
+            }
+        }
+        #endif
         if isRunningTests {
             return .keepBoth
         }

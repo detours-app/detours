@@ -236,7 +236,7 @@ private extension RPCBinaryReader {
     }
 
     mutating func readRemotePaths() throws -> [RemotePath] {
-        let count = Int(try readUInt32())
+        let count = try readBoundedCount(minimumBytesPerElement: 4)
         var paths: [RemotePath] = []
         paths.reserveCapacity(count)
         for _ in 0..<count {

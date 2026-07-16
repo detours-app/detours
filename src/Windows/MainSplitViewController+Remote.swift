@@ -36,19 +36,22 @@ extension MainSplitViewController {
     }
 
     func connectRemoteHost(_ host: RemoteHost) {
+        let targetPane = activePane
         Task { @MainActor in
-            let selectedTabWasPending = activePane.selectedTabHasPendingRemoteTarget(hostID: host.id)
+            let selectedTabWasPending = targetPane.selectedTabHasPendingRemoteTarget(hostID: host.id)
             if !selectedTabWasPending {
-                activePane.showConnectingRemoteHost(host)
+                targetPane.showConnectingRemoteHost(host)
             }
             do {
                 let resources = try await remoteConnectionTask(for: host).value
                 leftPane.resumePendingRemoteTabs(for: host, provider: resources.provider)
                 rightPane.resumePendingRemoteTabs(for: host, provider: resources.provider)
                 if !selectedTabWasPending {
-                    activePane.loadRemoteHost(host, provider: resources.provider, path: resources.homePath)
+                    targetPane.loadRemoteHost(host, provider: resources.provider, path: resources.homePath)
                 }
-                view.window?.makeFirstResponder(activePane.selectedTab?.fileListViewController.tableView)
+                if activePane === targetPane {
+                    view.window?.makeFirstResponder(targetPane.selectedTab?.fileListViewController.tableView)
+                }
             } catch {
                 showRemoteConnectionError(error, host: host)
             }

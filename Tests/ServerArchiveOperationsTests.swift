@@ -300,6 +300,37 @@ final class ServerArchiveOperationsTests: XCTestCase {
         XCTAssertEqual(capturedArguments.value.dropFirst(2).first, "--")
         XCTAssertEqual(capturedArguments.value.last, "-leading-dash.txt")
     }
+
+    func testZipCreateUsesSafeOptionBoundaryAndCommonAncestorLayout() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let alpha = try createTestFolder(in: temp, name: "Alpha")
+        let beta = try createTestFolder(in: temp, name: "Beta")
+        let first = try createTestFile(in: alpha, name: "-TT", content: "one")
+        let second = try createTestFile(in: beta, name: "two.txt", content: "two")
+        let capturedArguments = LockedBox<[String]>([])
+        let capturedDirectory = LockedBox<URL?>(nil)
+        let operations = ArchiveOperations(
+            resolveTool: { _ in "/usr/bin/zip" },
+            runProcess: { _, arguments, directory in
+                capturedArguments.value = arguments
+                capturedDirectory.value = directory
+                return ServerProcessResult(status: 0, stderr: "")
+            }
+        )
+
+        _ = try operations.createArchive(
+            items: [first.path, second.path],
+            format: "zip",
+            archiveName: "bundle",
+            password: nil
+        )
+
+        XCTAssertEqual(capturedDirectory.value?.standardizedFileURL, temp.standardizedFileURL)
+        XCTAssertTrue(capturedArguments.value.contains("-nw"))
+        let delimiter = try XCTUnwrap(capturedArguments.value.firstIndex(of: "--"))
+        XCTAssertEqual(Array(capturedArguments.value.suffix(from: delimiter + 1)), ["Alpha/-TT", "Beta/two.txt"])
+    }
 }
 
 private func executableOnPath(_ name: String) -> String? {

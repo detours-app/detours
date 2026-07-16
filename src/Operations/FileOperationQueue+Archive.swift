@@ -151,25 +151,22 @@ extension FileOperationQueue {
     }
 
     private func runZip(items: [URL], destination: URL, password: String?, sourceSize: Int64) async throws {
+        let layout = ArchiveSourceLayout(items: items)
         if let password, !password.isEmpty {
             try await runEncryptedZip(
-                items: items,
                 destination: destination,
                 password: password,
-                sourceSize: sourceSize
+                sourceSize: sourceSize,
+                layout: layout
             )
             return
         }
-        let parentDir = items[0].deletingLastPathComponent().path
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.zip.path)
-        process.currentDirectoryURL = URL(fileURLWithPath: parentDir)
+        process.currentDirectoryURL = layout.workingDirectory
 
-        var arguments = ["-r", "-q"]
-        arguments.append(destination.path)
-        for item in items {
-            arguments.append(item.lastPathComponent)
-        }
+        var arguments = ["-r", "-q", "-nw", destination.path, "--"]
+        arguments.append(contentsOf: layout.relativePaths)
         process.arguments = arguments
 
         let errorPipe = Pipe()
@@ -180,15 +177,15 @@ extension FileOperationQueue {
     }
 
     private func runEncryptedZip(
-        items: [URL],
         destination: URL,
         password: String,
-        sourceSize: Int64
+        sourceSize: Int64,
+        layout: ArchiveSourceLayout
     ) async throws {
         let invocation = PtyProcessInvocation(
             executable: CompressionTool.zip.path,
-            arguments: ["-er", "-q", destination.path] + items.map(\.lastPathComponent),
-            currentDirectory: items[0].deletingLastPathComponent(),
+            arguments: ["-er", "-q", "-nw", destination.path, "--"] + layout.relativePaths,
+            currentDirectory: layout.workingDirectory,
             password: password,
             responses: [.password, .password]
         )
@@ -328,15 +325,13 @@ extension FileOperationQueue {
     }
 
     private func runTar(items: [URL], destination: URL, flag: String, sourceSize: Int64) async throws {
-        let parentDir = items[0].deletingLastPathComponent().path
+        let layout = ArchiveSourceLayout(items: items)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
-        process.currentDirectoryURL = URL(fileURLWithPath: parentDir)
+        process.currentDirectoryURL = layout.workingDirectory
 
-        var arguments = ["-c\(flag)f", destination.path]
-        for item in items {
-            arguments.append(item.lastPathComponent)
-        }
+        var arguments = ["-c\(flag)f", destination.path, "--"]
+        arguments.append(contentsOf: layout.relativePaths)
         process.arguments = arguments
 
         let errorPipe = Pipe()
@@ -374,6 +369,12 @@ extension FileOperationQueue {
         try process.run()
         currentProcess = process
         defer { currentProcess = nil }
+        let errorDrain: PipeDrain?
+        if stderrProgressPipe == nil {
+            errorDrain = PipeDrain.start(reading: errorPipe.fileHandleForReading)
+        } else {
+            errorDrain = nil
+        }
 
         // Start progress monitoring task
         let progressTask = Task { [weak self] in
@@ -455,6 +456,7 @@ extension FileOperationQueue {
         }
 
         progressTask.cancel()
+        let drainedErrorData = errorDrain?.wait()
 
         if isCancelled {
             try? FileManager.default.removeItem(at: partialFile)
@@ -467,7 +469,7 @@ extension FileOperationQueue {
             if let stderrPipe = stderrProgressPipe {
                 errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
             } else {
-                errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                errorData = drainedErrorData ?? Data()
             }
             let decoded = (String(data: errorData, encoding: .utf8) ?? String(data: errorData, encoding: .isoLatin1))?.trimmingCharacters(in: .whitespacesAndNewlines)
             let errorMessage = (decoded?.isEmpty == false) ? decoded! : "Process exited with code \(terminationStatus)"

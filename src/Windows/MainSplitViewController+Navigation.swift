@@ -178,10 +178,15 @@ extension MainSplitViewController {
         let destinationPane = otherPane(from: pane)
         // Use effective destination: if a folder is selected, move into it
         guard let destination = destinationPane.effectiveDestinationLocation else { return }
+        let undoManager = destinationPane.selectedTab?.fileListViewController.undoManager
 
         Task { @MainActor in
             do {
-                let actualLocations = try await FileOperationQueue.shared.move(items: items, to: destination)
+                let actualLocations = try await FileOperationQueue.shared.move(
+                    items: items,
+                    to: destination,
+                    undoManager: undoManager
+                )
                 let hasRemoteSource = items.contains { location in
                     if case .remote = location { return true }
                     return false
@@ -234,10 +239,15 @@ extension MainSplitViewController {
             NSSound.beep()
             return
         }
+        let undoManager = destinationPane.selectedTab?.fileListViewController.undoManager
 
         Task { @MainActor in
             do {
-                let actualLocations = try await FileOperationQueue.shared.copy(items: items, to: destination)
+                let actualLocations = try await FileOperationQueue.shared.copy(
+                    items: items,
+                    to: destination,
+                    undoManager: undoManager
+                )
                 let hasRemoteSource = items.contains { location in
                     if case .remote = location { return true }
                     return false

@@ -51,6 +51,32 @@ struct DirectoryLoaderTests {
         #expect(entries.count == 1)
     }
 
+    @Test("Timeout returns while filesystem enumeration remains blocked")
+    func testTimeoutDoesNotAwaitBlockedEnumeration() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let gate = EnumerationGate()
+        let loader = DirectoryLoader(enumerationHook: gate.hook)
+        let clock = ContinuousClock()
+        let start = clock.now
+        let task = Task {
+            try await loader.loadDirectory(tempDir, showHidden: false, timeout: .milliseconds(50))
+        }
+        #expect(gate.waitUntilEntered())
+
+        do {
+            _ = try await task.value
+            Issue.record("Expected directory load timeout")
+        } catch let error as DirectoryLoadError {
+            #expect(error == .timeout)
+        }
+        #expect(start.duration(to: clock.now) < .seconds(1))
+        gate.cancelAndRelease()
+    }
+
     @Test("Cancelling parent Task stops the load")
     func testLoadDirectoryCancellation() async throws {
         let tempDir = FileManager.default.temporaryDirectory

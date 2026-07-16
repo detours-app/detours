@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 enum ServerRPCError: Error, Equatable {
@@ -106,7 +107,7 @@ struct RPCHandler {
         case .rename(let item, let newName):
             return [try fileOperations.rename(item: item, newName: newName)]
         case .delete(let items):
-            _ = try fileOperations.trash(items: items)
+            try fileOperations.delete(items: items)
             return [Data()]
         case .trash(let items):
             return [try fileOperations.trash(items: items)]
@@ -202,7 +203,7 @@ struct RPCHandler {
     }
 
     private static func readFrame(from input: FileHandle) throws -> Data? {
-        let lengthBytes = input.readData(ofLength: 4)
+        let lengthBytes = ExactFileHandleReader.read(4, from: input)
         guard !lengthBytes.isEmpty else { return nil }
         guard lengthBytes.count == 4 else {
             throw ServerRPCProtocolError.truncatedMessage
@@ -211,7 +212,7 @@ struct RPCHandler {
         guard length <= ServerRPCStreamHandler.defaultMaxFrameSize else {
             throw ServerRPCProtocolError.frameTooLarge(length)
         }
-        let payload = input.readData(ofLength: length)
+        let payload = ExactFileHandleReader.read(length, from: input)
         guard payload.count == length else {
             throw ServerRPCProtocolError.truncatedMessage
         }

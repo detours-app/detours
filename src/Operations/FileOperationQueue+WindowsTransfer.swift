@@ -134,24 +134,39 @@ extension FileOperationQueue {
         _ = context.isMove
             ? try await provider.moveItem(source, to: tempTarget)
             : try await provider.copyItem(source, to: tempTarget)
+        var displaced: TrashedItem?
         do {
-            guard let displaced = try await provider.trash([target]).first else {
-                _ = try? await provider.trash([tempTarget])
+            guard let token = try await provider.trash([target]).first else {
                 throw FileProviderError.unsupportedOperation("Windows replace produced no restore token")
             }
-            do {
-                _ = try await provider.rename(tempTarget, to: target.lastPathComponent)
-                return displaced
-            } catch {
-                // The swap failed: restore the displaced original and drop the staged copy.
-                _ = try? await provider.restoreFromTrash([displaced])
-                _ = try? await provider.trash([tempTarget])
-                throw error
-            }
+            displaced = token
+            _ = try await provider.rename(tempTarget, to: target.lastPathComponent)
+            return token
         } catch {
-            // Displacing the target failed: it is still in place; drop the staged copy.
-            _ = try? await provider.trash([tempTarget])
-            throw error
+            var reportedError = error
+            if let displaced {
+                do {
+                    _ = try await provider.restoreFromTrash([displaced])
+                } catch {
+                    reportedError = replacementRollbackError(
+                        operationError: reportedError,
+                        rollbackError: error
+                    )
+                }
+            }
+            do {
+                if context.isMove {
+                    _ = try await provider.moveItem(tempTarget, to: source)
+                } else {
+                    _ = try await provider.trash([tempTarget])
+                }
+            } catch {
+                reportedError = replacementRollbackError(
+                    operationError: reportedError,
+                    rollbackError: error
+                )
+            }
+            throw reportedError
         }
     }
 

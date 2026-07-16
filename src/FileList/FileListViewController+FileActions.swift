@@ -293,7 +293,8 @@ extension FileListViewController {
             do {
                 let extractedLocation = try await FileOperationQueue.shared.extract(
                     archive: archiveLocation,
-                    password: password
+                    password: password,
+                    undoManager: self.undoManager
                 )
                 self.reloadCurrentListing(selecting: extractedLocation)
             } catch FileOperationError.archivePasswordRequired {
@@ -398,6 +399,7 @@ extension FileListViewController {
                 if currentDirectory != nil {
                     refreshAfterLocalMutation()
                 } else {
+                    dataSource.markRemoteDirectoryStale(destination)
                     refresh()
                 }
             } catch {
@@ -453,6 +455,7 @@ extension FileListViewController {
                 if currentDirectory != nil {
                     refreshAfterLocalMutation()
                 } else {
+                    dataSource.markRemoteDirectoryStale(destination)
                     refresh()
                 }
             } catch {

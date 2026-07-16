@@ -7,9 +7,14 @@ private let logger = Logger(subsystem: "com.detours", category: "filelist")
 extension FileListViewController {
     func startWatching(_ location: Location, provider: any FileProvider) {
         let normalizedLocation = Self.normalizedWatchLocation(location)
-        guard providerWatches[normalizedLocation] == nil else { return }
 
+        providerWatchGeneration &+= 1
+        let generation = providerWatchGeneration
         directoryWatchTask?.cancel()
+        for task in providerWatchSetupTasks.values {
+            task.cancel()
+        }
+        providerWatchSetupTasks.removeAll()
         let existingWatches = Array(providerWatches.values)
         providerWatches.removeAll()
 
@@ -18,7 +23,11 @@ extension FileListViewController {
                 await record.provider.unwatch(record.watch)
             }
             guard !Task.isCancelled else { return }
-            await self?.watchDirectoryThroughProvider(normalizedLocation, provider: provider)
+            await self?.watchDirectoryThroughProvider(
+                normalizedLocation,
+                provider: provider,
+                generation: generation
+            )
         }
     }
 
@@ -35,9 +44,20 @@ extension FileListViewController {
             location = .local(normalized)
             provider = LocalFileProvider.shared
         }
-        guard providerWatches[Self.normalizedWatchLocation(location)] == nil else { return }
-        Task { [weak self] in
-            await self?.watchDirectoryThroughProvider(location, provider: provider)
+        let normalizedLocation = Self.normalizedWatchLocation(location)
+        guard providerWatches[normalizedLocation] == nil,
+              providerWatchSetupTasks[normalizedLocation] == nil else { return }
+        let generation = providerWatchGeneration
+        providerWatchSetupTasks[normalizedLocation] = Task { [weak self] in
+            guard let self else { return }
+            await self.watchDirectoryThroughProvider(
+                normalizedLocation,
+                provider: provider,
+                generation: generation
+            )
+            if generation == self.providerWatchGeneration {
+                self.providerWatchSetupTasks.removeValue(forKey: normalizedLocation)
+            }
         }
     }
 
@@ -55,6 +75,12 @@ extension FileListViewController {
         for (location, _) in recordsToRemove {
             providerWatches.removeValue(forKey: location)
         }
+        let setupLocationsToRemove = providerWatchSetupTasks.keys.filter {
+            Self.isWatchLocation($0, inside: collapsedLocation)
+        }
+        for location in setupLocationsToRemove {
+            providerWatchSetupTasks.removeValue(forKey: location)?.cancel()
+        }
         Task {
             for (_, record) in recordsToRemove {
                 await record.provider.unwatch(record.watch)
@@ -62,7 +88,11 @@ extension FileListViewController {
         }
     }
 
-    private func watchDirectoryThroughProvider(_ location: Location, provider: any FileProvider) async {
+    private func watchDirectoryThroughProvider(
+        _ location: Location,
+        provider: any FileProvider,
+        generation: UInt64
+    ) async {
         let normalizedLocation = Self.normalizedWatchLocation(location)
         guard providerWatches[normalizedLocation] == nil else { return }
 
@@ -71,11 +101,14 @@ extension FileListViewController {
                 DispatchQueue.main.async {
                     self?.handleDirectoryChange(
                         at: changedLocation,
-                        watchedDirectory: normalizedLocation
+                        watchedDirectory: normalizedLocation,
+                        generation: generation
                     )
                 }
             }
-            guard !Task.isCancelled else {
+            guard !Task.isCancelled,
+                  generation == providerWatchGeneration,
+                  isWatchRelevantToCurrentRoot(normalizedLocation) else {
                 await provider.unwatch(watch)
                 return
             }
@@ -116,8 +149,11 @@ extension FileListViewController {
 
     private func handleDirectoryChange(
         at changedLocation: Location,
-        watchedDirectory: Location
+        watchedDirectory: Location,
+        generation: UInt64
     ) {
+        guard generation == providerWatchGeneration,
+              isWatchRelevantToCurrentRoot(watchedDirectory) else { return }
         if case .remote = watchedDirectory {
             remoteRefreshCoordinator?.requestRefresh(
                 affectedLocation: watchedDirectory,
@@ -146,6 +182,15 @@ extension FileListViewController {
         }
         directoryChangeDebounce = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
+    }
+
+    private func isWatchRelevantToCurrentRoot(_ location: Location) -> Bool {
+        if let currentRemoteLocation {
+            return location == currentRemoteLocation
+                || isRemoteDescendant(location, of: currentRemoteLocation)
+        }
+        guard let currentDirectory else { return false }
+        return Self.isWatchLocation(location, inside: .local(currentDirectory))
     }
 
     private func invalidateFolderSizesAlongPath(to changedURL: URL) {

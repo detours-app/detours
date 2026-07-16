@@ -20,7 +20,7 @@ extension FileOperationQueue {
 
         let fileManager = FileManager.default
         var failures: [(URL, Error)] = []
-        var successes: [URL] = []
+        var successes: [(destination: URL, displaced: LocalDisplacedItem?)] = []
         var conflictChoice: ConflictChoice?
         var bytesCopied: Int64 = 0
 
@@ -40,6 +40,7 @@ extension FileOperationQueue {
             let initialDestination = targetDir.appendingPathComponent(source.lastPathComponent)
             let destinationURL: URL
             var skipped = false
+            var displacedItem: LocalDisplacedItem?
 
             do {
                 let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
@@ -59,8 +60,7 @@ extension FileOperationQueue {
                             skipped = true
                             destinationURL = initialDestination
                         case .replace:
-                            // Replacing must not permanently destroy the existing file: move it to the Trash.
-                            try await runFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
+                            displacedItem = try await displaceLocalItem(initialDestination)
                             destinationURL = initialDestination
                         case .keepBoth:
                             destinationURL = uniqueCopyDestination(for: source, in: targetDir)
@@ -103,14 +103,22 @@ extension FileOperationQueue {
                             }
                         }
                         releaseDestination(destinationURL)
-                        successes.append(destinationURL)
+                        successes.append((destination: destinationURL, displaced: displacedItem))
                     } catch {
                         releaseDestination(destinationURL)
                         throw error
                     }
                 }
             } catch {
-                failures.append((source, mapError(error, url: source)))
+                var reportedError = error
+                if let displacedItem {
+                    do {
+                        try await rollbackLocalDisplacement(displacedItem)
+                    } catch {
+                        reportedError = replacementRollbackError(operationError: reportedError, rollbackError: error)
+                    }
+                }
+                failures.append((source, mapError(reportedError, url: source)))
             }
 
             bytesCopied += itemSizes[index]
@@ -126,21 +134,27 @@ extension FileOperationQueue {
 
         // Only register undo if all items succeeded (no failures, no skips affecting count)
         if failures.isEmpty, !successes.isEmpty, let undoManager {
-            let copiedFiles = successes
+            let copiedFiles = successes.map(\.destination)
+            let displacedItems = successes.compactMap(\.displaced)
             undoManager.registerUndo(withTarget: self) { target in
-                // Undo copy by moving copied files to trash (synchronous to prevent race conditions)
                 do {
-                    try target.recycleSync(items: copiedFiles)
+                    try target.undoLocalReplacementSync(
+                        createdItems: copiedFiles,
+                        displacedItems: displacedItems
+                    )
                 } catch {
                     target.presentError(error)
                 }
             }
-            let actionName = successes.count == 1 ? "Copy \"\(successes[0].lastPathComponent)\"" : "Copy \(successes.count) Items"
+            let actionName = successes.count == 1
+                ? "Copy \"\(successes[0].destination.lastPathComponent)\""
+                : "Copy \(successes.count) Items"
             undoManager.setActionName(actionName)
         }
 
-        try handleFailures(successes: successes, failures: failures)
-        return successes
+        let copiedItems = successes.map(\.destination)
+        try handleFailures(successes: copiedItems, failures: failures)
+        return copiedItems
     }
 
     func performMove(items: [URL], to destination: URL, undoManager: UndoManager? = nil) async throws -> [URL] {
@@ -159,7 +173,7 @@ extension FileOperationQueue {
 
         let fileManager = FileManager.default
         var failures: [(URL, Error)] = []
-        var successes: [(source: URL, destination: URL)] = []
+        var successes: [(source: URL, destination: URL, displaced: LocalDisplacedItem?)] = []
         var conflictChoice: ConflictChoice?
         var bytesMoved: Int64 = 0
 
@@ -179,6 +193,7 @@ extension FileOperationQueue {
             let initialDestination = targetDir.appendingPathComponent(source.lastPathComponent)
             let destinationURL: URL
             var skipped = false
+            var displacedItem: LocalDisplacedItem?
 
             do {
                 let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
@@ -201,8 +216,7 @@ extension FileOperationQueue {
                             skipped = true
                             destinationURL = initialDestination
                         case .replace:
-                            // Replacing must not permanently destroy the existing file: move it to the Trash.
-                            try await runFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
+                            displacedItem = try await displaceLocalItem(initialDestination)
                             destinationURL = initialDestination
                         case .keepBoth:
                             destinationURL = uniqueCopyDestination(for: source, in: targetDir)
@@ -229,14 +243,22 @@ extension FileOperationQueue {
                         try await runFileIO { try FileManager.default.moveItem(at: source, to: destinationURL) }
                         pollTask.cancel()
                         releaseDestination(destinationURL)
-                        successes.append((source: source, destination: destinationURL))
+                        successes.append((source: source, destination: destinationURL, displaced: displacedItem))
                     } catch {
                         releaseDestination(destinationURL)
                         throw error
                     }
                 }
             } catch {
-                failures.append((source, mapError(error, url: source)))
+                var reportedError = error
+                if let displacedItem {
+                    do {
+                        try await rollbackLocalDisplacement(displacedItem)
+                    } catch {
+                        reportedError = replacementRollbackError(operationError: reportedError, rollbackError: error)
+                    }
+                }
+                failures.append((source, mapError(reportedError, url: source)))
             }
 
             bytesMoved += itemSizes[index]
@@ -253,11 +275,14 @@ extension FileOperationQueue {
         // Only register undo if all items succeeded
         if failures.isEmpty, !successes.isEmpty, let undoManager {
             let movedItems = successes
+            let displacedItems = successes.compactMap(\.displaced)
             undoManager.registerUndo(withTarget: self) { target in
-                // Undo move by moving files back to their original directories (synchronous)
                 do {
                     for item in movedItems {
                         try target.moveSync(from: item.destination, to: item.source)
+                    }
+                    for item in displacedItems.reversed() {
+                        try Self.restoreLocalDisplacementSync(item)
                     }
                 } catch {
                     target.presentError(error)
@@ -370,6 +395,7 @@ extension FileOperationQueue {
         var failures: [(URL, Error)] = []
         var conflictChoice: ConflictChoice?
         var displacedTokens: [TrashedItem] = []
+        var sourceRestoreRecords: [ProviderMoveSourceRestore] = []
         let hostName = await transferHostName(for: destination)
 
         for (index, item) in items.enumerated() {
@@ -377,6 +403,8 @@ extension FileOperationQueue {
             let displayURL = URL(fileURLWithPath: item.path)
             updateProgress(operation: operation, currentItem: displayURL, completed: index, total: items.count)
 
+            var finalLocationForRollback: Location?
+            var displacedTokenForRollback: TrashedItem?
             do {
                 let sourceProvider = try provider(for: item)
                 let initialDestination = destination.appendingPathComponent(item.lastPathComponent)
@@ -400,7 +428,7 @@ extension FileOperationQueue {
                         finalLocation = try await uniqueDestinationLocation(for: item, in: destination, provider: destinationProvider)
                     case .replace:
                         if let token = try await (destinationProvider as? WindowsRemoteProvider)?.trash([initialDestination]).first {
-                            displacedTokens.append(token)
+                            displacedTokenForRollback = token
                         }
                         finalLocation = initialDestination
                     }
@@ -416,19 +444,50 @@ extension FileOperationQueue {
                 try FileManager.default.createDirectory(at: itemStagingDirectory, withIntermediateDirectories: true)
 
                 try await stageLocation(item, provider: sourceProvider, to: stagedURL)
+                finalLocationForRollback = finalLocation
                 try await uploadStagedItem(stagedURL, to: finalLocation, provider: destinationProvider)
 
                 if isMove {
-                    try await trashSourceAfterProviderMove(item, provider: sourceProvider)
+                    sourceRestoreRecords.append(
+                        try await trashSourceAfterProviderMove(item, provider: sourceProvider)
+                    )
                 }
 
                 successes.append(finalLocation)
+                if let displacedTokenForRollback {
+                    displacedTokens.append(displacedTokenForRollback)
+                }
+                finalLocationForRollback = nil
+                displacedTokenForRollback = nil
             } catch {
+                var reportedError = error
+                if let finalLocationForRollback {
+                    do {
+                        _ = try await destinationProvider.trash([finalLocationForRollback])
+                    } catch {
+                        successes.append(finalLocationForRollback)
+                        reportedError = replacementRollbackError(
+                            operationError: reportedError,
+                            rollbackError: error
+                        )
+                        displacedTokenForRollback = nil
+                    }
+                }
+                if let displacedTokenForRollback {
+                    do {
+                        _ = try await destinationProvider.restoreFromTrash([displacedTokenForRollback])
+                    } catch {
+                        reportedError = replacementRollbackError(
+                            operationError: reportedError,
+                            rollbackError: error
+                        )
+                    }
+                }
                 failures.append((displayURL, RemoteOperationError.operation(
                     action: isMove ? .move : .copy,
                     item: displayURL.lastPathComponent,
                     host: hostName,
-                    underlying: error
+                    underlying: reportedError
                 )))
             }
 
@@ -438,12 +497,27 @@ extension FileOperationQueue {
         if failures.isEmpty, !successes.isEmpty, let undoManager {
             let createdItems = successes
             let tokens = displacedTokens
+            let sourceRestores = sourceRestoreRecords
             let windowsProvider = destinationProvider as? WindowsRemoteProvider
             let undoHostName = hostName
             undoManager.registerUndo(withTarget: self) { target in
                 Task { @MainActor in
                     do {
                         try await target.delete(items: createdItems, undoManager: nil)
+                        let localRestores = sourceRestores.compactMap { record -> LocalDisplacedItem? in
+                            guard case .local(let item) = record else { return nil }
+                            return item
+                        }
+                        for item in localRestores {
+                            try Self.restoreLocalDisplacementSync(item)
+                        }
+                        let remoteRestores = sourceRestores.compactMap { record -> TrashedItem? in
+                            guard case .remote(let item) = record else { return nil }
+                            return item
+                        }
+                        if !remoteRestores.isEmpty {
+                            _ = try await target.restoreRemoteTrashedItems(remoteRestores)
+                        }
                         if !tokens.isEmpty, let windowsProvider {
                             _ = try await windowsProvider.restoreFromTrash(tokens)
                         }
@@ -504,12 +578,19 @@ extension FileOperationQueue {
         try await provider.upload(localURL, to: location)
     }
 
-    private func trashSourceAfterProviderMove(_ location: Location, provider: any FileProvider) async throws {
+    private func trashSourceAfterProviderMove(
+        _ location: Location,
+        provider: any FileProvider
+    ) async throws -> ProviderMoveSourceRestore {
         switch location {
         case .local(let url):
-            _ = try await recycle(item: url)
+            return .local(LocalDisplacedItem(original: url, trash: try await recycle(item: url)))
         case .remote:
-            _ = try await provider.trash([location])
+            let trashedItems = try await provider.trash([location])
+            guard let trashedItem = trashedItems.first else {
+                throw FileProviderError.unsupportedOperation("Remote move did not return a restore token")
+            }
+            return .remote(trashedItem)
         }
     }
 

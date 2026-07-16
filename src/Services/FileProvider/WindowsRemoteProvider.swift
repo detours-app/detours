@@ -110,7 +110,12 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func delete(_ items: [Location]) async throws {
-        _ = try await trash(items)
+        guard !items.isEmpty else { return }
+        let arguments = try TrashArguments(
+            paths: items.map { try nativePath(from: windowsPath(from: $0)) }
+        )
+        let script = try PowerShellScript(source: Self.deleteScript, arguments: arguments)
+        _ = try await channel.run(script, operation: "Delete")
     }
 
     func trash(_ items: [Location]) async throws -> [TrashedItem] {

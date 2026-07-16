@@ -216,6 +216,19 @@ struct RPCBinaryReader {
         return Data(try readBytes(count: length))
     }
 
+    mutating func readBoundedCount(
+        minimumBytesPerElement: Int,
+        maximum: Int = 1_000_000
+    ) throws -> Int {
+        let count = Int(try readUInt32())
+        guard minimumBytesPerElement > 0,
+              count <= maximum,
+              count <= remainingByteCount / minimumBytesPerElement else {
+            throw RPCProtocolError.invalidMessage
+        }
+        return count
+    }
+
     mutating func readString() throws -> String {
         let data = try readData()
         guard let value = String(data: data, encoding: .utf8) else {
@@ -239,6 +252,10 @@ struct RPCBinaryReader {
         guard offset == data.count else {
             throw RPCProtocolError.invalidMessage
         }
+    }
+
+    var remainingByteCount: Int {
+        data.count - offset
     }
 
     private mutating func readBytes(count: Int) throws -> Data.SubSequence {

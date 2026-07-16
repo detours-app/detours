@@ -93,6 +93,51 @@ extension FileOperationQueueTests {
         XCTAssertFalse(FileManager.default.fileExists(atPath: moved[0].path))
     }
 
+    func testFastCopyReplaceUndoRestoresDisplacedDestination() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let sourceDirectory = try createTestFolder(in: temp, name: "Source")
+        let destinationDirectory = try createTestFolder(in: temp, name: "Destination")
+        let source = try createTestFile(in: sourceDirectory, name: "same.txt", content: "new")
+        let destination = try createTestFile(in: destinationDirectory, name: "same.txt", content: "original")
+        let queue = FileOperationQueue.shared
+        let undoManager = UndoManager()
+        queue.conflictChoiceOverrideForTesting = .replace
+        defer { queue.conflictChoiceOverrideForTesting = nil }
+
+        _ = try await queue.copy(items: [source], to: destinationDirectory, undoManager: undoManager)
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "new")
+
+        undoManager.undo()
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "new")
+    }
+
+    func testHeavyCopyReplaceFailureRollsBackDisplacedDestination() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let sourceDirectory = try createTestFolder(in: temp, name: "Source")
+        let destinationDirectory = try createTestFolder(in: temp, name: "Destination")
+        let source = sourceDirectory.appendingPathComponent("same.bin")
+        try Data(repeating: 0x4E, count: 11 * 1_024 * 1_024).write(to: source)
+        let destination = try createTestFile(in: destinationDirectory, name: "same.bin", content: "original")
+        let queue = FileOperationQueue.shared
+        queue.conflictChoiceOverrideForTesting = .replace
+        queue.copyProgressCancellationProbeForTesting = { _ in true }
+        defer {
+            queue.conflictChoiceOverrideForTesting = nil
+            queue.copyProgressCancellationProbeForTesting = nil
+        }
+
+        do {
+            _ = try await queue.copy(items: [source], to: destinationDirectory)
+            XCTFail("Expected replacement copy to fail")
+        } catch {}
+
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+    }
+
     func testDuplicateUndo() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

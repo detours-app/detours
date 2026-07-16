@@ -67,13 +67,28 @@ extension PaneViewController: PaneTabBarDelegate {
         insertTab(tab, at: index)
     }
 
-    func tabBarDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool) {
+    func tabBarDidReceiveFileDrop(
+        urls: [URL],
+        to destination: URL,
+        at tabIndex: Int,
+        isCopy: Bool
+    ) {
+        guard tabs.indices.contains(tabIndex) else { return }
+        let undoManager = tabs[tabIndex].fileListViewController.undoManager
         Task { @MainActor in
             do {
                 if isCopy {
-                    try await FileOperationQueue.shared.copy(items: urls, to: destination)
+                    try await FileOperationQueue.shared.copy(
+                        items: urls,
+                        to: destination,
+                        undoManager: undoManager
+                    )
                 } else {
-                    try await FileOperationQueue.shared.move(items: urls, to: destination)
+                    try await FileOperationQueue.shared.move(
+                        items: urls,
+                        to: destination,
+                        undoManager: undoManager
+                    )
                 }
                 // Refresh relevant directories
                 var directoriesToRefresh = Set<URL>()

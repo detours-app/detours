@@ -259,7 +259,7 @@ enum RemoteFindCodec {
 
     static func decode(_ data: Data) throws -> [RemoteFindMatch] {
         var reader = RPCBinaryReader(data: data)
-        let count = Int(try reader.readUInt32())
+        let count = try reader.readBoundedCount(minimumBytesPerElement: 5)
         var matches: [RemoteFindMatch] = []
         matches.reserveCapacity(count)
         for _ in 0..<count {

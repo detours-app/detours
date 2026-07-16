@@ -222,6 +222,28 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         XCTAssertEqual(controller.providerWatches.count, 2)
     }
 
+    func testWatchRegistrationCompletingAfterNavigationIsDiscarded() async throws {
+        let hostA = UUID()
+        let hostB = UUID()
+        let rootA = Location.remote(hostID: hostA, path: "/A")
+        let rootB = Location.remote(hostID: hostB, path: "/B")
+        let controller = configuredController(root: rootA, items: [])
+        let delayed = DelayedWatchProvider()
+        let current = RefreshTestProvider()
+
+        controller.startWatching(rootA, provider: delayed)
+        try await waitFor { await delayed.didStartWatching }
+        controller.currentRemoteLocation = rootB
+        controller.currentRemoteProvider = current
+        controller.startWatching(rootB, provider: current)
+        await delayed.releaseWatch()
+
+        try await waitFor { controller.providerWatches[rootB] != nil }
+        try await waitFor { await delayed.unwatchedCount == 1 }
+        XCTAssertNil(controller.providerWatches[rootA])
+        XCTAssertEqual(controller.providerWatches.count, 1)
+    }
+
     func testDeletedSelectionChoosesNearestSurvivorWithoutJump() {
         let hostID = UUID()
         let root = Location.remote(hostID: hostID, path: "/")
@@ -401,6 +423,38 @@ private actor RefreshTestProvider: FileProvider {
         FileProviderWatch(id: UUID(), location: location)
     }
     func unwatch(_ watch: FileProviderWatch) async {}
+    func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
+    func folderSize(for location: Location) async throws -> Int64 { 0 }
+    func readSymlink(_ location: Location) async throws -> Location { location }
+    func openForQuickLook(_ location: Location) async throws -> URL { URL(fileURLWithPath: "/tmp/unused") }
+}
+
+private actor DelayedWatchProvider: FileProvider {
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+    private(set) var didStartWatching = false
+    private(set) var unwatchedCount = 0
+
+    func releaseWatch() {
+        releaseContinuation?.resume()
+        releaseContinuation = nil
+    }
+
+    func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] { [] }
+    func stat(_ location: Location) async throws -> LoadedFileEntry { throw RefreshTestError.failed }
+    func copy(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+    func move(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+    func delete(_ items: [Location]) async throws {}
+    func trash(_ items: [Location]) async throws -> [TrashedItem] { [] }
+    func restoreFromTrash(_ items: [TrashedItem]) async throws -> [Location] { [] }
+    func rename(_ item: Location, to newName: String) async throws -> Location { item }
+    func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location { items[0] }
+    func archiveExtract(_ archive: Location, password: String?) async throws -> Location { archive }
+    func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        didStartWatching = true
+        await withCheckedContinuation { releaseContinuation = $0 }
+        return FileProviderWatch(id: UUID(), location: location)
+    }
+    func unwatch(_ watch: FileProviderWatch) async { unwatchedCount += 1 }
     func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
     func folderSize(for location: Location) async throws -> Int64 { 0 }
     func readSymlink(_ location: Location) async throws -> Location { location }

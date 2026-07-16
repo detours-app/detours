@@ -205,7 +205,7 @@ final class WindowsRemoteProviderTests: XCTestCase {
         XCTAssertTrue(requests[1].argumentsJSON.contains(#""destination":"D:\\Paste""#))
     }
 
-    func testTrashDeleteAndRestoreUseDetoursTrashContract() async throws {
+    func testTrashDeleteAndRestoreUseDistinctRecoverableAndPermanentContracts() async throws {
         let hostID = UUID()
         let transport = ProviderScriptTransport(responses: [
             "Trash": #"{"OriginalPath":"C:\\Users\\sans\\Old.txt","TrashToken":"restore-token"}"#,
@@ -234,9 +234,10 @@ final class WindowsRemoteProviderTests: XCTestCase {
             ),
         ])
         XCTAssertEqual(restored, [original])
-        XCTAssertEqual(requests.map(\.operation), ["Trash", "Trash", "RestoreFromTrash"])
+        XCTAssertEqual(requests.map(\.operation), ["Trash", "Delete", "RestoreFromTrash"])
         XCTAssertTrue(requests[0].decodedScript.contains(".detours-trash"))
         XCTAssertTrue(requests[0].decodedScript.contains("Move-Item -LiteralPath $item.FullName"))
+        XCTAssertTrue(requests[1].decodedScript.contains("Remove-Item -LiteralPath $path -Recurse -Force"))
         XCTAssertTrue(requests[2].decodedScript.contains("Move-Item -LiteralPath $trashPath -Destination"))
         XCTAssertTrue(requests[2].argumentsJSON.contains(#""trashToken":"restore-token""#))
     }

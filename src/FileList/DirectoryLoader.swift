@@ -3,6 +3,57 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "directoryloader")
 
+private final class DirectoryLoadRace: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<[LoadedFileEntry], any Error>?
+    private var pendingResult: Result<[LoadedFileEntry], any Error>?
+    private var tasks: [Task<Void, Never>] = []
+    private var completed = false
+
+    func install(_ continuation: CheckedContinuation<[LoadedFileEntry], any Error>) {
+        lock.lock()
+        if completed, let result = pendingResult {
+            pendingResult = nil
+            lock.unlock()
+            continuation.resume(with: result)
+        } else {
+            self.continuation = continuation
+            lock.unlock()
+        }
+    }
+
+    func setTasks(_ tasks: [Task<Void, Never>]) {
+        lock.lock()
+        if !completed {
+            self.tasks = tasks
+            lock.unlock()
+        } else {
+            lock.unlock()
+            tasks.forEach { $0.cancel() }
+        }
+    }
+
+    func resolve(_ result: Result<[LoadedFileEntry], any Error>) {
+        lock.lock()
+        guard !completed else {
+            lock.unlock()
+            return
+        }
+        completed = true
+        let continuation = self.continuation
+        self.continuation = nil
+        if continuation == nil {
+            pendingResult = result
+        }
+        let tasks = self.tasks
+        self.tasks.removeAll()
+        lock.unlock()
+
+        tasks.forEach { $0.cancel() }
+        continuation?.resume(with: result)
+    }
+}
+
 // MARK: - DirectoryLoadError
 
 enum DirectoryLoadError: Error, Equatable {
@@ -166,30 +217,31 @@ actor DirectoryLoader {
         showHidden: Bool,
         timeout: Duration = .seconds(15)
     ) async throws -> [LoadedFileEntry] {
-        try await withThrowingTaskGroup(of: [LoadedFileEntry]?.self) { group in
-            group.addTask {
-                try Task.checkCancellation()
-                return try await self.enumerateDirectory(url, showHidden: showHidden)
+        try Task.checkCancellation()
+        let race = DirectoryLoadRace()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                race.install(continuation)
+                let enumerationTask = Task {
+                    do {
+                        let entries = try await self.enumerateDirectory(url, showHidden: showHidden)
+                        race.resolve(.success(entries))
+                    } catch {
+                        race.resolve(.failure(error))
+                    }
+                }
+                let timeoutTask = Task {
+                    do {
+                        try await Task.sleep(for: timeout)
+                        race.resolve(.failure(DirectoryLoadError.timeout))
+                    } catch {
+                        // The other side of the race completed first.
+                    }
+                }
+                race.setTasks([enumerationTask, timeoutTask])
             }
-
-            group.addTask {
-                try await Task.sleep(for: timeout)
-                return nil // sentinel for timeout
-            }
-
-            guard let firstResult = try await group.next() else {
-                throw DirectoryLoadError.timeout
-            }
-
-            if let entries = firstResult {
-                try Task.checkCancellation()
-                group.cancelAll()
-                return entries
-            }
-
-            // Timeout finished first
-            group.cancelAll()
-            throw DirectoryLoadError.timeout
+        } onCancel: {
+            race.resolve(.failure(DirectoryLoadError.cancelled))
         }
     }
 

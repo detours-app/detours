@@ -2,6 +2,19 @@ import XCTest
 @testable import detours_server
 
 final class FileOperationsServerTests: XCTestCase {
+    func testDeletePermanentlyRemovesItemWithoutCreatingTrashMetadata() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "delete-me.txt", content: "body")
+
+        try FileOperations(trashOperations: TrashOperations(homeDirectory: temp)).delete(
+            items: [ServerRemotePath(source.path)]
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent(".local/share/Trash").path))
+    }
+
     func testListReturnsExpectedEntries() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

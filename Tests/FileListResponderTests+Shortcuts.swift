@@ -206,6 +206,30 @@ extension FileListResponderTests {
         XCTAssertEqual(loadSpy.directoryLoadCount, 2, "Creation should produce one explicit refresh")
     }
 
+    func testInvalidNewFolderRenameRemainsCancellableAsNewItem() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        await loadDirectoryAndWaitAsync(temp, in: viewController)
+
+        XCTAssertTrue(viewController.handleKeyDown(
+            makeFunctionKeyEvent(keyCode: 98, functionKey: NSF7FunctionKey)
+        ))
+        let newFolder = temp.appendingPathComponent("Folder")
+        let folderCreated = await waitForFile(at: newFolder, exists: true)
+        XCTAssertTrue(folderCreated)
+        let field = try XCTUnwrap(inlineRenameField(in: viewController.tableView))
+        field.stringValue = "invalid/name"
+
+        viewController.renameController.commitRename()
+        XCTAssertEqual(inlineRenameFieldCount(in: viewController.tableView), 1)
+
+        viewController.renameController.cancelRename()
+        let folderRemoved = await waitForFile(at: newFolder, exists: false)
+        XCTAssertTrue(folderRemoved)
+    }
+
     func testLocalRenameKeepsResultSelectedWithoutWatcherReloads() async throws {
         let temp = try createTempDirectory()
         let source = try createTestFile(in: temp, name: "middle.txt")

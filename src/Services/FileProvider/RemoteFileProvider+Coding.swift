@@ -62,7 +62,7 @@ extension RemoteFileProvider {
 
     static func decodeFileEntries(_ data: Data) throws -> [RemoteFileEntry] {
         var reader = RPCBinaryReader(data: data)
-        let count = Int(try reader.readUInt32())
+        let count = try reader.readBoundedCount(minimumBytesPerElement: 23)
         var entries: [RemoteFileEntry] = []
         entries.reserveCapacity(count)
         for _ in 0..<count {
@@ -104,7 +104,7 @@ extension RemoteFileProvider {
 
     private static func decodePathList(_ data: Data) throws -> RemotePathListResponse {
         var reader = RPCBinaryReader(data: data)
-        let count = Int(try reader.readUInt32())
+        let count = try reader.readBoundedCount(minimumBytesPerElement: 4)
         var paths: [RemotePath] = []
         paths.reserveCapacity(count)
         for _ in 0..<count {
@@ -116,7 +116,7 @@ extension RemoteFileProvider {
 
     static func decodeGitStatuses(_ data: Data, hostID: UUID) throws -> [Location: GitStatus] {
         var reader = RPCBinaryReader(data: data)
-        let count = Int(try reader.readUInt32())
+        let count = try reader.readBoundedCount(minimumBytesPerElement: 8)
         var statuses: [Location: GitStatus] = [:]
         for _ in 0..<count {
             let path = RemotePath(bytes: try reader.readData())

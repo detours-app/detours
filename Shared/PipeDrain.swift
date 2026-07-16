@@ -5,12 +5,12 @@ import Foundation
 /// A child process writing more than the pipe buffer holds blocks on `write()` until someone
 /// reads. Calling `waitUntilExit()` before reading therefore deadlocks: the parent waits for the
 /// child to exit, the child waits for the parent to read. Start the drain before waiting.
-final class PipeDrain: @unchecked Sendable {
+public final class PipeDrain: @unchecked Sendable {
     private let semaphore = DispatchSemaphore(value: 0)
     private let lock = NSLock()
     private var data = Data()
 
-    static func start(reading handle: FileHandle) -> PipeDrain {
+    public static func start(reading handle: FileHandle) -> PipeDrain {
         let drain = PipeDrain()
         let thread = Thread {
             let read = handle.readDataToEndOfFile()
@@ -28,7 +28,7 @@ final class PipeDrain: @unchecked Sendable {
     }
 
     /// Blocks until the pipe reaches EOF, then returns everything it carried.
-    func wait() -> Data {
+    public func wait() -> Data {
         semaphore.wait()
         lock.lock()
         defer { lock.unlock() }

@@ -42,4 +42,11 @@ final class FindRPCCodecTests: XCTestCase {
         XCTAssertEqual(serverEncoded, clientEncoded)
         XCTAssertEqual(try RemoteFindCodec.decode(serverEncoded), clientMatches)
     }
+
+    func testUntrustedCollectionCountsFailBeforeAllocation() throws {
+        let maliciousCount = UInt32.max.bigEndianData
+        XCTAssertThrowsError(try RemoteFindCodec.decode(maliciousCount))
+        XCTAssertThrowsError(try RemoteFileProvider.decodeFileEntries(maliciousCount))
+        XCTAssertThrowsError(try RemoteFileProvider.decodeGitStatuses(maliciousCount, hostID: UUID()))
+    }
 }

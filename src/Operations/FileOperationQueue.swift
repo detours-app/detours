@@ -372,12 +372,24 @@ final class FileOperationQueue {
     }
 
     @discardableResult
-    func extract(archive: URL, password: String? = nil) async throws -> URL {
-        try await extract(archive: .local(archive), password: password).url
+    func extract(
+        archive: URL,
+        password: String? = nil,
+        undoManager: UndoManager? = nil
+    ) async throws -> URL {
+        try await extract(
+            archive: .local(archive),
+            password: password,
+            undoManager: undoManager
+        ).url
     }
 
     @discardableResult
-    func extract(archive: Location, password: String? = nil) async throws -> Location {
+    func extract(
+        archive: Location,
+        password: String? = nil,
+        undoManager: UndoManager? = nil
+    ) async throws -> Location {
         guard case .local(let archiveURL) = archive else {
             let hostIDs = remoteHostIDs(from: [archive])
             return try await enqueue(remoteHosts: hostIDs) {
@@ -385,7 +397,11 @@ final class FileOperationQueue {
             }
         }
         return try await enqueue { () async throws -> Location in
-            let extracted = try await self.performExtract(archive: archiveURL, password: password)
+            let extracted = try await self.performExtract(
+                archive: archiveURL,
+                password: password,
+                undoManager: undoManager
+            )
             return .local(extracted)
         }
     }

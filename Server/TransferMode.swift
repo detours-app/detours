@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 enum TransferModeError: Error, Equatable {
@@ -119,15 +120,19 @@ struct TransferMode {
     }
 
     private func readFrame() throws -> Data {
-        let lengthBytes = input.readData(ofLength: 4)
+        let lengthBytes = ExactFileHandleReader.read(4, from: input)
         guard lengthBytes.count == 4 else {
             throw TransferModeError.invalidHandshake
         }
         let length = Int(lengthBytes.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) })
-        let payload = input.readData(ofLength: length)
+        guard length <= ServerRPCStreamHandler.defaultMaxFrameSize else {
+            throw TransferModeError.invalidHandshake
+        }
+        let payload = ExactFileHandleReader.read(length, from: input)
         guard payload.count == length else {
             throw TransferModeError.invalidHandshake
         }
         return payload
     }
+
 }

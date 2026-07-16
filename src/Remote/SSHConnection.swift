@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 enum SSHConnectionError: Error, Equatable, LocalizedError {
@@ -412,7 +413,7 @@ actor SSHConnection {
     }
 
     private static func readFrame(from output: FileHandle) throws -> Data {
-        let lengthBytes = output.readData(ofLength: 4)
+        let lengthBytes = ExactFileHandleReader.read(4, from: output)
         guard lengthBytes.count == 4 else {
             throw SSHConnectionError.unexpectedEOF
         }
@@ -422,10 +423,11 @@ actor SSHConnection {
         guard length <= RPCStreamHandler.defaultMaxFrameSize else {
             throw RPCProtocolError.frameTooLarge(length)
         }
-        let payload = output.readData(ofLength: length)
+        let payload = ExactFileHandleReader.read(length, from: output)
         guard payload.count == length else {
             throw SSHConnectionError.unexpectedEOF
         }
         return payload
     }
+
 }

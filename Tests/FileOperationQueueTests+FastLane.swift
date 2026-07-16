@@ -20,6 +20,22 @@ extension FileOperationQueueTests {
         return dir
     }
 
+    func testDeleteAncestorOfProtectedPathIsNotFastLaneEligible() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let ancestor = try createTestFolder(in: temp, name: "Ancestor")
+        let protected = try createTestFolder(in: ancestor, name: "Protected")
+        let queue = FileOperationQueue.shared
+        queue.enterProtectedPaths([protected])
+        defer { queue.leaveProtectedPaths([protected]) }
+
+        let eligible = await queue.isFastLaneCandidateForTesting(
+            sources: [.local(ancestor)],
+            destination: nil
+        )
+        XCTAssertFalse(eligible)
+    }
+
     func testFastLaneRenameDuringUnrelatedBulkCopy() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

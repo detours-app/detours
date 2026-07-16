@@ -32,7 +32,7 @@ extension FileOperationQueue {
 
     func performFastCopy(items: [URL], to destination: URL, undoManager: UndoManager?) async throws -> [URL] {
         let fileManager = FileManager.default
-        var successes: [URL] = []
+        var successes: [(destination: URL, displaced: LocalDisplacedItem?)] = []
         var failures: [(URL, Error)] = []
         var conflictChoice: ConflictChoice?
 
@@ -40,6 +40,7 @@ extension FileOperationQueue {
             let initialDestination = destination.appendingPathComponent(source.lastPathComponent)
             var destinationURL = initialDestination
             var skipped = false
+            var displacedItem: LocalDisplacedItem?
 
             do {
                 let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
@@ -57,8 +58,7 @@ extension FileOperationQueue {
                         case .skip:
                             skipped = true
                         case .replace:
-                            // Replacing must not permanently destroy the existing file: move it to the Trash.
-                            try await runUntrackedFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
+                            displacedItem = try await displaceLocalItemUntracked(initialDestination)
                             destinationURL = initialDestination
                         case .keepBoth:
                             destinationURL = uniqueCopyDestination(for: source, in: destination)
@@ -76,37 +76,52 @@ extension FileOperationQueue {
                             try CopyfileHelper.copy(from: source, to: destForTask, progress: nil)
                         }
                         releaseDestination(destinationURL)
-                        successes.append(destinationURL)
+                        successes.append((destination: destinationURL, displaced: displacedItem))
                     } catch {
                         releaseDestination(destinationURL)
                         throw error
                     }
                 }
             } catch {
-                failures.append((source, mapError(error, url: source)))
+                var reportedError = error
+                if let displacedItem {
+                    do {
+                        try await rollbackLocalDisplacementUntracked(displacedItem)
+                    } catch {
+                        reportedError = replacementRollbackError(operationError: reportedError, rollbackError: error)
+                    }
+                }
+                failures.append((source, mapError(reportedError, url: source)))
             }
         }
 
         if failures.isEmpty, !successes.isEmpty, let undoManager {
-            let copiedFiles = successes
+            let copiedFiles = successes.map(\.destination)
+            let displacedItems = successes.compactMap(\.displaced)
             undoManager.registerUndo(withTarget: self) { target in
                 do {
-                    try target.recycleSync(items: copiedFiles)
+                    try target.undoLocalReplacementSync(
+                        createdItems: copiedFiles,
+                        displacedItems: displacedItems
+                    )
                 } catch {
                     target.presentError(error)
                 }
             }
-            let actionName = successes.count == 1 ? "Copy \"\(successes[0].lastPathComponent)\"" : "Copy \(successes.count) Items"
+            let actionName = successes.count == 1
+                ? "Copy \"\(successes[0].destination.lastPathComponent)\""
+                : "Copy \(successes.count) Items"
             undoManager.setActionName(actionName)
         }
 
-        try handleFailures(successes: successes, failures: failures)
-        return successes
+        let copiedItems = successes.map(\.destination)
+        try handleFailures(successes: copiedItems, failures: failures)
+        return copiedItems
     }
 
     func performFastMove(items: [URL], to destination: URL, undoManager: UndoManager?) async throws -> [URL] {
         let fileManager = FileManager.default
-        var successes: [(source: URL, destination: URL)] = []
+        var successes: [(source: URL, destination: URL, displaced: LocalDisplacedItem?)] = []
         var failures: [(URL, Error)] = []
         var conflictChoice: ConflictChoice?
 
@@ -114,6 +129,7 @@ extension FileOperationQueue {
             let initialDestination = destination.appendingPathComponent(source.lastPathComponent)
             var destinationURL = initialDestination
             var skipped = false
+            var displacedItem: LocalDisplacedItem?
 
             do {
                 let destinationExists = fileManager.fileExists(atPath: initialDestination.path)
@@ -133,8 +149,7 @@ extension FileOperationQueue {
                         case .skip:
                             skipped = true
                         case .replace:
-                            // Replacing must not permanently destroy the existing file: move it to the Trash.
-                            try await runUntrackedFileIO { try FileManager.default.trashItem(at: initialDestination, resultingItemURL: nil) }
+                            displacedItem = try await displaceLocalItemUntracked(initialDestination)
                             destinationURL = initialDestination
                         case .keepBoth:
                             destinationURL = uniqueCopyDestination(for: source, in: destination)
@@ -153,23 +168,35 @@ extension FileOperationQueue {
                             try FileManager.default.moveItem(at: sourceForTask, to: destForTask)
                         }
                         releaseDestination(destinationURL)
-                        successes.append((source: source, destination: destinationURL))
+                        successes.append((source: source, destination: destinationURL, displaced: displacedItem))
                     } catch {
                         releaseDestination(destinationURL)
                         throw error
                     }
                 }
             } catch {
-                failures.append((source, mapError(error, url: source)))
+                var reportedError = error
+                if let displacedItem {
+                    do {
+                        try await rollbackLocalDisplacementUntracked(displacedItem)
+                    } catch {
+                        reportedError = replacementRollbackError(operationError: reportedError, rollbackError: error)
+                    }
+                }
+                failures.append((source, mapError(reportedError, url: source)))
             }
         }
 
         if failures.isEmpty, !successes.isEmpty, let undoManager {
             let movedItems = successes
+            let displacedItems = successes.compactMap(\.displaced)
             undoManager.registerUndo(withTarget: self) { target in
                 do {
                     for item in movedItems {
                         try target.moveSync(from: item.destination, to: item.source)
+                    }
+                    for item in displacedItems.reversed() {
+                        try Self.restoreLocalDisplacementSync(item)
                     }
                 } catch {
                     target.presentError(error)

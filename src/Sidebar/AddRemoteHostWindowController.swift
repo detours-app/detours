@@ -59,8 +59,27 @@ final class AddRemoteHostWindowController: NSWindowController {
     /// Reaches the host and retrieves its key instead of blindly reporting success. Throwing here
     /// surfaces an error in the dialog and stops "Add" from proceeding for an unreachable host.
     private func verifyConnection(to target: String) async throws -> AddRemoteHostTestResult {
-        scannedHostKey = try await hostTrust.scanHostKey(for: target)
+        let hostKey = try await hostTrust.scanHostKey(for: target)
+        guard await confirmHostKey(hostKey, target: target) else {
+            throw SSHHostTrustError.hostKeyRejected(target)
+        }
+        scannedHostKey = hostKey
         return .trusted
+    }
+
+    private func confirmHostKey(_ hostKey: SSHScannedHostKey, target: String) async -> Bool {
+        guard let window else { return false }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Verify SSH Host Key"
+        alert.informativeText = "Confirm this fingerprint with the server administrator before trusting \"\(target)\".\n\n\(hostKey.keyType)\n\(hostKey.fingerprint)"
+        alert.addButton(withTitle: "Trust Host Key")
+        alert.addButton(withTitle: "Cancel")
+        return await withCheckedContinuation { continuation in
+            alert.beginSheetModal(for: window) { response in
+                continuation.resume(returning: response == .alertFirstButtonReturn)
+            }
+        }
     }
 
     private func handleAdd(_ host: RemoteHost) {

@@ -248,12 +248,11 @@ struct ArchiveOperations {
         items: [URL],
         destination: URL
     ) -> (executable: String, arguments: [String], currentDirectory: URL?) {
+        let layout = ArchiveSourceLayout(items: items)
         switch format {
         case .zip:
-            var arguments = ["-r", "-q"]
-            arguments.append(destination.path)
-            arguments.append(contentsOf: items.map(\.lastPathComponent))
-            return (tools["zip"]!, arguments, items[0].deletingLastPathComponent())
+            let arguments = ["-r", "-q", "-nw", destination.path, "--"] + layout.relativePaths
+            return (tools["zip"]!, arguments, layout.workingDirectory)
         case .sevenZ:
             var arguments = ["a", "-t7z"]
             arguments.append(destination.path)
@@ -275,12 +274,13 @@ struct ArchiveOperations {
         destination: URL,
         password: String
     ) throws -> PtyProcessInvocation {
+        let layout = ArchiveSourceLayout(items: items)
         switch format {
         case .zip:
             return PtyProcessInvocation(
                 executable: tools["zip"]!,
-                arguments: ["-er", "-q", destination.path] + items.map(\.lastPathComponent),
-                currentDirectory: items[0].deletingLastPathComponent(),
+                arguments: ["-er", "-q", "-nw", destination.path, "--"] + layout.relativePaths,
+                currentDirectory: layout.workingDirectory,
                 password: password,
                 responses: [.password, .password]
             )
@@ -303,9 +303,10 @@ struct ArchiveOperations {
         items: [URL],
         destination: URL
     ) -> (executable: String, arguments: [String], currentDirectory: URL?) {
+        let layout = ArchiveSourceLayout(items: items)
         var arguments = ["-c\(flag)f", destination.path, "--"]
-        arguments.append(contentsOf: items.map(\.lastPathComponent))
-        return (tool, arguments, items[0].deletingLastPathComponent())
+        arguments.append(contentsOf: layout.relativePaths)
+        return (tool, arguments, layout.workingDirectory)
     }
 
     private func extractCommand(

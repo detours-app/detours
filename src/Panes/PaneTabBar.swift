@@ -472,7 +472,12 @@ final class PaneTabBar: NSView {
            let tabIndex = fileDropTargetTabIndex,
            let destination = delegate?.tabBarCurrentDirectory(forTabAt: tabIndex) {
             let isCopy = NSEvent.modifierFlags.contains(.option)
-            delegate?.tabBarDidReceiveFileDrop(urls: urls, to: destination, isCopy: isCopy)
+            delegate?.tabBarDidReceiveFileDrop(
+                urls: urls,
+                to: destination,
+                at: tabIndex,
+                isCopy: isCopy
+            )
             return true
         }
 

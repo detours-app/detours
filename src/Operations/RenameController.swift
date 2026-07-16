@@ -111,11 +111,9 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         let newName = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let invalidChars = CharacterSet(charactersIn: ":/")
 
-        // Capture whether this was a new item before clearing state
+        // Keep new-item state until validation succeeds. Invalid input must
+        // remain an active new-item rename so Escape still removes the item.
         let wasNewItem = isNewItem
-
-        // User is committing, so don't delete new items on cancel
-        isNewItem = false
 
         if newName.isEmpty || newName.rangeOfCharacter(from: invalidChars) != nil {
             NSSound.beep()
@@ -139,6 +137,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
                 }
                 undoManager.setActionName("New Folder")
             }
+            isNewItem = false
             cancelRename()
             return
         }
@@ -159,6 +158,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
             oldURL = nil
         }
         let undoManager = currentUndoManager
+        isNewItem = false
         cancelRename()
 
         Task { @MainActor in

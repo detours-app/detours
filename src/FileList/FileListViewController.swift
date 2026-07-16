@@ -55,6 +55,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var currentRemoteProvider: (any FileProvider)?
     var remoteInfoWindows: [RemoteInfoWindowController] = []
     var directoryWatchTask: Task<Void, Never>?
+    var providerWatchSetupTasks: [Location: Task<Void, Never>] = [:]
+    var providerWatchGeneration: UInt64 = 0
     var directoryChangeDebounce: DispatchWorkItem?
     var localMutationWatcherSuppressionEnd: DispatchWorkItem?
     var localMutationWatcherSuppressionGeneration = 0
@@ -126,7 +128,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         remoteRefreshCoordinator = RemoteRefreshCoordinator(
             debounceInterval: 0.1,
             fetch: { [weak self] request in
-                guard let self, let provider = self.currentRemoteProvider else {
+                guard let self,
+                      self.isCurrentRemoteRefreshDirectory(request.directory),
+                      let provider = self.currentRemoteProvider else {
                     throw RemoteRefreshCoordinatorError.providerUnavailable
                 }
                 return try await provider.list(
@@ -138,7 +142,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
                 self?.applyRemoteRefresh(snapshot)
             },
             handleFailure: { [weak self] request, error in
-                self?.showRemoteRefreshError(request: request, error: error)
+                guard let self,
+                      self.isCurrentRemoteRefreshDirectory(request.directory) else { return }
+                self.showRemoteRefreshError(request: request, error: error)
             }
         )
 
