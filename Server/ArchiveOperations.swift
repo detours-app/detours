@@ -351,7 +351,7 @@ struct ArchiveOperations {
         case .sevenZ:
             return PtyProcessInvocation(
                 executable: tools["7z"]!,
-                arguments: ["x", "-y", "-bsp2", "-p", "-o\(destination.path)", archive.path],
+                arguments: ["x", "-y", "-bsp2", "-o\(destination.path)", archive.path],
                 password: password,
                 responses: [.password],
                 minimumResponses: 1

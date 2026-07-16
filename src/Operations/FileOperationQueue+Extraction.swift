@@ -280,7 +280,7 @@ extension FileOperationQueue {
     private func listEncryptedSevenZip(archive: URL, password: String) async throws -> Set<String> {
         let invocation = PtyProcessInvocation(
             executable: CompressionTool.sevenZip.path,
-            arguments: ["l", "-slt", "-p", archive.path],
+            arguments: ["l", "-slt", archive.path],
             password: password,
             responses: [.password],
             minimumResponses: 1
@@ -299,7 +299,7 @@ extension FileOperationQueue {
     ) async throws {
         let invocation = PtyProcessInvocation(
             executable: CompressionTool.sevenZip.path,
-            arguments: ["x", "-y", "-bsp2", "-p", "-o\(destination.path)", archive.path],
+            arguments: ["x", "-y", "-bsp2", "-o\(destination.path)", archive.path],
             password: password,
             responses: [.password],
             minimumResponses: 1
