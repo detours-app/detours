@@ -43,7 +43,7 @@ final class PtyProcessRunnerTests: XCTestCase {
 
         XCTAssertEqual(try String(contentsOf: received, encoding: .utf8), password)
         XCTAssertFalse(result.outputString.contains(password))
-        XCTAssertFalse(String(decoding: streamed.value, as: UTF8.self).contains(password))
+        XCTAssertFalse((String(data: streamed.value, encoding: .utf8) ?? "").contains(password))
     }
 
     func testFeedsTwoPromptsWithoutEchoingPassword() throws {
