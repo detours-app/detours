@@ -116,7 +116,7 @@ Research and code inspection support the revised approach:
 
 - [x] **C7** Route password-bearing ZIP retries in `src/Operations/FileOperationQueue+Extraction.swift` through `/usr/bin/unzip -o -q` on the PTY, enforce the 80-UTF-8-byte preflight, map exit 82 and password-specific exit-1 diagnostics to `archivePasswordRequired`, keep other failures distinct, and preserve app-created-directory cleanup.
 - [x] **C8** Route password-bearing 7Z listing and extraction through `7z l -slt -p` and `7z x -y -bsp2 -p`, stream extraction progress, materialize results from an app-created temporary directory only after success, and distinguish wrong passwords from corruption.
-- [ ] **C9** Restore the `Location`-based archive password sheet and incorrect-password retry loop in `src/FileList/FileListViewController+FileActions.swift` for local and remote extraction, and keep the sheet open with the exact ZIP byte-limit message when validation fails.
+- [x] **C9** Restore the `Location`-based archive password sheet and incorrect-password retry loop in `src/FileList/FileListViewController+FileActions.swift` for local and remote extraction, and keep the sheet open with the exact ZIP byte-limit message when validation fails.
 
 **Phase 4: Remote helper and cleanup**
 
@@ -172,3 +172,4 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 - **C6** Routed encrypted 7Z creation through prompt-mode `7z` with header encryption, bounded one-or-two prompt handling, streamed percentage parsing, queue cancellation, and partial-file cleanup. Unencrypted 7Z creation still uses its original process path.
 - **C7** Routed password-bearing ZIP extraction through prompt-mode `unzip`, with an empty response to repeated prompts, defense-in-depth byte validation, bounded progress, cancellation, and temporary-directory cleanup. Exit 82 and password-specific exit-1 text retry; generic failures remain archive errors.
 - **C8** Added a dedicated encrypted-7Z flow that performs prompt-mode listing and streamed extraction into an app-created temporary directory, then resolves conflicts and materializes only after success. Explicit encrypted-data password diagnostics retry; other corruption remains an archive failure.
+- **C9** Restored a `Location`-based password sheet for local and remote archives. Incorrect retries are labelled, Cancel is silent, empty input stays in the sheet, and overlong ZIP input shows the exact byte-limit message without launching extraction.
