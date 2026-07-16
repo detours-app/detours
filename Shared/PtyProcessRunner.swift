@@ -261,11 +261,7 @@ public struct PtyProcessRunner: Sendable {
 
         if let currentDirectory = invocation.currentDirectory {
             result = currentDirectory.path.withCString {
-                #if canImport(Darwin)
-                posix_spawn_file_actions_addchdir(&actions, $0)
-                #else
                 posix_spawn_file_actions_addchdir_np(&actions, $0)
-                #endif
             }
             guard result == 0 else { throw systemError("posix_spawn_file_actions_addchdir", code: result) }
         }
