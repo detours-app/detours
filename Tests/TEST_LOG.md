@@ -1794,3 +1794,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Darwin x86_64 smoke checks requiring Rosetta on arm64 Foundry, and one
   macOS-host 7z availability check covered by the helper build's container
   suite. Includes 32 passing real Unix and Intel-macOS remote integration tests.
+
+- 2026-07-16 16:34 CEST: Foundry `resources/scripts/build.sh --no-install`
+  FAIL: compilation, 14 shared helper tests, and 13 server archive tests passed,
+  but the generated Linux helper package emitted an unhandled-files warning for
+  `Tests/DetoursProcessTests` while compiling the sibling server test target.
+  The generated manifest needs an explicit target exclusion before this build
+  counts as clean verification.

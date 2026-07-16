@@ -67,6 +67,7 @@ let package = Package(
             name: "ServerArchiveOperationsTests",
             dependencies: ["detours-server", "DetoursProcess"],
             path: "Tests",
+            exclude: ["DetoursProcessTests"],
             sources: ["ServerArchiveOperationsTests.swift"]
         ),
     ]
