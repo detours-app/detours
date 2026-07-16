@@ -252,7 +252,7 @@ extension PaneViewControllerTests {
         XCTAssertEqual(pane.tabSelections, [[selectedFile]])
     }
 
-    func testRemoteRefreshReloadsListingAndPreservesSelectedItem() async throws {
+    func testRemoteRefreshReloadsListingAndPreservesSelectedItem() throws {
         let host = RemoteHost(displayName: "Wraith", sshTarget: "wraith")
         let remoteDirectory = "/home/marco/projects/api"
         let selectedFile = URL(fileURLWithPath: "\(remoteDirectory)/database.py")
@@ -273,7 +273,7 @@ extension PaneViewControllerTests {
         XCTAssertGreaterThanOrEqual(selectedRow, 0)
         fileList.tableView.selectRowIndexes(IndexSet(integer: selectedRow), byExtendingSelection: false)
 
-        await provider.setListing(
+        provider.setListing(
             [
                 .remoteFile(hostID: host.id, path: "\(remoteDirectory)/app.py", name: "app.py"),
                 .remoteFile(hostID: host.id, path: selectedFile.path, name: "database.py"),
@@ -301,7 +301,7 @@ extension PaneViewControllerTests {
                 fileList.tableView.selectedRow >= 0 &&
                 (fileList.tableView.item(atRow: fileList.tableView.selectedRow) as? FileItem)?.location.path == selectedFile.path
         )
-        let listCallCount = await provider.listCallCount(for: remoteDirectory)
+        let listCallCount = provider.listCallCount(for: remoteDirectory)
         XCTAssertEqual(listCallCount, 2)
         XCTAssertNotNil(fileList.dataSource.items.first { $0.name == "routes.py" })
         let refreshedSelection = try XCTUnwrap(fileList.tableView.item(atRow: fileList.tableView.selectedRow) as? FileItem)
@@ -331,7 +331,8 @@ extension PaneViewControllerTests {
     }
 }
 
-private actor PaneRemoteProvider: FileProvider {
+private final class PaneRemoteProvider: FileProvider, @unchecked Sendable {
+    private let lock = NSLock()
     private var listings: [String: [LoadedFileEntry]]
     private var listCallCounts: [String: Int] = [:]
 
@@ -340,15 +341,21 @@ private actor PaneRemoteProvider: FileProvider {
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
+        lock.lock()
+        defer { lock.unlock() }
         listCallCounts[location.path, default: 0] += 1
         return listings[location.path] ?? []
     }
 
     func setListing(_ entries: [LoadedFileEntry], for path: String) {
+        lock.lock()
+        defer { lock.unlock() }
         listings[path] = entries
     }
 
     func listCallCount(for path: String) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
         listCallCounts[path, default: 0]
     }
 

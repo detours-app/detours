@@ -323,8 +323,18 @@ final class RemoteFileOperationsUITests: BaseUITest {
         XCTAssertTrue(FileManager.default.fileExists(atPath: uiTestRootURL.appendingPathComponent("file1.txt").path))
 
         // Command forces a cross-boundary move, including for folders.
+        // The completed copy deliberately expands FolderC to reveal its result.
+        // Collapse it again so the next drag source is visible in the outline.
+        let copiedFile = rightRow("file1.txt")
+        if copiedFile.exists {
+            rightRow("FolderC").disclosureTriangle.click()
+            XCTAssertTrue(waitForCondition { !copiedFile.exists })
+        }
+        let folderD = rightRow("FolderD")
+        XCTAssertTrue(folderD.waitForExistence(timeout: 3))
+        XCTAssertTrue(folderD.isHittable)
         XCUIElement.perform(withKeyModifiers: .command) {
-            self.rightRow("FolderD").press(forDuration: 0.5, thenDragTo: self.leftRow("FolderB"))
+            folderD.press(forDuration: 0.5, thenDragTo: self.leftRow("FolderB"))
         }
         XCTAssertTrue(waitForCondition(timeout: 5) {
             FileManager.default.fileExists(atPath: self.uiTestRootURL.appendingPathComponent("FolderB/FolderD").path)
