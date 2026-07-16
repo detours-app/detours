@@ -26,6 +26,7 @@ final class ServerArchiveOperationsTests: XCTestCase {
     }
 
     func testEncryptedSevenZRoundTripsThroughPtyRunner() throws {
+        guard executableOnPath("7z") != nil else { throw XCTSkip("7z is unavailable") }
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
         let source = try createTestFile(in: temp, name: "secret.txt", content: "helper seven secret")
@@ -299,6 +300,20 @@ final class ServerArchiveOperationsTests: XCTestCase {
         XCTAssertEqual(capturedArguments.value.dropFirst(2).first, "--")
         XCTAssertEqual(capturedArguments.value.last, "-leading-dash.txt")
     }
+}
+
+private func executableOnPath(_ name: String) -> String? {
+    let process = Process()
+    let pipe = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["which", name]
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    try? process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else { return nil }
+    return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 private final class LockedBox<Value>: @unchecked Sendable {

@@ -448,30 +448,9 @@ struct ArchiveOperations {
     }
 
     private static func resolveToolOnPath(_ tool: String) -> String? {
-        if tool == "7z" {
-            let installedCandidates = [
-                "/opt/homebrew/bin/7z",
-                "/opt/homebrew/bin/7zz",
-                "/usr/local/bin/7z",
-                "/usr/local/bin/7zz",
-            ]
-            if let installed = installedCandidates.first(where: FileManager.default.fileExists(atPath:)) {
-                return installed
-            }
-        }
-        let candidates = tool == "7z" ? ["7z", "7zz"] : [tool]
-        for candidate in candidates {
-            if let path = resolveExecutableOnPath(candidate) {
-                return path
-            }
-        }
-        return nil
-    }
-
-    private static func resolveExecutableOnPath(_ executable: String) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["which", executable]
+        process.arguments = ["which", tool]
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
         process.standardError = FileHandle.nullDevice
