@@ -1898,3 +1898,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Covers real PowerShell/SSH file operations, Replace rollback and undo, host
   probing, transfer integrity, Quick Look/find, trash/restore, drive reload,
   concurrent watches, idle unwatch, and post-heartbeat change delivery.
+
+- 2026-07-16 17:09 CEST: Foundry full `swift test`
+  PASS: 800 XCTest cases (17 expected skips) and 45 Swift Testing cases, 0
+  failures. The skips were 14 Windows live cases verified separately above,
+  two Intel Darwin-helper cases unavailable without Rosetta on Foundry, and one
+  machine-specific default-application case; all configured Unix and Intel macOS SSH/RPC
+  integration tests executed successfully.
