@@ -1922,3 +1922,8 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 2 tests, 0 failures. The Quick Open helper now targets the SwiftUI
   field's exported `TextField` accessibility type; Cmd-Enter selection and
   Enter-versus-Cmd-Enter behavior both passed.
+
+- 2026-07-16 17:44 CEST: Foundry
+  `resources/scripts/uitest.sh RemoteQuickOpenUITests/testLocalTabScopeHeader`
+  PASS: 1 test, 0 failures. Local Quick Open scope and search-field readiness
+  passed with the corrected accessibility lookup.
