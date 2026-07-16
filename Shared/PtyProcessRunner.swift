@@ -101,7 +101,7 @@ public struct PtyProcessRunner: Sendable {
         }
 
         var passwordBytes = Array((invocation.password ?? "").utf8)
-        defer { passwordBytes.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) } }
+        defer { _ = passwordBytes.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) } }
 
         var masterDescriptor: Int32 = -1
         var replicaDescriptor: Int32 = -1
@@ -194,14 +194,14 @@ public struct PtyProcessRunner: Sendable {
                 }
                 responseBytes.append(0x0A)
                 try writeAll(responseBytes, to: masterDescriptor)
-                responseBytes.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) }
+                _ = responseBytes.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) }
                 responseIndex += 1
                 promptBytes.removeAll(keepingCapacity: true)
                 if !invocation.responses.dropFirst(responseIndex).contains(where: { response in
                     if case .password = response { return true }
                     return false
                 }) {
-                    passwordBytes.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) }
+                    _ = passwordBytes.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) }
                 }
             }
 
@@ -233,8 +233,13 @@ public struct PtyProcessRunner: Sendable {
         masterDescriptor: Int32,
         replicaPath: String
     ) throws -> pid_t {
+        #if canImport(Darwin)
         var actions: posix_spawn_file_actions_t? = nil
         var attributes: posix_spawnattr_t? = nil
+        #else
+        var actions = posix_spawn_file_actions_t()
+        var attributes = posix_spawnattr_t()
+        #endif
         var result = posix_spawn_file_actions_init(&actions)
         guard result == 0 else { throw systemError("posix_spawn_file_actions_init", code: result) }
         defer { posix_spawn_file_actions_destroy(&actions) }
@@ -265,7 +270,12 @@ public struct PtyProcessRunner: Sendable {
             guard result == 0 else { throw systemError("posix_spawn_file_actions_addchdir", code: result) }
         }
 
-        result = posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID))
+        #if canImport(Darwin)
+        let spawnSessionFlag = Int16(POSIX_SPAWN_SETSID)
+        #else
+        let spawnSessionFlag: Int16 = 0x80
+        #endif
+        result = posix_spawnattr_setflags(&attributes, spawnSessionFlag)
         guard result == 0 else { throw systemError("posix_spawnattr_setflags", code: result) }
 
         var environment = ProcessInfo.processInfo.environment
@@ -327,8 +337,8 @@ public struct PtyProcessRunner: Sendable {
 
     private func containsPasswordPrompt(_ bytes: [UInt8]) -> Bool {
         guard let text = String(bytes: bytes, encoding: .utf8) else { return false }
-        let line = text.split(whereSeparator: { $0 == "\n" || $0 == "\r" }, omittingEmptySubsequences: false).last ?? ""
-        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        let line = text.split(omittingEmptySubsequences: false, whereSeparator: { $0 == "\n" || $0 == "\r" }).last ?? ""
+        let trimmed = String(line).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
         return trimmed.lowercased().contains("password") && trimmed.hasSuffix(":")
     }
 
