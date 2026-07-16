@@ -12,16 +12,16 @@ final class ArchivePasswordUITests: BaseUITest {
         XCTAssertTrue(formatPicker.waitForExistence(timeout: 2))
         XCTAssertTrue(passwordToggle.waitForExistence(timeout: 2))
 
-        chooseArchiveFormat("zip", in: formatPicker)
+        chooseArchiveFormat("zip")
         XCTAssertTrue(passwordToggle.isEnabled)
-        chooseArchiveFormat("sevenZ", in: formatPicker)
+        chooseArchiveFormat("sevenZ")
         XCTAssertTrue(passwordToggle.isEnabled)
         for (identifier, displayName) in [("tarGz", "TAR.GZ"), ("tarBz2", "TAR.BZ2"), ("tarXz", "TAR.XZ")] {
-            chooseArchiveFormat(identifier, in: formatPicker)
+            chooseArchiveFormat(identifier)
             XCTAssertFalse(passwordToggle.isEnabled, "\(displayName) should disable password encryption")
         }
 
-        chooseArchiveFormat("zip", in: formatPicker)
+        chooseArchiveFormat("zip")
         passwordToggle.click()
         let passwordField = sheet.secureTextFields["archivePasswordField"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 2))
@@ -72,7 +72,8 @@ final class ArchivePasswordUITests: BaseUITest {
         XCTAssertFalse(hasTemporaryExtractionDirectory())
     }
 
-    private func chooseArchiveFormat(_ identifier: String, in picker: XCUIElement) {
+    private func chooseArchiveFormat(_ identifier: String) {
+        let picker = app.sheets.firstMatch.popUpButtons.firstMatch
         picker.click()
         let item = app.descendants(matching: .any)["archiveFormat-\(identifier)"]
         XCTAssertTrue(item.waitForExistence(timeout: 2), "\(identifier) archive format should exist")
