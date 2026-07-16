@@ -1841,3 +1841,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   APIs also emitted two warnings. The real helper now returned an error frame,
   exposing that zip extraction reports generic `processFailed("zip failed")`
   instead of the required `wrongPassword` contract.
+
+- 2026-07-16 16:48 CEST: Foundry
+  `swift test --filter RemoteIntegrationTests/testArchiveWrongPasswordMapsRealHelperErrorToRetry`
+  PASS: 1 test, 0 failures. The deployed helper created the encrypted ZIP and a
+  wrong-password extraction crossed the real SSH/RPC boundary into the
+  provider's password-retry error contract.
