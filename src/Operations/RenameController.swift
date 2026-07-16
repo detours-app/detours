@@ -15,33 +15,13 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     var onSwitchPane: (() -> Void)?
 
     private var textField: NSTextField?
-    private var editedFieldState: EditedFieldState?
-    private var editedFieldWidthConstraint: NSLayoutConstraint?
+    private weak var obscuredCellTextField: NSTextField?
     private weak var tableView: NSTableView?
     private var currentItem: FileItem?
     private var currentRow: Int?
     private var isNewItem: Bool = false
 
     private var currentUndoManager: UndoManager?
-
-    private struct EditedFieldState {
-        weak var field: NSTextField?
-        let isEditable: Bool
-        let isSelectable: Bool
-        let isBordered: Bool
-        let isBezeled: Bool
-        let drawsBackground: Bool
-        let backgroundColor: NSColor?
-        let textColor: NSColor?
-        let refusesFirstResponder: Bool
-        let delegate: NSTextFieldDelegate?
-        let accessibilityIdentifier: String?
-        let focusRingType: NSFocusRingType
-        let lineBreakMode: NSLineBreakMode
-        let usesSingleLineMode: Bool
-        let wraps: Bool
-        let stringValue: String
-    }
 
     func beginRename(for item: FileItem, in tableView: NSTableView, at row: Int, isNewItem: Bool = false, undoManager: UndoManager? = nil) {
         logger.info("Begin rename item=\(item.name, privacy: .public) new=\(isNewItem)")
@@ -55,12 +35,6 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         tableView.scrollRowToVisible(row)
         tableView.layoutSubtreeIfNeeded()
-
-        if let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView,
-           let cellTextField = cell.textField {
-            beginEditingExistingField(cellTextField, item: item, tableView: tableView)
-            return
-        }
 
         let rowRect = tableView.rect(ofRow: row)
         let cellFrame = tableView.frameOfCell(atColumn: 0, row: row)
@@ -76,53 +50,32 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         }
         let nameOffset = iconLeading + density.primaryIconSize + density.nameIconGap
         let fallbackFieldHeight = min(density.renameFieldHeight, max(12, rowRect.height - 2))
-        let targetRect = NSRect(
-            x: cellFrame.origin.x + nameOffset,
-            y: rowRect.minY + max(1, (rowRect.height - fallbackFieldHeight) / 2),
-            width: cellFrame.width - nameOffset - density.renameHorizontalInset,
-            height: fallbackFieldHeight
-        )
+        let targetRect: NSRect
+        if let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView,
+           let cellTextField = cell.textField {
+            // Editing the cell's own text field lets any asynchronous row
+            // refresh end the field-editor session. Keep editing in an overlay
+            // that is independent of the reusable cell lifecycle instead.
+            targetRect = cellTextField.convert(cellTextField.bounds, to: tableView)
+            cellTextField.isHidden = true
+            obscuredCellTextField = cellTextField
+        } else {
+            targetRect = NSRect(
+                x: cellFrame.origin.x + nameOffset,
+                y: rowRect.minY + max(1, (rowRect.height - fallbackFieldHeight) / 2),
+                width: cellFrame.width - nameOffset - density.renameHorizontalInset,
+                height: fallbackFieldHeight
+            )
+        }
 
         let field = NSTextField(frame: targetRect)
         configureRenameField(field, item: item)
         field.wantsLayer = true
         field.layer?.zPosition = 1000
+        textField = field
         tableView.addSubview(field)
         tableView.window?.makeFirstResponder(field)
         selectFilenameStem(in: field, for: item)
-
-        textField = field
-    }
-
-    private func beginEditingExistingField(_ field: NSTextField, item: FileItem, tableView: NSTableView) {
-        editedFieldState = EditedFieldState(
-            field: field,
-            isEditable: field.isEditable,
-            isSelectable: field.isSelectable,
-            isBordered: field.isBordered,
-            isBezeled: field.isBezeled,
-            drawsBackground: field.drawsBackground,
-            backgroundColor: field.backgroundColor,
-            textColor: field.textColor,
-            refusesFirstResponder: field.refusesFirstResponder,
-            delegate: field.delegate,
-            accessibilityIdentifier: field.accessibilityIdentifier(),
-            focusRingType: field.focusRingType,
-            lineBreakMode: field.lineBreakMode,
-            usesSingleLineMode: field.cell?.usesSingleLineMode ?? false,
-            wraps: field.cell?.wraps ?? false,
-            stringValue: field.stringValue
-        )
-
-        configureRenameField(field, item: item)
-        editedFieldWidthConstraint = widthConstraint(for: field, item: item)
-        editedFieldWidthConstraint?.isActive = true
-        field.layoutSubtreeIfNeeded()
-        field.needsDisplay = true
-        tableView.window?.makeFirstResponder(field)
-        logger.info("Existing rename field responder=\(String(describing: tableView.window?.firstResponder), privacy: .public)")
-        selectFilenameStem(in: field, for: item)
-        textField = field
     }
 
     private func configureRenameField(_ field: NSTextField, item: FileItem) {
@@ -145,15 +98,6 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         field.setAccessibilityIdentifier("inlineRenameField")
     }
 
-    private func widthConstraint(for field: NSTextField, item: FileItem) -> NSLayoutConstraint {
-        let font = field.font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize)
-        let measuredWidth = ceil((item.name as NSString).size(withAttributes: [.font: font]).width)
-        let width = max(measuredWidth + 6, 32)
-        let constraint = field.widthAnchor.constraint(equalToConstant: width)
-        constraint.priority = .required
-        return constraint
-    }
-
     private func selectFilenameStem(in field: NSTextField, for item: FileItem) {
         guard let editor = field.currentEditor() else { return }
 
@@ -164,27 +108,6 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         } else {
             editor.selectAll(nil)
         }
-    }
-
-    private func restoreEditedField(from state: EditedFieldState) {
-        guard let field = state.field else { return }
-
-        field.isEditable = state.isEditable
-        field.isSelectable = state.isSelectable
-        field.isBordered = state.isBordered
-        field.isBezeled = state.isBezeled
-        field.drawsBackground = state.drawsBackground
-        field.backgroundColor = state.backgroundColor
-        field.textColor = state.textColor
-        field.refusesFirstResponder = state.refusesFirstResponder
-        field.delegate = state.delegate
-        field.setAccessibilityIdentifier(state.accessibilityIdentifier)
-        field.focusRingType = state.focusRingType
-        field.lineBreakMode = state.lineBreakMode
-        field.cell?.usesSingleLineMode = state.usesSingleLineMode
-        field.cell?.wraps = state.wraps
-        field.stringValue = state.stringValue
-        field.needsDisplay = true
     }
 
     func commitRename() {
@@ -299,16 +222,14 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         let item = currentItem
         let wasNewItem = isNewItem
         let field = textField
-        let fieldState = editedFieldState
-        let widthConstraint = editedFieldWidthConstraint
+        let obscuredCellTextField = obscuredCellTextField
         if item != nil {
             logger.info("Cancel rename item=\(item?.name ?? "nil", privacy: .public) new=\(wasNewItem)")
         }
 
         // Clear state BEFORE removing field to prevent re-entrant calls
         textField = nil
-        editedFieldState = nil
-        editedFieldWidthConstraint = nil
+        self.obscuredCellTextField = nil
         tableView = nil
         currentItem = nil
         currentRow = nil
@@ -322,12 +243,8 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         // Restore focus to tableView so selection shows blue, then remove the editor.
         tv?.window?.makeFirstResponder(tv)
-        if let fieldState {
-            widthConstraint?.isActive = false
-            restoreEditedField(from: fieldState)
-        } else {
-            field?.removeFromSuperview()
-        }
+        field?.removeFromSuperview()
+        obscuredCellTextField?.isHidden = false
 
         // Delete newly created item if user cancelled before committing
         if wasNewItem, let item = item {
