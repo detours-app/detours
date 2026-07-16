@@ -12,7 +12,7 @@ final class PtyProcessRunnerTests: XCTestCase {
 
     func testChildHasControllingTerminal() throws {
         let result = try PtyProcessRunner().run(shell(
-            "test -t 0 && exec 3<>/dev/tty && printf tty-ok >&3 && printf child-ok"
+            "test -t 0 && test -t 1 && test -t 2 && exec 3<>/dev/tty && printf tty-ok >&3 && printf child-ok"
         ))
 
         XCTAssertEqual(result.status, 0, result.outputString)
