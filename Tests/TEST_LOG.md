@@ -2000,3 +2000,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   FAIL: 1 test, 1 failure. AppKit kept the hidden filename label in the
   accessibility tree while the overlay editor was active, so waiting for that
   label to disappear was not a valid observable for entering rename mode.
+
+- 2026-07-16 18:57 CEST: Foundry
+  `resources/scripts/uitest.sh RenameVisualUITests/testCaptureInlineRenameEditor`
+  PASS: 1 test, 0 failures. Display-level capture produced a non-empty inline
+  rename screenshot, and typing immediately afterward renamed `file1.txt` to
+  `renameproof.txt`, proving the editor remained active and focused.
