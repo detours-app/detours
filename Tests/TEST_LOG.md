@@ -1933,3 +1933,14 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 1 test, 0 failures. Cmd-R refreshed a real SSH-backed remote pane and
   revealed the externally created file. The earlier full-run failure occurred
   while XCUITest was establishing app accessibility, before the test workflow.
+
+- 2026-07-16 18:11 CEST: Foundry full
+  `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 resources/scripts/uitest.sh`
+  FAIL: screenshot capture passed; the main run executed 85 tests with 1
+  expected Windows-live skip and 23 failures. The corrected Quick Nav tests,
+  real remote Cmd-R test, and all local operation/selection regressions passed.
+  The following delayed real-connection test then blocked app accessibility for
+  60 seconds; that failed launch left subsequent test launches without an app
+  window, accounting for the remaining cascading failures. The first failing
+  surface is
+  `RealRemoteFileOperationsUITests/testDelayedRealConnectionLoadsPaneCapturedBeforeFocusSwitch`.
