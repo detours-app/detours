@@ -5,7 +5,7 @@ import Foundation
 extension FileOperationQueue {
     func performExtract(archive: URL, password: String?) async throws -> URL {
         guard let format = ArchiveFormat.detect(from: archive) else {
-            throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.pathExtension)")
+            throw FileOperationError.archiveExtractionFailed("Unsupported archive format: \(archive.pathExtension)")
         }
         if let password, !password.isEmpty {
             guard format.supportsPassword else {
@@ -38,7 +38,12 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
-        // ditto is always available on macOS — no tool check needed
+        let metadata = try? await runFileIO {
+            try ZipArchiveMetadata.read(from: archive)
+        }
+        if metadata?.isEncrypted == true, password?.isEmpty != false {
+            throw FileOperationError.archivePasswordRequired
+        }
 
         let parentDir = archive.deletingLastPathComponent()
         let fileManager = FileManager.default
@@ -56,7 +61,13 @@ extension FileOperationQueue {
 
         try checkCancelled()
 
-        if let password, !password.isEmpty {
+        if metadata?.requiresSevenZip == true {
+            try await extractZipWithSevenZip(
+                archive: archive,
+                destination: tempDir,
+                password: password
+            )
+        } else if let password, !password.isEmpty {
             try await extractZipWithPassword(archive: archive, destination: tempDir, password: password)
         } else {
             try await extractZipWithDitto(archive: archive, destination: tempDir)
@@ -67,7 +78,7 @@ extension FileOperationQueue {
             .filter { !$0.hasPrefix(".") }
 
         guard !extractedItems.isEmpty else {
-            throw FileOperationError.archiveProcessFailed("Archive appears to be empty")
+            throw FileOperationError.archiveExtractionFailed("Archive appears to be empty")
         }
 
         let resultURL: URL
@@ -201,11 +212,50 @@ extension FileOperationQueue {
                     throw FileOperationError.archivePasswordRequired
                 }
                 let message = diagnostic.isEmpty ? "Process exited with code \(result.status)" : diagnostic
-                throw FileOperationError.archiveProcessFailed(message)
+                throw FileOperationError.archiveExtractionFailed(message)
             }
         } catch is CancellationError {
             throw FileOperationError.cancelled
         }
+    }
+
+    private func extractZipWithSevenZip(
+        archive: URL,
+        destination: URL,
+        password: String?
+    ) async throws {
+        guard CompressionTools.isAvailable(.sevenZip) else {
+            throw FileOperationError.archiveToolNotFound(CompressionTool.sevenZip.displayName)
+        }
+        if let password, !password.isEmpty {
+            let invocation = PtyProcessInvocation(
+                executable: CompressionTool.sevenZip.path,
+                arguments: ["x", "-y", "-bsp2", "-o\(destination.path)", archive.path],
+                password: password,
+                responses: [.password],
+                minimumResponses: 1,
+                passwordEchoPolicy: sevenZipPasswordEchoPolicy
+            )
+            let result = try await runArchivePty(invocation)
+            guard result.status == 0 else {
+                throw Self.sevenZipFailure(result)
+            }
+            return
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
+        process.arguments = ["x", "-y", "-bsp2", "-o\(destination.path)", archive.path]
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+        let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
+        try await runExtractProcess(
+            process,
+            errorPipe: errorPipe,
+            destination: destination,
+            passwordProtected: false,
+            progressMode: .parseStderr(referenceSize: archiveSize)
+        )
     }
 
     private func startEncryptedExtractionSizePolling(
@@ -283,7 +333,8 @@ extension FileOperationQueue {
             arguments: ["l", "-slt", archive.path],
             password: password,
             responses: [.password],
-            minimumResponses: 1
+            minimumResponses: 1,
+            passwordEchoPolicy: sevenZipPasswordEchoPolicy
         )
         let result = try await runArchivePty(invocation)
         guard result.status == 0 else {
@@ -302,7 +353,8 @@ extension FileOperationQueue {
             arguments: ["x", "-y", "-bsp2", "-o\(destination.path)", archive.path],
             password: password,
             responses: [.password],
-            minimumResponses: 1
+            minimumResponses: 1,
+            passwordEchoPolicy: sevenZipPasswordEchoPolicy
         )
         let archiveSize = (try? archive.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
         let parser = ArchivePercentageParser()
@@ -354,7 +406,7 @@ extension FileOperationQueue {
             includingPropertiesForKeys: nil
         ).filter { !$0.lastPathComponent.hasPrefix(".") }
         guard !items.isEmpty else {
-            throw FileOperationError.archiveProcessFailed("Archive appears to be empty")
+            throw FileOperationError.archiveExtractionFailed("Archive appears to be empty")
         }
 
         let parentDirectory = archive.deletingLastPathComponent()
@@ -411,7 +463,13 @@ extension FileOperationQueue {
             return .archivePasswordRequired
         }
         let message = diagnostic.isEmpty ? "Process exited with code \(result.status)" : diagnostic
-        return .archiveProcessFailed(message)
+        return .archiveExtractionFailed(message)
+    }
+
+    private var sevenZipPasswordEchoPolicy: PtyPasswordEchoPolicy {
+        URL(fileURLWithPath: CompressionTool.sevenZip.path).lastPathComponent == "7zz"
+            ? .disableBeforeResponse
+            : .requireToolDisabled
     }
 
     nonisolated private static func parseSevenZipTopLevelEntries(_ output: String) -> Set<String> {
@@ -766,18 +824,18 @@ extension FileOperationQueue {
 
         guard process.terminationStatus == 0 else {
             let message = String(data: error, encoding: .utf8) ?? "Could not inspect archive contents"
-            throw FileOperationError.archiveProcessFailed(message)
+            throw FileOperationError.archiveExtractionFailed(message)
         }
         guard let listing = String(data: output, encoding: .utf8)
                 ?? String(data: output, encoding: .isoLatin1) else {
-            throw FileOperationError.archiveProcessFailed("Could not decode archive member paths")
+            throw FileOperationError.archiveExtractionFailed("Could not decode archive member paths")
         }
 
         for member in listing.components(separatedBy: .newlines) where !member.isEmpty {
             let normalized = member.replacingOccurrences(of: "\\", with: "/")
             let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
             if normalized.hasPrefix("/") || components.contains("..") {
-                throw FileOperationError.archiveProcessFailed("Archive contains an unsafe path: \(member)")
+                throw FileOperationError.archiveExtractionFailed("Archive contains an unsafe path: \(member)")
             }
         }
     }
@@ -898,7 +956,7 @@ extension FileOperationQueue {
                 throw FileOperationError.archivePasswordRequired
             }
 
-            throw FileOperationError.archiveProcessFailed(errorMessage)
+            throw FileOperationError.archiveExtractionFailed(errorMessage)
         }
     }
 

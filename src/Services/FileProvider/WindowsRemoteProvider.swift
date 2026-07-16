@@ -180,7 +180,7 @@ actor WindowsRemoteProvider: FileProvider {
 
     func archiveExtract(_ archive: Location, password: String?) async throws -> Location {
         guard let format = ArchiveFormat.detect(from: URL(fileURLWithPath: archive.path)) else {
-            throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.lastPathComponent)")
+            throw FileOperationError.archiveExtractionFailed("Unsupported archive format: \(archive.lastPathComponent)")
         }
         guard password?.isEmpty ?? true else {
             throw FileProviderError.unsupportedOperation("Password-protected archives are not supported on Windows remote machines.")

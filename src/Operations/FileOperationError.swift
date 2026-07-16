@@ -10,6 +10,7 @@ enum FileOperationError: Error {
     case unknown(Error)
     case archiveToolNotFound(String)
     case archiveProcessFailed(String)
+    case archiveExtractionFailed(String)
     case insufficientDiskSpace
     case archivePasswordRequired
     case archivePasswordInvalid(String)
@@ -36,6 +37,8 @@ extension FileOperationError: LocalizedError {
             return "\(tool) is not installed. Install it via Homebrew: brew install \(tool)"
         case let .archiveProcessFailed(message):
             return "Archive creation failed: \(message)"
+        case let .archiveExtractionFailed(message):
+            return "Archive extraction failed: \(message)"
         case .insufficientDiskSpace:
             return "Not enough disk space to create the archive."
         case .archivePasswordRequired:

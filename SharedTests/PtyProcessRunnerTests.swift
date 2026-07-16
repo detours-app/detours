@@ -46,6 +46,30 @@ final class PtyProcessRunnerTests: XCTestCase {
         XCTAssertFalse((String(data: streamed.value, encoding: .utf8) ?? "").contains(password))
     }
 
+    func testCanDisableEchoForToolThatLeavesItEnabled() throws {
+        let received = temporaryFile()
+        defer { try? FileManager.default.removeItem(at: received.deletingLastPathComponent()) }
+        let password = "runner-disabled-echo"
+        let invocation = PtyProcessInvocation(
+            executable: "/bin/sh",
+            arguments: [
+                "-c",
+                "printf 'Enter password:'; IFS= read -r value; printf '%s' \"$value\" > \"$1\"",
+                "detours-pty-test",
+                received.path,
+            ],
+            password: password,
+            responses: [.password],
+            passwordEchoPolicy: .disableBeforeResponse
+        )
+
+        let result = try PtyProcessRunner().run(invocation)
+
+        XCTAssertEqual(result.status, 0, result.outputString)
+        XCTAssertEqual(try String(contentsOf: received, encoding: .utf8), password)
+        XCTAssertFalse(result.outputString.contains(password))
+    }
+
     func testFeedsTwoPromptsWithoutEchoingPassword() throws {
         let received = temporaryFile()
         defer { try? FileManager.default.removeItem(at: received.deletingLastPathComponent()) }

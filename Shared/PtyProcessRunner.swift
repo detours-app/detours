@@ -11,6 +11,11 @@ public enum PtyPromptResponse: Sendable {
     case empty
 }
 
+public enum PtyPasswordEchoPolicy: Sendable {
+    case requireToolDisabled
+    case disableBeforeResponse
+}
+
 public struct PtyProcessInvocation: Sendable {
     public let executable: String
     public let arguments: [String]
@@ -18,6 +23,7 @@ public struct PtyProcessInvocation: Sendable {
     public let password: String?
     public let responses: [PtyPromptResponse]
     public let minimumResponses: Int
+    public let passwordEchoPolicy: PtyPasswordEchoPolicy
 
     public init(
         executable: String,
@@ -25,7 +31,8 @@ public struct PtyProcessInvocation: Sendable {
         currentDirectory: URL? = nil,
         password: String? = nil,
         responses: [PtyPromptResponse] = [],
-        minimumResponses: Int? = nil
+        minimumResponses: Int? = nil,
+        passwordEchoPolicy: PtyPasswordEchoPolicy = .requireToolDisabled
     ) {
         self.executable = executable
         self.arguments = arguments
@@ -33,6 +40,7 @@ public struct PtyProcessInvocation: Sendable {
         self.password = password
         self.responses = responses
         self.minimumResponses = minimumResponses ?? responses.count
+        self.passwordEchoPolicy = passwordEchoPolicy
     }
 }
 
@@ -188,7 +196,10 @@ public struct PtyProcessRunner: Sendable {
 
             if responseIndex < invocation.responses.count,
                containsPasswordPrompt(promptBytes),
-               terminalEchoIsDisabled(primaryDescriptor) {
+               try prepareTerminalForPassword(
+                   primaryDescriptor,
+                   policy: invocation.passwordEchoPolicy
+               ) {
                 usleep(Self.preSendDelayMicroseconds)
                 var responseBytes: [UInt8]
                 switch invocation.responses[responseIndex] {
@@ -357,6 +368,27 @@ public struct PtyProcessRunner: Sendable {
     private func terminalEchoIsDisabled(_ descriptor: Int32) -> Bool {
         var settings = termios()
         return tcgetattr(descriptor, &settings) == 0 && settings.c_lflag & tcflag_t(ECHO) == 0
+    }
+
+    private func prepareTerminalForPassword(
+        _ descriptor: Int32,
+        policy: PtyPasswordEchoPolicy
+    ) throws -> Bool {
+        if terminalEchoIsDisabled(descriptor) {
+            return true
+        }
+        guard policy == .disableBeforeResponse else {
+            return false
+        }
+        var settings = termios()
+        guard tcgetattr(descriptor, &settings) == 0 else {
+            throw systemError("tcgetattr")
+        }
+        settings.c_lflag &= ~tcflag_t(ECHO)
+        guard tcsetattr(descriptor, TCSANOW, &settings) == 0 else {
+            throw systemError("tcsetattr")
+        }
+        return terminalEchoIsDisabled(descriptor)
     }
 
     private func writeAll(_ bytes: [UInt8], to descriptor: Int32) throws {

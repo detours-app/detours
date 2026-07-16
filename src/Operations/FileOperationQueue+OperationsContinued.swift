@@ -540,7 +540,7 @@ extension FileOperationQueue {
             throw FileProviderError.expectedLocal(archive)
         }
         guard let format = ArchiveFormat.detect(from: URL(fileURLWithPath: archive.path)) else {
-            throw FileOperationError.archiveProcessFailed("Unsupported archive format: \(archive.lastPathComponent)")
+            throw FileOperationError.archiveExtractionFailed("Unsupported archive format: \(archive.lastPathComponent)")
         }
 
         let operation = FileOperation.extract(archive: URL(fileURLWithPath: archive.path), format: format)

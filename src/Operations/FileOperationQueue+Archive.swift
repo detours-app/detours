@@ -282,7 +282,8 @@ extension FileOperationQueue {
             arguments: ["a", "-t7z", "-bsp2", "-mhe=on", "-p", destination.path] + items.map(\.path),
             password: password,
             responses: [.password, .password],
-            minimumResponses: 1
+            minimumResponses: 1,
+            passwordEchoPolicy: sevenZipPasswordEchoPolicy
         )
         let parser = ArchivePercentageParser()
         let runnerTask = Task {
@@ -318,6 +319,12 @@ extension FileOperationQueue {
             try? FileManager.default.removeItem(at: destination)
             throw error
         }
+    }
+
+    private var sevenZipPasswordEchoPolicy: PtyPasswordEchoPolicy {
+        URL(fileURLWithPath: CompressionTool.sevenZip.path).lastPathComponent == "7zz"
+            ? .disableBeforeResponse
+            : .requireToolDisabled
     }
 
     private func runTar(items: [URL], destination: URL, flag: String, sourceSize: Int64) async throws {

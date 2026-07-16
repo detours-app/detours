@@ -105,7 +105,10 @@ enum CompressionTool: String {
         switch self {
         case .zip: return "/usr/bin/zip"
         case .unzip: return "/usr/bin/unzip"
-        case .sevenZip: return "/opt/homebrew/bin/7z"
+        case .sevenZip:
+            return ["/opt/homebrew/bin/7z", "/opt/homebrew/bin/7zz"]
+                .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+                ?? "/opt/homebrew/bin/7z"
         case .tar: return "/usr/bin/tar"
         case .gzip: return "/usr/bin/gzip"
         case .bzip2: return "/usr/bin/bzip2"

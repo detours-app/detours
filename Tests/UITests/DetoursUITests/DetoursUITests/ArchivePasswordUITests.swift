@@ -45,7 +45,7 @@ final class ArchivePasswordUITests: BaseUITest {
             try? FileManager.default.removeItem(at: payloadURL)
         }
         try Data("UI archive secret".utf8).write(to: payloadURL)
-        try createEncryptedZip(archiveURL: archiveURL, payloadName: payloadName, password: "right-password")
+        try createEncryptedAESZip(archiveURL: archiveURL, payloadName: payloadName, password: "right-password")
         try FileManager.default.removeItem(at: payloadURL)
         pressCharKey("r", modifiers: .command)
         XCTAssertTrue(waitForRow(named: archiveName, timeout: 3))
@@ -90,11 +90,19 @@ final class ArchivePasswordUITests: BaseUITest {
         app.buttons["archiveExtractionConfirmButton"].click()
     }
 
-    private func createEncryptedZip(archiveURL: URL, payloadName: String, password: String) throws {
+    private func createEncryptedAESZip(archiveURL: URL, payloadName: String, password: String) throws {
+        let executable = ["/opt/homebrew/bin/7z", "/opt/homebrew/bin/7zz"]
+            .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+        guard let executable else { throw XCTSkip("7z is unavailable") }
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+        process.executableURL = URL(fileURLWithPath: executable)
         process.currentDirectoryURL = uiTestRootURL
-        process.arguments = ["-q", "-P", password, archiveURL.path, payloadName]
+        process.arguments = [
+            "a", "-bd", "-y", "-tzip", "-mem=AES256", "-p\(password)",
+            archiveURL.path, payloadName,
+        ]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
         try process.run()
         process.waitUntilExit()
         XCTAssertEqual(process.terminationStatus, 0)
