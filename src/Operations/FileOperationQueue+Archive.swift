@@ -1,4 +1,5 @@
 import AppKit
+import DetoursProcess
 import Foundation
 
 extension FileOperationQueue {
@@ -151,7 +152,13 @@ extension FileOperationQueue {
 
     private func runZip(items: [URL], destination: URL, password: String?, sourceSize: Int64) async throws {
         if let password, !password.isEmpty {
-            throw FileOperationError.archivePasswordUnsupported
+            try await runEncryptedZip(
+                items: items,
+                destination: destination,
+                password: password,
+                sourceSize: sourceSize
+            )
+            return
         }
         let parentDir = items[0].deletingLastPathComponent().path
         let process = Process()
@@ -170,6 +177,72 @@ extension FileOperationQueue {
 
         let mode: ArchiveProgressMode = sourceSize > 0 ? .pollFileSize(sourceSize: sourceSize) : .none
         try await runProcess(process, errorPipe: errorPipe, partialFile: destination, progressMode: mode)
+    }
+
+    private func runEncryptedZip(
+        items: [URL],
+        destination: URL,
+        password: String,
+        sourceSize: Int64
+    ) async throws {
+        let invocation = PtyProcessInvocation(
+            executable: CompressionTool.zip.path,
+            arguments: ["-er", "-q", destination.path] + items.map(\.lastPathComponent),
+            currentDirectory: items[0].deletingLastPathComponent(),
+            password: password,
+            responses: [.password, .password]
+        )
+        let runnerTask = Task {
+            try await PtyProcessRunner().run(invocation)
+        }
+        currentIOCancellable = AnyCancellableTask(runnerTask)
+        defer { currentIOCancellable = nil }
+
+        let progressTask = startEncryptedArchiveSizePolling(destination: destination, sourceSize: sourceSize)
+        defer { progressTask.cancel() }
+
+        do {
+            let result = try await runnerTask.value
+            try checkCancelled()
+            guard result.status == 0 else {
+                throw FileOperationError.archiveProcessFailed(Self.archiveDiagnostic(result))
+            }
+        } catch is CancellationError {
+            try? FileManager.default.removeItem(at: destination)
+            throw FileOperationError.cancelled
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
+    }
+
+    private func startEncryptedArchiveSizePolling(
+        destination: URL,
+        sourceSize: Int64
+    ) -> Task<Void, Never> {
+        Task { [weak self] in
+            guard sourceSize > 0 else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard !Task.isCancelled else { return }
+                let attributes = try? FileManager.default.attributesOfItem(atPath: destination.path)
+                let currentSize = (attributes?[.size] as? Int64) ?? 0
+                guard let self, let operation = self.currentOperation else { return }
+                self.updateProgress(
+                    operation: operation,
+                    currentItem: destination,
+                    completed: 0,
+                    total: 0,
+                    bytesCompleted: currentSize,
+                    bytesTotal: sourceSize
+                )
+            }
+        }
+    }
+
+    private static func archiveDiagnostic(_ result: PtyProcessResult) -> String {
+        let message = result.outputString.trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty ? "Process exited with code \(result.status)" : message
     }
 
     private func runSevenZip(items: [URL], destination: URL, password: String?, sourceSize: Int64) async throws {

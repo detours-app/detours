@@ -109,7 +109,7 @@ Research and code inspection support the revised approach:
 **Phase 2: Local creation**
 
 - [x] **C4** Restore `ArchiveFormat.supportsPassword` for `.zip` and `.sevenZ` in `src/Utilities/CompressionTools.swift`, allow non-empty passwords through `performArchive`, and add the ZIP-only 80-UTF-8-byte validation to `ArchiveModel` plus the local creation preflight.
-- [ ] **C5** Route encrypted ZIP creation in `src/Operations/FileOperationQueue+Archive.swift` through `/usr/bin/zip -er -q` on the PTY while retaining file-size progress, cancellation, cleanup, working-directory, and unencrypted behavior.
+- [x] **C5** Route encrypted ZIP creation in `src/Operations/FileOperationQueue+Archive.swift` through `/usr/bin/zip -er -q` on the PTY while retaining file-size progress, cancellation, cleanup, working-directory, and unencrypted behavior.
 - [ ] **C6** Route encrypted 7Z creation through `7z a -t7z -bsp2 -mhe=on -p` on the PTY and feed streamed percentages into the current progress calculation while leaving the unencrypted path unchanged.
 
 **Phase 3: Local extraction and prompting**
@@ -168,3 +168,4 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 - **C2** Extended the helper cache over shared sources and focused helper tests. The generated Noble package installs the real ZIP, unzip, and 7Z tools, runs both shared-runner and server-archive suites before its static release build, restores mounted-workspace ownership, and cleans its remote workspace on every exit.
 - **C3** Added the Darwin/Glibc PTY runner with controlling-terminal spawn, echo-aware scripted replies, bounded streaming diagnostics, prompt timeout, task cancellation, process-session termination, exit decoding, reaping, and mutable secret-buffer clearing. Dedicated behavior coverage follows in T1-T9.
 - **C4** Restored password capability for ZIP and 7Z and added one ZIP-only validator shared by the dialog model and local operation preflight. Exactly 80 UTF-8 bytes remain valid; longer input yields the specified message before archive launch.
+- **C5** Routed encrypted ZIP creation through `zip -er -q` with two echo-disabled PTY replies. The branch retains working-directory item names, file-size polling, queue cancellation, and partial-archive cleanup while leaving unencrypted ZIP creation unchanged.
