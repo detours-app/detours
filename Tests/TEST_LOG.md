@@ -1927,3 +1927,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `resources/scripts/uitest.sh RemoteQuickOpenUITests/testLocalTabScopeHeader`
   PASS: 1 test, 0 failures. Local Quick Open scope and search-field readiness
   passed with the corrected accessibility lookup.
+
+- 2026-07-16 17:44 CEST: Foundry
+  `resources/scripts/uitest.sh RealRemoteFileOperationsUITests/testCommandRRefreshesRealRemoteListing`
+  PASS: 1 test, 0 failures. Cmd-R refreshed a real SSH-backed remote pane and
+  revealed the externally created file. The earlier full-run failure occurred
+  while XCUITest was establishing app accessibility, before the test workflow.
