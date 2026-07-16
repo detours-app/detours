@@ -1962,3 +1962,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   diagnostic launcher was then terminated with a signal, causing AppKit to
   restore the same crash marker before this rerun. The app again exposed no
   test window; no new Detours crash report was generated.
+
+- 2026-07-16 18:19 CEST: Foundry
+  `resources/scripts/uitest.sh RealRemoteFileOperationsUITests/testDelayedRealConnectionLoadsPaneCapturedBeforeFocusSwitch`
+  PASS: 1 test, 0 failures after clearing AppKit's crash marker through a
+  normal application quit. The delayed real SSH connection completed in the
+  pane captured at connection start after focus moved to the other pane.
