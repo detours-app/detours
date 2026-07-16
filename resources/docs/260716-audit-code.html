@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detours - Code Audit 2026-07-16</title>
+<style>
+:root {
+  --bg:#fff; --panel:#f6f7f9; --border:#d8dbe0; --text:#1b1e23; --muted:#646b76;
+  --code:#eceef1; --crit:#c1121f; --imp:#b45309; --min:#4b6bfb; --fixed:#15803d;
+  --progress:#a16207; --wontfix:#6b7280; --accent:#1b1e23;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#14161a; --panel:#1c1f25; --border:#2e333b; --text:#e6e8eb; --muted:#98a0ac;
+    --code:#23272e; --crit:#f4737c; --imp:#e0a355; --min:#8aa2ff; --fixed:#4ade80;
+    --progress:#e0a355; --wontfix:#8b939f; --accent:#e6e8eb;
+  }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif; }
+code,.mono { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:.87em; }
+.tnum { font-variant-numeric:tabular-nums; }
+.layout { display:grid; grid-template-columns:264px 1fr; min-height:100vh; }
+aside { border-right:1px solid var(--border); background:var(--panel); padding:20px 16px; position:sticky; top:0; height:100vh; overflow:auto; }
+main { padding:28px 32px 80px; max-width:980px; }
+h1 { font-size:21px; margin:0 0 4px; letter-spacing:-.01em; }
+.sub { color:var(--muted); font-size:13px; margin-bottom:22px; }
+.posture { display:flex; align-items:center; margin-bottom:22px; }
+.grade { display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:10px; font-size:22px; font-weight:700; background:var(--imp); color:#fff; margin-right:14px; flex:none; }
+.posture p { margin:0; font-size:14px; }
+.stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:0 0 18px; }
+.stat { border:1px solid var(--border); border-radius:8px; padding:9px 11px; background:var(--panel); }
+.stat .value { font-size:18px; font-weight:650; }
+.stat .label { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+.bar { display:flex; height:8px; border-radius:4px; overflow:hidden; background:var(--border); margin-bottom:8px; }
+.bar span { display:block; height:100%; }
+.b-fixed { background:var(--fixed); } .b-progress { background:var(--progress); } .b-wontfix { background:var(--wontfix); } .b-open { background:var(--imp); }
+.progress-label { color:var(--muted); font-size:12px; margin-bottom:22px; }
+details { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin-bottom:26px; }
+summary { cursor:pointer; font-weight:600; font-size:14px; }
+details p { font-size:14px; } details p:last-child { margin-bottom:0; }
+aside h3 { font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin:20px 0 8px; font-weight:600; }
+aside h3:first-of-type { margin-top:0; }
+#search { width:100%; padding:7px 10px; border-radius:7px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:13px; }
+.filter { display:flex; justify-content:space-between; gap:8px; padding:5px 8px; border-radius:6px; cursor:pointer; font-size:13px; user-select:none; }
+.filter:hover { background:var(--border); } .filter.on { background:var(--accent); color:var(--bg); }
+.filter .n { color:var(--muted); font-size:12px; } .filter.on .n { color:var(--bg); opacity:.75; }
+.deferred { display:flex; gap:7px; align-items:center; color:var(--muted); font-size:12px; margin-top:10px; }
+#reset { width:100%; margin-top:14px; padding:6px; border-radius:7px; cursor:pointer; border:1px solid var(--border); background:var(--bg); color:var(--muted); font-size:12px; }
+.card { border:1px solid var(--border); border-left:3px solid var(--min); border-radius:10px; padding:15px 18px; margin-bottom:12px; background:var(--panel); }
+.card[data-sev="Critical"] { border-left-color:var(--crit); } .card[data-sev="Important"] { border-left-color:var(--imp); }
+.card[data-status="fixed"] { opacity:.55; } .card[data-status="fixed"] .desc { text-decoration:line-through; }
+.card[data-status="wontfix"] { opacity:.6; } .card[data-defer="true"] { background-image:repeating-linear-gradient(135deg,transparent,transparent 8px,var(--code) 8px,var(--code) 10px); }
+.meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:9px; }
+.badge { font-size:10.5px; font-weight:650; letter-spacing:.05em; text-transform:uppercase; padding:2px 7px; border-radius:5px; color:#fff; }
+.badge.Critical { background:var(--crit); } .badge.Important { background:var(--imp); } .badge.Minor { background:var(--min); }
+.cat,.defer-chip { font-size:11px; padding:2px 7px; border-radius:5px; border:1px solid var(--border); color:var(--muted); }
+.conf { margin-left:auto; color:var(--muted); font-size:12px; }
+.desc { margin:0 0 10px; font-size:14px; }
+.loc { display:inline-block; background:var(--code); border-radius:5px; padding:3px 8px; margin-bottom:8px; }
+.cite { border:1px solid var(--border); border-radius:7px; padding:9px 12px; font-size:12.5px; color:var(--muted); margin-top:8px; }
+.pill { display:inline-block; margin-top:10px; font-size:11px; font-weight:600; padding:2px 9px; border-radius:20px; border:1px solid var(--border); color:var(--muted); }
+.pill[data-s="fixed"] { color:var(--fixed); border-color:var(--fixed); } .pill[data-s="progress"] { color:var(--progress); border-color:var(--progress); }
+.empty { color:var(--muted); padding:40px 0; text-align:center; }
+@media (max-width:760px) { .layout { grid-template-columns:1fr; } aside { position:static; height:auto; border-right:0; border-bottom:1px solid var(--border); } main { padding:22px 18px 60px; } .stats { grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <h3>Search</h3><input id="search" placeholder="description, file, category">
+  <h3>Status</h3><div id="f-status"></div>
+  <h3>Severity</h3><div id="f-sev"></div>
+  <h3>Category</h3><div id="f-cat"></div>
+  <h3>Top files</h3><div id="f-file"></div>
+  <label class="deferred"><input id="show-deferred" type="checkbox">Show deferred (0)</label>
+  <button id="reset">Clear filters</button>
+</aside>
+<main>
+  <h1>Detours - Code Audit</h1>
+  <div class="sub">2026-07-16 &middot; 329 Swift files &middot; 5 hostile review roles &middot; 23 unique candidates &middot; 22 cleared confidence 80</div>
+  <div class="posture"><div class="grade">C</div><p>Twenty-two Important findings remain open across data recovery, undo, concurrency, transport, and security boundaries.</p></div>
+  <div class="stats" id="stats"></div>
+  <div class="bar" id="bar"></div><div class="progress-label" id="progress-label"></div>
+  <details open>
+    <summary>Summary</summary>
+    <p>The audit found no Critical or Minor findings above threshold, but the Important tier is broad. Replace, cross-provider move, and archive extraction can lose the information required to restore displaced user data; several operation entry points omit undo entirely; and one failed cross-provider move can leave an unreported destination copy behind.</p>
+    <p>Independent races remain in rename state, remote refresh, expanded-folder watches, remote connection targeting, remote-file upload, and nested remote item creation. The Unix frame readers reject valid fragmented reads, the directory timeout cannot return while enumeration is blocked, and local archive creation can deadlock when a tool fills its stderr pipe.</p>
+    <p>Three security findings cleared the threshold: first-use SSH keys are pinned from unauthenticated keyscan output, crafted ZIP filenames can become Info-ZIP command options, and malicious remote collection counts can force process-ending allocations. No fixes have been applied. One candidate was independently discarded because its partial-operation behavior matches the authoritative undo specification.</p>
+  </details>
+  <div id="list"></div>
+</main>
+</div>
+<script>
+const FINDINGS = [
+  {sev:"Important",cat:"Logic",conf:99,status:"open",file:"src/Operations/RenameController.swift",line:118,desc:"An invalid rename attempt clears the new-item flag before validation. Escape then leaves the placeholder in place, and a later accepted name registers ordinary rename undo instead of creation undo. Fix: preserve the flag across validation failures and clear it only on terminal rename paths.",cite:null},
+  {sev:"Important",cat:"Logic",conf:99,status:"open",file:"src/FileList/FileListViewController.swift",line:128,desc:"A debounced refresh for host A survives navigation to host B and resolves the mutable current provider after navigation. The request fails against host B and displays host A's failure over the newly visible pane. Fix: bind refreshes to a provider/session generation, cancel on navigation, and ignore stale failures.",cite:null},
+  {sev:"Important",cat:"Logic",conf:100,status:"open",file:"src/Operations/FileOperationQueue+Operations.swift",line:421,desc:"Cross-provider move undo removes the destination but never restores the source because the move discards the local Trash URL or remote restore token. Fix: retain a typed restore record for every source and restore it during undo.",cite:"CLAUDE.md: every deletion of a user item must support undo via <code>UndoManager</code>."},
+  {sev:"Important",cat:"Logic",conf:99,status:"open",file:"src/Operations/FileOperationQueue+Operations.swift",line:422,desc:"A cross-provider move records its destination only after trashing the source. If source trash fails, the operation reports total failure while the uploaded destination remains and a retry can create another copy. Fix: roll back the destination or report an explicit partial success.",cite:null},
+  {sev:"Important",cat:"Logic",conf:100,status:"open",file:"src/Operations/FileOperationQueue+Coordination.swift",line:55,desc:"The fast-lane delete guard allows deletion of an ancestor containing an active heavy operation. A directory can move to Trash while a copy, move, or extraction is reading or writing its descendants. Fix: reject delete candidates when either path contains the other.",cite:null},
+  {sev:"Important",cat:"Logic",conf:99,status:"open",file:"src/Operations/FileOperationQueue+Archive.swift",line:438,desc:"Local ZIP and TAR creation waits for child termination before reading stderr. If the tool fills the pipe buffer, it blocks in write and the archive operation never completes. Fix: drain stderr concurrently from process start.",cite:"<code>Server/PipeDrain.swift</code> documents and fixes the same ordering failure for helper processes."},
+  {sev:"Important",cat:"Bugs",conf:100,status:"open",file:"src/Operations/FileOperationQueue+WindowsTransfer.swift",line:139,desc:"A failed Windows Replace move trashes the staged source and discards its restore token, leaving the source absent with no in-app recovery path. Fix: move staged move sources back on failure and retain any fallback Trash token.",cite:null},
+  {sev:"Important",cat:"Bugs",conf:100,status:"open",file:"src/FileList/DirectoryLoader.swift",line:169,desc:"The local directory timeout cannot return while enumeration remains blocked. The task group waits for a cancelled child suspended on an uncancellable continuation. Fix: let timeout resume a one-shot continuation independently and discard the eventual enumeration result.",cite:null},
+  {sev:"Important",cat:"Bugs",conf:99,status:"open",file:"src/Remote/SSHConnection.swift",line:414,desc:"The Unix RPC and transfer readers treat any short pipe read as EOF. Valid frames fragmented by SSH can be rejected as truncated handshakes or responses. Fix: use a shared loop-until-complete reader for headers and payloads on both client and helper.",cite:"The Windows transport already uses an exact-read loop in <code>PowerShellChannel.swift</code>."},
+  {sev:"Important",cat:"Bugs",conf:99,status:"open",file:"src/FileList/FileOpenHelper.swift",line:83,desc:"Remote Open With drops a save received during an active upload. The early return records no pending change, and the watcher is not guaranteed to rediscover it. Fix: retain a pending flag or content generation and upload the newest bytes again after completion.",cite:null},
+  {sev:"Important",cat:"Bugs",conf:99,status:"open",file:"src/Windows/MainSplitViewController+Remote.swift",line:49,desc:"A remote connection completion loads the host into whichever pane is active after the await, not the pane that initiated the connection. Fix: capture the target pane before suspension and apply completion only to it.",cite:null},
+  {sev:"Important",cat:"Bugs",conf:100,status:"open",file:"src/Operations/FileOperationQueue+Operations.swift",line:61,desc:"Local Replace trashes the existing destination before the replacement succeeds. A copy or move failure leaves the destination empty and the original in Trash without automatic rollback. Fix: stage first or restore the displaced item in every failure path.",cite:null},
+  {sev:"Important",cat:"Bugs",conf:98,status:"open",file:"src/FileList/FileListViewController+Watching.swift",line:25,desc:"Expanded-folder watch creation runs in an untracked task. Navigation can clear old watches before registration completes, after which the stale task inserts an obsolete watch whose events reload the current directory. Fix: own setup tasks by navigation generation and reject stale registrations and callbacks.",cite:null},
+  {sev:"Important",cat:"Bugs",conf:99,status:"open",file:"src/FileList/FileListViewController+FileActions.swift",line:401,desc:"Creating an item inside an already-expanded remote branch refreshes only the root and consumes the one-shot rename action while the destination branch still has cached children. The item appears later under its default name. Fix: refresh or mark stale the exact destination before consuming select-and-rename.",cite:null},
+  {sev:"Important",cat:"Security",conf:96,status:"open",file:"src/Sidebar/AddRemoteHostWindowController.swift",line:61,desc:"Adding a host promotes unauthenticated ssh-keyscan output directly into known_hosts. An attacker controlling first-use traffic can pin their own key and later pass strict checking while impersonating the helper. Fix: require existing OpenSSH trust or explicit externally verifiable fingerprint acceptance.",cite:null},
+  {sev:"Important",cat:"Security",conf:100,status:"open",file:"src/Operations/FileOperationQueue+Archive.swift",line:168,desc:"ZIP creation passes user filenames to Info-ZIP without an option terminator. Filenames such as -T and -TT can make Info-ZIP execute another selected filename as a shell command under the app or helper user. Fix: add the safe option mode and <code>--</code> before every user-controlled ZIP operand in all four builders.",cite:"The TAR builder already terminates options before user filenames."},
+  {sev:"Important",cat:"Security",conf:99,status:"open",file:"src/Services/FileProvider/RemoteFileProvider+Coding.swift",line:63,desc:"Remote response decoders reserve capacity from an untrusted UInt32 count before validating payload bytes. A four-byte 0xffffffff count can request storage for over four billion elements and terminate the process. Fix: bound every count by remaining bytes and an item cap before reserving.",cite:"The corrected server decoder already applies a remaining-byte bound in <code>ServerRPCProtocol.swift</code>."},
+  {sev:"Important",cat:"Conventions",conf:100,status:"open",file:"src/Operations/FileOperationQueue+Operations.swift",line:63,desc:"Successful local Replace discards the displaced destination's Trash URL. Undo removes or moves back the replacement but cannot restore the original destination. Fix: retain every displacement and restore it during undo in both normal and fast lanes.",cite:"CLAUDE.md: every deletion of a user item must support undo via <code>UndoManager</code>."},
+  {sev:"Important",cat:"Conventions",conf:100,status:"open",file:"src/Panes/PaneViewController+PathControl.swift",line:322,desc:"Path-bar drop, tab-bar drop, and cross-pane copy or move omit the tab-scoped UndoManager, so identical operations become non-undoable solely because of their UI entry point. Fix: pass the destination tab's manager through every entry point.",cite:"<code>resources/specs/done/260129-operation-undo.md</code>: undo is tab-scoped and successful copy or move registers reversal."},
+  {sev:"Important",cat:"Conventions",conf:100,status:"open",file:"src/Operations/FileOperationQueue+Extraction.swift",line:101,desc:"All archive extraction Replace branches trash conflicting user items without retaining their Trash URLs, and the extraction API accepts no UndoManager. The displaced originals cannot be restored after success or rolled back after later failure. Fix: retain displacement records, thread undo through extraction, and roll back failed replacements.",cite:"CLAUDE.md: every deletion of a user item must support undo via <code>UndoManager</code>."},
+  {sev:"Important",cat:"Architecture",conf:100,status:"open",file:"src/Operations/FileOperationQueue+OperationsContinued.swift",line:218,desc:"Remote Delete Immediately shows a permanent, nonrecoverable-deletion confirmation but sends both Unix and Windows items through Trash-backed provider implementations. Fix: disable the action remotely or implement a genuinely permanent provider operation.",cite:null},
+  {sev:"Important",cat:"Architecture",conf:100,status:"open",file:"src/Operations/FileOperationQueue+Archive.swift",line:163,desc:"ZIP and TAR creation resolve every source as a basename relative to the first selected item's parent. A selection spanning expanded branches archives the wrong file or fails. Fix: use a validated common ancestor and preserve each source's relative path in local and helper builders.",cite:null}
+];
+
+const $ = s => document.querySelector(s);
+const state = {status:new Set(),sev:new Set(),cat:new Set(),file:new Set(),q:"",showDeferred:false};
+const STATUS = {open:"Open",progress:"In progress",fixed:"Fixed",wontfix:"Won't fix"};
+const countBy = (key,items=FINDINGS) => items.reduce((m,x)=>(m[x[key]]=(m[x[key]]||0)+1,m),{});
+const esc = value => String(value).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function filterGroup(id,key,values) {
+  const counts=countBy(key); const root=$(id); root.innerHTML="";
+  values.filter(v=>counts[v]).forEach(v=>{const row=document.createElement("div");row.className="filter"+(state[key].has(v)?" on":"");row.innerHTML=`<span>${esc(key==="status"?STATUS[v]:v)}</span><span class="n tnum">${counts[v]}</span>`;row.onclick=()=>{state[key].has(v)?state[key].delete(v):state[key].add(v);renderFilters();render();};root.appendChild(row);});
+}
+function renderFilters(){
+  filterGroup("#f-status","status",["open","progress","fixed","wontfix"]);
+  filterGroup("#f-sev","sev",["Critical","Important","Minor"]);
+  filterGroup("#f-cat","cat",Object.keys(countBy("cat")).sort());
+  const files=Object.entries(countBy("file")).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,8);
+  const root=$("#f-file");root.innerHTML="";files.forEach(([v,n])=>{const row=document.createElement("div");row.className="filter"+(state.file.has(v)?" on":"");row.innerHTML=`<span class="mono">${esc(v.split("/").pop())}</span><span class="n tnum">${n}</span>`;row.onclick=()=>{state.file.has(v)?state.file.delete(v):state.file.add(v);renderFilters();render();};root.appendChild(row);});
+}
+function renderStats(){
+  const c=countBy("sev"),s=countBy("status"),total=FINDINGS.length;
+  $("#stats").innerHTML=`<div class="stat"><div class="value tnum">${c.Critical||0}</div><div class="label">Critical</div></div><div class="stat"><div class="value tnum">${c.Important||0}</div><div class="label">Important</div></div><div class="stat"><div class="value tnum">${c.Minor||0}</div><div class="label">Minor</div></div><div class="stat"><div class="value tnum">${s.open||0}</div><div class="label">Open</div></div>`;
+  $("#bar").innerHTML=["fixed","progress","wontfix","open"].map(k=>`<span class="b-${k}" style="width:${((s[k]||0)/total)*100}%"></span>`).join("");
+  $("#progress-label").textContent=`${s.fixed||0} fixed · ${s.progress||0} in progress · ${s.wontfix||0} won't fix · ${s.open||0} open`;
+}
+function visible(f){
+  if(f.defer&&!state.showDeferred)return false;
+  if(state.status.size&&!state.status.has(f.status))return false;
+  if(state.sev.size&&!state.sev.has(f.sev))return false;
+  if(state.cat.size&&!state.cat.has(f.cat))return false;
+  if(state.file.size&&!state.file.has(f.file))return false;
+  const q=state.q.trim().toLowerCase();return !q||`${f.desc} ${f.file} ${f.cat}`.toLowerCase().includes(q);
+}
+function render(){
+  const items=FINDINGS.filter(visible);const root=$("#list");
+  if(!items.length){root.innerHTML='<div class="empty">No findings match these filters.</div>';return;}
+  root.innerHTML=items.map(f=>`<article class="card" data-sev="${f.sev}" data-status="${f.status}" data-defer="${!!f.defer}"><div class="meta"><span class="badge ${f.sev}">${f.sev}</span><span class="cat">${esc(f.cat)}</span>${f.defer?'<span class="defer-chip">Deferred</span>':''}<span class="conf tnum">Confidence ${f.conf}</span></div><p class="desc">${f.desc}</p><div class="loc mono">${esc(f.file)}:${f.line??"-"}</div>${f.cite?`<div class="cite">${f.cite}</div>`:""}<div><span class="pill" data-s="${f.status}">${STATUS[f.status]}</span></div></article>`).join("");
+}
+$("#search").addEventListener("input",e=>{state.q=e.target.value;render();});
+$("#show-deferred").addEventListener("change",e=>{state.showDeferred=e.target.checked;render();});
+$("#reset").onclick=()=>{Object.values(state).filter(v=>v instanceof Set).forEach(v=>v.clear());state.q="";state.showDeferred=false;$("#search").value="";$("#show-deferred").checked=false;renderFilters();render();};
+renderStats();renderFilters();render();
+</script>
+</body>
+</html>
