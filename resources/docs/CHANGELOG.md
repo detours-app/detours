@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.11.1 - 2026-07-16
+
+### Bug Fixes
+
+- **Local file operations stay visually stable** - Creating, renaming, moving,
+  pasting, and deleting items no longer cause repeated list flashes, lose the
+  intended selection, or make a newly created folder disappear. New folders
+  remain selected for inline rename, and completed transfers open the selected
+  destination folder and reveal their result.
+- **Remote refresh reloads the intended pane** - Command-R performs a real
+  remote reload, delayed connection results return to the pane that initiated
+  them, and stale watcher or refresh work cannot overwrite a newer navigation.
+- **Replace, move, and extraction failures recover user data** - Local, Unix
+  remote, and Windows operations retain displaced items, roll back partial
+  work, and restore both sources and destinations through tab-scoped Undo,
+  including cross-provider moves and multi-item archive extraction.
+- **Remote deletion has consistent outcomes** - Multi-item Trash operations
+  roll back earlier items when a later item fails, while Delete Immediately now
+  performs the permanent deletion promised by its confirmation.
+- **Remote Open With keeps the newest save** - A save received while an upload
+  is active is queued and uploaded when the current transfer finishes instead
+  of being dropped.
+- **Archive creation handles every selected path safely** - Selections spanning
+  expanded folders preserve their relative layout, local archive processes
+  drain output without deadlocking, and option-like filenames are treated as
+  filenames.
+- **Directory loading and watching terminate reliably** - Local enumeration can
+  time out even when filesystem metadata calls block, watcher setup cannot leak
+  across navigation, and watcher teardown no longer races or crashes.
+
+### Security
+
+- **New SSH host keys require confirmation** - First-use connections display
+  the discovered fingerprint for explicit approval instead of silently trusting
+  unauthenticated key-scan output.
+- **Remote protocol input is read exactly and bounded** - Fragmented SSH frames
+  are reassembled, truncated uploads restore displaced destinations, and
+  untrusted response counts are rejected before allocating excessive memory.
+- **ZIP operands cannot become command options** - User-controlled filenames
+  are separated from Info-ZIP options on local and remote archive paths.
+
 ## 1.11.0 - 2026-07-16
 
 ### Security
