@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 enum ServerArchiveFormat: String, Equatable, Sendable {
@@ -71,25 +72,30 @@ enum ArchiveOperationsError: Error, Equatable, Sendable {
     case missingTool(String)
     case processFailed(String)
     case emptyArchive(String)
+    case invalidPassword(String)
     case passwordUnsupported
 }
 
 struct ArchiveOperations {
     typealias ToolResolver = @Sendable (String) -> String?
     typealias ProcessRunner = @Sendable (_ executable: String, _ arguments: [String], _ currentDirectory: URL?) throws -> ServerProcessResult
+    typealias PtyRunner = @Sendable (PtyProcessInvocation) throws -> PtyProcessResult
 
     private let fileManager: FileManager
     private let resolveTool: ToolResolver
     private let runProcess: ProcessRunner
+    private let runPtyProcess: PtyRunner
 
     init(
         fileManager: FileManager = .default,
         resolveTool: @escaping ToolResolver = ArchiveOperations.resolveToolOnPath,
-        runProcess: @escaping ProcessRunner = ArchiveOperations.runProcess
+        runProcess: @escaping ProcessRunner = ArchiveOperations.runProcess,
+        runPtyProcess: @escaping PtyRunner = { try PtyProcessRunner().run($0) }
     ) {
         self.fileManager = fileManager
         self.resolveTool = resolveTool
         self.runProcess = runProcess
+        self.runPtyProcess = runPtyProcess
     }
 
     func createArchive(
@@ -100,10 +106,8 @@ struct ArchiveOperations {
         progress: (ArchiveProgressFrame) -> Void = { _ in }
     ) throws -> String {
         guard !items.isEmpty else { throw ArchiveOperationsError.noItems }
-        if let password, !password.isEmpty {
-            throw ArchiveOperationsError.passwordUnsupported
-        }
         let format = try archiveFormat(rawFormat)
+        try validatePassword(password, format: format)
         try validateArchiveName(archiveName)
         let tools = try resolvedTools(format.requiredTools)
 
@@ -117,18 +121,28 @@ struct ArchiveOperations {
 
         progress(ArchiveProgressFrame(phase: .starting, path: archiveURL.path, completedItems: 0, totalItems: items.count))
 
-        let command = createCommand(
-            format: format,
-            tools: tools,
-            items: itemURLs,
-            destination: archiveURL,
-            password: password
-        )
-
-        let result = try runProcess(command.executable, command.arguments, command.currentDirectory)
+        let result: ServerProcessResult
+        if let password, !password.isEmpty {
+            let invocation = try encryptedCreateInvocation(
+                format: format,
+                tools: tools,
+                items: itemURLs,
+                destination: archiveURL,
+                password: password
+            )
+            result = Self.serverResult(try runPtyProcess(invocation))
+        } else {
+            let command = createCommand(
+                format: format,
+                tools: tools,
+                items: itemURLs,
+                destination: archiveURL
+            )
+            result = try runProcess(command.executable, command.arguments, command.currentDirectory)
+        }
         if result.status != 0 {
             try? fileManager.removeItem(at: archiveURL)
-            throw ArchiveOperationsError.processFailed(Self.errorMessage(result.stderr, fallback: command.executable))
+            throw ArchiveOperationsError.processFailed(Self.errorMessage(result.stderr, fallback: format.fileExtension))
         }
 
         progress(ArchiveProgressFrame(phase: .completed, path: archiveURL.path, completedItems: items.count, totalItems: items.count))
@@ -140,13 +154,11 @@ struct ArchiveOperations {
         password: String?,
         progress: (ArchiveProgressFrame) -> Void = { _ in }
     ) throws -> String {
-        if let password, !password.isEmpty {
-            throw ArchiveOperationsError.passwordUnsupported
-        }
         let archiveURL = URL(fileURLWithPath: path).standardizedFileURL
         guard let format = ServerArchiveFormat.detect(path: archiveURL.path) else {
             throw ArchiveOperationsError.unsupportedFormat(archiveURL.lastPathComponent)
         }
+        try validatePassword(password, format: format)
         let tools = try resolvedTools(format.extractionTools)
         let parentDirectory = archiveURL.deletingLastPathComponent()
         let tempDirectory = parentDirectory.appendingPathComponent(".detours-extract-\(UUID().uuidString)")
@@ -155,16 +167,27 @@ struct ArchiveOperations {
         progress(ArchiveProgressFrame(phase: .starting, path: archiveURL.path, completedItems: 0, totalItems: 1))
 
         do {
-            let command = extractCommand(
-                format: format,
-                tools: tools,
-                archive: archiveURL,
-                destination: tempDirectory,
-                password: password
-            )
-            let result = try runProcess(command.executable, command.arguments, command.currentDirectory)
+            let result: ServerProcessResult
+            if let password, !password.isEmpty {
+                let invocation = try encryptedExtractInvocation(
+                    format: format,
+                    tools: tools,
+                    archive: archiveURL,
+                    destination: tempDirectory,
+                    password: password
+                )
+                result = Self.serverResult(try runPtyProcess(invocation))
+            } else {
+                let command = extractCommand(
+                    format: format,
+                    tools: tools,
+                    archive: archiveURL,
+                    destination: tempDirectory
+                )
+                result = try runProcess(command.executable, command.arguments, command.currentDirectory)
+            }
             guard result.status == 0 else {
-                throw ArchiveOperationsError.processFailed(Self.errorMessage(result.stderr, fallback: command.executable))
+                throw ArchiveOperationsError.processFailed(Self.errorMessage(result.stderr, fallback: format.fileExtension))
             }
 
             let extracted = try materialiseExtractionResult(
@@ -194,6 +217,16 @@ struct ArchiveOperations {
         }
     }
 
+    private func validatePassword(_ password: String?, format: ServerArchiveFormat) throws {
+        guard let password, !password.isEmpty else { return }
+        guard format == .zip || format == .sevenZ else {
+            throw ArchiveOperationsError.passwordUnsupported
+        }
+        if format == .zip, password.utf8.count > 80 {
+            throw ArchiveOperationsError.invalidPassword("ZIP passwords are limited to 80 UTF-8 bytes")
+        }
+    }
+
     private func resolvedTools(_ tools: [String]) throws -> [String: String] {
         var resolved: [String: String] = [:]
         for tool in tools {
@@ -209,23 +242,16 @@ struct ArchiveOperations {
         format: ServerArchiveFormat,
         tools: [String: String],
         items: [URL],
-        destination: URL,
-        password: String?
+        destination: URL
     ) -> (executable: String, arguments: [String], currentDirectory: URL?) {
         switch format {
         case .zip:
             var arguments = ["-r", "-q"]
-            if let password, !password.isEmpty {
-                return (tools["zip"]!, ["--passwords-disabled"], nil)
-            }
             arguments.append(destination.path)
             arguments.append(contentsOf: items.map(\.lastPathComponent))
             return (tools["zip"]!, arguments, items[0].deletingLastPathComponent())
         case .sevenZ:
             var arguments = ["a", "-t7z"]
-            if let password, !password.isEmpty {
-                return (tools["7z"]!, ["--passwords-disabled"], nil)
-            }
             arguments.append(destination.path)
             arguments.append(contentsOf: items.map(\.path))
             return (tools["7z"]!, arguments, nil)
@@ -235,6 +261,35 @@ struct ArchiveOperations {
             return tarCreateCommand(tool: tools["tar"]!, flag: "j", items: items, destination: destination)
         case .tarXz:
             return tarCreateCommand(tool: tools["tar"]!, flag: "J", items: items, destination: destination)
+        }
+    }
+
+    private func encryptedCreateInvocation(
+        format: ServerArchiveFormat,
+        tools: [String: String],
+        items: [URL],
+        destination: URL,
+        password: String
+    ) throws -> PtyProcessInvocation {
+        switch format {
+        case .zip:
+            return PtyProcessInvocation(
+                executable: tools["zip"]!,
+                arguments: ["-er", "-q", destination.path] + items.map(\.lastPathComponent),
+                currentDirectory: items[0].deletingLastPathComponent(),
+                password: password,
+                responses: [.password, .password]
+            )
+        case .sevenZ:
+            return PtyProcessInvocation(
+                executable: tools["7z"]!,
+                arguments: ["a", "-t7z", "-bsp2", "-mhe=on", "-p", destination.path] + items.map(\.path),
+                password: password,
+                responses: [.password, .password],
+                minimumResponses: 1
+            )
+        case .tarGz, .tarBz2, .tarXz:
+            throw ArchiveOperationsError.passwordUnsupported
         }
     }
 
@@ -253,22 +308,15 @@ struct ArchiveOperations {
         format: ServerArchiveFormat,
         tools: [String: String],
         archive: URL,
-        destination: URL,
-        password: String?
+        destination: URL
     ) -> (executable: String, arguments: [String], currentDirectory: URL?) {
         switch format {
         case .zip:
             var arguments = ["-q"]
-            if let password, !password.isEmpty {
-                return (tools["unzip"]!, ["--passwords-disabled"], nil)
-            }
             arguments.append(contentsOf: [archive.path, "-d", destination.path])
             return (tools["unzip"]!, arguments, nil)
         case .sevenZ:
             var arguments = ["x", "-y", "-o\(destination.path)"]
-            if let password, !password.isEmpty {
-                return (tools["7z"]!, ["--passwords-disabled"], nil)
-            }
             arguments.append(archive.path)
             return (tools["7z"]!, arguments, nil)
         case .tarGz:
@@ -277,6 +325,35 @@ struct ArchiveOperations {
             return (tools["tar"]!, ["-xjf", archive.path, "-C", destination.path], nil)
         case .tarXz:
             return (tools["tar"]!, ["-xJf", archive.path, "-C", destination.path], nil)
+        }
+    }
+
+    private func encryptedExtractInvocation(
+        format: ServerArchiveFormat,
+        tools: [String: String],
+        archive: URL,
+        destination: URL,
+        password: String
+    ) throws -> PtyProcessInvocation {
+        switch format {
+        case .zip:
+            return PtyProcessInvocation(
+                executable: tools["unzip"]!,
+                arguments: ["-o", "-q", archive.path, "-d", destination.path],
+                password: password,
+                responses: [.password, .empty],
+                minimumResponses: 1
+            )
+        case .sevenZ:
+            return PtyProcessInvocation(
+                executable: tools["7z"]!,
+                arguments: ["x", "-y", "-bsp2", "-p", "-o\(destination.path)", archive.path],
+                password: password,
+                responses: [.password],
+                minimumResponses: 1
+            )
+        case .tarGz, .tarBz2, .tarXz:
+            throw ArchiveOperationsError.passwordUnsupported
         }
     }
 
@@ -336,6 +413,10 @@ struct ArchiveOperations {
     private static func errorMessage(_ stderr: String, fallback: String) -> String {
         let trimmed = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "\(fallback) failed" : trimmed
+    }
+
+    private static func serverResult(_ result: PtyProcessResult) -> ServerProcessResult {
+        ServerProcessResult(status: result.status, stderr: result.outputString)
     }
 
     private static func resolveToolOnPath(_ tool: String) -> String? {
