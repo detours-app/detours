@@ -1783,3 +1783,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   mutations, rename cancellation, Replace rollback and undo, cross-provider
   move recovery, blocked-load timeout, stale watches, queued Open With saves,
   bounded RPC decoding, permanent deletion, and archive safety/layout.
+
+- 2026-07-16 15:57 CEST: Foundry `swift test`
+  PASS: 815 XCTest tests plus 46 Swift Testing tests, 0 failures. Fifteen
+  XCTest cases were skipped: 12 explicitly gated Windows live tests, two
+  Darwin x86_64 smoke checks requiring Rosetta on arm64 Foundry, and one
+  macOS-host 7z availability check covered by the helper build's container
+  suite. Includes 32 passing real Unix and Intel-macOS remote integration tests.
