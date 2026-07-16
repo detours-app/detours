@@ -40,6 +40,11 @@ public struct PtyProcessResult: Sendable {
     public let status: Int32
     public let output: Data
 
+    public init(status: Int32, output: Data) {
+        self.status = status
+        self.output = output
+    }
+
     public var outputString: String {
         String(data: output, encoding: .utf8)
             ?? String(data: output, encoding: .isoLatin1)

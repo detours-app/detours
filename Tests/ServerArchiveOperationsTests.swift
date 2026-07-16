@@ -1,3 +1,4 @@
+import DetoursProcess
 import XCTest
 @testable import detours_server
 
@@ -125,25 +126,33 @@ final class ServerArchiveOperationsTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent("bundle.zip").path))
     }
 
-    func testPasswordArchiveCreationIsRejectedBeforeProcessLaunch() throws {
+    func testPasswordArchiveCreationUsesPtyRunnerWithoutProcessArguments() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
         let source = try createTestFile(in: temp, name: "hello.txt", content: "Hello")
         let didRunProcess = LockedBox(false)
+        let invocation = LockedBox<PtyProcessInvocation?>(nil)
         let operations = ArchiveOperations(
             runProcess: { _, _, _ in
                 didRunProcess.value = true
                 return ServerProcessResult(status: 0, stderr: "")
+            },
+            runPtyProcess: { captured in
+                invocation.value = captured
+                return PtyProcessResult(status: 1, output: Data("expected failure".utf8))
             }
         )
 
         XCTAssertThrowsError(
             try operations.createArchive(items: [source.path], format: "zip", archiveName: "bundle", password: "secret")
         ) { error in
-            XCTAssertEqual(error as? ArchiveOperationsError, .passwordUnsupported)
+            XCTAssertEqual(error as? ArchiveOperationsError, .processFailed("expected failure"))
         }
         XCTAssertFalse(didRunProcess.value)
+        XCTAssertEqual(invocation.value?.executable, "/usr/bin/zip")
+        XCTAssertEqual(invocation.value?.password, "secret")
+        XCTAssertFalse(invocation.value?.arguments.contains(where: { $0.contains("secret") }) ?? true)
     }
 
     func testTarCreateUsesOptionDelimiterBeforeItemNames() throws {
