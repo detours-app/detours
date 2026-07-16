@@ -145,7 +145,7 @@ final class ArchiveOperationTests: XCTestCase {
             arguments: ["-q", archive.path, publicFile.lastPathComponent],
             currentDirectory: temp
         )
-        let appendResult = try PtyProcessRunner().run(PtyProcessInvocation(
+        let appendResult = try await PtyProcessRunner().run(PtyProcessInvocation(
             executable: CompressionTool.zip.path,
             arguments: ["-e", "-q", archive.path, secretFile.lastPathComponent],
             currentDirectory: temp,
