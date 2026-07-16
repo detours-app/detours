@@ -1886,3 +1886,15 @@ Spotlight search has no unit test (depends on the live, async-built system index
   operation rollback/undo, watchers and icon invalidation, session restoration,
   archives, transfer/trash atomicity, helper deployment, real Unix and Intel
   macOS SSH/RPC behavior, and Windows conflict resolution.
+
+- 2026-07-16 17:00 CEST: Foundry `resources/scripts/wintest.sh`
+  FAIL: all 14 live Windows tests skipped because Foundry could not reach the
+  configured `win-carriercall` SSH target; no Windows operation or watch
+  assertion executed. A zero runner exit with the entire live suite skipped is
+  not accepted as verification.
+
+- 2026-07-16 17:05 CEST: Foundry `resources/scripts/wintest.sh`
+  PASS: 14 live Windows tests, 0 failures, 0 skips against `win-carriercall`.
+  Covers real PowerShell/SSH file operations, Replace rollback and undo, host
+  probing, transfer integrity, Quick Look/find, trash/restore, drive reload,
+  concurrent watches, idle unwatch, and post-heartbeat change delivery.
