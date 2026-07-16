@@ -1801,3 +1801,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `Tests/DetoursProcessTests` while compiling the sibling server test target.
   The generated manifest needs an explicit target exclusion before this build
   counts as clean verification.
+
+- 2026-07-16 16:35 CEST: Foundry `resources/scripts/build.sh --no-install`
+  PASS: the release app compiled, bundled, and codesigned with no repository
+  warning. The remote-helper cache was reused, so this run did not re-exercise
+  the generated Linux package manifest; the cache hash must include its build
+  script before the warning fix can be verified.

@@ -10,5 +10,6 @@ cd "$(dirname "$0")/../.."
         fi
     done
     shasum -a 256 Tests/ServerArchiveOperationsTests.swift
+    shasum -a 256 resources/scripts/build-server-linux.sh
     grep -nE 'detours-server|DetoursProcess|path: "(Server|Shared|Tests/DetoursProcessTests)"|products:|targets:' Package.swift
 } | shasum -a 256 | awk '{print $1}'
