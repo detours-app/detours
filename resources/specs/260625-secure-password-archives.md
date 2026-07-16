@@ -134,15 +134,15 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 
 ### Shared Runner Tests (`SharedTests/`)
 
-- [ ] **T1** `PtyProcessRunnerTests.testRunsWithoutPasswordAndCapturesOutput` confirms an unprompted child returns its exit status and output.
-- [ ] **T2** `PtyProcessRunnerTests.testChildHasControllingTerminal` confirms the child sees `isatty(0)` and can open `/dev/tty` on macOS and Linux.
-- [ ] **T3** `PtyProcessRunnerTests.testFeedsOnePromptWithoutEchoingPassword` splits a mixed-case password prompt across output chunks and confirms the no-echo prompt receives the password while neither streamed nor retained output contains it.
-- [ ] **T4** `PtyProcessRunnerTests.testFeedsTwoPromptsWithoutEchoingPassword` confirms split entry and confirmation prompts each receive the password once and unrelated colon-terminated output does not consume a response.
-- [ ] **T5** `PtyProcessRunnerTests.testEmptyRetryResponseEndsRepeatedPrompt` confirms a password response followed by an empty response ends an `unzip`-style retry without resending the secret.
-- [ ] **T6** `PtyProcessRunnerTests.testPromptTimeoutTerminatesAndReapsChild` confirms an unanswered prompt fails after 10 seconds without leaving the child running.
-- [ ] **T7** `PtyProcessRunnerTests.testCancellationTerminatesChildSession` confirms cancellation reaps the child and its session descendants.
-- [ ] **T8** `PtyProcessRunnerTests.testStreamsOutputAndBoundsDiagnosticTail` confirms chunk callbacks arrive before exit and retained output never exceeds 65,536 bytes.
-- [ ] **T9** `PtyProcessRunnerTests.testPasswordAbsentFromArgumentsEnvironmentAndOutput` confirms a password containing spaces, shell metacharacters, and non-ASCII characters appears only in the child's no-echo terminal input.
+- [x] **T1** `PtyProcessRunnerTests.testRunsWithoutPasswordAndCapturesOutput` confirms an unprompted child returns its exit status and output.
+- [x] **T2** `PtyProcessRunnerTests.testChildHasControllingTerminal` confirms the child sees `isatty(0)` and can open `/dev/tty` on macOS and Linux.
+- [x] **T3** `PtyProcessRunnerTests.testFeedsOnePromptWithoutEchoingPassword` splits a mixed-case password prompt across output chunks and confirms the no-echo prompt receives the password while neither streamed nor retained output contains it.
+- [x] **T4** `PtyProcessRunnerTests.testFeedsTwoPromptsWithoutEchoingPassword` confirms split entry and confirmation prompts each receive the password once and unrelated colon-terminated output does not consume a response.
+- [x] **T5** `PtyProcessRunnerTests.testEmptyRetryResponseEndsRepeatedPrompt` confirms a password response followed by an empty response ends an `unzip`-style retry without resending the secret.
+- [x] **T6** `PtyProcessRunnerTests.testPromptTimeoutTerminatesAndReapsChild` confirms an unanswered prompt fails after 10 seconds without leaving the child running.
+- [x] **T7** `PtyProcessRunnerTests.testCancellationTerminatesChildSession` confirms cancellation reaps the child and its session descendants.
+- [x] **T8** `PtyProcessRunnerTests.testStreamsOutputAndBoundsDiagnosticTail` confirms chunk callbacks arrive before exit and retained output never exceeds 65,536 bytes.
+- [x] **T9** `PtyProcessRunnerTests.testPasswordAbsentFromArgumentsEnvironmentAndOutput` confirms a password containing spaces, shell metacharacters, and non-ASCII characters appears only in the child's no-echo terminal input.
 
 ### Archive Tests (`Tests/`)
 
@@ -178,3 +178,4 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 - **C12** Removed the audit-era local/helper unsupported-password errors, presentations, sentinels, and obsolete rejection tests. Unsupported TAR input now uses validation, while Windows keeps its explicit boundary through the provider's standard unsupported-operation error.
 - **C13** Updated both user guides for local and supported helper password workflows, ZIP's 80-byte limit, wrong-password cleanup, the Windows boundary, and the precise command-line secrecy guarantee.
 - **C14** `resources/scripts/build.sh --no-install` on Foundry built the Linux helper, Intel macOS helper, and app successfully; `swiftlint lint --quiet` on Spectre completed with no findings. Foundry has no SwiftLint executable, so lint ran on the identical committed source tree on Spectre.
+- **T1-T9** Added real cross-platform child-process coverage for status/output, controlling-terminal access, split echo-disabled prompts, confirmation/retry policies, timeout and session reaping, cancellation, streamed bounded diagnostics, and secret absence from argv, environment, and output. The suite runs on macOS and in the generated Noble package.
