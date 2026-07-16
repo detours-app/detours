@@ -1776,3 +1776,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   FAIL: 226 tests ran with 1 failure. The permanent-delete provider test did
   not script the newly distinct `Delete` transport response; all production
   code compiled and the other 225 tests passed.
+
+- 2026-07-16 15:52 CEST: Foundry
+  `swift test --filter 'ArchiveOperationTests|CrossProviderTransferTests|DirectoryLoaderTests|FileListResponderTests|FileOperationQueueTests|FindRPCCodecTests|OpenWithConflictTests|RemoteRefreshCoordinatorTests|FileOperationsServerTests|WindowsRemoteProviderTests'`
+  PASS: 226 tests, 0 failures. Covers selection-preserving local and remote
+  mutations, rename cancellation, Replace rollback and undo, cross-provider
+  move recovery, blocked-load timeout, stale watches, queued Open With saves,
+  bounded RPC decoding, permanent deletion, and archive safety/layout.
