@@ -102,7 +102,7 @@ Research and code inspection support the revised approach:
 
 **Phase 1: Shared PTY runner**
 
-- [ ] **C1** Add `DetoursProcess` and `DetoursProcessTests` targets at `Shared/` and `SharedTests/`, connect their app/helper/test dependencies in `Package.swift`, and add Linux `libutil` linking.
+- [x] **C1** Add `DetoursProcess` and `DetoursProcessTests` targets at `Shared/` and `SharedTests/`, connect their app/helper/test dependencies in `Package.swift`, and add Linux `libutil` linking.
 - [ ] **C2** Update `resources/scripts/server-cache-hash.sh` and `resources/scripts/build-server-linux.sh` to include, test, and compile the shared PTY sources plus the password-bearing helper archive tests in the Swift 6.2 Noble helper build.
 - [ ] **C3** Implement `Shared/PtyProcessRunner.swift` with a 50-millisecond pre-send delay, 10-second prompt timeout, one-second cancellation grace, 65,536-byte diagnostic tail, prompt buffering across read boundaries, scripted password-or-empty responses, controlling-terminal spawn, streaming output, Swift task cancellation handling, exit mapping, reaping, and password-buffer clearing.
 
@@ -163,3 +163,5 @@ Tests use temporary directories and real archive tools. The shared runner suite 
 - [ ] **T21** `ServerArchiveOperationsTests.testZipPasswordByteLimit` confirms helper ZIP create and extract requests reject 81 UTF-8 bytes before process launch, accept exactly 80 bytes, and leave 7Z unrestricted by this Detours limit.
 
 ## Build Log
+
+- **C1** Added the shared library and test targets, wired the app, helper, and tests to the library, and limited `libutil` linking to Linux. `swift package describe` resolves both new targets and their dependency graph.

@@ -22,22 +22,37 @@ let package = Package(
     products: [
         .executable(name: "Detours", targets: ["Detours"]),
         .executable(name: "detours-server", targets: ["detours-server"]),
+        .library(name: "DetoursProcess", targets: ["DetoursProcess"]),
     ],
     targets: [
+        .target(
+            name: "DetoursProcess",
+            path: "Shared",
+            linkerSettings: [
+                .linkedLibrary("util", .when(platforms: [.linux]))
+            ]
+        ),
         .executableTarget(
             name: "Detours",
+            dependencies: ["DetoursProcess"],
             path: "src",
             swiftSettings: detoursSwiftSettings
         ),
         .executableTarget(
             name: "detours-server",
+            dependencies: ["DetoursProcess"],
             path: "Server"
         ),
         .testTarget(
             name: "DetoursTests",
-            dependencies: ["Detours", "detours-server"],
+            dependencies: ["Detours", "DetoursProcess", "detours-server"],
             path: "Tests",
             exclude: ["TEST_LOG.md", "UITests"]
+        ),
+        .testTarget(
+            name: "DetoursProcessTests",
+            dependencies: ["DetoursProcess"],
+            path: "SharedTests"
         ),
     ]
 )
