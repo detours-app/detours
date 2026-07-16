@@ -1982,3 +1982,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `resources/scripts/uitest.sh RenameVisualUITests/testCaptureInlineRenameEditor`
   FAIL: the UI-test target did not compile because this XCTest SDK's
   `XCUIElement` has no `hasKeyboardFocus` member. No test executed.
+
+- 2026-07-16 18:52 CEST: Foundry
+  `resources/scripts/uitest.sh RenameVisualUITests/testCaptureInlineRenameEditor`
+  FAIL: 1 test, 1 failure. The test compiled and launched, but AppKit did not
+  expose the overlay `NSTextField` through XCUITest's `textFields` query under
+  `inlineRenameField`, so the new pre-capture existence assertion failed.

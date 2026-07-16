@@ -91,6 +91,9 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         field.cell?.usesSingleLineMode = true
         field.cell?.wraps = false
         field.lineBreakMode = .byTruncatingTail
+        field.setAccessibilityElement(true)
+        field.setAccessibilityRole(.textField)
+        field.setAccessibilityLabel("Rename (item.name)")
         field.setAccessibilityIdentifier("inlineRenameField")
     }
 
