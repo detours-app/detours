@@ -45,9 +45,17 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
         }
         sleep(1)
         let rightPane = try XCTUnwrap(visiblePaneOutlines().last, "Right pane outline missing")
-        let testFolderRight = rightPane.outlineRow(withStaticText: testFolderName)
-        XCTAssertTrue(testFolderRight.waitForExistence(timeout: 5), "Home listing shows the test folder")
-        testFolderRight.staticTexts[testFolderName].doubleClick()
+        // A new tab may open on the home directory or clone the current one;
+        // navigate into the test folder only if we are not already there.
+        let initialLocation = (try? requestRemotePaneState(pane: "right"))?.displayedLocation
+        if initialLocation?.hasSuffix(testFolderName) != true {
+            let testFolderRight = rightPane.outlineRow(withStaticText: testFolderName)
+            XCTAssertTrue(
+                testFolderRight.waitForExistence(timeout: 5),
+                "Test folder not visible in right pane; displayed=\(String(describing: initialLocation))"
+            )
+            testFolderRight.staticTexts[testFolderName].doubleClick()
+        }
         XCTAssertTrue(
             waitForCondition(timeout: 5) {
                 let state = try? self.requestRemotePaneState(pane: "right")
