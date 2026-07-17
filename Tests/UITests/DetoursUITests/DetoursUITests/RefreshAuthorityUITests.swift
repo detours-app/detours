@@ -120,8 +120,15 @@ final class RefreshAuthorityRemoteRenameUITests: BaseUITest {
         environment["DETOURS_UI_TEST_REMOTE"] = "connected"
     }
 
+    private func visibleLeftOutline() -> XCUIElement {
+        let visible = app.outlines.matching(identifier: "fileListOutlineView").allElementsBoundByIndex
+            .filter { $0.isHittable }
+            .sorted { $0.frame.minX < $1.frame.minX }
+        return visible.first ?? app.leftPaneOutlineView
+    }
+
     func testRemoteInlineRenameShowsSingleEditorAndSelectsResult() throws {
-        let leftOutline = app.leftPaneOutlineView
+        let leftOutline = visibleLeftOutline()
         let fileRow = leftOutline.outlineRow(withStaticText: "file1.txt")
         XCTAssertTrue(fileRow.waitForExistence(timeout: 5), "Remote listing shows the fixture")
         fileRow.staticTexts["file1.txt"].click()
@@ -129,7 +136,11 @@ final class RefreshAuthorityRemoteRenameUITests: BaseUITest {
         pressKey(.return, modifiers: [.shift])
 
         let editor = app.textFields["inlineRenameField"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 3), "Inline rename editor appears")
+        if !editor.waitForExistence(timeout: 3) {
+            let state = try? requestRemotePaneState(pane: "left")
+            XCTFail("Inline rename editor never appeared; state=\(String(describing: state))")
+            return
+        }
         XCTAssertEqual(
             app.textFields.matching(identifier: "inlineRenameField").count, 1,
             "Exactly one editor exists"
@@ -142,7 +153,7 @@ final class RefreshAuthorityRemoteRenameUITests: BaseUITest {
         app.typeText("renamed-remote.txt")
         pressKey(.return)
 
-        let renamedRow = leftOutline.outlineRow(withStaticText: "renamed-remote.txt")
+        let renamedRow = visibleLeftOutline().outlineRow(withStaticText: "renamed-remote.txt")
         XCTAssertTrue(renamedRow.waitForExistence(timeout: 5), "Renamed file appears once")
         XCTAssertTrue(
             waitForCondition(timeout: 5) {
@@ -155,7 +166,7 @@ final class RefreshAuthorityRemoteRenameUITests: BaseUITest {
         // Rename back so shared remote fixtures stay stable for other suites.
         try performRemoteRename(sourcePath: "/renamed-remote.txt", newName: "file1.txt")
         XCTAssertTrue(
-            leftOutline.outlineRow(withStaticText: "file1.txt").waitForExistence(timeout: 5),
+            visibleLeftOutline().outlineRow(withStaticText: "file1.txt").waitForExistence(timeout: 5),
             "Fixture restored"
         )
     }
