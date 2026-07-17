@@ -188,10 +188,12 @@ extension FileListViewController {
         let directory = snapshot.request.directory
         let policy = snapshot.request.policy
 
-        // Capture pane state before the mutation.
+        // Capture pane state before the mutation. A steady-state apply may
+        // only re-assert keyboard focus its own table already had; it never
+        // takes focus away from another pane.
         let previousExpanded = dataSource.expandedFolders
         let paneCapture = capturePaneState()
-        let keepTableFocus = shouldKeepTableViewFocusedAfterRefresh()
+        let keepTableFocus = view.window?.firstResponder === tableView
 
         guard let reconciliation = dataSource.reconcileListingEntries(
             snapshot.entries,
