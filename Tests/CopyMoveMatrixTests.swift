@@ -55,7 +55,10 @@ final class CopyMoveMatrixTests: XCTestCase {
     }
 
     private func selectedPaths(_ fileList: FileListViewController) -> Set<String> {
-        Set(fileList.selectedItems.map { $0.location.path })
+        // Standardize so /private/var and /var compare equal for local items.
+        Set(fileList.selectedItems.map {
+            URL(fileURLWithPath: $0.location.path).standardizedFileURL.path
+        })
     }
 
     // MARK: - Local to local move: destination selection + source fallback
