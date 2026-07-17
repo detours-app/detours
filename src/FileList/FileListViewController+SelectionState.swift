@@ -55,7 +55,8 @@ extension FileListViewController {
             sortAscending: snapshot.sortDescriptor.ascending,
             activeDropTarget: dropTarget,
             refreshInFlight: refreshScheduler.isRefreshInFlight,
-            visibleRowCount: tableView.numberOfRows
+            visibleRowCount: tableView.numberOfRows,
+            firstResponderDescription: (view.window?.firstResponder).map { String(describing: type(of: $0)) }
         )
     }
 
