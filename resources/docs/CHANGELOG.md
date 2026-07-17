@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.11.2 - 2026-07-17
+
+### Bug Fixes
+
+- **Every file operation ends in one predictable pane update** - Each pane now
+  has a single owner for its list refreshes. Copying or moving files to the
+  other pane leaves that pane active with the results selected and scrolled
+  into view, in every timing, including into a still-loading or never-shown
+  tab. Results placed inside an expanded folder are revealed and selected
+  there.
+- **Renaming updates the list once** - The renamed file stays selected under
+  its new name, the inline editor never shows doubled text even when the row
+  redraws mid-edit, and background refreshes wait until the naming session
+  ends.
+- **Creating files on a server keeps the tree open** - New remote files and
+  folders refresh just the destination folder in place, with the naming field
+  shown immediately; cancelling removes the item and refreshes the server
+  folder.
+- **Idle panes stop flickering** - Background activity that doesn't change
+  what's on screen causes no redraw at all; real external changes appear as
+  in-place row updates that keep the selection, scroll position, and keyboard
+  focus exactly where they were. A background refresh can no longer steal
+  focus from the pane you're working in.
+- **Deleting picks a predictable neighbor** - When the selected file is gone
+  after an operation, selection moves to the next surviving item, or the
+  previous one at the end of the list, never to an unrelated file.
+- **Operation results outrank the filter hiding them** - If the destination
+  tab's filter conceals a copied or moved file, that tab clears its filter and
+  selects the result; other tabs' filters are untouched.
+- **Refresh regressions can't quietly return** - An architecture test suite
+  fails the build if code bypasses the single refresh authority or runs a
+  file operation outside its transaction.
+
 ## 1.11.1 - 2026-07-16
 
 ### Bug Fixes
