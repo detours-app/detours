@@ -332,18 +332,24 @@ extension MainSplitViewController {
         }
     }
 
+    /// Cross-pane refresh requests submit typed intents into each target
+    /// tab's scheduler; the pane whose directory (root or expanded branch)
+    /// matches reconciles that listing in place.
     func refreshPanes(matching directories: Set<URL>) {
         guard !directories.isEmpty else { return }
-        let normalized = Set(directories.map { normalizeDirectory($0) })
+        let locations = Set(directories.map { Location.local(normalizeDirectory($0)) })
 
-        if let leftDirectory = leftPane.currentDirectory,
-           normalized.contains(normalizeDirectory(leftDirectory)) {
-            refreshPanePreservingSelection(leftPane)
-        }
-
-        if let rightDirectory = rightPane.currentDirectory,
-           normalized.contains(normalizeDirectory(rightDirectory)) {
-            refreshPanePreservingSelection(rightPane)
+        for pane in [leftPane, rightPane] {
+            for tab in pane.tabs {
+                guard let fileList = tab.fileListViewControllerIfLoaded,
+                      fileList.currentRemoteLocation == nil else { continue }
+                for location in locations where fileList.paneDisplaysDirectory(location) {
+                    fileList.refreshScheduler.submitListingRefresh(
+                        directory: location,
+                        cause: .crossPane
+                    )
+                }
+            }
         }
     }
 
@@ -379,17 +385,6 @@ extension MainSplitViewController {
         if !localDirectories.isEmpty {
             refreshPanes(matching: localDirectories)
         }
-    }
-
-    private func refreshPanePreservingSelection(_ pane: PaneViewController) {
-        guard let tab = pane.selectedTab else {
-            pane.refresh()
-            return
-        }
-        // loadDirectory captures and restores the selected locations after its
-        // asynchronous load. Selecting synchronously here races that load and
-        // can leave the pane on an arbitrary final row.
-        tab.fileListViewController.refreshAfterLocalMutation()
     }
 
     func handleSystemDefinedEvent(_ event: NSEvent) -> Bool {
