@@ -536,11 +536,13 @@ extension FileListViewController {
 
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
         let hasPreferredResults = !snapshot.request.preferredResultLocations.isEmpty
-        if applyKind == .noop && !hasPreferredResults {
+        if applyKind == .noop && !hasPreferredResults && pendingPostLoadAction == nil {
             // An identical later snapshot changes neither cells nor pane state.
             return
         }
         switch applyKind {
+        case .noop where !hasPreferredResults:
+            break
         case .noop, .rows:
             restoreSelectionApplyingRule(
                 from: paneState,
