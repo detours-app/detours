@@ -208,3 +208,43 @@ private final class LoadCountingDelegate: FileListNavigationDelegate {
     func fileListDidChangeSelection() {}
     func fileListDidLoadDirectory(_ controller: FileListViewController) { onLoad() }
 }
+
+/// Regression: a session-restored pane (loaded through the pending-directory
+/// replay) still receives external watcher changes.
+@MainActor
+final class RestoredPaneWatcherTests: XCTestCase {
+    func testSessionRestoredPaneReceivesExternalChanges() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        _ = try createTestFile(in: temp, name: "a.txt")
+
+        // Session restore: the controller learns its directory before the
+        // view exists, then the view appears and replays the load.
+        let controller = FileListViewController()
+        controller.loadDirectory(temp)
+        XCTAssertFalse(controller.isViewLoaded)
+        controller.loadViewIfNeeded()
+        controller.view.frame = NSRect(x: 0, y: 0, width: 420, height: 260)
+        controller.view.layoutSubtreeIfNeeded()
+
+        let loadDeadline = Date().addingTimeInterval(3)
+        while controller.tableView.numberOfRows != 1 && Date() < loadDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertEqual(controller.tableView.numberOfRows, 1, "Restored pane loads its directory")
+
+        FileManager.default.createFile(
+            atPath: temp.appendingPathComponent("zz_external.txt").path,
+            contents: Data()
+        )
+
+        let deadline = Date().addingTimeInterval(5)
+        while controller.tableView.numberOfRows != 2 && Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertEqual(
+            controller.tableView.numberOfRows, 2,
+            "External change must appear in a session-restored pane"
+        )
+    }
+}
