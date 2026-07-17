@@ -44,7 +44,8 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
                 row.staticTexts.allElementsBoundByIndex.map { $0.value as? String ?? $0.label }.joined(separator: "|")
             }
             let state = try? requestRemotePaneState(pane: "right")
-            XCTFail("T8Dest row missing in right pane; rows=\(rows) displayed=\(String(describing: state?.displayedLocation)) count=\(String(describing: state?.visibleRowCount))")
+            let disk = (try? FileManager.default.contentsOfDirectory(atPath: uiTestRootURL.path)) ?? []
+            XCTFail("T8Dest row missing in right pane; rows=\(rows) displayed=\(String(describing: state?.displayedLocation)) count=\(String(describing: state?.visibleRowCount)) disk=\(disk.sorted())")
             return
         }
         destRight.staticTexts["T8Dest"].doubleClick()
