@@ -54,17 +54,36 @@ extension FileListViewController {
             completion?()
             return
         }
-        let target = expandedLocation ?? root
         var policy = PaneRefreshResultPolicy()
         policy.preferredResultLocations = Set(locations)
         policy.expandTo = expandedLocation
         policy.clearsFilterConcealingResults = true
         policy.onApplied = completion
-        refreshScheduler.submitListingRefresh(
-            directory: target,
-            cause: .operation,
-            policy: policy
-        )
+
+        // The listing that changed is the results' parent directory (results
+        // inside an expanded branch reconcile that branch, not the root).
+        // The policy rides the first result's parent; other affected parents
+        // refresh without one.
+        let primaryParent = PaneRefreshScheduler.normalizedDirectory(locations[0].deletingLastPathComponent())
+        let parents = Set(locations.map {
+            PaneRefreshScheduler.normalizedDirectory($0.deletingLastPathComponent())
+        })
+        let displayedParents = parents.filter { paneDisplaysDirectory($0) }
+        guard !displayedParents.isEmpty else {
+            refreshScheduler.submitListingRefresh(
+                directory: expandedLocation ?? root,
+                cause: .operation,
+                policy: policy
+            )
+            return
+        }
+        for parent in displayedParents {
+            refreshScheduler.submitListingRefresh(
+                directory: parent,
+                cause: .operation,
+                policy: parent == primaryParent ? policy : nil
+            )
+        }
     }
 
     @discardableResult
