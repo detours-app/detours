@@ -140,6 +140,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         dataSource.submitRowRefresh = { [weak self] item, columns in
             self?.refreshScheduler.submitRowRefresh(item: item, columns: columns)
         }
+        dataSource.currentRefreshEpoch = { [weak self] in
+            self?.refreshScheduler.epoch ?? 0
+        }
         tableView.keyHandler = self
         tableView.contextMenuDelegate = self
         tableView.onActivate = { [weak self] in

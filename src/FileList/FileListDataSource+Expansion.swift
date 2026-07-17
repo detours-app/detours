@@ -77,6 +77,7 @@ extension FileListDataSource {
         let statuses = gitStatuses
         let sort = sortDescriptor
         let foldersTop = SettingsManager.shared.foldersOnTop
+        let epoch = currentRefreshEpoch?()
         Task { @MainActor [weak self] in
             defer {
                 self?.pendingChildLoads.remove(itemID)
@@ -87,6 +88,7 @@ extension FileListDataSource {
             do {
                 _ = try await item.loadChildrenAsync(showHidden: showHidden, sortDescriptor: sort, foldersOnTop: foldersTop)
                 guard let self else { return }
+                guard epoch == nil || epoch == self.currentRefreshEpoch?() else { return }
 
                 if let children = item.children {
                     self.updateGitStatus(for: children, statuses: statuses)
@@ -140,6 +142,7 @@ extension FileListDataSource {
         }
 
         let showHidden = showHiddenFiles
+        let epoch = currentRefreshEpoch?()
 
         Task { @MainActor [weak self] in
             defer {
@@ -150,6 +153,7 @@ extension FileListDataSource {
             do {
                 guard let self else { return }
                 let entries = try await provider.list(item.location, showHidden: showHidden)
+                guard epoch == nil || epoch == self.currentRefreshEpoch?() else { return }
                 _ = self.reconcileListingEntries(entries, in: item.location)
                 self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
@@ -184,11 +188,13 @@ extension FileListDataSource {
         let sort = sortDescriptor
         let foldersTop = SettingsManager.shared.foldersOnTop
         let cloudDocsURL = item.url.standardizedFileURL
+        let epoch = currentRefreshEpoch?()
 
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
                 let sources = try await self.loadICloudSharedSources(cloudDocsURL: cloudDocsURL, showHidden: showHidden)
+                guard epoch == nil || epoch == self.currentRefreshEpoch?() else { return }
                 let sharedItems = self.composeICloudSharedTopLevelItems(
                     from: sources,
                     cloudDocsURL: cloudDocsURL,

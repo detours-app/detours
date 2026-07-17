@@ -96,9 +96,11 @@ extension FileListDataSource {
         let cell = makeTextCell(text: cellText, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
 
         if needsRefresh {
-            FolderSizeCache.shared.calculateAsync(for: url) { [weak self, weak item] _ in
+            FolderSizeCache.shared.calculateAsync(for: url) { [weak self, weak item] size in
                 guard let self, let item else { return }
-                self.applier.reloadRow(for: item, column: 1)
+                // Redraw only when the displayed text actually changes.
+                guard self.formatSize(size) != cellText else { return }
+                self.requestRowRefresh(for: item, columns: IndexSet(integer: 1))
             }
         }
 

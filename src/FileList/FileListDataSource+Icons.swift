@@ -56,15 +56,16 @@ extension FileListDataSource {
                 guard !Task.isCancelled else { return }
 
                 // Tint folder icons with accent color
-                if item.isPresentedAsFolder {
-                    item.icon = FileItem.tintedFolderIcon(icon)
-                } else {
-                    item.icon = icon
-                }
+                let resolvedIcon = item.isPresentedAsFolder
+                    ? FileItem.tintedFolderIcon(icon)
+                    : icon
+                // An unchanged icon must not redraw the row (or recreate its
+                // cell under an active rename).
+                guard resolvedIcon !== item.icon else { return }
+                item.icon = resolvedIcon
 
-                // Reload just this item's name cell
                 guard let self else { return }
-                self.applier.reloadRow(for: item, column: 0)
+                self.requestRowRefresh(for: item, columns: IndexSet(integer: 0))
             }
             iconLoadTasks.append(task)
         }

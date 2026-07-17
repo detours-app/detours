@@ -260,6 +260,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     /// row reload through the applier.
     var submitRowRefresh: ((_ item: FileItem, _ columns: IndexSet) -> Void)?
 
+    /// The pane's current navigation epoch. Asynchronous branch loads started
+    /// by AppKit disclosure capture it and refuse to mutate the outline after
+    /// a navigation invalidated them.
+    var currentRefreshEpoch: (() -> UInt64)?
+
     func requestRowRefresh(for item: FileItem, columns: IndexSet) {
         if let submitRowRefresh {
             submitRowRefresh(item, columns)
