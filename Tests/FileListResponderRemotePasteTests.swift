@@ -95,7 +95,7 @@ extension FileListResponderTests {
         controller.currentRemoteProvider = provider
         controller.dataSource.currentRemoteDirectoryForGit = root
         controller.dataSource.currentRemoteProvider = provider
-        controller.dataSource.items = items
+        controller.dataSource.applier.setRootItems(items)
         controller.tableView.reloadData()
         return controller
     }

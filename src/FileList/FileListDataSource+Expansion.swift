@@ -1,6 +1,12 @@
 import AppKit
 
 extension FileListDataSource {
+    /// Async disclosure loads capture the pane epoch at start; a navigation
+    /// in between makes their results ineligible.
+    func isEpochCurrent(_ capturedEpoch: UInt64?) -> Bool {
+        capturedEpoch == nil || capturedEpoch == currentRefreshEpoch?()
+    }
+
     // MARK: - Expansion Events
 
     func outlineView(_ outlineView: NSOutlineView, shouldExpandItem item: Any) -> Bool {
@@ -77,6 +83,7 @@ extension FileListDataSource {
         let statuses = gitStatuses
         let sort = sortDescriptor
         let foldersTop = SettingsManager.shared.foldersOnTop
+        let epoch = currentRefreshEpoch?()
         Task { @MainActor [weak self] in
             defer {
                 self?.pendingChildLoads.remove(itemID)
@@ -87,17 +94,18 @@ extension FileListDataSource {
             do {
                 _ = try await item.loadChildrenAsync(showHidden: showHidden, sortDescriptor: sort, foldersOnTop: foldersTop)
                 guard let self else { return }
+                guard self.isEpochCurrent(epoch) else { return }
 
                 if let children = item.children {
                     self.updateGitStatus(for: children, statuses: statuses)
                 }
-                outlineView.reloadItem(item, reloadChildren: true)
+                self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
                 self.restoreSavedChildExpansions(of: item, in: outlineView)
             } catch {
                 // Expansion failed - set empty children so folder shows as empty
-                item.children = []
-                outlineView.reloadItem(item, reloadChildren: true)
+                self?.applier.setChildren([], of: item)
+                self?.applier.reloadSubtree(item)
             }
         }
     }
@@ -140,6 +148,7 @@ extension FileListDataSource {
         }
 
         let showHidden = showHiddenFiles
+        let epoch = currentRefreshEpoch?()
 
         Task { @MainActor [weak self] in
             defer {
@@ -150,15 +159,16 @@ extension FileListDataSource {
             do {
                 guard let self else { return }
                 let entries = try await provider.list(item.location, showHidden: showHidden)
-                _ = self.reconcileRemoteEntries(entries, in: item.location)
-                outlineView.reloadItem(item, reloadChildren: true)
+                guard self.isEpochCurrent(epoch) else { return }
+                _ = self.reconcileListingEntries(entries, in: item.location)
+                self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
                 if SettingsManager.shared.settings.gitStatusEnabled {
                     self.fetchRemoteGitStatus(for: item.location, provider: provider)
                 }
             } catch {
-                item.children = []
-                outlineView.reloadItem(item, reloadChildren: true)
+                self?.applier.setChildren([], of: item)
+                self?.applier.reloadSubtree(item)
             }
         }
     }
@@ -170,12 +180,12 @@ extension FileListDataSource {
         }
         do {
             let entries = try await provider.list(item.location, showHidden: showHiddenFiles)
-            _ = reconcileRemoteEntries(entries, in: item.location)
+            _ = reconcileListingEntries(entries, in: item.location)
             if SettingsManager.shared.settings.gitStatusEnabled {
                 fetchRemoteGitStatus(for: item.location, provider: provider)
             }
         } catch {
-            item.children = []
+            applier.setChildren([], of: item)
         }
     }
 
@@ -184,11 +194,13 @@ extension FileListDataSource {
         let sort = sortDescriptor
         let foldersTop = SettingsManager.shared.foldersOnTop
         let cloudDocsURL = item.url.standardizedFileURL
+        let epoch = currentRefreshEpoch?()
 
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
                 let sources = try await self.loadICloudSharedSources(cloudDocsURL: cloudDocsURL, showHidden: showHidden)
+                guard self.isEpochCurrent(epoch) else { return }
                 let sharedItems = self.composeICloudSharedTopLevelItems(
                     from: sources,
                     cloudDocsURL: cloudDocsURL,
@@ -198,13 +210,13 @@ extension FileListDataSource {
                 for child in sortedChildren {
                     child.parent = item
                 }
-                item.children = sortedChildren
+                self.applier.setChildren(sortedChildren, of: item)
                 self.updateGitStatus(for: sortedChildren, statuses: self.gitStatuses)
-                outlineView.reloadItem(item, reloadChildren: true)
+                self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
             } catch {
-                item.children = []
-                outlineView.reloadItem(item, reloadChildren: true)
+                self.applier.setChildren([], of: item)
+                self.applier.reloadSubtree(item)
             }
         }
     }

@@ -4,6 +4,11 @@ import AppKit
 protocol RenameControllerDelegate: AnyObject {
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL)
     func renameControllerDidCancelNewItem(_ controller: RenameController, item: FileItem)
+    /// Called when an editing session begins, after the editor is installed.
+    func renameControllerDidBeginEditing(_ controller: RenameController, item: FileItem)
+    /// Called whenever an editing session ends, before any commit or cancel
+    /// side effects run.
+    func renameControllerDidEndEditing(_ controller: RenameController, item: FileItem?)
 }
 
 @MainActor
@@ -72,6 +77,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         tableView.addSubview(field)
         tableView.window?.makeFirstResponder(field)
         selectFilenameStem(in: field, for: item)
+        delegate?.renameControllerDidBeginEditing(self, item: item)
     }
 
     private func configureRenameField(_ field: NSTextField, item: FileItem) {
@@ -129,7 +135,11 @@ final class RenameController: NSObject, NSTextFieldDelegate {
                 undoManager.registerUndo(withTarget: FileOperationQueue.shared) { target in
                     Task { @MainActor in
                         do {
-                            try await target.delete(items: [createdLocation], undoManager: nil)
+                            try await PaneFileOperationCoordinator.shared.perform(
+                                affecting: [createdLocation.deletingLastPathComponent()]
+                            ) {
+                                try await target.delete(items: [createdLocation], undoManager: nil)
+                            }
                         } catch {
                             target.presentError(error)
                         }
@@ -163,7 +173,11 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
         Task { @MainActor in
             do {
-                let newLocation = try await FileOperationQueue.shared.rename(item: oldLocation, to: newName)
+                let newLocation = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: [oldLocation.deletingLastPathComponent()]
+                ) {
+                    try await FileOperationQueue.shared.rename(item: oldLocation, to: newName)
+                }
                 let newURL = URL(fileURLWithPath: newLocation.path)
 
                 if wasNewItem {
@@ -172,7 +186,11 @@ final class RenameController: NSObject, NSTextFieldDelegate {
                     undoManager?.registerUndo(withTarget: FileOperationQueue.shared) { target in
                         Task { @MainActor in
                             do {
-                                try await target.delete(items: [createdLocation], undoManager: nil)
+                                try await PaneFileOperationCoordinator.shared.perform(
+                                    affecting: [createdLocation.deletingLastPathComponent()]
+                                ) {
+                                    try await target.delete(items: [createdLocation], undoManager: nil)
+                                }
                             } catch {
                                 target.presentError(error)
                             }
@@ -180,20 +198,21 @@ final class RenameController: NSObject, NSTextFieldDelegate {
                     }
                     undoManager?.setActionName("New Folder")
                 } else {
-                    // For existing items: undo renames back (synchronous)
+                    // Rename undo is a listing-affecting operation like any
+                    // other: it enters through the coordinator so watcher work
+                    // holds until the rename-back lands.
                     undoManager?.registerUndo(withTarget: FileOperationQueue.shared) { target in
-                        if case .remote = newLocation {
-                            Task { @MainActor in
-                                do {
-                                    _ = try await target.rename(item: newLocation, to: oldLocation.lastPathComponent)
-                                } catch {
-                                    target.presentError(error)
-                                }
-                            }
-                        } else {
-                            guard let oldURL else { return }
+                        Task { @MainActor in
                             do {
-                                try FileManager.default.moveItem(at: newURL, to: oldURL)
+                                try await PaneFileOperationCoordinator.shared.perform(
+                                    affecting: [newLocation.deletingLastPathComponent()]
+                                ) {
+                                    if case .remote = newLocation {
+                                        _ = try await target.rename(item: newLocation, to: oldLocation.lastPathComponent)
+                                    } else if let oldURL {
+                                        try FileManager.default.moveItem(at: newURL, to: oldURL)
+                                    }
+                                }
                             } catch {
                                 target.presentError(error)
                             }
@@ -237,6 +256,10 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         tv?.window?.makeFirstResponder(tv)
         field?.removeFromSuperview()
         obscuredCellTextField?.isHidden = false
+
+        if field != nil {
+            delegate?.renameControllerDidEndEditing(self, item: item)
+        }
 
         // Delete newly created item if user cancelled before committing
         if wasNewItem, let item = item {

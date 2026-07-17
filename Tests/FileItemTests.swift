@@ -304,7 +304,7 @@ final class FileItemTests: XCTestCase {
         let childB = makeItem(name: "ChildB.txt", isDirectory: false, size: 100, date: Date())
         childA.parent = parent
         childB.parent = parent
-        parent.children = [childA, childB]
+        parent.setChildrenForTesting([childA, childB])
 
         let otherFile = makeItem(name: "Other.txt", isDirectory: false, size: 200, date: Date())
 

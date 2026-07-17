@@ -353,8 +353,8 @@ final class FileListDataSourceTests: XCTestCase {
         let folder = makeRemoteItem(name: "dir", path: "/home/marco/dir", isDirectory: true)
         let child = makeRemoteItem(name: "a.txt", path: "/home/marco/dir/a.txt", isDirectory: false)
         child.parent = folder
-        folder.children = [child]
-        dataSource.items = [folder]
+        folder.setChildrenForTesting([child])
+        dataSource.applier.setRootItems([folder])
 
         let outlineView = NSOutlineView()
         XCTAssertTrue(dataSource.outlineView(outlineView, shouldExpandItem: folder))
@@ -370,7 +370,7 @@ final class FileListDataSourceTests: XCTestCase {
         let dataSource = FileListDataSource()
         let remote = makeRemoteItem(name: "remote.txt", path: "/home/marco/remote.txt", isDirectory: false)
         let local = FileItem(url: localFile)
-        dataSource.items = [remote, local]
+        dataSource.applier.setRootItems([remote, local])
 
         let foundLocal = dataSource.findItem(withURL: localFile, in: dataSource.items)
         let foundRemote = dataSource.findItem(withURL: URL(fileURLWithPath: "/home/marco/remote.txt"), in: dataSource.items)

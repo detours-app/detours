@@ -96,15 +96,11 @@ extension FileListDataSource {
         let cell = makeTextCell(text: cellText, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
 
         if needsRefresh {
-            FolderSizeCache.shared.calculateAsync(for: url) { [weak outlineView, weak item] _ in
-                guard let outlineView, let item else { return }
-                let row = outlineView.row(forItem: item)
-                if row >= 0 {
-                    outlineView.reloadData(
-                        forRowIndexes: IndexSet(integer: row),
-                        columnIndexes: IndexSet(integer: 1)
-                    )
-                }
+            FolderSizeCache.shared.calculateAsync(for: url) { [weak self, weak item] size in
+                guard let self, let item else { return }
+                // Redraw only when the displayed text actually changes.
+                guard self.formatSize(size) != cellText else { return }
+                self.requestRowRefresh(for: item, columns: IndexSet(integer: 1))
             }
         }
 
@@ -133,6 +129,7 @@ extension FileListDataSource {
         if let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? FileListCell {
             cell.configure(with: item, isDropTarget: isDropTarget)
             cell.setAccessibilityIdentifier("outlineCell_\(item.name)")
+            cell.textField?.isHidden = item === inlineEditingItem
             return cell
         }
 
@@ -140,6 +137,7 @@ extension FileListDataSource {
         cell.identifier = identifier
         cell.configure(with: item, isDropTarget: isDropTarget)
         cell.setAccessibilityIdentifier("outlineCell_\(item.name)")
+        cell.textField?.isHidden = item === inlineEditingItem
         return cell
     }
 

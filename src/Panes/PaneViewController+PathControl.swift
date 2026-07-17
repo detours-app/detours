@@ -320,28 +320,47 @@ extension PaneViewController: NSPathControlDelegate {
 
 extension PaneViewController: DroppablePathControlDelegate {
     func pathControlDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool) {
-        let undoManager = selectedTab?.fileListViewController.undoManager
+        performDroppedFileTransfer(
+            urls: urls,
+            to: destination,
+            isCopy: isCopy,
+            undoManager: selectedTab?.fileListViewController.undoManager
+        )
+    }
+
+    /// Shared transfer for chrome drop targets (path control, tab bar): one
+    /// coordinator transaction, then a cross-pane refresh of every affected
+    /// directory.
+    func performDroppedFileTransfer(
+        urls: [URL],
+        to destination: URL,
+        isCopy: Bool,
+        undoManager: UndoManager?
+    ) {
+        var directoriesToRefresh = Set<URL>()
+        for url in urls {
+            directoriesToRefresh.insert(url.deletingLastPathComponent().standardizedFileURL)
+        }
+        directoriesToRefresh.insert(destination.standardizedFileURL)
         Task { @MainActor in
             do {
-                if isCopy {
-                    try await FileOperationQueue.shared.copy(
-                        items: urls,
-                        to: destination,
-                        undoManager: undoManager
-                    )
-                } else {
-                    try await FileOperationQueue.shared.move(
-                        items: urls,
-                        to: destination,
-                        undoManager: undoManager
-                    )
+                try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: Set(directoriesToRefresh.map(Location.local))
+                ) {
+                    if isCopy {
+                        try await FileOperationQueue.shared.copy(
+                            items: urls,
+                            to: destination,
+                            undoManager: undoManager
+                        )
+                    } else {
+                        try await FileOperationQueue.shared.move(
+                            items: urls,
+                            to: destination,
+                            undoManager: undoManager
+                        )
+                    }
                 }
-                // Refresh relevant directories
-                var directoriesToRefresh = Set<URL>()
-                for url in urls {
-                    directoriesToRefresh.insert(url.deletingLastPathComponent().standardizedFileURL)
-                }
-                directoriesToRefresh.insert(destination.standardizedFileURL)
                 if let splitVC = parent as? MainSplitViewController {
                     splitVC.refreshPanes(matching: directoriesToRefresh)
                 }

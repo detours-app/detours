@@ -79,13 +79,8 @@ extension FileListViewController {
         let relevantURLs = urls.filter { $0.deletingLastPathComponent() == currentDirectory }
         guard !relevantURLs.isEmpty else { return }
 
-        // Reload and select the restored items
-        loadDirectory(
-            currentDirectory,
-            preserveExpansion: true,
-            coalescingLocalMutationEvents: true
-        )
-        restoreSelection(relevantURLs)
+        // Reload and select the restored items through the scheduler
+        refreshSelectingLocations(relevantURLs.map(Location.local))
     }
 
     @objc func handleThemeChange() {
@@ -151,7 +146,7 @@ extension FileListViewController {
 
         let rowIndexes = IndexSet(integersIn: visibleRange.location..<upperBound)
         let columnIndexes = IndexSet(integersIn: 0..<tableView.numberOfColumns)
-        tableView.reloadData(forRowIndexes: rowIndexes, columnIndexes: columnIndexes)
+        dataSource.applier.reloadRows(rowIndexes, columns: columnIndexes)
     }
 
     @objc func tableViewSelectionDidChange(_ notification: Notification) {

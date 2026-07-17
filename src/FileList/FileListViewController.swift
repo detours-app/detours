@@ -57,13 +57,14 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var directoryWatchTask: Task<Void, Never>?
     var providerWatchSetupTasks: [Location: Task<Void, Never>] = [:]
     var providerWatchGeneration: UInt64 = 0
-    var directoryChangeDebounce: DispatchWorkItem?
-    var localMutationWatcherSuppressionEnd: DispatchWorkItem?
-    var localMutationWatcherSuppressionGeneration = 0
-    var suppressLocalMutationWatcherReloads = false
-    var remoteRefreshCoordinator: RemoteRefreshCoordinator?
-    /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
-    var pendingPostLoadAction: (() -> Void)?
+    /// One owner for every programmatic listing refresh of this pane. Exists
+    /// from controller creation so an undisplayed tab retains its latest
+    /// eligible intent until the outline becomes available.
+    let refreshScheduler = PaneRefreshScheduler()
+    /// Result policy for the next navigation load (e.g. session-restore
+    /// selection, quick-open reveal). Captured by the load that starts next,
+    /// so a competing refresh can never consume it.
+    var pendingNavigationReveal: PaneRefreshResultPolicy?
     var selectionAnchor: Int?
     var selectionCursor: Int?
     var selectionOrigin: FileListSelectionOrigin = .automatic
@@ -77,6 +78,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var selectionBeforeNewItem: URL?
     /// Expansion state to restore after async directory load completes
     var pendingExpansionRestore: Set<URL>?
+    /// Scheduler hold covering an active inline rename session: refresh
+    /// applies wait until the session ends, then flush once with the
+    /// rename's result.
+    var renameRefreshHoldID: UUID?
+    /// True while a navigation load owns the outline. Scheduler intents
+    /// retain until it completes, then replay, so a refresh racing the
+    /// navigation can neither apply against a half-built root nor lose its
+    /// result policy to the navigation's default selection.
+    var isNavigationLoadInFlight = false
 
     var isSharedTopLevelView: Bool {
         currentICloudListingMode == .sharedTopLevel &&
@@ -87,7 +97,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var loadingSpinner: NSProgressIndicator?
     var errorOverlay: NSView?
     var remoteRefreshErrorBanner: NSView?
-    var failedRemoteRefreshRequest: RemoteRefreshRequest?
+    var failedRemoteRefreshDirectory: Location?
     var quickLookPreviewItems: [DetoursQuickLookItem] = []
     var quickLookGenerationTask: Task<Void, Never>?
     var quickLookRequestID = UUID()
@@ -125,34 +135,19 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        remoteRefreshCoordinator = RemoteRefreshCoordinator(
-            debounceInterval: 0.1,
-            fetch: { [weak self] request in
-                guard let self,
-                      self.isCurrentRemoteRefreshDirectory(request.directory),
-                      let provider = self.currentRemoteProvider else {
-                    throw RemoteRefreshCoordinatorError.providerUnavailable
-                }
-                return try await provider.list(
-                    request.directory,
-                    showHidden: self.dataSource.showHiddenFiles
-                )
-            },
-            apply: { [weak self] snapshot in
-                self?.applyRemoteRefresh(snapshot)
-            },
-            handleFailure: { [weak self] request, error in
-                guard let self,
-                      self.isCurrentRemoteRefreshDirectory(request.directory) else { return }
-                self.showRemoteRefreshError(request: request, error: error)
-            }
-        )
+        configureRefreshScheduler()
 
         setupScrollView()
         setupTableView()
         setupColumns()
 
         dataSource.outlineView = tableView
+        dataSource.submitRowRefresh = { [weak self] item, columns in
+            self?.refreshScheduler.submitRowRefresh(item: item, columns: columns)
+        }
+        dataSource.currentRefreshEpoch = { [weak self] in
+            self?.refreshScheduler.epoch ?? 0
+        }
         tableView.keyHandler = self
         tableView.contextMenuDelegate = self
         tableView.onActivate = { [weak self] in
@@ -179,6 +174,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
         // onLoadCompleted is set per-call in loadDirectory() to handle
         // expansion, selection, and watching after async load finishes
+
+        refreshScheduler.activate()
 
         if let pendingDirectory {
             self.pendingDirectory = nil

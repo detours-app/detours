@@ -3,24 +3,44 @@ import XCTest
 @testable import Detours
 
 @MainActor
-final class RemoteRefreshCoordinatorTests: XCTestCase {
+final class PaneRefreshRemoteListingTests: XCTestCase {
+    private func makeScheduler(
+        fetch: @escaping @MainActor (PaneListingRequest) async throws -> [LoadedFileEntry],
+        apply: @escaping @MainActor (PaneListingSnapshot) -> PaneListingApplyOutcome = { _ in PaneListingApplyOutcome() },
+        handleFailure: @escaping @MainActor (PaneListingRequest, any Error) -> Void = { _, error in
+            XCTFail("Unexpected failure: \(error)")
+        }
+    ) -> PaneRefreshScheduler {
+        let scheduler = PaneRefreshScheduler()
+        scheduler.configure(PaneRefreshScheduler.Dependencies(
+            fetch: fetch,
+            apply: apply,
+            handleFailure: handleFailure,
+            applyRowRefreshes: { _ in },
+            canApplyNow: { true },
+            displaysDirectory: { _ in true }
+        ))
+        return scheduler
+    }
+
     func testTreeRemainsVisibleWhileListingIsHeld() async throws {
         let hostID = UUID()
         let root = Location.remote(hostID: hostID, path: "/")
         let gate = AsyncTestGate()
         var visibleNames = ["existing.txt"]
-        let coordinator = RemoteRefreshCoordinator(
-            debounceInterval: 0,
+        let scheduler = makeScheduler(
             fetch: { _ in
                 await gate.hold()
                 return [self.entry(hostID: hostID, path: "/new.txt", name: "new.txt")]
             },
-            apply: { snapshot in visibleNames = snapshot.entries.map(\.name) },
-            handleFailure: { _, error in XCTFail("Unexpected failure: \(error)") }
+            apply: { snapshot in
+                visibleNames = snapshot.entries.map(\.name)
+                return PaneListingApplyOutcome()
+            }
         )
 
-        coordinator.requestRefresh(affectedLocation: root, reason: .mutation)
-        try await waitFor { coordinator.isRefreshInFlight }
+        scheduler.submitListingRefresh(directory: root, cause: .operation)
+        try await waitFor { scheduler.isRefreshInFlight }
 
         XCTAssertEqual(visibleNames, ["existing.txt"])
 
@@ -32,7 +52,7 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         let hostID = UUID()
         let root = Location.remote(hostID: hostID, path: "/")
         let folder = item(hostID: hostID, path: "/Folder", name: "item-Folder", isDirectory: true)
-        folder.children = [item(hostID: hostID, path: "/Folder/nested.txt", name: "nested.txt")]
+        folder.setChildrenForTesting([item(hostID: hostID, path: "/Folder/nested.txt", name: "nested.txt")])
         folder.children?.first?.parent = folder
         let files = (0..<18).map {
             item(hostID: hostID, path: "/item-\($0).txt", name: "item-\($0).txt")
@@ -58,14 +78,14 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         window.makeFirstResponder(controller.tableView)
         controller.scrollView.contentView.scroll(to: NSPoint(x: 9, y: 80))
         controller.scrollView.reflectScrolledClipView(controller.scrollView.contentView)
-        let before = controller.captureRemotePaneState()
+        let before = controller.capturePaneState()
 
-        let snapshot = RemoteRefreshSnapshot(
+        let snapshot = PaneListingSnapshot(
             request: request(directory: root, generation: 1),
             entries: ([folder] + files).map { entry(from: $0) }
         )
-        controller.applyRemoteRefresh(snapshot)
-        let after = controller.captureRemotePaneState()
+        _ = controller.applyScheduledListingSnapshot(snapshot)
+        let after = controller.capturePaneState()
 
         XCTAssertEqual(after.expandedLocations, before.expandedLocations)
         XCTAssertEqual(after.selectedLocations, before.selectedLocations)
@@ -83,9 +103,12 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         let root = Location.remote(hostID: hostID, path: "/")
         let branch = Location.remote(hostID: hostID, path: "/Folder")
         var fetched: [Location] = []
-        let coordinator = recordingCoordinator(fetched: { fetched.append($0) })
+        let scheduler = makeScheduler(fetch: { request in
+            fetched.append(request.directory)
+            return []
+        })
 
-        coordinator.requestRefresh(affectedLocation: branch, reason: .watch)
+        scheduler.submitListingRefresh(directory: branch, cause: .watcher)
         try await waitFor { fetched.count == 1 }
 
         XCTAssertEqual(fetched, [branch])
@@ -95,23 +118,18 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
     func testMutationAndWatchEventCoalesce() async throws {
         let hostID = UUID()
         let directory = Location.remote(hostID: hostID, path: "/Folder")
-        var requests: [RemoteRefreshRequest] = []
-        let coordinator = RemoteRefreshCoordinator(
-            debounceInterval: 0.02,
-            fetch: { request in
-                requests.append(request)
-                return []
-            },
-            apply: { _ in },
-            handleFailure: { _, error in XCTFail("Unexpected failure: \(error)") }
-        )
+        var requests: [PaneListingRequest] = []
+        let scheduler = makeScheduler(fetch: { request in
+            requests.append(request)
+            return []
+        })
 
-        coordinator.requestRefresh(affectedLocation: directory, reason: .mutation)
-        coordinator.requestRefresh(affectedLocation: directory, reason: .watch)
+        scheduler.submitListingRefresh(directory: directory, cause: .watcher)
+        scheduler.submitListingRefresh(directory: directory, cause: .operation)
         try await waitFor { requests.count == 1 }
 
         XCTAssertEqual(requests.map(\.directory), [directory])
-        XCTAssertEqual(requests[0].reasons, [.mutation, .watch])
+        XCTAssertEqual(requests[0].causes, [.operation, .watcher])
     }
 
     func testBurstCoalescesByAffectedDirectory() async throws {
@@ -119,19 +137,14 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         let a = Location.remote(hostID: hostID, path: "/A")
         let b = Location.remote(hostID: hostID, path: "/B")
         var fetched: [Location] = []
-        let coordinator = RemoteRefreshCoordinator(
-            debounceInterval: 0.02,
-            fetch: { request in
-                fetched.append(request.directory)
-                return []
-            },
-            apply: { _ in },
-            handleFailure: { _, error in XCTFail("Unexpected failure: \(error)") }
-        )
+        let scheduler = makeScheduler(fetch: { request in
+            fetched.append(request.directory)
+            return []
+        })
 
         for _ in 0..<4 {
-            coordinator.requestRefresh(affectedLocation: a, reason: .watch)
-            coordinator.requestRefresh(affectedLocation: b, reason: .watch)
+            scheduler.submitListingRefresh(directory: a, cause: .watcher)
+            scheduler.submitListingRefresh(directory: b, cause: .watcher)
         }
         try await waitFor { fetched.count == 2 }
 
@@ -144,8 +157,7 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         let firstGate = AsyncTestGate()
         var fetchCount = 0
         var appliedNames: [String] = []
-        let coordinator = RemoteRefreshCoordinator(
-            debounceInterval: 0,
+        let scheduler = makeScheduler(
             fetch: { _ in
                 fetchCount += 1
                 if fetchCount == 1 {
@@ -154,13 +166,15 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
                 }
                 return [self.entry(hostID: hostID, path: "/new.txt", name: "new.txt")]
             },
-            apply: { snapshot in appliedNames = snapshot.entries.map(\.name) },
-            handleFailure: { _, error in XCTFail("Unexpected failure: \(error)") }
+            apply: { snapshot in
+                appliedNames = snapshot.entries.map(\.name)
+                return PaneListingApplyOutcome()
+            }
         )
 
-        coordinator.requestRefresh(affectedLocation: root, reason: .watch)
+        scheduler.submitListingRefresh(directory: root, cause: .watcher)
         try await waitFor { fetchCount == 1 }
-        coordinator.requestRefresh(affectedLocation: root, reason: .mutation)
+        scheduler.submitListingRefresh(directory: root, cause: .operation)
         await firstGate.release()
         try await waitFor { fetchCount == 2 && appliedNames == ["new.txt"] }
 
@@ -172,21 +186,13 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         let root = Location.remote(hostID: hostID, path: "/")
         let existing = item(hostID: hostID, path: "/existing.txt", name: "existing.txt")
         let controller = configuredController(root: root, items: [existing])
-        var attempt = 0
-        controller.remoteRefreshCoordinator = RemoteRefreshCoordinator(
-            debounceInterval: 0,
-            fetch: { _ in
-                attempt += 1
-                if attempt == 1 { throw RefreshTestError.failed }
-                return [self.entry(hostID: hostID, path: "/updated.txt", name: "updated.txt")]
-            },
-            apply: { [weak controller] snapshot in controller?.applyRemoteRefresh(snapshot) },
-            handleFailure: { [weak controller] request, error in
-                controller?.showRemoteRefreshError(request: request, error: error)
-            }
+        let provider = ScriptedListProvider(
+            failuresBeforeSuccess: 1,
+            entries: [self.entry(hostID: hostID, path: "/updated.txt", name: "updated.txt")]
         )
+        controller.currentRemoteProvider = provider
 
-        controller.remoteRefreshCoordinator?.requestRefresh(affectedLocation: root, reason: .mutation)
+        controller.refreshScheduler.submitListingRefresh(directory: root, cause: .operation)
         try await waitFor { controller.remoteRefreshErrorBanner != nil }
 
         XCTAssertEqual(controller.dataSource.items.map(\.name), ["existing.txt"])
@@ -202,7 +208,7 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         let root = Location.remote(hostID: hostID, path: "/")
         let branch = Location.remote(hostID: hostID, path: "/Folder")
         let folder = item(hostID: hostID, path: "/Folder", name: "Folder", isDirectory: true)
-        folder.children = []
+        folder.setChildrenForTesting([])
         let controller = configuredController(root: root, items: [folder])
         let provider = RefreshTestProvider()
         let rootWatch = FileProviderWatch(id: UUID(), location: root)
@@ -212,7 +218,7 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
             branch: ProviderWatchRecord(watch: branchWatch, provider: provider),
         ]
 
-        controller.applyRemoteRefresh(RemoteRefreshSnapshot(
+        _ = controller.applyScheduledListingSnapshot(PaneListingSnapshot(
             request: request(directory: root, generation: 1),
             entries: [entry(from: folder)]
         ))
@@ -263,15 +269,15 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         controller.tableView.selectRowIndexes(IndexSet(integer: deletedRow), byExtendingSelection: false)
         controller.scrollView.contentView.scroll(to: NSPoint(x: 0, y: 60))
         controller.scrollView.reflectScrolledClipView(controller.scrollView.contentView)
-        let before = controller.captureRemotePaneState()
+        let before = controller.capturePaneState()
         let survivors = sortedItems.compactMap { item in item === deletedItem ? nil : entry(from: item) }
 
-        controller.applyRemoteRefresh(RemoteRefreshSnapshot(
+        _ = controller.applyScheduledListingSnapshot(PaneListingSnapshot(
             request: request(directory: root, generation: 1),
             entries: survivors
         ))
 
-        let after = controller.captureRemotePaneState()
+        let after = controller.capturePaneState()
         XCTAssertEqual(controller.tableView.selectedRow, deletedRow)
         XCTAssertEqual(
             (controller.tableView.item(atRow: deletedRow) as? FileItem)?.name,
@@ -287,23 +293,10 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         controller.currentRemoteLocation = root
         controller.currentRemoteProvider = RefreshTestProvider()
         controller.dataSource.currentRemoteDirectoryForGit = root
-        controller.dataSource.items = items
-        controller.tableView.reloadData()
+        controller.dataSource.displayedRootLocation = PaneRefreshScheduler.normalizedDirectory(root)
+        controller.dataSource.applier.setRootItems(items)
+        controller.dataSource.applier.reloadAll()
         return controller
-    }
-
-    private func recordingCoordinator(
-        fetched: @escaping (Location) -> Void
-    ) -> RemoteRefreshCoordinator {
-        RemoteRefreshCoordinator(
-            debounceInterval: 0,
-            fetch: { request in
-                fetched(request.directory)
-                return []
-            },
-            apply: { _ in },
-            handleFailure: { _, error in XCTFail("Unexpected failure: \(error)") }
-        )
     }
 
     private func item(
@@ -348,11 +341,12 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         )
     }
 
-    private func request(directory: Location, generation: UInt64) -> RemoteRefreshRequest {
-        RemoteRefreshRequest(
+    private func request(directory: Location, generation: UInt64) -> PaneListingRequest {
+        PaneListingRequest(
             directory: directory,
-            reasons: [.mutation],
-            preferredResultLocations: [],
+            causes: [.operation],
+            policy: nil,
+            epoch: 0,
             generation: generation
         )
     }
@@ -406,6 +400,41 @@ private enum RefreshTestError: LocalizedError {
         case .timedOut: "Timed out waiting for refresh"
         }
     }
+}
+
+private actor ScriptedListProvider: FileProvider {
+    private var failuresBeforeSuccess: Int
+    private let entries: [LoadedFileEntry]
+
+    init(failuresBeforeSuccess: Int, entries: [LoadedFileEntry]) {
+        self.failuresBeforeSuccess = failuresBeforeSuccess
+        self.entries = entries
+    }
+
+    func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
+        if failuresBeforeSuccess > 0 {
+            failuresBeforeSuccess -= 1
+            throw RefreshTestError.failed
+        }
+        return entries
+    }
+    func stat(_ location: Location) async throws -> LoadedFileEntry { throw RefreshTestError.failed }
+    func copy(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+    func move(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
+    func delete(_ items: [Location]) async throws {}
+    func trash(_ items: [Location]) async throws -> [TrashedItem] { [] }
+    func restoreFromTrash(_ items: [TrashedItem]) async throws -> [Location] { [] }
+    func rename(_ item: Location, to newName: String) async throws -> Location { item }
+    func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location { items[0] }
+    func archiveExtract(_ archive: Location, password: String?) async throws -> Location { archive }
+    func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        FileProviderWatch(id: UUID(), location: location)
+    }
+    func unwatch(_ watch: FileProviderWatch) async {}
+    func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
+    func folderSize(for location: Location) async throws -> Int64 { 0 }
+    func readSymlink(_ location: Location) async throws -> Location { location }
+    func openForQuickLook(_ location: Location) async throws -> URL { URL(fileURLWithPath: "/tmp/unused") }
 }
 
 private actor RefreshTestProvider: FileProvider {

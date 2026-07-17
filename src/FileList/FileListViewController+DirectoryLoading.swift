@@ -5,39 +5,41 @@ import os.log
 private let logger = Logger(subsystem: "com.detours", category: "filelist")
 
 extension FileListViewController {
-    /// Refresh current directory, preserving selection and expansion
+    /// Refresh current directory, preserving selection and expansion. A
+    /// steady-state refresh reconciles in place through the scheduler; full
+    /// reloads remain navigation-only.
     func refresh() {
         if let currentRemoteLocation, let currentRemoteProvider {
             loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
             return
         }
         guard let currentDirectory else { return }
-        loadDirectory(currentDirectory, preserveExpansion: true)
+        refreshScheduler.submitListingRefresh(directory: .local(currentDirectory), cause: .manual)
     }
 
-    /// Reload after an app-initiated local filesystem mutation. This owns the
-    /// refresh for that mutation and coalesces duplicate local watcher events.
+    /// Refresh after an app-initiated local filesystem mutation: one
+    /// operation-cause intent for the pane root; watcher events from the same
+    /// write were held by the coordinator transaction and fold into it.
     func refreshAfterLocalMutation() {
         guard let currentDirectory else { return }
-        loadDirectory(
-            currentDirectory,
-            preserveExpansion: true,
-            coalescingLocalMutationEvents: true
+        refreshScheduler.submitListingRefresh(directory: .local(currentDirectory), cause: .operation)
+    }
+
+    /// Refresh and select moved/copied files after the containing update.
+    /// If destination is a subfolder, expands the ancestor chain to reveal the files.
+    func refreshSelectingItems(at urls: [URL], expandingTo subfolder: URL? = nil, completion: (() -> Void)? = nil) {
+        guard currentDirectory != nil else { return }
+        refreshSelectingLocations(
+            urls.map(Location.local),
+            expandingTo: subfolder.map(Location.local),
+            completion: completion
         )
     }
 
-    /// Refresh and select moved/copied files after load completes.
-    /// If destination is a subfolder, expands the ancestor chain to reveal the files.
-    /// - Parameters:
-    ///   - urls: Full URLs of the moved/copied files
-    ///   - expandTo: If the files were placed in a subfolder of the current directory,
-    ///               pass that folder URL so the tree expands to reveal them
-    func refreshSelectingItems(at urls: [URL], expandingTo subfolder: URL? = nil, completion: (() -> Void)? = nil) {
-        guard currentDirectory != nil else { return }
-        setPendingSelection(at: urls, expandingTo: subfolder, completion: completion)
-        refreshAfterLocalMutation()
-    }
-
+    /// Routes an operation completion through the scheduler: the refresh for
+    /// the result's directory carries the preferred results, clears only a
+    /// targeted filter that hides them, and runs reveal and the completion
+    /// after the transaction containing the requested items.
     func refreshSelectingLocations(
         _ locations: [Location],
         expandingTo expandedLocation: Location? = nil,
@@ -48,25 +50,44 @@ extension FileListViewController {
             completion?()
             return
         }
-        pendingPostLoadAction = { [weak self] in
-            guard let self else { return }
-            Task { @MainActor in
-                if let expandedLocation {
-                    await self.expandAncestorChain(to: expandedLocation)
-                }
-                self.selectLocations(locations)
-                completion?()
-            }
+        guard let root = currentRemoteLocation ?? currentDirectory.map(Location.local) else {
+            completion?()
+            return
         }
-        if currentDirectory != nil {
-            refreshAfterLocalMutation()
-        } else {
-            refresh()
+        var policy = PaneRefreshResultPolicy()
+        policy.preferredResultLocations = Set(locations)
+        policy.expandTo = expandedLocation
+        policy.clearsFilterConcealingResults = true
+        policy.onApplied = completion
+
+        // The listing that changed is the results' parent directory (results
+        // inside an expanded branch reconcile that branch, not the root).
+        // The policy rides the first result's parent; other affected parents
+        // refresh without one.
+        let primaryParent = PaneRefreshScheduler.normalizedDirectory(locations[0].deletingLastPathComponent())
+        let parents = Set(locations.map {
+            PaneRefreshScheduler.normalizedDirectory($0.deletingLastPathComponent())
+        })
+        let displayedParents = parents.filter { paneDisplaysDirectory($0) }
+        guard !displayedParents.isEmpty else {
+            refreshScheduler.submitListingRefresh(
+                directory: expandedLocation ?? root,
+                cause: .operation,
+                policy: policy
+            )
+            return
+        }
+        for parent in displayedParents {
+            refreshScheduler.submitListingRefresh(
+                directory: parent,
+                cause: .operation,
+                policy: parent == primaryParent ? policy : nil
+            )
         }
     }
 
     @discardableResult
-    private func selectLocations(
+    func selectLocations(
         _ locations: [Location],
         origin: FileListSelectionOrigin = .operationResult
     ) -> Bool {
@@ -119,14 +140,12 @@ extension FileListViewController {
         in destination: Location,
         completion: (() -> Void)? = nil
     ) {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            if destination != self.currentDirectoryLocation {
-                await self.expandAncestorChain(to: destination)
-            }
-            _ = self.selectLocations(locations)
-            completion?()
-        }
+        var policy = PaneRefreshResultPolicy()
+        policy.preferredResultLocations = Set(locations)
+        policy.expandTo = destination
+        policy.clearsFilterConcealingResults = true
+        policy.onApplied = completion
+        runResultReveal(policy)
     }
 
     private func expandRemoteAncestorChain(to folderPath: String) async {
@@ -152,7 +171,7 @@ extension FileListViewController {
             if let item = urlToItem[current], item.isNavigableFolder {
                 if item.isRemote {
                     await dataSource.loadRemoteChildrenForExpansionRestore(item)
-                    tableView.reloadItem(item, reloadChildren: true)
+                    dataSource.applier.reloadSubtree(item)
                 } else {
                     loadChildrenIfNeededForExpansion(item)
                 }
@@ -166,38 +185,15 @@ extension FileListViewController {
         }
     }
 
-    /// Set a pending action to select items after the next load completes.
-    /// Call this before triggering a load (e.g. via navigate or refresh).
+    /// Sets the result policy for the next navigation load (session restore,
+    /// quick-open reveal). The load that starts next captures it, so a
+    /// competing refresh can never consume it.
     func setPendingSelection(at urls: [URL], expandingTo subfolder: URL? = nil, completion: (() -> Void)? = nil) {
-        pendingPostLoadAction = { [weak self] in
-            guard let self else { return }
-
-            // If files are in a subfolder, expand the ancestor chain to reveal them
-            if let subfolder {
-                self.expandAncestorChain(to: subfolder)
-            }
-
-            // Now select the files by URL
-            var indicesToSelect: [Int] = []
-            for url in urls {
-                if let item = self.dataSource.findItem(withURL: url, in: self.dataSource.items) {
-                    let row = self.tableView.row(forItem: item)
-                    if row >= 0 {
-                        indicesToSelect.append(row)
-                    }
-                }
-            }
-            if !indicesToSelect.isEmpty {
-                self.tableView.selectRowIndexes(
-                    IndexSet(indicesToSelect),
-                    byExtendingSelection: false,
-                    origin: .operationResult
-                )
-                self.tableView.scrollRowToVisible(indicesToSelect.first!)
-            }
-
-            completion?()
-        }
+        var policy = PaneRefreshResultPolicy()
+        policy.preferredResultLocations = Set(urls.map(Location.local))
+        policy.expandTo = subfolder.map(Location.local)
+        policy.onApplied = completion
+        pendingNavigationReveal = policy
     }
 
     /// Expand all folders in the ancestor chain from the current directory down to the given URL.
@@ -240,19 +236,10 @@ extension FileListViewController {
         selectingItem itemToSelect: URL? = nil,
         preserveExpansion: Bool = false,
         iCloudListingMode requestedListingMode: ICloudListingMode? = nil,
-        showSpinner: Bool = true,
-        coalescingLocalMutationEvents: Bool = false
+        showSpinner: Bool = true
     ) {
-        let localMutationSuppressionGeneration: Int?
-        if coalescingLocalMutationEvents {
-            localMutationSuppressionGeneration = beginLocalMutationWatcherSuppression()
-        } else {
-            cancelLocalMutationWatcherSuppression()
-            localMutationSuppressionGeneration = nil
-        }
         // Cancel any in-progress load before starting a new one
         dataSource.cancelCurrentLoad()
-        remoteRefreshCoordinator?.cancelAll()
         clearQuickLookPreviewState()
         hideLoadingIndicator()
         hideErrorOverlay()
@@ -277,6 +264,14 @@ extension FileListViewController {
             effectiveListingMode = .normal
         }
 
+        // Navigation to a different root invalidates all of the scheduler's
+        // older work. Same-directory loads (pending-directory replay after
+        // the view appears, manual full reloads) keep retained intents: their
+        // results still describe the displayed root.
+        if previousDirectory != normalizedURL || currentRemoteLocation != nil {
+            refreshScheduler.noteNavigation()
+        }
+
         currentDirectory = normalizedURL
         currentICloudListingMode = effectiveListingMode
 
@@ -289,19 +284,14 @@ extension FileListViewController {
             pendingDirectory = normalizedURL
             pendingICloudListingMode = effectiveListingMode
             hasLoadedDirectory = false
-            if let localMutationSuppressionGeneration {
-                finishLocalMutationWatcherSuppression(
-                    generation: localMutationSuppressionGeneration
-                )
-            }
             return
         }
 
-        // Capture state needed for post-load work
+        // Capture state needed for post-load work. The navigation reveal is
+        // bound to this load; a competing refresh cannot consume it.
+        let navigationReveal = takePendingNavigationReveal(selectingItem: itemToSelect)
         let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
-        let previousSelectedURLs = preserveExpansion ? selectedItems.map(\.url) : []
-        let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
-        let pendingItemToSelect = itemToSelect
+        let paneCapture = preserveExpansion ? capturePaneState() : nil
         let shouldPreserveExpansion = preserveExpansion
         let shouldRestoreTableViewFocus = preserveExpansion && shouldKeepTableViewFocusedAfterRefresh()
         // Pin scroll position across same-directory reloads (FSEvent debounce,
@@ -315,14 +305,6 @@ extension FileListViewController {
         dataSource.onLoadCompleted = { [weak self] result in
             guard let self else { return }
             self.hideLoadingIndicator()
-
-            defer {
-                if let localMutationSuppressionGeneration {
-                    self.finishLocalMutationWatcherSuppression(
-                        generation: localMutationSuppressionGeneration
-                    )
-                }
-            }
 
             switch result {
             case .success:
@@ -338,24 +320,11 @@ extension FileListViewController {
                     self.restoreExpansion(pending)
                 }
 
-                if let targetURL = pendingItemToSelect {
-                    // Select specific item
-                    self.selectItem(at: targetURL)
-                } else if shouldPreserveExpansion && !previousSelectedURLs.isEmpty {
-                    // Restore previous selection by URL without scrolling — the
-                    // selection didn't change from the user's perspective, so
-                    // we must not move the viewport.
-                    self.restoreSelection(previousSelectedURLs, scrollToVisible: false)
-                    // If URL-based restore didn't find items, fall back to nearby row
-                    if self.tableView.selectedRow < 0 && previousSelectedRow >= 0 && self.tableView.numberOfRows > 0 {
-                        let newIndex = min(previousSelectedRow, self.tableView.numberOfRows - 1)
-                        self.tableView.selectRowIndexes(
-                            IndexSet(integer: newIndex),
-                            byExtendingSelection: false,
-                            origin: .restored
-                        )
-                    }
-                } else if !self.dataSource.items.isEmpty {
+                if navigationReveal == nil, let paneCapture {
+                    // One restore rule: surviving selection, then the captured
+                    // forward neighbor, then the previous neighbor.
+                    self.restoreSelectionApplyingRule(from: paneCapture)
+                } else if navigationReveal == nil, !self.dataSource.items.isEmpty {
                     // Default: select first item
                     self.tableView.selectRowIndexes(
                         IndexSet(integer: 0),
@@ -374,15 +343,18 @@ extension FileListViewController {
                 self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
 
-                // Run one-shot post-load action (e.g. select + rename newly created item)
-                let action = self.pendingPostLoadAction
-                self.pendingPostLoadAction = nil
-                action?()
+                if let navigationReveal {
+                    self.runResultReveal(navigationReveal)
+                }
+                self.isNavigationLoadInFlight = false
+                self.refreshScheduler.activate()
 
             case .failure(let error):
                 self.showErrorOverlay(for: error)
                 self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
+                self.isNavigationLoadInFlight = false
+                self.refreshScheduler.activate()
             }
         }
 
@@ -396,6 +368,7 @@ extension FileListViewController {
         }
 
         suppressLoadingSpinner = !showSpinner
+        isNavigationLoadInFlight = true
         dataSource.loadDirectory(normalizedURL, preserveExpansion: preserveExpansion, iCloudListingMode: effectiveListingMode)
         hasLoadedDirectory = true
 
@@ -437,9 +410,11 @@ extension FileListViewController {
         provider: any FileProvider,
         selectingItemPath: String
     ) {
-        pendingPostLoadAction = { [weak self] in
-            self?.selectRemoteItem(atPath: selectingItemPath)
-        }
+        var policy = PaneRefreshResultPolicy()
+        policy.preferredResultLocations = [
+            .remote(hostID: host.id, path: URL(fileURLWithPath: selectingItemPath).standardizedFileURL.path),
+        ]
+        pendingNavigationReveal = policy
         loadRemoteDirectory(host: host, path: path, provider: provider)
     }
 
@@ -472,7 +447,7 @@ extension FileListViewController {
         preserveExpansion: Bool,
         showSpinner: Bool = true
     ) {
-        cancelLocalMutationWatcherSuppression()
+        let previousRemoteRoot = currentRemoteLocation
         let canReconcileInPlace = preserveExpansion
             && currentRemoteLocation == location
             && currentRemoteProvider != nil
@@ -480,15 +455,14 @@ extension FileListViewController {
             && !dataSource.items.isEmpty
         if canReconcileInPlace {
             currentRemoteProvider = provider
-            remoteRefreshCoordinator?.requestRefresh(
-                affectedLocation: location,
-                reason: .manual
-            )
+            refreshScheduler.submitListingRefresh(directory: location, cause: .manual)
             return
         }
 
+        if previousRemoteRoot != location || currentDirectory != nil {
+            refreshScheduler.noteNavigation()
+        }
         dataSource.cancelCurrentLoad()
-        remoteRefreshCoordinator?.cancelAll()
         hideLoadingIndicator()
         hideErrorOverlay()
         hideRemoteRefreshError()
@@ -506,10 +480,10 @@ extension FileListViewController {
             return
         }
 
+        let navigationReveal = takePendingNavigationReveal(selectingItem: nil)
         let shouldPreserveExpansion = preserveExpansion
         let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
-        let previousSelectedLocations = preserveExpansion ? selectedLocations : []
-        let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
+        let paneCapture = preserveExpansion ? capturePaneState() : nil
         let shouldRestoreTableViewFocus = preserveExpansion && shouldKeepTableViewFocusedAfterRefresh()
         dataSource.onLoadCompleted = { [weak self] result in
             guard let self else { return }
@@ -530,71 +504,35 @@ extension FileListViewController {
                 if !expansionToRestore.isEmpty {
                     Task { @MainActor in
                         await self.restoreRemoteExpansion(expansionToRestore)
-                        self.restoreRemoteSelection(
-                            previousSelectedLocations: previousSelectedLocations,
-                            previousSelectedRow: previousSelectedRow,
-                            shouldPreserveExpansion: shouldPreserveExpansion
+                        self.restoreRemoteLoadSelection(paneCapture)
+                        self.finishRemoteLoad(
+                            restoreTableViewFocus: shouldRestoreTableViewFocus,
+                            reveal: navigationReveal
                         )
-                        self.finishRemoteLoad(restoreTableViewFocus: shouldRestoreTableViewFocus)
                     }
                     return
                 }
-                self.restoreRemoteSelection(
-                    previousSelectedLocations: previousSelectedLocations,
-                    previousSelectedRow: previousSelectedRow,
-                    shouldPreserveExpansion: shouldPreserveExpansion
+                self.restoreRemoteLoadSelection(paneCapture)
+                self.finishRemoteLoad(
+                    restoreTableViewFocus: shouldRestoreTableViewFocus,
+                    reveal: navigationReveal
                 )
-                self.finishRemoteLoad(restoreTableViewFocus: shouldRestoreTableViewFocus)
             case .failure(let error):
                 logger.error("Remote directory load failed for \(location.path, privacy: .public): \(String(describing: error), privacy: .public)")
                 self.showErrorOverlay(for: error)
                 self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
+                self.isNavigationLoadInFlight = false
+                self.refreshScheduler.activate()
             }
         }
 
         startWatching(location, provider: provider)
         suppressLoadingSpinner = !showSpinner
+        isNavigationLoadInFlight = true
         dataSource.loadRemoteDirectory(location, provider: provider, preserveExpansion: preserveExpansion)
         hasLoadedDirectory = true
         FrecencyStore.shared.recordVisit(location)
-    }
-
-    func applyRemoteRefresh(_ snapshot: RemoteRefreshSnapshot) {
-        guard isCurrentRemoteRefreshDirectory(snapshot.request.directory) else { return }
-
-        let paneState = captureRemotePaneState()
-        guard let reconciliation = dataSource.reconcileRemoteEntries(
-            snapshot.entries,
-            in: snapshot.request.directory
-        ) else {
-            return
-        }
-        hideRemoteRefreshError(for: snapshot.request.directory)
-
-        if let parentItem = reconciliation.parentItem {
-            tableView.reloadItem(parentItem, reloadChildren: true)
-        } else {
-            tableView.reloadData()
-        }
-        tableView.needsLayout = true
-        restoreRemotePaneState(
-            paneState,
-            preferredResultLocations: snapshot.request.preferredResultLocations
-        )
-
-        if SettingsManager.shared.settings.gitStatusEnabled,
-           let currentRemoteProvider {
-            dataSource.fetchRemoteGitStatus(
-                for: snapshot.request.directory,
-                provider: currentRemoteProvider
-            )
-        }
-
-        let action = pendingPostLoadAction
-        pendingPostLoadAction = nil
-        action?()
-        navigationDelegate?.fileListDidLoadDirectory(self)
     }
 
     func isRemoteDescendant(_ location: Location, of ancestor: Location) -> Bool {
@@ -628,12 +566,24 @@ extension FileListViewController {
                     || isRemoteDescendant(directory, of: currentRemoteLocation) else {
                 continue
             }
+            // A policy binds to the directory that will contain its results;
+            // other affected directories refresh without one.
+            let normalized = PaneRefreshScheduler.normalizedDirectory(directory)
+            let resultsInDirectory = preferredResultLocations.filter {
+                PaneRefreshScheduler.normalizedDirectory($0.deletingLastPathComponent()) == normalized
+            }
+            var policy: PaneRefreshResultPolicy?
+            if !resultsInDirectory.isEmpty {
+                var built = PaneRefreshResultPolicy()
+                built.preferredResultLocations = resultsInDirectory
+                policy = built
+            }
 
             if directory == currentRemoteLocation {
-                remoteRefreshCoordinator?.requestRefresh(
-                    affectedLocation: directory,
-                    reason: .mutation,
-                    preferredResultLocations: preferredResultLocations
+                refreshScheduler.submitListingRefresh(
+                    directory: directory,
+                    cause: .operation,
+                    policy: policy
                 )
                 continue
             }
@@ -642,10 +592,10 @@ extension FileListViewController {
                 withLocation: directory,
                 in: dataSource.items
             ), branch.children != nil, tableView.isItemExpanded(branch) {
-                remoteRefreshCoordinator?.requestRefresh(
-                    affectedLocation: directory,
-                    reason: .mutation,
-                    preferredResultLocations: preferredResultLocations
+                refreshScheduler.submitListingRefresh(
+                    directory: directory,
+                    cause: .operation,
+                    policy: policy
                 )
             } else {
                 dataSource.markRemoteDirectoryStale(directory)
@@ -653,22 +603,9 @@ extension FileListViewController {
         }
     }
 
-    private func restoreRemoteSelection(
-        previousSelectedLocations: [Location],
-        previousSelectedRow: Int,
-        shouldPreserveExpansion: Bool
-    ) {
-        if shouldPreserveExpansion && !previousSelectedLocations.isEmpty {
-            tableView.deselectAll(nil)
-            selectLocations(previousSelectedLocations, origin: .restored)
-            if tableView.selectedRow < 0 && previousSelectedRow >= 0 && tableView.numberOfRows > 0 {
-                let newIndex = min(previousSelectedRow, tableView.numberOfRows - 1)
-                tableView.selectRowIndexes(
-                    IndexSet(integer: newIndex),
-                    byExtendingSelection: false,
-                    origin: .restored
-                )
-            }
+    private func restoreRemoteLoadSelection(_ paneCapture: PaneStateCapture?) {
+        if let paneCapture {
+            restoreSelectionApplyingRule(from: paneCapture)
         } else if !dataSource.items.isEmpty {
             tableView.selectRowIndexes(
                 IndexSet(integer: 0),
@@ -678,13 +615,18 @@ extension FileListViewController {
         }
     }
 
-    private func finishRemoteLoad(restoreTableViewFocus shouldRestoreTableViewFocus: Bool) {
+    private func finishRemoteLoad(
+        restoreTableViewFocus shouldRestoreTableViewFocus: Bool,
+        reveal: PaneRefreshResultPolicy?
+    ) {
         restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
         navigationDelegate?.fileListDidLoadDirectory(self)
 
-        let action = pendingPostLoadAction
-        pendingPostLoadAction = nil
-        action?()
+        if let reveal {
+            runResultReveal(reveal)
+        }
+        isNavigationLoadInFlight = false
+        refreshScheduler.activate()
     }
 
     @discardableResult

@@ -235,10 +235,54 @@ protocol FileListExpansionDelegate: AnyObject {
 
 @MainActor
 final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
-    var items: [FileItem] = []
+    /// Displayed root items. Writable only through `setDisplayedItems(_:with:)`,
+    /// which requires the mutation authority that only `PaneOutlineApplier`
+    /// can construct: one writer for the displayed tree.
+    private var displayedItems: [FileItem] = []
+
+    var items: [FileItem] { displayedItems }
+
+    func setDisplayedItems(_ newItems: [FileItem], with _: PaneOutlineMutationAuthority) {
+        displayedItems = newItems
+        _cachedFilteredItems = nil
+    }
+
+    /// The single writer for this pane's outline mutations.
+    private(set) lazy var applier = PaneOutlineApplier(dataSource: self)
+
+    /// Normalized location whose listing fills the root of the outline.
+    /// Reconciliation uses it to decide between root and branch application.
+    var displayedRootLocation: Location?
+
+    /// Routes a row-content change (git badge, icon, folder size) into the
+    /// pane scheduler as a row-scoped cause. Set by the owning
+    /// FileListViewController; data-source-only tests fall back to a direct
+    /// row reload through the applier.
+    var submitRowRefresh: ((_ item: FileItem, _ columns: IndexSet) -> Void)?
+
+    /// The pane's current navigation epoch. Asynchronous branch loads started
+    /// by AppKit disclosure capture it and refuse to mutate the outline after
+    /// a navigation invalidated them.
+    var currentRefreshEpoch: (() -> UInt64)?
+
+    func requestRowRefresh(for item: FileItem, columns: IndexSet) {
+        if let submitRowRefresh {
+            submitRowRefresh(item, columns)
+            return
+        }
+        for column in columns {
+            applier.reloadRow(for: item, column: column)
+        }
+    }
+
     weak var outlineView: NSOutlineView?
     weak var dropDelegate: FileListDropDelegate?
     weak var expansionDelegate: FileListExpansionDelegate?
+
+    /// Item whose row is covered by the floating inline-rename editor. Any
+    /// reload that recreates the row's cell must keep the cell's own text
+    /// hidden so it cannot draw underneath the editor.
+    weak var inlineEditingItem: FileItem?
 
     /// Filter predicate for filtering visible items (case-insensitive substring match)
     var filterPredicate: String? {
@@ -276,7 +320,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             rowView.isDropTarget = isDropTarget
         }
 
-        outlineView?.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 0))
+        applier.reloadRows(IndexSet(integer: row), columns: IndexSet(integer: 0))
     }
 
     var isActive: Bool = true {

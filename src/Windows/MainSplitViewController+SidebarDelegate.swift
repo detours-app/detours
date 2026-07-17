@@ -210,12 +210,18 @@ extension MainSplitViewController: SidebarDelegate {
     }
 
     func sidebarDidDropFiles(_ urls: [URL], to destination: URL, isCopy: Bool) {
+        var affected: Set<Location> = [.local(destination.standardizedFileURL)]
+        for url in urls {
+            affected.insert(.local(url.deletingLastPathComponent().standardizedFileURL))
+        }
         Task { @MainActor in
             do {
-                if isCopy {
-                    try await FileOperationQueue.shared.copy(items: urls, to: destination, undoManager: undoManager)
-                } else {
-                    try await FileOperationQueue.shared.move(items: urls, to: destination, undoManager: undoManager)
+                try await PaneFileOperationCoordinator.shared.perform(affecting: affected) {
+                    if isCopy {
+                        try await FileOperationQueue.shared.copy(items: urls, to: destination, undoManager: undoManager)
+                    } else {
+                        try await FileOperationQueue.shared.move(items: urls, to: destination, undoManager: undoManager)
+                    }
                 }
                 // Refresh affected panes
                 refreshAffectedPanes(sources: urls, destination: destination)

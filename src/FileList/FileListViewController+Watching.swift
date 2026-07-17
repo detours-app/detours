@@ -155,10 +155,7 @@ extension FileListViewController {
         guard generation == providerWatchGeneration,
               isWatchRelevantToCurrentRoot(watchedDirectory) else { return }
         if case .remote = watchedDirectory {
-            remoteRefreshCoordinator?.requestRefresh(
-                affectedLocation: watchedDirectory,
-                reason: .watch
-            )
+            refreshScheduler.submitListingRefresh(directory: watchedDirectory, cause: .watcher)
             return
         }
 
@@ -168,29 +165,15 @@ extension FileListViewController {
         // folders are unaffected, so their sizes must not blink.
         invalidateFolderSizesAlongPath(to: changedURL)
 
-        // App-initiated mutations perform one explicit reload with a deliberate
-        // post-load selection. The filesystem watcher observes the same write;
-        // letting it start another load tears down inline editing and can replace
-        // the operation's selection. Keep the cache invalidation above, but let
-        // the explicit mutation refresh own the table update.
-        guard !suppressLocalMutationWatcherReloads else { return }
-
-        // Debounce rapid changes (e.g., deleting multiple files)
-        directoryChangeDebounce?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.performDirectoryReload()
-        }
-        directoryChangeDebounce = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
+        // The scheduler owns coalescing, operation holds, and the apply; a
+        // watcher event is just one more typed cause for its directory.
+        refreshScheduler.submitListingRefresh(directory: watchedDirectory, cause: .watcher)
     }
 
     private func isWatchRelevantToCurrentRoot(_ location: Location) -> Bool {
-        if let currentRemoteLocation {
-            return location == currentRemoteLocation
-                || isRemoteDescendant(location, of: currentRemoteLocation)
-        }
-        guard let currentDirectory else { return false }
-        return Self.isWatchLocation(location, inside: .local(currentDirectory))
+        // One containment definition for watcher relevance and scheduler
+        // eligibility, so they can never drift apart.
+        paneDisplaysDirectory(location)
     }
 
     private func invalidateFolderSizesAlongPath(to changedURL: URL) {
@@ -213,53 +196,6 @@ extension FileListViewController {
         }
     }
 
-    private func performDirectoryReload() {
-        guard let currentDirectory else { return }
-        if FileOperationQueue.shared.hasActiveLocalMutation(affecting: currentDirectory) {
-            let workItem = DispatchWorkItem { [weak self] in
-                self?.performDirectoryReload()
-            }
-            directoryChangeDebounce = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
-            return
-        }
-        loadDirectory(currentDirectory, preserveExpansion: true, showSpinner: false)
-    }
-
-    @discardableResult
-    func beginLocalMutationWatcherSuppression() -> Int {
-        localMutationWatcherSuppressionEnd?.cancel()
-        localMutationWatcherSuppressionEnd = nil
-        directoryChangeDebounce?.cancel()
-        directoryChangeDebounce = nil
-        localMutationWatcherSuppressionGeneration += 1
-        suppressLocalMutationWatcherReloads = true
-        return localMutationWatcherSuppressionGeneration
-    }
-
-    func finishLocalMutationWatcherSuppression(generation: Int) {
-        guard generation == localMutationWatcherSuppressionGeneration else { return }
-
-        // DispatchSource delivery can trail the filesystem call by a run-loop
-        // turn. Hold the gate briefly after the explicit load so that trailing
-        // notifications from that same mutation cannot trigger another reload.
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self,
-                  generation == self.localMutationWatcherSuppressionGeneration else { return }
-            self.suppressLocalMutationWatcherReloads = false
-            self.localMutationWatcherSuppressionEnd = nil
-        }
-        localMutationWatcherSuppressionEnd = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: workItem)
-    }
-
-    func cancelLocalMutationWatcherSuppression() {
-        localMutationWatcherSuppressionEnd?.cancel()
-        localMutationWatcherSuppressionEnd = nil
-        localMutationWatcherSuppressionGeneration += 1
-        suppressLocalMutationWatcherReloads = false
-    }
-
     func ensureLoaded() {
         guard !hasLoadedDirectory else { return }
         if let currentRemoteLocation, let currentRemoteProvider {
@@ -270,7 +206,7 @@ extension FileListViewController {
     }
 
     func showPendingRemoteReconnect(host: RemoteHost, path: String) {
-        cancelLocalMutationWatcherSuppression()
+        refreshScheduler.noteNavigation()
         dataSource.cancelCurrentLoad()
         hideErrorOverlay()
         currentRemoteHost = host
@@ -278,8 +214,9 @@ extension FileListViewController {
         currentRemoteProvider = nil
         currentDirectory = nil
         currentICloudListingMode = .normal
-        dataSource.items = []
-        tableView.reloadData()
+        dataSource.displayedRootLocation = nil
+        dataSource.applier.setRootItems([])
+        dataSource.applier.reloadAll()
         hasLoadedDirectory = false
         suppressLoadingSpinner = false
         showLoadingIndicator()

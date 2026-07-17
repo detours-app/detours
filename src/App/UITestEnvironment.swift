@@ -144,6 +144,7 @@ enum UITestEnvironment {
         let activeDropTarget: String?
         let refreshInFlight: Bool
         let visibleRowCount: Int
+        let firstResponderDescription: String?
     }
 
     static var isEnabled: Bool {

@@ -316,7 +316,10 @@ extension FileListResponderTests {
         try await Task.sleep(nanoseconds: 2_500_000_000)
 
         XCTAssertEqual(viewController.selectedURLs.map(\.standardizedFileURL), [moved.standardizedFileURL])
-        XCTAssertEqual(loadSpy.directoryLoadCount, 2, "Move should produce one explicit refresh")
+        // Initial load, then exactly one row-scoped update per affected
+        // directory (destination branch insert + source root removal); the
+        // settle sleep above proves no trailing watcher reloads follow.
+        XCTAssertEqual(loadSpy.directoryLoadCount, 3, "Move updates destination branch and source root once each")
     }
 
     func testHandleKeyDownHandlesF7NewFolderInsideSelectedFolder() async throws {

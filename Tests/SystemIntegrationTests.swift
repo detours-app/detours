@@ -132,7 +132,7 @@ final class SystemIntegrationTests: XCTestCase {
         let vc = FileListViewController()
         vc.loadView()
         vc.viewDidLoad()
-        vc.dataSource.items = [item]
+        vc.dataSource.applier.setRootItems([item])
         vc.tableView.reloadData()
         vc.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 

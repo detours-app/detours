@@ -18,66 +18,10 @@ extension FileListDataSource {
 
                 gitStatuses = statuses
 
-                // Update items with git status (recursively)
-                updateGitStatus(for: items, statuses: statuses)
-
-                // Preserve selection by URL before reload (row indexes change after reload)
-                var selectedURLs: [URL] = []
-                if let outlineView = outlineView {
-                    for row in outlineView.selectedRowIndexes {
-                        if let item = outlineView.item(atRow: row) as? FileItem {
-                            selectedURLs.append(item.url)
-                        }
-                    }
-                }
-                let expanded = expandedFolders
-
-                // Suppress collapse notifications during reload to preserve expansion state
-                suppressCollapseNotifications = true
-                outlineView?.reloadData()
-                expandedFolders = expanded
-                suppressCollapseNotifications = false
-
-                // Restore expansion state visually - sort by depth so parents expand before children
-                let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
-                for url in sortedExpanded {
-                    // Use recursive findItem since children get loaded as parents expand
-                    if let item = findItem(withURL: url, in: items), item.isNavigableFolder {
-                        // Only load children if not already loaded - avoid replacing existing children
-                        // which would create new FileItem objects and break outline view references
-                        if item.children == nil && !item.isVirtualSharedFolder {
-                            if VolumeMonitor.requiresAsynchronousDirectoryAccess(item.url) {
-                                outlineView?.expandItem(item)
-                                continue
-                            }
-                            _ = item.loadChildren(
-                                showHidden: showHiddenFiles,
-                                sortDescriptor: sortDescriptor,
-                                foldersOnTop: SettingsManager.shared.foldersOnTop
-                            )
-                        }
-                        outlineView?.expandItem(item)
-                    }
-                }
-
-                // Restore selection by URL
-                if !selectedURLs.isEmpty, let outlineView = outlineView {
-                    var rowIndexes = IndexSet()
-                    for url in selectedURLs {
-                        if let item = findItem(withURL: url, in: items) {
-                            let row = outlineView.row(forItem: item)
-                            if row >= 0 {
-                                rowIndexes.insert(row)
-                            }
-                        }
-                    }
-                    if !rowIndexes.isEmpty {
-                        outlineView.selectRowIndexes(
-                            rowIndexes,
-                            byExtendingSelection: false,
-                            origin: .restored
-                        )
-                    }
+                // Update items with git status and redraw only changed rows.
+                let changed = updateGitStatus(for: items, statuses: statuses)
+                for item in changed {
+                    requestRowRefresh(for: item, columns: IndexSet(integer: 0))
                 }
             }
         }
@@ -96,8 +40,10 @@ extension FileListDataSource {
                 guard self.shouldApplyRemoteGitStatus(for: directory) else { return }
 
                 self.setRemoteGitStatuses(statuses, for: directory)
-                self.updateRemoteGitStatus(for: self.items, statuses: self.remoteGitStatuses)
-                self.reloadAfterRemoteGitStatusUpdate()
+                let changed = self.updateRemoteGitStatus(for: self.items, statuses: self.remoteGitStatuses)
+                for item in changed {
+                    self.requestRowRefresh(for: item, columns: IndexSet(integer: 0))
+                }
             }
         }
         remoteGitStatusTasks[directory] = task
@@ -134,45 +80,6 @@ extension FileListDataSource {
         }
     }
 
-    private func reloadAfterRemoteGitStatusUpdate() {
-        guard let outlineView else { return }
-
-        let selectedLocations = outlineView.selectedRowIndexes.compactMap { row -> Location? in
-            (outlineView.item(atRow: row) as? FileItem)?.location
-        }
-        let expanded = expandedFolders
-
-        suppressCollapseNotifications = true
-        outlineView.reloadData()
-
-        let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
-        for url in sortedExpanded {
-            if let item = findItem(withURL: url, in: items), item.isNavigableFolder {
-                outlineView.expandItem(item)
-            }
-        }
-        expandedFolders = expanded
-        suppressCollapseNotifications = false
-
-        guard !selectedLocations.isEmpty else { return }
-        var rowIndexes = IndexSet()
-        for location in selectedLocations {
-            if let item = findItem(withLocation: location, in: items) {
-                let row = outlineView.row(forItem: item)
-                if row >= 0 {
-                    rowIndexes.insert(row)
-                }
-            }
-        }
-        if !rowIndexes.isEmpty {
-            outlineView.selectRowIndexes(
-                rowIndexes,
-                byExtendingSelection: false,
-                origin: .restored
-            )
-        }
-    }
-
     /// Find an item by URL in the item tree (searches recursively through children)
     func findItem(withURL url: URL, in items: [FileItem]) -> FileItem? {
         // Use path comparison because directory URLs may have trailing slashes
@@ -203,26 +110,42 @@ extension FileListDataSource {
         return nil
     }
 
-    func updateGitStatus(for items: [FileItem], statuses: [URL: GitStatus]) {
+    /// - Returns: items whose badge actually changed, so callers redraw only
+    ///   those rows.
+    @discardableResult
+    func updateGitStatus(for items: [FileItem], statuses: [URL: GitStatus]) -> [FileItem] {
+        var changed: [FileItem] = []
         for item in items {
             // Remote items get git status from the remote provider, keyed by
             // Location; the URL-keyed local statuses don't apply (and .url traps).
             guard case .local(let url) = item.location else { continue }
-            item.gitStatus = statuses[url]
+            let newStatus = statuses[url]
+            if item.gitStatus != newStatus {
+                item.gitStatus = newStatus
+                changed.append(item)
+            }
             if let children = item.children {
-                updateGitStatus(for: children, statuses: statuses)
+                changed.append(contentsOf: updateGitStatus(for: children, statuses: statuses))
             }
         }
+        return changed
     }
 
-    func updateRemoteGitStatus(for items: [FileItem], statuses: [Location: GitStatus]) {
+    @discardableResult
+    func updateRemoteGitStatus(for items: [FileItem], statuses: [Location: GitStatus]) -> [FileItem] {
+        var changed: [FileItem] = []
         for item in items {
             guard item.isRemote else { continue }
-            item.gitStatus = statuses[item.location]
+            let newStatus = statuses[item.location]
+            if item.gitStatus != newStatus {
+                item.gitStatus = newStatus
+                changed.append(item)
+            }
             if let children = item.children {
-                updateRemoteGitStatus(for: children, statuses: statuses)
+                changed.append(contentsOf: updateRemoteGitStatus(for: children, statuses: statuses))
             }
         }
+        return changed
     }
 
     /// Invalidate git status cache for current directory (call after file operations)

@@ -81,6 +81,7 @@ extension BaseUITest {
         let activeDropTarget: String?
         let refreshInFlight: Bool
         let visibleRowCount: Int
+        let firstResponderDescription: String?
     }
 
     struct RemoteProviderCall: Decodable {

@@ -39,7 +39,7 @@ final class FileListDragDropTests: XCTestCase {
         let root = Location.remote(hostID: hostID, path: "/")
         let source = Location.remote(hostID: hostID, path: "/Source/item.txt")
         let folder = makeItem(hostID: hostID, path: "/Folder", isDirectory: true)
-        folder.children = [makeItem(hostID: hostID, path: "/Folder/child.txt", isDirectory: false)]
+        folder.setChildrenForTesting([makeItem(hostID: hostID, path: "/Folder/child.txt", isDirectory: false)])
         let (dataSource, outline, delegate) = makeDataSource(root: root, items: [folder])
 
         XCTAssertEqual(dataSource.validateInternalDrop(
@@ -185,7 +185,7 @@ final class FileListDragDropTests: XCTestCase {
         let dataSource = FileListDataSource()
         let outline = BandedOutlineView()
         let delegate = RecordingDropDelegate(currentDirectoryLocation: root)
-        dataSource.items = items
+        dataSource.applier.setRootItems(items)
         dataSource.outlineView = outline
         dataSource.dropDelegate = delegate
         dataSource.currentRemoteProvider = DragDropTestProvider()

@@ -17,7 +17,11 @@ extension FileListViewController: RenameControllerDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                let result = try await FileOperationQueue.shared.rename(item: source, to: newName)
+                let result = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: [source.deletingLastPathComponent()]
+                ) {
+                    try await FileOperationQueue.shared.rename(item: source, to: newName)
+                }
                 let affectedDirectories: Set<Location> = [
                     source.deletingLastPathComponent(),
                     result.deletingLastPathComponent(),
@@ -51,7 +55,11 @@ extension FileListViewController: RenameControllerDelegate {
             guard let self else { return }
 
             do {
-                let newURL = try await FileOperationQueue.shared.rename(item: itemURL, to: newName)
+                let newURL = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: [.local(itemURL.deletingLastPathComponent())]
+                ) {
+                    try await FileOperationQueue.shared.rename(item: itemURL, to: newName)
+                }
                 self.renameController(self.renameController, didRename: item, to: newURL)
             } catch {
                 FileOperationQueue.shared.presentError(error)
@@ -78,16 +86,40 @@ extension FileListViewController: RenameControllerDelegate {
         showDuplicateStructureDialog(for: sourceURL)
     }
 
+    /// Opens the rename session's refresh hold and marks the item whose cell
+    /// text must stay hidden under the floating editor. Driven by the rename
+    /// controller's session lifecycle, so no entry point can forget it.
+    func renameControllerDidBeginEditing(_ controller: RenameController, item: FileItem) {
+        dataSource.inlineEditingItem = item
+        if renameRefreshHoldID == nil {
+            let id = UUID()
+            renameRefreshHoldID = id
+            refreshScheduler.openOperationHold(id)
+        }
+    }
+
+    func renameControllerDidEndEditing(_ controller: RenameController, item: FileItem?) {
+        if let item {
+            let row = tableView.row(forItem: item)
+            if row >= 0,
+               let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView {
+                cell.textField?.isHidden = false
+            }
+        }
+        if dataSource.inlineEditingItem == nil || dataSource.inlineEditingItem === item {
+            dataSource.inlineEditingItem = nil
+        }
+        // Close the session hold: exactly one flush follows, carrying the
+        // rename's result intent (or just the held watcher work on cancel).
+        if let id = renameRefreshHoldID {
+            renameRefreshHoldID = nil
+            refreshScheduler.closeOperationHold(id)
+        }
+    }
+
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL) {
         selectionBeforeNewItem = nil
         dataSource.invalidateGitStatus()
-        pendingPostLoadAction = { [weak self] in
-            if case .remote = item.location {
-                self?.selectRemoteItem(atPath: newURL.path)
-            } else {
-                self?.selectItem(at: newURL)
-            }
-        }
         if case .remote(let hostID, _) = item.location {
             let renamedLocation = Location.remote(hostID: hostID, path: newURL.path)
             let affectedDirectories: Set<Location> = [
@@ -102,12 +134,8 @@ extension FileListViewController: RenameControllerDelegate {
                 affectedDirectories,
                 preferredResultLocations: [renamedLocation]
             )
-        } else if let currentDirectory {
-            loadDirectory(
-                currentDirectory,
-                preserveExpansion: true,
-                coalescingLocalMutationEvents: true
-            )
+        } else {
+            refreshSelectingLocations([.local(newURL)])
         }
     }
 
@@ -145,10 +173,20 @@ extension FileListViewController: RenameControllerDelegate {
             do {
                 // Move to trash (not permanent delete) so user can recover if needed
                 // Don't register undo since user cancelled the creation - nothing to undo
-                try await FileOperationQueue.shared.delete(items: [item.location], undoManager: nil)
-                refreshAfterLocalMutation()
-                if let restoreSelection {
-                    selectItem(at: restoreSelection)
+                try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: [item.location.deletingLastPathComponent()]
+                ) {
+                    try await FileOperationQueue.shared.delete(items: [item.location], undoManager: nil)
+                }
+                if item.isRemote {
+                    // Cancelling a new remote item removes it from the list.
+                    requestRemoteMutationRefreshes(
+                        affectedDirectories: [item.location.deletingLastPathComponent()]
+                    )
+                } else if let restoreSelection {
+                    refreshSelectingLocations([.local(restoreSelection)])
+                } else {
+                    refreshAfterLocalMutation()
                 }
             } catch {
                 FileOperationQueue.shared.presentError(error)

@@ -2019,3 +2019,74 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 800 XCTest cases (17 expected platform skips) and 46 Swift Testing
   cases, 0 failures. The immediate watch/unwatch race regression completed its
   100 cycles, and all configured real SSH/RPC integration tests passed.
+
+- 2026-07-17 18:40 CEST: Foundry
+  `swift test --filter "PaneRefreshSchedulerTests|PaneStateRestoreTests|LocalReconcileTests|RefreshArchitectureTests|PaneOperationTransactionTests|FilteredResultRevealTests|RemoteInlineRenameRefreshTests"`
+  PASS: 36 tests, 0 failures. New refresh-authority suites: scheduler state
+  machine (coalescing, holds, epoch/generation, failure retention), one
+  restore rule with neighbor fallback, row-level local reconcile with no-op
+  suppression, architecture enforcement scans plus runtime guard, operation
+  transactions, filtered-result reveal, and remote inline rename/new-item
+  refresh behavior.
+
+- 2026-07-17 18:44 CEST: Foundry
+  `swift test --filter "CopyMoveMatrixTests"`
+  PASS: 7 tests, 0 failures. Copy/move matrix (local/local, local/remote,
+  remote/local, same-host and cross-host remote) selects destination results,
+  applies the source forward-neighbor fallback after moves, activates only
+  the still-matching targeted tab, and applies a retained intent when a
+  never-displayed pane is first shown. Earlier failing runs in this session
+  root-caused two real defects (epoch wipe on pending-directory replay;
+  applies racing a navigation load), both fixed.
+
+- 2026-07-17 18:20 CEST: Foundry
+  `swift test --filter "RefreshRegressionProbeTests"`
+  PASS: 6 tests, 0 failures. Probe regression suite promoted from
+  probe/refresh-diagnostics: F5 copy selection/activation in all three
+  timings survives trailing watcher activity; external-change watcher reload
+  keeps selection; remote rename race keeps the renamed item selected in both
+  orderings with exactly the mutation + follow-up fetch pair.
+
+- 2026-07-17 19:05 CEST: Foundry
+  `resources/scripts/uitest.sh RefreshAuthorityCopyUITests`
+  PASS: 1 test, 0 failures. F5 copy between panes on the installed app ends
+  with the destination pane holding keyboard focus and the copied file
+  selected, and both survive trailing watcher activity. Earlier failing
+  iterations of this test exposed and fixed a real defect: a trailing
+  source-pane refresh re-granted itself keyboard focus because pane
+  activity was treated as license to focus.
+
+- 2026-07-17 19:12 CEST: Foundry
+  `resources/scripts/uitest.sh RefreshAuthorityRemoteRenameUITests`
+  PASS: 1 test, 0 failures. Inline rename on a remote tab: single active
+  editing session (field editor holds first responder; the overlay editor is
+  not exported to the XCUITest tree per the 2026-07-16 log), typed rename
+  lands once, renamed file ends selected, fixture renamed back.
+
+- 2026-07-17 20:15 CEST: Foundry full `swift test`
+  PASS on second run: 850 XCTest cases (17 expected platform skips) and 46
+  Swift Testing cases, 0 failures, including all live SSH/RPC integration
+  tests. The first run had a single failure in
+  ArchiveOperationTests/testEncryptedZipWrongPasswordRetriesWithoutPartialOutput:
+  unzip reported "bad CRC (may instead be incorrect password)" instead of the
+  password prompt shape the classifier expects. It passed in isolation, within
+  its full suite, and in the repeated full run; extraction internals are
+  untouched by this branch, so this is unzip output-shape variance under
+  parallel load, not a regression.
+
+- 2026-07-17 20:55 CEST: Foundry full
+  `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 resources/scripts/uitest.sh`
+  PASS: 87 UI tests, 1 expected live-Windows skip, 0 failures, including the
+  new RefreshAuthority copy and remote-rename tests. An earlier plain run
+  (without fixture staging) failed the two ChromePolish fixture tests, and
+  caught one real defect this branch then fixed: a duplicate created inside an
+  expanded folder was not selected because the operation's result policy rode
+  the pane root instead of the result's parent directory
+  (PasteSelectionUITests/testDuplicateInExpandedFolderSelectsDuplicate now
+  passes).
+
+- 2026-07-17 21:00 CEST: Foundry
+  `log show --predicate 'process == "Detours" && messageType == error' --last 45m`
+  PASS: zero error-level entries from the app while the full UI suite
+  exercised copy, move, rename, paste, new-file, undo, expansion, filter, and
+  remote flows (A6).

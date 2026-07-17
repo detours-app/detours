@@ -180,13 +180,19 @@ extension MainSplitViewController {
         guard let destination = destinationPane.effectiveDestinationLocation else { return }
         let undoManager = destinationPane.selectedTab?.fileListViewController.undoManager
 
+        var moveAffected = Set(items.map { $0.deletingLastPathComponent() })
+        moveAffected.insert(destination)
         Task { @MainActor in
             do {
-                let actualLocations = try await FileOperationQueue.shared.move(
-                    items: items,
-                    to: destination,
-                    undoManager: undoManager
-                )
+                let actualLocations = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: moveAffected
+                ) {
+                    try await FileOperationQueue.shared.move(
+                        items: items,
+                        to: destination,
+                        undoManager: undoManager
+                    )
+                }
                 let hasRemoteSource = items.contains { location in
                     if case .remote = location { return true }
                     return false
@@ -216,15 +222,16 @@ extension MainSplitViewController {
                 }
                 var affectedDirectories = Set(items.map { $0.deletingLastPathComponent() })
                 affectedDirectories.insert(destination)
+                let destinationList = submitDestinationReveal(
+                    results: actualLocations,
+                    destination: destination,
+                    destinationPane: destinationPane
+                )
                 refreshPanes(
                     matching: affectedDirectories,
-                    preferredResultLocations: Set(actualLocations)
+                    preferredResultLocations: Set(actualLocations),
+                    excluding: destinationList
                 )
-
-                if let flvc = destinationPane.selectedTab?.fileListViewController {
-                    setActivePaneFromChild(destinationPane)
-                    view.window?.makeFirstResponder(flvc.tableView)
-                }
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -241,13 +248,19 @@ extension MainSplitViewController {
         }
         let undoManager = destinationPane.selectedTab?.fileListViewController.undoManager
 
+        var copyAffected = Set(items.map { $0.deletingLastPathComponent() })
+        copyAffected.insert(destination)
         Task { @MainActor in
             do {
-                let actualLocations = try await FileOperationQueue.shared.copy(
-                    items: items,
-                    to: destination,
-                    undoManager: undoManager
-                )
+                let actualLocations = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: copyAffected
+                ) {
+                    try await FileOperationQueue.shared.copy(
+                        items: items,
+                        to: destination,
+                        undoManager: undoManager
+                    )
+                }
                 let hasRemoteSource = items.contains { location in
                     if case .remote = location { return true }
                     return false
@@ -274,35 +287,71 @@ extension MainSplitViewController {
                     }
                     return
                 }
+                let destinationList = submitDestinationReveal(
+                    results: actualLocations,
+                    destination: destination,
+                    destinationPane: destinationPane
+                )
                 refreshPanes(
                     matching: [destination],
-                    preferredResultLocations: Set(actualLocations)
+                    preferredResultLocations: Set(actualLocations),
+                    excluding: destinationList
                 )
-                if let flvc = destinationPane.selectedTab?.fileListViewController {
-                    flvc.revealOperationResults(actualLocations, in: destination) { [weak self, weak flvc] in
-                        guard let self, let flvc else { return }
-                        self.setActivePaneFromChild(destinationPane)
-                        self.view.window?.makeFirstResponder(flvc.tableView)
-                    }
-                }
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
         }
     }
 
+    /// Cross-pane refresh requests submit typed intents into each target
+    /// tab's scheduler; the pane whose directory (root or expanded branch)
+    /// matches reconciles that listing in place.
+    /// Selection, reveal, targeted filter clear, activation, and focus ride
+    /// the transaction whose fetch contains the operation's results, instead
+    /// of racing the refresh (the F5 no-highlight bug). Activation runs only
+    /// when the originally targeted tab still displays the destination.
+    @discardableResult
+    private func submitDestinationReveal(
+        results: [Location],
+        destination: Location,
+        destinationPane: PaneViewController
+    ) -> FileListViewController? {
+        guard let destinationList = destinationPane.selectedTab?.fileListViewController,
+              destinationList.paneDisplaysDirectory(destination) else {
+            return destinationPane.selectedTab?.fileListViewController
+        }
+        var policy = PaneRefreshResultPolicy()
+        policy.preferredResultLocations = Set(results)
+        policy.expandTo = destination == destinationList.currentDirectoryLocation ? nil : destination
+        policy.clearsFilterConcealingResults = true
+        policy.onApplied = { [weak self, weak destinationList] in
+            guard let self, let destinationList else { return }
+            self.setActivePaneFromChild(destinationPane)
+            self.view.window?.makeFirstResponder(destinationList.tableView)
+        }
+        destinationList.refreshScheduler.submitListingRefresh(
+            directory: destination,
+            cause: .operation,
+            policy: policy
+        )
+        return destinationList
+    }
+
     func refreshPanes(matching directories: Set<URL>) {
         guard !directories.isEmpty else { return }
-        let normalized = Set(directories.map { normalizeDirectory($0) })
+        let locations = Set(directories.map { Location.local(normalizeDirectory($0)) })
 
-        if let leftDirectory = leftPane.currentDirectory,
-           normalized.contains(normalizeDirectory(leftDirectory)) {
-            refreshPanePreservingSelection(leftPane)
-        }
-
-        if let rightDirectory = rightPane.currentDirectory,
-           normalized.contains(normalizeDirectory(rightDirectory)) {
-            refreshPanePreservingSelection(rightPane)
+        for pane in [leftPane, rightPane] {
+            for tab in pane.tabs {
+                guard let fileList = tab.fileListViewControllerIfLoaded,
+                      fileList.currentRemoteLocation == nil else { continue }
+                for location in locations where fileList.paneDisplaysDirectory(location) {
+                    fileList.refreshScheduler.submitListingRefresh(
+                        directory: location,
+                        cause: .crossPane
+                    )
+                }
+            }
         }
     }
 
@@ -312,14 +361,16 @@ extension MainSplitViewController {
 
     func refreshPanes(
         matching locations: Set<Location>,
-        preferredResultLocations: Set<Location>
+        preferredResultLocations: Set<Location>,
+        excluding excludedFileList: FileListViewController? = nil
     ) {
         guard !locations.isEmpty else { return }
         let normalized = Set(locations.map { normalizeLocation($0) })
 
         for pane in [leftPane, rightPane] {
             for tab in pane.tabs {
-                guard let fileList = tab.fileListViewControllerIfLoaded else { continue }
+                guard let fileList = tab.fileListViewControllerIfLoaded,
+                      fileList !== excludedFileList else { continue }
                 if fileList.currentRemoteLocation != nil {
                     fileList.requestRemoteMutationRefreshes(
                         affectedDirectories: normalized,
@@ -336,17 +387,6 @@ extension MainSplitViewController {
         if !localDirectories.isEmpty {
             refreshPanes(matching: localDirectories)
         }
-    }
-
-    private func refreshPanePreservingSelection(_ pane: PaneViewController) {
-        guard let tab = pane.selectedTab else {
-            pane.refresh()
-            return
-        }
-        // loadDirectory captures and restores the selected locations after its
-        // asynchronous load. Selecting synchronously here races that load and
-        // can leave the pane on an arbitrary final row.
-        tab.fileListViewController.refreshAfterLocalMutation()
     }
 
     func handleSystemDefinedEvent(_ event: NSEvent) -> Bool {

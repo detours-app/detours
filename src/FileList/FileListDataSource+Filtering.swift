@@ -28,15 +28,24 @@ extension FileListDataSource {
     /// Returns filtered root items based on filterPredicate
     /// An item is visible if it matches OR any of its descendants match
     var visibleItems: [FileItem] {
-        guard let predicate = filterPredicate, !predicate.isEmpty else {
+        guard filterPredicate?.isEmpty == false else {
             return items
         }
         if let cached = _cachedFilteredItems {
             return cached
         }
-        let filtered = items.filter { itemOrDescendantMatches($0, predicate: predicate) }
+        let filtered = filteredProjection(of: items)
         _cachedFilteredItems = filtered
         return filtered
+    }
+
+    /// Applies the active filter predicate to an arbitrary item array (used
+    /// for row-level diffing against the outline's displayed projection).
+    func filteredProjection(of items: [FileItem]) -> [FileItem] {
+        guard let predicate = filterPredicate, !predicate.isEmpty else {
+            return items
+        }
+        return items.filter { itemOrDescendantMatches($0, predicate: predicate) }
     }
 
     /// Returns filtered children for an item based on filterPredicate
