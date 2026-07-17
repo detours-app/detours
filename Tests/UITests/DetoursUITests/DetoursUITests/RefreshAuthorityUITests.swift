@@ -3,6 +3,15 @@ import XCTest
 /// T8: F5 copy between panes on the installed app ends with the destination
 /// pane active and the copied file selected.
 final class RefreshAuthorityCopyUITests: BaseUITest {
+    /// Restored sessions can leave hidden tab outlines in the hierarchy, so
+    /// index-based pane queries are ambiguous; resolve the two visible panes
+    /// by hittability and horizontal position instead.
+    private func visiblePaneOutlines() -> [XCUIElement] {
+        app.outlines.matching(identifier: "fileListOutlineView").allElementsBoundByIndex
+            .filter { $0.isHittable }
+            .sorted { $0.frame.minX < $1.frame.minX }
+    }
+
     func testF5CopyActivatesDestinationPaneAndSelectsCopy() throws {
         // Fixtures: a source file and a destination folder inside the test root.
         let sourceFile = uiTestRootURL.appendingPathComponent("t8_copy_me.txt")
@@ -14,16 +23,18 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
             try? FileManager.default.removeItem(at: destFolder)
         }
 
+        let panes = visiblePaneOutlines()
+        XCTAssertEqual(panes.count, 2, "Both pane outlines must be visible")
+        let leftOutline = panes[0]
+        let rightOutline = panes[1]
+
         // The watcher shows the new fixtures without any manual refresh.
-        let leftOutline = app.leftPaneOutlineView
         XCTAssertTrue(
             leftOutline.outlineRow(withStaticText: "t8_copy_me.txt").waitForExistence(timeout: 5),
             "External change must appear via the watcher"
         )
 
         // Right pane: navigate into the destination folder.
-        let rightOutline = app.rightPaneOutlineView
-        XCTAssertTrue(rightOutline.waitForExistence(timeout: 2))
         rightOutline.click()
         let homeButtonRight = app.buttons.matching(identifier: "homeButton").element(boundBy: 1)
         XCTAssertTrue(homeButtonRight.waitForExistence(timeout: 2))
