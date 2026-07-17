@@ -245,9 +245,11 @@ extension FileListViewController {
             effectiveListingMode = .normal
         }
 
-        // Navigation invalidates all of the scheduler's older work; a
-        // same-directory preserve-expansion reload is steady-state.
-        if previousDirectory != normalizedURL || !preserveExpansion {
+        // Navigation to a different root invalidates all of the scheduler's
+        // older work. Same-directory loads (pending-directory replay after
+        // the view appears, manual full reloads) keep retained intents: their
+        // results still describe the displayed root.
+        if previousDirectory != normalizedURL || currentRemoteLocation != nil {
             refreshScheduler.noteNavigation()
         }
 
@@ -426,6 +428,7 @@ extension FileListViewController {
         preserveExpansion: Bool,
         showSpinner: Bool = true
     ) {
+        let previousRemoteRoot = currentRemoteLocation
         let canReconcileInPlace = preserveExpansion
             && currentRemoteLocation == location
             && currentRemoteProvider != nil
@@ -437,7 +440,9 @@ extension FileListViewController {
             return
         }
 
-        refreshScheduler.noteNavigation()
+        if previousRemoteRoot != location || currentDirectory != nil {
+            refreshScheduler.noteNavigation()
+        }
         dataSource.cancelCurrentLoad()
         hideLoadingIndicator()
         hideErrorOverlay()
