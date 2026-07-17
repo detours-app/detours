@@ -39,7 +39,14 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
             "Right pane never entered the test folder; displayed=\(String(describing: (try? requestRemotePaneState(pane: "right"))?.displayedLocation))"
         )
         let destRight = rightOutline.outlineRow(withStaticText: "T8Dest")
-        XCTAssertTrue(destRight.waitForExistence(timeout: 5), "T8Dest row missing in right pane")
+        if !destRight.waitForExistence(timeout: 5) {
+            let rows = rightOutline.outlineRows.allElementsBoundByIndex.prefix(20).map { row in
+                row.staticTexts.allElementsBoundByIndex.map { $0.value as? String ?? $0.label }.joined(separator: "|")
+            }
+            let state = try? requestRemotePaneState(pane: "right")
+            XCTFail("T8Dest row missing in right pane; rows=\(rows) displayed=\(String(describing: state?.displayedLocation)) count=\(String(describing: state?.visibleRowCount))")
+            return
+        }
         destRight.staticTexts["T8Dest"].doubleClick()
         XCTAssertTrue(
             waitForCondition(timeout: 5) {
