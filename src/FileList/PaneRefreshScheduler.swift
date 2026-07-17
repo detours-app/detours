@@ -1,5 +1,16 @@
 import AppKit
 
+enum PaneListingFetchError: LocalizedError {
+    case providerUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .providerUnavailable:
+            return "The remote connection is unavailable."
+        }
+    }
+}
+
 /// Why a pane listing wants to change. Explicit operation and navigation work
 /// starts immediately and absorbs pending watcher work; watcher-only intents
 /// debounce per directory.
@@ -159,9 +170,11 @@ final class PaneRefreshScheduler {
         }
 
         state.debounceTask?.cancel()
+        // Explicit work absorbs pending watcher causes and starts immediately;
+        // watcher-only intents keep the per-directory debounce.
         state.debounceTask = makeDebounceTask(
             for: normalized,
-            delay: cause == .watcher ? Self.watcherDebounce : 0
+            delay: state.pendingCauses == [.watcher] ? Self.watcherDebounce : 0
         )
         states[normalized] = state
     }
@@ -271,20 +284,17 @@ final class PaneRefreshScheduler {
     }
 
     private func beginFetch(for directory: Location) {
-        guard let dependencies else { return }
         guard var state = states[directory], !state.isFetching else { return }
         state.debounceTask = nil
+        states[directory] = state
 
+        guard let dependencies else { return }
         guard dependencies.canApplyNow() else {
             // Pre-view-load: retain only the latest eligible intent; `activate()`
             // replays it when the outline exists.
-            states[directory] = state
             return
         }
-        guard dependencies.displaysDirectory(directory) else {
-            states[directory] = state
-            return
-        }
+        guard dependencies.displaysDirectory(directory) else { return }
 
         state.isFetching = true
         state.needsFollowUp = false

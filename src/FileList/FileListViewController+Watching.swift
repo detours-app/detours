@@ -155,10 +155,7 @@ extension FileListViewController {
         guard generation == providerWatchGeneration,
               isWatchRelevantToCurrentRoot(watchedDirectory) else { return }
         if case .remote = watchedDirectory {
-            remoteRefreshCoordinator?.requestRefresh(
-                affectedLocation: watchedDirectory,
-                reason: .watch
-            )
+            refreshScheduler.submitListingRefresh(directory: watchedDirectory, cause: .watcher)
             return
         }
 

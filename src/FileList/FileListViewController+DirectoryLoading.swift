@@ -221,7 +221,6 @@ extension FileListViewController {
     ) {
         // Cancel any in-progress load before starting a new one
         dataSource.cancelCurrentLoad()
-        remoteRefreshCoordinator?.cancelAll()
         clearQuickLookPreviewState()
         hideLoadingIndicator()
         hideErrorOverlay()
@@ -429,16 +428,12 @@ extension FileListViewController {
             && !dataSource.items.isEmpty
         if canReconcileInPlace {
             currentRemoteProvider = provider
-            remoteRefreshCoordinator?.requestRefresh(
-                affectedLocation: location,
-                reason: .manual
-            )
+            refreshScheduler.submitListingRefresh(directory: location, cause: .manual)
             return
         }
 
         refreshScheduler.noteNavigation()
         dataSource.cancelCurrentLoad()
-        remoteRefreshCoordinator?.cancelAll()
         hideLoadingIndicator()
         hideErrorOverlay()
         hideRemoteRefreshError()
@@ -508,51 +503,6 @@ extension FileListViewController {
         FrecencyStore.shared.recordVisit(location)
     }
 
-    func applyRemoteRefresh(_ snapshot: RemoteRefreshSnapshot) {
-        guard isCurrentRemoteRefreshDirectory(snapshot.request.directory) else { return }
-
-        let paneState = capturePaneState()
-        guard let reconciliation = dataSource.reconcileListingEntries(
-            snapshot.entries,
-            in: snapshot.request.directory
-        ) else {
-            return
-        }
-        hideRemoteRefreshError(for: snapshot.request.directory)
-
-        let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
-        let hasPreferredResults = !snapshot.request.preferredResultLocations.isEmpty
-        if applyKind == .noop && !hasPreferredResults {
-            // An identical later snapshot changes neither cells nor pane state.
-            return
-        }
-        switch applyKind {
-        case .noop where !hasPreferredResults:
-            break
-        case .noop, .rows:
-            restoreSelectionApplyingRule(
-                from: paneState,
-                preferredResultLocations: snapshot.request.preferredResultLocations
-            )
-        case .subtree:
-            restorePaneState(
-                paneState,
-                preferredResultLocations: snapshot.request.preferredResultLocations
-            )
-        }
-
-        if applyKind != .noop,
-           SettingsManager.shared.settings.gitStatusEnabled,
-           let currentRemoteProvider {
-            dataSource.fetchRemoteGitStatus(
-                for: snapshot.request.directory,
-                provider: currentRemoteProvider
-            )
-        }
-
-        navigationDelegate?.fileListDidLoadDirectory(self)
-    }
-
     func isRemoteDescendant(_ location: Location, of ancestor: Location) -> Bool {
         guard case .remote(let locationHost, let locationPath) = location,
               case .remote(let ancestorHost, let ancestorPath) = ancestor,
@@ -584,12 +534,24 @@ extension FileListViewController {
                     || isRemoteDescendant(directory, of: currentRemoteLocation) else {
                 continue
             }
+            // A policy binds to the directory that will contain its results;
+            // other affected directories refresh without one.
+            let normalized = PaneRefreshScheduler.normalizedDirectory(directory)
+            let resultsInDirectory = preferredResultLocations.filter {
+                PaneRefreshScheduler.normalizedDirectory($0.deletingLastPathComponent()) == normalized
+            }
+            var policy: PaneRefreshResultPolicy?
+            if !resultsInDirectory.isEmpty {
+                var built = PaneRefreshResultPolicy()
+                built.preferredResultLocations = resultsInDirectory
+                policy = built
+            }
 
             if directory == currentRemoteLocation {
-                remoteRefreshCoordinator?.requestRefresh(
-                    affectedLocation: directory,
-                    reason: .mutation,
-                    preferredResultLocations: preferredResultLocations
+                refreshScheduler.submitListingRefresh(
+                    directory: directory,
+                    cause: .operation,
+                    policy: policy
                 )
                 continue
             }
@@ -598,10 +560,10 @@ extension FileListViewController {
                 withLocation: directory,
                 in: dataSource.items
             ), branch.children != nil, tableView.isItemExpanded(branch) {
-                remoteRefreshCoordinator?.requestRefresh(
-                    affectedLocation: directory,
-                    reason: .mutation,
-                    preferredResultLocations: preferredResultLocations
+                refreshScheduler.submitListingRefresh(
+                    directory: directory,
+                    cause: .operation,
+                    policy: policy
                 )
             } else {
                 dataSource.markRemoteDirectoryStale(directory)

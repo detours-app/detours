@@ -11,7 +11,7 @@ extension FileListViewController {
         refreshScheduler.configure(PaneRefreshScheduler.Dependencies(
             fetch: { [weak self] request in
                 guard let self else {
-                    throw RemoteRefreshCoordinatorError.providerUnavailable
+                    throw PaneListingFetchError.providerUnavailable
                 }
                 return try await self.fetchListingEntries(for: request)
             },
@@ -61,7 +61,7 @@ extension FileListViewController {
         case .remote:
             guard isCurrentRemoteRefreshDirectory(request.directory),
                   let provider = currentRemoteProvider else {
-                throw RemoteRefreshCoordinatorError.providerUnavailable
+                throw PaneListingFetchError.providerUnavailable
             }
             return try await provider.list(
                 request.directory,
@@ -257,15 +257,7 @@ extension FileListViewController {
         switch request.directory {
         case .remote:
             guard isCurrentRemoteRefreshDirectory(request.directory) else { return }
-            showRemoteRefreshError(
-                request: RemoteRefreshRequest(
-                    directory: request.directory,
-                    reasons: [.watch],
-                    preferredResultLocations: request.policy?.preferredResultLocations ?? [],
-                    generation: request.generation
-                ),
-                error: error
-            )
+            showRemoteRefreshError(directory: request.directory, error: error)
         case .local:
             // Steady-state local failure retains the displayed tree and shows
             // the overlay; navigation failures keep their existing path.

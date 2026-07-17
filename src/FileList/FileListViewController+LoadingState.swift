@@ -152,11 +152,11 @@ extension FileListViewController {
     }
 
     func showRemoteRefreshError(
-        request: RemoteRefreshRequest,
+        directory: Location,
         error: any Error
     ) {
         remoteRefreshErrorBanner?.removeFromSuperview()
-        failedRemoteRefreshRequest = request
+        failedRemoteRefreshDirectory = directory
 
         let banner = NSView()
         banner.translatesAutoresizingMaskIntoConstraints = false
@@ -166,9 +166,9 @@ extension FileListViewController {
         banner.setAccessibilityRole(.group)
         banner.setAccessibilityIdentifier("remoteRefreshErrorBanner")
 
-        let directoryName = request.directory.lastPathComponent.isEmpty
-            ? request.directory.path
-            : request.directory.lastPathComponent
+        let directoryName = directory.lastPathComponent.isEmpty
+            ? directory.path
+            : directory.lastPathComponent
         let message = "Could not refresh \"\(directoryName)\". \(error.localizedDescription)"
         banner.setAccessibilityLabel("Remote refresh failed. \(message)")
 
@@ -220,22 +220,20 @@ extension FileListViewController {
 
     func hideRemoteRefreshError(for directory: Location? = nil) {
         if let directory,
-           failedRemoteRefreshRequest?.directory != directory {
+           failedRemoteRefreshDirectory != directory {
             return
         }
         remoteRefreshErrorBanner?.removeFromSuperview()
         remoteRefreshErrorBanner = nil
-        failedRemoteRefreshRequest = nil
+        failedRemoteRefreshDirectory = nil
     }
 
     @objc private func retryRemoteRefresh() {
-        guard let request = failedRemoteRefreshRequest else { return }
+        guard let directory = failedRemoteRefreshDirectory else { return }
         hideRemoteRefreshError()
-        remoteRefreshCoordinator?.requestRefresh(
-            affectedLocation: request.directory,
-            reason: .retry,
-            preferredResultLocations: request.preferredResultLocations
-        )
+        // The scheduler retained the failed intent's policy and completions;
+        // the retry runs them after a successful apply.
+        refreshScheduler.submitListingRefresh(directory: directory, cause: .retry)
     }
 
     @objc private func retryLoad() {

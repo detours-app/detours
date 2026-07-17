@@ -57,7 +57,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var directoryWatchTask: Task<Void, Never>?
     var providerWatchSetupTasks: [Location: Task<Void, Never>] = [:]
     var providerWatchGeneration: UInt64 = 0
-    var remoteRefreshCoordinator: RemoteRefreshCoordinator?
     /// One owner for every programmatic listing refresh of this pane. Exists
     /// from controller creation so an undisplayed tab retains its latest
     /// eligible intent until the outline becomes available.
@@ -89,7 +88,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var loadingSpinner: NSProgressIndicator?
     var errorOverlay: NSView?
     var remoteRefreshErrorBanner: NSView?
-    var failedRemoteRefreshRequest: RemoteRefreshRequest?
+    var failedRemoteRefreshDirectory: Location?
     var quickLookPreviewItems: [DetoursQuickLookItem] = []
     var quickLookGenerationTask: Task<Void, Never>?
     var quickLookRequestID = UUID()
@@ -126,29 +125,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        remoteRefreshCoordinator = RemoteRefreshCoordinator(
-            debounceInterval: 0.1,
-            fetch: { [weak self] request in
-                guard let self,
-                      self.isCurrentRemoteRefreshDirectory(request.directory),
-                      let provider = self.currentRemoteProvider else {
-                    throw RemoteRefreshCoordinatorError.providerUnavailable
-                }
-                return try await provider.list(
-                    request.directory,
-                    showHidden: self.dataSource.showHiddenFiles
-                )
-            },
-            apply: { [weak self] snapshot in
-                self?.applyRemoteRefresh(snapshot)
-            },
-            handleFailure: { [weak self] request, error in
-                guard let self,
-                      self.isCurrentRemoteRefreshDirectory(request.directory) else { return }
-                self.showRemoteRefreshError(request: request, error: error)
-            }
-        )
 
         configureRefreshScheduler()
 
