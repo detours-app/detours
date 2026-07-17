@@ -157,16 +157,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         setupColumns()
 
         dataSource.outlineView = tableView
-        dataSource.reloadPreservingPaneState = { [weak self] mutate in
-            guard let self else {
-                mutate()
-                return
-            }
-            let capture = self.capturePaneState()
-            mutate()
-            self.restoreSelectionApplyingRule(from: capture)
-            self.scrollView.contentView.scroll(to: capture.scrollOrigin)
-            self.scrollView.reflectScrolledClipView(self.scrollView.contentView)
+        dataSource.submitRowRefresh = { [weak self] item, columns in
+            self?.refreshScheduler.submitRowRefresh(item: item, columns: columns)
         }
         tableView.keyHandler = self
         tableView.contextMenuDelegate = self

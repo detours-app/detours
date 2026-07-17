@@ -18,10 +18,11 @@ extension FileListDataSource {
 
                 gitStatuses = statuses
 
-                // Update items with git status (recursively)
-                updateGitStatus(for: items, statuses: statuses)
-
-                reloadForGitStatusUpdate()
+                // Update items with git status and redraw only changed rows.
+                let changed = updateGitStatus(for: items, statuses: statuses)
+                for item in changed {
+                    requestRowRefresh(for: item, columns: IndexSet(integer: 0))
+                }
             }
         }
     }
@@ -39,8 +40,10 @@ extension FileListDataSource {
                 guard self.shouldApplyRemoteGitStatus(for: directory) else { return }
 
                 self.setRemoteGitStatuses(statuses, for: directory)
-                self.updateRemoteGitStatus(for: self.items, statuses: self.remoteGitStatuses)
-                self.reloadAfterRemoteGitStatusUpdate()
+                let changed = self.updateRemoteGitStatus(for: self.items, statuses: self.remoteGitStatuses)
+                for item in changed {
+                    self.requestRowRefresh(for: item, columns: IndexSet(integer: 0))
+                }
             }
         }
         remoteGitStatusTasks[directory] = task
@@ -77,44 +80,6 @@ extension FileListDataSource {
         }
     }
 
-    private func reloadAfterRemoteGitStatusUpdate() {
-        reloadForGitStatusUpdate()
-    }
-
-    /// Git badge changes redraw through the pane's one capture/restore
-    /// implementation; the git path carries no private restore of its own.
-    private func reloadForGitStatusUpdate() {
-        guard let reloadPreservingPaneState else {
-            applier.reloadAll()
-            return
-        }
-        reloadPreservingPaneState { [weak self] in
-            guard let self else { return }
-            let expanded = self.expandedFolders
-            self.suppressCollapseNotifications = true
-            self.applier.reloadAll()
-            let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
-            for url in sortedExpanded {
-                if let item = self.findItem(withURL: url, in: self.items), item.isNavigableFolder {
-                    if item.children == nil && !item.isVirtualSharedFolder {
-                        if VolumeMonitor.requiresAsynchronousDirectoryAccess(item.url) {
-                            self.outlineView?.expandItem(item)
-                            continue
-                        }
-                        _ = item.loadChildren(
-                            showHidden: self.showHiddenFiles,
-                            sortDescriptor: self.sortDescriptor,
-                            foldersOnTop: SettingsManager.shared.foldersOnTop
-                        )
-                    }
-                    self.outlineView?.expandItem(item)
-                }
-            }
-            self.expandedFolders = expanded
-            self.suppressCollapseNotifications = false
-        }
-    }
-
     /// Find an item by URL in the item tree (searches recursively through children)
     func findItem(withURL url: URL, in items: [FileItem]) -> FileItem? {
         // Use path comparison because directory URLs may have trailing slashes
@@ -145,26 +110,42 @@ extension FileListDataSource {
         return nil
     }
 
-    func updateGitStatus(for items: [FileItem], statuses: [URL: GitStatus]) {
+    /// - Returns: items whose badge actually changed, so callers redraw only
+    ///   those rows.
+    @discardableResult
+    func updateGitStatus(for items: [FileItem], statuses: [URL: GitStatus]) -> [FileItem] {
+        var changed: [FileItem] = []
         for item in items {
             // Remote items get git status from the remote provider, keyed by
             // Location; the URL-keyed local statuses don't apply (and .url traps).
             guard case .local(let url) = item.location else { continue }
-            item.gitStatus = statuses[url]
+            let newStatus = statuses[url]
+            if item.gitStatus != newStatus {
+                item.gitStatus = newStatus
+                changed.append(item)
+            }
             if let children = item.children {
-                updateGitStatus(for: children, statuses: statuses)
+                changed.append(contentsOf: updateGitStatus(for: children, statuses: statuses))
             }
         }
+        return changed
     }
 
-    func updateRemoteGitStatus(for items: [FileItem], statuses: [Location: GitStatus]) {
+    @discardableResult
+    func updateRemoteGitStatus(for items: [FileItem], statuses: [Location: GitStatus]) -> [FileItem] {
+        var changed: [FileItem] = []
         for item in items {
             guard item.isRemote else { continue }
-            item.gitStatus = statuses[item.location]
+            let newStatus = statuses[item.location]
+            if item.gitStatus != newStatus {
+                item.gitStatus = newStatus
+                changed.append(item)
+            }
             if let children = item.children {
-                updateRemoteGitStatus(for: children, statuses: statuses)
+                changed.append(contentsOf: updateRemoteGitStatus(for: children, statuses: statuses))
             }
         }
+        return changed
     }
 
     /// Invalidate git status cache for current directory (call after file operations)

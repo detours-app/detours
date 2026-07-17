@@ -254,11 +254,21 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     /// Reconciliation uses it to decide between root and branch application.
     var displayedRootLocation: Location?
 
-    /// Wraps a full-outline mutation in the pane's one capture/restore
-    /// implementation (selection rule, scroll anchoring, focus). Set by the
-    /// owning FileListViewController; data-source-only tests leave it nil and
-    /// get a bare reload.
-    var reloadPreservingPaneState: ((_ mutate: () -> Void) -> Void)?
+    /// Routes a row-content change (git badge, icon, folder size) into the
+    /// pane scheduler as a row-scoped cause. Set by the owning
+    /// FileListViewController; data-source-only tests fall back to a direct
+    /// row reload through the applier.
+    var submitRowRefresh: ((_ item: FileItem, _ columns: IndexSet) -> Void)?
+
+    func requestRowRefresh(for item: FileItem, columns: IndexSet) {
+        if let submitRowRefresh {
+            submitRowRefresh(item, columns)
+            return
+        }
+        for column in columns {
+            applier.reloadRow(for: item, column: column)
+        }
+    }
 
     weak var outlineView: NSOutlineView?
     weak var dropDelegate: FileListDropDelegate?
