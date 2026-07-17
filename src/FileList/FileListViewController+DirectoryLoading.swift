@@ -289,8 +289,7 @@ extension FileListViewController {
 
         // Capture state needed for post-load work
         let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
-        let previousSelectedURLs = preserveExpansion ? selectedItems.map(\.url) : []
-        let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
+        let paneCapture = preserveExpansion ? capturePaneState() : nil
         let pendingItemToSelect = itemToSelect
         let shouldPreserveExpansion = preserveExpansion
         let shouldRestoreTableViewFocus = preserveExpansion && shouldKeepTableViewFocusedAfterRefresh()
@@ -323,20 +322,10 @@ extension FileListViewController {
                 if let targetURL = pendingItemToSelect {
                     // Select specific item
                     self.selectItem(at: targetURL)
-                } else if shouldPreserveExpansion && !previousSelectedURLs.isEmpty {
-                    // Restore previous selection by URL without scrolling — the
-                    // selection didn't change from the user's perspective, so
-                    // we must not move the viewport.
-                    self.restoreSelection(previousSelectedURLs, scrollToVisible: false)
-                    // If URL-based restore didn't find items, fall back to nearby row
-                    if self.tableView.selectedRow < 0 && previousSelectedRow >= 0 && self.tableView.numberOfRows > 0 {
-                        let newIndex = min(previousSelectedRow, self.tableView.numberOfRows - 1)
-                        self.tableView.selectRowIndexes(
-                            IndexSet(integer: newIndex),
-                            byExtendingSelection: false,
-                            origin: .restored
-                        )
-                    }
+                } else if let paneCapture {
+                    // One restore rule: surviving selection, then the captured
+                    // forward neighbor, then the previous neighbor.
+                    self.restoreSelectionApplyingRule(from: paneCapture)
                 } else if !self.dataSource.items.isEmpty {
                     // Default: select first item
                     self.tableView.selectRowIndexes(
@@ -490,8 +479,7 @@ extension FileListViewController {
 
         let shouldPreserveExpansion = preserveExpansion
         let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
-        let previousSelectedLocations = preserveExpansion ? selectedLocations : []
-        let previousSelectedRow = preserveExpansion ? tableView.selectedRow : -1
+        let paneCapture = preserveExpansion ? capturePaneState() : nil
         let shouldRestoreTableViewFocus = preserveExpansion && shouldKeepTableViewFocusedAfterRefresh()
         dataSource.onLoadCompleted = { [weak self] result in
             guard let self else { return }
@@ -512,20 +500,12 @@ extension FileListViewController {
                 if !expansionToRestore.isEmpty {
                     Task { @MainActor in
                         await self.restoreRemoteExpansion(expansionToRestore)
-                        self.restoreRemoteSelection(
-                            previousSelectedLocations: previousSelectedLocations,
-                            previousSelectedRow: previousSelectedRow,
-                            shouldPreserveExpansion: shouldPreserveExpansion
-                        )
+                        self.restoreRemoteLoadSelection(paneCapture)
                         self.finishRemoteLoad(restoreTableViewFocus: shouldRestoreTableViewFocus)
                     }
                     return
                 }
-                self.restoreRemoteSelection(
-                    previousSelectedLocations: previousSelectedLocations,
-                    previousSelectedRow: previousSelectedRow,
-                    shouldPreserveExpansion: shouldPreserveExpansion
-                )
+                self.restoreRemoteLoadSelection(paneCapture)
                 self.finishRemoteLoad(restoreTableViewFocus: shouldRestoreTableViewFocus)
             case .failure(let error):
                 logger.error("Remote directory load failed for \(location.path, privacy: .public): \(String(describing: error), privacy: .public)")
@@ -545,7 +525,7 @@ extension FileListViewController {
     func applyRemoteRefresh(_ snapshot: RemoteRefreshSnapshot) {
         guard isCurrentRemoteRefreshDirectory(snapshot.request.directory) else { return }
 
-        let paneState = captureRemotePaneState()
+        let paneState = capturePaneState()
         guard let reconciliation = dataSource.reconcileListingEntries(
             snapshot.entries,
             in: snapshot.request.directory
@@ -555,7 +535,7 @@ extension FileListViewController {
         hideRemoteRefreshError(for: snapshot.request.directory)
 
         dataSource.applier.reloadSubtree(reconciliation.parentItem)
-        restoreRemotePaneState(
+        restorePaneState(
             paneState,
             preferredResultLocations: snapshot.request.preferredResultLocations
         )
@@ -630,22 +610,9 @@ extension FileListViewController {
         }
     }
 
-    private func restoreRemoteSelection(
-        previousSelectedLocations: [Location],
-        previousSelectedRow: Int,
-        shouldPreserveExpansion: Bool
-    ) {
-        if shouldPreserveExpansion && !previousSelectedLocations.isEmpty {
-            tableView.deselectAll(nil)
-            selectLocations(previousSelectedLocations, origin: .restored)
-            if tableView.selectedRow < 0 && previousSelectedRow >= 0 && tableView.numberOfRows > 0 {
-                let newIndex = min(previousSelectedRow, tableView.numberOfRows - 1)
-                tableView.selectRowIndexes(
-                    IndexSet(integer: newIndex),
-                    byExtendingSelection: false,
-                    origin: .restored
-                )
-            }
+    private func restoreRemoteLoadSelection(_ paneCapture: PaneStateCapture?) {
+        if let paneCapture {
+            restoreSelectionApplyingRule(from: paneCapture)
         } else if !dataSource.items.isEmpty {
             tableView.selectRowIndexes(
                 IndexSet(integer: 0),

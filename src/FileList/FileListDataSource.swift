@@ -254,6 +254,12 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     /// Reconciliation uses it to decide between root and branch application.
     var displayedRootLocation: Location?
 
+    /// Wraps a full-outline mutation in the pane's one capture/restore
+    /// implementation (selection rule, scroll anchoring, focus). Set by the
+    /// owning FileListViewController; data-source-only tests leave it nil and
+    /// get a bare reload.
+    var reloadPreservingPaneState: ((_ mutate: () -> Void) -> Void)?
+
     weak var outlineView: NSOutlineView?
     weak var dropDelegate: FileListDropDelegate?
     weak var expansionDelegate: FileListExpansionDelegate?

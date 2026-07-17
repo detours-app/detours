@@ -92,7 +92,7 @@ extension FileListViewController {
             return PaneListingApplyOutcome()
         }
         let policy = snapshot.request.policy
-        let paneState = captureRemotePaneState()
+        let paneState = capturePaneState()
         guard let reconciliation = dataSource.reconcileListingEntries(
             snapshot.entries,
             in: directory
@@ -101,7 +101,7 @@ extension FileListViewController {
         }
         hideRemoteRefreshError(for: directory)
         dataSource.applier.reloadSubtree(reconciliation.parentItem)
-        restoreRemotePaneState(
+        restorePaneState(
             paneState,
             preferredResultLocations: policy?.preferredResultLocations ?? []
         )
@@ -129,9 +129,7 @@ extension FileListViewController {
 
         // Capture pane state before the mutation.
         let previousExpanded = dataSource.expandedFolders
-        let previousSelectedURLs = selectedItems.map(\.url)
-        let previousSelectedRow = tableView.selectedRow
-        let preservedScrollOrigin = scrollView.contentView.bounds.origin
+        let paneCapture = capturePaneState()
         let keepTableFocus = shouldKeepTableViewFocusedAfterRefresh()
 
         guard let reconciliation = dataSource.reconcileListingEntries(
@@ -147,40 +145,13 @@ extension FileListViewController {
         restoreExpansion(previousExpanded)
         dataSource.suppressCollapseNotifications = false
 
-        // Selection: preferred results outrank the previous selection.
-        var selectedPreferred = false
-        if let policy, !policy.preferredResultLocations.isEmpty {
-            var indexes = IndexSet()
-            for location in policy.preferredResultLocations {
-                if let item = dataSource.findItem(withLocation: location, in: dataSource.items) {
-                    let row = tableView.row(forItem: item)
-                    if row >= 0 { indexes.insert(row) }
-                }
-            }
-            if !indexes.isEmpty {
-                tableView.selectRowIndexes(
-                    indexes,
-                    byExtendingSelection: false,
-                    origin: .operationResult
-                )
-                if let first = indexes.first {
-                    tableView.scrollRowToVisible(first)
-                }
-                selectedPreferred = true
-            }
-        }
+        let selectedPreferred = restoreSelectionApplyingRule(
+            from: paneCapture,
+            preferredResultLocations: policy?.preferredResultLocations ?? []
+        )
         if !selectedPreferred {
-            restoreSelection(previousSelectedURLs, scrollToVisible: false)
-            if tableView.selectedRow < 0 && previousSelectedRow >= 0 && tableView.numberOfRows > 0 {
-                let newIndex = min(previousSelectedRow, tableView.numberOfRows - 1)
-                tableView.selectRowIndexes(
-                    IndexSet(integer: newIndex),
-                    byExtendingSelection: false,
-                    origin: .restored
-                )
-            }
             // Background refreshes must not move the viewport.
-            scrollView.contentView.scroll(to: preservedScrollOrigin)
+            scrollView.contentView.scroll(to: paneCapture.scrollOrigin)
             scrollView.reflectScrolledClipView(scrollView.contentView)
         }
         restoreTableViewKeyboardFocusIfNeeded(keepTableFocus)

@@ -21,64 +21,7 @@ extension FileListDataSource {
                 // Update items with git status (recursively)
                 updateGitStatus(for: items, statuses: statuses)
 
-                // Preserve selection by URL before reload (row indexes change after reload)
-                var selectedURLs: [URL] = []
-                if let outlineView = outlineView {
-                    for row in outlineView.selectedRowIndexes {
-                        if let item = outlineView.item(atRow: row) as? FileItem {
-                            selectedURLs.append(item.url)
-                        }
-                    }
-                }
-                let expanded = expandedFolders
-
-                // Suppress collapse notifications during reload to preserve expansion state
-                suppressCollapseNotifications = true
-                applier.reloadAll()
-                expandedFolders = expanded
-                suppressCollapseNotifications = false
-
-                // Restore expansion state visually - sort by depth so parents expand before children
-                let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
-                for url in sortedExpanded {
-                    // Use recursive findItem since children get loaded as parents expand
-                    if let item = findItem(withURL: url, in: items), item.isNavigableFolder {
-                        // Only load children if not already loaded - avoid replacing existing children
-                        // which would create new FileItem objects and break outline view references
-                        if item.children == nil && !item.isVirtualSharedFolder {
-                            if VolumeMonitor.requiresAsynchronousDirectoryAccess(item.url) {
-                                outlineView?.expandItem(item)
-                                continue
-                            }
-                            _ = item.loadChildren(
-                                showHidden: showHiddenFiles,
-                                sortDescriptor: sortDescriptor,
-                                foldersOnTop: SettingsManager.shared.foldersOnTop
-                            )
-                        }
-                        outlineView?.expandItem(item)
-                    }
-                }
-
-                // Restore selection by URL
-                if !selectedURLs.isEmpty, let outlineView = outlineView {
-                    var rowIndexes = IndexSet()
-                    for url in selectedURLs {
-                        if let item = findItem(withURL: url, in: items) {
-                            let row = outlineView.row(forItem: item)
-                            if row >= 0 {
-                                rowIndexes.insert(row)
-                            }
-                        }
-                    }
-                    if !rowIndexes.isEmpty {
-                        outlineView.selectRowIndexes(
-                            rowIndexes,
-                            byExtendingSelection: false,
-                            origin: .restored
-                        )
-                    }
-                }
+                reloadForGitStatusUpdate()
             }
         }
     }
@@ -135,41 +78,40 @@ extension FileListDataSource {
     }
 
     private func reloadAfterRemoteGitStatusUpdate() {
-        guard let outlineView else { return }
+        reloadForGitStatusUpdate()
+    }
 
-        let selectedLocations = outlineView.selectedRowIndexes.compactMap { row -> Location? in
-            (outlineView.item(atRow: row) as? FileItem)?.location
+    /// Git badge changes redraw through the pane's one capture/restore
+    /// implementation; the git path carries no private restore of its own.
+    private func reloadForGitStatusUpdate() {
+        guard let reloadPreservingPaneState else {
+            applier.reloadAll()
+            return
         }
-        let expanded = expandedFolders
-
-        suppressCollapseNotifications = true
-        applier.reloadAll()
-
-        let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
-        for url in sortedExpanded {
-            if let item = findItem(withURL: url, in: items), item.isNavigableFolder {
-                outlineView.expandItem(item)
-            }
-        }
-        expandedFolders = expanded
-        suppressCollapseNotifications = false
-
-        guard !selectedLocations.isEmpty else { return }
-        var rowIndexes = IndexSet()
-        for location in selectedLocations {
-            if let item = findItem(withLocation: location, in: items) {
-                let row = outlineView.row(forItem: item)
-                if row >= 0 {
-                    rowIndexes.insert(row)
+        reloadPreservingPaneState { [weak self] in
+            guard let self else { return }
+            let expanded = self.expandedFolders
+            self.suppressCollapseNotifications = true
+            self.applier.reloadAll()
+            let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
+            for url in sortedExpanded {
+                if let item = self.findItem(withURL: url, in: self.items), item.isNavigableFolder {
+                    if item.children == nil && !item.isVirtualSharedFolder {
+                        if VolumeMonitor.requiresAsynchronousDirectoryAccess(item.url) {
+                            self.outlineView?.expandItem(item)
+                            continue
+                        }
+                        _ = item.loadChildren(
+                            showHidden: self.showHiddenFiles,
+                            sortDescriptor: self.sortDescriptor,
+                            foldersOnTop: SettingsManager.shared.foldersOnTop
+                        )
+                    }
+                    self.outlineView?.expandItem(item)
                 }
             }
-        }
-        if !rowIndexes.isEmpty {
-            outlineView.selectRowIndexes(
-                rowIndexes,
-                byExtendingSelection: false,
-                origin: .restored
-            )
+            self.expandedFolders = expanded
+            self.suppressCollapseNotifications = false
         }
     }
 

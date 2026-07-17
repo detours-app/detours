@@ -3,9 +3,15 @@ import os.log
 @preconcurrency import Quartz
 
 extension FileListViewController {
-    struct RemotePaneStateSnapshot {
+    /// One pane-state capture for every refresh restore. Neighbor locations
+    /// are captured in displayed order before the mutation, so a deletion can
+    /// choose the forward survivor without guessing from a changed row number.
+    struct PaneStateCapture {
         let selectedLocations: [Location]
-        let selectedRow: Int
+        /// Displayed-order locations after the first selected row (nearest first).
+        let forwardNeighborLocations: [Location]
+        /// Displayed-order locations before the first selected row (nearest first).
+        let previousNeighborLocations: [Location]
         let expandedLocations: Set<Location>
         let topVisibleLocation: Location?
         let topVisibleOffset: CGFloat
@@ -21,7 +27,7 @@ extension FileListViewController {
         id: String,
         pane: String
     ) -> UITestEnvironment.PaneStateResponse {
-        let snapshot = captureRemotePaneState()
+        let snapshot = capturePaneState()
         let focus: String
         if view.window?.firstResponder === tableView {
             focus = "fileList"
@@ -72,7 +78,7 @@ extension FileListViewController {
         selectedItems.map { URL(fileURLWithPath: $0.location.path) }
     }
 
-    func captureRemotePaneState() -> RemotePaneStateSnapshot {
+    func capturePaneState() -> PaneStateCapture {
         let visibleRows = tableView.rows(in: tableView.visibleRect)
         let topRow = visibleRows.location == NSNotFound ? -1 : visibleRows.location
         let topItem = topRow >= 0 ? dataSource.item(at: topRow) : nil
@@ -80,10 +86,30 @@ extension FileListViewController {
             ? tableView.visibleRect.minY - tableView.rect(ofRow: topRow).minY
             : 0
 
-        return RemotePaneStateSnapshot(
+        var forwardNeighbors: [Location] = []
+        var previousNeighbors: [Location] = []
+        let firstSelectedRow = tableView.selectedRowIndexes.first ?? -1
+        if firstSelectedRow >= 0 {
+            let selectedRows = tableView.selectedRowIndexes
+            if firstSelectedRow + 1 < tableView.numberOfRows {
+                for row in (firstSelectedRow + 1)..<tableView.numberOfRows where !selectedRows.contains(row) {
+                    if let item = dataSource.item(at: row) {
+                        forwardNeighbors.append(item.location)
+                    }
+                }
+            }
+            for row in stride(from: firstSelectedRow - 1, through: 0, by: -1) {
+                if let item = dataSource.item(at: row) {
+                    previousNeighbors.append(item.location)
+                }
+            }
+        }
+
+        return PaneStateCapture(
             selectedLocations: selectedLocations,
-            selectedRow: tableView.selectedRow,
-            expandedLocations: expandedRemoteLocations(in: dataSource.items),
+            forwardNeighborLocations: forwardNeighbors,
+            previousNeighborLocations: previousNeighbors,
+            expandedLocations: expandedLocations(in: dataSource.items),
             topVisibleLocation: topItem?.location,
             topVisibleOffset: topOffset,
             scrollOrigin: scrollView.contentView.bounds.origin,
@@ -95,19 +121,87 @@ extension FileListViewController {
         )
     }
 
-    func restoreRemotePaneState(
-        _ snapshot: RemotePaneStateSnapshot,
+    /// The one selection rule for every refresh restore: preferred result
+    /// locations win, then every previous selection that still exists, then
+    /// the first surviving forward neighbor, then the preceding survivor,
+    /// otherwise no selection.
+    /// - Returns: true when preferred results were selected.
+    @discardableResult
+    func restoreSelectionApplyingRule(
+        from capture: PaneStateCapture,
+        preferredResultLocations: Set<Location> = []
+    ) -> Bool {
+        func rows(for locations: some Collection<Location>) -> IndexSet {
+            var indexes = IndexSet()
+            for location in locations {
+                if let item = dataSource.findItem(withLocation: location, in: dataSource.items) {
+                    let row = tableView.row(forItem: item)
+                    if row >= 0 { indexes.insert(row) }
+                }
+            }
+            return indexes
+        }
+
+        let preferredRows = rows(for: preferredResultLocations)
+        if !preferredRows.isEmpty {
+            tableView.selectRowIndexes(
+                preferredRows,
+                byExtendingSelection: false,
+                origin: .operationResult
+            )
+            if let first = preferredRows.first {
+                tableView.scrollRowToVisible(first)
+            }
+            return true
+        }
+
+        let survivingRows = rows(for: capture.selectedLocations)
+        if !survivingRows.isEmpty {
+            tableView.selectRowIndexes(
+                survivingRows,
+                byExtendingSelection: false,
+                origin: .restored
+            )
+            return false
+        }
+
+        guard !capture.selectedLocations.isEmpty else {
+            // Nothing was selected before; nothing to restore.
+            return false
+        }
+
+        for neighbor in capture.forwardNeighborLocations + capture.previousNeighborLocations {
+            let neighborRows = rows(for: [neighbor])
+            if let row = neighborRows.first {
+                tableView.selectRowIndexes(
+                    IndexSet(integer: row),
+                    byExtendingSelection: false,
+                    origin: .operationResult
+                )
+                tableView.scrollRowToVisible(row)
+                return false
+            }
+        }
+        // No survivor on either side: leave the selection empty.
+        tableView.deselectAll(nil)
+        return false
+    }
+
+    /// Full pane-state restore around a listing mutation: sort, filter,
+    /// expansion, the selection rule, scroll anchoring, and keyboard focus.
+    func restorePaneState(
+        _ capture: PaneStateCapture,
         preferredResultLocations: Set<Location> = []
     ) {
-        dataSource.sortDescriptor = snapshot.sortDescriptor
-        dataSource.filterPredicate = snapshot.filterText.isEmpty ? nil : snapshot.filterText
-        filterBar.filterText = snapshot.filterText
-        isFilterBarVisible = snapshot.filterWasVisible
-        filterBar.isHidden = !snapshot.filterWasVisible
-        filterBarHeightConstraint?.constant = snapshot.filterWasVisible ? Self.filterBarHeight : 0
+        dataSource.sortDescriptor = capture.sortDescriptor
+        dataSource.filterPredicate = capture.filterText.isEmpty ? nil : capture.filterText
+        filterBar.filterText = capture.filterText
+        isFilterBarVisible = capture.filterWasVisible
+        filterBar.isHidden = !capture.filterWasVisible
+        filterBarHeightConstraint?.constant = capture.filterWasVisible ? Self.filterBarHeight : 0
 
         dataSource.suppressCollapseNotifications = true
-        let sortedExpandedLocations = snapshot.expandedLocations.sorted {
+        let sortedExpandedLocations = capture.expandedLocations.sorted {
             $0.path.split(separator: "/").count < $1.path.split(separator: "/").count
         }
         for location in sortedExpandedLocations {
@@ -116,66 +210,52 @@ extension FileListViewController {
                 tableView.expandItem(item)
             }
         }
-        dataSource.expandedFolders = Set(snapshot.expandedLocations.map {
+        dataSource.expandedFolders = Set(capture.expandedLocations.map {
             URL(fileURLWithPath: $0.path).standardizedFileURL
         })
         dataSource.suppressCollapseNotifications = false
 
-        let selectionToRestore = preferredResultLocations.isEmpty
-            ? Set(snapshot.selectedLocations)
-            : preferredResultLocations
-        var restoredRows = IndexSet()
-        for location in selectionToRestore {
-            if let item = dataSource.findItem(withLocation: location, in: dataSource.items) {
-                let row = tableView.row(forItem: item)
-                if row >= 0 {
-                    restoredRows.insert(row)
+        let selectedPreferred = restoreSelectionApplyingRule(
+            from: capture,
+            preferredResultLocations: preferredResultLocations
+        )
+
+        // Preferred results own the viewport (scrolled into view above);
+        // otherwise background churn must not move it.
+        if !selectedPreferred {
+            tableView.layoutSubtreeIfNeeded()
+            var restoredOrigin = capture.scrollOrigin
+            if let topLocation = capture.topVisibleLocation,
+               let topItem = dataSource.findItem(withLocation: topLocation, in: dataSource.items) {
+                let topRow = tableView.row(forItem: topItem)
+                if topRow >= 0 {
+                    restoredOrigin.y = tableView.rect(ofRow: topRow).minY + capture.topVisibleOffset
                 }
             }
+            let proposedBounds = NSRect(
+                origin: restoredOrigin,
+                size: scrollView.contentView.bounds.size
+            )
+            restoredOrigin = scrollView.contentView.constrainBoundsRect(proposedBounds).origin
+            scrollView.contentView.scroll(to: restoredOrigin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
         }
-        if restoredRows.isEmpty,
-           snapshot.selectedRow >= 0,
-           tableView.numberOfRows > 0 {
-            restoredRows.insert(min(snapshot.selectedRow, tableView.numberOfRows - 1))
-        }
-        tableView.selectRowIndexes(
-            restoredRows,
-            byExtendingSelection: false,
-            origin: preferredResultLocations.isEmpty ? .restored : .operationResult
-        )
 
-        tableView.layoutSubtreeIfNeeded()
-        var restoredOrigin = snapshot.scrollOrigin
-        if let topLocation = snapshot.topVisibleLocation,
-           let topItem = dataSource.findItem(withLocation: topLocation, in: dataSource.items) {
-            let topRow = tableView.row(forItem: topItem)
-            if topRow >= 0 {
-                restoredOrigin.y = tableView.rect(ofRow: topRow).minY + snapshot.topVisibleOffset
-            }
-        }
-        let proposedBounds = NSRect(
-            origin: restoredOrigin,
-            size: scrollView.contentView.bounds.size
-        )
-        restoredOrigin = scrollView.contentView.constrainBoundsRect(proposedBounds).origin
-        scrollView.contentView.scroll(to: restoredOrigin)
-        scrollView.reflectScrolledClipView(scrollView.contentView)
-
-        if snapshot.filterHadKeyboardFocus {
+        if capture.filterHadKeyboardFocus {
             filterBar.focusSearchField()
-        } else if snapshot.tableHadKeyboardFocus {
+        } else if capture.tableHadKeyboardFocus {
             view.window?.makeFirstResponder(tableView)
         }
     }
 
-    private func expandedRemoteLocations(in items: [FileItem]) -> Set<Location> {
+    private func expandedLocations(in items: [FileItem]) -> Set<Location> {
         var result: Set<Location> = []
         for item in items {
-            if item.isRemote, tableView.isItemExpanded(item) {
+            if tableView.isItemExpanded(item) {
                 result.insert(item.location)
             }
             if let children = item.children {
-                result.formUnion(expandedRemoteLocations(in: children))
+                result.formUnion(expandedLocations(in: children))
             }
         }
         return result

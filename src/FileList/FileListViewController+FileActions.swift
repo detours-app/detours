@@ -114,8 +114,9 @@ extension FileListViewController {
             return
         }
 
-        // Remember selection index to restore after delete
-        let selectedIndex = tableView.selectedRow
+        // Capture neighbors before the mutation so the restore rule can pick
+        // the forward (then previous) survivor.
+        let paneCapture = capturePaneState()
         let fallbackLocation = locations[0]
 
         Task { @MainActor in
@@ -128,7 +129,7 @@ extension FileListViewController {
                 reloadAfterDeleting(
                     deletedLocations: locations,
                     fallbackLocation: fallbackLocation,
-                    selectedIndex: selectedIndex
+                    paneCapture: paneCapture
                 )
             } catch {
                 FileOperationQueue.shared.presentError(error)
@@ -180,7 +181,7 @@ extension FileListViewController {
     }
 
     private func performDeleteImmediately(locations: [Location]) {
-        let selectedIndex = tableView.selectedRow
+        let paneCapture = capturePaneState()
         let fallbackLocation = locations[0]
 
         Task { @MainActor in
@@ -193,7 +194,7 @@ extension FileListViewController {
                 reloadAfterDeleting(
                     deletedLocations: locations,
                     fallbackLocation: fallbackLocation,
-                    selectedIndex: selectedIndex
+                    paneCapture: paneCapture
                 )
             } catch {
                 FileOperationQueue.shared.presentError(error)
@@ -204,21 +205,11 @@ extension FileListViewController {
     private func reloadAfterDeleting(
         deletedLocations: [Location],
         fallbackLocation: Location,
-        selectedIndex: Int
+        paneCapture: PaneStateCapture
     ) {
         dataSource.invalidateGitStatus()
         pendingPostLoadAction = { [weak self] in
-            guard let self else { return }
-            let rowCount = self.tableView.numberOfRows
-            if rowCount > 0 && selectedIndex >= 0 {
-                let newIndex = min(selectedIndex, rowCount - 1)
-                self.tableView.selectRowIndexes(
-                    IndexSet(integer: newIndex),
-                    byExtendingSelection: false,
-                    origin: .operationResult
-                )
-                self.tableView.scrollRowToVisible(newIndex)
-            }
+            self?.restoreSelectionApplyingRule(from: paneCapture)
         }
 
         if currentRemoteLocation != nil {
