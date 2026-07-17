@@ -150,7 +150,7 @@ extension FileListDataSource {
             do {
                 guard let self else { return }
                 let entries = try await provider.list(item.location, showHidden: showHidden)
-                _ = self.reconcileRemoteEntries(entries, in: item.location)
+                _ = self.reconcileListingEntries(entries, in: item.location)
                 self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
                 if SettingsManager.shared.settings.gitStatusEnabled {
@@ -170,7 +170,7 @@ extension FileListDataSource {
         }
         do {
             let entries = try await provider.list(item.location, showHidden: showHiddenFiles)
-            _ = reconcileRemoteEntries(entries, in: item.location)
+            _ = reconcileListingEntries(entries, in: item.location)
             if SettingsManager.shared.settings.gitStatusEnabled {
                 fetchRemoteGitStatus(for: item.location, provider: provider)
             }

@@ -103,7 +103,7 @@ The scheduler exists when its `FileListViewController` is created, before the vi
 
 **Phase 1: Authority and restore rule**
 
-- [ ] **C1** Add `src/FileList/PaneRefreshScheduler.swift` with the epoch/generation state machine, typed intents, operation holds, and pre-view-load intent retention; add the sole `PaneOutlineApplier` and file-private `PaneOutlineMutationAuthority` beside `FileListDataSource`'s private mutation surface, require the authority for displayed-tree and child mutations, and remove writable access elsewhere
+- [x] **C1** Add `src/FileList/PaneRefreshScheduler.swift` with the epoch/generation state machine, typed intents, operation holds, and pre-view-load intent retention; add the sole `PaneOutlineApplier` and file-private `PaneOutlineMutationAuthority` beside `FileListDataSource`'s private mutation surface, require the authority for displayed-tree and child mutations, and remove writable access elsewhere
 - [ ] **C2** Add the sole app-facing `src/FileList/PaneFileOperationCoordinator.swift`, route every listing-affecting user operation and direct rename undo through it, and keep its UUID-keyed scheduler holds open until success/cancellation/failure intents are registered; ban those `FileOperationQueue` calls elsewhere and delete the time gate and watcher re-scheduling loop
 - [ ] **C3** Extract one pane-state capture/restore in `src/FileList/FileListViewController+SelectionState.swift` with the preferred-results, surviving-selection, captured-forward-neighbor, captured-previous-neighbor fallback chain; delete row-number and row-0 fallbacks and the git-status private restore
 - [ ] **C4** Add local in-place reconcile to `src/FileList/FileListDataSource+Loading.swift` mirroring `reconcileRemoteEntries`; route steady-state local refreshes through it, keep full loads for navigation only
@@ -155,3 +155,5 @@ The scheduler exists when its `FileListViewController` is created, before the vi
 ---
 
 ## Build Log
+
+- **C1** `PaneOutlineApplier` + file-private `PaneOutlineMutationAuthority` in `src/FileList/PaneOutlineApplier.swift`; `FileListDataSource.items` now reads private `displayedItems` writable only via `setDisplayedItems(_:with:)`; `FileItem.children` is `private(set)` with authority-gated `setChildren` (DEBUG-only `setChildrenForTesting` seam for fixtures); `BandedOutlineView` guards `reloadData`/`reloadData(forRowIndexes:)`/`reloadItem`/`insertItems`/`removeItems`/`moveItem` behind the applier scope with `PaneOutlineGuard` (records violations under tests, asserts in debug app runs). `PaneRefreshScheduler` added with epoch/generation single-flight per directory, typed causes, operation holds, 100 ms watcher debounce, row-intent batching, and pre-view-load retention; created with the controller. All existing mutation sites rerouted through the applier. Foundry: `swift build --build-tests` clean; FileListDataSource/Filter/GitStatus/RemoteRefreshCoordinator/StatusBarCount suites 55 tests, 0 failures.

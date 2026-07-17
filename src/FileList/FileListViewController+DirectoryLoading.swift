@@ -15,15 +15,12 @@ extension FileListViewController {
         loadDirectory(currentDirectory, preserveExpansion: true)
     }
 
-    /// Reload after an app-initiated local filesystem mutation. This owns the
-    /// refresh for that mutation and coalesces duplicate local watcher events.
+    /// Reload after an app-initiated local filesystem mutation. Watcher events
+    /// from the same write are held by the operation's coordinator transaction
+    /// and fold into the scheduler's follow-up.
     func refreshAfterLocalMutation() {
         guard let currentDirectory else { return }
-        loadDirectory(
-            currentDirectory,
-            preserveExpansion: true,
-            coalescingLocalMutationEvents: true
-        )
+        loadDirectory(currentDirectory, preserveExpansion: true)
     }
 
     /// Refresh and select moved/copied files after load completes.
@@ -240,16 +237,8 @@ extension FileListViewController {
         selectingItem itemToSelect: URL? = nil,
         preserveExpansion: Bool = false,
         iCloudListingMode requestedListingMode: ICloudListingMode? = nil,
-        showSpinner: Bool = true,
-        coalescingLocalMutationEvents: Bool = false
+        showSpinner: Bool = true
     ) {
-        let localMutationSuppressionGeneration: Int?
-        if coalescingLocalMutationEvents {
-            localMutationSuppressionGeneration = beginLocalMutationWatcherSuppression()
-        } else {
-            cancelLocalMutationWatcherSuppression()
-            localMutationSuppressionGeneration = nil
-        }
         // Cancel any in-progress load before starting a new one
         dataSource.cancelCurrentLoad()
         remoteRefreshCoordinator?.cancelAll()
@@ -277,6 +266,12 @@ extension FileListViewController {
             effectiveListingMode = .normal
         }
 
+        // Navigation invalidates all of the scheduler's older work; a
+        // same-directory preserve-expansion reload is steady-state.
+        if previousDirectory != normalizedURL || !preserveExpansion {
+            refreshScheduler.noteNavigation()
+        }
+
         currentDirectory = normalizedURL
         currentICloudListingMode = effectiveListingMode
 
@@ -289,11 +284,6 @@ extension FileListViewController {
             pendingDirectory = normalizedURL
             pendingICloudListingMode = effectiveListingMode
             hasLoadedDirectory = false
-            if let localMutationSuppressionGeneration {
-                finishLocalMutationWatcherSuppression(
-                    generation: localMutationSuppressionGeneration
-                )
-            }
             return
         }
 
@@ -315,14 +305,6 @@ extension FileListViewController {
         dataSource.onLoadCompleted = { [weak self] result in
             guard let self else { return }
             self.hideLoadingIndicator()
-
-            defer {
-                if let localMutationSuppressionGeneration {
-                    self.finishLocalMutationWatcherSuppression(
-                        generation: localMutationSuppressionGeneration
-                    )
-                }
-            }
 
             switch result {
             case .success:
@@ -472,7 +454,6 @@ extension FileListViewController {
         preserveExpansion: Bool,
         showSpinner: Bool = true
     ) {
-        cancelLocalMutationWatcherSuppression()
         let canReconcileInPlace = preserveExpansion
             && currentRemoteLocation == location
             && currentRemoteProvider != nil
@@ -487,6 +468,7 @@ extension FileListViewController {
             return
         }
 
+        refreshScheduler.noteNavigation()
         dataSource.cancelCurrentLoad()
         remoteRefreshCoordinator?.cancelAll()
         hideLoadingIndicator()
@@ -564,7 +546,7 @@ extension FileListViewController {
         guard isCurrentRemoteRefreshDirectory(snapshot.request.directory) else { return }
 
         let paneState = captureRemotePaneState()
-        guard let reconciliation = dataSource.reconcileRemoteEntries(
+        guard let reconciliation = dataSource.reconcileListingEntries(
             snapshot.entries,
             in: snapshot.request.directory
         ) else {

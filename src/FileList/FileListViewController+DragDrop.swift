@@ -22,15 +22,17 @@ extension FileListViewController: FileListDropDelegate {
 
         Task { @MainActor in
             do {
-                let resultLocations: [Location]
-                if operation == .copy {
-                    resultLocations = try await FileOperationQueue.shared.copy(
-                        items: locations,
-                        to: destination,
-                        undoManager: undoManager
-                    )
-                } else {
-                    resultLocations = try await FileOperationQueue.shared.move(
+                let resultLocations = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: affectedDirectories
+                ) {
+                    if operation == .copy {
+                        return try await FileOperationQueue.shared.copy(
+                            items: locations,
+                            to: destination,
+                            undoManager: undoManager
+                        )
+                    }
+                    return try await FileOperationQueue.shared.move(
                         items: locations,
                         to: destination,
                         undoManager: undoManager

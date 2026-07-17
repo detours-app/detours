@@ -82,8 +82,7 @@ extension FileListViewController {
         // Reload and select the restored items
         loadDirectory(
             currentDirectory,
-            preserveExpansion: true,
-            coalescingLocalMutationEvents: true
+            preserveExpansion: true
         )
         restoreSelection(relevantURLs)
     }

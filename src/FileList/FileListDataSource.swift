@@ -250,6 +250,10 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     /// The single writer for this pane's outline mutations.
     private(set) lazy var applier = PaneOutlineApplier(dataSource: self)
 
+    /// Normalized location whose listing fills the root of the outline.
+    /// Reconciliation uses it to decide between root and branch application.
+    var displayedRootLocation: Location?
+
     weak var outlineView: NSOutlineView?
     weak var dropDelegate: FileListDropDelegate?
     weak var expansionDelegate: FileListExpansionDelegate?

@@ -180,13 +180,19 @@ extension MainSplitViewController {
         guard let destination = destinationPane.effectiveDestinationLocation else { return }
         let undoManager = destinationPane.selectedTab?.fileListViewController.undoManager
 
+        var moveAffected = Set(items.map { $0.deletingLastPathComponent() })
+        moveAffected.insert(destination)
         Task { @MainActor in
             do {
-                let actualLocations = try await FileOperationQueue.shared.move(
-                    items: items,
-                    to: destination,
-                    undoManager: undoManager
-                )
+                let actualLocations = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: moveAffected
+                ) {
+                    try await FileOperationQueue.shared.move(
+                        items: items,
+                        to: destination,
+                        undoManager: undoManager
+                    )
+                }
                 let hasRemoteSource = items.contains { location in
                     if case .remote = location { return true }
                     return false
@@ -241,13 +247,19 @@ extension MainSplitViewController {
         }
         let undoManager = destinationPane.selectedTab?.fileListViewController.undoManager
 
+        var copyAffected = Set(items.map { $0.deletingLastPathComponent() })
+        copyAffected.insert(destination)
         Task { @MainActor in
             do {
-                let actualLocations = try await FileOperationQueue.shared.copy(
-                    items: items,
-                    to: destination,
-                    undoManager: undoManager
-                )
+                let actualLocations = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: copyAffected
+                ) {
+                    try await FileOperationQueue.shared.copy(
+                        items: items,
+                        to: destination,
+                        undoManager: undoManager
+                    )
+                }
                 let hasRemoteSource = items.contains { location in
                     if case .remote = location { return true }
                     return false

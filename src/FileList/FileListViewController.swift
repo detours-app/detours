@@ -57,10 +57,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var directoryWatchTask: Task<Void, Never>?
     var providerWatchSetupTasks: [Location: Task<Void, Never>] = [:]
     var providerWatchGeneration: UInt64 = 0
-    var directoryChangeDebounce: DispatchWorkItem?
-    var localMutationWatcherSuppressionEnd: DispatchWorkItem?
-    var localMutationWatcherSuppressionGeneration = 0
-    var suppressLocalMutationWatcherReloads = false
     var remoteRefreshCoordinator: RemoteRefreshCoordinator?
     /// One owner for every programmatic listing refresh of this pane. Exists
     /// from controller creation so an undisplayed tab retains its latest
@@ -152,6 +148,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             }
         )
 
+        configureRefreshScheduler()
+
         setupScrollView()
         setupTableView()
         setupColumns()
@@ -183,6 +181,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
         // onLoadCompleted is set per-call in loadDirectory() to handle
         // expansion, selection, and watching after async load finishes
+
+        refreshScheduler.activate()
 
         if let pendingDirectory {
             self.pendingDirectory = nil

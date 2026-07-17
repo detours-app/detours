@@ -56,7 +56,11 @@ extension FileListViewController {
 
         Task { @MainActor in
             do {
-                let pastedLocations = try await ClipboardManager.shared.paste(to: pasteDestination, undoManager: undoManager)
+                let pastedLocations = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: locationsToRefresh
+                ) {
+                    try await ClipboardManager.shared.paste(to: pasteDestination, undoManager: undoManager)
+                }
                 if currentRemoteLocation != nil {
                     requestRemoteMutationRefreshes(
                         affectedDirectories: locationsToRefresh,
@@ -116,7 +120,11 @@ extension FileListViewController {
 
         Task { @MainActor in
             do {
-                try await FileOperationQueue.shared.delete(items: locations, undoManager: undoManager)
+                try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: Set(locations.map { $0.deletingLastPathComponent() })
+                ) {
+                    try await FileOperationQueue.shared.delete(items: locations, undoManager: undoManager)
+                }
                 reloadAfterDeleting(
                     deletedLocations: locations,
                     fallbackLocation: fallbackLocation,
@@ -177,7 +185,11 @@ extension FileListViewController {
 
         Task { @MainActor in
             do {
-                try await FileOperationQueue.shared.deleteImmediately(items: locations)
+                try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: Set(locations.map { $0.deletingLastPathComponent() })
+                ) {
+                    try await FileOperationQueue.shared.deleteImmediately(items: locations)
+                }
                 reloadAfterDeleting(
                     deletedLocations: locations,
                     fallbackLocation: fallbackLocation,
@@ -222,8 +234,7 @@ extension FileListViewController {
         let fallbackURL = URL(fileURLWithPath: fallbackLocation.path).deletingLastPathComponent()
         loadDirectory(
             currentDirectory ?? fallbackURL,
-            preserveExpansion: true,
-            coalescingLocalMutationEvents: true
+            preserveExpansion: true
         )
     }
 
@@ -234,7 +245,11 @@ extension FileListViewController {
 
         Task { @MainActor in
             do {
-                let duplicatedURLs = try await FileOperationQueue.shared.duplicate(items: urls, undoManager: undoManager)
+                let duplicatedURLs = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: Set(urls.map { Location.local($0.deletingLastPathComponent()) })
+                ) {
+                    try await FileOperationQueue.shared.duplicate(items: urls, undoManager: undoManager)
+                }
                 dataSource.invalidateGitStatus()
                 if let firstURL = duplicatedURLs.first {
                     pendingPostLoadAction = { [weak self] in
@@ -243,8 +258,7 @@ extension FileListViewController {
                 }
                 loadDirectory(
                     currentDirectory ?? urls.first!.deletingLastPathComponent(),
-                    preserveExpansion: true,
-                    coalescingLocalMutationEvents: true
+                    preserveExpansion: true
                 )
             } catch {
                 FileOperationQueue.shared.presentError(error)
@@ -265,12 +279,16 @@ extension FileListViewController {
 
             Task { @MainActor in
                 do {
-                    let archiveLocation = try await FileOperationQueue.shared.archive(
-                        items: locations,
-                        format: model.format,
-                        archiveName: model.archiveName,
-                        password: password
-                    )
+                    let archiveLocation = try await PaneFileOperationCoordinator.shared.perform(
+                        affecting: Set(locations.map { $0.deletingLastPathComponent() })
+                    ) {
+                        try await FileOperationQueue.shared.archive(
+                            items: locations,
+                            format: model.format,
+                            archiveName: model.archiveName,
+                            password: password
+                        )
+                    }
                     self.reloadCurrentListing(selecting: archiveLocation)
                 } catch {
                     FileOperationQueue.shared.presentError(error)
@@ -291,11 +309,15 @@ extension FileListViewController {
     private func extractArchive(_ archiveLocation: Location, password: String?) {
         Task { @MainActor in
             do {
-                let extractedLocation = try await FileOperationQueue.shared.extract(
-                    archive: archiveLocation,
-                    password: password,
-                    undoManager: self.undoManager
-                )
+                let extractedLocation = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: [archiveLocation.deletingLastPathComponent()]
+                ) {
+                    try await FileOperationQueue.shared.extract(
+                        archive: archiveLocation,
+                        password: password,
+                        undoManager: self.undoManager
+                    )
+                }
                 self.reloadCurrentListing(selecting: extractedLocation)
             } catch FileOperationError.archivePasswordRequired {
                 self.promptForArchivePassword(
@@ -334,8 +356,7 @@ extension FileListViewController {
         } else if let currentDirectory {
             loadDirectory(
                 currentDirectory,
-                preserveExpansion: true,
-                coalescingLocalMutationEvents: true
+                preserveExpansion: true
             )
         }
     }
@@ -376,12 +397,11 @@ extension FileListViewController {
             do {
                 // Don't pass undoManager here - undo will be registered AFTER rename is committed
                 // If user cancels rename (Escape), folder is trashed with no undo needed
-                let newFolder = try await FileOperationQueue.shared.createFolder(in: destination, name: "Folder", undoManager: nil)
-
-                // Cancel any pending directory watcher reload to prevent it from
-                // overwriting our selection after we select the new folder
-                directoryChangeDebounce?.cancel()
-                directoryChangeDebounce = nil
+                let newFolder = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: [destination]
+                ) {
+                    try await FileOperationQueue.shared.createFolder(in: destination, name: "Folder", undoManager: nil)
+                }
 
                 // Schedule post-load action to select and rename the new folder
                 // (loadDirectory is async, so we can't do this synchronously after)
@@ -433,12 +453,11 @@ extension FileListViewController {
             do {
                 // Don't pass undoManager here - undo will be registered AFTER rename is committed
                 // If user cancels rename (Escape), file is trashed with no undo needed
-                let newFile = try await FileOperationQueue.shared.createFile(in: destination, name: name, undoManager: nil)
-
-                // Cancel any pending directory watcher reload to prevent it from
-                // overwriting our selection after we select the new file
-                directoryChangeDebounce?.cancel()
-                directoryChangeDebounce = nil
+                let newFile = try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: [destination]
+                ) {
+                    try await FileOperationQueue.shared.createFile(in: destination, name: name, undoManager: nil)
+                }
 
                 // Schedule post-load action to select and rename the new file
                 pendingPostLoadAction = { [weak self] in
@@ -485,7 +504,11 @@ extension FileListViewController {
 
             Task { @MainActor in
                 do {
-                    let newFile = try await FileOperationQueue.shared.createFile(in: destination, name: fileName, undoManager: self.undoManager)
+                    let newFile = try await PaneFileOperationCoordinator.shared.perform(
+                        affecting: [destination]
+                    ) {
+                        try await FileOperationQueue.shared.createFile(in: destination, name: fileName, undoManager: self.undoManager)
+                    }
                     self.pendingPostLoadAction = { [weak self] in
                         self?.selectLocation(newFile)
                     }
@@ -558,17 +581,20 @@ extension FileListViewController {
 
             Task { @MainActor in
                 do {
-                    let createdURL = try await FileOperationQueue.shared.duplicateStructure(
-                        source: url,
-                        destination: destURL,
-                        yearSubstitution: substitution
-                    )
+                    let createdURL = try await PaneFileOperationCoordinator.shared.perform(
+                        affecting: [.local(destURL.deletingLastPathComponent()), .local(destURL)]
+                    ) {
+                        try await FileOperationQueue.shared.duplicateStructure(
+                            source: url,
+                            destination: destURL,
+                            yearSubstitution: substitution
+                        )
+                    }
                     if let currentDirectory = self.currentDirectory {
                         self.loadDirectory(
                             currentDirectory,
                             selectingItem: createdURL,
-                            preserveExpansion: true,
-                            coalescingLocalMutationEvents: true
+                            preserveExpansion: true
                         )
                     }
                 } catch {

@@ -321,27 +321,30 @@ extension PaneViewController: NSPathControlDelegate {
 extension PaneViewController: DroppablePathControlDelegate {
     func pathControlDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool) {
         let undoManager = selectedTab?.fileListViewController.undoManager
+        var directoriesToRefresh = Set<URL>()
+        for url in urls {
+            directoriesToRefresh.insert(url.deletingLastPathComponent().standardizedFileURL)
+        }
+        directoriesToRefresh.insert(destination.standardizedFileURL)
         Task { @MainActor in
             do {
-                if isCopy {
-                    try await FileOperationQueue.shared.copy(
-                        items: urls,
-                        to: destination,
-                        undoManager: undoManager
-                    )
-                } else {
-                    try await FileOperationQueue.shared.move(
-                        items: urls,
-                        to: destination,
-                        undoManager: undoManager
-                    )
+                try await PaneFileOperationCoordinator.shared.perform(
+                    affecting: Set(directoriesToRefresh.map(Location.local))
+                ) {
+                    if isCopy {
+                        try await FileOperationQueue.shared.copy(
+                            items: urls,
+                            to: destination,
+                            undoManager: undoManager
+                        )
+                    } else {
+                        try await FileOperationQueue.shared.move(
+                            items: urls,
+                            to: destination,
+                            undoManager: undoManager
+                        )
+                    }
                 }
-                // Refresh relevant directories
-                var directoriesToRefresh = Set<URL>()
-                for url in urls {
-                    directoriesToRefresh.insert(url.deletingLastPathComponent().standardizedFileURL)
-                }
-                directoriesToRefresh.insert(destination.standardizedFileURL)
                 if let splitVC = parent as? MainSplitViewController {
                     splitVC.refreshPanes(matching: directoriesToRefresh)
                 }

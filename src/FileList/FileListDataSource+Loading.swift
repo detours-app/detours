@@ -31,6 +31,7 @@ extension FileListDataSource {
         currentICloudListingMode = iCloudListingMode
         let showHidden = showHiddenFiles
         let normalizedURL = url.standardizedFileURL
+        displayedRootLocation = PaneRefreshScheduler.normalizedDirectory(.local(normalizedURL))
         let shouldFetchGitStatus = shouldFetchGitStatus(for: normalizedURL, mode: iCloudListingMode)
 
         currentLoadTask = Task { @MainActor [weak self] in
@@ -112,6 +113,7 @@ extension FileListDataSource {
         let showHidden = showHiddenFiles
         currentRemoteProvider = provider
         currentRemoteDirectoryForGit = location
+        displayedRootLocation = PaneRefreshScheduler.normalizedDirectory(location)
         currentDirectoryForGit = nil
         gitStatuses = [:]
         remoteGitStatuses = [:]
@@ -229,15 +231,14 @@ extension FileListDataSource {
         return FileItem(entry: entry, icon: placeholder)
     }
 
-    func reconcileRemoteEntries(
+    func reconcileListingEntries(
         _ entries: [LoadedFileEntry],
         in directory: Location
     ) -> RemoteBranchReconciliation? {
-        guard case .remote = directory else { return nil }
-
+        let normalizedDirectory = PaneRefreshScheduler.normalizedDirectory(directory)
         let parentItem: FileItem?
         let existingItems: [FileItem]
-        if currentRemoteDirectoryForGit == directory {
+        if displayedRootLocation == normalizedDirectory {
             parentItem = nil
             existingItems = items
         } else {
@@ -256,11 +257,11 @@ extension FileListDataSource {
         for entry in entries {
             if let existingItem = existingByLocation.removeValue(forKey: entry.location) {
                 existingItem.updateListingMetadata(from: makeFileItem(from: entry))
-                existingItem.gitStatus = remoteGitStatuses[entry.location]
+                existingItem.gitStatus = gitStatus(for: entry.location)
                 reconciledItems.append(existingItem)
             } else {
                 let newItem = makeFileItem(from: entry)
-                newItem.gitStatus = remoteGitStatuses[entry.location]
+                newItem.gitStatus = gitStatus(for: entry.location)
                 insertedLocations.insert(entry.location)
                 reconciledItems.append(newItem)
             }
@@ -280,7 +281,9 @@ extension FileListDataSource {
         } else {
             applier.setRootItems(reconciledItems)
         }
-        staleRemoteDirectories.remove(directory)
+        if case .remote = directory {
+            staleRemoteDirectories.remove(directory)
+        }
         _cachedFilteredItems = nil
 
         return RemoteBranchReconciliation(
@@ -290,6 +293,15 @@ extension FileListDataSource {
             insertedLocations: insertedLocations,
             removedLocations: Set(existingByLocation.keys)
         )
+    }
+
+    private func gitStatus(for location: Location) -> GitStatus? {
+        switch location {
+        case .local(let url):
+            return gitStatuses[url]
+        case .remote:
+            return remoteGitStatuses[location]
+        }
     }
 
     func markRemoteDirectoryStale(_ directory: Location) {
