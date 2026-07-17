@@ -1,12 +1,23 @@
 import AppKit
 
 extension FileListDataSource {
-    struct RemoteBranchReconciliation {
+    struct ListingReconciliation {
         let directory: Location
         let parentItem: FileItem?
+        /// Displayed array before the reconcile, for row-level diffing.
+        let previousItems: [FileItem]
         let reconciledItems: [FileItem]
         let insertedLocations: Set<Location>
         let removedLocations: Set<Location>
+        /// Surviving items whose listed metadata or git badge changed.
+        let updatedItems: Set<ObjectIdentifier>
+
+        var isNoop: Bool {
+            insertedLocations.isEmpty
+                && removedLocations.isEmpty
+                && updatedItems.isEmpty
+                && previousItems.map(ObjectIdentifier.init) == reconciledItems.map(ObjectIdentifier.init)
+        }
     }
 
     func loadDirectory(_ url: URL, preserveExpansion: Bool = false, iCloudListingMode: ICloudListingMode = .normal) {
@@ -234,7 +245,7 @@ extension FileListDataSource {
     func reconcileListingEntries(
         _ entries: [LoadedFileEntry],
         in directory: Location
-    ) -> RemoteBranchReconciliation? {
+    ) -> ListingReconciliation? {
         let normalizedDirectory = PaneRefreshScheduler.normalizedDirectory(directory)
         let parentItem: FileItem?
         let existingItems: [FileItem]
@@ -251,13 +262,19 @@ extension FileListDataSource {
             uniqueKeysWithValues: existingItems.map { ($0.location, $0) }
         )
         var insertedLocations: Set<Location> = []
+        var updatedItems: Set<ObjectIdentifier> = []
         var reconciledItems: [FileItem] = []
         reconciledItems.reserveCapacity(entries.count)
 
         for entry in entries {
             if let existingItem = existingByLocation.removeValue(forKey: entry.location) {
-                existingItem.updateListingMetadata(from: makeFileItem(from: entry))
-                existingItem.gitStatus = gitStatus(for: entry.location)
+                let metadataChanged = existingItem.updateListingMetadata(from: makeFileItem(from: entry))
+                let newGitStatus = gitStatus(for: entry.location)
+                let gitChanged = existingItem.gitStatus != newGitStatus
+                existingItem.gitStatus = newGitStatus
+                if metadataChanged || gitChanged {
+                    updatedItems.insert(ObjectIdentifier(existingItem))
+                }
                 reconciledItems.append(existingItem)
             } else {
                 let newItem = makeFileItem(from: entry)
@@ -286,12 +303,14 @@ extension FileListDataSource {
         }
         _cachedFilteredItems = nil
 
-        return RemoteBranchReconciliation(
+        return ListingReconciliation(
             directory: directory,
             parentItem: parentItem,
+            previousItems: existingItems,
             reconciledItems: reconciledItems,
             insertedLocations: insertedLocations,
-            removedLocations: Set(existingByLocation.keys)
+            removedLocations: Set(existingByLocation.keys),
+            updatedItems: updatedItems
         )
     }
 

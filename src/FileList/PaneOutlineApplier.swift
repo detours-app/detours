@@ -123,4 +123,85 @@ final class PaneOutlineApplier {
         guard row >= 0 else { return }
         reloadRows(IndexSet(integer: row), columns: IndexSet(integer: column))
     }
+
+    // MARK: - Reconciled listing apply
+
+    enum ReconciliationApplyKind {
+        /// Identical listing: no outline mutation, no redraw.
+        case noop
+        /// Row-level inserts/removes/updates only; expansion untouched.
+        case rows
+        /// Order changed: the parent subtree reloaded (item identity preserved).
+        case subtree
+    }
+
+    /// Applies one reconciled listing with the smallest possible mutation.
+    /// An identical later snapshot changes neither cells nor pane state; adds
+    /// and removals mutate only the affected rows; a reorder falls back to an
+    /// identity-preserving subtree reload.
+    func applyReconciledListing(
+        _ reconciliation: FileListDataSource.ListingReconciliation
+    ) -> ReconciliationApplyKind {
+        guard let dataSource, let outlineView else { return .noop }
+        if reconciliation.isNoop {
+            return .noop
+        }
+
+        let parent = reconciliation.parentItem
+        // A collapsed branch has no materialized rows; reload its subtree
+        // cheaply instead of issuing structural row operations.
+        if let parent, !outlineView.isItemExpanded(parent) {
+            reloadSubtree(parent)
+            return .subtree
+        }
+        let oldVisible = dataSource.filteredProjection(of: reconciliation.previousItems)
+        let newVisible = dataSource.filteredProjection(of: reconciliation.reconciledItems)
+        let oldIDs = oldVisible.map(ObjectIdentifier.init)
+        let newIDs = newVisible.map(ObjectIdentifier.init)
+        let oldSet = Set(oldIDs)
+        let newSet = Set(newIDs)
+
+        var removedIndexes = IndexSet()
+        for (index, id) in oldIDs.enumerated() where !newSet.contains(id) {
+            removedIndexes.insert(index)
+        }
+        var insertedIndexes = IndexSet()
+        for (index, id) in newIDs.enumerated() where !oldSet.contains(id) {
+            insertedIndexes.insert(index)
+        }
+        let oldSurvivors = oldIDs.filter { newSet.contains($0) }
+        let newSurvivors = newIDs.filter { oldSet.contains($0) }
+        let orderPreserved = oldSurvivors == newSurvivors
+
+        if !orderPreserved {
+            reloadSubtree(parent)
+            return .subtree
+        }
+
+        withAuthority { _ in
+            if !removedIndexes.isEmpty || !insertedIndexes.isEmpty {
+                outlineView.beginUpdates()
+                if !removedIndexes.isEmpty {
+                    outlineView.removeItems(at: removedIndexes, inParent: parent, withAnimation: [])
+                }
+                if !insertedIndexes.isEmpty {
+                    outlineView.insertItems(at: insertedIndexes, inParent: parent, withAnimation: [])
+                }
+                outlineView.endUpdates()
+            }
+            if !reconciliation.updatedItems.isEmpty {
+                var updatedRows = IndexSet()
+                for item in newVisible where reconciliation.updatedItems.contains(ObjectIdentifier(item)) {
+                    let row = outlineView.row(forItem: item)
+                    if row >= 0 { updatedRows.insert(row) }
+                }
+                if !updatedRows.isEmpty {
+                    let allColumns = IndexSet(integersIn: 0..<max(1, outlineView.numberOfColumns))
+                    outlineView.reloadData(forRowIndexes: updatedRows, columnIndexes: allColumns)
+                }
+            }
+            outlineView.needsLayout = true
+        }
+        return .rows
+    }
 }

@@ -100,13 +100,21 @@ extension FileListViewController {
             return PaneListingApplyOutcome()
         }
         hideRemoteRefreshError(for: directory)
-        dataSource.applier.reloadSubtree(reconciliation.parentItem)
-        restorePaneState(
-            paneState,
-            preferredResultLocations: policy?.preferredResultLocations ?? []
-        )
+        let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
+        let preferred = policy?.preferredResultLocations ?? []
+        if applyKind == .noop && policy == nil {
+            // Unchanged listing with nothing requested: no redraw, no restore.
+            return PaneListingApplyOutcome()
+        }
+        switch applyKind {
+        case .noop, .rows:
+            restoreSelectionApplyingRule(from: paneState, preferredResultLocations: preferred)
+        case .subtree:
+            restorePaneState(paneState, preferredResultLocations: preferred)
+        }
 
-        if SettingsManager.shared.settings.gitStatusEnabled,
+        if applyKind != .noop,
+           SettingsManager.shared.settings.gitStatusEnabled,
            let currentRemoteProvider {
             dataSource.fetchRemoteGitStatus(
                 for: directory,
@@ -118,7 +126,9 @@ extension FileListViewController {
         if consumed {
             policy?.onApplied?()
         }
-        navigationDelegate?.fileListDidLoadDirectory(self)
+        if applyKind != .noop {
+            navigationDelegate?.fileListDidLoadDirectory(self)
+        }
         return PaneListingApplyOutcome(policyConsumed: consumed)
     }
 
@@ -140,16 +150,23 @@ extension FileListViewController {
         }
         hideErrorOverlay()
 
-        dataSource.suppressCollapseNotifications = true
-        dataSource.applier.reloadSubtree(reconciliation.parentItem)
-        restoreExpansion(previousExpanded)
-        dataSource.suppressCollapseNotifications = false
+        let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
+        if applyKind == .noop && policy == nil {
+            // Unchanged listing with nothing requested: no redraw, no restore.
+            return PaneListingApplyOutcome()
+        }
+
+        if applyKind == .subtree {
+            dataSource.suppressCollapseNotifications = true
+            restoreExpansion(previousExpanded)
+            dataSource.suppressCollapseNotifications = false
+        }
 
         let selectedPreferred = restoreSelectionApplyingRule(
             from: paneCapture,
             preferredResultLocations: policy?.preferredResultLocations ?? []
         )
-        if !selectedPreferred {
+        if !selectedPreferred && applyKind == .subtree {
             // Background refreshes must not move the viewport.
             scrollView.contentView.scroll(to: paneCapture.scrollOrigin)
             scrollView.reflectScrolledClipView(scrollView.contentView)
@@ -171,7 +188,9 @@ extension FileListViewController {
         if consumed {
             policy?.onApplied?()
         }
-        navigationDelegate?.fileListDidLoadDirectory(self)
+        if applyKind != .noop {
+            navigationDelegate?.fileListDidLoadDirectory(self)
+        }
         return PaneListingApplyOutcome(policyConsumed: consumed)
     }
 

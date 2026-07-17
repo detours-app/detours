@@ -334,8 +334,22 @@ final class FileItem {
 
     // MARK: - Tree Operations
 
-    func updateListingMetadata(from updatedItem: FileItem) {
-        guard location == updatedItem.location else { return }
+    /// - Returns: true when any listed metadata actually changed, so callers
+    ///   can skip redrawing rows whose content is identical.
+    @discardableResult
+    func updateListingMetadata(from updatedItem: FileItem) -> Bool {
+        guard location == updatedItem.location else { return false }
+        let changed = isDirectory != updatedItem.isDirectory
+            || isPackage != updatedItem.isPackage
+            || isAliasFile != updatedItem.isAliasFile
+            || isSymbolicLink != updatedItem.isSymbolicLink
+            || isReadable != updatedItem.isReadable
+            || isHiddenFile != updatedItem.isHiddenFile
+            || size != updatedItem.size
+            || dateModified != updatedItem.dateModified
+            || sharedRole != updatedItem.sharedRole
+            || isVirtualSharedFolder != updatedItem.isVirtualSharedFolder
+            || iCloudStatus != updatedItem.iCloudStatus
         isDirectory = updatedItem.isDirectory
         isPackage = updatedItem.isPackage
         isAliasFile = updatedItem.isAliasFile
@@ -347,6 +361,7 @@ final class FileItem {
         sharedRole = updatedItem.sharedRole
         isVirtualSharedFolder = updatedItem.isVirtualSharedFolder
         iCloudStatus = updatedItem.iCloudStatus
+        return changed
     }
 
     /// Loads children for this directory. Returns nil for files.

@@ -39,6 +39,15 @@ extension FileListDataSource {
         return filtered
     }
 
+    /// Applies the active filter predicate to an arbitrary item array (used
+    /// for row-level diffing against the outline's displayed projection).
+    func filteredProjection(of items: [FileItem]) -> [FileItem] {
+        guard let predicate = filterPredicate, !predicate.isEmpty else {
+            return items
+        }
+        return items.filter { itemOrDescendantMatches($0, predicate: predicate) }
+    }
+
     /// Returns filtered children for an item based on filterPredicate
     /// A child is visible if it matches OR any of its descendants match
     func filteredChildren(of item: FileItem) -> [FileItem]? {

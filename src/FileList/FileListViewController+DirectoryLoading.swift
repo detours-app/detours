@@ -534,13 +534,27 @@ extension FileListViewController {
         }
         hideRemoteRefreshError(for: snapshot.request.directory)
 
-        dataSource.applier.reloadSubtree(reconciliation.parentItem)
-        restorePaneState(
-            paneState,
-            preferredResultLocations: snapshot.request.preferredResultLocations
-        )
+        let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
+        let hasPreferredResults = !snapshot.request.preferredResultLocations.isEmpty
+        if applyKind == .noop && !hasPreferredResults {
+            // An identical later snapshot changes neither cells nor pane state.
+            return
+        }
+        switch applyKind {
+        case .noop, .rows:
+            restoreSelectionApplyingRule(
+                from: paneState,
+                preferredResultLocations: snapshot.request.preferredResultLocations
+            )
+        case .subtree:
+            restorePaneState(
+                paneState,
+                preferredResultLocations: snapshot.request.preferredResultLocations
+            )
+        }
 
-        if SettingsManager.shared.settings.gitStatusEnabled,
+        if applyKind != .noop,
+           SettingsManager.shared.settings.gitStatusEnabled,
            let currentRemoteProvider {
             dataSource.fetchRemoteGitStatus(
                 for: snapshot.request.directory,
