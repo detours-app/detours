@@ -96,8 +96,8 @@ extension FileListDataSource {
                 self.restoreSavedChildExpansions(of: item, in: outlineView)
             } catch {
                 // Expansion failed - set empty children so folder shows as empty
-                self.applier.setChildren([], of: item)
-                self.applier.reloadSubtree(item)
+                self?.applier.setChildren([], of: item)
+                self?.applier.reloadSubtree(item)
             }
         }
     }
@@ -157,8 +157,8 @@ extension FileListDataSource {
                     self.fetchRemoteGitStatus(for: item.location, provider: provider)
                 }
             } catch {
-                self.applier.setChildren([], of: item)
-                self.applier.reloadSubtree(item)
+                self?.applier.setChildren([], of: item)
+                self?.applier.reloadSubtree(item)
             }
         }
     }
@@ -203,8 +203,8 @@ extension FileListDataSource {
                 self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
             } catch {
-                self.applier.setChildren([], of: item)
-                self.applier.reloadSubtree(item)
+                self?.applier.setChildren([], of: item)
+                self?.applier.reloadSubtree(item)
             }
         }
     }
