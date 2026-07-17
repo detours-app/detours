@@ -107,8 +107,6 @@ final class PaneRefreshScheduler {
         self.dependencies = dependencies
     }
 
-    var isConfigured: Bool { dependencies != nil }
-
     var isRefreshInFlight: Bool {
         states.values.contains { $0.isFetching || $0.debounceTask != nil }
             || !directoriesAwaitingHoldClose.isEmpty
@@ -153,30 +151,30 @@ final class PaneRefreshScheduler {
             return
         }
 
-        let isBlockedByHold = !activeHolds.isEmpty
-        if isBlockedByHold && cause == .watcher {
-            // Retained under the hold; folded into the closing operation
-            // intent (or flushed by an unsuccessful close).
-            directoriesAwaitingHoldClose.insert(normalized)
-            states[normalized] = state
-            return
-        }
-        if isBlockedByHold && cause == .operation {
-            // Operation results are submitted while holds are still active and
-            // start when the hold closes.
+        // Under a hold nothing fetches: watcher work is retained and folded
+        // into the closing operation intent; operation results submitted
+        // while holds are active start the moment the last hold closes.
+        if !activeHolds.isEmpty {
             directoriesAwaitingHoldClose.insert(normalized)
             states[normalized] = state
             return
         }
 
+        states[normalized] = state
+        scheduleFetch(for: normalized)
+    }
+
+    /// Cancels any pending debounce and schedules the fetch. Explicit work
+    /// absorbs pending watcher causes and starts immediately; watcher-only
+    /// intents keep the per-directory debounce.
+    private func scheduleFetch(for directory: Location) {
+        guard var state = states[directory] else { return }
         state.debounceTask?.cancel()
-        // Explicit work absorbs pending watcher causes and starts immediately;
-        // watcher-only intents keep the per-directory debounce.
         state.debounceTask = makeDebounceTask(
-            for: normalized,
+            for: directory,
             delay: state.pendingCauses == [.watcher] ? Self.watcherDebounce : 0
         )
-        states[normalized] = state
+        states[directory] = state
     }
 
     /// Newer intents win; older preferred results, filter behavior, and
@@ -215,15 +213,10 @@ final class PaneRefreshScheduler {
         let directories = directoriesAwaitingHoldClose
         directoriesAwaitingHoldClose.removeAll()
         for directory in directories {
-            guard var state = states[directory], !state.isFetching else { continue }
-            state.debounceTask?.cancel()
+            guard let state = states[directory], !state.isFetching else { continue }
             // The closing operation intent starts immediately and carries any
             // watcher causes retained under the hold.
-            state.debounceTask = makeDebounceTask(
-                for: directory,
-                delay: state.pendingCauses == [.watcher] ? Self.watcherDebounce : 0
-            )
-            states[directory] = state
+            scheduleFetch(for: directory)
         }
     }
 
@@ -381,27 +374,12 @@ final class PaneRefreshScheduler {
 
         let shouldFetchAgain = state.needsFollowUp || !state.pendingCauses.isEmpty
         state.needsFollowUp = false
+        states[request.directory] = state
         if shouldFetchAgain, activeHolds.isEmpty {
-            state.debounceTask?.cancel()
-            state.debounceTask = makeDebounceTask(
-                for: request.directory,
-                delay: state.pendingCauses == [.watcher] ? Self.watcherDebounce : 0
-            )
+            scheduleFetch(for: request.directory)
         } else if shouldFetchAgain {
             directoriesAwaitingHoldClose.insert(request.directory)
         }
-        states[request.directory] = state
-    }
-
-    // MARK: - Lifecycle
-
-    func cancelAll() {
-        for state in states.values {
-            state.debounceTask?.cancel()
-        }
-        states.removeAll()
-        directoriesAwaitingHoldClose.removeAll()
-        pendingRowRefreshes.removeAll()
     }
 
     static func normalizedDirectory(_ location: Location) -> Location {

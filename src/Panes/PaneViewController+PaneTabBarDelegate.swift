@@ -74,38 +74,12 @@ extension PaneViewController: PaneTabBarDelegate {
         isCopy: Bool
     ) {
         guard tabs.indices.contains(tabIndex) else { return }
-        let undoManager = tabs[tabIndex].fileListViewController.undoManager
-        var directoriesToRefresh = Set<URL>()
-        for url in urls {
-            directoriesToRefresh.insert(url.deletingLastPathComponent().standardizedFileURL)
-        }
-        directoriesToRefresh.insert(destination.standardizedFileURL)
-        Task { @MainActor in
-            do {
-                try await PaneFileOperationCoordinator.shared.perform(
-                    affecting: Set(directoriesToRefresh.map(Location.local))
-                ) {
-                    if isCopy {
-                        try await FileOperationQueue.shared.copy(
-                            items: urls,
-                            to: destination,
-                            undoManager: undoManager
-                        )
-                    } else {
-                        try await FileOperationQueue.shared.move(
-                            items: urls,
-                            to: destination,
-                            undoManager: undoManager
-                        )
-                    }
-                }
-                if let splitVC = parent as? MainSplitViewController {
-                    splitVC.refreshPanes(matching: directoriesToRefresh)
-                }
-            } catch {
-                FileOperationQueue.shared.presentError(error)
-            }
-        }
+        performDroppedFileTransfer(
+            urls: urls,
+            to: destination,
+            isCopy: isCopy,
+            undoManager: tabs[tabIndex].fileListViewController.undoManager
+        )
     }
 
     func tabBarCurrentDirectory(forTabAt index: Int) -> URL? {

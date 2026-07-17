@@ -87,6 +87,10 @@ extension FileListViewController {
             ? tableView.visibleRect.minY - tableView.rect(ofRow: topRow).minY
             : 0
 
+        // The restore rule only ever needs the first surviving neighbor, so a
+        // bounded window keeps capture cheap on large listings while still
+        // surviving sizeable contiguous deletions.
+        let neighborCaptureLimit = 64
         var forwardNeighbors: [Location] = []
         var previousNeighbors: [Location] = []
         let firstSelectedRow = tableView.selectedRowIndexes.first ?? -1
@@ -97,12 +101,14 @@ extension FileListViewController {
                     if let item = dataSource.item(at: row) {
                         forwardNeighbors.append(item.location)
                     }
+                    if forwardNeighbors.count >= neighborCaptureLimit { break }
                 }
             }
             for row in stride(from: firstSelectedRow - 1, through: 0, by: -1) {
                 if let item = dataSource.item(at: row) {
                     previousNeighbors.append(item.location)
                 }
+                if previousNeighbors.count >= neighborCaptureLimit { break }
             }
         }
 
@@ -132,31 +138,27 @@ extension FileListViewController {
         from capture: PaneStateCapture,
         preferredResultLocations: Set<Location> = []
     ) -> Bool {
-        func rows(for locations: some Collection<Location>) -> IndexSet {
-            var indexes = IndexSet()
-            for location in locations {
-                if let item = dataSource.findItem(withLocation: location, in: dataSource.items) {
-                    let row = tableView.row(forItem: item)
-                    if row >= 0 { indexes.insert(row) }
-                }
-            }
-            return indexes
-        }
-
-        let preferredRows = rows(for: preferredResultLocations)
-        if !preferredRows.isEmpty {
-            tableView.selectRowIndexes(
-                preferredRows,
-                byExtendingSelection: false,
-                origin: .operationResult
-            )
-            if let first = preferredRows.first {
-                tableView.scrollRowToVisible(first)
-            }
+        // Preferred results reuse the operation-result selection path (with
+        // its remote expansion check and scroll-into-view behavior).
+        if !preferredResultLocations.isEmpty,
+           selectLocations(Array(preferredResultLocations)) {
             return true
         }
 
-        let survivingRows = rows(for: capture.selectedLocations)
+        // One displayed-row index per pass instead of a tree walk per location.
+        var rowByLocation: [Location: Int] = [:]
+        for row in 0..<tableView.numberOfRows {
+            if let item = dataSource.item(at: row) {
+                rowByLocation[item.location] = row
+            }
+        }
+
+        var survivingRows = IndexSet()
+        for location in capture.selectedLocations {
+            if let row = rowByLocation[location] {
+                survivingRows.insert(row)
+            }
+        }
         if !survivingRows.isEmpty {
             tableView.selectRowIndexes(
                 survivingRows,
@@ -172,8 +174,7 @@ extension FileListViewController {
         }
 
         for neighbor in capture.forwardNeighborLocations + capture.previousNeighborLocations {
-            let neighborRows = rows(for: [neighbor])
-            if let row = neighborRows.first {
+            if let row = rowByLocation[neighbor] {
                 tableView.selectRowIndexes(
                     IndexSet(integer: row),
                     byExtendingSelection: false,
@@ -287,30 +288,6 @@ extension FileListViewController {
         return selectedItem.isDirectory
             ? selectedItem.location
             : selectedItem.location.deletingLastPathComponent()
-    }
-
-    func restoreSelection(_ urls: [URL], scrollToVisible: Bool = true) {
-        guard !urls.isEmpty else { return }
-        var newSelection = IndexSet()
-        // Find items anywhere in tree (including inside expanded folders)
-        for url in urls {
-            if let item = dataSource.findItem(withURL: url, in: dataSource.items) {
-                let row = tableView.row(forItem: item)
-                if row >= 0 {
-                    newSelection.insert(row)
-                }
-            }
-        }
-        if !newSelection.isEmpty {
-            tableView.selectRowIndexes(
-                newSelection,
-                byExtendingSelection: false,
-                origin: .restored
-            )
-            if scrollToVisible, let first = newSelection.first {
-                tableView.scrollRowToVisible(first)
-            }
-        }
     }
 
     /// Restores expansion state for the given folder URLs

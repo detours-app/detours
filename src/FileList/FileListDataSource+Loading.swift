@@ -268,7 +268,11 @@ extension FileListDataSource {
 
         for entry in entries {
             if let existingItem = existingByLocation.removeValue(forKey: entry.location) {
-                let metadataChanged = existingItem.updateListingMetadata(from: makeFileItem(from: entry))
+                // The throwaway item only feeds the metadata diff; skip the
+                // folder-icon tinting a display item would get.
+                let metadataChanged = existingItem.updateListingMetadata(
+                    from: FileItem(entry: entry, icon: IconLoader.placeholderFileIcon)
+                )
                 let newGitStatus = gitStatus(for: entry.location)
                 let gitChanged = existingItem.gitStatus != newGitStatus
                 existingItem.gitStatus = newGitStatus

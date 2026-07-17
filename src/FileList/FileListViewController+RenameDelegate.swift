@@ -87,9 +87,9 @@ extension FileListViewController: RenameControllerDelegate {
     }
 
     /// Opens the rename session's refresh hold and marks the item whose cell
-    /// text must stay hidden under the floating editor. Runs after
-    /// `beginRename` so a previous session's teardown cannot swallow it.
-    func beginInlineRenameRefreshHold(for item: FileItem) {
+    /// text must stay hidden under the floating editor. Driven by the rename
+    /// controller's session lifecycle, so no entry point can forget it.
+    func renameControllerDidBeginEditing(_ controller: RenameController, item: FileItem) {
         dataSource.inlineEditingItem = item
         if renameRefreshHoldID == nil {
             let id = UUID()

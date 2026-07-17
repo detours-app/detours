@@ -444,10 +444,6 @@ final class FileItem {
         return sorted
     }
 
-    /// Clears loaded children (for refresh)
-    func clearChildren() {
-        children = nil
-    }
 }
 
 // MARK: - Sort Types

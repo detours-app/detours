@@ -4,6 +4,8 @@ import AppKit
 protocol RenameControllerDelegate: AnyObject {
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL)
     func renameControllerDidCancelNewItem(_ controller: RenameController, item: FileItem)
+    /// Called when an editing session begins, after the editor is installed.
+    func renameControllerDidBeginEditing(_ controller: RenameController, item: FileItem)
     /// Called whenever an editing session ends, before any commit or cancel
     /// side effects run.
     func renameControllerDidEndEditing(_ controller: RenameController, item: FileItem?)
@@ -22,10 +24,6 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     private var isNewItem: Bool = false
 
     private var currentUndoManager: UndoManager?
-
-    var isEditing: Bool {
-        textField != nil
-    }
 
     func beginRename(for item: FileItem, in tableView: NSTableView, at row: Int, isNewItem: Bool = false, undoManager: UndoManager? = nil) {
         cancelRename()
@@ -79,6 +77,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         tableView.addSubview(field)
         tableView.window?.makeFirstResponder(field)
         selectFilenameStem(in: field, for: item)
+        delegate?.renameControllerDidBeginEditing(self, item: item)
     }
 
     private func configureRenameField(_ field: NSTextField, item: FileItem) {

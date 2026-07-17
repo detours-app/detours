@@ -272,10 +272,15 @@ extension FileListViewController {
     // MARK: Rows
 
     private func applyScheduledRowRefreshes(_ batch: [(item: FileItem, columns: IndexSet)]) {
+        // One reload per distinct column set instead of one per item.
+        var rowsByColumns: [IndexSet: IndexSet] = [:]
         for entry in batch {
             let row = tableView.row(forItem: entry.item)
             guard row >= 0 else { continue }
-            dataSource.applier.reloadRows(IndexSet(integer: row), columns: entry.columns)
+            rowsByColumns[entry.columns, default: IndexSet()].insert(row)
+        }
+        for (columns, rows) in rowsByColumns {
+            dataSource.applier.reloadRows(rows, columns: columns)
         }
     }
 }

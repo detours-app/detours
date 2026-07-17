@@ -320,7 +320,23 @@ extension PaneViewController: NSPathControlDelegate {
 
 extension PaneViewController: DroppablePathControlDelegate {
     func pathControlDidReceiveFileDrop(urls: [URL], to destination: URL, isCopy: Bool) {
-        let undoManager = selectedTab?.fileListViewController.undoManager
+        performDroppedFileTransfer(
+            urls: urls,
+            to: destination,
+            isCopy: isCopy,
+            undoManager: selectedTab?.fileListViewController.undoManager
+        )
+    }
+
+    /// Shared transfer for chrome drop targets (path control, tab bar): one
+    /// coordinator transaction, then a cross-pane refresh of every affected
+    /// directory.
+    func performDroppedFileTransfer(
+        urls: [URL],
+        to destination: URL,
+        isCopy: Bool,
+        undoManager: UndoManager?
+    ) {
         var directoriesToRefresh = Set<URL>()
         for url in urls {
             directoriesToRefresh.insert(url.deletingLastPathComponent().standardizedFileURL)

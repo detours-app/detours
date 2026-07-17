@@ -171,12 +171,9 @@ extension FileListViewController {
     }
 
     private func isWatchRelevantToCurrentRoot(_ location: Location) -> Bool {
-        if let currentRemoteLocation {
-            return location == currentRemoteLocation
-                || isRemoteDescendant(location, of: currentRemoteLocation)
-        }
-        guard let currentDirectory else { return false }
-        return Self.isWatchLocation(location, inside: .local(currentDirectory))
+        // One containment definition for watcher relevance and scheduler
+        // eligibility, so they can never drift apart.
+        paneDisplaysDirectory(location)
     }
 
     private func invalidateFolderSizesAlongPath(to changedURL: URL) {

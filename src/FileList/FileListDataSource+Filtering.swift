@@ -28,13 +28,13 @@ extension FileListDataSource {
     /// Returns filtered root items based on filterPredicate
     /// An item is visible if it matches OR any of its descendants match
     var visibleItems: [FileItem] {
-        guard let predicate = filterPredicate, !predicate.isEmpty else {
+        guard filterPredicate?.isEmpty == false else {
             return items
         }
         if let cached = _cachedFilteredItems {
             return cached
         }
-        let filtered = items.filter { itemOrDescendantMatches($0, predicate: predicate) }
+        let filtered = filteredProjection(of: items)
         _cachedFilteredItems = filtered
         return filtered
     }

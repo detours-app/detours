@@ -222,25 +222,11 @@ extension MainSplitViewController {
                 }
                 var affectedDirectories = Set(items.map { $0.deletingLastPathComponent() })
                 affectedDirectories.insert(destination)
-                let destinationList = destinationPane.selectedTab?.fileListViewController
-                if let destinationList, destinationList.paneDisplaysDirectory(destination) {
-                    // Activation and focus ride the transaction that contains
-                    // the moved items in the targeted tab.
-                    var policy = PaneRefreshResultPolicy()
-                    policy.preferredResultLocations = Set(actualLocations)
-                    policy.expandTo = destination == destinationList.currentDirectoryLocation ? nil : destination
-                    policy.clearsFilterConcealingResults = true
-                    policy.onApplied = { [weak self, weak destinationList] in
-                        guard let self, let destinationList else { return }
-                        self.setActivePaneFromChild(destinationPane)
-                        self.view.window?.makeFirstResponder(destinationList.tableView)
-                    }
-                    destinationList.refreshScheduler.submitListingRefresh(
-                        directory: destination,
-                        cause: .operation,
-                        policy: policy
-                    )
-                }
+                let destinationList = submitDestinationReveal(
+                    results: actualLocations,
+                    destination: destination,
+                    destinationPane: destinationPane
+                )
                 refreshPanes(
                     matching: affectedDirectories,
                     preferredResultLocations: Set(actualLocations),
@@ -301,26 +287,11 @@ extension MainSplitViewController {
                     }
                     return
                 }
-                let destinationList = destinationPane.selectedTab?.fileListViewController
-                if let destinationList, destinationList.paneDisplaysDirectory(destination) {
-                    // Selection, reveal, activation, and focus ride the
-                    // transaction whose fetch contains the copied items,
-                    // instead of racing the refresh (the F5 no-highlight bug).
-                    var policy = PaneRefreshResultPolicy()
-                    policy.preferredResultLocations = Set(actualLocations)
-                    policy.expandTo = destination == destinationList.currentDirectoryLocation ? nil : destination
-                    policy.clearsFilterConcealingResults = true
-                    policy.onApplied = { [weak self, weak destinationList] in
-                        guard let self, let destinationList else { return }
-                        self.setActivePaneFromChild(destinationPane)
-                        self.view.window?.makeFirstResponder(destinationList.tableView)
-                    }
-                    destinationList.refreshScheduler.submitListingRefresh(
-                        directory: destination,
-                        cause: .operation,
-                        policy: policy
-                    )
-                }
+                let destinationList = submitDestinationReveal(
+                    results: actualLocations,
+                    destination: destination,
+                    destinationPane: destinationPane
+                )
                 refreshPanes(
                     matching: [destination],
                     preferredResultLocations: Set(actualLocations),
@@ -335,6 +306,37 @@ extension MainSplitViewController {
     /// Cross-pane refresh requests submit typed intents into each target
     /// tab's scheduler; the pane whose directory (root or expanded branch)
     /// matches reconciles that listing in place.
+    /// Selection, reveal, targeted filter clear, activation, and focus ride
+    /// the transaction whose fetch contains the operation's results, instead
+    /// of racing the refresh (the F5 no-highlight bug). Activation runs only
+    /// when the originally targeted tab still displays the destination.
+    @discardableResult
+    private func submitDestinationReveal(
+        results: [Location],
+        destination: Location,
+        destinationPane: PaneViewController
+    ) -> FileListViewController? {
+        guard let destinationList = destinationPane.selectedTab?.fileListViewController,
+              destinationList.paneDisplaysDirectory(destination) else {
+            return destinationPane.selectedTab?.fileListViewController
+        }
+        var policy = PaneRefreshResultPolicy()
+        policy.preferredResultLocations = Set(results)
+        policy.expandTo = destination == destinationList.currentDirectoryLocation ? nil : destination
+        policy.clearsFilterConcealingResults = true
+        policy.onApplied = { [weak self, weak destinationList] in
+            guard let self, let destinationList else { return }
+            self.setActivePaneFromChild(destinationPane)
+            self.view.window?.makeFirstResponder(destinationList.tableView)
+        }
+        destinationList.refreshScheduler.submitListingRefresh(
+            directory: destination,
+            cause: .operation,
+            policy: policy
+        )
+        return destinationList
+    }
+
     func refreshPanes(matching directories: Set<URL>) {
         guard !directories.isEmpty else { return }
         let locations = Set(directories.map { Location.local(normalizeDirectory($0)) })

@@ -359,20 +359,7 @@ extension FileListViewController {
                     try await FileOperationQueue.shared.createFolder(in: destination, name: "Folder", undoManager: nil)
                 }
 
-                // Rename startup belongs to the transaction that contains the
-                // created folder: the scheduler runs it after that apply.
-                var policy = PaneRefreshResultPolicy()
-                policy.preferredResultLocations = [newFolder]
-                policy.expandTo = destination != currentLocation ? destination : nil
-                policy.onApplied = { [weak self] in
-                    guard let self, self.selectLocation(newFolder) else { return }
-                    self.renameSelection(isNewItem: true)
-                }
-                refreshScheduler.submitListingRefresh(
-                    directory: destination,
-                    cause: .operation,
-                    policy: policy
-                )
+                submitCreationRefresh(for: newFolder, in: destination, currentLocation: currentLocation)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
@@ -410,22 +397,32 @@ extension FileListViewController {
                     try await FileOperationQueue.shared.createFile(in: destination, name: name, undoManager: nil)
                 }
 
-                var policy = PaneRefreshResultPolicy()
-                policy.preferredResultLocations = [newFile]
-                policy.expandTo = destination != currentLocation ? destination : nil
-                policy.onApplied = { [weak self] in
-                    guard let self, self.selectLocation(newFile) else { return }
-                    self.renameSelection(isNewItem: true)
-                }
-                refreshScheduler.submitListingRefresh(
-                    directory: destination,
-                    cause: .operation,
-                    policy: policy
-                )
+                submitCreationRefresh(for: newFile, in: destination, currentLocation: currentLocation)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
         }
+    }
+
+    /// Rename startup belongs to the transaction that contains the created
+    /// item: the scheduler runs it after that apply.
+    private func submitCreationRefresh(
+        for createdItem: Location,
+        in destination: Location,
+        currentLocation: Location
+    ) {
+        var policy = PaneRefreshResultPolicy()
+        policy.preferredResultLocations = [createdItem]
+        policy.expandTo = destination != currentLocation ? destination : nil
+        policy.onApplied = { [weak self] in
+            guard let self, self.selectLocation(createdItem) else { return }
+            self.renameSelection(isNewItem: true)
+        }
+        refreshScheduler.submitListingRefresh(
+            directory: destination,
+            cause: .operation,
+            policy: policy
+        )
     }
 
     func promptForNewFile() {
@@ -468,7 +465,6 @@ extension FileListViewController {
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
         renameController.beginRename(for: item, in: tableView, at: row, isNewItem: isNewItem, undoManager: undoManager)
-        beginInlineRenameRefreshHold(for: item)
     }
 
     func moveSelectionToOtherPane() {

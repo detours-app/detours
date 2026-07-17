@@ -1,6 +1,12 @@
 import AppKit
 
 extension FileListDataSource {
+    /// Async disclosure loads capture the pane epoch at start; a navigation
+    /// in between makes their results ineligible.
+    func isEpochCurrent(_ capturedEpoch: UInt64?) -> Bool {
+        capturedEpoch == nil || capturedEpoch == currentRefreshEpoch?()
+    }
+
     // MARK: - Expansion Events
 
     func outlineView(_ outlineView: NSOutlineView, shouldExpandItem item: Any) -> Bool {
@@ -88,7 +94,7 @@ extension FileListDataSource {
             do {
                 _ = try await item.loadChildrenAsync(showHidden: showHidden, sortDescriptor: sort, foldersOnTop: foldersTop)
                 guard let self else { return }
-                guard epoch == nil || epoch == self.currentRefreshEpoch?() else { return }
+                guard self.isEpochCurrent(epoch) else { return }
 
                 if let children = item.children {
                     self.updateGitStatus(for: children, statuses: statuses)
@@ -153,7 +159,7 @@ extension FileListDataSource {
             do {
                 guard let self else { return }
                 let entries = try await provider.list(item.location, showHidden: showHidden)
-                guard epoch == nil || epoch == self.currentRefreshEpoch?() else { return }
+                guard self.isEpochCurrent(epoch) else { return }
                 _ = self.reconcileListingEntries(entries, in: item.location)
                 self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
@@ -194,7 +200,7 @@ extension FileListDataSource {
             guard let self else { return }
             do {
                 let sources = try await self.loadICloudSharedSources(cloudDocsURL: cloudDocsURL, showHidden: showHidden)
-                guard epoch == nil || epoch == self.currentRefreshEpoch?() else { return }
+                guard self.isEpochCurrent(epoch) else { return }
                 let sharedItems = self.composeICloudSharedTopLevelItems(
                     from: sources,
                     cloudDocsURL: cloudDocsURL,
