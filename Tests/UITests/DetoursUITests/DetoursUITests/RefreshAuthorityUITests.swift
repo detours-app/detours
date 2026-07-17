@@ -34,13 +34,19 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
             "External change must appear via the watcher"
         )
 
-        // Right pane: navigate into the destination folder.
+        // Right pane: open a fresh tab (restored session tabs carry stale
+        // views), then navigate into the destination folder.
         rightOutline.click()
-        let homeButtonRight = app.buttons.matching(identifier: "homeButton").element(boundBy: 1)
-        XCTAssertTrue(homeButtonRight.waitForExistence(timeout: 2))
-        homeButtonRight.click()
-        let testFolderRight = rightOutline.outlineRow(withStaticText: testFolderName)
-        XCTAssertTrue(testFolderRight.waitForExistence(timeout: 3))
+        pressCharKey("t", modifiers: .command)
+        addTeardownBlock { [self] in
+            // Close the tab this test created in the right pane.
+            visiblePaneOutlines().last?.click()
+            pressCharKey("w", modifiers: .command)
+        }
+        sleep(1)
+        let rightPane = try XCTUnwrap(visiblePaneOutlines().last, "Right pane outline missing")
+        let testFolderRight = rightPane.outlineRow(withStaticText: testFolderName)
+        XCTAssertTrue(testFolderRight.waitForExistence(timeout: 5), "Home listing shows the test folder")
         testFolderRight.staticTexts[testFolderName].doubleClick()
         XCTAssertTrue(
             waitForCondition(timeout: 5) {
@@ -49,7 +55,7 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
             },
             "Right pane never entered the test folder; displayed=\(String(describing: (try? requestRemotePaneState(pane: "right"))?.displayedLocation))"
         )
-        let destRight = rightOutline.outlineRow(withStaticText: "T8Dest")
+        let destRight = rightPane.outlineRow(withStaticText: "T8Dest")
         if !destRight.waitForExistence(timeout: 5) {
             let rows = rightOutline.outlineRows.allElementsBoundByIndex.prefix(20).map { row in
                 row.staticTexts.allElementsBoundByIndex.map { $0.value as? String ?? $0.label }.joined(separator: "|")
