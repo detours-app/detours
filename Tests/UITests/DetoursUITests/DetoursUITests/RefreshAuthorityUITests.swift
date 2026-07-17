@@ -148,7 +148,9 @@ final class RefreshAuthorityRemoteRenameUITests: BaseUITest {
             "Inline rename editing session never became active"
         )
 
-        app.typeText("renamed-remote.txt")
+        // The editor pre-selects the name stem; typing replaces it and keeps
+        // the .txt extension.
+        app.typeText("renamed-remote")
         pressKey(.return)
 
         let renamedRow = visibleLeftOutline().outlineRow(withStaticText: "renamed-remote.txt")
