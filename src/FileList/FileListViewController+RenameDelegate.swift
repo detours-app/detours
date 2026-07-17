@@ -89,13 +89,6 @@ extension FileListViewController: RenameControllerDelegate {
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL) {
         selectionBeforeNewItem = nil
         dataSource.invalidateGitStatus()
-        pendingPostLoadAction = { [weak self] in
-            if case .remote = item.location {
-                self?.selectRemoteItem(atPath: newURL.path)
-            } else {
-                self?.selectItem(at: newURL)
-            }
-        }
         if case .remote(let hostID, _) = item.location {
             let renamedLocation = Location.remote(hostID: hostID, path: newURL.path)
             let affectedDirectories: Set<Location> = [
@@ -110,11 +103,8 @@ extension FileListViewController: RenameControllerDelegate {
                 affectedDirectories,
                 preferredResultLocations: [renamedLocation]
             )
-        } else if let currentDirectory {
-            loadDirectory(
-                currentDirectory,
-                preserveExpansion: true
-            )
+        } else {
+            refreshSelectingLocations([.local(newURL)])
         }
     }
 
@@ -157,9 +147,10 @@ extension FileListViewController: RenameControllerDelegate {
                 ) {
                     try await FileOperationQueue.shared.delete(items: [item.location], undoManager: nil)
                 }
-                refreshAfterLocalMutation()
                 if let restoreSelection {
-                    selectItem(at: restoreSelection)
+                    refreshSelectingLocations([.local(restoreSelection)])
+                } else {
+                    refreshAfterLocalMutation()
                 }
             } catch {
                 FileOperationQueue.shared.presentError(error)

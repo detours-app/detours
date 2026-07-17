@@ -79,12 +79,8 @@ extension FileListViewController {
         let relevantURLs = urls.filter { $0.deletingLastPathComponent() == currentDirectory }
         guard !relevantURLs.isEmpty else { return }
 
-        // Reload and select the restored items
-        loadDirectory(
-            currentDirectory,
-            preserveExpansion: true
-        )
-        restoreSelection(relevantURLs)
+        // Reload and select the restored items through the scheduler
+        refreshSelectingLocations(relevantURLs.map(Location.local))
     }
 
     @objc func handleThemeChange() {

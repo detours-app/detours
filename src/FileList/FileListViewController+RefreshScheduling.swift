@@ -75,6 +75,55 @@ extension FileListViewController {
         }
     }
 
+    // MARK: Navigation reveal
+
+    /// Takes the pending navigation reveal for the load that is starting,
+    /// merging an explicit item-to-select. Binding it to one load kills the
+    /// consumed-by-whichever-load-finishes-first race.
+    func takePendingNavigationReveal(selectingItem itemToSelect: URL?) -> PaneRefreshResultPolicy? {
+        var policy = pendingNavigationReveal
+        pendingNavigationReveal = nil
+        if let itemToSelect {
+            var merged = policy ?? PaneRefreshResultPolicy()
+            merged.preferredResultLocations.insert(.local(itemToSelect))
+            policy = merged
+        }
+        return policy
+    }
+
+    /// Runs a result policy's atomic reveal: ancestor expansion, targeted
+    /// filter clear, selection, scrolling, then activation/focus/rename via
+    /// `onApplied`.
+    func runResultReveal(_ policy: PaneRefreshResultPolicy) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let expandTo = policy.expandTo,
+               expandTo != self.currentDirectoryLocation {
+                await self.expandAncestorChain(to: expandTo)
+            }
+            if policy.clearsFilterConcealingResults {
+                self.clearFilterIfConcealing(policy.preferredResultLocations)
+            }
+            if !policy.preferredResultLocations.isEmpty {
+                self.selectLocations(Array(policy.preferredResultLocations))
+            }
+            policy.onApplied?()
+        }
+    }
+
+    /// An explicit operation result outranks the targeted tab's filter: when
+    /// the results exist in the unfiltered tree but the filter hides them,
+    /// only this tab's filter clears. Background causes never reach here.
+    private func clearFilterIfConcealing(_ locations: Set<Location>) {
+        guard isFilterBarVisible, !locations.isEmpty else { return }
+        let items = locations.compactMap { dataSource.findItem(withLocation: $0, in: dataSource.items) }
+        guard !items.isEmpty else { return }
+        let anyVisible = items.contains { tableView.row(forItem: $0) >= 0 }
+        if !anyVisible {
+            hideFilterBar()
+        }
+    }
+
     // MARK: Apply
 
     func applyScheduledListingSnapshot(_ snapshot: PaneListingSnapshot) -> PaneListingApplyOutcome {
@@ -101,16 +150,17 @@ extension FileListViewController {
         }
         hideRemoteRefreshError(for: directory)
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
-        let preferred = policy?.preferredResultLocations ?? []
         if applyKind == .noop && policy == nil {
             // Unchanged listing with nothing requested: no redraw, no restore.
             return PaneListingApplyOutcome()
         }
         switch applyKind {
-        case .noop, .rows:
-            restoreSelectionApplyingRule(from: paneState, preferredResultLocations: preferred)
+        case .noop:
+            break
+        case .rows:
+            restoreSelectionApplyingRule(from: paneState)
         case .subtree:
-            restorePaneState(paneState, preferredResultLocations: preferred)
+            restorePaneState(paneState)
         }
 
         if applyKind != .noop,
@@ -123,8 +173,8 @@ extension FileListViewController {
         }
 
         let consumed = preferredResultsPresent(policy)
-        if consumed {
-            policy?.onApplied?()
+        if let policy, consumed {
+            runResultReveal(policy)
         }
         if applyKind != .noop {
             navigationDelegate?.fileListDidLoadDirectory(self)
@@ -161,17 +211,15 @@ extension FileListViewController {
             restoreExpansion(previousExpanded)
             dataSource.suppressCollapseNotifications = false
         }
-
-        let selectedPreferred = restoreSelectionApplyingRule(
-            from: paneCapture,
-            preferredResultLocations: policy?.preferredResultLocations ?? []
-        )
-        if !selectedPreferred && applyKind == .subtree {
-            // Background refreshes must not move the viewport.
-            scrollView.contentView.scroll(to: paneCapture.scrollOrigin)
-            scrollView.reflectScrolledClipView(scrollView.contentView)
+        if applyKind != .noop {
+            restoreSelectionApplyingRule(from: paneCapture)
+            if applyKind == .subtree {
+                // Background refreshes must not move the viewport.
+                scrollView.contentView.scroll(to: paneCapture.scrollOrigin)
+                scrollView.reflectScrolledClipView(scrollView.contentView)
+            }
+            restoreTableViewKeyboardFocusIfNeeded(keepTableFocus)
         }
-        restoreTableViewKeyboardFocusIfNeeded(keepTableFocus)
 
         // New rows start with placeholder icons; load real ones.
         let insertedItems = reconciliation.reconciledItems.filter {
@@ -185,8 +233,8 @@ extension FileListViewController {
         }
 
         let consumed = preferredResultsPresent(policy)
-        if consumed {
-            policy?.onApplied?()
+        if let policy, consumed {
+            runResultReveal(policy)
         }
         if applyKind != .noop {
             navigationDelegate?.fileListDidLoadDirectory(self)

@@ -62,8 +62,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     /// from controller creation so an undisplayed tab retains its latest
     /// eligible intent until the outline becomes available.
     let refreshScheduler = PaneRefreshScheduler()
-    /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
-    var pendingPostLoadAction: (() -> Void)?
+    /// Result policy for the next navigation load (e.g. session-restore
+    /// selection, quick-open reveal). Captured by the load that starts next,
+    /// so a competing refresh can never consume it.
+    var pendingNavigationReveal: PaneRefreshResultPolicy?
     var selectionAnchor: Int?
     var selectionCursor: Int?
     var selectionOrigin: FileListSelectionOrigin = .automatic
