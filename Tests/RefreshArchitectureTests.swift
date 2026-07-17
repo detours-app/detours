@@ -75,7 +75,7 @@ final class RefreshArchitectureTests: XCTestCase {
     func testOnlyTheApplierWritesDisplayedTreeState() throws {
         let sources = try swiftSources()
         let childWrites = try violations(
-            matching: #"\.children\s*=\s*"#,
+            matching: #"\.children\s*=(?!=)"#,
             allowedFiles: ["PaneOutlineApplier.swift", "FileItem.swift"],
             in: sources
         )
@@ -85,7 +85,7 @@ final class RefreshArchitectureTests: XCTestCase {
         )
 
         let rootWrites = try violations(
-            matching: #"\.items\s*=\s*|setDisplayedItems\("#,
+            matching: #"\.items\s*=(?!=)|setDisplayedItems\("#,
             allowedFiles: ["PaneOutlineApplier.swift", "FileListDataSource.swift"],
             in: sources
         )
