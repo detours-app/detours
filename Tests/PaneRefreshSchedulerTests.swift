@@ -6,11 +6,6 @@ import XCTest
 /// epoch/generation eligibility, and failure semantics (T1, T7, T14, T16).
 @MainActor
 final class PaneRefreshSchedulerTests: XCTestCase {
-    private struct Harness {
-        let scheduler = PaneRefreshScheduler()
-        var fetchedRequests: [PaneListingRequest] = []
-    }
-
     private final class Recorder {
         var requests: [PaneListingRequest] = []
         var applied: [PaneListingSnapshot] = []
