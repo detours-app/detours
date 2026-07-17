@@ -99,14 +99,17 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
             "Copy never selected in the destination pane"
         )
 
-        // The selection survives trailing watcher activity from the copy.
+        // The selection and focus survive trailing watcher activity from the
+        // copy and settle on the destination.
         sleep(2)
-        let settled = try requestRemotePaneState(pane: "right")
         XCTAssertTrue(
-            settled.selectedLocations.contains { $0.hasSuffix("T8Dest/t8_copy_me.txt") },
-            "Selection must survive trailing watcher activity"
+            waitForCondition(timeout: 3) {
+                guard let settled = try? self.requestRemotePaneState(pane: "right") else { return false }
+                return settled.selectedLocations.contains { $0.hasSuffix("T8Dest/t8_copy_me.txt") }
+                    && settled.focus == "fileList"
+            },
+            "Selection and focus must survive trailing watcher activity; settled=\(String(describing: try? requestRemotePaneState(pane: "right")))"
         )
-        XCTAssertEqual(settled.focus, "fileList", "Destination keeps keyboard focus")
     }
 }
 
