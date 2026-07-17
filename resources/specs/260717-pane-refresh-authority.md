@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: fix/pane-refresh-authority
 
 ---
@@ -35,7 +35,7 @@ Give each pane one owner for refreshing its file list. Every reason to refresh (
 - [x] **A3** Creating a new file or folder inside an expanded remote folder shows the naming field without the tree collapsing and without overlapping text
 - [x] **A4** After an operation's result update applies, a later notification for the same unchanged listing causes no visible redraw
 - [x] **A5** After deleting a selected file, selection lands on the next surviving item in displayed order, or the previous item when there is no next item
-- [ ] **A6** No new errors appear in the application logs while exercising copy, move, rename, and new-file flows on the dev machine
+- [x] **A6** No new errors appear in the application logs while exercising copy, move, rename, and new-file flows on the dev machine
 - [x] **A7** A pane left idle does not visibly flicker when background activity touches its directory; a real external change appears as an in-place update that keeps selection and scroll position
 - [x] **A8** A future code change cannot add a second automatic list-update path without failing the test suite
 - [x] **A9** Copying or moving an item hidden by the destination tab's filter clears that filter and leaves the result selected and visible without changing any other tab's filter
@@ -150,7 +150,7 @@ The scheduler exists when its `FileListViewController` is created, before the vi
 
 - [x] **T8** XCUI: F5 copy between panes on the installed app asserts the destination pane is active and the copied file is selected
 - [x] **T9** XCUI: inline rename on a remote tab shows a single readable editor and ends with the renamed file selected
-- [ ] **T10** Full Foundry unit suite and XCUI suite green as final confirmation
+- [x] **T10** Full Foundry unit suite and XCUI suite green as final confirmation
 
 ---
 
@@ -178,5 +178,7 @@ The scheduler exists when its `FileListViewController` is created, before the vi
 - **T18** `Tests/FilteredResultRevealTests.swift` (3 tests): hidden explicit result clears only the targeted tab's filter and ends selected; visible results and background intents never clear it.
 - **T8/T9** `Tests/UITests/DetoursUITests/DetoursUITests/RefreshAuthorityUITests.swift`, green on Foundry against the installed app. T8 also flushed out a real focus-steal defect (source pane re-granting itself keyboard focus on a trailing background apply) which is fixed in `applyLocalScheduledSnapshot`: steady-state applies only re-assert focus their own table already held. Pane-state responses now expose the first responder's type for UI-test observability. T9 observes the rename session via the field editor because the overlay editor is not exported to the XCUITest tree (known, logged 2026-07-16).
 - **Simplify pass** (4-angle review, fixes applied): deleted dead code (`clearChildren`, `hasActiveLocalMutation`, legacy `restoreSelection(_:)`, unused scheduler API); one hold gate for all causes plus a single `scheduleFetch` helper; extracted creation-refresh, destination-reveal, and chrome-drop transfer helpers; watcher relevance and scheduler eligibility share `paneDisplaysDirectory`; restore rule builds one row-index map per pass with bounded neighbor capture and reuses `selectLocations` for preferred results; row refreshes batch per column set; the reconcile metadata diff skips icon tinting; the rename hold is opened by the rename controller's own `didBeginEditing` delegate so no entry point can forget it. Skipped with reasons: coordinator `route:`/completion channel kept (spec-mandated transaction shape, exercised by T7/T15; production submits after `perform` returns, which hold-close plus same-turn coalescing covers), `normalizedDirectory` left in place (its remote `..` resolution differs from `Location` equality), remote mutation fan-out and navigation-as-scheduler-transaction noted as follow-up-sized altitude items.
+- **T10 / A6** Final Foundry confirmation: full `swift test` 850 XCTest + 46 Swift Testing cases, 0 failures (one unzip output-shape flake in the first run did not reproduce in isolation, in-suite, or on the repeated full run); full XCUI suite with screenshot fixtures 87 tests, 1 expected live-Windows skip, 0 failures; zero Detours error-level unified-log entries across the exercised flows. The plain XCUI run first caught a real defect (duplicate inside an expanded branch unselected) fixed by routing result policies to the results' parent directory.
+- **Changelog** deferred to `/release` by repo convention (versioned-only changelog, no Unreleased section).
 
 - **C1** `PaneOutlineApplier` + file-private `PaneOutlineMutationAuthority` in `src/FileList/PaneOutlineApplier.swift`; `FileListDataSource.items` now reads private `displayedItems` writable only via `setDisplayedItems(_:with:)`; `FileItem.children` is `private(set)` with authority-gated `setChildren` (DEBUG-only `setChildrenForTesting` seam for fixtures); `BandedOutlineView` guards `reloadData`/`reloadData(forRowIndexes:)`/`reloadItem`/`insertItems`/`removeItems`/`moveItem` behind the applier scope with `PaneOutlineGuard` (records violations under tests, asserts in debug app runs). `PaneRefreshScheduler` added with epoch/generation single-flight per directory, typed causes, operation holds, 100 ms watcher debounce, row-intent batching, and pre-view-load retention; created with the controller. All existing mutation sites rerouted through the applier. Foundry: `swift build --build-tests` clean; FileListDataSource/Filter/GitStatus/RemoteRefreshCoordinator/StatusBarCount suites 55 tests, 0 failures.

@@ -2062,3 +2062,31 @@ Spotlight search has no unit test (depends on the live, async-built system index
   editing session (field editor holds first responder; the overlay editor is
   not exported to the XCUITest tree per the 2026-07-16 log), typed rename
   lands once, renamed file ends selected, fixture renamed back.
+
+- 2026-07-17 20:15 CEST: Foundry full `swift test`
+  PASS on second run: 850 XCTest cases (17 expected platform skips) and 46
+  Swift Testing cases, 0 failures, including all live SSH/RPC integration
+  tests. The first run had a single failure in
+  ArchiveOperationTests/testEncryptedZipWrongPasswordRetriesWithoutPartialOutput:
+  unzip reported "bad CRC (may instead be incorrect password)" instead of the
+  password prompt shape the classifier expects. It passed in isolation, within
+  its full suite, and in the repeated full run; extraction internals are
+  untouched by this branch, so this is unzip output-shape variance under
+  parallel load, not a regression.
+
+- 2026-07-17 20:55 CEST: Foundry full
+  `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 resources/scripts/uitest.sh`
+  PASS: 87 UI tests, 1 expected live-Windows skip, 0 failures, including the
+  new RefreshAuthority copy and remote-rename tests. An earlier plain run
+  (without fixture staging) failed the two ChromePolish fixture tests, and
+  caught one real defect this branch then fixed: a duplicate created inside an
+  expanded folder was not selected because the operation's result policy rode
+  the pane root instead of the result's parent directory
+  (PasteSelectionUITests/testDuplicateInExpandedFolderSelectsDuplicate now
+  passes).
+
+- 2026-07-17 21:00 CEST: Foundry
+  `log show --predicate 'process == "Detours" && messageType == error' --last 45m`
+  PASS: zero error-level entries from the app while the full UI suite
+  exercised copy, move, rename, paste, new-file, undo, expansion, filter, and
+  remote flows (A6).
