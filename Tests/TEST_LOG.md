@@ -2019,3 +2019,30 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 800 XCTest cases (17 expected platform skips) and 46 Swift Testing
   cases, 0 failures. The immediate watch/unwatch race regression completed its
   100 cycles, and all configured real SSH/RPC integration tests passed.
+
+- 2026-07-17 18:40 CEST: Foundry
+  `swift test --filter "PaneRefreshSchedulerTests|PaneStateRestoreTests|LocalReconcileTests|RefreshArchitectureTests|PaneOperationTransactionTests|FilteredResultRevealTests|RemoteInlineRenameRefreshTests"`
+  PASS: 36 tests, 0 failures. New refresh-authority suites: scheduler state
+  machine (coalescing, holds, epoch/generation, failure retention), one
+  restore rule with neighbor fallback, row-level local reconcile with no-op
+  suppression, architecture enforcement scans plus runtime guard, operation
+  transactions, filtered-result reveal, and remote inline rename/new-item
+  refresh behavior.
+
+- 2026-07-17 18:44 CEST: Foundry
+  `swift test --filter "CopyMoveMatrixTests"`
+  PASS: 7 tests, 0 failures. Copy/move matrix (local/local, local/remote,
+  remote/local, same-host and cross-host remote) selects destination results,
+  applies the source forward-neighbor fallback after moves, activates only
+  the still-matching targeted tab, and applies a retained intent when a
+  never-displayed pane is first shown. Earlier failing runs in this session
+  root-caused two real defects (epoch wipe on pending-directory replay;
+  applies racing a navigation load), both fixed.
+
+- 2026-07-17 18:20 CEST: Foundry
+  `swift test --filter "RefreshRegressionProbeTests"`
+  PASS: 6 tests, 0 failures. Probe regression suite promoted from
+  probe/refresh-diagnostics: F5 copy selection/activation in all three
+  timings survives trailing watcher activity; external-change watcher reload
+  keeps selection; remote rename race keeps the renamed item selected in both
+  orderings with exactly the mutation + follow-up fetch pair.

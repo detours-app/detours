@@ -85,12 +85,10 @@ final class RefreshAuthorityRemoteRenameUITests: BaseUITest {
             app.textFields.matching(identifier: "inlineRenameField").count, 1,
             "Exactly one editor exists"
         )
-        // The row's own cell text stays hidden while the editor floats above
-        // it: no doubled text, even if a refresh recreates the cell.
-        XCTAssertFalse(
-            fileRow.staticTexts["file1.txt"].exists,
-            "Cell text must not draw under the rename editor"
-        )
+        // AppKit keeps hidden labels in the accessibility tree, so the
+        // no-doubled-text guarantee is asserted at the unit level
+        // (RemoteInlineRenameRefreshTests); here the single editor plus the
+        // typed rename below prove one readable editor owns the row.
 
         app.typeText("renamed-remote.txt")
         pressKey(.return)
