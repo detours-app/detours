@@ -24,6 +24,7 @@ Give each pane one owner for refreshing its file list. Every reason to refresh (
 - Creating a new file or folder on a remote tab shows the naming field in place, with no tree collapse and no doubled text while typing.
 - Cancelling the naming of a new remote file removes it from the list.
 - After any operation, the pane does not refresh again on its own later; external changes made by other programs still appear promptly.
+- Background activity that does not change what is on screen (indexing, metadata writes, git activity in the viewed folder) causes no visible redraw.
 - Selection never jumps to an unrelated file after an operation; if the selected file is gone, selection moves to its nearest surviving neighbor.
 
 ### Acceptance Criteria
@@ -34,6 +35,7 @@ Give each pane one owner for refreshing its file list. Every reason to refresh (
 - [ ] **A4** No pane refreshes by itself once an operation and its follow-on updates have settled
 - [ ] **A5** After deleting a selected file, selection lands on its nearest neighbor, never an arbitrary row
 - [ ] **A6** No new errors appear in the application logs while exercising copy, move, rename, and new-file flows on the dev machine
+- [ ] **A7** A pane left idle does not visibly flicker when background activity touches its directory; a real external change appears as an in-place update that keeps selection and scroll position
 
 ### Out of scope
 
@@ -92,6 +94,7 @@ Two already-diagnosed fixes land inside this structure rather than as patches: r
 - [ ] **C9** Remote New File/Folder in `src/FileList/FileListViewController+FileActions.swift`: targeted branch refresh with the created item as preferred result; stale-marking only for collapsed destinations; apply the stashed WIP as base
 - [ ] **C10** Inline rename: hold pane refreshes during an active session, flush one refresh with the rename's preferred result on end; `inlineEditingItem` cell-text hiding in `src/FileList/FileListDataSource+Rendering.swift`; end-of-session delegate on `src/Operations/RenameController.swift`; remote new-item cancel refreshes the remote parent; apply the stashed WIP corrected
 - [ ] **C11** Remove the temporary probe diagnostics NSLog lines when merging the probe branch's tests, and delete the leftover debug logging in `copySelection` (`+FileActions.swift`)
+- [ ] **C12** Route icon-load and folder-size row updates (`FileListDataSource+Icons.swift`, `+Rendering.swift`) through the scheduler as row-scoped causes so they never recreate cells under an active rename or redraw rows whose content is unchanged
 
 ---
 
@@ -107,6 +110,7 @@ Two already-diagnosed fixes land inside this structure rather than as patches: r
 - [ ] **T6** Remote New File/Folder tests from the stashed `RemoteInlineRenameRefreshTests`: expanded destination refreshes in place without stale-marking, collapsed destination reveals correctly, recreated name cell stays hidden during rename and restores after
 - [ ] **T7** Long-operation simulation: watcher events during an active `FileOperationQueue` operation produce no reload until the operation's own refresh, and none afterwards
 - [ ] **T11** Copy into a pane whose selected tab was session-restored but never displayed still ends with the copy selected and the pane activated once shown (the `isViewLoaded` early return in `+DirectoryLoading.swift` currently drops both)
+- [ ] **T12** Idle-pane background changes: a watcher event whose refetched listing is identical produces zero table mutations; one with a real change mutates only the affected rows and preserves selection and scroll
 
 ### E2E Tests (`Tests/UITests/DetoursUITests/`)
 
