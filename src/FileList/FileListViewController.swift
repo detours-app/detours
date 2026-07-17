@@ -78,6 +78,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var selectionBeforeNewItem: URL?
     /// Expansion state to restore after async directory load completes
     var pendingExpansionRestore: Set<URL>?
+    /// Scheduler hold covering an active inline rename session: refresh
+    /// applies wait until the session ends, then flush once with the
+    /// rename's result.
+    var renameRefreshHoldID: UUID?
 
     var isSharedTopLevelView: Bool {
         currentICloudListingMode == .sharedTopLevel &&

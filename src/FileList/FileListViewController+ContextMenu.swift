@@ -526,6 +526,7 @@ extension FileListViewController: FileListContextMenuDelegate {
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
         renameController.beginRename(for: item, in: tableView, at: row)
+        beginInlineRenameRefreshHold(for: item)
     }
 
     @objc func duplicateStructureFromContextMenu(_ sender: Any?) {

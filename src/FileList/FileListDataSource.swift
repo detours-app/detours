@@ -274,6 +274,11 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     weak var dropDelegate: FileListDropDelegate?
     weak var expansionDelegate: FileListExpansionDelegate?
 
+    /// Item whose row is covered by the floating inline-rename editor. Any
+    /// reload that recreates the row's cell must keep the cell's own text
+    /// hidden so it cannot draw underneath the editor.
+    weak var inlineEditingItem: FileItem?
+
     /// Filter predicate for filtering visible items (case-insensitive substring match)
     var filterPredicate: String? {
         didSet {

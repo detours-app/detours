@@ -4,6 +4,9 @@ import AppKit
 protocol RenameControllerDelegate: AnyObject {
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL)
     func renameControllerDidCancelNewItem(_ controller: RenameController, item: FileItem)
+    /// Called whenever an editing session ends, before any commit or cancel
+    /// side effects run.
+    func renameControllerDidEndEditing(_ controller: RenameController, item: FileItem?)
 }
 
 @MainActor
@@ -19,6 +22,10 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     private var isNewItem: Bool = false
 
     private var currentUndoManager: UndoManager?
+
+    var isEditing: Bool {
+        textField != nil
+    }
 
     func beginRename(for item: FileItem, in tableView: NSTableView, at row: Int, isNewItem: Bool = false, undoManager: UndoManager? = nil) {
         cancelRename()
@@ -250,6 +257,10 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         tv?.window?.makeFirstResponder(tv)
         field?.removeFromSuperview()
         obscuredCellTextField?.isHidden = false
+
+        if field != nil {
+            delegate?.renameControllerDidEndEditing(self, item: item)
+        }
 
         // Delete newly created item if user cancelled before committing
         if wasNewItem, let item = item {

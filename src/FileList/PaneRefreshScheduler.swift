@@ -288,6 +288,13 @@ final class PaneRefreshScheduler {
         state.debounceTask = nil
         states[directory] = state
 
+        // A hold opened after this fetch was scheduled still wins: nothing
+        // fetches or applies between a transaction's open and its result.
+        guard activeHolds.isEmpty else {
+            directoriesAwaitingHoldClose.insert(directory)
+            return
+        }
+
         guard let dependencies else { return }
         guard dependencies.canApplyNow() else {
             // Pre-view-load: retain only the latest eligible intent; `activate()`

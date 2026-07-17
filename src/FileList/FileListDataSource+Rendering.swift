@@ -127,6 +127,7 @@ extension FileListDataSource {
         if let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? FileListCell {
             cell.configure(with: item, isDropTarget: isDropTarget)
             cell.setAccessibilityIdentifier("outlineCell_\(item.name)")
+            cell.textField?.isHidden = item === inlineEditingItem
             return cell
         }
 
@@ -134,6 +135,7 @@ extension FileListDataSource {
         cell.identifier = identifier
         cell.configure(with: item, isDropTarget: isDropTarget)
         cell.setAccessibilityIdentifier("outlineCell_\(item.name)")
+        cell.textField?.isHidden = item === inlineEditingItem
         return cell
     }
 

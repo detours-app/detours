@@ -2,20 +2,13 @@ import AppKit
 import os.log
 @preconcurrency import Quartz
 
-private let logger = Logger(subsystem: "com.detours", category: "filelist")
-
 // MARK: - Actions
 
 extension FileListViewController {
     func copySelection() {
         let locations = selectedLocations
-        logger.warning("copySelection called, locations=\(locations)")
-        guard !locations.isEmpty else {
-            logger.error("copySelection: no locations selected")
-            return
-        }
+        guard !locations.isEmpty else { return }
         ClipboardManager.shared.copy(items: locations)
-        logger.warning("copySelection: copied \(locations.count) items to clipboard")
     }
 
     func cutSelection() {
@@ -475,6 +468,7 @@ extension FileListViewController {
         let row = tableView.selectedRow
         guard row >= 0, let item = dataSource.item(at: row) else { return }
         renameController.beginRename(for: item, in: tableView, at: row, isNewItem: isNewItem, undoManager: undoManager)
+        beginInlineRenameRefreshHold(for: item)
     }
 
     func moveSelectionToOtherPane() {

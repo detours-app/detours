@@ -86,6 +86,37 @@ extension FileListViewController: RenameControllerDelegate {
         showDuplicateStructureDialog(for: sourceURL)
     }
 
+    /// Opens the rename session's refresh hold and marks the item whose cell
+    /// text must stay hidden under the floating editor. Runs after
+    /// `beginRename` so a previous session's teardown cannot swallow it.
+    func beginInlineRenameRefreshHold(for item: FileItem) {
+        dataSource.inlineEditingItem = item
+        if renameRefreshHoldID == nil {
+            let id = UUID()
+            renameRefreshHoldID = id
+            refreshScheduler.openOperationHold(id)
+        }
+    }
+
+    func renameControllerDidEndEditing(_ controller: RenameController, item: FileItem?) {
+        if let item {
+            let row = tableView.row(forItem: item)
+            if row >= 0,
+               let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView {
+                cell.textField?.isHidden = false
+            }
+        }
+        if dataSource.inlineEditingItem == nil || dataSource.inlineEditingItem === item {
+            dataSource.inlineEditingItem = nil
+        }
+        // Close the session hold: exactly one flush follows, carrying the
+        // rename's result intent (or just the held watcher work on cancel).
+        if let id = renameRefreshHoldID {
+            renameRefreshHoldID = nil
+            refreshScheduler.closeOperationHold(id)
+        }
+    }
+
     func renameController(_ controller: RenameController, didRename item: FileItem, to newURL: URL) {
         selectionBeforeNewItem = nil
         dataSource.invalidateGitStatus()
@@ -147,7 +178,12 @@ extension FileListViewController: RenameControllerDelegate {
                 ) {
                     try await FileOperationQueue.shared.delete(items: [item.location], undoManager: nil)
                 }
-                if let restoreSelection {
+                if item.isRemote {
+                    // Cancelling a new remote item removes it from the list.
+                    requestRemoteMutationRefreshes(
+                        affectedDirectories: [item.location.deletingLastPathComponent()]
+                    )
+                } else if let restoreSelection {
                     refreshSelectingLocations([.local(restoreSelection)])
                 } else {
                     refreshAfterLocalMutation()
