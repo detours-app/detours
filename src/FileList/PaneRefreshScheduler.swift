@@ -337,6 +337,13 @@ final class PaneRefreshScheduler {
 
         let isNewestEligible = request.generation >= state.nextGeneration
             && request.generation >= state.lastAppliedGeneration
+        if isNewestEligible, let dependencies, !dependencies.canApplyNow() {
+            // The outline is unavailable (navigation load in flight): retain
+            // the intent; `activate()` replays it when the load completes.
+            state.pendingCauses.formUnion(request.causes)
+            states[request.directory] = state
+            return
+        }
         if isNewestEligible, let dependencies, dependencies.displaysDirectory(request.directory) {
             switch result {
             case .success(let entries):

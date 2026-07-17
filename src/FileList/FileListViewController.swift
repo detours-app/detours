@@ -82,6 +82,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     /// applies wait until the session ends, then flush once with the
     /// rename's result.
     var renameRefreshHoldID: UUID?
+    /// True while a navigation load owns the outline. Scheduler intents
+    /// retain until it completes, then replay, so a refresh racing the
+    /// navigation can neither apply against a half-built root nor lose its
+    /// result policy to the navigation's default selection.
+    var isNavigationLoadInFlight = false
 
     var isSharedTopLevelView: Bool {
         currentICloudListingMode == .sharedTopLevel &&

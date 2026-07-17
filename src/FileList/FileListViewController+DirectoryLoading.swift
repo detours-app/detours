@@ -325,11 +325,15 @@ extension FileListViewController {
                 if let navigationReveal {
                     self.runResultReveal(navigationReveal)
                 }
+                self.isNavigationLoadInFlight = false
+                self.refreshScheduler.activate()
 
             case .failure(let error):
                 self.showErrorOverlay(for: error)
                 self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
+                self.isNavigationLoadInFlight = false
+                self.refreshScheduler.activate()
             }
         }
 
@@ -343,6 +347,7 @@ extension FileListViewController {
         }
 
         suppressLoadingSpinner = !showSpinner
+        isNavigationLoadInFlight = true
         dataSource.loadDirectory(normalizedURL, preserveExpansion: preserveExpansion, iCloudListingMode: effectiveListingMode)
         hasLoadedDirectory = true
 
@@ -493,11 +498,14 @@ extension FileListViewController {
                 self.showErrorOverlay(for: error)
                 self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
+                self.isNavigationLoadInFlight = false
+                self.refreshScheduler.activate()
             }
         }
 
         startWatching(location, provider: provider)
         suppressLoadingSpinner = !showSpinner
+        isNavigationLoadInFlight = true
         dataSource.loadRemoteDirectory(location, provider: provider, preserveExpansion: preserveExpansion)
         hasLoadedDirectory = true
         FrecencyStore.shared.recordVisit(location)
@@ -593,6 +601,8 @@ extension FileListViewController {
         if let reveal {
             runResultReveal(reveal)
         }
+        isNavigationLoadInFlight = false
+        refreshScheduler.activate()
     }
 
     @discardableResult

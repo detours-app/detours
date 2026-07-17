@@ -25,7 +25,8 @@ extension FileListViewController {
                 self?.applyScheduledRowRefreshes(batch)
             },
             canApplyNow: { [weak self] in
-                self?.isViewLoaded ?? false
+                guard let self else { return false }
+                return self.isViewLoaded && !self.isNavigationLoadInFlight
             },
             displaysDirectory: { [weak self] directory in
                 self?.paneDisplaysDirectory(directory) ?? false
@@ -146,7 +147,7 @@ extension FileListViewController {
             snapshot.entries,
             in: directory
         ) else {
-            return PaneListingApplyOutcome()
+            return PaneListingApplyOutcome(policyConsumed: false)
         }
         hideRemoteRefreshError(for: directory)
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
@@ -196,7 +197,7 @@ extension FileListViewController {
             snapshot.entries,
             in: directory
         ) else {
-            return PaneListingApplyOutcome()
+            return PaneListingApplyOutcome(policyConsumed: false)
         }
         hideErrorOverlay()
 
