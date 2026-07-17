@@ -32,7 +32,7 @@ Give each pane one owner for refreshing its file list. Every reason to refresh (
 
 - [x] **A1** Copying a file to the other pane with F5 leaves that pane visibly active with the copied file selected
 - [x] **A2** Renaming a file has one visible list update and the renamed file stays selected
-- [ ] **A3** Creating a new file or folder inside an expanded remote folder shows the naming field without the tree collapsing and without overlapping text
+- [x] **A3** Creating a new file or folder inside an expanded remote folder shows the naming field without the tree collapsing and without overlapping text
 - [x] **A4** After an operation's result update applies, a later notification for the same unchanged listing causes no visible redraw
 - [x] **A5** After deleting a selected file, selection lands on the next surviving item in displayed order, or the previous item when there is no next item
 - [ ] **A6** No new errors appear in the application logs while exercising copy, move, rename, and new-file flows on the dev machine
@@ -148,8 +148,8 @@ The scheduler exists when its `FileListViewController` is created, before the vi
 
 ### E2E Tests (`Tests/UITests/DetoursUITests/`)
 
-- [ ] **T8** XCUI: F5 copy between panes on the installed app asserts the destination pane is active and the copied file is selected
-- [ ] **T9** XCUI: inline rename on a remote tab shows a single readable editor and ends with the renamed file selected
+- [x] **T8** XCUI: F5 copy between panes on the installed app asserts the destination pane is active and the copied file is selected
+- [x] **T9** XCUI: inline rename on a remote tab shows a single readable editor and ends with the renamed file selected
 - [ ] **T10** Full Foundry unit suite and XCUI suite green as final confirmation
 
 ---
@@ -176,5 +176,6 @@ The scheduler exists when its `FileListViewController` is created, before the vi
 - **T13/T15(enforcement)** `Tests/RefreshArchitectureTests.swift` (5 tests): source scans ban outline mutations, displayed-tree/children writes, and authority construction outside the applier, and listing-affecting queue calls outside coordinator transactions; runtime guard trips on a direct `reloadData()` and stays quiet inside applier scope.
 - **T15** `Tests/PaneOperationTransactionTests.swift` (3 tests): overlapping holds independent until each UUID closes, cancellation flushes held watcher work without a policy, results submitted while holds are active.
 - **T18** `Tests/FilteredResultRevealTests.swift` (3 tests): hidden explicit result clears only the targeted tab's filter and ends selected; visible results and background intents never clear it.
+- **T8/T9** `Tests/UITests/DetoursUITests/DetoursUITests/RefreshAuthorityUITests.swift`, green on Foundry against the installed app. T8 also flushed out a real focus-steal defect (source pane re-granting itself keyboard focus on a trailing background apply) which is fixed in `applyLocalScheduledSnapshot`: steady-state applies only re-assert focus their own table already held. Pane-state responses now expose the first responder's type for UI-test observability. T9 observes the rename session via the field editor because the overlay editor is not exported to the XCUITest tree (known, logged 2026-07-16).
 
 - **C1** `PaneOutlineApplier` + file-private `PaneOutlineMutationAuthority` in `src/FileList/PaneOutlineApplier.swift`; `FileListDataSource.items` now reads private `displayedItems` writable only via `setDisplayedItems(_:with:)`; `FileItem.children` is `private(set)` with authority-gated `setChildren` (DEBUG-only `setChildrenForTesting` seam for fixtures); `BandedOutlineView` guards `reloadData`/`reloadData(forRowIndexes:)`/`reloadItem`/`insertItems`/`removeItems`/`moveItem` behind the applier scope with `PaneOutlineGuard` (records violations under tests, asserts in debug app runs). `PaneRefreshScheduler` added with epoch/generation single-flight per directory, typed causes, operation holds, 100 ms watcher debounce, row-intent batching, and pre-view-load retention; created with the controller. All existing mutation sites rerouted through the applier. Foundry: `swift build --build-tests` clean; FileListDataSource/Filter/GitStatus/RemoteRefreshCoordinator/StatusBarCount suites 55 tests, 0 failures.

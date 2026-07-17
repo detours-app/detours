@@ -2046,3 +2046,19 @@ Spotlight search has no unit test (depends on the live, async-built system index
   timings survives trailing watcher activity; external-change watcher reload
   keeps selection; remote rename race keeps the renamed item selected in both
   orderings with exactly the mutation + follow-up fetch pair.
+
+- 2026-07-17 19:05 CEST: Foundry
+  `resources/scripts/uitest.sh RefreshAuthorityCopyUITests`
+  PASS: 1 test, 0 failures. F5 copy between panes on the installed app ends
+  with the destination pane holding keyboard focus and the copied file
+  selected, and both survive trailing watcher activity. Earlier failing
+  iterations of this test exposed and fixed a real defect: a trailing
+  source-pane refresh re-granted itself keyboard focus because pane
+  activity was treated as license to focus.
+
+- 2026-07-17 19:12 CEST: Foundry
+  `resources/scripts/uitest.sh RefreshAuthorityRemoteRenameUITests`
+  PASS: 1 test, 0 failures. Inline rename on a remote tab: single active
+  editing session (field editor holds first responder; the overlay editor is
+  not exported to the XCUITest tree per the 2026-07-16 log), typed rename
+  lands once, renamed file ends selected, fixture renamed back.
