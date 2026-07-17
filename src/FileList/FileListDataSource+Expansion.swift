@@ -203,8 +203,8 @@ extension FileListDataSource {
                 self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
             } catch {
-                self?.applier.setChildren([], of: item)
-                self?.applier.reloadSubtree(item)
+                self.applier.setChildren([], of: item)
+                self.applier.reloadSubtree(item)
             }
         }
     }
