@@ -32,7 +32,7 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         let hostID = UUID()
         let root = Location.remote(hostID: hostID, path: "/")
         let folder = item(hostID: hostID, path: "/Folder", name: "item-Folder", isDirectory: true)
-        folder.children = [item(hostID: hostID, path: "/Folder/nested.txt", name: "nested.txt")]
+        folder.setChildrenForTesting([item(hostID: hostID, path: "/Folder/nested.txt", name: "nested.txt")])
         folder.children?.first?.parent = folder
         let files = (0..<18).map {
             item(hostID: hostID, path: "/item-\($0).txt", name: "item-\($0).txt")
@@ -202,7 +202,7 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         let root = Location.remote(hostID: hostID, path: "/")
         let branch = Location.remote(hostID: hostID, path: "/Folder")
         let folder = item(hostID: hostID, path: "/Folder", name: "Folder", isDirectory: true)
-        folder.children = []
+        folder.setChildrenForTesting([])
         let controller = configuredController(root: root, items: [folder])
         let provider = RefreshTestProvider()
         let rootWatch = FileProviderWatch(id: UUID(), location: root)
@@ -287,7 +287,7 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         controller.currentRemoteLocation = root
         controller.currentRemoteProvider = RefreshTestProvider()
         controller.dataSource.currentRemoteDirectoryForGit = root
-        controller.dataSource.items = items
+        controller.dataSource.applier.setRootItems(items)
         controller.tableView.reloadData()
         return controller
     }

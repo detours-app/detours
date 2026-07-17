@@ -96,15 +96,9 @@ extension FileListDataSource {
         let cell = makeTextCell(text: cellText, outlineView: outlineView, identifier: "SizeCell", alignment: .right)
 
         if needsRefresh {
-            FolderSizeCache.shared.calculateAsync(for: url) { [weak outlineView, weak item] _ in
-                guard let outlineView, let item else { return }
-                let row = outlineView.row(forItem: item)
-                if row >= 0 {
-                    outlineView.reloadData(
-                        forRowIndexes: IndexSet(integer: row),
-                        columnIndexes: IndexSet(integer: 1)
-                    )
-                }
+            FolderSizeCache.shared.calculateAsync(for: url) { [weak self, weak item] _ in
+                guard let self, let item else { return }
+                self.applier.reloadRow(for: item, column: 1)
             }
         }
 

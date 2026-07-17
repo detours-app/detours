@@ -15,12 +15,12 @@ extension FileListDataSource {
         let expanded = expandedFolders
 
         // Re-sort root items and children recursively
-        items = FileItem.sorted(items, by: sortDescriptor, foldersOnTop: foldersOnTop)
+        applier.setRootItems(FileItem.sorted(items, by: sortDescriptor, foldersOnTop: foldersOnTop))
         resortChildren(of: items, foldersOnTop: foldersOnTop)
 
         // Suppress collapse notifications during reload
         suppressCollapseNotifications = true
-        outlineView.reloadData()
+        applier.reloadAll()
 
         // Restore expansion (parents before children)
         let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
@@ -54,7 +54,7 @@ extension FileListDataSource {
         for item in items {
             guard let children = item.children else { continue }
             let sorted = FileItem.sorted(children, by: sortDescriptor, foldersOnTop: foldersOnTop)
-            item.children = sorted
+            applier.setChildren(sorted, of: item)
             resortChildren(of: sorted, foldersOnTop: foldersOnTop)
         }
     }

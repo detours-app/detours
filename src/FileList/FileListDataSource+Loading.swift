@@ -45,13 +45,12 @@ extension FileListDataSource {
 
                 guard !Task.isCancelled else { return }
 
-                self.items = FileItem.sorted(fileItems, by: self.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
+                self.applier.setRootItems(FileItem.sorted(fileItems, by: self.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop))
                 self.currentDirectoryForGit = shouldFetchGitStatus ? normalizedURL : nil
                 self.gitStatuses = [:]
                 self.expandedFolders = previousExpanded
 
-                self.outlineView?.reloadData()
-                self.outlineView?.needsLayout = true
+                self.applier.reloadAll()
                 self.suppressCollapseNotifications = false
 
                 self.onLoadCompleted?(.success(()))
@@ -72,29 +71,25 @@ extension FileListDataSource {
             } catch let error as DirectoryLoadError {
                 guard !Task.isCancelled else { return }
 
-                // Don't replace existing items on reload failure when we have stale data
-                if self.items.isEmpty {
-                    self.items = []
-                }
+                // Existing items stay displayed on reload failure (stale data
+                // beats an empty pane).
                 self.currentDirectoryForGit = shouldFetchGitStatus ? normalizedURL : nil
                 self.expandedFolders = previousExpanded
-                self.outlineView?.reloadData()
-                self.outlineView?.needsLayout = true
+                self.applier.reloadAll()
                 self.suppressCollapseNotifications = false
 
                 self.onLoadCompleted?(.failure(error))
             } catch {
                 guard !Task.isCancelled else { return }
 
-                self.items = []
+                self.applier.setRootItems([])
                 self.currentDirectoryForGit = nil
                 self.gitStatuses = [:]
                 self.currentRemoteDirectoryForGit = nil
                 self.remoteGitStatuses = [:]
                 self.remoteGitStatusesByDirectory = [:]
                 self.expandedFolders = previousExpanded
-                self.outlineView?.reloadData()
-                self.outlineView?.needsLayout = true
+                self.applier.reloadAll()
                 self.suppressCollapseNotifications = false
 
                 self.onLoadCompleted?(.failure(.other(error.localizedDescription)))
@@ -132,11 +127,10 @@ extension FileListDataSource {
 
                 let fileItems = self.baseFileItems(for: entries)
 
-                self.items = FileItem.sorted(fileItems, by: self.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop)
+                self.applier.setRootItems(FileItem.sorted(fileItems, by: self.sortDescriptor, foldersOnTop: SettingsManager.shared.foldersOnTop))
                 self.currentDirectoryForGit = nil
                 self.expandedFolders = previousExpanded
-                self.outlineView?.reloadData()
-                self.outlineView?.needsLayout = true
+                self.applier.reloadAll()
                 self.suppressCollapseNotifications = false
                 self.onLoadCompleted?(.success(()))
 
@@ -147,28 +141,26 @@ extension FileListDataSource {
                 return
             } catch let error as DirectoryLoadError {
                 guard !Task.isCancelled else { return }
-                self.items = []
+                self.applier.setRootItems([])
                 self.currentDirectoryForGit = nil
                 self.gitStatuses = [:]
                 self.currentRemoteDirectoryForGit = nil
                 self.remoteGitStatuses = [:]
                 self.remoteGitStatusesByDirectory = [:]
                 self.expandedFolders = previousExpanded
-                self.outlineView?.reloadData()
-                self.outlineView?.needsLayout = true
+                self.applier.reloadAll()
                 self.suppressCollapseNotifications = false
                 self.onLoadCompleted?(.failure(error))
             } catch {
                 guard !Task.isCancelled else { return }
-                self.items = []
+                self.applier.setRootItems([])
                 self.currentDirectoryForGit = nil
                 self.gitStatuses = [:]
                 self.currentRemoteDirectoryForGit = nil
                 self.remoteGitStatuses = [:]
                 self.remoteGitStatusesByDirectory = [:]
                 self.expandedFolders = previousExpanded
-                self.outlineView?.reloadData()
-                self.outlineView?.needsLayout = true
+                self.applier.reloadAll()
                 self.suppressCollapseNotifications = false
                 self.onLoadCompleted?(.failure(.other(error.localizedDescription)))
             }
@@ -284,9 +276,9 @@ extension FileListDataSource {
         }
 
         if let parentItem {
-            parentItem.children = reconciledItems
+            applier.setChildren(reconciledItems, of: parentItem)
         } else {
-            items = reconciledItems
+            applier.setRootItems(reconciledItems)
         }
         staleRemoteDirectories.remove(directory)
         _cachedFilteredItems = nil

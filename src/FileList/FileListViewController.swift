@@ -62,6 +62,10 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var localMutationWatcherSuppressionGeneration = 0
     var suppressLocalMutationWatcherReloads = false
     var remoteRefreshCoordinator: RemoteRefreshCoordinator?
+    /// One owner for every programmatic listing refresh of this pane. Exists
+    /// from controller creation so an undisplayed tab retains its latest
+    /// eligible intent until the outline becomes available.
+    let refreshScheduler = PaneRefreshScheduler()
     /// One-shot action to run after the next successful directory load (e.g. select + rename new item)
     var pendingPostLoadAction: (() -> Void)?
     var selectionAnchor: Int?

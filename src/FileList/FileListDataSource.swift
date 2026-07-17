@@ -235,7 +235,21 @@ protocol FileListExpansionDelegate: AnyObject {
 
 @MainActor
 final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
-    var items: [FileItem] = []
+    /// Displayed root items. Writable only through `setDisplayedItems(_:with:)`,
+    /// which requires the mutation authority that only `PaneOutlineApplier`
+    /// can construct: one writer for the displayed tree.
+    private var displayedItems: [FileItem] = []
+
+    var items: [FileItem] { displayedItems }
+
+    func setDisplayedItems(_ newItems: [FileItem], with _: PaneOutlineMutationAuthority) {
+        displayedItems = newItems
+        _cachedFilteredItems = nil
+    }
+
+    /// The single writer for this pane's outline mutations.
+    private(set) lazy var applier = PaneOutlineApplier(dataSource: self)
+
     weak var outlineView: NSOutlineView?
     weak var dropDelegate: FileListDropDelegate?
     weak var expansionDelegate: FileListExpansionDelegate?
@@ -276,7 +290,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
             rowView.isDropTarget = isDropTarget
         }
 
-        outlineView?.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 0))
+        applier.reloadRows(IndexSet(integer: row), columns: IndexSet(integer: 0))
     }
 
     var isActive: Bool = true {

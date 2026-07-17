@@ -63,14 +63,8 @@ extension FileListDataSource {
                 }
 
                 // Reload just this item's name cell
-                guard let self, let outlineView = self.outlineView else { return }
-                let row = outlineView.row(forItem: item)
-                if row >= 0 {
-                    outlineView.reloadData(
-                        forRowIndexes: IndexSet(integer: row),
-                        columnIndexes: IndexSet(integer: 0)
-                    )
-                }
+                guard let self else { return }
+                self.applier.reloadRow(for: item, column: 0)
             }
             iconLoadTasks.append(task)
         }

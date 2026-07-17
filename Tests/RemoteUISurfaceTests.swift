@@ -189,7 +189,7 @@ final class RemoteUISurfaceTests: XCTestCase {
             openAction = action
             return .success(())
         }
-        viewController.dataSource.items = [remoteItem]
+        viewController.dataSource.applier.setRootItems([remoteItem])
         viewController.tableView.reloadData()
         viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 

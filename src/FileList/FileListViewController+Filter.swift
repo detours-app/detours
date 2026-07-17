@@ -32,7 +32,7 @@ extension FileListViewController {
         let previousExpanded = dataSource.expandedFolders
 
         dataSource.filterPredicate = nil
-        tableView.reloadData()
+        dataSource.applier.reloadAll()
 
         // Restore expansion state
         restoreExpansion(previousExpanded)
@@ -58,7 +58,7 @@ extension FileListViewController {
         let previousExpanded = dataSource.expandedFolders
 
         dataSource.filterPredicate = text.isEmpty ? nil : text
-        tableView.reloadData()
+        dataSource.applier.reloadAll()
 
         if text.isEmpty {
             // Restore previous expansion state when filter is cleared

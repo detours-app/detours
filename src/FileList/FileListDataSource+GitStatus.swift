@@ -34,7 +34,7 @@ extension FileListDataSource {
 
                 // Suppress collapse notifications during reload to preserve expansion state
                 suppressCollapseNotifications = true
-                outlineView?.reloadData()
+                applier.reloadAll()
                 expandedFolders = expanded
                 suppressCollapseNotifications = false
 
@@ -143,7 +143,7 @@ extension FileListDataSource {
         let expanded = expandedFolders
 
         suppressCollapseNotifications = true
-        outlineView.reloadData()
+        applier.reloadAll()
 
         let sortedExpanded = expanded.sorted { $0.pathComponents.count < $1.pathComponents.count }
         for url in sortedExpanded {

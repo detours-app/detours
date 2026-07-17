@@ -152,7 +152,7 @@ extension FileListViewController {
             if let item = urlToItem[current], item.isNavigableFolder {
                 if item.isRemote {
                     await dataSource.loadRemoteChildrenForExpansionRestore(item)
-                    tableView.reloadItem(item, reloadChildren: true)
+                    dataSource.applier.reloadSubtree(item)
                 } else {
                     loadChildrenIfNeededForExpansion(item)
                 }
@@ -572,12 +572,7 @@ extension FileListViewController {
         }
         hideRemoteRefreshError(for: snapshot.request.directory)
 
-        if let parentItem = reconciliation.parentItem {
-            tableView.reloadItem(parentItem, reloadChildren: true)
-        } else {
-            tableView.reloadData()
-        }
-        tableView.needsLayout = true
+        dataSource.applier.reloadSubtree(reconciliation.parentItem)
         restoreRemotePaneState(
             paneState,
             preferredResultLocations: snapshot.request.preferredResultLocations

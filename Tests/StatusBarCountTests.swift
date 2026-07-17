@@ -24,7 +24,7 @@ final class StatusBarCountTests: XCTestCase {
         vc.loadViewIfNeeded()
 
         let ds = vc.dataSource
-        ds.items = rootItems
+        ds.applier.setRootItems(rootItems)
         vc.tableView.reloadData()
 
         return (vc, ds)
@@ -44,7 +44,7 @@ final class StatusBarCountTests: XCTestCase {
             name: name, url: url, isDirectory: true,
             size: nil, dateModified: Date(), icon: NSImage()
         )
-        folder.children = children
+        folder.setChildrenForTesting(children)
         return folder
     }
 

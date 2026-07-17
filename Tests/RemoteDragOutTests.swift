@@ -18,7 +18,7 @@ final class RemoteDragOutTests: XCTestCase {
         viewController.loadView()
         viewController.viewDidLoad()
         viewController.currentRemoteProvider = RemoteDragOutProvider(contents: Data("hello".utf8))
-        viewController.dataSource.items = [item]
+        viewController.dataSource.applier.setRootItems([item])
         viewController.tableView.reloadData()
 
         let writer = viewController.dataSource.outlineView(viewController.tableView, pasteboardWriterForItem: item)

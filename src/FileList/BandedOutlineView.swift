@@ -78,6 +78,55 @@ final class ThemedHeaderCell: NSTableHeaderCell {
 }
 
 final class BandedOutlineView: NSOutlineView {
+    /// True while a `PaneOutlineApplier` scope is executing. Structural and
+    /// row-content mutation APIs require this scope in debug/test builds.
+    private var authorizedMutationDepth = 0
+
+    @discardableResult
+    func performAuthorizedMutations<T>(
+        with _: PaneOutlineMutationAuthority,
+        _ body: () throws -> T
+    ) rethrows -> T {
+        authorizedMutationDepth += 1
+        defer { authorizedMutationDepth -= 1 }
+        return try body()
+    }
+
+    private func checkMutationAuthorized(_ api: StaticString) {
+        guard authorizedMutationDepth == 0 else { return }
+        PaneOutlineGuard.reportViolation(api: api)
+    }
+
+    override func reloadData() {
+        checkMutationAuthorized("reloadData()")
+        super.reloadData()
+    }
+
+    override func reloadData(forRowIndexes rowIndexes: IndexSet, columnIndexes: IndexSet) {
+        checkMutationAuthorized("reloadData(forRowIndexes:columnIndexes:)")
+        super.reloadData(forRowIndexes: rowIndexes, columnIndexes: columnIndexes)
+    }
+
+    override func reloadItem(_ item: Any?, reloadChildren: Bool) {
+        checkMutationAuthorized("reloadItem(_:reloadChildren:)")
+        super.reloadItem(item, reloadChildren: reloadChildren)
+    }
+
+    override func insertItems(at indexes: IndexSet, inParent parent: Any?, withAnimation animationOptions: NSTableView.AnimationOptions = []) {
+        checkMutationAuthorized("insertItems(at:inParent:withAnimation:)")
+        super.insertItems(at: indexes, inParent: parent, withAnimation: animationOptions)
+    }
+
+    override func removeItems(at indexes: IndexSet, inParent parent: Any?, withAnimation animationOptions: NSTableView.AnimationOptions = []) {
+        checkMutationAuthorized("removeItems(at:inParent:withAnimation:)")
+        super.removeItems(at: indexes, inParent: parent, withAnimation: animationOptions)
+    }
+
+    override func moveItem(at fromIndex: Int, inParent oldParent: Any?, to toIndex: Int, inParent newParent: Any?) {
+        checkMutationAuthorized("moveItem(at:inParent:to:inParent:)")
+        super.moveItem(at: fromIndex, inParent: oldParent, to: toIndex, inParent: newParent)
+    }
+
     weak var keyHandler: FileListKeyHandling?
     weak var contextMenuDelegate: FileListContextMenuDelegate?
     var onActivate: (() -> Void)?

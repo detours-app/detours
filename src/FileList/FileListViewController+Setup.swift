@@ -151,7 +151,7 @@ extension FileListViewController {
 
         let rowIndexes = IndexSet(integersIn: visibleRange.location..<upperBound)
         let columnIndexes = IndexSet(integersIn: 0..<tableView.numberOfColumns)
-        tableView.reloadData(forRowIndexes: rowIndexes, columnIndexes: columnIndexes)
+        dataSource.applier.reloadRows(rowIndexes, columns: columnIndexes)
     }
 
     @objc func tableViewSelectionDidChange(_ notification: Notification) {

@@ -46,9 +46,24 @@ final class FileItem {
     var iCloudStatus: ICloudStatus
     var gitStatus: GitStatus?
 
-    // Tree support for folder expansion
-    var children: [FileItem]?  // nil = not loaded, empty = loaded but empty
+    // Tree support for folder expansion.
+    // nil = not loaded, empty = loaded but empty. External writes require the
+    // outline mutation authority; only the synchronous disclosure load in this
+    // file may assign directly (AppKit disclosure stays native).
+    private(set) var children: [FileItem]?
     weak var parent: FileItem?
+
+    func setChildren(_ newChildren: [FileItem]?, with _: PaneOutlineMutationAuthority) {
+        children = newChildren
+    }
+
+    #if DEBUG
+    /// Test seam: fixture setup builds trees directly; the single-writer
+    /// authority applies to production refresh paths, not test fixtures.
+    func setChildrenForTesting(_ newChildren: [FileItem]?) {
+        children = newChildren
+    }
+    #endif
 
     convenience init(name: String, location: Location, isDirectory: Bool, isPackage: Bool = false, isAliasFile: Bool = false, isSymbolicLink: Bool = false, isReadable: Bool = true, size: Int64?, dateModified: Date, icon: NSImage, sharedRole: SharedItemRole? = nil, isVirtualSharedFolder: Bool = false, iCloudStatus: ICloudStatus = .local, isHiddenFile: Bool = false, gitStatus: GitStatus? = nil) {
         switch location {

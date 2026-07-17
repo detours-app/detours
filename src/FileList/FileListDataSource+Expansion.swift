@@ -91,13 +91,13 @@ extension FileListDataSource {
                 if let children = item.children {
                     self.updateGitStatus(for: children, statuses: statuses)
                 }
-                outlineView.reloadItem(item, reloadChildren: true)
+                self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
                 self.restoreSavedChildExpansions(of: item, in: outlineView)
             } catch {
                 // Expansion failed - set empty children so folder shows as empty
-                item.children = []
-                outlineView.reloadItem(item, reloadChildren: true)
+                self.applier.setChildren([], of: item)
+                self.applier.reloadSubtree(item)
             }
         }
     }
@@ -151,14 +151,14 @@ extension FileListDataSource {
                 guard let self else { return }
                 let entries = try await provider.list(item.location, showHidden: showHidden)
                 _ = self.reconcileRemoteEntries(entries, in: item.location)
-                outlineView.reloadItem(item, reloadChildren: true)
+                self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
                 if SettingsManager.shared.settings.gitStatusEnabled {
                     self.fetchRemoteGitStatus(for: item.location, provider: provider)
                 }
             } catch {
-                item.children = []
-                outlineView.reloadItem(item, reloadChildren: true)
+                self.applier.setChildren([], of: item)
+                self.applier.reloadSubtree(item)
             }
         }
     }
@@ -175,7 +175,7 @@ extension FileListDataSource {
                 fetchRemoteGitStatus(for: item.location, provider: provider)
             }
         } catch {
-            item.children = []
+            applier.setChildren([], of: item)
         }
     }
 
@@ -198,13 +198,13 @@ extension FileListDataSource {
                 for child in sortedChildren {
                     child.parent = item
                 }
-                item.children = sortedChildren
+                self.applier.setChildren(sortedChildren, of: item)
                 self.updateGitStatus(for: sortedChildren, statuses: self.gitStatuses)
-                outlineView.reloadItem(item, reloadChildren: true)
+                self.applier.reloadSubtree(item)
                 outlineView.expandItem(item)
             } catch {
-                item.children = []
-                outlineView.reloadItem(item, reloadChildren: true)
+                self.applier.setChildren([], of: item)
+                self.applier.reloadSubtree(item)
             }
         }
     }

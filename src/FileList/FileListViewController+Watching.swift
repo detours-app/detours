@@ -278,8 +278,8 @@ extension FileListViewController {
         currentRemoteProvider = nil
         currentDirectory = nil
         currentICloudListingMode = .normal
-        dataSource.items = []
-        tableView.reloadData()
+        dataSource.applier.setRootItems([])
+        dataSource.applier.reloadAll()
         hasLoadedDirectory = false
         suppressLoadingSpinner = false
         showLoadingIndicator()

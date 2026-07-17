@@ -160,7 +160,7 @@ final class FileItemOpeningTests: XCTestCase {
     private func makeController(items: [FileItem]) -> FileListViewController {
         let controller = FileListViewController()
         controller.loadViewIfNeeded()
-        controller.dataSource.items = items
+        controller.dataSource.applier.setRootItems(items)
         controller.tableView.reloadData()
         controller.tableView.selectRowIndexes(
             IndexSet(integersIn: 0..<items.count),
