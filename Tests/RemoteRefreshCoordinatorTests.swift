@@ -58,14 +58,14 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         window.makeFirstResponder(controller.tableView)
         controller.scrollView.contentView.scroll(to: NSPoint(x: 9, y: 80))
         controller.scrollView.reflectScrolledClipView(controller.scrollView.contentView)
-        let before = controller.captureRemotePaneState()
+        let before = controller.capturePaneState()
 
         let snapshot = RemoteRefreshSnapshot(
             request: request(directory: root, generation: 1),
             entries: ([folder] + files).map { entry(from: $0) }
         )
         controller.applyRemoteRefresh(snapshot)
-        let after = controller.captureRemotePaneState()
+        let after = controller.capturePaneState()
 
         XCTAssertEqual(after.expandedLocations, before.expandedLocations)
         XCTAssertEqual(after.selectedLocations, before.selectedLocations)
@@ -263,7 +263,7 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         controller.tableView.selectRowIndexes(IndexSet(integer: deletedRow), byExtendingSelection: false)
         controller.scrollView.contentView.scroll(to: NSPoint(x: 0, y: 60))
         controller.scrollView.reflectScrolledClipView(controller.scrollView.contentView)
-        let before = controller.captureRemotePaneState()
+        let before = controller.capturePaneState()
         let survivors = sortedItems.compactMap { item in item === deletedItem ? nil : entry(from: item) }
 
         controller.applyRemoteRefresh(RemoteRefreshSnapshot(
@@ -271,7 +271,7 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
             entries: survivors
         ))
 
-        let after = controller.captureRemotePaneState()
+        let after = controller.capturePaneState()
         XCTAssertEqual(controller.tableView.selectedRow, deletedRow)
         XCTAssertEqual(
             (controller.tableView.item(atRow: deletedRow) as? FileItem)?.name,
