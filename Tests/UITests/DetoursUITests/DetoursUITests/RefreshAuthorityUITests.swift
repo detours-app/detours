@@ -31,10 +31,23 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
         let testFolderRight = rightOutline.outlineRow(withStaticText: testFolderName)
         XCTAssertTrue(testFolderRight.waitForExistence(timeout: 3))
         testFolderRight.staticTexts[testFolderName].doubleClick()
+        XCTAssertTrue(
+            waitForCondition(timeout: 5) {
+                let state = try? self.requestRemotePaneState(pane: "right")
+                return state?.displayedLocation?.hasSuffix(self.testFolderName) == true
+            },
+            "Right pane never entered the test folder; displayed=\(String(describing: (try? requestRemotePaneState(pane: "right"))?.displayedLocation))"
+        )
         let destRight = rightOutline.outlineRow(withStaticText: "T8Dest")
-        XCTAssertTrue(destRight.waitForExistence(timeout: 3))
+        XCTAssertTrue(destRight.waitForExistence(timeout: 5), "T8Dest row missing in right pane")
         destRight.staticTexts["T8Dest"].doubleClick()
-        sleep(1)
+        XCTAssertTrue(
+            waitForCondition(timeout: 5) {
+                let state = try? self.requestRemotePaneState(pane: "right")
+                return state?.displayedLocation?.hasSuffix("T8Dest") == true
+            },
+            "Right pane never entered T8Dest"
+        )
 
         // Left pane: select the source and copy with F5.
         leftOutline.click()
