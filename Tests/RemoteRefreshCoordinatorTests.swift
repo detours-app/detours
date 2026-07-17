@@ -287,8 +287,9 @@ final class RemoteRefreshCoordinatorTests: XCTestCase {
         controller.currentRemoteLocation = root
         controller.currentRemoteProvider = RefreshTestProvider()
         controller.dataSource.currentRemoteDirectoryForGit = root
+        controller.dataSource.displayedRootLocation = PaneRefreshScheduler.normalizedDirectory(root)
         controller.dataSource.applier.setRootItems(items)
-        controller.tableView.reloadData()
+        controller.dataSource.applier.reloadAll()
         return controller
     }
 

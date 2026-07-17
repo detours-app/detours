@@ -220,6 +220,7 @@ extension FileListViewController {
         currentRemoteProvider = nil
         currentDirectory = nil
         currentICloudListingMode = .normal
+        dataSource.displayedRootLocation = nil
         dataSource.applier.setRootItems([])
         dataSource.applier.reloadAll()
         hasLoadedDirectory = false
