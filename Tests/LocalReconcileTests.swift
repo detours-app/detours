@@ -213,7 +213,7 @@ private final class LoadCountingDelegate: FileListNavigationDelegate {
 /// replay) still receives external watcher changes.
 @MainActor
 final class RestoredPaneWatcherTests: XCTestCase {
-    func testSessionRestoredPaneReceivesExternalChanges() async throws {
+    func testSessionRestoredPaneReceivesExternalChanges() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
         _ = try createTestFile(in: temp, name: "a.txt")
