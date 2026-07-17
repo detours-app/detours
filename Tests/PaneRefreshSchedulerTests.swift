@@ -191,7 +191,7 @@ final class PaneRefreshSchedulerTests: XCTestCase {
         do {
             try await PaneFileOperationCoordinator.shared.perform(
                 affecting: [dir],
-                operation: { @MainActor () async throws -> Void in
+                operation: { @MainActor () async throws in
                     scheduler.submitListingRefresh(directory: dir, cause: .watcher)
                     throw OperationFailed()
                 }
