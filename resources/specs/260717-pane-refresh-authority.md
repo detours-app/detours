@@ -106,6 +106,7 @@ Two already-diagnosed fixes land inside this structure rather than as patches: r
 - [ ] **T5** Rename produces exactly one fetch/apply burst with the renamed item selected (extends the probe's double-fetch assertion to the fixed behavior)
 - [ ] **T6** Remote New File/Folder tests from the stashed `RemoteInlineRenameRefreshTests`: expanded destination refreshes in place without stale-marking, collapsed destination reveals correctly, recreated name cell stays hidden during rename and restores after
 - [ ] **T7** Long-operation simulation: watcher events during an active `FileOperationQueue` operation produce no reload until the operation's own refresh, and none afterwards
+- [ ] **T11** Copy into a pane whose selected tab was session-restored but never displayed still ends with the copy selected and the pane activated once shown (the `isViewLoaded` early return in `+DirectoryLoading.swift` currently drops both)
 
 ### E2E Tests (`Tests/UITests/DetoursUITests/`)
 
