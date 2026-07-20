@@ -116,7 +116,7 @@ run_prepare_fixtures() {
 cleanup_fixture_mounts() {
     local fixture_file
     fixture_file="$(run_dir)/fixtures.env"
-    [[ -f "$fixture_file" ]] || return
+    [[ -f "$fixture_file" ]] || return 0
     # shellcheck disable=SC1090
     source "$fixture_file"
     if [[ -n "${SMB_ROOT:-}" ]] && mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1; then
@@ -128,4 +128,5 @@ cleanup_fixture_mounts() {
     if [[ -n "${APFS_IMAGE:-}" ]]; then
         remove_exact_tree "$APFS_IMAGE" "$QUALIFICATION_ROOT/images"
     fi
+    return 0
 }
