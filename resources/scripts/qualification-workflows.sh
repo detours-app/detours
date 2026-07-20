@@ -122,12 +122,14 @@ prepare_installed_test_bundle() {
     derived_data="$(run_dir)/xcode-derived-data"
     [[ ! -e "$derived_data" ]] || fail "installed-test derived data already exists: $derived_data"
     pgrep -x Finder >/dev/null 2>&1 || fail "Finder GUI session is unavailable"
+    require_command jq
+    require_command xcrun
     set +e
     run_gui_command "$log_path.raw" env \
         HOME="$HOME" \
         PATH=/usr/bin:/bin:/usr/sbin:/sbin \
         DEVELOPER_DIR="$(xcode-select -p)" \
-        xcodebuild build-for-testing \
+        xcodebuild build-for-testing -quiet \
         -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
         -scheme DetoursUITests \
         -destination 'platform=macOS,arch=arm64' \
@@ -140,6 +142,7 @@ prepare_installed_test_bundle() {
     status="${PIPESTATUS[0]}"
     set -e
     (( status == 0 )) || return "$status"
+    verify_quiet_xcode_command "$log_path.raw"
     while IFS= read -r candidate; do
         candidates+=("$candidate")
     done < <(find "$derived_data/Build/Products" -maxdepth 1 -type f -name '*.xctestrun' -print)
@@ -155,6 +158,37 @@ prepare_installed_test_bundle() {
     [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_REAL_REMOTE_TARGET raw "$xctestrun")" == "detours-qualification-canary-target" ]] || \
         fail "UI test scheme did not expand the remote-target setting"
     QUALIFICATION_UI_DERIVED_DATA="$derived_data"
+}
+
+verify_quiet_xcode_command() {
+    local command_log="$1"
+    local artifact
+    for artifact in "$command_log" "$command_log.launch-stdout" "$command_log.launch-stderr"; do
+        [[ -e "$artifact" ]] || fail "Xcode command artifact is missing: $artifact"
+        [[ ! -s "$artifact" ]] || fail "successful quiet Xcode command emitted unexpected output: $artifact"
+    done
+}
+
+verify_installed_result_bundle() {
+    local result_bundle="$1"
+    local summary_path total passed failed skipped expected result
+    [[ -d "$result_bundle" ]] || fail "installed-test result bundle is missing: $result_bundle"
+    summary_path="${result_bundle%.xcresult}-summary.json"
+    [[ ! -e "$summary_path" ]] || fail "installed-test result summary already exists: $summary_path"
+    xcrun xcresulttool get test-results summary --compact --path "$result_bundle" > "$summary_path"
+    jq -e . "$summary_path" >/dev/null || fail "installed-test result summary is invalid JSON"
+    total="$(jq -r '.totalTestCount // empty' "$summary_path")"
+    passed="$(jq -r '.passedTests // empty' "$summary_path")"
+    failed="$(jq -r '.failedTests // empty' "$summary_path")"
+    skipped="$(jq -r '.skippedTests // empty' "$summary_path")"
+    expected="$(jq -r '.expectedFailures // empty' "$summary_path")"
+    result="$(jq -r '.result // empty' "$summary_path")"
+    [[ "$total" == "1" ]] || fail "installed iteration ran $total tests instead of exactly one"
+    [[ "$passed" == "1" ]] || fail "installed iteration passed $passed tests instead of exactly one"
+    [[ "$failed" == "0" ]] || fail "installed iteration recorded $failed failed tests"
+    [[ "$skipped" == "0" ]] || fail "installed iteration recorded $skipped skipped tests"
+    [[ "$expected" == "0" ]] || fail "installed iteration recorded $expected expected failures"
+    [[ "$result" == "Passed" ]] || fail "installed iteration result is not Passed: $result"
 }
 
 stop_installed_app() {
@@ -201,7 +235,7 @@ run_installed_once() {
                 HOME="$HOME" \
                 PATH=/usr/bin:/bin:/usr/sbin:/sbin \
                 DEVELOPER_DIR="$(xcode-select -p)" \
-                xcodebuild test \
+                xcodebuild test -quiet \
                 -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
                 -scheme DetoursUITests \
                 -destination 'platform=macOS,arch=arm64' \
@@ -215,6 +249,10 @@ run_installed_once() {
         status="${PIPESTATUS[0]}"
         set -e
         stop_installed_app
+        if (( status == 0 )); then
+            verify_quiet_xcode_command "$log_path-iteration-$iteration.raw.log"
+            verify_installed_result_bundle "$iteration_bundle"
+        fi
         record_scenario_timing \
             installed "$selected_group" "$context_name-iteration-$iteration" 1 "$started_at" "$status"
         (( status == 0 )) || return "$status"
