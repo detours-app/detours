@@ -22,6 +22,7 @@ public struct QualificationRunRootDescriptor: Codable, Equatable, Sendable {
     public let identifier: UUID
     public let parentPath: String
     public let rootPath: String
+    public let volumeIdentifier: UInt64
     public let createdAt: Date
 
     public init(
@@ -29,12 +30,14 @@ public struct QualificationRunRootDescriptor: Codable, Equatable, Sendable {
         identifier: UUID,
         parentPath: String,
         rootPath: String,
+        volumeIdentifier: UInt64,
         createdAt: Date = Date()
     ) {
         self.provider = provider
         self.identifier = identifier
         self.parentPath = parentPath
         self.rootPath = rootPath
+        self.volumeIdentifier = volumeIdentifier
         self.createdAt = Date(timeIntervalSince1970: floor(createdAt.timeIntervalSince1970))
     }
 
@@ -101,6 +104,7 @@ public enum QualificationRunRootError: LocalizedError, Equatable {
     case missingSentinel(String)
     case sentinelMismatch(String)
     case rootWasRenamed(expected: String, actual: String)
+    case staleMount(expected: UInt64, actual: UInt64)
     case descriptorDecode(String)
     case unsupportedProvider(String)
 
@@ -117,6 +121,7 @@ public enum QualificationRunRootError: LocalizedError, Equatable {
         case .missingSentinel(let path): "Run-root sentinel is missing: \(path)"
         case .sentinelMismatch(let path): "Run-root sentinel does not match its descriptor: \(path)"
         case .rootWasRenamed(let expected, let actual): "Run root was renamed from \(expected) to \(actual)"
+        case .staleMount(let expected, let actual): "Run-root mount changed from \(expected) to \(actual)"
         case .descriptorDecode(let message): "Run-root descriptor could not be decoded: \(message)"
         case .unsupportedProvider(let provider): "Provider is unsupported: \(provider)"
         }
@@ -160,7 +165,8 @@ public struct QualificationRunRootGuard {
             provider: provider,
             identifier: identifier,
             parentPath: canonicalParent.path,
-            rootPath: root.path
+            rootPath: root.path,
+            volumeIdentifier: try fileSystemNumber(at: root)
         )
         do {
             try encoder.encode(descriptor).write(
@@ -185,6 +191,16 @@ public struct QualificationRunRootGuard {
         let parent = lexicallyStandardized(URL(fileURLWithPath: descriptor.parentPath))
         let root = lexicallyStandardized(URL(fileURLWithPath: descriptor.rootPath))
         try validateExactChild(parent: parent, root: root, identifier: descriptor.identifier)
+        guard fileManager.fileExists(atPath: root.path) else {
+            throw QualificationRunRootError.rootWasRenamed(expected: root.path, actual: "missing")
+        }
+        let currentVolumeIdentifier = try fileSystemNumber(at: root)
+        guard currentVolumeIdentifier == descriptor.volumeIdentifier else {
+            throw QualificationRunRootError.staleMount(
+                expected: descriptor.volumeIdentifier,
+                actual: currentVolumeIdentifier
+            )
+        }
         try rejectLinksAndAliases(inExistingComponentsOf: root)
         try validateSentinel(for: descriptor)
 
@@ -358,6 +374,14 @@ public struct QualificationRunRootGuard {
             }
         }
         return String(format: "%016llx", hash)
+    }
+
+    private func fileSystemNumber(at url: URL) throws -> UInt64 {
+        let attributes = try fileManager.attributesOfItem(atPath: url.path)
+        guard let number = attributes[.systemNumber] as? NSNumber else {
+            throw QualificationRunRootError.parentMissing(url.path)
+        }
+        return number.uint64Value
     }
 
     private func lexicallyStandardized(_ url: URL) -> URL {
