@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-MATRIX_PATH="$PROJECT_DIR/resources/docs/260720-whole-app-stability-qualification-matrix.md"
+export MATRIX_PATH="$PROJECT_DIR/resources/docs/260720-whole-app-stability-qualification-matrix.md"
 QUALIFICATION_ROOT="$PROJECT_DIR/.build/qualification"
 LOCAL_PARENT="$HOME/DetoursQualification"
 ICLOUD_PARENT="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Detours Qualification"
@@ -193,40 +193,6 @@ validate_group() {
     workflow_groups | grep -Fx "$requested" >/dev/null || fail "unknown workflow group: $requested"
 }
 
-audit_matrix() {
-    [[ -f "$MATRIX_PATH" ]] || fail "matrix is missing: $MATRIX_PATH"
-
-    local row_count
-    row_count="$(grep -Ec '^\| [A-Z]+-[0-9]{3} \|' "$MATRIX_PATH")"
-    [[ "$row_count" -gt 0 ]] || fail "matrix contains no capability rows"
-
-    local missing_checks missing_repetitions duplicate_ids
-    missing_checks="$(awk -F'|' '/^\| [A-Z]+-[0-9]{3} / { if ($7 ~ /^[[:space:]]*$/ || $7 ~ /TBD/) print $2 }' "$MATRIX_PATH")"
-    missing_repetitions="$(awk -F'|' '/^\| [A-Z]+-[0-9]{3} / { if ($8 ~ /^[[:space:]]*$/ || $8 ~ /TBD/) print $2 }' "$MATRIX_PATH")"
-    duplicate_ids="$(awk -F'|' '/^\| [A-Z]+-[0-9]{3} / { gsub(/[[:space:]]/, "", $2); print $2 }' "$MATRIX_PATH" | sort | uniq -d)"
-    [[ -z "$missing_checks" ]] || fail "matrix rows lack automated checks: $missing_checks"
-    [[ -z "$missing_repetitions" ]] || fail "matrix rows lack repetition levels: $missing_repetitions"
-    [[ -z "$duplicate_ids" ]] || fail "matrix contains duplicate IDs: $duplicate_ids"
-
-    local source
-    for source in \
-        src/App/MainMenu.swift \
-        src/FileList/FileListViewController+ContextMenu.swift \
-        src/FileList/FileListViewController+Keyboard.swift \
-        src/FileList/FileListViewController+DragDrop.swift \
-        src/Preferences/Settings.swift \
-        resources/docs/USER_GUIDE.md; do
-        grep -F "$source" "$MATRIX_PATH" >/dev/null || fail "matrix source census is missing $source"
-    done
-
-    local spec_name
-    while IFS= read -r spec_name; do
-        grep -F "${spec_name%.md}" "$MATRIX_PATH" >/dev/null || fail "matrix source census is missing $spec_name"
-    done < <(find "$PROJECT_DIR/resources/specs/done" -maxdepth 1 -type f -name '*.md' -exec basename {} \; | sort)
-
-    printf 'matrix audit passed: %s capability rows\n' "$row_count"
-}
-
 run_preflight() {
     local requested_commit head_commit current_branch free_kilobytes boot_epoch
     requested_commit="$(canonical_commit)"
@@ -409,6 +375,8 @@ source "$SCRIPT_DIR/qualification-soak.sh"
 source "$SCRIPT_DIR/qualification-evidence.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-report.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/qualification-audit.sh"
 
 run_all() {
     run_build

@@ -149,7 +149,7 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 
 ### Contract and safety
 
-- [ ] **T1** Audit the completed matrix against every user-visible action and automatic behavior source, with zero unmapped surfaces and zero applicable rows lacking an automated check.
+- [x] **T1** Audit the completed matrix against every user-visible action and automatic behavior source, with zero unmapped surfaces and zero applicable rows lacking an automated check.
 - [ ] **T2** Exercise the run-root guard against valid children, parent traversal, symbolic links, Finder aliases, mismatched and absent sentinels, renamed roots, stale mounts, and cleanup attempts outside every allowlist.
 - [ ] **T3** Run a deliberately failing fixture in each provider and require the runner to preserve the exact replay record, leave outside-root snapshots unchanged, clean marked state, and report the failure without retrying it into a pass.
 
@@ -193,3 +193,4 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 - **C9 verification** Foundry built the app and guard without warnings. A guarded live probe confirmed that an inside-root mutation leaves the outside snapshot equal and a sibling mutation makes comparison fail.
 - **C10** Established the campaign's no-waiver gate: the first verification failure (the qualification fixture accessor syntax) was reproduced by Foundry's test-target build, fixed in the test source, and the exact build then passed. No matrix row or repeated iteration is currently red; any later red result remains subject to the same regression, focused-rerun, and clean-count-reset rule.
 - **C11** Added a fail-closed final-record reducer. It selects an ordered cold 1/2/3 sequence, proves a changed Foundry boot epoch before cold 3, requires a later 43,200-second soak, clean cleanup records, and no selected-run failure trace, then updates only the matrix, plain-language result report, and `Tests/TEST_LOG.md`.
+- **T1** Audited all 102 capability rows against the six direct surface sources, every completed feature spec, and the campaign check catalog. All 16 `Q.*` check names resolve to one of the eight fixed workflows or an explicit full-installed, full-campaign, safety, or reference-image gate; no source, row check, repetition, or campaign route is missing or duplicated.
