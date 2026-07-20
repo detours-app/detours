@@ -57,27 +57,36 @@ run_installed_once() {
     local repetitions="$3"
     local log_path="$4"
     local result_bundle="$5"
-    local test_filter root_path started_at status
+    local test_filter root_path started_at status iteration iteration_bundle
     test_filter="$(installed_test_filter "$selected_group")"
     root_path="${!root_name}"
-    [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
     printf '%s\t%s\t%s\t%s\n' \
         "$selected_group" "$test_filter" "$root_name" "$repetitions" >> "$(run_dir)/replay.tsv"
-    started_at="$(date +%s)"
-    set +e
-    DETOURS_UI_TEST_APP_PATH="$PROJECT_DIR/build/Detours.app" \
-    DETOURS_QUALIFICATION_UI_ROOT="$root_path" \
-        xcodebuild test \
-            -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
-            -scheme DetoursUITests \
-            -destination 'platform=macOS,arch=arm64' \
-            -only-testing:"DetoursUITests/$test_filter" \
-            -test-iterations "$repetitions" \
-            -resultBundlePath "$result_bundle" 2>&1 | tee "$log_path.log"
-    status="${PIPESTATUS[0]}"
-    set -e
-    record_scenario_timing installed "$selected_group" "$root_name" "$repetitions" "$started_at" "$status"
-    (( status == 0 )) || return "$status"
+    for (( iteration = 1; iteration <= repetitions; iteration++ )); do
+        if (( repetitions == 1 )); then
+            iteration_bundle="$result_bundle"
+        else
+            printf -v iteration_bundle '%s-iteration-%03d.xcresult' "${result_bundle%.xcresult}" "$iteration"
+        fi
+        [[ ! -e "$iteration_bundle" ]] || fail "result bundle already exists: $iteration_bundle"
+        printf 'qualification: installed %s %s iteration %d/%d\n' \
+            "$selected_group" "$root_name" "$iteration" "$repetitions" | tee -a "$log_path.log"
+        started_at="$(date +%s)"
+        set +e
+        DETOURS_UI_TEST_APP_PATH="$PROJECT_DIR/build/Detours.app" \
+        DETOURS_QUALIFICATION_UI_ROOT="$root_path" \
+            xcodebuild test \
+                -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
+                -scheme DetoursUITests \
+                -destination 'platform=macOS,arch=arm64' \
+                -only-testing:"DetoursUITests/$test_filter" \
+                -resultBundlePath "$iteration_bundle" 2>&1 | tee -a "$log_path.log"
+        status="${PIPESTATUS[0]}"
+        set -e
+        record_scenario_timing \
+            installed "$selected_group" "$root_name-iteration-$iteration" 1 "$started_at" "$status"
+        (( status == 0 )) || return "$status"
+    done
 }
 
 selected_workflow_groups() {
