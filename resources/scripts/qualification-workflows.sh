@@ -25,7 +25,7 @@ run_in_process() {
 run_installed() {
     local group="$1"
     validate_group "$group"
-    local fixture_file selected_group test_filter root_name root_path log_dir
+    local fixture_file selected_group root_name log_dir
     fixture_file="$(run_dir)/fixtures.env"
     [[ -f "$fixture_file" ]] || fail "fixture record is missing: $fixture_file"
     set -a
@@ -35,20 +35,33 @@ run_installed() {
     log_dir="$(run_dir)/workflows/installed"
     mkdir -p "$log_dir"
     while IFS= read -r selected_group; do
-        test_filter="$(installed_test_filter "$selected_group")"
         for root_name in LOCAL_ROOT APFS_ROOT ICLOUD_ROOT SMB_ROOT; do
-            root_path="${!root_name}"
-            printf '%s\t%s\t%s\t20\n' "$selected_group" "$test_filter" "$root_name" >> "$(run_dir)/replay.tsv"
-            DETOURS_UI_TEST_APP_PATH="$PROJECT_DIR/build/Detours.app" \
-            DETOURS_QUALIFICATION_UI_ROOT="$root_path" \
-                xcodebuild test \
-                    -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
-                    -scheme DetoursUITests \
-                    -destination 'platform=macOS,arch=arm64' \
-                    -only-testing:"DetoursUITests/$test_filter" \
-                    -test-iterations 20 2>&1 | tee "$log_dir/$selected_group-$root_name.log"
+            run_installed_once "$selected_group" "$root_name" 20 "$log_dir/$selected_group-$root_name"
         done
     done < <(selected_workflow_groups "$group")
+}
+
+run_installed_once() {
+    local selected_group="$1"
+    local root_name="$2"
+    local repetitions="$3"
+    local evidence_prefix="$4"
+    local test_filter root_path result_bundle
+    test_filter="$(installed_test_filter "$selected_group")"
+    root_path="${!root_name}"
+    result_bundle="$evidence_prefix.xcresult"
+    [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
+    printf '%s\t%s\t%s\t%s\n' \
+        "$selected_group" "$test_filter" "$root_name" "$repetitions" >> "$(run_dir)/replay.tsv"
+    DETOURS_UI_TEST_APP_PATH="$PROJECT_DIR/build/Detours.app" \
+    DETOURS_QUALIFICATION_UI_ROOT="$root_path" \
+        xcodebuild test \
+            -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
+            -scheme DetoursUITests \
+            -destination 'platform=macOS,arch=arm64' \
+            -only-testing:"DetoursUITests/$test_filter" \
+            -test-iterations "$repetitions" \
+            -resultBundlePath "$result_bundle" 2>&1 | tee "$evidence_prefix.log"
 }
 
 selected_workflow_groups() {

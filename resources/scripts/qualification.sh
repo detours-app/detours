@@ -346,9 +346,7 @@ run_cold() {
 }
 
 run_soak() {
-    if [[ "${DETOURS_QUALIFICATION_C8_READY:-0}" != "1" ]]; then
-        fail "12-hour soak support is installed by C8"
-    fi
+    run_twelve_hour_soak
 }
 
 run_report() {
@@ -359,6 +357,16 @@ run_report() {
 
 run_cleanup() {
     local descriptors_dir descriptor guard_binary
+    pkill -x Detours >/dev/null 2>&1 || true
+    local _
+    for _ in {1..50}; do
+        pgrep -x Detours >/dev/null 2>&1 || break
+        sleep 0.1
+    done
+    ! pgrep -x Detours >/dev/null 2>&1 || fail "Detours did not stop during cleanup"
+    ! pgrep -x xctest >/dev/null 2>&1 || fail "xctest remains active during cleanup"
+    ! pgrep -x xcodebuild >/dev/null 2>&1 || fail "xcodebuild remains active during cleanup"
+
     descriptors_dir="$(run_dir)/roots"
     [[ -d "$descriptors_dir" ]] || return
     guard_binary="$(qualification_guard)"
@@ -373,6 +381,8 @@ run_cleanup() {
 source "$SCRIPT_DIR/qualification-fixtures.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-workflows.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/qualification-soak.sh"
 
 run_all() {
     run_build
