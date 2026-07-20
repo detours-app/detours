@@ -1,6 +1,7 @@
 import Foundation
 
 enum UITestEnvironment {
+    static let commandReadyNotificationName = Notification.Name("com.detours.uitest.command-ready")
     static let resizeMainWindowCommandFileName = ".detours-resize-main-window.json"
     static let renameItemCommandFileName = ".detours-rename-item.json"
     static let showNetworkShareDialogCommandFileName = ".detours-show-network-share-dialog.json"

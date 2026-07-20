@@ -149,6 +149,12 @@ extension BaseUITest {
         let responseURL = uiTestControlRootURL.appendingPathComponent(".detours-pane-state-response.json")
         try? FileManager.default.removeItem(at: responseURL)
         try JSONEncoder().encode(request).write(to: requestURL, options: .atomic)
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.detours.uitest.command-ready"),
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if let data = try? Data(contentsOf: responseURL),

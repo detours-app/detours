@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var systemEventMonitor: Any?
     private var keyDownEventMonitor: Any?
     private var uiTestCommandPollingTask: Task<Void, Never>?
+    private var observesUITestCommandNotifications = false
     private var lastUITestResizeCommandID: String?
     private var lastUITestRenameCommandID: String?
     private var lastUITestShowNetworkShareDialogCommandID: String?
@@ -101,6 +102,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         uiTestCommandPollingTask?.cancel()
         uiTestCommandPollingTask = nil
+        if observesUITestCommandNotifications {
+            DistributedNotificationCenter.default().removeObserver(
+                self,
+                name: UITestEnvironment.commandReadyNotificationName,
+                object: nil
+            )
+            observesUITestCommandNotifications = false
+        }
     }
 
     private func installUITestHooks() {
@@ -112,12 +121,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         seedUITestCommandStateFromExistingFiles()
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleUITestCommandNotification),
+            name: UITestEnvironment.commandReadyNotificationName,
+            object: nil,
+            suspensionBehavior: .deliverImmediately
+        )
+        observesUITestCommandNotifications = true
         uiTestCommandPollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 self?.pollUITestCommands()
                 try? await Task.sleep(nanoseconds: 100_000_000)
             }
         }
+    }
+
+    @objc private func handleUITestCommandNotification(_ notification: Notification) {
+        pollUITestCommands()
     }
 
     private func runKeychainLifecycleForUITest() async {
