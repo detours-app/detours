@@ -2090,3 +2090,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: zero error-level entries from the app while the full UI suite
   exercised copy, move, rename, paste, new-file, undo, expansion, filter, and
   remote flows (A6).
+
+- 2026-07-20 10:57 CEST: Foundry
+  `swift test --filter "FileListResponderTests/testDeletingExpandedFolderDoesNotShowMissingFolderOverlay|PaneViewControllerTests/testInactivePaneTabBarReloadKeepsEveryTabVisuallyInactive"`
+  FAIL during test compilation: the new delete regression test awaited two
+  async helpers inside XCTest assertion autoclosures, which do not support
+  concurrency. The awaited results were split into local values before the
+  assertions for the rerun.

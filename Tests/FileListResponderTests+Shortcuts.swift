@@ -309,8 +309,10 @@ extension FileListResponderTests {
 
         viewController.deleteSelection()
 
-        XCTAssertTrue(await waitForFile(at: deletedFolder, exists: false))
-        XCTAssertTrue(await waitForSelectedURL(survivor, in: viewController))
+        let folderWasDeleted = await waitForFile(at: deletedFolder, exists: false)
+        let survivorWasSelected = await waitForSelectedURL(survivor, in: viewController)
+        XCTAssertTrue(folderWasDeleted)
+        XCTAssertTrue(survivorWasSelected)
         try await Task.sleep(nanoseconds: 2_500_000_000)
 
         XCTAssertNil(viewController.errorOverlay)
