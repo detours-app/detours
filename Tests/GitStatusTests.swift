@@ -77,6 +77,51 @@ final class GitStatusTests: XCTestCase {
         XCTAssertEqual(normalizedStatusByPath(statuses)[gitStatusPath(tracked)], .modified)
     }
 
+    @MainActor
+    func testScheduledNoopListingRefreshStillUpdatesGitBadges() async throws {
+        let originalGitStatusEnabled = SettingsManager.shared.gitStatusEnabled
+        SettingsManager.shared.gitStatusEnabled = true
+        defer { SettingsManager.shared.gitStatusEnabled = originalGitStatusEnabled }
+        let projectDir = try makeGitRepository()
+        defer { cleanupTempDirectory(projectDir) }
+        let tracked = try createTestFile(in: projectDir, name: "tracked.txt", content: "old")
+        try runGit(["add", "tracked.txt"], in: projectDir)
+        try runGit(["commit", "-m", "initial"], in: projectDir)
+        try "new".write(to: tracked, atomically: true, encoding: .utf8)
+        let entry = LoadedFileEntry(
+            url: tracked,
+            name: "tracked.txt",
+            isDirectory: false,
+            fileSize: 3,
+            contentModificationDate: Date(timeIntervalSince1970: 100)
+        )
+        let item = FileItem(entry: entry, icon: NSImage())
+        let controller = FileListViewController()
+        controller.loadViewIfNeeded()
+        controller.currentDirectory = projectDir
+        controller.dataSource.currentDirectoryForGit = projectDir
+        controller.dataSource.displayedRootLocation = .local(projectDir)
+        controller.dataSource.applier.setRootItems([item])
+        controller.dataSource.applier.reloadAll()
+
+        _ = controller.applyScheduledListingSnapshot(PaneListingSnapshot(
+            request: PaneListingRequest(
+                directory: .local(projectDir),
+                causes: [.watcher],
+                policy: nil,
+                epoch: controller.refreshScheduler.epoch,
+                generation: 1
+            ),
+            entries: [entry]
+        ))
+
+        let deadline = Date().addingTimeInterval(2)
+        while item.gitStatus != .modified, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(item.gitStatus, .modified)
+    }
+
     // MARK: - FileItem GitStatus Tests
 
     func testFileItemGitStatusProperty() throws {

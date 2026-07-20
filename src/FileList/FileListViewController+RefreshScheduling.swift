@@ -242,6 +242,10 @@ extension FileListViewController {
         failedLocalRefreshDirectory = nil
 
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
+        if SettingsManager.shared.settings.gitStatusEnabled,
+           let gitRoot = dataSource.currentDirectoryForGit {
+            dataSource.fetchGitStatus(for: gitRoot, invalidatingCache: true)
+        }
         if applyKind == .noop && policy == nil {
             // Unchanged listing with nothing requested: no redraw, no restore.
             return PaneListingApplyOutcome()
@@ -272,14 +276,6 @@ extension FileListViewController {
                 isNetwork: VolumeMonitor.requiresAsynchronousDirectoryAccess(currentDirectory)
             )
         }
-
-
-        if applyKind != .noop,
-           SettingsManager.shared.settings.gitStatusEnabled,
-           let gitRoot = dataSource.currentDirectoryForGit {
-            dataSource.fetchGitStatus(for: gitRoot)
-        }
-
         let consumed = preferredResultsPresent(policy)
         if let policy, consumed {
             runResultReveal(policy)

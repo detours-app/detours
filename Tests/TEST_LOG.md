@@ -2137,3 +2137,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   iCloud composition, expanded hidden-file refresh, scheduler retry, async
   disclosure eligibility, cross-pane tab switching, tab shutdown/transfer,
   and local/remote path-traversal rejection.
+
+- 2026-07-20 11:14 CEST: Foundry
+  `swift test --filter "PaneRefreshSchedulerTests|PaneRefreshRemoteListingTests|PaneStateRestoreTests|LocalReconcileTests|FilteredResultRevealTests|PaneOperationTransactionTests|RemoteInlineRenameRefreshTests|DirectoryLoaderTests"`
+  PASS: 41 XCTest cases and 35 Swift Testing cases, 0 failures. Scheduler
+  coalescing/generations, restore policy, local reconciliation, filtered
+  reveals, transaction holds, remote rename, async expansion, icon lifecycle,
+  directory cancellation, and watcher behavior all remained green.

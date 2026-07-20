@@ -1,9 +1,12 @@
 import AppKit
 
 extension FileListDataSource {
-    func fetchGitStatus(for directory: URL) {
+    func fetchGitStatus(for directory: URL, invalidatingCache: Bool = false) {
         localGitStatusTask?.cancel()
         localGitStatusTask = Task {
+            if invalidatingCache {
+                await GitStatusProvider.shared.invalidateCache(for: directory)
+            }
             let providerStatuses = await LocalFileProvider.shared.gitStatus(for: .local(directory))
             let statuses: [URL: GitStatus] = Dictionary(uniqueKeysWithValues: providerStatuses.compactMap { location, status in
                 guard case .local(let url) = location else { return nil }
