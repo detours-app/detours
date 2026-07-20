@@ -193,7 +193,7 @@ final class QualificationRefreshUITests: BaseUITest {
                 ]
             )
         } catch {
-            try? runSFTP(target: target, commands: ["rmdir " + sftpQuote(scenarioPath)])
+            _ = try? runSFTP(target: target, commands: ["rmdir " + sftpQuote(scenarioPath)])
             throw error
         }
 
@@ -553,13 +553,13 @@ final class QualificationRefreshUITests: BaseUITest {
             ".detours-qualification-root.json",
         ]
         for file in files {
-            try? runSFTP(
+            _ = try? runSFTP(
                 target: target,
                 commands: ["rm " + sftpQuote(remotePath(scenario, appending: file))]
             )
         }
         for file in ["nested-keep.txt", "watcher-renamed.txt"] {
-            try? runSFTP(
+            _ = try? runSFTP(
                 target: target,
                 commands: ["rm " + sftpQuote(remotePath(remotePath(scenario, appending: "Expanded"), appending: file))]
             )
