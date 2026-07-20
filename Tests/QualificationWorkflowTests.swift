@@ -384,21 +384,55 @@ final class QualificationWorkflowTests: XCTestCase {
         }
     }
 
-    func testConnectionWorkflow() throws {
+    func testConnectionWorkflow() async {
         let targets = ["devtest", "wraith", "win-carriercall"]
-        for target in targets {
-            for _ in 0..<repetitions {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-                // `exit 0` works for both POSIX shells and the PowerShell SSH
-                // endpoint used by the Windows qualification target.
-                process.arguments = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", target, "exit 0"]
-                process.standardOutput = FileHandle.nullDevice
-                process.standardError = FileHandle.nullDevice
-                try process.run()
-                process.waitUntilExit()
-                XCTAssertEqual(process.terminationStatus, 0, "SSH connection failed: \(target)")
-            }
+        for iteration in 0..<repetitions {
+            let target = targets[index(for: iteration, count: targets.count)]
+            let connection = SSHConnection(
+                configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: target)
+            )
+
+            await connection.simulateConnectedForTesting()
+            let connectedState = await connection.state
+            XCTAssertEqual(connectedState, .connected)
+
+            let reconnectStates = await connection.simulateReconnectForTesting(
+                afterFailure: .transport("qualification link loss"),
+                maximumTotalDelay: 3,
+                connectAttempt: { attempt in
+                    if attempt < 2 { throw QualificationConnectionFailure.retry }
+                }
+            )
+            XCTAssertEqual(
+                reconnectStates,
+                [
+                    .failed(reason: .transport("qualification link loss")),
+                    .reconnecting(attempt: 1, nextDelay: 1),
+                    .reconnecting(attempt: 2, nextDelay: 2),
+                    .connected,
+                ]
+            )
+
+            let authenticationStates = await connection.simulateReconnectForTesting(
+                afterFailure: .authentication("qualification rejection"),
+                connectAttempt: { _ in throw QualificationConnectionFailure.unexpectedAuthenticationRetry }
+            )
+            XCTAssertEqual(
+                authenticationStates,
+                [.failed(reason: .authentication("qualification rejection"))]
+            )
+
+            await connection.simulateProcessForTesting()
+            let generationBeforeDisconnect = await connection.streamGenerationForTesting()
+            await connection.disconnect()
+            let disconnectedState = await connection.state
+            let generationAfterDisconnect = await connection.streamGenerationForTesting()
+            XCTAssertEqual(disconnectedState, .disconnected)
+            XCTAssertGreaterThan(
+                generationAfterDisconnect,
+                generationBeforeDisconnect,
+                "Disconnect must retire the old helper stream generation for \(target)"
+            )
         }
     }
 
@@ -635,6 +669,11 @@ private enum QualificationWorkflowFailure: LocalizedError {
             return "\(command) exited \(status): \(detail)"
         }
     }
+}
+
+private enum QualificationConnectionFailure: Error {
+    case retry
+    case unexpectedAuthenticationRetry
 }
 
 @MainActor
