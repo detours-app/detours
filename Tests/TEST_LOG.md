@@ -2124,3 +2124,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   new local-retry test treated the retained stale row count as proof that the
   replacement listing had applied. Both assertions now wait for their actual
   post-refresh state: editor presence and the replacement item name.
+
+- 2026-07-20 11:12 CEST: Foundry
+  `swift test --filter "FileListResponderTests/testInvalidNewFolderRenameRemainsCancellableAsNewItem|FileListResponderTests/testRetryAfterScheduledLocalFailureReplaysTheRetainedRefresh"`
+  PASS: 2 tests, 0 failures. F7 cancellation waited for the transaction-bound
+  rename editor, and local scheduler retry replaced the retained stale row
+  with the recreated directory's current listing.
