@@ -67,6 +67,18 @@ final class FilteredResultRevealTests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(0.15))
     }
 
+    func testClearingFilterPreservesSelectedItemInsteadOfFilteredRowIndex() {
+        let existing = [item("0-first.txt"), item("alpha-selected.txt"), item("zeta.txt")]
+        let controller = makeFilteredController(items: existing, filter: "alpha")
+        XCTAssertEqual(controller.tableView.numberOfRows, 1)
+        controller.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        controller.hideFilterBar()
+
+        let selected = controller.tableView.item(atRow: controller.tableView.selectedRow) as? FileItem
+        XCTAssertEqual(selected?.name, "alpha-selected.txt")
+    }
+
     func testExplicitResultHiddenByFilterClearsOnlyThisTabsFilter() {
         let existing = [item("report-a.txt"), item("report-b.txt"), item("notes.txt")]
         let controller = makeFilteredController(items: existing, filter: "report")
