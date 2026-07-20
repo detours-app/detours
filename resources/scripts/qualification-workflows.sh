@@ -54,16 +54,26 @@ run_installed() {
 
 prepare_installed_test_bundle() {
     local log_path="$1"
-    local derived_data status
+    local derived_data finder_pid status xctestrun
     local -a candidates=()
     derived_data="$(run_dir)/xcode-derived-data"
     [[ ! -e "$derived_data" ]] || fail "installed-test derived data already exists: $derived_data"
+    finder_pid="$(pgrep -x Finder | head -1 || true)"
+    [[ "$finder_pid" =~ ^[0-9]+$ ]] || fail "Finder GUI session is unavailable"
     set +e
-    xcodebuild build-for-testing \
+    launchctl bsexec "$finder_pid" env \
+        HOME="$HOME" \
+        PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+        DEVELOPER_DIR="$(xcode-select -p)" \
+        xcodebuild build-for-testing \
         -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
         -scheme DetoursUITests \
         -destination 'platform=macOS,arch=arm64' \
-        -derivedDataPath "$derived_data" 2>&1 | tee "$log_path"
+        -derivedDataPath "$derived_data" \
+        DETOURS_QUALIFICATION_APP_PATH_SETTING=/detours-qualification-canary/app \
+        DETOURS_QUALIFICATION_UI_ROOT_SETTING=/detours-qualification-canary/fixture \
+        DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=/detours-qualification-canary/control \
+        2>&1 | tee "$log_path"
     status="${PIPESTATUS[0]}"
     set -e
     (( status == 0 )) || return "$status"
@@ -72,7 +82,15 @@ prepare_installed_test_bundle() {
     done < <(find "$derived_data/Build/Products" -maxdepth 1 -type f -name '*.xctestrun' -print)
     (( ${#candidates[@]} == 1 )) || \
         fail "expected one installed-test xctestrun, found ${#candidates[@]}"
-    QUALIFICATION_XCTESTRUN="${candidates[0]}"
+    xctestrun="${candidates[0]}"
+    [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_UI_TEST_APP_PATH raw "$xctestrun")" == "/detours-qualification-canary/app" ]] || \
+        fail "UI test scheme did not expand the app-path setting"
+    [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_ROOT raw "$xctestrun")" == "/detours-qualification-canary/fixture" ]] || \
+        fail "UI test scheme did not expand the fixture-root setting"
+    [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_CONTROL_ROOT raw "$xctestrun")" == "/detours-qualification-canary/control" ]] || \
+        fail "UI test scheme did not expand the control-root setting"
+    QUALIFICATION_UI_DERIVED_DATA="$derived_data"
+    QUALIFICATION_FINDER_PID="$finder_pid"
 }
 
 run_installed_once() {
@@ -82,12 +100,12 @@ run_installed_once() {
     local log_path="$4"
     local result_bundle="$5"
     local test_filter root_path started_at status iteration iteration_bundle
-    local control_root patched_xctestrun product_dir
+    local control_root
     test_filter="$(installed_test_filter "$selected_group")"
     root_path="${!root_name}"
-    [[ -n "${QUALIFICATION_XCTESTRUN:-}" && -f "$QUALIFICATION_XCTESTRUN" ]] || \
-        fail "installed-test xctestrun is unavailable"
-    product_dir="$(dirname "$QUALIFICATION_XCTESTRUN")"
+    [[ -n "${QUALIFICATION_UI_DERIVED_DATA:-}" && -d "$QUALIFICATION_UI_DERIVED_DATA" ]] || \
+        fail "installed-test derived data is unavailable"
+    [[ "${QUALIFICATION_FINDER_PID:-}" =~ ^[0-9]+$ ]] || fail "Finder GUI session is unavailable"
     printf '%s\t%s\t%s\t%s\n' \
         "$selected_group" "$test_filter" "$root_name" "$repetitions" >> "$(run_dir)/replay.tsv"
     for (( iteration = 1; iteration <= repetitions; iteration++ )); do
@@ -99,29 +117,23 @@ run_installed_once() {
         [[ ! -e "$iteration_bundle" ]] || fail "result bundle already exists: $iteration_bundle"
         control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/$selected_group-$root_name-$iteration"
         mkdir -p "$control_root"
-        patched_xctestrun="$product_dir/DetoursQualification-$selected_group-$root_name-$iteration.xctestrun"
-        [[ ! -e "$patched_xctestrun" ]] || fail "patched xctestrun already exists: $patched_xctestrun"
-        cp "$QUALIFICATION_XCTESTRUN" "$patched_xctestrun"
-        plutil -insert TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_UI_TEST_APP_PATH \
-            -string "$PROJECT_DIR/build/Detours.app" "$patched_xctestrun"
-        plutil -insert TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_ROOT \
-            -string "$root_path" "$patched_xctestrun"
-        plutil -insert TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_CONTROL_ROOT \
-            -string "$control_root" "$patched_xctestrun"
-        [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_UI_TEST_APP_PATH raw "$patched_xctestrun")" == "$PROJECT_DIR/build/Detours.app" ]] || \
-            fail "patched xctestrun app path mismatch"
-        [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_ROOT raw "$patched_xctestrun")" == "$root_path" ]] || \
-            fail "patched xctestrun fixture root mismatch"
-        [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_CONTROL_ROOT raw "$patched_xctestrun")" == "$control_root" ]] || \
-            fail "patched xctestrun control root mismatch"
         printf 'qualification: installed %s %s iteration %d/%d\n' \
             "$selected_group" "$root_name" "$iteration" "$repetitions" | tee -a "$log_path.log"
         started_at="$(date +%s)"
         set +e
-        xcodebuild test-without-building \
-                -xctestrun "$patched_xctestrun" \
+        launchctl bsexec "$QUALIFICATION_FINDER_PID" env \
+                HOME="$HOME" \
+                PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+                DEVELOPER_DIR="$(xcode-select -p)" \
+                xcodebuild test \
+                -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
+                -scheme DetoursUITests \
                 -destination 'platform=macOS,arch=arm64' \
+                -derivedDataPath "$QUALIFICATION_UI_DERIVED_DATA" \
                 -only-testing:"DetoursUITests/$test_filter" \
+                "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
+                "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$root_path" \
+                "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
                 -resultBundlePath "$iteration_bundle" 2>&1 | tee -a "$log_path.log"
         status="${PIPESTATUS[0]}"
         set -e
