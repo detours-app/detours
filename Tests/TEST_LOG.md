@@ -2130,3 +2130,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   PASS: 2 tests, 0 failures. F7 cancellation waited for the transaction-bound
   rename editor, and local scheduler retry replaced the retained stale row
   with the recreated directory's current listing.
+
+- 2026-07-20 11:13 CEST: Foundry
+  `swift test --filter "CopyMoveMatrixTests|FileListDataSourceTests|FileListResponderTests|PaneViewControllerTests|RefreshArchitectureTests|RemoteTrashUndoTests"`
+  PASS: 139 tests, 0 failures. Covered the two reported regressions plus
+  iCloud composition, expanded hidden-file refresh, scheduler retry, async
+  disclosure eligibility, cross-pane tab switching, tab shutdown/transfer,
+  and local/remote path-traversal rejection.
