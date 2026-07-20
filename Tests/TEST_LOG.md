@@ -2116,3 +2116,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   FAIL during app compilation: adding `FileOperationError.invalidName` made the
   operation error-presentation switch non-exhaustive. The missing invalid-name
   title and recovery guidance were added before the rerun; no tests executed.
+
+- 2026-07-20 11:11 CEST: Foundry
+  `swift test --filter "CopyMoveMatrixTests|FileListDataSourceTests|FileListResponderTests|PaneViewControllerTests|RefreshArchitectureTests|RemoteTrashUndoTests"`
+  FAIL: 137 of 139 tests passed. The F7 cancellation test observed the created
+  folder before the scheduler had installed its inline rename editor, and the
+  new local-retry test treated the retained stale row count as proof that the
+  replacement listing had applied. Both assertions now wait for their actual
+  post-refresh state: editor presence and the replacement item name.

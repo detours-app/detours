@@ -221,6 +221,10 @@ extension FileListResponderTests {
         let newFolder = temp.appendingPathComponent("Folder")
         let folderCreated = await waitForFile(at: newFolder, exists: true)
         XCTAssertTrue(folderCreated)
+        let editorDeadline = Date().addingTimeInterval(2)
+        while inlineRenameField(in: viewController.tableView) == nil, Date() < editorDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
         let field = try XCTUnwrap(inlineRenameField(in: viewController.tableView))
         field.stringValue = "invalid/name"
 
@@ -340,8 +344,10 @@ extension FileListResponderTests {
         _ = try createTestFile(in: temp, name: "after.txt")
         viewController.retryCurrentLoadForTesting()
 
-        let reloaded = await waitForRowCount(1, in: viewController.tableView)
-        XCTAssertTrue(reloaded)
+        let retryDeadline = Date().addingTimeInterval(2)
+        while viewController.dataSource.items.map(\.name) != ["after.txt"], Date() < retryDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
         XCTAssertEqual(viewController.dataSource.items.map(\.name), ["after.txt"])
         XCTAssertNil(viewController.errorOverlay)
     }
