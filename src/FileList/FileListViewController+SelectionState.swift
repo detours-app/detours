@@ -25,7 +25,10 @@ extension FileListViewController {
 
     func makeUITestPaneStateResponse(
         id: String,
-        pane: String
+        pane: String,
+        activePane: Bool,
+        tabs: [PaneTab],
+        selectedTabIndex: Int
     ) -> UITestEnvironment.PaneStateResponse {
         let snapshot = capturePaneState()
         let focus: String
@@ -38,13 +41,47 @@ extension FileListViewController {
         }
         let dropTarget = dataSource.dropTargetItem?.location.path
             ?? (tableView.isBackgroundDropTarget ? currentDirectoryLocation?.path : nil)
+        let operationQueue = FileOperationQueue.shared
+        let visibleLocations = (0..<tableView.numberOfRows).compactMap { row in
+            dataSource.item(at: row)?.location.path
+        }
+        let connectionStates = RemoteConnectionStateStore.shared.snapshot().reduce(into: [String: String]()) {
+            $0[$1.key.uuidString] = qualificationConnectionStateDescription($1.value)
+        }
+        let selectionCount = selectedLocations.count
+        let canMutate = !isSharedTopLevelView
+        let selectedArchive = selectedLocations.first.map(Self.isExtractableArchiveLocation) ?? false
+        let enabledMenus: [String: Bool] = [
+            "open": selectionCount > 0,
+            "copy": selectionCount > 0,
+            "cut": selectionCount > 0 && canMutate,
+            "paste": ClipboardManager.shared.hasValidLocations && currentDirectoryLocation != nil && canMutate,
+            "rename": selectionCount == 1 && canMutate,
+            "duplicate": !selectedURLs.isEmpty && canMutate,
+            "archive": selectionCount > 0 && canMutate,
+            "extract": selectionCount == 1 && selectedArchive,
+            "trash": selectionCount > 0 && canMutate,
+            "deleteImmediately": selectionCount > 0 && canMutate,
+            "getInfo": selectionCount > 0,
+            "revealInFinder": !selectedURLs.isEmpty,
+            "share": !selectedURLs.isEmpty,
+            "newFolder": currentDirectoryLocation != nil && canMutate,
+            "newFile": currentDirectoryLocation != nil && canMutate,
+        ]
 
         return UITestEnvironment.PaneStateResponse(
             id: id,
             pane: pane,
+            activePane: activePane,
+            tabCount: tabs.count,
+            selectedTabIndex: selectedTabIndex,
+            selectedTabID: tabs.indices.contains(selectedTabIndex) ? tabs[selectedTabIndex].id.uuidString : nil,
+            tabIDs: tabs.map { $0.id.uuidString },
+            tabLocations: tabs.map(\.displayPath),
             displayedLocation: currentDirectoryLocation?.path,
             expandedLocations: snapshot.expandedLocations.map(\.path).sorted(),
             selectedLocations: snapshot.selectedLocations.map(\.path),
+            visibleLocations: visibleLocations,
             topVisibleLocation: snapshot.topVisibleLocation?.path,
             topVisibleOffset: Double(snapshot.topVisibleOffset),
             horizontalOffset: Double(snapshot.scrollOrigin.x),
@@ -55,9 +92,39 @@ extension FileListViewController {
             sortAscending: snapshot.sortDescriptor.ascending,
             activeDropTarget: dropTarget,
             refreshInFlight: refreshScheduler.isRefreshInFlight,
+            navigationLoadInFlight: isNavigationLoadInFlight,
+            loadingVisible: loadingSpinner?.isHidden == false,
             visibleRowCount: tableView.numberOfRows,
-            firstResponderDescription: (view.window?.firstResponder).map { String(describing: type(of: $0)) }
+            firstResponderDescription: (view.window?.firstResponder).map { String(describing: type(of: $0)) },
+            hiddenFilesVisible: dataSource.showHiddenFiles,
+            operationRunning: operationQueue.isRunning,
+            operationPendingCount: operationQueue.pendingCount,
+            currentOperation: operationQueue.currentOperation?.description,
+            operationProgress: operationQueue.isRunning ? operationQueue.lastReceivedProgress?.fractionCompleted : nil,
+            pausedRemoteHostCount: operationQueue.pausedRemoteHosts.count,
+            connectionStates: connectionStates,
+            enabledMenus: enabledMenus,
+            mountedVolumes: VolumeMonitor.shared.volumes.map { $0.url.path }.sorted(),
+            providerWatchCount: providerWatches.count,
+            providerWatchSetupCount: providerWatchSetupTasks.count,
+            directoryWatchActive: directoryWatchTask != nil,
+            registeredRemoteProviderCount: operationQueue.remoteFileProviders.count
         )
+    }
+
+    private func qualificationConnectionStateDescription(_ state: SSHConnectionState) -> String {
+        switch state {
+        case .disconnected:
+            return "disconnected"
+        case .connecting:
+            return "connecting"
+        case .connected:
+            return "connected"
+        case .reconnecting(let attempt, let nextDelay):
+            return "reconnecting:\(attempt):\(nextDelay)"
+        case .failed(let reason):
+            return "failed:\(reason.displayMessage)"
+        }
     }
 
     var selectedItems: [FileItem] {

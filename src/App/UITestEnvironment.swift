@@ -130,9 +130,16 @@ enum UITestEnvironment {
     struct PaneStateResponse: Encodable {
         let id: String
         let pane: String
+        let activePane: Bool
+        let tabCount: Int
+        let selectedTabIndex: Int
+        let selectedTabID: String?
+        let tabIDs: [String]
+        let tabLocations: [String]
         let displayedLocation: String?
         let expandedLocations: [String]
         let selectedLocations: [String]
+        let visibleLocations: [String]
         let topVisibleLocation: String?
         let topVisibleOffset: Double
         let horizontalOffset: Double
@@ -143,8 +150,23 @@ enum UITestEnvironment {
         let sortAscending: Bool
         let activeDropTarget: String?
         let refreshInFlight: Bool
+        let navigationLoadInFlight: Bool
+        let loadingVisible: Bool
         let visibleRowCount: Int
         let firstResponderDescription: String?
+        let hiddenFilesVisible: Bool
+        let operationRunning: Bool
+        let operationPendingCount: Int
+        let currentOperation: String?
+        let operationProgress: Double?
+        let pausedRemoteHostCount: Int
+        let connectionStates: [String: String]
+        let enabledMenus: [String: Bool]
+        let mountedVolumes: [String]
+        let providerWatchCount: Int
+        let providerWatchSetupCount: Int
+        let directoryWatchActive: Bool
+        let registeredRemoteProviderCount: Int
     }
 
     static var isEnabled: Bool {
