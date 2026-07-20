@@ -151,7 +151,7 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 
 - [x] **T1** Audit the completed matrix against every user-visible action and automatic behavior source, with zero unmapped surfaces and zero applicable rows lacking an automated check.
 - [x] **T2** Exercise the run-root guard against valid children, parent traversal, symbolic links, Finder aliases, mismatched and absent sentinels, renamed roots, stale mounts, and cleanup attempts outside every allowlist.
-- [ ] **T3** Run a deliberately failing fixture in each provider and require the runner to preserve the exact replay record, leave outside-root snapshots unchanged, clean marked state, and report the failure without retrying it into a pass.
+- [x] **T3** Run a deliberately failing fixture in each provider and require the runner to preserve the exact replay record, leave outside-root snapshots unchanged, clean marked state, and report the failure without retrying it into a pass.
 
 ### Targeted repeated workflows
 
@@ -196,3 +196,4 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 - **T1** Audited all 102 capability rows against the six direct surface sources, every completed feature spec, and the campaign check catalog. All 16 `Q.*` check names resolve to one of the eight fixed workflows or an explicit full-installed, full-campaign, safety, or reference-image gate; no source, row check, repetition, or campaign route is missing or duplicated.
 - **T2** Added guard regressions across all seven provider descriptors for valid future children and guarded removal, plus parent traversal, outside-allowlist cleanup, symbolic links, Finder aliases, missing and corrupt sentinels, renamed roots, and changed filesystem device identity. Descriptors now bind cleanup to the creating mount's device ID so a replacement mount fails closed.
 - **T2 verification** Foundry's first focused run rejected Foundation's non-canonical `/var` temporary path at the expected symlink boundary. The fixture now uses explicit `/private/tmp`; rerunning `swift test --filter QualificationRunRootTests` passed all 6 tests with 0 failures.
+- **T3** Ran one deliberately failing Foundry probe for `local`, `apfs`, `iCloud`, `smb`, `linux`, `intelMac`, and `windows`. Each exited once with status 97, retained exactly one replay row and one failure trace, passed byte-for-byte outside-root snapshot comparison, removed its marked root, and wrote a green cleanup record. The first probe exposed a false nonzero result for an absent fixture record; cleanup now treats that no-op as success, and the complete seven-provider sequence passed after the fix.
