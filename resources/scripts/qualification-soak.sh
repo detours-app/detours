@@ -119,8 +119,9 @@ run_twelve_hour_soak() {
             for root_name in LOCAL_ROOT APFS_ROOT ICLOUD_ROOT SMB_ROOT; do
                 root_path="${!root_name}"
                 prefix="$log_dir/cycle-$cycle-$group-$root_name"
-                run_installed_once "$group" "$root_name" 1 "$prefix"
-                mv "$prefix.xcresult" "$result_dir/"
+                run_installed_once \
+                    "$group" "$root_name" 1 "$prefix" \
+                    "$result_dir/cycle-$cycle-$group-$root_name.xcresult"
                 sample_soak_health "$cycle" "$group" "$root_name" "$root_path"
             done
         done < <(selected_workflow_groups all)

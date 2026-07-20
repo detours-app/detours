@@ -165,9 +165,10 @@ run_dir() {
 }
 
 write_command_metadata() {
-    local destination
+    local destination metadata_path
     destination="$(run_dir)"
-    mkdir -p "$destination"
+    mkdir -p "$destination/commands"
+    metadata_path="$destination/commands/$(date +%s)-$$-$COMMAND.env"
     {
         printf 'command=%s\n' "$COMMAND"
         printf 'commit=%s\n' "$(canonical_commit)"
@@ -176,7 +177,8 @@ write_command_metadata() {
         printf 'cold_index=%s\n' "$QUALIFICATION_COLD_INDEX"
         printf 'host=%s\n' "$(host_name)"
         printf 'started_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    } > "$destination/command.env"
+    } > "$metadata_path"
+    cp "$metadata_path" "$destination/command.env"
 }
 
 workflow_groups() {
@@ -337,12 +339,21 @@ run_build() {
 
 run_cold() {
     [[ "$QUALIFICATION_COLD_INDEX" != "0" ]] || fail "cold-run requires --cold-index 1, 2, or 3"
+    trap 'campaign_cleanup_on_exit "$?"' EXIT
     run_reset
     run_preflight
     run_build
     run_prepare_fixtures
+    capture_outside_root_snapshots before
+    capture_state_observation cold-before
     "$0" in-process all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX"
     "$0" installed all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX"
+    capture_state_observation cold-after
+    capture_outside_root_snapshots after
+    compare_outside_root_snapshots
+    run_cleanup
+    verify_qualification_cleanup
+    trap - EXIT
 }
 
 run_soak() {
@@ -368,11 +379,12 @@ run_cleanup() {
     ! pgrep -x xcodebuild >/dev/null 2>&1 || fail "xcodebuild remains active during cleanup"
 
     descriptors_dir="$(run_dir)/roots"
-    [[ -d "$descriptors_dir" ]] || return
-    guard_binary="$(qualification_guard)"
-    while IFS= read -r descriptor; do
-        "$guard_binary" remove --descriptor "$descriptor"
-    done < <(find "$descriptors_dir" -maxdepth 1 -type f -name '*.json' | sort)
+    if [[ -d "$descriptors_dir" ]]; then
+        guard_binary="$(qualification_guard)"
+        while IFS= read -r descriptor; do
+            "$guard_binary" remove --descriptor "$descriptor"
+        done < <(find "$descriptors_dir" -maxdepth 1 -type f -name '*.json' | sort)
+    fi
 
     cleanup_fixture_mounts
 }
@@ -383,6 +395,8 @@ source "$SCRIPT_DIR/qualification-fixtures.sh"
 source "$SCRIPT_DIR/qualification-workflows.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-soak.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/qualification-evidence.sh"
 
 run_all() {
     run_build
@@ -434,6 +448,9 @@ if [[ -z "$QUALIFICATION_RUN_ID" ]]; then
     QUALIFICATION_RUN_ID="$(new_run_id)"
 fi
 write_command_metadata
+prepare_evidence_layout
+export QUALIFICATION_FAILURE_CAPTURED=0
+trap 'qualification_on_error "$?" "$LINENO" "$BASH_COMMAND"' ERR
 
 case "$COMMAND" in
     preflight) run_preflight ;;

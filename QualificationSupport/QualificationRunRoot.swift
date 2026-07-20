@@ -224,6 +224,72 @@ public struct QualificationRunRootGuard {
         try fileManager.removeItem(at: root)
     }
 
+    public func captureOutsideRootSnapshot(
+        _ descriptor: QualificationRunRootDescriptor
+    ) throws -> QualificationOutsideRootSnapshot {
+        try validate(descriptor: descriptor, candidate: URL(fileURLWithPath: descriptor.rootPath))
+        let parent = URL(fileURLWithPath: descriptor.parentPath, isDirectory: true)
+        let excludedRoot = URL(fileURLWithPath: descriptor.rootPath, isDirectory: true)
+        let keys: Set<URLResourceKey> = [
+            .isDirectoryKey,
+            .isRegularFileKey,
+            .isSymbolicLinkKey,
+            .fileSizeKey,
+            .contentModificationDateKey,
+        ]
+        guard let enumerator = fileManager.enumerator(
+            at: parent,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsPackageDescendants],
+            errorHandler: { _, _ in false }
+        ) else {
+            throw QualificationRunRootError.parentMissing(parent.path)
+        }
+
+        var entries: [QualificationSnapshotEntry] = []
+        while let item = enumerator.nextObject() as? URL {
+            let standardized = lexicallyStandardized(item)
+            if standardized.path == excludedRoot.path {
+                enumerator.skipDescendants()
+                continue
+            }
+            if isContained(standardized, by: excludedRoot) {
+                continue
+            }
+            let values = try standardized.resourceValues(forKeys: keys)
+            let relativePath = String(standardized.path.dropFirst(parent.path.count + 1))
+            let kind: String
+            if values.isSymbolicLink == true {
+                kind = "symbolic-link"
+            } else if values.isDirectory == true {
+                kind = "directory"
+            } else if values.isRegularFile == true {
+                kind = "file"
+            } else {
+                kind = "other"
+            }
+            let byteCount = values.fileSize.map(Int64.init)
+            let modificationNanoseconds = values.contentModificationDate.map {
+                Int64(($0.timeIntervalSince1970 * 1_000_000_000).rounded())
+            }
+            let digest = values.isRegularFile == true ? try contentDigest(of: standardized) : nil
+            entries.append(QualificationSnapshotEntry(
+                relativePath: relativePath,
+                kind: kind,
+                byteCount: byteCount,
+                modificationNanoseconds: modificationNanoseconds,
+                contentDigest: digest
+            ))
+        }
+
+        return QualificationOutsideRootSnapshot(
+            provider: descriptor.provider,
+            parentPath: parent.path,
+            excludedRootPath: excludedRoot.path,
+            entries: entries.sorted { $0.relativePath < $1.relativePath }
+        )
+    }
+
     private func validateExactChild(parent: URL, root: URL, identifier: UUID) throws {
         let expectedName = identifier.uuidString.lowercased()
         guard root.lastPathComponent == expectedName,
@@ -279,6 +345,19 @@ public struct QualificationRunRootGuard {
 
     private func isContained(_ candidate: URL, by root: URL) -> Bool {
         candidate.path == root.path || candidate.path.hasPrefix(root.path + "/")
+    }
+
+    private func contentDigest(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hash: UInt64 = 0xcbf29ce484222325
+        while let data = try handle.read(upToCount: 1_048_576), !data.isEmpty {
+            for byte in data {
+                hash ^= UInt64(byte)
+                hash &*= 0x100000001b3
+            }
+        }
+        return String(format: "%016llx", hash)
     }
 
     private func lexicallyStandardized(_ url: URL) -> URL {

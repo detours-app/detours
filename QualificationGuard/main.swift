@@ -15,7 +15,7 @@ private func value(after option: String, in arguments: [String]) -> String {
 
 private let arguments = Array(CommandLine.arguments.dropFirst())
 guard let command = arguments.first else {
-    fail("usage: detours-qualification-guard <create|validate|remove> [options]")
+    fail("usage: detours-qualification-guard <create|validate|snapshot|compare-snapshots|remove> [options]")
 }
 
 let guardService = QualificationRunRootGuard()
@@ -49,6 +49,32 @@ do {
         let descriptor = try guardService.readDescriptor(at: descriptorURL)
         try guardService.validate(descriptor: descriptor, candidate: candidateURL)
         print(candidateURL.path)
+
+    case "snapshot":
+        let descriptorURL = URL(fileURLWithPath: value(after: "--descriptor", in: arguments))
+        let outputURL = URL(fileURLWithPath: value(after: "--output", in: arguments))
+        let descriptor = try guardService.readDescriptor(at: descriptorURL)
+        let snapshot = try guardService.captureOutsideRootSnapshot(descriptor)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        try encoder.encode(snapshot).write(to: outputURL, options: .atomic)
+        print(outputURL.path)
+
+    case "compare-snapshots":
+        let beforeURL = URL(fileURLWithPath: value(after: "--before", in: arguments))
+        let afterURL = URL(fileURLWithPath: value(after: "--after", in: arguments))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let before = try decoder.decode(QualificationOutsideRootSnapshot.self, from: Data(contentsOf: beforeURL))
+        let after = try decoder.decode(QualificationOutsideRootSnapshot.self, from: Data(contentsOf: afterURL))
+        guard before.provider == after.provider,
+              before.parentPath == after.parentPath,
+              before.excludedRootPath == after.excludedRootPath,
+              before.entries == after.entries else {
+            fail("outside-root snapshot changed between \(beforeURL.path) and \(afterURL.path)")
+        }
+        print(afterURL.path)
 
     case "remove":
         let descriptorURL = URL(fileURLWithPath: value(after: "--descriptor", in: arguments))
