@@ -257,6 +257,9 @@ extension FileListViewController {
     // MARK: Failure
 
     private func handleScheduledListingFailure(_ request: PaneListingRequest, error: any Error) {
+        if request.causes.contains(.manual) {
+            hideLoadingIndicator()
+        }
         switch request.directory {
         case .remote:
             guard isCurrentRemoteRefreshDirectory(request.directory) else { return }

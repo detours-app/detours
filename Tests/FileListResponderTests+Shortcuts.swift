@@ -132,9 +132,11 @@ extension FileListResponderTests {
 
         let event = makeKeyEvent(characters: "r", keyCode: 15, modifiers: [.command])
         XCTAssertTrue(viewController.handleKeyDown(event))
+        XCTAssertNotNil(viewController.loadingSpinner, "Cmd-R should show loading feedback immediately")
         let refreshed = await waitForRowCount(2, in: viewController.tableView)
         XCTAssertTrue(refreshed, "Refresh should reload the additional file")
         XCTAssertEqual(viewController.tableView.numberOfRows, 2)
+        XCTAssertNil(viewController.loadingSpinner, "Loading feedback should stop after the refreshed listing applies")
 
         cleanupTempDirectory(temp)
         ClipboardManager.shared.clear()

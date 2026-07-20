@@ -9,12 +9,31 @@ extension FileListViewController {
     /// steady-state refresh reconciles in place through the scheduler; full
     /// reloads remain navigation-only.
     func refresh() {
+        if let currentRemoteLocation, currentRemoteProvider != nil, hasLoadedDirectory {
+            submitManualRefresh(directory: currentRemoteLocation)
+            return
+        }
         if let currentRemoteLocation, let currentRemoteProvider {
             loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
             return
         }
         guard let currentDirectory else { return }
-        refreshScheduler.submitListingRefresh(directory: .local(currentDirectory), cause: .manual)
+        submitManualRefresh(directory: .local(currentDirectory))
+    }
+
+    /// Manual refresh is the one steady-state scheduler cause that owns visible
+    /// loading feedback. Keep the spinner up while coalesced or held work is
+    /// pending, then remove it only after a successful apply. Failure and
+    /// navigation paths clear it through their existing state handling.
+    private func submitManualRefresh(directory: Location) {
+        showLoadingIndicator()
+        refreshScheduler.submitListingRefresh(
+            directory: directory,
+            cause: .manual,
+            completion: { [weak self] in
+                self?.hideLoadingIndicator()
+            }
+        )
     }
 
     /// Refresh after an app-initiated local filesystem mutation: one
