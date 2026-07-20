@@ -33,19 +33,15 @@ extension FileListViewController {
     }
 
     /// Called when a folder is expanded - start watching it
-    func watchExpandedDirectory(_ url: URL) {
-        let normalized = url.standardizedFileURL
-        let location: Location
+    func watchExpandedDirectory(_ location: Location) {
+        let normalizedLocation = Self.normalizedWatchLocation(location)
         let provider: any FileProvider
-        if case .remote(let hostID, _) = currentRemoteLocation,
+        if case .remote = normalizedLocation,
            let currentRemoteProvider {
-            location = .remote(hostID: hostID, path: url.path)
             provider = currentRemoteProvider
         } else {
-            location = .local(normalized)
             provider = LocalFileProvider.shared
         }
-        let normalizedLocation = Self.normalizedWatchLocation(location)
         guard providerWatches[normalizedLocation] == nil,
               providerWatchSetupTasks[normalizedLocation] == nil else { return }
         let generation = providerWatchGeneration
@@ -63,13 +59,8 @@ extension FileListViewController {
     }
 
     /// Called when a folder is collapsed - stop watching it and its children
-    func unwatchCollapsedDirectory(_ url: URL) {
-        let collapsedLocation: Location
-        if case .remote(let hostID, _) = currentRemoteLocation {
-            collapsedLocation = .remote(hostID: hostID, path: url.path)
-        } else {
-            collapsedLocation = .local(url.standardizedFileURL)
-        }
+    func unwatchCollapsedDirectory(_ location: Location) {
+        let collapsedLocation = Self.normalizedWatchLocation(location)
         let recordsToRemove = providerWatches.compactMap { location, record in
             Self.isWatchLocation(location, inside: collapsedLocation) ? (location, record) : nil
         }

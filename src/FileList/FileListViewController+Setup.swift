@@ -8,7 +8,7 @@ extension FileListViewController {
         // Start watching the expanded folder
         if let item = notification.userInfo?["NSObject"] as? FileItem,
            item.isLocal || item.isRemote {
-            watchExpandedDirectory(item.url)
+            watchExpandedDirectory(item.location)
         }
         navigationDelegate?.fileListDidChangeSelection()
     }
@@ -18,7 +18,7 @@ extension FileListViewController {
         // Stop watching the collapsed folder
         if let item = notification.userInfo?["NSObject"] as? FileItem,
            item.isLocal || item.isRemote {
-            unwatchCollapsedDirectory(item.url)
+            unwatchCollapsedDirectory(item.location)
         }
         navigationDelegate?.fileListDidChangeSelection()
     }
