@@ -23,6 +23,8 @@ let package = Package(
         .executable(name: "Detours", targets: ["Detours"]),
         .executable(name: "detours-server", targets: ["detours-server"]),
         .library(name: "DetoursProcess", targets: ["DetoursProcess"]),
+        .library(name: "QualificationSupport", targets: ["QualificationSupport"]),
+        .executable(name: "detours-qualification-guard", targets: ["detours-qualification-guard"]),
     ],
     targets: [
         .target(
@@ -31,6 +33,15 @@ let package = Package(
             linkerSettings: [
                 .linkedLibrary("util", .when(platforms: [.linux]))
             ]
+        ),
+        .target(
+            name: "QualificationSupport",
+            path: "QualificationSupport"
+        ),
+        .executableTarget(
+            name: "detours-qualification-guard",
+            dependencies: ["QualificationSupport"],
+            path: "QualificationGuard"
         ),
         .executableTarget(
             name: "Detours",
@@ -45,7 +56,7 @@ let package = Package(
         ),
         .testTarget(
             name: "DetoursTests",
-            dependencies: ["Detours", "DetoursProcess", "detours-server"],
+            dependencies: ["Detours", "DetoursProcess", "QualificationSupport", "detours-server"],
             path: "Tests",
             exclude: ["TEST_LOG.md", "UITests", "DetoursProcessTests"]
         ),

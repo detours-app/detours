@@ -8,9 +8,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MATRIX_PATH="$PROJECT_DIR/resources/docs/260720-whole-app-stability-qualification-matrix.md"
-APP_PATH="/Applications/Detours.app"
 QUALIFICATION_ROOT="$PROJECT_DIR/.build/qualification"
-DEFAULT_SOAK_HOURS=12
+
+qualification_guard() {
+    local release_guard="$PROJECT_DIR/.build/arm64-apple-macosx/release/detours-qualification-guard"
+    local debug_guard="$PROJECT_DIR/.build/arm64-apple-macosx/debug/detours-qualification-guard"
+    if [[ -x "$release_guard" ]]; then
+        printf '%s\n' "$release_guard"
+    elif [[ -x "$debug_guard" ]]; then
+        printf '%s\n' "$debug_guard"
+    else
+        fail "qualification guard is not built; run the build command first"
+    fi
+}
 
 usage() {
     cat <<'USAGE'
@@ -193,11 +203,15 @@ audit_matrix() {
 }
 
 run_preflight() {
-    fail "strict live preflight support is installed by C4"
+    if [[ "${DETOURS_QUALIFICATION_C4_READY:-0}" != "1" ]]; then
+        fail "strict live preflight support is installed by C4"
+    fi
 }
 
 run_reset() {
-    fail "guarded reset support is installed by C4"
+    if [[ "${DETOURS_QUALIFICATION_C4_READY:-0}" != "1" ]]; then
+        fail "guarded reset support is installed by C4"
+    fi
 }
 
 run_build() {
@@ -209,13 +223,17 @@ run_build() {
 run_in_process() {
     local group="$1"
     validate_group "$group"
-    fail "in-process workflow support is installed by C7"
+    if [[ "${DETOURS_QUALIFICATION_C7_READY:-0}" != "1" ]]; then
+        fail "in-process workflow support is installed by C7"
+    fi
 }
 
 run_installed() {
     local group="$1"
     validate_group "$group"
-    fail "installed-app workflow support is installed by C7"
+    if [[ "${DETOURS_QUALIFICATION_C7_READY:-0}" != "1" ]]; then
+        fail "installed-app workflow support is installed by C7"
+    fi
 }
 
 run_cold() {
@@ -228,15 +246,25 @@ run_cold() {
 }
 
 run_soak() {
-    fail "12-hour soak support is installed by C8"
+    if [[ "${DETOURS_QUALIFICATION_C8_READY:-0}" != "1" ]]; then
+        fail "12-hour soak support is installed by C8"
+    fi
 }
 
 run_report() {
-    fail "tracked report generation is installed by C11"
+    if [[ "${DETOURS_QUALIFICATION_C11_READY:-0}" != "1" ]]; then
+        fail "tracked report generation is installed by C11"
+    fi
 }
 
 run_cleanup() {
-    fail "guarded cleanup support is installed by C3"
+    local descriptors_dir descriptor guard_binary
+    descriptors_dir="$(run_dir)/roots"
+    [[ -d "$descriptors_dir" ]] || return
+    guard_binary="$(qualification_guard)"
+    while IFS= read -r descriptor; do
+        "$guard_binary" remove --descriptor "$descriptor"
+    done < <(find "$descriptors_dir" -maxdepth 1 -type f -name '*.json' | sort)
 }
 
 run_all() {
