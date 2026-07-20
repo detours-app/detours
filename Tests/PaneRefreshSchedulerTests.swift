@@ -13,6 +13,7 @@ final class PaneRefreshSchedulerTests: XCTestCase {
         var entriesToReturn: [LoadedFileEntry] = []
         var errorToThrow: (any Error)?
         var policyConsumed = true
+        var canApply = true
         var gate: AsyncTestGate?
     }
 
@@ -274,15 +275,15 @@ final class PaneRefreshSchedulerTests: XCTestCase {
 
     func testPreViewIntentAppliesOnActivate() async throws {
         let recorder = Recorder()
-        var viewLoaded = false
-        let scheduler = makeScheduler(recorder: recorder, canApplyNow: { viewLoaded })
+        recorder.canApply = false
+        let scheduler = makeScheduler(recorder: recorder, canApplyNow: { recorder.canApply })
         let dir = directory
 
         scheduler.submitListingRefresh(directory: dir, cause: .operation)
         try await settle()
         XCTAssertTrue(recorder.applied.isEmpty, "Nothing applies before the outline exists")
 
-        viewLoaded = true
+        recorder.canApply = true
         scheduler.activate()
         try await waitFor { recorder.applied.count == 1 }
     }
@@ -291,7 +292,7 @@ final class PaneRefreshSchedulerTests: XCTestCase {
         let recorder = Recorder()
         var scheduler: PaneRefreshScheduler? = makeScheduler(recorder: recorder)
         PaneFileOperationCoordinator.shared.register(scheduler: scheduler!) { _ in true }
-        weak var weakScheduler = scheduler
+        weak let weakScheduler = scheduler
         scheduler = nil
         XCTAssertNil(weakScheduler, "Closing a tab releases its scheduler")
 

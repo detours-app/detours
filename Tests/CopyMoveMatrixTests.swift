@@ -11,13 +11,13 @@ import XCTest
 final class CopyMoveMatrixTests: XCTestCase {
     private var registeredHostIDs: [UUID] = []
 
-    override func tearDown() {
+    override func tearDown() async throws {
         for hostID in registeredHostIDs {
             FileOperationQueue.shared.unregisterRemoteFileProvider(for: hostID)
         }
         registeredHostIDs = []
         ClipboardManager.shared.clear()
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func waitUntil(
