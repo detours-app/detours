@@ -99,6 +99,7 @@ extension PaneViewController: FileListNavigationDelegate {
     }
 
     func fileListDidLoadDirectory(_ controller: FileListViewController) {
+        invalidateStatusMetadata()
         // A remote tab's title comes from the remote path, which only changes
         // when the directory actually loads; rebuild the tab bar only when it does.
         if let tab = tabs.first(where: { $0.fileListViewControllerIfLoaded === controller }) {

@@ -176,6 +176,7 @@ verify_quiet_xcode_command() {
 
 verify_installed_result_bundle() {
     local result_bundle="$1"
+    local expected_count="$2"
     local summary_path total passed failed skipped expected result
     [[ -d "$result_bundle" ]] || fail "installed-test result bundle is missing: $result_bundle"
     summary_path="${result_bundle%.xcresult}-summary.json"
@@ -188,8 +189,10 @@ verify_installed_result_bundle() {
     skipped="$(jq -r '.skippedTests // empty' "$summary_path")"
     expected="$(jq -r '.expectedFailures // empty' "$summary_path")"
     result="$(jq -r '.result // empty' "$summary_path")"
-    [[ "$total" == "1" ]] || fail "installed iteration ran $total tests instead of exactly one"
-    [[ "$passed" == "1" ]] || fail "installed iteration passed $passed tests instead of exactly one"
+    [[ "$total" == "$expected_count" ]] || \
+        fail "installed workflow ran $total repetitions instead of $expected_count"
+    [[ "$passed" == "$expected_count" ]] || \
+        fail "installed workflow passed $passed repetitions instead of $expected_count"
     [[ "$failed" == "0" ]] || fail "installed iteration recorded $failed failed tests"
     [[ "$skipped" == "0" ]] || fail "installed iteration recorded $skipped skipped tests"
     [[ "$expected" == "0" ]] || fail "installed iteration recorded $expected expected failures"
@@ -212,7 +215,7 @@ run_installed_once() {
     local repetitions="$3"
     local log_path="$4"
     local result_bundle="$5"
-    local test_filter root_path started_at status iteration iteration_bundle iteration_output
+    local test_filter root_path started_at status command_output
     local control_root remote_target context_name
     remote_target="${6:-}"
     context_name="${7:-$root_name}"
@@ -222,49 +225,45 @@ run_installed_once() {
         fail "installed-test derived data is unavailable"
     printf '%s\t%s\t%s\t%s\t%s\n' \
         "$selected_group" "$test_filter" "$context_name" "$repetitions" "$remote_target" >> "$(run_dir)/replay.tsv"
-    for (( iteration = 1; iteration <= repetitions; iteration++ )); do
-        stop_installed_app
-        if (( repetitions == 1 )); then
-            iteration_bundle="$result_bundle"
-        else
-            printf -v iteration_bundle '%s-iteration-%03d.xcresult' "${result_bundle%.xcresult}" "$iteration"
-        fi
-        [[ ! -e "$iteration_bundle" ]] || fail "result bundle already exists: $iteration_bundle"
-        iteration_output="$log_path-iteration-$iteration.output.log"
-        [[ ! -e "$iteration_output" ]] || fail "installed-test command output already exists: $iteration_output"
-        control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/$selected_group-$context_name-$iteration"
-        mkdir -p "$control_root"
-        printf 'qualification: installed %s %s iteration %d/%d\n' \
-            "$selected_group" "$context_name" "$iteration" "$repetitions" | tee -a "$log_path.log"
-        started_at="$(date +%s)"
-        set +e
-        run_gui_command "$log_path-iteration-$iteration.raw.log" env \
-                HOME="$HOME" \
-                PATH=/usr/bin:/bin:/usr/sbin:/sbin \
-                DEVELOPER_DIR="$(xcode-select -p)" \
-                xcodebuild test -quiet \
-                -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
-                -scheme DetoursUITests \
-                -destination 'platform=macOS,arch=arm64' \
-                -derivedDataPath "$QUALIFICATION_UI_DERIVED_DATA" \
-                -only-testing:"DetoursUITests/$test_filter" \
-                "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
-                "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$root_path" \
-                "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
-                "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=$remote_target" \
-                -resultBundlePath "$iteration_bundle" > "$iteration_output" 2>&1
-        status="$?"
-        set -e
-        tee -a "$log_path.log" < "$iteration_output"
-        stop_installed_app
-        if (( status == 0 )); then
-            verify_quiet_xcode_command "$log_path-iteration-$iteration.raw.log"
-            verify_installed_result_bundle "$iteration_bundle"
-        fi
-        record_scenario_timing \
-            installed "$selected_group" "$context_name-iteration-$iteration" 1 "$started_at" "$status"
-        (( status == 0 )) || return "$status"
-    done
+    stop_installed_app
+    [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
+    command_output="$log_path.output.log"
+    [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
+    control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/$selected_group-$context_name"
+    mkdir -p "$control_root"
+    printf 'qualification: installed %s %s repetitions 1-%d\n' \
+        "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
+    started_at="$(date +%s)"
+    set +e
+    run_gui_command "$log_path.raw.log" env \
+            HOME="$HOME" \
+            PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+            DEVELOPER_DIR="$(xcode-select -p)" \
+            xcodebuild test -quiet \
+            -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
+            -scheme DetoursUITests \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$QUALIFICATION_UI_DERIVED_DATA" \
+            -only-testing:"DetoursUITests/$test_filter" \
+            -test-iterations "$repetitions" \
+            -run-tests-until-failure \
+            -test-repetition-relaunch-enabled NO \
+            "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
+            "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$root_path" \
+            "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
+            "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=$remote_target" \
+            -resultBundlePath "$result_bundle" > "$command_output" 2>&1
+    status="$?"
+    set -e
+    tee -a "$log_path.log" < "$command_output"
+    stop_installed_app
+    if (( status == 0 )); then
+        verify_quiet_xcode_command "$log_path.raw.log"
+        verify_installed_result_bundle "$result_bundle" "$repetitions"
+    fi
+    record_scenario_timing \
+        installed "$selected_group" "$context_name" "$repetitions" "$started_at" "$status"
+    (( status == 0 )) || return "$status"
 }
 
 selected_workflow_groups() {

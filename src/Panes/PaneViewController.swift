@@ -61,6 +61,12 @@ final class PaneViewController: NSViewController {
     var remoteBreadcrumbHostsByTabID: [UUID: RemoteHost] = [:]
     var dismissedReconnectHostID: UUID?
     var pendingRemoteTabTargetsByTabID: [UUID: RemoteTabSessionTarget] = [:]
+    var statusMetadataTask: Task<Void, Never>?
+    var statusMetadataDirectory: URL?
+    var cachedHiddenFileCount = 0
+    var cachedAvailableSpace: Int64 = 0
+    var statusMetadataNeedsRefresh = true
+    var statusMetadataRequestID = UUID()
 
     var selectedTab: PaneTab? {
         guard selectedTabIndex >= 0 && selectedTabIndex < tabs.count else { return nil }
