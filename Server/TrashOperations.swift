@@ -34,8 +34,7 @@ struct TrashOperations {
                 let trashInfo = Self.trashInfoContents(originalPath: sourceURL.path)
 
                 do {
-                    try trashInfo.write(to: trashInfoURL, atomically: true, encoding: .utf8)
-                    try setPermissions(0o600, at: trashInfoURL)
+                    try SafeFileWriter.write(Data(trashInfo.utf8), to: trashInfoURL, permissions: 0o600)
                     try fileManager.moveItem(at: sourceURL, to: trashedFileURL)
                 } catch {
                     try? fileManager.removeItem(at: trashInfoURL)
