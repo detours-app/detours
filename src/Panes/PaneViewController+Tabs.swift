@@ -84,6 +84,9 @@ extension PaneViewController {
         // Show the now-selected tab
         if let selected = selectedTab {
             selected.fileListViewController.view.isHidden = false
+            if isActive {
+                view.window?.makeFirstResponder(selected.fileListViewController.tableView)
+            }
         }
 
         syncReconnectBannerForSelectedTab()
