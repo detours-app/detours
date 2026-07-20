@@ -330,7 +330,7 @@ extension FileListDataSource {
     private func gitStatus(for location: Location) -> GitStatus? {
         switch location {
         case .local(let url):
-            return gitStatuses[url]
+            return gitStatuses[url] ?? gitStatuses[url.resolvingSymlinksInPath().standardizedFileURL]
         case .remote:
             return remoteGitStatuses[location]
         }

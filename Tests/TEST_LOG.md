@@ -2158,3 +2158,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   nil. The next run asserts the raw Git provider result and the data-source
   status cache separately before checking row application, isolating the
   remaining loss boundary.
+
+- 2026-07-20 11:17 CEST: Foundry
+  `swift test --filter GitStatusTests/testScheduledNoopListingRefreshStillUpdatesGitBadges`
+  FAIL at the displayed-row boundary: the raw provider and data-source cache
+  both contained `.modified`, while the item badge stayed nil. Badge storage
+  and lookup now canonicalize filesystem URLs, covering symlink and alias path
+  spellings consistently.

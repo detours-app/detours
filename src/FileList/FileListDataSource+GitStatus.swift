@@ -10,7 +10,7 @@ extension FileListDataSource {
             let providerStatuses = await LocalFileProvider.shared.gitStatus(for: .local(directory))
             let statuses: [URL: GitStatus] = Dictionary(uniqueKeysWithValues: providerStatuses.compactMap { location, status in
                 guard case .local(let url) = location else { return nil }
-                return (url, status)
+                return (Self.canonicalGitStatusURL(url), status)
             })
             guard !Task.isCancelled else { return }
 
@@ -117,21 +117,38 @@ extension FileListDataSource {
     ///   those rows.
     @discardableResult
     func updateGitStatus(for items: [FileItem], statuses: [URL: GitStatus]) -> [FileItem] {
+        let canonicalStatuses = Dictionary(uniqueKeysWithValues: statuses.map {
+            (Self.canonicalGitStatusURL($0.key), $0.value)
+        })
+        return updateGitStatus(for: items, canonicalStatuses: canonicalStatuses)
+    }
+
+    private func updateGitStatus(
+        for items: [FileItem],
+        canonicalStatuses: [URL: GitStatus]
+    ) -> [FileItem] {
         var changed: [FileItem] = []
         for item in items {
             // Remote items get git status from the remote provider, keyed by
             // Location; the URL-keyed local statuses don't apply (and .url traps).
             guard case .local(let url) = item.location else { continue }
-            let newStatus = statuses[url]
+            let newStatus = canonicalStatuses[Self.canonicalGitStatusURL(url)]
             if item.gitStatus != newStatus {
                 item.gitStatus = newStatus
                 changed.append(item)
             }
             if let children = item.children {
-                changed.append(contentsOf: updateGitStatus(for: children, statuses: statuses))
+                changed.append(contentsOf: updateGitStatus(
+                    for: children,
+                    canonicalStatuses: canonicalStatuses
+                ))
             }
         }
         return changed
+    }
+
+    private static func canonicalGitStatusURL(_ url: URL) -> URL {
+        url.resolvingSymlinksInPath().standardizedFileURL
     }
 
     @discardableResult
