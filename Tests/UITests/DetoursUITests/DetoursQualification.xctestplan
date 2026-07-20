@@ -1,0 +1,42 @@
+{
+  "configurations" : [
+    {
+      "id" : "3A934170-4C98-43B9-BF50-C546F2E245C7",
+      "name" : "Qualification",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "environmentVariableEntries" : [
+      {
+        "key" : "DETOURS_UI_TEST_APP_PATH",
+        "value" : "$(DETOURS_QUALIFICATION_APP_PATH_SETTING)"
+      },
+      {
+        "key" : "DETOURS_QUALIFICATION_UI_ROOT",
+        "value" : "$(DETOURS_QUALIFICATION_UI_ROOT_SETTING)"
+      },
+      {
+        "key" : "DETOURS_QUALIFICATION_UI_CONTROL_ROOT",
+        "value" : "$(DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING)"
+      }
+    ],
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:DetoursUITests.xcodeproj",
+      "identifier" : "A90D87812F20E7C70044CCE6",
+      "name" : "DetoursUITests"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:DetoursUITests.xcodeproj",
+        "identifier" : "A90D87812F20E7C70044CCE6",
+        "name" : "DetoursUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

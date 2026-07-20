@@ -27,46 +27,13 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES"
-      shouldAutocreateTestPlan = "YES">
-      <Testables>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A90D87812F20E7C70044CCE6"
-               BuildableName = "DetoursUITests.xctest"
-               BlueprintName = "DetoursUITests"
-               ReferencedContainer = "container:DetoursUITests.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-      </Testables>
-      <MacroExpansion>
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A90D87812F20E7C70044CCE6"
-            BuildableName = "DetoursUITests.xctest"
-            BlueprintName = "DetoursUITests"
-            ReferencedContainer = "container:DetoursUITests.xcodeproj">
-         </BuildableReference>
-      </MacroExpansion>
-      <EnvironmentVariables>
-         <EnvironmentVariable
-            key = "DETOURS_UI_TEST_APP_PATH"
-            value = "$(DETOURS_QUALIFICATION_APP_PATH_SETTING)"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "DETOURS_QUALIFICATION_UI_ROOT"
-            value = "$(DETOURS_QUALIFICATION_UI_ROOT_SETTING)"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "DETOURS_QUALIFICATION_UI_CONTROL_ROOT"
-            value = "$(DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING)"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-      </EnvironmentVariables>
+      shouldUseLaunchSchemeArgsEnv = "YES">
+      <TestPlans>
+         <TestPlanReference
+            reference = "container:DetoursQualification.xctestplan"
+            default = "YES">
+         </TestPlanReference>
+      </TestPlans>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
