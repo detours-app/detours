@@ -222,7 +222,6 @@ final class QualificationRefreshUITests: BaseUITest {
     }
 
     private func performManualRefresh(after before: RemotePaneState) throws -> RemotePaneState {
-        app.leftPaneOutlineView.click()
         pressCharKey("r", modifiers: .command)
         return try waitForState("manual refresh completion") {
             $0.refreshRequestCount > before.refreshRequestCount && self.isQuiescent($0)
