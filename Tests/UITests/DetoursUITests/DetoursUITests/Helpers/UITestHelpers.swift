@@ -130,12 +130,12 @@ extension BaseUITest {
 
     func resetOpenedItemsHistory() {
         try? FileManager.default.removeItem(
-            at: uiTestRootURL.appendingPathComponent(".detours-opened-items-history.json")
+            at: uiTestControlRootURL.appendingPathComponent(".detours-opened-items-history.json")
         )
     }
 
     func openedItemsHistory() -> [String] {
-        let url = uiTestRootURL.appendingPathComponent(".detours-opened-items-history.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-opened-items-history.json")
         guard let data = try? Data(contentsOf: url) else { return [] }
         return (try? JSONDecoder().decode([String].self, from: data)) ?? []
     }
@@ -145,8 +145,8 @@ extension BaseUITest {
         timeout: TimeInterval = 3
     ) throws -> RemotePaneState {
         let request = PaneStateRequest(id: UUID().uuidString, pane: pane)
-        let requestURL = uiTestRootURL.appendingPathComponent(".detours-pane-state-request.json")
-        let responseURL = uiTestRootURL.appendingPathComponent(".detours-pane-state-response.json")
+        let requestURL = uiTestControlRootURL.appendingPathComponent(".detours-pane-state-request.json")
+        let responseURL = uiTestControlRootURL.appendingPathComponent(".detours-pane-state-response.json")
         try? FileManager.default.removeItem(at: responseURL)
         try JSONEncoder().encode(request).write(to: requestURL, options: .atomic)
         let deadline = Date().addingTimeInterval(timeout)
@@ -165,7 +165,7 @@ extension BaseUITest {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             let urls = (try? FileManager.default.contentsOfDirectory(
-                at: uiTestRootURL,
+                at: uiTestControlRootURL,
                 includingPropertiesForKeys: nil
             )) ?? []
             for url in urls where url.lastPathComponent.hasPrefix(".detours-remote-list-gate-")
@@ -181,7 +181,7 @@ extension BaseUITest {
     }
 
     func releaseRemoteListingGate(sequence: UInt64) throws {
-        let url = uiTestRootURL.appendingPathComponent(
+        let url = uiTestControlRootURL.appendingPathComponent(
             ".detours-remote-list-gate-\(sequence).release"
         )
         try Data().write(to: url, options: .atomic)
@@ -193,7 +193,7 @@ extension BaseUITest {
             operation: operation,
             message: message
         )
-        let url = uiTestRootURL.appendingPathComponent(".detours-remote-provider-failure.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-remote-provider-failure.json")
         try JSONEncoder().encode(control).write(to: url, options: .atomic)
     }
 
@@ -203,12 +203,12 @@ extension BaseUITest {
             sourcePath: sourcePath,
             newName: newName
         )
-        let url = uiTestRootURL.appendingPathComponent(".detours-remote-mutation-command.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-remote-mutation-command.json")
         try JSONEncoder().encode(control).write(to: url, options: .atomic)
     }
 
     func remoteProviderHistory() -> [RemoteProviderCall] {
-        let url = uiTestRootURL.appendingPathComponent(".detours-remote-provider-history.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-remote-provider-history.json")
         guard let data = try? Data(contentsOf: url) else { return [] }
         return (try? JSONDecoder().decode([RemoteProviderCall].self, from: data)) ?? []
     }
@@ -379,7 +379,7 @@ extension BaseUITest {
         }
 
         let command = Command(id: UUID().uuidString, query: query, action: action)
-        let url = uiTestRootURL.appendingPathComponent(".detours-quick-nav-command.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-quick-nav-command.json")
         XCTAssertNoThrow(try JSONEncoder().encode(command).write(to: url, options: .atomic))
     }
 
@@ -394,8 +394,8 @@ extension BaseUITest {
         }
 
         let request = Request(id: UUID().uuidString)
-        let requestURL = uiTestRootURL.appendingPathComponent(".detours-undo-menu-title-request.json")
-        let responseURL = uiTestRootURL.appendingPathComponent(".detours-undo-menu-title-response.json")
+        let requestURL = uiTestControlRootURL.appendingPathComponent(".detours-undo-menu-title-request.json")
+        let responseURL = uiTestControlRootURL.appendingPathComponent(".detours-undo-menu-title-response.json")
         try? FileManager.default.removeItem(at: responseURL)
         try JSONEncoder().encode(request).write(to: requestURL, options: .atomic)
 
@@ -440,18 +440,18 @@ extension BaseUITest {
             ".detours-duplicate-structure-action.json",
             ".detours-duplicate-structure-dismissed.json"
         ] {
-            try? FileManager.default.removeItem(at: uiTestRootURL.appendingPathComponent(fileName))
+            try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(fileName))
         }
     }
 
     func showDuplicateStructureForUITest(relativePath: String) throws {
         let request = DuplicateStructureShowRequest(id: UUID().uuidString, relativePath: relativePath)
-        let url = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-show-request.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-duplicate-structure-show-request.json")
         try JSONEncoder().encode(request).write(to: url, options: .atomic)
     }
 
     func waitForDuplicateStructurePresented(timeout: TimeInterval = 3) throws -> DuplicateStructurePresentation {
-        let url = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-presented.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-duplicate-structure-presented.json")
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if let data = try? Data(contentsOf: url),
@@ -467,15 +467,15 @@ extension BaseUITest {
 
     func sendDuplicateStructureAction(_ action: String, timeout: TimeInterval = 3) throws {
         let command = DuplicateStructureAction(id: UUID().uuidString, action: action)
-        let commandURL = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-action.json")
-        let dismissedURL = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
+        let commandURL = uiTestControlRootURL.appendingPathComponent(".detours-duplicate-structure-action.json")
+        let dismissedURL = uiTestControlRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
         try? FileManager.default.removeItem(at: dismissedURL)
         try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
         try waitForDuplicateStructureDismissed(matching: command.id, timeout: timeout)
     }
 
     func waitForDuplicateStructureDismissed(matching id: String? = nil, timeout: TimeInterval = 3) throws {
-        let url = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if let data = try? Data(contentsOf: url),

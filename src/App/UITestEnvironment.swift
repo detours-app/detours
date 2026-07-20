@@ -238,9 +238,15 @@ enum UITestEnvironment {
     static let windowsRemoteHostDisplayName = "UITest Windows"
 
     static var rootDirectory: URL? {
-        guard let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"], !root.isEmpty else {
-            return nil
-        }
+        directory(fromEnvironmentVariable: "DETOURS_UI_TEST_ROOT")
+    }
+
+    static var controlDirectory: URL? {
+        directory(fromEnvironmentVariable: "DETOURS_UI_TEST_CONTROL_ROOT") ?? rootDirectory
+    }
+
+    private static func directory(fromEnvironmentVariable name: String) -> URL? {
+        guard let root = ProcessInfo.processInfo.environment[name], !root.isEmpty else { return nil }
 
         let url: URL
         if root.hasPrefix("/") {
@@ -259,91 +265,91 @@ enum UITestEnvironment {
     }
 
     static var resizeMainWindowCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(resizeMainWindowCommandFileName)
+        controlDirectory?.appendingPathComponent(resizeMainWindowCommandFileName)
     }
 
     static var renameItemCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(renameItemCommandFileName)
+        controlDirectory?.appendingPathComponent(renameItemCommandFileName)
     }
 
     static var showNetworkShareDialogCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(showNetworkShareDialogCommandFileName)
+        controlDirectory?.appendingPathComponent(showNetworkShareDialogCommandFileName)
     }
 
     static var showNetworkShareDialogAcknowledgementURL: URL? {
-        rootDirectory?.appendingPathComponent(showNetworkShareDialogAcknowledgementFileName)
+        controlDirectory?.appendingPathComponent(showNetworkShareDialogAcknowledgementFileName)
     }
 
     static var dismissNetworkShareDialogCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(dismissNetworkShareDialogCommandFileName)
+        controlDirectory?.appendingPathComponent(dismissNetworkShareDialogCommandFileName)
     }
 
     static var showNetworkShareDialogDismissedURL: URL? {
-        rootDirectory?.appendingPathComponent(showNetworkShareDialogDismissedFileName)
+        controlDirectory?.appendingPathComponent(showNetworkShareDialogDismissedFileName)
     }
 
     static var quickNavCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(quickNavCommandFileName)
+        controlDirectory?.appendingPathComponent(quickNavCommandFileName)
     }
 
     static var remoteFailureCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(remoteFailureCommandFileName)
+        controlDirectory?.appendingPathComponent(remoteFailureCommandFileName)
     }
 
     static var remoteFailureAcknowledgementURL: URL? {
-        rootDirectory?.appendingPathComponent(remoteFailureAcknowledgementFileName)
+        controlDirectory?.appendingPathComponent(remoteFailureAcknowledgementFileName)
     }
 
     static var undoMenuTitleRequestURL: URL? {
-        rootDirectory?.appendingPathComponent(undoMenuTitleRequestFileName)
+        controlDirectory?.appendingPathComponent(undoMenuTitleRequestFileName)
     }
 
     static var undoMenuTitleResponseURL: URL? {
-        rootDirectory?.appendingPathComponent(undoMenuTitleResponseFileName)
+        controlDirectory?.appendingPathComponent(undoMenuTitleResponseFileName)
     }
 
     static var duplicateStructureShowRequestURL: URL? {
-        rootDirectory?.appendingPathComponent(duplicateStructureShowRequestFileName)
+        controlDirectory?.appendingPathComponent(duplicateStructureShowRequestFileName)
     }
 
     static var duplicateStructurePresentedURL: URL? {
-        rootDirectory?.appendingPathComponent(duplicateStructurePresentedFileName)
+        controlDirectory?.appendingPathComponent(duplicateStructurePresentedFileName)
     }
 
     static var duplicateStructureActionURL: URL? {
-        rootDirectory?.appendingPathComponent(duplicateStructureActionFileName)
+        controlDirectory?.appendingPathComponent(duplicateStructureActionFileName)
     }
 
     static var duplicateStructureDismissedURL: URL? {
-        rootDirectory?.appendingPathComponent(duplicateStructureDismissedFileName)
+        controlDirectory?.appendingPathComponent(duplicateStructureDismissedFileName)
     }
 
     static var appearanceSettingsCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(appearanceSettingsCommandFileName)
+        controlDirectory?.appendingPathComponent(appearanceSettingsCommandFileName)
     }
 
     static var appearanceSettingsAcknowledgementURL: URL? {
-        rootDirectory?.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
+        controlDirectory?.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
     }
 
     static var paneStateRequestURL: URL? {
-        rootDirectory?.appendingPathComponent(paneStateRequestFileName)
+        controlDirectory?.appendingPathComponent(paneStateRequestFileName)
     }
 
     static var paneStateResponseURL: URL? {
-        rootDirectory?.appendingPathComponent(paneStateResponseFileName)
+        controlDirectory?.appendingPathComponent(paneStateResponseFileName)
     }
 
     static var openedItemsHistoryURL: URL? {
-        rootDirectory?.appendingPathComponent(openedItemsHistoryFileName)
+        controlDirectory?.appendingPathComponent(openedItemsHistoryFileName)
     }
 
     static var remoteMutationCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(remoteMutationCommandFileName)
+        controlDirectory?.appendingPathComponent(remoteMutationCommandFileName)
     }
 
     static var keychainLifecycleResultURL: URL? {
-        rootDirectory?.appendingPathComponent(keychainLifecycleResultFileName)
+        controlDirectory?.appendingPathComponent(keychainLifecycleResultFileName)
     }
 
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {

@@ -41,6 +41,7 @@ run_installed() {
     log_dir="$(run_dir)/workflows/installed"
     result_dir="$(run_dir)/results/installed"
     mkdir -p "$log_dir" "$result_dir"
+    prepare_installed_test_bundle "$log_dir/build-for-testing.log"
     while IFS= read -r selected_group; do
         for root_name in LOCAL_ROOT APFS_ROOT ICLOUD_ROOT SMB_ROOT; do
             run_installed_once \
@@ -51,6 +52,29 @@ run_installed() {
     done < <(selected_workflow_groups "$group")
 }
 
+prepare_installed_test_bundle() {
+    local log_path="$1"
+    local derived_data status
+    local -a candidates=()
+    derived_data="$(run_dir)/xcode-derived-data"
+    [[ ! -e "$derived_data" ]] || fail "installed-test derived data already exists: $derived_data"
+    set +e
+    xcodebuild build-for-testing \
+        -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
+        -scheme DetoursUITests \
+        -destination 'platform=macOS,arch=arm64' \
+        -derivedDataPath "$derived_data" 2>&1 | tee "$log_path"
+    status="${PIPESTATUS[0]}"
+    set -e
+    (( status == 0 )) || return "$status"
+    while IFS= read -r candidate; do
+        candidates+=("$candidate")
+    done < <(find "$derived_data/Build/Products" -maxdepth 1 -type f -name '*.xctestrun' -print)
+    (( ${#candidates[@]} == 1 )) || \
+        fail "expected one installed-test xctestrun, found ${#candidates[@]}"
+    QUALIFICATION_XCTESTRUN="${candidates[0]}"
+}
+
 run_installed_once() {
     local selected_group="$1"
     local root_name="$2"
@@ -58,8 +82,12 @@ run_installed_once() {
     local log_path="$4"
     local result_bundle="$5"
     local test_filter root_path started_at status iteration iteration_bundle
+    local control_root patched_xctestrun product_dir
     test_filter="$(installed_test_filter "$selected_group")"
     root_path="${!root_name}"
+    [[ -n "${QUALIFICATION_XCTESTRUN:-}" && -f "$QUALIFICATION_XCTESTRUN" ]] || \
+        fail "installed-test xctestrun is unavailable"
+    product_dir="$(dirname "$QUALIFICATION_XCTESTRUN")"
     printf '%s\t%s\t%s\t%s\n' \
         "$selected_group" "$test_filter" "$root_name" "$repetitions" >> "$(run_dir)/replay.tsv"
     for (( iteration = 1; iteration <= repetitions; iteration++ )); do
@@ -69,19 +97,31 @@ run_installed_once() {
             printf -v iteration_bundle '%s-iteration-%03d.xcresult' "${result_bundle%.xcresult}" "$iteration"
         fi
         [[ ! -e "$iteration_bundle" ]] || fail "result bundle already exists: $iteration_bundle"
+        control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/$selected_group-$root_name-$iteration"
+        mkdir -p "$control_root"
+        patched_xctestrun="$product_dir/DetoursQualification-$selected_group-$root_name-$iteration.xctestrun"
+        [[ ! -e "$patched_xctestrun" ]] || fail "patched xctestrun already exists: $patched_xctestrun"
+        cp "$QUALIFICATION_XCTESTRUN" "$patched_xctestrun"
+        plutil -insert TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_UI_TEST_APP_PATH \
+            -string "$PROJECT_DIR/build/Detours.app" "$patched_xctestrun"
+        plutil -insert TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_ROOT \
+            -string "$root_path" "$patched_xctestrun"
+        plutil -insert TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_CONTROL_ROOT \
+            -string "$control_root" "$patched_xctestrun"
+        [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_UI_TEST_APP_PATH raw "$patched_xctestrun")" == "$PROJECT_DIR/build/Detours.app" ]] || \
+            fail "patched xctestrun app path mismatch"
+        [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_ROOT raw "$patched_xctestrun")" == "$root_path" ]] || \
+            fail "patched xctestrun fixture root mismatch"
+        [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_CONTROL_ROOT raw "$patched_xctestrun")" == "$control_root" ]] || \
+            fail "patched xctestrun control root mismatch"
         printf 'qualification: installed %s %s iteration %d/%d\n' \
             "$selected_group" "$root_name" "$iteration" "$repetitions" | tee -a "$log_path.log"
         started_at="$(date +%s)"
         set +e
-        DETOURS_UI_TEST_APP_PATH="$PROJECT_DIR/build/Detours.app" \
-        DETOURS_QUALIFICATION_UI_ROOT="$root_path" \
-            xcodebuild test \
-                -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
-                -scheme DetoursUITests \
+        xcodebuild test-without-building \
+                -xctestrun "$patched_xctestrun" \
                 -destination 'platform=macOS,arch=arm64' \
                 -only-testing:"DetoursUITests/$test_filter" \
-                "DETOURS_UI_TEST_APP_PATH=$PROJECT_DIR/build/Detours.app" \
-                "DETOURS_QUALIFICATION_UI_ROOT=$root_path" \
                 -resultBundlePath "$iteration_bundle" 2>&1 | tee -a "$log_path.log"
         status="${PIPESTATUS[0]}"
         set -e

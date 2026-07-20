@@ -18,14 +18,23 @@ class BaseUITest: XCTestCase {
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(testFolderName)
     }
 
+    var uiTestControlRootURL: URL {
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_CONTROL_ROOT"]
+            .flatMap { $0.isEmpty ? nil : $0 }
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? uiTestRootURL
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
 
         try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: uiTestControlRootURL, withIntermediateDirectories: true)
 
         // Launch the installed app targeted by the UI test runner.
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
+        app.launchEnvironment["DETOURS_UI_TEST_CONTROL_ROOT"] = uiTestControlRootURL.path
         configureLaunchEnvironment(&app.launchEnvironment)
         app.launch()
 
