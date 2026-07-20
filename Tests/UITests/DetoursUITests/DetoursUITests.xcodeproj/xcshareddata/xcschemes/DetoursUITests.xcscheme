@@ -29,6 +29,15 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "A90D87812F20E7C70044CCE6"
+            BuildableName = "DetoursUITests.xctest"
+            BlueprintName = "DetoursUITests"
+            ReferencedContainer = "container:DetoursUITests.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "DETOURS_UI_TEST_APP_PATH"
