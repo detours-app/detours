@@ -163,6 +163,14 @@ extension MainSplitViewController {
         let fm = FileManager.default
         try? fm.removeItem(at: root)
 
+        // The installed-test fixture mutator uses the same fail-closed root
+        // contract as qualification roots. Conventional UI-test roots are
+        // app-created, so seed their marker before any test requests a mutation.
+        try? fm.createDirectory(at: root, withIntermediateDirectories: true)
+        try? Data("detours-ui-test-root".utf8).write(
+            to: root.appendingPathComponent(".detours-qualification-root.json")
+        )
+
         let directories = [
             "AAA_First",
             "BBB_Second/SubfolderB1",
