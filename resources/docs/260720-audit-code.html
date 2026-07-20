@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detours targeted code audit — 20 July 2026</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f7fa; --panel: #ffffff; --panel-2: #eef2f7; --text: #172033;
+      --muted: #627089; --line: #d9e0ea; --accent: #315efb; --crit: #c9362b;
+      --imp: #d97706; --min: #2470a0; --ok: #168451; --progress: #6d4aff;
+      --shadow: 0 10px 28px rgba(21, 31, 50, .08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0c111c; --panel: #151c2a; --panel-2: #1c2637; --text: #e9edf5;
+        --muted: #9ba9bd; --line: #2d384b; --accent: #8ba4ff; --crit: #ff756b;
+        --imp: #f3a83b; --min: #6db6e6; --ok: #5bd69a; --progress: #ad98ff;
+        --shadow: 0 12px 32px rgba(0, 0, 0, .24);
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    button, input { font: inherit; }
+    .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 100vh; }
+    aside { position: sticky; top: 0; height: 100vh; overflow: auto; padding: 24px 18px; border-right: 1px solid var(--line); background: var(--panel); }
+    main { min-width: 0; padding: 34px clamp(20px, 5vw, 72px) 70px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(28px, 4vw, 46px); line-height: 1.08; letter-spacing: -.035em; margin-bottom: 12px; }
+    h2 { margin-bottom: 12px; font-size: 18px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-weight: 750; color: var(--muted); font-size: 12px; }
+    .subtitle { max-width: 880px; color: var(--muted); font-size: 17px; }
+    .posture { display: flex; align-items: center; gap: 16px; padding: 18px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); margin: 24px 0; }
+    .grade { width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; color: white; background: var(--imp); font-weight: 850; font-size: 30px; flex: 0 0 auto; }
+    .posture p { margin: 3px 0 0; color: var(--muted); }
+    details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 15px 18px; margin-bottom: 20px; }
+    summary { cursor: pointer; font-weight: 750; }
+    details p { color: var(--muted); margin: 13px 0 0; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
+    .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 13px 15px; }
+    .stat strong { display: block; font-size: 23px; font-variant-numeric: tabular-nums; }
+    .stat span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .progress { height: 10px; border-radius: 99px; overflow: hidden; background: var(--panel-2); border: 1px solid var(--line); margin-bottom: 24px; }
+    .progress div { height: 100%; float: left; transition: width .2s; }
+    .toolbar { display: flex; gap: 10px; margin: 18px 0; }
+    .toolbar input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); color: var(--text); }
+    .toggle { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+    .side-title { margin: 20px 0 7px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .11em; font-weight: 800; }
+    .filters { display: grid; gap: 5px; }
+    .filter { width: 100%; display: flex; justify-content: space-between; gap: 8px; border: 1px solid transparent; background: transparent; color: var(--text); padding: 7px 9px; border-radius: 8px; cursor: pointer; text-align: left; }
+    .filter:hover { background: var(--panel-2); }
+    .filter.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+    .filter b { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .side-meta { color: var(--muted); font-size: 12px; margin-top: 24px; }
+    .findings { display: grid; gap: 13px; }
+    .card { --sev: var(--min); background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--sev); border-radius: 12px; padding: 17px 18px 15px; box-shadow: var(--shadow); }
+    .card[data-sev="Critical"] { --sev: var(--crit); }
+    .card[data-sev="Important"] { --sev: var(--imp); }
+    .card[data-status="fixed"] { opacity: .55; text-decoration: line-through; }
+    .card[data-status="wontfix"] { opacity: .58; }
+    .card.deferred { background-image: repeating-linear-gradient(-45deg, transparent, transparent 10px, color-mix(in srgb, var(--muted) 8%, transparent) 10px, color-mix(in srgb, var(--muted) 8%, transparent) 20px); }
+    .card-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .badge, .status { border-radius: 999px; padding: 3px 8px; font-size: 12px; font-weight: 750; border: 1px solid var(--line); }
+    .severity { color: var(--sev); border-color: color-mix(in srgb, var(--sev) 55%, var(--line)); }
+    .confidence { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .desc { font-size: 16px; margin-bottom: 12px; }
+    .location { display: inline-block; max-width: 100%; overflow-wrap: anywhere; background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .cite { color: var(--muted); border-left: 2px solid var(--line); padding-left: 10px; margin: 11px 0; font-size: 13px; }
+    .status { display: inline-block; margin-top: 12px; color: var(--muted); }
+    .empty { padding: 30px; text-align: center; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+    @media (max-width: 820px) {
+      .layout { display: block; }
+      aside { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .toolbar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <div class="eyebrow">Audit filters</div>
+    <div id="filters"></div>
+    <p class="side-meta">Target: refresh-authority rework<br>Range: 611ec4b..fb9281a<br>Reviewed: 20 July 2026</p>
+  </aside>
+  <main>
+    <div class="eyebrow">Detours / targeted code audit</div>
+    <h1>Refresh authority audit</h1>
+    <p class="subtitle">A focused review of the refresh rework and its pane, navigation, operation, provider, expansion, Git, icon, and lifecycle integrations.</p>
+
+    <section class="posture">
+      <div class="grade">C</div>
+      <div><strong>Posture: C</strong><p>No Critical findings, but eleven Important defects concentrate in the new refresh authority and adjacent lifecycle paths.</p></div>
+    </section>
+
+    <details open>
+      <summary>Plain-language summary</summary>
+      <p>The rework establishes a coherent scheduler and outline mutation boundary, but several workflows still bypass or outlive that authority. Refreshing special iCloud views can replace their composed contents; hidden-file, Git-status, icon, retry, and cross-pane result behavior can become stale or attach to the wrong operation context.</p>
+      <p>Asynchronous folder and remote-expansion loads can finish after newer work and overwrite or prematurely finalize it. Closed tabs do not release their watches, and the New Empty File path accepts traversal components. All findings are open; none are deferred or marked wontfix.</p>
+      <p>Five independent review passes covered logic, runtime bugs, security, architecture, and project conventions. Every retained finding was independently verified against current code and scored at least 97% confidence.</p>
+    </details>
+
+    <div class="stats" id="stats"></div>
+    <div class="progress" id="progress" aria-label="Finding status progress"></div>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search findings, files, or categories" aria-label="Search findings">
+      <button class="toggle" id="deferredToggle" type="button">Show deferred (0)</button>
+    </div>
+    <div class="findings" id="findingList"></div>
+  </main>
+</div>
+<script>
+const FINDINGS = [
+  { sev: "Important", cat: "Logic", conf: 99, status: "open", file: "src/FileList/FileListViewController+RefreshScheduling.swift", line: 60,
+    desc: "Steady-state local refreshes enumerate the physical directory and reconcile it over Mobile Documents and Shared top-level projections. Cmd-R, watcher, and operation refreshes can replace a composed iCloud view with raw filesystem entries. Fix: fetch the same composed listing used by the active iCloud navigation mode, or route those roots through a mode-preserving load.",
+    cite: "Navigation uses the specialized composition in <code>FileListDataSource+Loading.swift:207-223,335-356</code>." },
+  { sev: "Important", cat: "Logic", conf: 98, status: "open", file: "src/Panes/PaneViewController+Navigation.swift", line: 77,
+    desc: "Toggling hidden files refreshes only the pane root while surviving expanded folders retain their loaded children. Hidden entries inside expanded branches keep their previous visibility. Fix: invalidate and refresh every materialized expanded branch with the new visibility setting as one coordinated operation.",
+    cite: "Root reconciliation reuses existing folder objects and children at <code>FileListDataSource+Loading.swift:269-303</code>." },
+  { sev: "Important", cat: "Bugs", conf: 99, status: "open", file: "src/FileList/FileListViewController+LoadingState.swift", line: 239,
+    desc: "The local Retry button starts a full load instead of resubmitting the scheduler's retained failed intent. Selection, completion, activation, or rename behavior can be skipped and later run on an unrelated refresh. Fix: make local steady-state retry submit the failed directory with the retry cause, matching the remote path.",
+    cite: "The failed policy and completions remain in <code>PaneRefreshScheduler.swift:365-379</code>, but activation skips states with no pending cause." },
+  { sev: "Important", cat: "Bugs", conf: 98, status: "open", file: "src/FileList/FileListDataSource+Expansion.swift", line: 63,
+    desc: "Expanded-folder disclosure loads are gated by navigation epoch but not by the scheduler's directory generation. An older child fetch can finish after a newer operation or watcher snapshot and replace the branch with stale children. Fix: submit disclosure fetches through the scheduler or apply them only when the captured directory generation is still current.",
+    cite: "Local disclosure writes children before its epoch check; remote disclosure reconciles directly at <code>FileListDataSource+Expansion.swift:163</code>." },
+  { sev: "Important", cat: "Logic", conf: 97, status: "open", file: "src/FileList/FileListViewController+DirectoryLoading.swift", line: 523,
+    desc: "Remote expansion restoration runs in an untracked task with no load epoch or root check. After a later navigation starts, the old task can restore selection and clear the shared navigation-in-flight flag before the new load finishes. Fix: bind restoration to the initiating load token and cancel or reject it after navigation.",
+    cite: "The awaited child loads have no root validation at <code>FileListDataSource+Expansion.swift:176-189</code>; finalization clears shared state at <code>DirectoryLoading.swift:637-648</code>." },
+  { sev: "Important", cat: "Bugs", conf: 98, status: "open", file: "src/FileList/FileListViewController+RefreshScheduling.swift", line: 186,
+    desc: "Local scheduled listing applies never fetch Git status. Manual, watcher, and operation refreshes reuse stale badge data, and inserted files can remain unbadged until a full navigation load. Fix: invalidate when required and schedule a local Git-status fetch after eligible listing applies, including unchanged listings when the Git cause requests it.",
+    cite: "The only local fetch remains in the navigation load at <code>FileListDataSource+Loading.swift:76-79</code>; production submits no <code>.git</code> cause." },
+  { sev: "Important", cat: "Logic", conf: 99, status: "open", file: "src/Windows/MainSplitViewController+Navigation.swift", line: 176,
+    desc: "Cross-pane copy and move resolve the destination pane's selected tab after the operation awaits. Switching tabs during the operation routes result selection and activation to the later tab, or omits it, instead of preserving the original target. Fix: capture the target FileListViewController and its epoch before starting and validate that target when routing completion.",
+    cite: "The local paths look up <code>selectedTab</code> at lines 209 and 276; the remote helper does so at line 319." },
+  { sev: "Important", cat: "Bugs", conf: 98, status: "open", file: "src/FileList/FileListViewController+RefreshScheduling.swift", line: 227,
+    desc: "Loading icons for inserted rows cancels every existing icon task and reschedules only the inserted items. Surviving rows whose initial tasks were canceled can retain placeholder icons until a full reload. Fix: append or key icon work per item instead of globally canceling unrelated tasks.",
+    cite: "Global cancellation occurs at <code>FileListDataSource+Icons.swift:8-11</code>; no visible-row retry implementation exists." },
+  { sev: "Important", cat: "Security", conf: 98, status: "open", file: "src/FileList/FileListViewController+FileActions.swift", line: 442,
+    desc: "New Empty File rejects only an empty name and accepts separators and parent components. A name such as ../outside can write outside the selected local or remote directory, and remote staging can target another local path. Fix: require one valid filename component at the operation boundary and verify every resolved destination remains inside its parent before writing or replacing.",
+    cite: "Raw names reach local and remote destinations through <code>FileOperationQueue+ProgressHelpers.swift:439-456</code> and <code>FileOperationQueue+OperationsContinued.swift:465-485</code>." },
+  { sev: "Important", cat: "Architecture", conf: 99, status: "open", file: "src/Panes/PaneViewController+Tabs.swift", line: 40,
+    desc: "Closing a tab or replacing tabs during session restore discards its controller without canceling scheduler work or unregistering provider watches. Repeated tab closure accumulates retained local and remote watcher resources. Fix: add an idempotent FileList shutdown path and call it from true close and replacement flows before detaching the controller.",
+    cite: "The lifecycle contract requires tab close cleanup in <code>resources/specs/done/260717-pane-refresh-authority.md:71,145</code>. Cross-pane tab transfer should not use this shutdown path." },
+  { sev: "Important", cat: "Conventions", conf: 97, status: "open", file: "Tests/RefreshArchitectureTests.swift", line: 53,
+    desc: "The architecture check enforces the outline applier but not the scheduler boundary promised by the refresh spec. Filter and sort paths can bypass epochs and generations; an older expanded-folder load can apply its captured sort after the sort indicator changes. Fix: route these state changes through scheduler-owned invalidation and extend the architecture test to reject direct displayed-state reload paths.",
+    cite: "Direct reloads remain in <code>FileListViewController+Filter.swift:34-35</code> and <code>FileListDataSource+Sorting.swift:18-23</code>, contrary to the C13/T14 contract." }
+];
+
+const state = { filters: { status: new Set(), sev: new Set(), cat: new Set(), file: new Set() }, query: "", showDeferred: false };
+const esc = value => String(value).replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+const statusLabel = value => ({open:"Open", progress:"In progress", fixed:"Fixed", wontfix:"Won't fix"}[value] || "Open");
+const topFiles = () => Object.entries(FINDINGS.reduce((m, f) => (m[f.file] = (m[f.file] || 0) + 1, m), {})).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0])).slice(0, 8);
+const counts = (key, values) => values.map(value => [value, FINDINGS.filter(f => (key === "file" ? f.file : f[key]) === value).length]);
+
+function filterSection(title, key, pairs) {
+  return `<div class="side-title">${esc(title)}</div><div class="filters">${pairs.map(([value,count]) => {
+    const storedValue = key === "status"
+      ? Object.keys({open:1,progress:1,fixed:1,wontfix:1}).find(k => statusLabel(k) === value) || value
+      : value;
+    return `<button class="filter ${state.filters[key].has(storedValue) ? "active" : ""}" data-key="${esc(key)}" data-value="${esc(value)}"><span>${esc(value)}</span><b>${count}</b></button>`;
+  }).join("")}</div>`;
+}
+
+function renderFilters() {
+  const statuses = ["open","progress","fixed","wontfix"];
+  document.getElementById("filters").innerHTML =
+    filterSection("Status", "status", counts("status", statuses).map(([v,c]) => [statusLabel(v), c])) +
+    filterSection("Severity", "sev", counts("sev", ["Critical","Important","Minor"])) +
+    filterSection("Category", "cat", counts("cat", [...new Set(FINDINGS.map(f => f.cat))].sort())) +
+    filterSection("Top files", "file", topFiles().map(([f,c]) => [f,c]));
+  document.querySelectorAll(".filter").forEach(btn => btn.addEventListener("click", () => {
+    const key = btn.dataset.key;
+    let value = btn.dataset.value;
+    if (key === "status") value = Object.keys({open:1,progress:1,fixed:1,wontfix:1}).find(k => statusLabel(k) === value) || value;
+    const set = state.filters[key]; set.has(value) ? set.delete(value) : set.add(value); render();
+  }));
+}
+
+function visible(f) {
+  if (f.defer && !state.showDeferred) return false;
+  for (const [key,set] of Object.entries(state.filters)) {
+    if (set.size && !set.has(key === "file" ? f.file : f[key])) return false;
+  }
+  const haystack = `${f.desc} ${f.file} ${f.cat} ${f.sev}`.toLowerCase();
+  return haystack.includes(state.query);
+}
+
+function renderStats() {
+  const open = FINDINGS.filter(f => (f.status || "open") === "open").length;
+  const fixed = FINDINGS.filter(f => f.status === "fixed").length;
+  const progress = FINDINGS.filter(f => f.status === "progress").length;
+  const wontfix = FINDINGS.filter(f => f.status === "wontfix").length;
+  document.getElementById("stats").innerHTML = [
+    [FINDINGS.length, "Total"], [open, "Open"], [FINDINGS.filter(f => f.sev === "Important").length, "Important"], [fixed, "Fixed"]
+  ].map(([n,l]) => `<div class="stat"><strong>${n}</strong><span>${l}</span></div>`).join("");
+  const total = Math.max(1, FINDINGS.length);
+  document.getElementById("progress").innerHTML = [
+    [fixed,"var(--ok)"],[progress,"var(--progress)"],[wontfix,"var(--muted)"],[open,"var(--imp)"]
+  ].map(([n,c]) => `<div style="width:${n/total*100}%;background:${c}"></div>`).join("");
+}
+
+function renderCards() {
+  const list = FINDINGS.filter(visible);
+  document.getElementById("findingList").innerHTML = list.length ? list.map((f, index) => `
+    <article class="card ${f.defer ? "deferred" : ""}" data-sev="${esc(f.sev)}" data-status="${esc(f.status || "open")}">
+      <div class="card-top"><span class="badge severity">${esc(f.sev)}</span><span class="badge">${esc(f.cat)}</span>${f.defer ? '<span class="badge">Deferred</span>' : ''}<span class="confidence">${f.conf}% confidence</span></div>
+      <div class="desc"><strong>#${index + 1}</strong> ${esc(f.desc)}</div>
+      <div class="location">${esc(f.file)}:${f.line ?? "—"}</div>
+      ${f.cite ? `<div class="cite">${f.cite}</div>` : ""}
+      <span class="status">${esc(statusLabel(f.status || "open"))}</span>
+    </article>`).join("") : '<div class="empty">No findings match the current filters.</div>';
+}
+
+function render() { renderFilters(); renderStats(); renderCards(); }
+document.getElementById("search").addEventListener("input", event => { state.query = event.target.value.trim().toLowerCase(); renderCards(); });
+document.getElementById("deferredToggle").addEventListener("click", event => { state.showDeferred = !state.showDeferred; event.target.textContent = `${state.showDeferred ? "Hide" : "Show"} deferred (${FINDINGS.filter(f => f.defer).length})`; renderCards(); });
+render();
+</script>
+</body>
+</html>
