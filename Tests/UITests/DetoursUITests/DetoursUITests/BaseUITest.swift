@@ -46,7 +46,10 @@ class BaseUITest: XCTestCase {
 
         // IMPORTANT: Activate the LEFT pane before creating tab
         // This ensures we create the tab in a predictable location
-        activateLeftPane()
+        // Clicking the outline element itself makes XCUI try to scroll the entire
+        // document view into view. Tall remote listings can never satisfy that
+        // request, even though the visible center is directly clickable.
+        activateLeftPane(useCoordinateClick: true)
         XCTAssertTrue(waitForLeftPaneReady(), "Left pane should be ready")
 
         // DETOURS_UI_TEST_ROOT launches the app into an isolated test tab, so tests that
