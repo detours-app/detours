@@ -335,22 +335,6 @@ run_build() {
         "$SCRIPT_DIR/build.sh" --no-install 2>&1 | tee "$(run_dir)/logs/build.log"
 }
 
-run_in_process() {
-    local group="$1"
-    validate_group "$group"
-    if [[ "${DETOURS_QUALIFICATION_C7_READY:-0}" != "1" ]]; then
-        fail "in-process workflow support is installed by C7"
-    fi
-}
-
-run_installed() {
-    local group="$1"
-    validate_group "$group"
-    if [[ "${DETOURS_QUALIFICATION_C7_READY:-0}" != "1" ]]; then
-        fail "installed-app workflow support is installed by C7"
-    fi
-}
-
 run_cold() {
     [[ "$QUALIFICATION_COLD_INDEX" != "0" ]] || fail "cold-run requires --cold-index 1, 2, or 3"
     run_reset
@@ -387,6 +371,8 @@ run_cleanup() {
 
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-fixtures.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/qualification-workflows.sh"
 
 run_all() {
     run_build

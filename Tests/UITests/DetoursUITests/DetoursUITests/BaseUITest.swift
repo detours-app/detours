@@ -4,10 +4,16 @@ class BaseUITest: XCTestCase {
     var app: XCUIApplication!
 
     /// Name of test directory (created by uitest.sh in home before tests run)
-    let testFolderName = "DetoursUITests-Temp"
+    var testFolderName: String {
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_ROOT"]
+            .map { URL(fileURLWithPath: $0).lastPathComponent }
+            ?? "DetoursUITests-Temp"
+    }
 
     var uiTestRootURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(testFolderName)
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_ROOT"]
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(testFolderName)
     }
 
     override func setUpWithError() throws {

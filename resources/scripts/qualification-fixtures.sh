@@ -14,6 +14,33 @@ create_guarded_fixture_root() {
         --identifier "$identifier"
 }
 
+seed_installed_fixture() {
+    local root="$1"
+    mkdir -p \
+        "$root/AAA_First" \
+        "$root/BBB_Second/SubfolderB1" \
+        "$root/BBB_Second/SubfolderB2" \
+        "$root/CCC_Third" \
+        "$root/FolderA/SubfolderA1" \
+        "$root/FolderA/SubfolderA2" \
+        "$root/FolderB/SubfolderB1" \
+        "$root/FolderB/SubfolderB2" \
+        "$root/FolderC" \
+        "$root/FolderD" \
+        "$root/Projects2025/Quarterly/Q1" \
+        "$root/Projects2025/Quarterly/Q2" \
+        "$root/Projects2025/Annual"
+    printf 'test\n' > "$root/FolderA/SubfolderA1/file.txt"
+    printf 'test\n' > "$root/FolderA/alpha-file.txt"
+    printf 'test\n' > "$root/FolderB/beta-file.txt"
+    printf 'test\n' > "$root/FolderB/SubfolderB1/nested.txt"
+    printf 'test\n' > "$root/file1.txt"
+    printf 'test\n' > "$root/file2.txt"
+    printf 'target\n' > "$root/zz-target.txt"
+    printf 'target\n' > "$root/FolderB/unique-in-B.txt"
+    printf 'data\n' > "$root/Projects2025/notes.txt"
+}
+
 mount_smb_fixture() {
     [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "DETOURS_SMB_TEST_PASSWORD is required to mount the SMB fixture"
     mkdir -p "$SMB_MOUNT_POINT"
@@ -66,6 +93,11 @@ run_prepare_fixtures() {
 
     mount_smb_fixture
     smb_root="$(create_guarded_fixture_root smb "$SMB_MOUNT_POINT" "$roots_dir/smb.json" "$smb_id")"
+
+    local fixture_root
+    for fixture_root in "$local_root" "$apfs_root" "$icloud_root" "$smb_root"; do
+        seed_installed_fixture "$fixture_root"
+    done
 
     {
         printf 'LOCAL_ROOT=%q\n' "$local_root"
