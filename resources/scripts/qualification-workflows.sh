@@ -2,6 +2,57 @@
 
 # Repeated workflow dispatch sourced only by qualification.sh.
 
+run_gui_command() {
+    local log_path="$1"
+    shift
+    local label status_path status_tmp launch_stdout launch_stderr job_state command_status
+    local attempt
+    path_is_within "$log_path" "$(run_dir)" || fail "GUI command log escapes the run directory"
+    status_path="$log_path.status"
+    status_tmp="$status_path.tmp"
+    launch_stdout="$log_path.launch-stdout"
+    launch_stderr="$log_path.launch-stderr"
+    for path in "$log_path" "$status_path" "$status_tmp" "$launch_stdout" "$launch_stderr"; do
+        [[ ! -e "$path" ]] || fail "GUI command artifact already exists: $path"
+    done
+    label="com.detours.qualification.$(uuidgen)"
+    launchctl submit \
+        -l "$label" \
+        -o "$launch_stdout" \
+        -e "$launch_stderr" \
+        -- "$SCRIPT_DIR/qualification-gui-command.sh" "$log_path" "$status_path" "$@"
+    job_state=""
+    for (( attempt = 1; attempt <= 9000; attempt++ )); do
+        if [[ -f "$status_path" ]]; then
+            break
+        fi
+        job_state="$(launchctl print "gui/$(id -u)/$label" 2>&1 || true)"
+        [[ -n "$job_state" ]] || fail "GUI qualification job disappeared: $label"
+        case "$job_state" in
+            *"last exit code"*)
+                launchctl remove "$label" 2>/dev/null || true
+                fail "GUI qualification wrapper exited without writing status: $label"
+                ;;
+        esac
+        sleep 0.1
+    done
+    if [[ ! -f "$status_path" ]]; then
+        launchctl remove "$label" 2>/dev/null || true
+        fail "GUI qualification job timed out: $label"
+    fi
+    command_status="$(cat "$status_path")"
+    [[ "$command_status" =~ ^[0-9]+$ ]] || fail "GUI qualification job wrote an invalid status"
+    launchctl remove "$label" 2>/dev/null || true
+    if [[ -s "$launch_stdout" ]]; then
+        cat "$launch_stdout"
+    fi
+    if [[ -s "$launch_stderr" ]]; then
+        cat "$launch_stderr" >&2
+    fi
+    cat "$log_path"
+    return "$command_status"
+}
+
 run_in_process() {
     local group="$1"
     validate_group "$group"
@@ -54,14 +105,13 @@ run_installed() {
 
 prepare_installed_test_bundle() {
     local log_path="$1"
-    local derived_data finder_pid status xctestrun
+    local derived_data status xctestrun
     local -a candidates=()
     derived_data="$(run_dir)/xcode-derived-data"
     [[ ! -e "$derived_data" ]] || fail "installed-test derived data already exists: $derived_data"
-    finder_pid="$(pgrep -x Finder | head -1 || true)"
-    [[ "$finder_pid" =~ ^[0-9]+$ ]] || fail "Finder GUI session is unavailable"
+    pgrep -x Finder >/dev/null 2>&1 || fail "Finder GUI session is unavailable"
     set +e
-    launchctl bsexec "$finder_pid" env \
+    run_gui_command "$log_path.raw" env \
         HOME="$HOME" \
         PATH=/usr/bin:/bin:/usr/sbin:/sbin \
         DEVELOPER_DIR="$(xcode-select -p)" \
@@ -90,7 +140,6 @@ prepare_installed_test_bundle() {
     [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_CONTROL_ROOT raw "$xctestrun")" == "/detours-qualification-canary/control" ]] || \
         fail "UI test scheme did not expand the control-root setting"
     QUALIFICATION_UI_DERIVED_DATA="$derived_data"
-    QUALIFICATION_FINDER_PID="$finder_pid"
 }
 
 run_installed_once() {
@@ -105,7 +154,6 @@ run_installed_once() {
     root_path="${!root_name}"
     [[ -n "${QUALIFICATION_UI_DERIVED_DATA:-}" && -d "$QUALIFICATION_UI_DERIVED_DATA" ]] || \
         fail "installed-test derived data is unavailable"
-    [[ "${QUALIFICATION_FINDER_PID:-}" =~ ^[0-9]+$ ]] || fail "Finder GUI session is unavailable"
     printf '%s\t%s\t%s\t%s\n' \
         "$selected_group" "$test_filter" "$root_name" "$repetitions" >> "$(run_dir)/replay.tsv"
     for (( iteration = 1; iteration <= repetitions; iteration++ )); do
@@ -121,7 +169,7 @@ run_installed_once() {
             "$selected_group" "$root_name" "$iteration" "$repetitions" | tee -a "$log_path.log"
         started_at="$(date +%s)"
         set +e
-        launchctl bsexec "$QUALIFICATION_FINDER_PID" env \
+        run_gui_command "$log_path-iteration-$iteration.raw.log" env \
                 HOME="$HOME" \
                 PATH=/usr/bin:/bin:/usr/sbin:/sbin \
                 DEVELOPER_DIR="$(xcode-select -p)" \
