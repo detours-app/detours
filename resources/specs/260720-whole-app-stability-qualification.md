@@ -131,7 +131,7 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 
 **Capability contract and evidence**
 
-- [ ] **C1** Create `resources/docs/260720-whole-app-stability-qualification-matrix.md` with the fixed row schema and complete the census from menus, shortcut menus, shortcuts, drag paths, settings, the user guide, completed specs, and automatic behaviors.
+- [x] **C1** Create `resources/docs/260720-whole-app-stability-qualification-matrix.md` with the fixed row schema and complete the census from menus, shortcut menus, shortcuts, drag paths, settings, the user guide, completed specs, and automatic behaviors.
 - [ ] **C2** Add `resources/scripts/qualification.sh` as the single Foundry-only entry point for preflight, reset, build, selected test groups, installed-app workflows, repetition, cold runs, soak, evidence capture, and guarded cleanup.
 - [ ] **C3** Add the provider-neutral run-root descriptor and independent destructive-operation guard with exact parent allowlists, UUID sentinels, canonical path checks, alias and symbolic-link rejection, and provider snapshots outside each run root.
 - [ ] **C4** Add strict Foundry preflight and reset support for commit identity, clean worktree, machine reachability, local iCloud status, SMB authentication, storage headroom, app processes, watches, mounts, preferences, caches, session, test credentials, and marked fixtures.
@@ -178,3 +178,5 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 ---
 
 ## Build Log
+
+- **C1** Added the tracked capability contract with 97 stable capability rows, fixed environment/context/repetition fields, direct source coverage, and mappings for every completed feature spec. Audited against main and shortcut menus, all 15 customizable shortcuts, drag surfaces, all 12 preference contracts, every user-guide section, and automatic behavior anchors.
