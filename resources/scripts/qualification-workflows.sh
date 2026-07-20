@@ -177,7 +177,8 @@ verify_quiet_xcode_command() {
 verify_installed_result_bundle() {
     local result_bundle="$1"
     local expected_count="$2"
-    local summary_path total passed failed skipped expected result
+    local summary_path tests_path total passed failed skipped expected result
+    local device_passed device_failed device_skipped repetition_total repetition_passed
     [[ -d "$result_bundle" ]] || fail "installed-test result bundle is missing: $result_bundle"
     summary_path="${result_bundle%.xcresult}-summary.json"
     [[ ! -e "$summary_path" ]] || fail "installed-test result summary already exists: $summary_path"
@@ -189,14 +190,33 @@ verify_installed_result_bundle() {
     skipped="$(jq -r '.skippedTests // empty' "$summary_path")"
     expected="$(jq -r '.expectedFailures // empty' "$summary_path")"
     result="$(jq -r '.result // empty' "$summary_path")"
-    [[ "$total" == "$expected_count" ]] || \
-        fail "installed workflow ran $total repetitions instead of $expected_count"
-    [[ "$passed" == "$expected_count" ]] || \
-        fail "installed workflow passed $passed repetitions instead of $expected_count"
+    [[ "$total" == "1" ]] || fail "installed workflow ran $total logical tests instead of exactly one"
+    [[ "$passed" == "1" ]] || fail "installed workflow passed $passed logical tests instead of exactly one"
     [[ "$failed" == "0" ]] || fail "installed iteration recorded $failed failed tests"
     [[ "$skipped" == "0" ]] || fail "installed iteration recorded $skipped skipped tests"
     [[ "$expected" == "0" ]] || fail "installed iteration recorded $expected expected failures"
     [[ "$result" == "Passed" ]] || fail "installed iteration result is not Passed: $result"
+
+    device_passed="$(jq '[.devicesAndConfigurations[].passedTests] | add // 0' "$summary_path")"
+    device_failed="$(jq '[.devicesAndConfigurations[].failedTests] | add // 0' "$summary_path")"
+    device_skipped="$(jq '[.devicesAndConfigurations[].skippedTests] | add // 0' "$summary_path")"
+    [[ "$device_passed" == "$expected_count" ]] || \
+        fail "installed workflow passed $device_passed repetitions instead of $expected_count"
+    [[ "$device_failed" == "0" ]] || fail "installed workflow recorded $device_failed failed repetitions"
+    [[ "$device_skipped" == "0" ]] || fail "installed workflow recorded $device_skipped skipped repetitions"
+
+    if (( expected_count > 1 )); then
+        tests_path="${result_bundle%.xcresult}-tests.json"
+        [[ ! -e "$tests_path" ]] || fail "installed-test details already exist: $tests_path"
+        xcrun xcresulttool get test-results tests --compact --path "$result_bundle" > "$tests_path"
+        jq -e . "$tests_path" >/dev/null || fail "installed-test details are invalid JSON"
+        repetition_total="$(jq '[.. | objects | select(.nodeType? == "Repetition")] | length' "$tests_path")"
+        repetition_passed="$(jq '[.. | objects | select(.nodeType? == "Repetition" and .result? == "Passed")] | length' "$tests_path")"
+        [[ "$repetition_total" == "$expected_count" ]] || \
+            fail "XCResult contains $repetition_total repetition nodes instead of $expected_count"
+        [[ "$repetition_passed" == "$expected_count" ]] || \
+            fail "XCResult contains $repetition_passed passing repetition nodes instead of $expected_count"
+    fi
 }
 
 stop_installed_app() {
