@@ -285,6 +285,39 @@ extension FileListResponderTests {
         XCTAssertEqual(loadSpy.directoryLoadCount, 2, "Delete should produce one explicit refresh")
     }
 
+    func testDeletingExpandedFolderDoesNotShowMissingFolderOverlay() async throws {
+        let originalExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+        SettingsManager.shared.folderExpansionEnabled = true
+        defer { SettingsManager.shared.folderExpansionEnabled = originalExpansionEnabled }
+
+        let temp = try createTempDirectory()
+        let deletedFolder = try createTestFolder(in: temp, name: "Expanded")
+        _ = try createTestFile(in: deletedFolder, name: "child.txt")
+        let survivor = try createTestFolder(in: temp, name: "Survivor")
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        let loadSpy = NavigationDelegateSpy()
+        await loadDirectoryAndWaitAsync(temp, in: viewController, delegate: loadSpy)
+        defer { cleanupTempDirectory(temp) }
+
+        let folderItem = try XCTUnwrap(
+            viewController.dataSource.findItem(withURL: deletedFolder, in: viewController.dataSource.items)
+        )
+        viewController.tableView.expandItem(folderItem)
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertTrue(viewController.selectItem(at: deletedFolder))
+
+        viewController.deleteSelection()
+
+        XCTAssertTrue(await waitForFile(at: deletedFolder, exists: false))
+        XCTAssertTrue(await waitForSelectedURL(survivor, in: viewController))
+        try await Task.sleep(nanoseconds: 2_500_000_000)
+
+        XCTAssertNil(viewController.errorOverlay)
+        XCTAssertEqual(viewController.currentDirectory?.standardizedFileURL, temp.standardizedFileURL)
+        XCTAssertEqual(loadSpy.directoryLoadCount, 2, "Deleting an expanded folder should refresh only its parent")
+    }
+
     func testLocalMoveExpandsDestinationAndSelectsResultWithoutWatcherReloads() async throws {
         let originalExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
         SettingsManager.shared.folderExpansionEnabled = true

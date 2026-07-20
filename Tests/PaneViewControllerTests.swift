@@ -62,6 +62,18 @@ final class PaneViewControllerTests: XCTestCase {
         return values
     }
 
+    private func tabButtons(in view: NSView) -> [TabButton] {
+        var buttons = view is TabButton ? [view as! TabButton] : []
+        for subview in view.subviews {
+            buttons.append(contentsOf: tabButtons(in: subview))
+        }
+        return buttons
+    }
+
+    private func paneActiveState(of button: TabButton) -> Bool? {
+        Mirror(reflecting: button).children.first { $0.label == "isPaneActive" }?.value as? Bool
+    }
+
     func testCreateTabAddsToArray() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()
@@ -72,6 +84,21 @@ final class PaneViewControllerTests: XCTestCase {
         let initialCount = pane.tabs.count
         _ = pane.createTab(at: temp, select: true)
         XCTAssertEqual(pane.tabs.count, initialCount + 1)
+    }
+
+    func testInactivePaneTabBarReloadKeepsEveryTabVisuallyInactive() {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        pane.setActive(false)
+
+        pane.refreshTabBar()
+
+        let buttons = tabButtons(in: pane.tabBar)
+        XCTAssertFalse(buttons.isEmpty)
+        XCTAssertTrue(
+            buttons.allSatisfy { paneActiveState(of: $0) == false },
+            "Rebuilding an inactive pane's tabs must not restore the bright active indicator"
+        )
     }
 
     func testCreateTabSelectsNewTab() throws {
