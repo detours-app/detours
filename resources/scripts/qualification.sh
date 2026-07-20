@@ -36,6 +36,7 @@ Commands:
   audit-matrix                  Audit capability-source-check traceability
   preflight                    Validate Foundry and all live environments
   reset                        Remove exact marked qualification state
+  fixtures                     Create and mount every guarded fixture root
   build                        Build the qualifying app without installing it
   in-process <group|all>       Run a named workflow 100 times in process
   installed <group|all>        Run a named workflow 20 times in the installed app
@@ -295,15 +296,6 @@ run_reset() {
     done
     ! pgrep -x Detours >/dev/null 2>&1 || fail "Detours did not stop during reset"
 
-    if mount | grep -F "$SMB_MOUNT_POINT" >/dev/null 2>&1; then
-        diskutil unmount "$SMB_MOUNT_POINT" >/dev/null
-    fi
-    local mounted_apfs
-    while IFS= read -r mounted_apfs; do
-        [[ -n "$mounted_apfs" ]] || continue
-        diskutil unmount "$mounted_apfs" >/dev/null
-    done < <(mount | sed -nE 's|^.* on (/Volumes/DetoursQualification-[0-9a-f-]{36}) \(.*$|\1|p')
-
     local guard_binary=""
     if guard_binary="$(qualification_guard 2>/dev/null)"; then
         local parent sentinel
@@ -315,6 +307,15 @@ run_reset() {
         done
         run_cleanup
     fi
+
+    if mount | grep -F "$SMB_MOUNT_POINT" >/dev/null 2>&1; then
+        diskutil unmount "$SMB_MOUNT_POINT" >/dev/null
+    fi
+    local mounted_apfs
+    while IFS= read -r mounted_apfs; do
+        [[ -n "$mounted_apfs" ]] || continue
+        diskutil unmount "$mounted_apfs" >/dev/null
+    done < <(mount | sed -nE 's|^.* on (/Volumes/DetoursQualification-[0-9a-f-]{36}) \(.*$|\1|p')
 
     defaults delete "$APP_BUNDLE_ID" >/dev/null 2>&1 || true
     security delete-generic-password -s "$QUALIFICATION_KEYCHAIN_SERVICE" >/dev/null 2>&1 || true
@@ -355,6 +356,7 @@ run_cold() {
     run_reset
     run_preflight
     run_build
+    run_prepare_fixtures
     "$0" in-process all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX"
     "$0" installed all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX"
 }
@@ -379,7 +381,12 @@ run_cleanup() {
     while IFS= read -r descriptor; do
         "$guard_binary" remove --descriptor "$descriptor"
     done < <(find "$descriptors_dir" -maxdepth 1 -type f -name '*.json' | sort)
+
+    cleanup_fixture_mounts
 }
+
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/qualification-fixtures.sh"
 
 run_all() {
     run_build
@@ -435,6 +442,7 @@ write_command_metadata
 case "$COMMAND" in
     preflight) run_preflight ;;
     reset) run_reset ;;
+    fixtures) run_prepare_fixtures ;;
     build) run_build ;;
     in-process) run_in_process "$GROUP" ;;
     installed) run_installed "$GROUP" ;;
