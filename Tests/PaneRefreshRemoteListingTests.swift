@@ -228,6 +228,22 @@ final class PaneRefreshRemoteListingTests: XCTestCase {
         XCTAssertEqual(controller.providerWatches.count, 2)
     }
 
+    func testRemoteExpansionRegistersAndCollapseRemovesBranchWatch() async throws {
+        let hostID = UUID()
+        let root = Location.remote(hostID: hostID, path: "/")
+        let branch = Location.remote(hostID: hostID, path: "/Folder")
+        let folder = item(hostID: hostID, path: "/Folder", name: "Folder", isDirectory: true)
+        folder.setChildrenForTesting([])
+        let controller = configuredController(root: root, items: [folder])
+        defer { controller.shutdown() }
+
+        controller.tableView.expandItem(folder)
+        try await waitFor { controller.providerWatches[branch] != nil }
+
+        controller.tableView.collapseItem(folder)
+        try await waitFor { controller.providerWatches[branch] == nil }
+    }
+
     func testWatchRegistrationCompletingAfterNavigationIsDiscarded() async throws {
         let hostA = UUID()
         let hostB = UUID()
