@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Draft
+- Status: Reviewed
 - Branch: testing/whole-app-stability-qualification
 - Campaign condition: unrelated feature work remains frozen from the first implementation commit through the final evidence commit
 
@@ -33,11 +33,11 @@ Create a one-time inventory of everything Detours promises today, connect every 
 
 ### Acceptance Criteria
 
-- [ ] **A1** The completed capability inventory covers every current command, shortcut, shortcut-menu action, drag action, setting, automatic behavior, user-guide promise, and behavior from the newest completed feature specs, with an automated result for each applicable environment.
+- [ ] **A1** The completed capability inventory covers every current command, shortcut, shortcut-menu action, drag action, setting, automatic behavior, user-guide promise, and behavior from every completed feature spec (the newest governing when specs disagree), with an automated result for each applicable environment.
 - [ ] **A2** All current app capabilities pass on Foundry across local storage, the APFS test volume, real iCloud Drive, the dedicated SMB share, `devtest`, `wraith`, and `win-carriercall`, with no applicable skips.
 - [ ] **A3** Pane, tab, focus, activation, navigation, refresh, selection, expansion, filtering, sorting, hidden-file, session, sidebar, volume, settings, appearance, Git, and progress behavior stays correct throughout the repeated workflows.
 - [ ] **A4** Every file operation, undo or redo path, archive path, opening path, Quick Look path, Finder reveal, sharing path, credential path, connection path, cancellation path, retry path, and error path ends in a correct and usable state.
-- [ ] **A5** Each high-risk in-process workflow passes 100 consecutive repetitions, and each matching installed-app workflow passes 20 consecutive repetitions in every relevant location and context.
+- [ ] **A5** Each named workflow group passes 100 consecutive in-process repetitions, and each matching installed-app workflow passes 20 consecutive repetitions in every applicable location and context.
 - [ ] **A6** Three consecutive complete cold qualification runs pass against the same app commit, each from reset app and fixture state, with one run beginning after a Foundry reboot.
 - [ ] **A7** A 12-hour installed-app soak passes with no hang, stalled activity, stale pane, focus error, leaked process, leaked watch, leaked mount, partial file, unexpected app error, or cleanup failure.
 - [ ] **A8** Interactive actions respond within the stated reliability limits or present a clear recoverable failure, and no operation silently remains busy past its limit.
@@ -68,15 +68,15 @@ The locations are fixed:
 
 - local: a UUID child of `~/DetoursQualification`
 - APFS: a disposable disk image stored under `.build/qualification/images`, mounted as a UUID-named volume
-- iCloud: a UUID child of `/Users/smith/Library/Mobile Documents/com~apple~CloudDocs/Detours Qualification`, which remains pinned with Keep Downloaded
-- SMB: a UUID child of the mounted `Detours Qualification` share from `devtest`
+- iCloud: a UUID child of `~/Library/Mobile Documents/com~apple~CloudDocs/Detours Qualification` on Foundry (the folder already exists), pinned with Keep Downloaded by the iCloud fixture adapter and required local by preflight
+- SMB: a UUID child of the mounted `Detours Qualification` share from `devtest` (created by the `~/dev/ansible` spec `260720-detours-smb-test-share`; Foundry mounts `smb://devtest/Detours Qualification` with the dedicated account, password `DETOURS_SMB_TEST_PASSWORD` in Doppler `infra/prd`)
 - Linux SSH: the existing UUID fixture root on `devtest`
 - Intel Mac SSH: the existing UUID fixture root on `wraith`
 - Windows SSH: the existing UUID fixture root on `win-carriercall`
 
 Every destructive path has three independent controls. The runner creates a fresh UUID root only below the exact allowlisted parent and writes a sentinel containing that UUID. The operation guard canonicalizes source and destination, rejects aliases or symbolic links that escape, and requires the matching sentinel before a destructive call. Provider-specific snapshots taken before and after the workflow fail the run if any sibling or parent state outside the UUID roots changes. Cleanup applies the same guard and names each exact root and mount; no broad wildcard or home-directory deletion is permitted.
 
-`resources/scripts/qualification.sh` orchestrates the existing build and test commands on Foundry, the explicit workflow groups, live location preflight, cold reset, soak, raw result capture, and cleanup. It refuses to begin unless Foundry is clean at the requested commit, every required machine and mounted location is reachable, iCloud reports the pinned root as local, the SMB share authenticates, storage headroom is sufficient, and no prior run process, watch, mount, app preference, session, fixture, or qualification credential remains. Reset removes only Detours preferences and caches, the known UI fixture root, exact marked qualification roots, exact test Keychain entries, and test-created mounts.
+`resources/scripts/qualification.sh` orchestrates the existing build and test commands on Foundry, the explicit workflow groups, live location preflight, cold reset, soak, raw result capture, and cleanup. It refuses to begin unless Foundry is clean at the requested commit, every required machine and mounted location is reachable, iCloud reports the pinned root as local, the SMB share authenticates, at least 50 GB of storage headroom is free, and no prior run process, watch, mount, app preference, session, fixture, or qualification credential remains. Reset removes only Detours preferences and caches, the known UI fixture root, exact marked qualification roots, exact test Keychain entries, and test-created mounts.
 
 The repeated workflow groups are explicit rather than generated:
 
@@ -89,13 +89,13 @@ The repeated workflow groups are explicit rather than generated:
 - session restore, tab close and reopen, window close and reopen, relaunch, density, theme, and settings changes
 - file opening, Quick Look, Finder reveal, sharing, saved credentials, sidebar volumes, iCloud, and SMB actions
 
-The in-process version of each applicable high-risk workflow runs 100 times. The installed-app version runs 20 times for every relevant location and context. A recorded seed controls only the order of these named scenarios and fixture-name choices so a failure replays exactly; it does not describe app state or generate new actions. A failure writes its seed, scenario, iteration, app state observations, filesystem snapshots, relevant logs, and screenshot to `.build/qualification/<commit>/<run-id>/failures/`.
+The in-process version of each applicable named workflow group runs 100 times. The installed-app version runs 20 times for every applicable location and context. A recorded seed controls only the order of these named scenarios and fixture-name choices so a failure replays exactly; it does not describe app state or generate new actions. A failure writes its seed, scenario, iteration, app state observations, filesystem snapshots, the app, helper, and runner logs for the failing iteration, and screenshot to `.build/qualification/<commit>/<run-id>/failures/`.
 
 Reliability limits are failure gates, not a performance benchmarking program. Focus, active-pane indication, menu validation, and other immediate UI feedback complete within one second. A local fixture listing or ordinary small-file operation completes visibly within ten seconds. A remote or cloud listing or ordinary small-file operation completes visibly within thirty seconds or presents a clear recoverable failure. Cancellation ends visible activity within five seconds. No operation or refresh remains active for sixty seconds without a clear failure and recovery path. Purpose-built large-file checks use byte integrity and forward progress rather than the small-file time limit.
 
-Structural and accessibility assertions cover every installed-app workflow: exactly one active pane, exactly one active tab in each pane, focus matches the action target, menus expose the correct enabled state, labels and roles remain available, progress clears, and error surfaces can be dismissed or retried. Reference images cover both active panes in Light, Dark, Foolscap, Drafting, and one custom theme at compact density; Dark additionally covers comfortable and spacious density; focused rename, drag target, operation progress, and connection-loss states each have a representative image. The matrix records the exact reference-image set so the set is finite and reviewable.
+Structural and accessibility assertions cover every installed-app workflow: exactly one active pane, exactly one active tab in each pane, focus matches the action target, menus expose the correct enabled state, labels and roles remain available, progress clears, and error surfaces can be dismissed or retried. Reference images cover both active panes in Light, Dark, Foolscap, Drafting, and one campaign-defined custom theme (fixed colors applied through the existing custom-theme setting) at compact density; Dark additionally covers comfortable and spacious density; focused rename, drag target, operation progress, and connection-loss states each have a representative image. The matrix records the exact reference-image set so the set is finite and reviewable.
 
-Raw logs, result bundles, screenshots, and generated test results stay under `.build/qualification/`. The tracked result report lives at `resources/docs/260720-whole-app-stability-qualification-result.md` and contains the qualified commit, environment versions, matrix totals, run IDs, reliability observations, soak summary, fixed regressions with minimized traces, and a zero-failure conclusion. The three clean runs and soak execute against one exact app commit. After they pass, a child commit changes only the completed matrix and result report. The normal Spectre build/install runs from that child commit, then no app exercise occurs on Spectre.
+Raw logs, result bundles, screenshots, and generated test results stay under `.build/qualification/`. The tracked result report lives at `resources/docs/260720-whole-app-stability-qualification-result.md` and contains the qualified commit, environment versions, matrix totals, run IDs, reliability observations, soak summary, fixed regressions with minimized traces, and a zero-failure conclusion. The three clean runs and soak execute against one exact app commit. After they pass, a child commit changes only the completed matrix, the result report, and the required `Tests/TEST_LOG.md` entries. The normal Spectre build/install runs from that child commit, then no app exercise occurs on Spectre.
 
 ### Approach Validation
 
@@ -136,12 +136,12 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 - [ ] **C3** Add the provider-neutral run-root descriptor and independent destructive-operation guard with exact parent allowlists, UUID sentinels, canonical path checks, alias and symbolic-link rejection, and provider snapshots outside each run root.
 - [ ] **C4** Add strict Foundry preflight and reset support for commit identity, clean worktree, machine reachability, local iCloud status, SMB authentication, storage headroom, app processes, watches, mounts, preferences, caches, session, test credentials, and marked fixtures.
 - [ ] **C5** Extend existing `UITestEnvironment` observations only where the matrix needs inaccessible state, including active pane and tab, first responder, expansion, selection, visible rows, progress, connection state, menus, mounts, and cleanup counters.
-- [ ] **C6** Add fixture adapters for the local root, disposable APFS image, pinned iCloud root, mounted SMB share, `devtest`, `wraith`, and `win-carriercall`, reusing the current remote fixture implementations and creating no second provider model.
+- [ ] **C6** Add fixture adapters for the local root, disposable APFS image, iCloud root (pinning it with Keep Downloaded), mounted SMB share, `devtest`, `wraith`, and `win-carriercall`, reusing the current remote fixture implementations and creating no second provider model.
 - [ ] **C7** Add the fixed named workflow groups and seed-replay record, with 100 in-process repetitions and 20 installed-app repetitions for each applicable location and context.
 - [ ] **C8** Add the 12-hour soak mode that cycles the named installed-app workflows, samples app and helper health, detects stuck work and stale state, and performs the same guarded cleanup at completion or failure.
 - [ ] **C9** Add structured raw evidence under `.build/qualification/<commit>/<run-id>/` for preflight, scenario timing, state observations, filesystem snapshots, logs, screenshots, result bundles, failure traces, and cleanup.
 - [ ] **C10** For every red matrix row or intermittent iteration, preserve the minimized failure as a permanent regression test, fix the app or test surface, rerun its focused checks, and restart the full consecutive-clean count.
-- [ ] **C11** Add generation of `resources/docs/260720-whole-app-stability-qualification-result.md` and matrix result updates from the final run records, with tracked evidence limited to those two documents.
+- [ ] **C11** Add generation of `resources/docs/260720-whole-app-stability-qualification-result.md` and matrix result updates from the final run records, with tracked evidence limited to those two documents plus the required `Tests/TEST_LOG.md` entries.
 
 ---
 
@@ -172,7 +172,7 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 - [ ] **T15** Complete cold full run two after a new guarded reset against the same app commit with no environment change.
 - [ ] **T16** Reboot Foundry, complete the guarded preflight and reset, and pass cold full run three against the same app commit.
 - [ ] **T17** Run the installed app for 12 continuous hours against the same app commit while soak mode cycles the named workflows, with every health, reliability, integrity, and cleanup gate green.
-- [ ] **T18** Confirm all acceptance criteria from the final records, commit only the completed matrix and result report as the child of the qualified app commit, and record both commit hashes in the report.
+- [ ] **T18** Confirm all acceptance criteria from the final records, commit only the completed matrix, result report, and `Tests/TEST_LOG.md` entries as the child of the qualified app commit, and record both commit hashes in the report.
 - [ ] **T19** Run `resources/scripts/build.sh` on Spectre without `--no-install` after the Foundry gates and evidence commit pass, then perform no fixture, probe, test, or scripted app exercise on Spectre.
 
 ---
