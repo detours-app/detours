@@ -10,6 +10,10 @@ soak_cleanup_on_exit() {
     rm -f -- "$QUALIFICATION_ROOT/.soak-active"
     run_cleanup
     local cleanup_status=$?
+    if (( cleanup_status == 0 )); then
+        verify_qualification_cleanup
+        cleanup_status=$?
+    fi
     if (( cleanup_status != 0 )); then
         printf 'qualification: soak cleanup failed with status %s\n' "$cleanup_status" >&2
         exit "$cleanup_status"
@@ -131,6 +135,7 @@ run_twelve_hour_soak() {
         "$started_at" "$(date +%s)" "$SOAK_DURATION_SECONDS" "$cycle" > "$(run_dir)/soak.env"
 
     run_cleanup
+    verify_qualification_cleanup
     rm -f -- "$QUALIFICATION_ROOT/.soak-active"
     trap - EXIT
 }

@@ -228,7 +228,7 @@ audit_matrix() {
 }
 
 run_preflight() {
-    local requested_commit head_commit current_branch free_kilobytes
+    local requested_commit head_commit current_branch free_kilobytes boot_epoch
     requested_commit="$(canonical_commit)"
     head_commit="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
     [[ "$head_commit" == "$requested_commit" ]] || fail "HEAD $head_commit does not match requested commit $requested_commit"
@@ -240,6 +240,8 @@ run_preflight() {
     free_kilobytes="$(df -Pk "$PROJECT_DIR" | awk 'NR == 2 { print $4 }')"
     is_unsigned_integer "$free_kilobytes" || fail "could not read free storage"
     (( free_kilobytes >= MINIMUM_FREE_KILOBYTES )) || fail "qualification needs at least 50 GB free"
+    boot_epoch="$(sysctl -n kern.boottime | sed -E 's/^.*sec = ([0-9]+).*$/\1/')"
+    is_unsigned_integer "$boot_epoch" || fail "could not read Foundry boot time"
 
     local host
     for host in devtest wraith win-carriercall; do
@@ -282,6 +284,7 @@ EXPECT
         printf 'branch=%s\n' "$current_branch"
         printf 'host=%s\n' "$(host_name)"
         printf 'free_kilobytes=%s\n' "$free_kilobytes"
+        printf 'boot_epoch=%s\n' "$boot_epoch"
         printf 'macos=%s\n' "$(sw_vers -productVersion)"
         printf 'xcode=%s\n' "$(xcodebuild -version | tr '\n' ' ')"
         printf 'swift=%s\n' "$(swift --version | head -1)"
@@ -353,6 +356,15 @@ run_cold() {
     compare_outside_root_snapshots
     run_cleanup
     verify_qualification_cleanup
+    {
+        printf 'status=passed\n'
+        printf 'commit=%s\n' "$(canonical_commit)"
+        printf 'cold_index=%s\n' "$QUALIFICATION_COLD_INDEX"
+        printf 'seed=%s\n' "$QUALIFICATION_SEED"
+        printf 'boot_epoch=%s\n' "$(sed -n 's/^boot_epoch=//p' "$(run_dir)/preflight/environment.env")"
+        printf 'completed_epoch=%s\n' "$(date +%s)"
+        printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$(run_dir)/cold.env"
     trap - EXIT
 }
 
@@ -361,9 +373,7 @@ run_soak() {
 }
 
 run_report() {
-    if [[ "${DETOURS_QUALIFICATION_C11_READY:-0}" != "1" ]]; then
-        fail "tracked report generation is installed by C11"
-    fi
+    generate_qualification_report
 }
 
 run_cleanup() {
@@ -397,6 +407,8 @@ source "$SCRIPT_DIR/qualification-workflows.sh"
 source "$SCRIPT_DIR/qualification-soak.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-evidence.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/qualification-report.sh"
 
 run_all() {
     run_build

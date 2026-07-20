@@ -141,7 +141,7 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 - [x] **C8** Add the 12-hour soak mode that cycles the named installed-app workflows, samples app and helper health, detects stuck work and stale state, and performs the same guarded cleanup at completion or failure.
 - [x] **C9** Add structured raw evidence under `.build/qualification/<commit>/<run-id>/` for preflight, scenario timing, state observations, filesystem snapshots, logs, screenshots, result bundles, failure traces, and cleanup.
 - [x] **C10** For every red matrix row or intermittent iteration, preserve the minimized failure as a permanent regression test, fix the app or test surface, rerun its focused checks, and restart the full consecutive-clean count.
-- [ ] **C11** Add generation of `resources/docs/260720-whole-app-stability-qualification-result.md` and matrix result updates from the final run records, with tracked evidence limited to those two documents plus the required `Tests/TEST_LOG.md` entries.
+- [x] **C11** Add generation of `resources/docs/260720-whole-app-stability-qualification-result.md` and matrix result updates from the final run records, with tracked evidence limited to those two documents plus the required `Tests/TEST_LOG.md` entries.
 
 ---
 
@@ -192,3 +192,4 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 - **C9** Added per-run command history, scenario timing, process and mount observations, dedicated log/screenshot/XCResult/failure directories, and an error trap that preserves the exact failing command and replay record. The independent guard now hashes every file outside each marked root for before/after comparison, and cold-run cleanup verifies that roots, images, mounts, app, and test processes are gone.
 - **C9 verification** Foundry built the app and guard without warnings. A guarded live probe confirmed that an inside-root mutation leaves the outside snapshot equal and a sibling mutation makes comparison fail.
 - **C10** Established the campaign's no-waiver gate: the first verification failure (the qualification fixture accessor syntax) was reproduced by Foundry's test-target build, fixed in the test source, and the exact build then passed. No matrix row or repeated iteration is currently red; any later red result remains subject to the same regression, focused-rerun, and clean-count-reset rule.
+- **C11** Added a fail-closed final-record reducer. It selects an ordered cold 1/2/3 sequence, proves a changed Foundry boot epoch before cold 3, requires a later 43,200-second soak, clean cleanup records, and no selected-run failure trace, then updates only the matrix, plain-language result report, and `Tests/TEST_LOG.md`.
