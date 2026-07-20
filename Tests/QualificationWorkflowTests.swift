@@ -251,19 +251,118 @@ final class QualificationWorkflowTests: XCTestCase {
     func testTransferWorkflow() async throws {
         let roots = try qualificationRoots()
         for iteration in 0..<repetitions {
-            let scenario = try makeScenario(group: "transfer", iteration: iteration, roots: roots)
-            defer { validatedCleanup(scenario) }
-            let source = scenario.appendingPathComponent("source.txt")
-            let copiedDirectory = scenario.appendingPathComponent("copied", isDirectory: true)
-            let movedDirectory = scenario.appendingPathComponent("moved", isDirectory: true)
-            try Data("payload-\(iteration)".utf8).write(to: source)
-            try FileManager.default.createDirectory(at: copiedDirectory, withIntermediateDirectories: false)
-            try FileManager.default.createDirectory(at: movedDirectory, withIntermediateDirectories: false)
+            let sourceRootIndex = index(for: iteration, count: roots.count)
+            let sourceRoot = roots[sourceRootIndex]
+            let destinationRoot = roots[(sourceRootIndex + 1) % roots.count]
+            let sourceScenario = try makeScenario(
+                group: "transfer-source",
+                iteration: iteration,
+                root: sourceRoot
+            )
+            let destinationScenario = try makeScenario(
+                group: "transfer-destination",
+                iteration: iteration,
+                root: destinationRoot
+            )
+            defer {
+                validatedCleanup(sourceScenario)
+                validatedCleanup(destinationScenario)
+            }
 
-            let copied = try await FileOperationQueue.shared.copy(items: [source], to: copiedDirectory)
-            let moved = try await FileOperationQueue.shared.move(items: copied, to: movedDirectory)
-            XCTAssertEqual(try String(contentsOf: moved[0], encoding: .utf8), "payload-\(iteration)")
-            XCTAssertFalse(FileManager.default.fileExists(atPath: copied[0].path))
+            let queue = FileOperationQueue.shared
+            defer {
+                queue.conflictChoiceOverrideForTesting = nil
+                queue.moveReplacementCancellationProbeForTesting = nil
+            }
+
+            let copySource = sourceScenario.appendingPathComponent("copy.txt")
+            try write("copy-\(iteration)", to: copySource)
+            let copied = try await queue.copy(
+                items: [copySource],
+                to: destinationScenario
+            )
+            XCTAssertEqual(try String(contentsOf: copied[0], encoding: .utf8), "copy-\(iteration)")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: copySource.path))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: copied[0].path))
+
+            let moveSource = sourceScenario.appendingPathComponent("move.txt")
+            try write("move-\(iteration)", to: moveSource)
+            let moveUndoManager = UndoManager()
+            let moved = try await queue.move(
+                items: [moveSource],
+                to: destinationScenario,
+                undoManager: moveUndoManager
+            )
+            XCTAssertEqual(try String(contentsOf: moved[0], encoding: .utf8), "move-\(iteration)")
+            XCTAssertFalse(FileManager.default.fileExists(atPath: moveSource.path))
+            XCTAssertTrue(moveUndoManager.canUndo)
+            moveUndoManager.undo()
+            XCTAssertEqual(try String(contentsOf: moveSource, encoding: .utf8), "move-\(iteration)")
+            XCTAssertFalse(FileManager.default.fileExists(atPath: moved[0].path))
+
+            let conflictSource = sourceScenario.appendingPathComponent("conflict.txt")
+            let conflictDestination = destinationScenario.appendingPathComponent("conflict.txt")
+            try write("new", to: conflictSource)
+            try write("original", to: conflictDestination)
+            queue.conflictChoiceOverrideForTesting = .keepBoth
+            let keptBoth = try await queue.copy(items: [conflictSource], to: destinationScenario)
+            XCTAssertEqual(keptBoth.count, 1)
+            XCTAssertNotEqual(keptBoth[0], conflictDestination)
+            XCTAssertEqual(try String(contentsOf: conflictDestination, encoding: .utf8), "original")
+            XCTAssertEqual(try String(contentsOf: keptBoth[0], encoding: .utf8), "new")
+
+            let skipSource = sourceScenario.appendingPathComponent("skip.txt")
+            let skipDestination = destinationScenario.appendingPathComponent("skip.txt")
+            try write("skipped-new", to: skipSource)
+            try write("skipped-original", to: skipDestination)
+            queue.conflictChoiceOverrideForTesting = .skip
+            let skipped = try await queue.copy(items: [skipSource], to: destinationScenario)
+            XCTAssertTrue(skipped.isEmpty)
+            XCTAssertEqual(try String(contentsOf: skipDestination, encoding: .utf8), "skipped-original")
+
+            let replaceSource = sourceScenario.appendingPathComponent("replace.txt")
+            let replaceDestination = destinationScenario.appendingPathComponent("replace.txt")
+            try write("replacement", to: replaceSource)
+            try write("displaced", to: replaceDestination)
+            queue.conflictChoiceOverrideForTesting = .replace
+            queue.moveReplacementCancellationProbeForTesting = { true }
+            do {
+                _ = try await queue.move(items: [replaceSource], to: destinationScenario)
+                XCTFail("Replacement move should cancel at its rollback boundary")
+            } catch let error as FileOperationError {
+                guard case .cancelled = error else { throw error }
+            }
+            XCTAssertEqual(try String(contentsOf: replaceSource, encoding: .utf8), "replacement")
+            XCTAssertEqual(try String(contentsOf: replaceDestination, encoding: .utf8), "displaced")
+
+            queue.moveReplacementCancellationProbeForTesting = nil
+            let retryUndoManager = UndoManager()
+            let retried = try await queue.move(
+                items: [replaceSource],
+                to: destinationScenario,
+                undoManager: retryUndoManager
+            )
+            XCTAssertEqual(retried, [replaceDestination])
+            XCTAssertEqual(try String(contentsOf: replaceDestination, encoding: .utf8), "replacement")
+            retryUndoManager.undo()
+            XCTAssertEqual(try String(contentsOf: replaceSource, encoding: .utf8), "replacement")
+            XCTAssertEqual(try String(contentsOf: replaceDestination, encoding: .utf8), "displaced")
+
+            let invalidDestination = destinationScenario.appendingPathComponent("not-a-directory")
+            let failureSource = sourceScenario.appendingPathComponent("failure.txt")
+            try write("destination-file", to: invalidDestination)
+            try write("must-survive", to: failureSource)
+            do {
+                _ = try await queue.copy(items: [failureSource], to: invalidDestination)
+                XCTFail("Copying into a file should fail")
+            } catch {
+                XCTAssertTrue(FileManager.default.fileExists(atPath: failureSource.path))
+                XCTAssertEqual(try String(contentsOf: invalidDestination, encoding: .utf8), "destination-file")
+            }
+
+            XCTAssertFalse(queue.isRunning)
+            XCTAssertEqual(queue.pendingCount, 0)
+            XCTAssertNil(queue.currentOperation)
         }
     }
 
@@ -363,6 +462,10 @@ final class QualificationWorkflowTests: XCTestCase {
 
     private func makeScenario(group: String, iteration: Int, roots: [URL]) throws -> URL {
         let root = roots[index(for: iteration, count: roots.count)]
+        return try makeScenario(group: group, iteration: iteration, root: root)
+    }
+
+    private func makeScenario(group: String, iteration: Int, root: URL) throws -> URL {
         let scenario = root.appendingPathComponent("workflow-\(group)-\(seed)-\(iteration)", isDirectory: true)
         try validate(scenario, under: root)
         try FileManager.default.createDirectory(at: scenario, withIntermediateDirectories: false)
