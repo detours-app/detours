@@ -80,6 +80,8 @@ run_installed_once() {
                 -scheme DetoursUITests \
                 -destination 'platform=macOS,arch=arm64' \
                 -only-testing:"DetoursUITests/$test_filter" \
+                "DETOURS_UI_TEST_APP_PATH=$PROJECT_DIR/build/Detours.app" \
+                "DETOURS_QUALIFICATION_UI_ROOT=$root_path" \
                 -resultBundlePath "$iteration_bundle" 2>&1 | tee -a "$log_path.log"
         status="${PIPESTATUS[0]}"
         set -e

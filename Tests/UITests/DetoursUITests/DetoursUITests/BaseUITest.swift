@@ -6,12 +6,14 @@ class BaseUITest: XCTestCase {
     /// Name of test directory (created by uitest.sh in home before tests run)
     var testFolderName: String {
         ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_ROOT"]
+            .flatMap { $0.isEmpty ? nil : $0 }
             .map { URL(fileURLWithPath: $0).lastPathComponent }
             ?? "DetoursUITests-Temp"
     }
 
     var uiTestRootURL: URL {
         ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_ROOT"]
+            .flatMap { $0.isEmpty ? nil : $0 }
             .map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(testFolderName)
     }
