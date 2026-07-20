@@ -2165,3 +2165,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   both contained `.modified`, while the item badge stayed nil. Badge storage
   and lookup now canonicalize filesystem URLs, covering symlink and alias path
   spellings consistently.
+
+- 2026-07-20 11:18 CEST: Foundry
+  `swift test --filter "GitStatusTests|FileListDataSourceTests/testRemoteGitStatusAppliesAfterLoadCompletion|LocalReconcileTests"`
+  PASS: 13 tests, 0 failures. A no-op scheduled listing refresh now invalidates
+  the Git cache and applies the modified badge, including canonical/aliased
+  path matching; remote badges and local row reconciliation also remained
+  green.
