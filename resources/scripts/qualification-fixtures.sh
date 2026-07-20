@@ -41,6 +41,39 @@ seed_installed_fixture() {
     printf 'data\n' > "$root/Projects2025/notes.txt"
 }
 
+verify_smb_authentication() {
+    [[ "${DETOURS_QUALIFICATION_SECRET_TRANSPORT:-}" == "stdin-v1" ]] || \
+        fail "SMB credentials must arrive through qualification-foundry.sh"
+    [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "SMB credential transport returned an empty value"
+    require_command expect
+    local auth_status
+    set +e
+    DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" expect <<'EXPECT' >/dev/null 2>&1
+        log_user 0
+        set timeout 15
+        set password_prompts 0
+        spawn smbutil view //detours-qualification@devtest
+        expect {
+            -nocase -re {password} {
+                incr password_prompts
+                if {$password_prompts > 1} { exit 77 }
+                send -- "$env(DETOURS_SMB_TEST_PASSWORD)\r"
+                exp_continue
+            }
+            eof { catch wait result; exit [lindex $result 3] }
+            timeout { exit 124 }
+        }
+EXPECT
+    auth_status=$?
+    set -e
+    case "$auth_status" in
+        0) ;;
+        77) fail "SMB authentication was rejected" ;;
+        124) fail "SMB authentication timed out" ;;
+        *) fail "SMB authentication failed with status $auth_status" ;;
+    esac
+}
+
 mount_smb_fixture() {
     [[ "${DETOURS_QUALIFICATION_SECRET_TRANSPORT:-}" == "stdin-v1" ]] || \
         fail "SMB credentials must arrive through qualification-foundry.sh"

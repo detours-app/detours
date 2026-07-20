@@ -36,6 +36,7 @@ Commands:
   audit-matrix                  Audit capability-source-check traceability
   preflight                    Validate Foundry and all live environments
   reset                        Remove exact marked qualification state
+  smb-auth                     Validate SMB authentication without mounting
   fixtures                     Create and mount every guarded fixture root
   build                        Build the qualifying app without installing it
   in-process <group|all>       Run a named workflow 100 times in process
@@ -224,17 +225,7 @@ run_preflight() {
     [[ "${DETOURS_QUALIFICATION_SECRET_TRANSPORT:-}" == "stdin-v1" ]] || \
         fail "SMB credentials must arrive through qualification-foundry.sh"
     [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "SMB credential transport returned an empty value"
-    require_command expect
-    DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" expect <<'EXPECT' >/dev/null 2>&1 || fail "SMB authentication failed"
-        log_user 0
-        set timeout 15
-        spawn smbutil view //detours-qualification@devtest
-        expect {
-            -re {(?i)password.*:} { send -- "$env(DETOURS_SMB_TEST_PASSWORD)\r"; exp_continue }
-            eof { catch wait result; exit [lindex $result 3] }
-            timeout { exit 124 }
-        }
-EXPECT
+    verify_smb_authentication
 
     ! pgrep -x Detours >/dev/null 2>&1 || fail "Detours is running"
     ! pgrep -x detours-server >/dev/null 2>&1 || fail "a local detours-server process is running"
@@ -448,6 +439,7 @@ trap 'qualification_on_error "$?" "$LINENO" "$BASH_COMMAND"' ERR
 case "$COMMAND" in
     preflight) run_preflight ;;
     reset) run_reset ;;
+    smb-auth) verify_smb_authentication ;;
     fixtures) run_prepare_fixtures_command ;;
     build) run_build ;;
     in-process) run_in_process "$GROUP" ;;
