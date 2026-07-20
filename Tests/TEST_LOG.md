@@ -2179,3 +2179,12 @@ Spotlight search has no unit test (depends on the live, async-built system index
   0 failures. This includes refresh architecture, scheduler/reconciliation,
   local and remote operations, lifecycle, watcher, icon, Git-status, archive,
   process, responder, and integration coverage.
+
+- 2026-07-20 11:50 CEST: Foundry
+  `DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 resources/scripts/uitest.sh`
+  PASS: the chrome screenshot test passed, followed by 87 UI tests with
+  0 failures and 1 expected skip for the credential-gated real Windows target.
+  The run built and installed the release fixture app on Foundry, then covered
+  Cmd-R, app activation and pane chrome, independent tabs and panes, expanded
+  folder deletion/watcher refresh, selection preservation, copy/move/rename,
+  remote refresh, undo, relaunch, and window geometry.

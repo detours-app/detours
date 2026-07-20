@@ -32,7 +32,7 @@
     .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-weight: 750; color: var(--muted); font-size: 12px; }
     .subtitle { max-width: 880px; color: var(--muted); font-size: 17px; }
     .posture { display: flex; align-items: center; gap: 16px; padding: 18px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); margin: 24px 0; }
-    .grade { width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; color: white; background: var(--imp); font-weight: 850; font-size: 30px; flex: 0 0 auto; }
+    .grade { width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; color: white; background: var(--ok); font-weight: 850; font-size: 30px; flex: 0 0 auto; }
     .posture p { margin: 3px 0 0; color: var(--muted); }
     details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 15px 18px; margin-bottom: 20px; }
     summary { cursor: pointer; font-weight: 750; }
@@ -57,7 +57,7 @@
     .card { --sev: var(--min); background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--sev); border-radius: 12px; padding: 17px 18px 15px; box-shadow: var(--shadow); }
     .card[data-sev="Critical"] { --sev: var(--crit); }
     .card[data-sev="Important"] { --sev: var(--imp); }
-    .card[data-status="fixed"] { opacity: .55; text-decoration: line-through; }
+    .card[data-status="fixed"] { border-left-color: var(--ok); }
     .card[data-status="wontfix"] { opacity: .58; }
     .card.deferred { background-image: repeating-linear-gradient(-45deg, transparent, transparent 10px, color-mix(in srgb, var(--muted) 8%, transparent) 10px, color-mix(in srgb, var(--muted) 8%, transparent) 20px); }
     .card-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -82,7 +82,7 @@
   <aside>
     <div class="eyebrow">Audit filters</div>
     <div id="filters"></div>
-    <p class="side-meta">Target: refresh-authority rework<br>Range: 611ec4b..fb9281a<br>Reviewed: 20 July 2026</p>
+    <p class="side-meta">Target: refresh-authority rework<br>Audit range: 611ec4b..fb9281a<br>Remediated: 20 July 2026</p>
   </aside>
   <main>
     <div class="eyebrow">Detours / targeted code audit</div>
@@ -90,15 +90,15 @@
     <p class="subtitle">A focused review of the refresh rework and its pane, navigation, operation, provider, expansion, Git, icon, and lifecycle integrations.</p>
 
     <section class="posture">
-      <div class="grade">C</div>
-      <div><strong>Posture: C</strong><p>No Critical findings, but eleven Important defects concentrate in the new refresh authority and adjacent lifecycle paths.</p></div>
+      <div class="grade">A</div>
+      <div><strong>Posture: A</strong><p>All thirteen Important findings are fixed and covered by focused regression tests, architecture guards, the full unit/integration suite, and app-level UI verification.</p></div>
     </section>
 
     <details open>
       <summary>Plain-language summary</summary>
-      <p>The rework establishes a coherent scheduler and outline mutation boundary, but several workflows still bypass or outlive that authority. Refreshing special iCloud views can replace their composed contents; hidden-file, Git-status, icon, retry, and cross-pane result behavior can become stale or attach to the wrong operation context.</p>
-      <p>Asynchronous folder and remote-expansion loads can finish after newer work and overwrite or prematurely finalize it. Closed tabs do not release their watches, and the New Empty File path accepts traversal components. All findings are open; none are deferred or marked wontfix.</p>
-      <p>Five independent review passes covered logic, runtime bugs, security, architecture, and project conventions. Every retained finding was independently verified against current code and scored at least 97% confidence.</p>
+      <p>The refresh rework had a sound central scheduler, but several workflows bypassed it, outlived it, or lost UI state while rebuilding around it. That common boundary failure caused Cmd-R and special iCloud inconsistencies, stale expanded branches and Git badges, retry and cross-pane races, leaked tab resources, and unsafe filename handling.</p>
+      <p>The two additional operator reports had the same character. A removed expanded directory's retained watcher surfaced its expected not-found result as a pane-wide error instead of letting the parent refresh prune it. Separately, tab-bar reconstruction initialized a selected tab as visually active without reapplying its pane's inactive state, so returning to the app could make both panes' underlines look active.</p>
+      <p>All thirteen findings are fixed. Focused regression coverage reproduces the reported failures and verifies their repairs; broader refresh, lifecycle, operation, provider, Git, and UI suites remain green. No finding is deferred or marked wontfix.</p>
     </details>
 
     <div class="stats" id="stats"></div>
@@ -112,39 +112,45 @@
 </div>
 <script>
 const FINDINGS = [
-  { sev: "Important", cat: "Logic", conf: 99, status: "open", file: "src/FileList/FileListViewController+RefreshScheduling.swift", line: 60,
+  { sev: "Important", cat: "Logic", conf: 99, status: "fixed", file: "src/FileList/FileListViewController+RefreshScheduling.swift", line: 60,
     desc: "Steady-state local refreshes enumerate the physical directory and reconcile it over Mobile Documents and Shared top-level projections. Cmd-R, watcher, and operation refreshes can replace a composed iCloud view with raw filesystem entries. Fix: fetch the same composed listing used by the active iCloud navigation mode, or route those roots through a mode-preserving load.",
     cite: "Navigation uses the specialized composition in <code>FileListDataSource+Loading.swift:207-223,335-356</code>." },
-  { sev: "Important", cat: "Logic", conf: 98, status: "open", file: "src/Panes/PaneViewController+Navigation.swift", line: 77,
+  { sev: "Important", cat: "Logic", conf: 98, status: "fixed", file: "src/Panes/PaneViewController+Navigation.swift", line: 77,
     desc: "Toggling hidden files refreshes only the pane root while surviving expanded folders retain their loaded children. Hidden entries inside expanded branches keep their previous visibility. Fix: invalidate and refresh every materialized expanded branch with the new visibility setting as one coordinated operation.",
     cite: "Root reconciliation reuses existing folder objects and children at <code>FileListDataSource+Loading.swift:269-303</code>." },
-  { sev: "Important", cat: "Bugs", conf: 99, status: "open", file: "src/FileList/FileListViewController+LoadingState.swift", line: 239,
+  { sev: "Important", cat: "Bugs", conf: 99, status: "fixed", file: "src/FileList/FileListViewController+LoadingState.swift", line: 239,
     desc: "The local Retry button starts a full load instead of resubmitting the scheduler's retained failed intent. Selection, completion, activation, or rename behavior can be skipped and later run on an unrelated refresh. Fix: make local steady-state retry submit the failed directory with the retry cause, matching the remote path.",
     cite: "The failed policy and completions remain in <code>PaneRefreshScheduler.swift:365-379</code>, but activation skips states with no pending cause." },
-  { sev: "Important", cat: "Bugs", conf: 98, status: "open", file: "src/FileList/FileListDataSource+Expansion.swift", line: 63,
+  { sev: "Important", cat: "Bugs", conf: 98, status: "fixed", file: "src/FileList/FileListDataSource+Expansion.swift", line: 63,
     desc: "Expanded-folder disclosure loads are gated by navigation epoch but not by the scheduler's directory generation. An older child fetch can finish after a newer operation or watcher snapshot and replace the branch with stale children. Fix: submit disclosure fetches through the scheduler or apply them only when the captured directory generation is still current.",
     cite: "Local disclosure writes children before its epoch check; remote disclosure reconciles directly at <code>FileListDataSource+Expansion.swift:163</code>." },
-  { sev: "Important", cat: "Logic", conf: 97, status: "open", file: "src/FileList/FileListViewController+DirectoryLoading.swift", line: 523,
+  { sev: "Important", cat: "Logic", conf: 97, status: "fixed", file: "src/FileList/FileListViewController+DirectoryLoading.swift", line: 523,
     desc: "Remote expansion restoration runs in an untracked task with no load epoch or root check. After a later navigation starts, the old task can restore selection and clear the shared navigation-in-flight flag before the new load finishes. Fix: bind restoration to the initiating load token and cancel or reject it after navigation.",
     cite: "The awaited child loads have no root validation at <code>FileListDataSource+Expansion.swift:176-189</code>; finalization clears shared state at <code>DirectoryLoading.swift:637-648</code>." },
-  { sev: "Important", cat: "Bugs", conf: 98, status: "open", file: "src/FileList/FileListViewController+RefreshScheduling.swift", line: 186,
+  { sev: "Important", cat: "Bugs", conf: 98, status: "fixed", file: "src/FileList/FileListViewController+RefreshScheduling.swift", line: 186,
     desc: "Local scheduled listing applies never fetch Git status. Manual, watcher, and operation refreshes reuse stale badge data, and inserted files can remain unbadged until a full navigation load. Fix: invalidate when required and schedule a local Git-status fetch after eligible listing applies, including unchanged listings when the Git cause requests it.",
     cite: "The only local fetch remains in the navigation load at <code>FileListDataSource+Loading.swift:76-79</code>; production submits no <code>.git</code> cause." },
-  { sev: "Important", cat: "Logic", conf: 99, status: "open", file: "src/Windows/MainSplitViewController+Navigation.swift", line: 176,
+  { sev: "Important", cat: "Logic", conf: 99, status: "fixed", file: "src/Windows/MainSplitViewController+Navigation.swift", line: 176,
     desc: "Cross-pane copy and move resolve the destination pane's selected tab after the operation awaits. Switching tabs during the operation routes result selection and activation to the later tab, or omits it, instead of preserving the original target. Fix: capture the target FileListViewController and its epoch before starting and validate that target when routing completion.",
     cite: "The local paths look up <code>selectedTab</code> at lines 209 and 276; the remote helper does so at line 319." },
-  { sev: "Important", cat: "Bugs", conf: 98, status: "open", file: "src/FileList/FileListViewController+RefreshScheduling.swift", line: 227,
+  { sev: "Important", cat: "Bugs", conf: 98, status: "fixed", file: "src/FileList/FileListViewController+RefreshScheduling.swift", line: 227,
     desc: "Loading icons for inserted rows cancels every existing icon task and reschedules only the inserted items. Surviving rows whose initial tasks were canceled can retain placeholder icons until a full reload. Fix: append or key icon work per item instead of globally canceling unrelated tasks.",
     cite: "Global cancellation occurs at <code>FileListDataSource+Icons.swift:8-11</code>; no visible-row retry implementation exists." },
-  { sev: "Important", cat: "Security", conf: 98, status: "open", file: "src/FileList/FileListViewController+FileActions.swift", line: 442,
+  { sev: "Important", cat: "Security", conf: 98, status: "fixed", file: "src/FileList/FileListViewController+FileActions.swift", line: 442,
     desc: "New Empty File rejects only an empty name and accepts separators and parent components. A name such as ../outside can write outside the selected local or remote directory, and remote staging can target another local path. Fix: require one valid filename component at the operation boundary and verify every resolved destination remains inside its parent before writing or replacing.",
     cite: "Raw names reach local and remote destinations through <code>FileOperationQueue+ProgressHelpers.swift:439-456</code> and <code>FileOperationQueue+OperationsContinued.swift:465-485</code>." },
-  { sev: "Important", cat: "Architecture", conf: 99, status: "open", file: "src/Panes/PaneViewController+Tabs.swift", line: 40,
+  { sev: "Important", cat: "Architecture", conf: 99, status: "fixed", file: "src/Panes/PaneViewController+Tabs.swift", line: 40,
     desc: "Closing a tab or replacing tabs during session restore discards its controller without canceling scheduler work or unregistering provider watches. Repeated tab closure accumulates retained local and remote watcher resources. Fix: add an idempotent FileList shutdown path and call it from true close and replacement flows before detaching the controller.",
     cite: "The lifecycle contract requires tab close cleanup in <code>resources/specs/done/260717-pane-refresh-authority.md:71,145</code>. Cross-pane tab transfer should not use this shutdown path." },
-  { sev: "Important", cat: "Conventions", conf: 97, status: "open", file: "Tests/RefreshArchitectureTests.swift", line: 53,
+  { sev: "Important", cat: "Conventions", conf: 97, status: "fixed", file: "Tests/RefreshArchitectureTests.swift", line: 53,
     desc: "The architecture check enforces the outline applier but not the scheduler boundary promised by the refresh spec. Filter and sort paths can bypass epochs and generations; an older expanded-folder load can apply its captured sort after the sort indicator changes. Fix: route these state changes through scheduler-owned invalidation and extend the architecture test to reject direct displayed-state reload paths.",
-    cite: "Direct reloads remain in <code>FileListViewController+Filter.swift:34-35</code> and <code>FileListDataSource+Sorting.swift:18-23</code>, contrary to the C13/T14 contract." }
+    cite: "Presentation-generation invalidation and expanded-load eligibility guards now cover sorting and filtering, with executable enforcement in <code>RefreshArchitectureTests</code>." },
+  { sev: "Important", cat: "Bugs", conf: 100, status: "fixed", file: "src/FileList/FileListViewController+RefreshScheduling.swift", line: 305,
+    desc: "Deleting a materialized expanded folder left its child watcher alive long enough to report not-found. The scheduler classified that descendant failure as a pane failure and displayed Folder not found until a later navigation rebuilt the tree. Fixed by treating not-found for a non-root watched branch as removal progress: cancel its watch and let the parent listing refresh prune the branch without replacing the pane with an error overlay.",
+    cite: "Reproduced and fixed by <code>FileListResponderTests.testDeletingExpandedFolderDoesNotShowMissingFolderOverlay</code>." },
+  { sev: "Important", cat: "Bugs", conf: 100, status: "fixed", file: "src/Panes/PaneTabBar.swift", line: 224,
+    desc: "Rebuilding an inactive pane's tab bar created its selected TabButton with the default active appearance and did not reapply pane activity. App activation, theme updates, and other rebuild triggers could therefore leave both panes with equally bright selected-tab underlines. Fixed by applying pane activity to every reconstructed button, always propagating active state, and reasserting the split view's active pane when the window becomes key.",
+    cite: "Reproduced and fixed by <code>PaneViewControllerTests.testInactivePaneTabBarReloadKeepsEveryTabVisuallyInactive</code>; <code>MainWindowController.windowDidBecomeKey</code> provides the app-return defense." }
 ];
 
 const state = { filters: { status: new Set(), sev: new Set(), cat: new Set(), file: new Set() }, query: "", showDeferred: false };
