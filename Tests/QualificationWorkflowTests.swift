@@ -25,14 +25,35 @@ final class QualificationWorkflowTests: XCTestCase {
         for iteration in 0..<repetitions {
             let split = MainSplitViewController()
             split.loadViewIfNeeded()
-            let root = roots[index(for: iteration, count: roots.count)]
-            _ = split.leftPane.createTab(at: root, select: true)
-            split.setActivePane(iteration.isMultiple(of: 2) ? 0 : 1)
-            split.switchToOtherPane()
+            let leftRoot = roots[index(for: iteration, count: roots.count)]
+            let rightRoot = roots[index(for: iteration + 1, count: roots.count)]
+            let leftSelected = split.leftPane.createTab(at: leftRoot, select: true)
+            let leftBackground = split.leftPane.createTab(at: rightRoot, select: false)
+            let rightSelected = split.rightPane.createTab(at: rightRoot, select: true)
+            let rightBackground = split.rightPane.createTab(at: leftRoot, select: false)
 
-            XCTAssertNotEqual(split.leftPane.isActive, split.rightPane.isActive)
-            XCTAssertNotNil(split.leftPane.selectedTab)
-            XCTAssertNotNil(split.rightPane.selectedTab)
+            let initialActivePane = iteration.isMultiple(of: 2) ? 0 : 1
+            split.setActivePane(initialActivePane)
+            assertActivationContract(split, expectedActivePane: initialActivePane)
+
+            split.leftPane.selectNextTab()
+            XCTAssertEqual(split.leftPane.selectedTab?.id, leftBackground.id)
+            assertActivationContract(split, expectedActivePane: initialActivePane)
+            split.leftPane.selectPreviousTab()
+            XCTAssertEqual(split.leftPane.selectedTab?.id, leftSelected.id)
+            assertActivationContract(split, expectedActivePane: initialActivePane)
+
+            split.rightPane.selectNextTab()
+            XCTAssertEqual(split.rightPane.selectedTab?.id, rightBackground.id)
+            assertActivationContract(split, expectedActivePane: initialActivePane)
+            split.rightPane.selectPreviousTab()
+            XCTAssertEqual(split.rightPane.selectedTab?.id, rightSelected.id)
+            assertActivationContract(split, expectedActivePane: initialActivePane)
+
+            split.switchToOtherPane()
+            assertActivationContract(split, expectedActivePane: initialActivePane == 0 ? 1 : 0)
+            split.switchToOtherPane()
+            assertActivationContract(split, expectedActivePane: initialActivePane)
             shutdown(split)
         }
     }
@@ -192,6 +213,48 @@ final class QualificationWorkflowTests: XCTestCase {
     private func shutdown(_ split: MainSplitViewController) {
         for pane in [split.leftPane, split.rightPane] {
             for tab in pane.tabs { tab.fileListViewControllerIfLoaded?.shutdown() }
+        }
+    }
+
+    private func assertActivationContract(
+        _ split: MainSplitViewController,
+        expectedActivePane: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(split.activePaneIndex, expectedActivePane, file: file, line: line)
+        XCTAssertEqual(split.leftPane.isActive, expectedActivePane == 0, file: file, line: line)
+        XCTAssertEqual(split.rightPane.isActive, expectedActivePane == 1, file: file, line: line)
+        XCTAssertEqual(
+            [split.leftPane, split.rightPane].filter(\.isActive).count,
+            1,
+            "Exactly one pane must be active",
+            file: file,
+            line: line
+        )
+
+        for pane in [split.leftPane, split.rightPane] {
+            XCTAssertFalse(pane.tabs.isEmpty, file: file, line: line)
+            XCTAssertTrue(pane.tabs.indices.contains(pane.selectedTabIndex), file: file, line: line)
+            XCTAssertTrue(
+                pane.selectedTab === pane.tabs[pane.selectedTabIndex],
+                "The selected tab must match the pane's selected index",
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                pane.tabs.filter { !$0.fileListViewController.view.isHidden }.count,
+                1,
+                "Exactly one tab view must be active in each pane",
+                file: file,
+                line: line
+            )
+            XCTAssertFalse(
+                pane.tabs[pane.selectedTabIndex].fileListViewController.view.isHidden,
+                "The selected tab must be the active tab view",
+                file: file,
+                line: line
+            )
         }
     }
 }
