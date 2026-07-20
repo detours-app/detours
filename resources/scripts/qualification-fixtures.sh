@@ -52,7 +52,7 @@ verify_smb_authentication() {
         log_user 0
         set timeout 15
         set password_prompts 0
-        spawn smbutil view -A //detours-qualification@devtest
+        spawn smbutil view //detours-qualification@devtest
         expect {
             -nocase -re {password} {
                 incr password_prompts
