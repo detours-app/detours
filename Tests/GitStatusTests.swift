@@ -103,6 +103,9 @@ final class GitStatusTests: XCTestCase {
         controller.dataSource.displayedRootLocation = .local(projectDir)
         controller.dataSource.applier.setRootItems([item])
         controller.dataSource.applier.reloadAll()
+        await GitStatusProvider.shared.invalidateCache(for: projectDir)
+        let directStatuses = await GitStatusProvider.shared.status(for: projectDir)
+        XCTAssertEqual(normalizedStatusByPath(directStatuses)[gitStatusPath(tracked)], .modified)
 
         _ = controller.applyScheduledListingSnapshot(PaneListingSnapshot(
             request: PaneListingRequest(
@@ -115,10 +118,11 @@ final class GitStatusTests: XCTestCase {
             entries: [entry]
         ))
 
-        let deadline = Date().addingTimeInterval(2)
-        while item.gitStatus != .modified, Date() < deadline {
-            try await Task.sleep(nanoseconds: 10_000_000)
-        }
+        await controller.dataSource.localGitStatusTask?.value
+        XCTAssertEqual(
+            normalizedStatusByPath(controller.dataSource.gitStatuses)[gitStatusPath(tracked)],
+            .modified
+        )
         XCTAssertEqual(item.gitStatus, .modified)
     }
 

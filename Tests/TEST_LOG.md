@@ -2151,3 +2151,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `/private/var/...` worktree path, so the returned modified status could not
   match the displayed item key. The fixture now resolves the temporary
   repository path before creating both the item and controller state.
+
+- 2026-07-20 11:16 CEST: Foundry
+  `swift test --filter GitStatusTests/testScheduledNoopListingRefreshStillUpdatesGitBadges`
+  FAIL again after canonicalizing the fixture: the displayed badge remained
+  nil. The next run asserts the raw Git provider result and the data-source
+  status cache separately before checking row application, isolating the
+  remaining loss boundary.
