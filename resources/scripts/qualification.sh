@@ -221,7 +221,9 @@ run_preflight() {
         fail "iCloud qualification parent contains non-local placeholders"
     fi
 
-    [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "DETOURS_SMB_TEST_PASSWORD is required for non-logging SMB authentication"
+    [[ "${DETOURS_QUALIFICATION_SECRET_TRANSPORT:-}" == "stdin-v1" ]] || \
+        fail "SMB credentials must arrive through qualification-foundry.sh"
+    [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "SMB credential transport returned an empty value"
     require_command expect
     DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" expect <<'EXPECT' >/dev/null 2>&1 || fail "SMB authentication failed"
         log_user 0

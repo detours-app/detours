@@ -42,6 +42,8 @@ seed_installed_fixture() {
 }
 
 mount_smb_fixture() {
+    [[ "${DETOURS_QUALIFICATION_SECRET_TRANSPORT:-}" == "stdin-v1" ]] || \
+        fail "SMB credentials must arrive through qualification-foundry.sh"
     [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "DETOURS_SMB_TEST_PASSWORD is required to mount the SMB fixture"
     mkdir -p "$SMB_MOUNT_POINT"
     DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" expect <<EXPECT >/dev/null 2>&1 || fail "SMB fixture mount failed"
