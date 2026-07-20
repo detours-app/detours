@@ -40,6 +40,7 @@ Commands:
   build                        Build the qualifying app without installing it
   in-process <group|all>       Run a named workflow 100 times in process
   installed <group|all>        Run a named workflow 20 times in the installed app
+  failure-probe <provider>     Prove one provider failure is preserved and cleaned
   cold-run                     Reset and run one complete cold qualification
   soak                         Run the installed-app campaign for 12 hours
   report                       Generate the tracked matrix and result report
@@ -377,6 +378,8 @@ source "$SCRIPT_DIR/qualification-evidence.sh"
 source "$SCRIPT_DIR/qualification-report.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-audit.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/qualification-failure-probe.sh"
 
 run_all() {
     run_build
@@ -397,6 +400,7 @@ QUALIFICATION_RUN_ID=""
 QUALIFICATION_SEED="0"
 QUALIFICATION_COLD_INDEX="0"
 GROUP="all"
+FAILURE_PROVIDER=""
 
 case "$COMMAND" in
     in-process|installed)
@@ -404,6 +408,11 @@ case "$COMMAND" in
             GROUP="$1"
             shift
         fi
+        ;;
+    failure-probe)
+        [[ $# -gt 0 && "$1" != --* ]] || fail "failure-probe requires a provider"
+        FAILURE_PROVIDER="$1"
+        shift
         ;;
 esac
 
@@ -439,6 +448,7 @@ case "$COMMAND" in
     build) run_build ;;
     in-process) run_in_process "$GROUP" ;;
     installed) run_installed "$GROUP" ;;
+    failure-probe) run_provider_failure_probe "$FAILURE_PROVIDER" ;;
     cold-run) run_cold ;;
     soak) run_soak ;;
     report) run_report ;;
