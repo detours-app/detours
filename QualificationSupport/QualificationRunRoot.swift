@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 public enum QualificationProvider: String, Codable, CaseIterable, Sendable {
     case local
@@ -143,7 +148,7 @@ public struct QualificationRunRootGuard {
         }
         try rejectLinksAndAliases(inExistingComponentsOf: parent)
 
-        let canonicalParent = lexicallyStandardized(parent.resolvingSymlinksInPath())
+        let canonicalParent = try canonicalExistingURL(parent)
         let root = canonicalParent.appendingPathComponent(identifier.uuidString.lowercased(), isDirectory: true)
         try validateExactChild(parent: canonicalParent, root: root, identifier: identifier)
         guard !fileManager.fileExists(atPath: root.path) else {
@@ -189,12 +194,10 @@ public struct QualificationRunRootGuard {
         }
         try rejectLinksAndAliases(inExistingComponentsOf: standardizedCandidate)
 
-        let resolvedRoot = lexicallyStandardized(root.resolvingSymlinksInPath())
-        let resolvedCandidate = deepestExistingAncestor(of: standardizedCandidate)
-            .resolvingSymlinksInPath()
-        let lexicalResolvedCandidate = lexicallyStandardized(resolvedCandidate)
-        guard isContained(lexicalResolvedCandidate, by: resolvedRoot) else {
-            throw QualificationRunRootError.pathOutsideRoot(root: resolvedRoot.path, candidate: lexicalResolvedCandidate.path)
+        let resolvedRoot = try canonicalExistingURL(root)
+        let resolvedCandidate = try canonicalExistingURL(deepestExistingAncestor(of: standardizedCandidate))
+        guard isContained(resolvedCandidate, by: resolvedRoot) else {
+            throw QualificationRunRootError.pathOutsideRoot(root: resolvedRoot.path, candidate: resolvedCandidate.path)
         }
     }
 
@@ -292,6 +295,23 @@ public struct QualificationRunRootGuard {
         }
         return components.reduce(URL(fileURLWithPath: "/", isDirectory: true)) { partial, component in
             partial.appendingPathComponent(component)
+        }
+    }
+
+    private func canonicalExistingURL(_ url: URL) throws -> URL {
+        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+        let result = url.path.withCString { path in
+            realpath(path, &buffer)
+        }
+        guard result != nil else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        return buffer.withUnsafeBufferPointer { pointer in
+            URL(
+                fileURLWithFileSystemRepresentation: pointer.baseAddress!,
+                isDirectory: true,
+                relativeTo: nil
+            )
         }
     }
 }
