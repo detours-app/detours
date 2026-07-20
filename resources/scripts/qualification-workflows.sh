@@ -29,16 +29,15 @@ run_gui_command() {
         fi
         job_state="$(launchctl print "gui/$(id -u)/$label" 2>&1 || true)"
         [[ -n "$job_state" ]] || fail "GUI qualification job disappeared: $label"
-        case "$job_state" in
-            *"last exit code"*)
-                if (( exited_without_status_at == 0 )); then
-                    exited_without_status_at="$attempt"
-                elif (( attempt - exited_without_status_at >= 10 )); then
-                    launchctl remove "$label" 2>/dev/null || true
-                    fail "GUI qualification wrapper exited without writing status: $label"
-                fi
-                ;;
-        esac
+        if [[ "$job_state" =~ last\ exit\ code\ =\ -?[0-9]+ ]] \
+            || [[ "$job_state" =~ last\ terminating\ signal\ =\ [0-9]+ ]]; then
+            if (( exited_without_status_at == 0 )); then
+                exited_without_status_at="$attempt"
+            elif (( attempt - exited_without_status_at >= 10 )); then
+                launchctl remove "$label" 2>/dev/null || true
+                fail "GUI qualification wrapper exited without writing status: $label"
+            fi
+        fi
         sleep 0.1
     done
     if [[ ! -f "$status_path" ]]; then
