@@ -6,6 +6,11 @@ private func fail(_ message: String) -> Never {
     exit(1)
 }
 
+private func failMount(status: Int32) -> Never {
+    FileHandle.standardError.write(Data("detours-qualification-smb-mounter: mount failed with status \(status)\n".utf8))
+    exit(status > 0 && status < 126 ? status : 1)
+}
+
 private func value(after option: String, in arguments: [String]) -> String {
     guard let index = arguments.firstIndex(of: option), arguments.indices.contains(index + 1) else {
         fail("missing \(option)")
@@ -52,7 +57,7 @@ let status = NetFSMountURLSync(
     &mountPoints
 )
 guard status == 0 else {
-    fail("mount failed with status \(status)")
+    failMount(status: status)
 }
 guard let mountedURLs = mountPoints?.takeRetainedValue() as? [URL],
       let mountedURL = mountedURLs.first else {
