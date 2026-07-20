@@ -95,6 +95,7 @@ final class QualificationWorkflowTests: XCTestCase {
                 backing: .buffered,
                 defer: false
             )
+            window.isReleasedWhenClosed = false
             window.contentViewController = controller
             controller.loadDirectory(scenario, showSpinner: false)
             defer {
