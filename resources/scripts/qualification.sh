@@ -106,7 +106,7 @@ remove_exact_tree() {
     [[ -n "$target" && -n "$allowed_parent" ]] || fail "refusing cleanup with an empty path"
     [[ "$target" != "/" && "$allowed_parent" != "/" ]] || fail "refusing broad cleanup path"
     path_is_within "$target" "$allowed_parent" || fail "cleanup target escapes $allowed_parent: $target"
-    [[ -e "$target" || -L "$target" ]] || return
+    [[ -e "$target" || -L "$target" ]] || return 0
     rm -rf -- "$target"
 }
 
