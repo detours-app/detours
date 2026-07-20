@@ -7,7 +7,7 @@ import Glibc
 
 enum SafeFileWriter {
     static func write(_ data: Data, to url: URL, permissions: Int16? = nil) throws {
-        let descriptor = url.withUnsafeFileSystemRepresentation { path in
+        let descriptor: Int32 = url.withUnsafeFileSystemRepresentation { path in
             guard let path else { return -1 }
             return open(path, O_WRONLY | O_CREAT | O_EXCL, mode_t(permissions ?? 0o666))
         }
