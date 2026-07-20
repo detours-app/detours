@@ -168,6 +168,9 @@ enum UITestEnvironment {
         let providerWatchSetupCount: Int
         let directoryWatchActive: Bool
         let registeredRemoteProviderCount: Int
+        let gitStatuses: [String: String]
+        let refreshRequestCount: Int
+        let listingMutationCount: Int
     }
 
     static var isEnabled: Bool {

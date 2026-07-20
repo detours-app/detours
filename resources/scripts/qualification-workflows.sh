@@ -313,7 +313,7 @@ in_process_method() {
 installed_test_filter() {
     case "$1" in
         activation) printf 'QualificationActivationUITests/testPaneAndTabStateSurvivesReturnFromFinder\n' ;;
-        refresh) printf 'FolderExpansionUITests/testSelectionAndFocusPreservedAfterMenuRefresh\n' ;;
+        refresh) printf 'QualificationRefreshUITests/testRefreshStateRemainsCoherentAcrossExternalChanges\n' ;;
         transfer) printf 'RefreshAuthorityUITests/testF5CopyActivatesDestinationPaneAndSelectsCopy\n' ;;
         mutation) printf 'NewFolderUITests/testNewFolderSelectsNewFolderNotExisting\n' ;;
         connection) printf 'RemoteQuickOpenUITests/testDelayedRealConnectionLoadsPaneCapturedBeforeFocusSwitch\n' ;;

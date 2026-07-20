@@ -182,6 +182,9 @@ extension FileListViewController {
         }
         hideRemoteRefreshError(for: directory)
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
+        if applyKind != .noop {
+            recordQualificationListingMutation()
+        }
         if applyKind == .noop && policy == nil {
             // Unchanged listing with nothing requested: no redraw, no restore.
             return PaneListingApplyOutcome()
@@ -242,6 +245,9 @@ extension FileListViewController {
         failedLocalRefreshDirectory = nil
 
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
+        if applyKind != .noop {
+            recordQualificationListingMutation()
+        }
         if SettingsManager.shared.settings.gitStatusEnabled,
            let gitRoot = dataSource.currentDirectoryForGit {
             dataSource.fetchGitStatus(for: gitRoot, invalidatingCache: true)

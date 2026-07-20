@@ -21,6 +21,7 @@ extension FileListViewController {
     /// steady-state refresh reconciles in place through the scheduler; full
     /// reloads remain navigation-only.
     func refresh() {
+        recordQualificationRefreshRequest()
         if let currentRemoteLocation, currentRemoteProvider != nil, hasLoadedDirectory {
             submitManualRefreshes(root: currentRemoteLocation)
             return

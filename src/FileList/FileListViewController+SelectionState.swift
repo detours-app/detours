@@ -45,6 +45,18 @@ extension FileListViewController {
         let visibleLocations = (0..<tableView.numberOfRows).compactMap { row in
             dataSource.item(at: row)?.location.path
         }
+        var gitStatuses: [String: String] = [:]
+        func collectGitStatuses(_ items: [FileItem]) {
+            for item in items {
+                if let status = item.gitStatus {
+                    gitStatuses[item.location.path] = status.rawValue
+                }
+                if let children = item.children {
+                    collectGitStatuses(children)
+                }
+            }
+        }
+        collectGitStatuses(dataSource.items)
         let connectionStates = RemoteConnectionStateStore.shared.snapshot().reduce(into: [String: String]()) {
             $0[$1.key.uuidString] = qualificationConnectionStateDescription($1.value)
         }
@@ -108,7 +120,10 @@ extension FileListViewController {
             providerWatchCount: providerWatches.count,
             providerWatchSetupCount: providerWatchSetupTasks.count,
             directoryWatchActive: directoryWatchTask != nil,
-            registeredRemoteProviderCount: operationQueue.remoteFileProviders.count
+            registeredRemoteProviderCount: operationQueue.remoteFileProviders.count,
+            gitStatuses: gitStatuses,
+            refreshRequestCount: qualificationRefreshRequestCount,
+            listingMutationCount: qualificationListingMutationCount
         )
     }
 
