@@ -100,6 +100,18 @@ run_installed() {
                 "$log_dir/$selected_group-$root_name" \
                 "$result_dir/$selected_group-$root_name.xcresult"
         done
+        if [[ "$selected_group" == "activation" ]]; then
+            local target_name remote_target
+            for target_name in LINUX_TARGET INTEL_MAC_TARGET WINDOWS_TARGET; do
+                remote_target="${!target_name}"
+                [[ -n "$remote_target" ]] || fail "remote activation target is missing: $target_name"
+                run_installed_once \
+                    "$selected_group" LOCAL_ROOT 20 \
+                    "$log_dir/$selected_group-$target_name" \
+                    "$result_dir/$selected_group-$target_name.xcresult" \
+                    "$remote_target" "$target_name"
+            done
+        fi
     done < <(selected_workflow_groups "$group")
 }
 
@@ -123,6 +135,7 @@ prepare_installed_test_bundle() {
         DETOURS_QUALIFICATION_APP_PATH_SETTING=/detours-qualification-canary/app \
         DETOURS_QUALIFICATION_UI_ROOT_SETTING=/detours-qualification-canary/fixture \
         DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=/detours-qualification-canary/control \
+        DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=detours-qualification-canary-target \
         2>&1 | tee "$log_path"
     status="${PIPESTATUS[0]}"
     set -e
@@ -139,7 +152,19 @@ prepare_installed_test_bundle() {
         fail "UI test scheme did not expand the fixture-root setting"
     [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_UI_CONTROL_ROOT raw "$xctestrun")" == "/detours-qualification-canary/control" ]] || \
         fail "UI test scheme did not expand the control-root setting"
+    [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_REAL_REMOTE_TARGET raw "$xctestrun")" == "detours-qualification-canary-target" ]] || \
+        fail "UI test scheme did not expand the remote-target setting"
     QUALIFICATION_UI_DERIVED_DATA="$derived_data"
+}
+
+stop_installed_app() {
+    local attempt
+    pkill -x Detours >/dev/null 2>&1 || true
+    for (( attempt = 1; attempt <= 50; attempt++ )); do
+        pgrep -x Detours >/dev/null 2>&1 || return 0
+        sleep 0.1
+    done
+    fail "Detours did not stop between installed qualification iterations"
 }
 
 run_installed_once() {
@@ -149,24 +174,27 @@ run_installed_once() {
     local log_path="$4"
     local result_bundle="$5"
     local test_filter root_path started_at status iteration iteration_bundle
-    local control_root
+    local control_root remote_target context_name
+    remote_target="${6:-}"
+    context_name="${7:-$root_name}"
     test_filter="$(installed_test_filter "$selected_group")"
     root_path="${!root_name}"
     [[ -n "${QUALIFICATION_UI_DERIVED_DATA:-}" && -d "$QUALIFICATION_UI_DERIVED_DATA" ]] || \
         fail "installed-test derived data is unavailable"
-    printf '%s\t%s\t%s\t%s\n' \
-        "$selected_group" "$test_filter" "$root_name" "$repetitions" >> "$(run_dir)/replay.tsv"
+    printf '%s\t%s\t%s\t%s\t%s\n' \
+        "$selected_group" "$test_filter" "$context_name" "$repetitions" "$remote_target" >> "$(run_dir)/replay.tsv"
     for (( iteration = 1; iteration <= repetitions; iteration++ )); do
+        stop_installed_app
         if (( repetitions == 1 )); then
             iteration_bundle="$result_bundle"
         else
             printf -v iteration_bundle '%s-iteration-%03d.xcresult' "${result_bundle%.xcresult}" "$iteration"
         fi
         [[ ! -e "$iteration_bundle" ]] || fail "result bundle already exists: $iteration_bundle"
-        control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/$selected_group-$root_name-$iteration"
+        control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/$selected_group-$context_name-$iteration"
         mkdir -p "$control_root"
         printf 'qualification: installed %s %s iteration %d/%d\n' \
-            "$selected_group" "$root_name" "$iteration" "$repetitions" | tee -a "$log_path.log"
+            "$selected_group" "$context_name" "$iteration" "$repetitions" | tee -a "$log_path.log"
         started_at="$(date +%s)"
         set +e
         run_gui_command "$log_path-iteration-$iteration.raw.log" env \
@@ -182,11 +210,13 @@ run_installed_once() {
                 "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
                 "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$root_path" \
                 "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
+                "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=$remote_target" \
                 -resultBundlePath "$iteration_bundle" 2>&1 | tee -a "$log_path.log"
         status="${PIPESTATUS[0]}"
         set -e
+        stop_installed_app
         record_scenario_timing \
-            installed "$selected_group" "$root_name-iteration-$iteration" 1 "$started_at" "$status"
+            installed "$selected_group" "$context_name-iteration-$iteration" 1 "$started_at" "$status"
         (( status == 0 )) || return "$status"
     done
 }

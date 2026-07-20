@@ -1,10 +1,27 @@
 import XCTest
 
 final class QualificationActivationUITests: BaseUITest {
+    private var qualificationRemoteTarget: String? {
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REAL_REMOTE_TARGET"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+    }
+
+    override var navigatesToLocalFixtureInSetUp: Bool {
+        qualificationRemoteTarget == nil
+    }
+
+    override func configureLaunchEnvironment(_ environment: inout [String: String]) {
+        if let qualificationRemoteTarget {
+            environment["DETOURS_UI_TEST_REAL_REMOTE_TARGET"] = qualificationRemoteTarget
+        }
+    }
+
     func testPaneAndTabStateSurvivesReturnFromFinder() throws {
         let leftOutline = app.leftPaneOutlineView
         XCTAssertTrue(leftOutline.waitForExistence(timeout: 3))
         leftOutline.click()
+        try waitForQualificationRemoteIfNeeded()
         let initial = try assertPaneAndTabContract(expectedActivePane: "left")
 
         let leftNewTabButton = app.buttons.matching(identifier: "paneNewTabButton").element(boundBy: 0)
@@ -97,4 +114,30 @@ final class QualificationActivationUITests: BaseUITest {
         }
         return (left, right)
     }
+
+    private func waitForQualificationRemoteIfNeeded() throws {
+        guard let qualificationRemoteTarget else { return }
+        let deadline = Date().addingTimeInterval(30)
+        var lastState: RemotePaneState?
+        while Date() < deadline {
+            let state = try requestRemotePaneState(pane: "left")
+            lastState = state
+            if state.registeredRemoteProviderCount == 1,
+               state.displayedLocation != nil,
+               state.displayedLocation != uiTestRootURL.path,
+               !state.navigationLoadInFlight,
+               !state.loadingVisible {
+                return
+            }
+            usleep(100_000)
+        }
+        XCTFail(
+            "Live remote activation fixture did not become ready for \(qualificationRemoteTarget); "
+                + "last location: \(lastState?.displayedLocation ?? \"nil\")"
+        )
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

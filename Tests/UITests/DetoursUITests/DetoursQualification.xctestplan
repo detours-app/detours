@@ -21,6 +21,10 @@
       {
         "key" : "DETOURS_QUALIFICATION_UI_CONTROL_ROOT",
         "value" : "$(DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING)"
+      },
+      {
+        "key" : "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET",
+        "value" : "$(DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING)"
       }
     ],
     "targetForVariableExpansion" : {

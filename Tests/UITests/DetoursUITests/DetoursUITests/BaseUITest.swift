@@ -25,6 +25,8 @@ class BaseUITest: XCTestCase {
             ?? uiTestRootURL
     }
 
+    var navigatesToLocalFixtureInSetUp: Bool { true }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
 
@@ -49,7 +51,9 @@ class BaseUITest: XCTestCase {
 
         // DETOURS_UI_TEST_ROOT launches the app into an isolated test tab, so tests that
         // assert Cmd-1/Cmd-2 tab behavior can use stable indexes.
-        navigateToTempDirectory()
+        if navigatesToLocalFixtureInSetUp {
+            navigateToTempDirectory()
+        }
     }
 
     func configureLaunchEnvironment(_ environment: inout [String: String]) {}
