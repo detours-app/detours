@@ -9,6 +9,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MATRIX_PATH="$PROJECT_DIR/resources/docs/260720-whole-app-stability-qualification-matrix.md"
 QUALIFICATION_ROOT="$PROJECT_DIR/.build/qualification"
+LOCAL_PARENT="$HOME/DetoursQualification"
+ICLOUD_PARENT="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Detours Qualification"
+SMB_MOUNT_POINT="/Volumes/Detours Qualification"
+APP_BUNDLE_ID="com.detours.app"
+QUALIFICATION_KEYCHAIN_SERVICE="com.detours.qualification"
+MINIMUM_FREE_KILOBYTES=$((50 * 1024 * 1024))
 
 qualification_guard() {
     local release_guard="$PROJECT_DIR/.build/arm64-apple-macosx/release/detours-qualification-guard"
@@ -84,6 +90,22 @@ require_foundry() {
         foundry|foundry.*) ;;
         *) fail "operational commands run only on Foundry (current host: $current_host)" ;;
     esac
+}
+
+path_is_within() {
+    local candidate="$1"
+    local parent="$2"
+    [[ "$candidate" == "$parent" || "$candidate" == "$parent/"* ]]
+}
+
+remove_exact_tree() {
+    local target="$1"
+    local allowed_parent="$2"
+    [[ -n "$target" && -n "$allowed_parent" ]] || fail "refusing cleanup with an empty path"
+    [[ "$target" != "/" && "$allowed_parent" != "/" ]] || fail "refusing broad cleanup path"
+    path_is_within "$target" "$allowed_parent" || fail "cleanup target escapes $allowed_parent: $target"
+    [[ -e "$target" || -L "$target" ]] || return
+    rm -rf -- "$target"
 }
 
 canonical_commit() {
@@ -203,15 +225,107 @@ audit_matrix() {
 }
 
 run_preflight() {
-    if [[ "${DETOURS_QUALIFICATION_C4_READY:-0}" != "1" ]]; then
-        fail "strict live preflight support is installed by C4"
+    local requested_commit head_commit current_branch free_kilobytes
+    requested_commit="$(canonical_commit)"
+    head_commit="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+    [[ "$head_commit" == "$requested_commit" ]] || fail "HEAD $head_commit does not match requested commit $requested_commit"
+    current_branch="$(git -C "$PROJECT_DIR" branch --show-current)"
+    [[ "$current_branch" == "testing/whole-app-stability-qualification" ]] || fail "Foundry is on unexpected branch: $current_branch"
+    [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]] || fail "Foundry worktree is not clean"
+
+    audit_matrix
+    free_kilobytes="$(df -Pk "$PROJECT_DIR" | awk 'NR == 2 { print $4 }')"
+    is_unsigned_integer "$free_kilobytes" || fail "could not read free storage"
+    (( free_kilobytes >= MINIMUM_FREE_KILOBYTES )) || fail "qualification needs at least 50 GB free"
+
+    local host
+    for host in devtest wraith win-carriercall; do
+        ssh -o BatchMode=yes -o ConnectTimeout=8 "$host" true >/dev/null 2>&1 || fail "required host is unreachable: $host"
+    done
+    nc -G 8 -z devtest 445 >/dev/null 2>&1 || fail "devtest SMB port 445 is unreachable"
+
+    [[ -d "$ICLOUD_PARENT" ]] || fail "iCloud qualification parent is missing: $ICLOUD_PARENT"
+    if find "$ICLOUD_PARENT" -name '*.icloud' -print -quit | grep -q .; then
+        fail "iCloud qualification parent contains non-local placeholders"
     fi
+
+    [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "DETOURS_SMB_TEST_PASSWORD is required for non-logging SMB authentication"
+    require_command expect
+    DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" expect <<'EXPECT' >/dev/null 2>&1 || fail "SMB authentication failed"
+        log_user 0
+        set timeout 15
+        spawn smbutil view //detours-qualification@devtest
+        expect {
+            -re {(?i)password.*:} { send -- "$env(DETOURS_SMB_TEST_PASSWORD)\r"; exp_continue }
+            eof { catch wait result; exit [lindex $result 3] }
+            timeout { exit 124 }
+        }
+EXPECT
+
+    ! pgrep -x Detours >/dev/null 2>&1 || fail "Detours is running"
+    ! pgrep -x detours-server >/dev/null 2>&1 || fail "a local detours-server process is running"
+    [[ ! -e "$QUALIFICATION_ROOT/.soak-active" ]] || fail "a prior qualification soak marker remains"
+    ! mount | grep -F "$SMB_MOUNT_POINT" >/dev/null 2>&1 || fail "qualification SMB share is still mounted"
+    ! mount | grep -E '/Volumes/DetoursQualification-[0-9a-f-]{36}' >/dev/null 2>&1 || fail "qualification APFS image is still mounted"
+    ! defaults read "$APP_BUNDLE_ID" >/dev/null 2>&1 || fail "Detours preferences remain; run reset"
+    [[ ! -e "$HOME/Library/Caches/$APP_BUNDLE_ID" ]] || fail "Detours cache remains; run reset"
+    [[ ! -e "$HOME/Library/Saved Application State/$APP_BUNDLE_ID.savedState" ]] || fail "Detours saved state remains; run reset"
+    [[ ! -e "$HOME/DetoursUITests-Temp" ]] || fail "UI test fixture root remains; run reset"
+    ! security find-generic-password -s "$QUALIFICATION_KEYCHAIN_SERVICE" >/dev/null 2>&1 || fail "qualification Keychain credential remains; run reset"
+
+    mkdir -p "$(run_dir)/preflight"
+    {
+        printf 'commit=%s\n' "$head_commit"
+        printf 'branch=%s\n' "$current_branch"
+        printf 'host=%s\n' "$(host_name)"
+        printf 'free_kilobytes=%s\n' "$free_kilobytes"
+        printf 'macos=%s\n' "$(sw_vers -productVersion)"
+        printf 'xcode=%s\n' "$(xcodebuild -version | tr '\n' ' ')"
+        printf 'swift=%s\n' "$(swift --version | head -1)"
+        printf 'checked_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$(run_dir)/preflight/environment.env"
 }
 
 run_reset() {
-    if [[ "${DETOURS_QUALIFICATION_C4_READY:-0}" != "1" ]]; then
-        fail "guarded reset support is installed by C4"
+    pkill -x Detours >/dev/null 2>&1 || true
+    local _
+    for _ in {1..50}; do
+        pgrep -x Detours >/dev/null 2>&1 || break
+        sleep 0.1
+    done
+    ! pgrep -x Detours >/dev/null 2>&1 || fail "Detours did not stop during reset"
+
+    if mount | grep -F "$SMB_MOUNT_POINT" >/dev/null 2>&1; then
+        diskutil unmount "$SMB_MOUNT_POINT" >/dev/null
     fi
+    local mounted_apfs
+    while IFS= read -r mounted_apfs; do
+        [[ -n "$mounted_apfs" ]] || continue
+        diskutil unmount "$mounted_apfs" >/dev/null
+    done < <(mount | sed -nE 's|^.* on (/Volumes/DetoursQualification-[0-9a-f-]{36}) \(.*$|\1|p')
+
+    local guard_binary=""
+    if guard_binary="$(qualification_guard 2>/dev/null)"; then
+        local parent sentinel
+        for parent in "$LOCAL_PARENT" "$ICLOUD_PARENT"; do
+            [[ -d "$parent" ]] || continue
+            while IFS= read -r sentinel; do
+                "$guard_binary" remove --descriptor "$sentinel"
+            done < <(find "$parent" -mindepth 2 -maxdepth 2 -type f -name '.detours-qualification-root.json' | sort)
+        done
+        run_cleanup
+    fi
+
+    defaults delete "$APP_BUNDLE_ID" >/dev/null 2>&1 || true
+    security delete-generic-password -s "$QUALIFICATION_KEYCHAIN_SERVICE" >/dev/null 2>&1 || true
+    remove_exact_tree "$HOME/Library/Caches/$APP_BUNDLE_ID" "$HOME/Library/Caches"
+    remove_exact_tree "$HOME/Library/Saved Application State/$APP_BUNDLE_ID.savedState" "$HOME/Library/Saved Application State"
+    remove_exact_tree "$HOME/Library/Containers/MAF.DetoursUITests.xctrunner" "$HOME/Library/Containers"
+    remove_exact_tree "$HOME/DetoursUITests-Temp" "$HOME"
+    rm -f -- "$QUALIFICATION_ROOT/.soak-active"
+
+    mkdir -p "$(run_dir)/reset"
+    printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$(run_dir)/reset/result.env"
 }
 
 run_build() {
@@ -238,8 +352,8 @@ run_installed() {
 
 run_cold() {
     [[ "$QUALIFICATION_COLD_INDEX" != "0" ]] || fail "cold-run requires --cold-index 1, 2, or 3"
-    run_preflight
     run_reset
+    run_preflight
     run_build
     "$0" in-process all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX"
     "$0" installed all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX"
@@ -268,7 +382,6 @@ run_cleanup() {
 }
 
 run_all() {
-    run_preflight
     run_build
     local index
     for index in 1 2; do
