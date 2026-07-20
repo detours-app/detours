@@ -11,7 +11,7 @@ export MATRIX_PATH="$PROJECT_DIR/resources/docs/260720-whole-app-stability-quali
 QUALIFICATION_ROOT="$PROJECT_DIR/.build/qualification"
 LOCAL_PARENT="$HOME/DetoursQualification"
 ICLOUD_PARENT="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Detours Qualification"
-SMB_MOUNT_POINT="/Volumes/Detours Qualification"
+SMB_MOUNT_POINT="$QUALIFICATION_ROOT/mounts/Detours Qualification"
 APP_BUNDLE_ID="com.detours.app"
 QUALIFICATION_KEYCHAIN_SERVICE="com.detours.qualification"
 MINIMUM_FREE_KILOBYTES=$((50 * 1024 * 1024))
@@ -240,6 +240,7 @@ EXPECT
     ! pgrep -x detours-server >/dev/null 2>&1 || fail "a local detours-server process is running"
     [[ ! -e "$QUALIFICATION_ROOT/.soak-active" ]] || fail "a prior qualification soak marker remains"
     ! mount | grep -F "$SMB_MOUNT_POINT" >/dev/null 2>&1 || fail "qualification SMB share is still mounted"
+    [[ ! -e "$SMB_MOUNT_POINT" ]] || fail "qualification SMB mountpoint remains; run reset"
     ! mount | grep -E '/Volumes/DetoursQualification-[0-9a-f-]{36}' >/dev/null 2>&1 || fail "qualification APFS image is still mounted"
     ! defaults read "$APP_BUNDLE_ID" >/dev/null 2>&1 || fail "Detours preferences remain; run reset"
     [[ ! -e "$HOME/Library/Caches/$APP_BUNDLE_ID" ]] || fail "Detours cache remains; run reset"
@@ -285,6 +286,7 @@ run_reset() {
     if mount | grep -F "$SMB_MOUNT_POINT" >/dev/null 2>&1; then
         diskutil unmount "$SMB_MOUNT_POINT" >/dev/null
     fi
+    remove_exact_tree "$SMB_MOUNT_POINT" "$QUALIFICATION_ROOT/mounts"
     local mounted_apfs
     while IFS= read -r mounted_apfs; do
         [[ -n "$mounted_apfs" ]] || continue
@@ -446,7 +448,7 @@ trap 'qualification_on_error "$?" "$LINENO" "$BASH_COMMAND"' ERR
 case "$COMMAND" in
     preflight) run_preflight ;;
     reset) run_reset ;;
-    fixtures) run_prepare_fixtures ;;
+    fixtures) run_prepare_fixtures_command ;;
     build) run_build ;;
     in-process) run_in_process "$GROUP" ;;
     installed) run_installed "$GROUP" ;;
