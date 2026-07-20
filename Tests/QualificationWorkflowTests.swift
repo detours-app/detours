@@ -118,7 +118,9 @@ final class QualificationWorkflowTests: XCTestCase {
             for _ in 0..<repetitions {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-                process.arguments = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", target, "true"]
+                // `exit 0` works for both POSIX shells and the PowerShell SSH
+                // endpoint used by the Windows qualification target.
+                process.arguments = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", target, "exit 0"]
                 process.standardOutput = FileHandle.nullDevice
                 process.standardError = FileHandle.nullDevice
                 try process.run()

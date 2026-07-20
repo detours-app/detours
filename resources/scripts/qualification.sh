@@ -225,7 +225,10 @@ run_preflight() {
 
     local host
     for host in devtest wraith win-carriercall; do
-        ssh -o BatchMode=yes -o ConnectTimeout=8 "$host" true >/dev/null 2>&1 || fail "required host is unreachable: $host"
+        # `exit 0` is accepted by POSIX shells and by the PowerShell SSH
+        # endpoint used by the Windows fixture. The Unix-only `true` command
+        # made a reachable Windows host fail preflight.
+        ssh -o BatchMode=yes -o ConnectTimeout=8 "$host" 'exit 0' >/dev/null 2>&1 || fail "required host is unreachable: $host"
     done
     nc -G 8 -z devtest 445 >/dev/null 2>&1 || fail "devtest SMB port 445 is unreachable"
 
