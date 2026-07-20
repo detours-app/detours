@@ -133,7 +133,7 @@ final class QualificationActivationUITests: BaseUITest {
         }
         XCTFail(
             "Live remote activation fixture did not become ready for \(qualificationRemoteTarget); "
-                + "last location: \(lastState?.displayedLocation ?? \"nil\")"
+                + "last location: \(lastState?.displayedLocation ?? "nil")"
         )
     }
 }
