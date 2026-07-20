@@ -143,9 +143,10 @@ prepare_installed_test_bundle() {
         DETOURS_QUALIFICATION_UI_ROOT_SETTING=/detours-qualification-canary/fixture \
         DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=/detours-qualification-canary/control \
         DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=detours-qualification-canary-target \
-        2>&1 | tee "$log_path"
-    status="${PIPESTATUS[0]}"
+        > "$log_path" 2>&1
+    status="$?"
     set -e
+    cat "$log_path"
     (( status == 0 )) || return "$status"
     verify_quiet_xcode_command "$log_path.raw"
     while IFS= read -r candidate; do
@@ -212,7 +213,7 @@ run_installed_once() {
     local repetitions="$3"
     local log_path="$4"
     local result_bundle="$5"
-    local test_filter root_path started_at status iteration iteration_bundle
+    local test_filter root_path started_at status iteration iteration_bundle iteration_output
     local control_root remote_target context_name
     remote_target="${6:-}"
     context_name="${7:-$root_name}"
@@ -230,6 +231,8 @@ run_installed_once() {
             printf -v iteration_bundle '%s-iteration-%03d.xcresult' "${result_bundle%.xcresult}" "$iteration"
         fi
         [[ ! -e "$iteration_bundle" ]] || fail "result bundle already exists: $iteration_bundle"
+        iteration_output="$log_path-iteration-$iteration.output.log"
+        [[ ! -e "$iteration_output" ]] || fail "installed-test command output already exists: $iteration_output"
         control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/$selected_group-$context_name-$iteration"
         mkdir -p "$control_root"
         printf 'qualification: installed %s %s iteration %d/%d\n' \
@@ -250,9 +253,10 @@ run_installed_once() {
                 "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$root_path" \
                 "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
                 "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=$remote_target" \
-                -resultBundlePath "$iteration_bundle" 2>&1 | tee -a "$log_path.log"
-        status="${PIPESTATUS[0]}"
+                -resultBundlePath "$iteration_bundle" > "$iteration_output" 2>&1
+        status="$?"
         set -e
+        tee -a "$log_path.log" < "$iteration_output"
         stop_installed_app
         if (( status == 0 )); then
             verify_quiet_xcode_command "$log_path-iteration-$iteration.raw.log"
