@@ -17,9 +17,7 @@ final class QualificationRefreshUITests: BaseUITest {
                         $0.displayedLocation == self.uiTestRootURL.path
                     }
                 }
-                if FileManager.default.fileExists(atPath: scenarioURL.path) {
-                    try FileManager.default.removeItem(at: scenarioURL)
-                }
+                try performFixtureMutation(action: "remove", relativePath: scenarioURL.lastPathComponent)
                 let outsideNamesAfter = try rootNames(excluding: scenarioURL.lastPathComponent)
                 guard outsideNamesAfter == outsideNamesBefore else {
                     throw QualificationRefreshFailure.outsideRootChanged(
@@ -45,7 +43,7 @@ final class QualificationRefreshUITests: BaseUITest {
             throw QualificationRefreshFailure.missingGuardSentinel(sentinel.path)
         }
 
-        let scenarioName = "QualificationRefresh-(UUID().uuidString.lowercased())"
+        let scenarioName = "QualificationRefresh-\(UUID().uuidString.lowercased())"
         let scenario = root.appendingPathComponent(scenarioName, isDirectory: true).standardizedFileURL
         guard scenario.deletingLastPathComponent() == root else {
             throw QualificationRefreshFailure.invalidScenarioPath(scenario.path)
@@ -59,13 +57,14 @@ final class QualificationRefreshUITests: BaseUITest {
         let deleted = scenario.appendingPathComponent("zeta-delete.txt")
         let hidden = scenario.appendingPathComponent(".hidden.txt")
         let tracked = scenario.appendingPathComponent("tracked.txt")
-        try FileManager.default.createDirectory(at: expanded, withIntermediateDirectories: true)
-        try write("nested", to: nested)
-        try write("selected", to: selected)
-        try write("delete", to: deleted)
-        try write("hidden", to: hidden)
-        try write("tracked", to: tracked)
-        try initializeGitRepository(at: scenario)
+        try performFixtureMutation(action: "createDirectory", relativePath: scenarioName)
+        try performFixtureMutation(action: "createDirectory", relativePath: scenarioName + "/Expanded")
+        try performFixtureMutation(action: "write", relativePath: relativePath(of: nested), contents: "nested")
+        try performFixtureMutation(action: "write", relativePath: relativePath(of: selected), contents: "selected")
+        try performFixtureMutation(action: "write", relativePath: relativePath(of: deleted), contents: "delete")
+        try performFixtureMutation(action: "write", relativePath: relativePath(of: hidden), contents: "hidden")
+        try performFixtureMutation(action: "write", relativePath: relativePath(of: tracked), contents: "tracked")
+        try performFixtureMutation(action: "gitInit", relativePath: scenarioName)
 
         let outline = app.leftPaneOutlineView
         let scenarioRow = outline.outlineRow(withStaticText: scenarioName)
@@ -100,20 +99,28 @@ final class QualificationRefreshUITests: BaseUITest {
         assertPresentation(state, selected: selected, expanded: expanded)
 
         let watcherCreated = expanded.appendingPathComponent("watcher-created.txt")
-        try write("created", to: watcherCreated)
+        try performFixtureMutation(
+            action: "write",
+            relativePath: relativePath(of: watcherCreated),
+            contents: "created"
+        )
         state = try waitForState("watcher create in expanded branch") {
             $0.visibleLocations.contains(watcherCreated.path) && self.isQuiescent($0)
         }
         assertPresentation(state, selected: selected, expanded: expanded)
 
         let watcherRenamed = expanded.appendingPathComponent("watcher-renamed.txt")
-        try FileManager.default.moveItem(at: watcherCreated, to: watcherRenamed)
+        try performFixtureMutation(
+            action: "move",
+            relativePath: relativePath(of: watcherCreated),
+            destinationRelativePath: relativePath(of: watcherRenamed)
+        )
         state = try waitForState("watcher rename in expanded branch") {
             !$0.visibleLocations.contains(watcherCreated.path)
                 && $0.visibleLocations.contains(watcherRenamed.path)
                 && self.isQuiescent($0)
         }
-        try FileManager.default.removeItem(at: deleted)
+        try performFixtureMutation(action: "remove", relativePath: relativePath(of: deleted))
         state = try waitForState("watcher deletion") {
             !$0.visibleLocations.contains(deleted.path) && self.isQuiescent($0)
         }
@@ -124,7 +131,11 @@ final class QualificationRefreshUITests: BaseUITest {
         XCTAssertTrue(filter.waitForExistence(timeout: 2))
         filter.typeText("alpha")
         let filteredWatcher = scenario.appendingPathComponent("alpha-watcher.txt")
-        try write("filter", to: filteredWatcher)
+        try performFixtureMutation(
+            action: "write",
+            relativePath: relativePath(of: filteredWatcher),
+            contents: "filter"
+        )
         state = try waitForState("watcher refresh through active filter") {
             $0.filterVisible
                 && $0.filterText == "alpha"
@@ -148,7 +159,11 @@ final class QualificationRefreshUITests: BaseUITest {
             $0.sortColumn == "name" && !$0.sortAscending
         }
         let sortedWatcher = scenario.appendingPathComponent("zzzz-sort.txt")
-        try write("sort", to: sortedWatcher)
+        try performFixtureMutation(
+            action: "write",
+            relativePath: relativePath(of: sortedWatcher),
+            contents: "sort"
+        )
         state = try waitForState("watcher refresh through descending sort") {
             $0.visibleLocations.contains(sortedWatcher.path) && self.isQuiescent($0)
         }
@@ -174,7 +189,11 @@ final class QualificationRefreshUITests: BaseUITest {
             !$0.hiddenFilesVisible && !$0.visibleLocations.contains(hidden.path) && self.isQuiescent($0)
         }
 
-        try write("tracked-modified", to: tracked)
+        try performFixtureMutation(
+            action: "write",
+            relativePath: relativePath(of: tracked),
+            contents: "tracked-modified"
+        )
         state = try performManualRefresh(after: state)
         state = try waitForState("modified Git status") {
             $0.gitStatuses[tracked.path] == "modified" && self.isQuiescent($0)
@@ -258,38 +277,65 @@ final class QualificationRefreshUITests: BaseUITest {
             .subtracting([scenarioName])
     }
 
-    private func write(_ value: String, to url: URL) throws {
-        try Data(value.utf8).write(to: url)
+    private func relativePath(of url: URL) -> String {
+        String(url.standardizedFileURL.path.dropFirst(uiTestRootURL.standardizedFileURL.path.count + 1))
     }
 
-    private func initializeGitRepository(at directory: URL) throws {
-        try runGit(["init", "-q"], in: directory)
-        try runGit(["add", "tracked.txt"], in: directory)
-        try runGit([
-            "-c", "user.name=Detours Qualification",
-            "-c", "user.email=qualification@detours.invalid",
-            "commit", "-q", "-m", "initial fixture",
-        ], in: directory)
-    }
-
-    private func runGit(_ arguments: [String], in directory: URL) throws {
-        let process = Process()
-        let errors = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = arguments
-        process.currentDirectoryURL = directory
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = errors
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let detail = String(data: errors.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw QualificationRefreshFailure.commandFailed(
-                command: (["git"] + arguments).joined(separator: " "),
-                status: process.terminationStatus,
-                detail: detail
-            )
+    private func performFixtureMutation(
+        action: String,
+        relativePath: String,
+        destinationRelativePath: String? = nil,
+        contents: String? = nil,
+        timeout: TimeInterval = 30
+    ) throws {
+        struct Command: Encodable {
+            let id: String
+            let action: String
+            let relativePath: String
+            let destinationRelativePath: String?
+            let contents: String?
         }
+        struct Result: Decodable {
+            let id: String
+            let success: Bool
+            let failure: String?
+        }
+
+        let command = Command(
+            id: UUID().uuidString,
+            action: action,
+            relativePath: relativePath,
+            destinationRelativePath: destinationRelativePath,
+            contents: contents
+        )
+        let commandURL = uiTestControlRootURL.appendingPathComponent(".detours-fixture-mutation-command.json")
+        let resultURL = uiTestControlRootURL.appendingPathComponent(".detours-fixture-mutation-result.json")
+        try? FileManager.default.removeItem(at: resultURL)
+        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.detours.uitest.command-ready"),
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: resultURL),
+               let result = try? JSONDecoder().decode(Result.self, from: data),
+               result.id == command.id {
+                guard result.success else {
+                    throw QualificationRefreshFailure.fixtureMutationFailed(
+                        action: action,
+                        path: relativePath,
+                        detail: result.failure ?? "unknown failure"
+                    )
+                }
+                return
+            }
+            usleep(25_000)
+        }
+        throw QualificationRefreshFailure.fixtureMutationTimedOut(action: action, path: relativePath)
     }
 }
 
@@ -297,7 +343,8 @@ private enum QualificationRefreshFailure: LocalizedError {
     case missingGuardSentinel(String)
     case invalidScenarioPath(String)
     case timedOut(String, BaseUITest.RemotePaneState?)
-    case commandFailed(command: String, status: Int32, detail: String)
+    case fixtureMutationFailed(action: String, path: String, detail: String)
+    case fixtureMutationTimedOut(action: String, path: String)
     case outsideRootChanged(before: Set<String>, after: Set<String>)
 
     var errorDescription: String? {
@@ -308,8 +355,10 @@ private enum QualificationRefreshFailure: LocalizedError {
             return "Qualification refresh scenario escaped its exact root: \(path)"
         case .timedOut(let description, let state):
             return "Timed out waiting for \(description); last state: \(String(describing: state))"
-        case .commandFailed(let command, let status, let detail):
-            return "\(command) exited \(status): \(detail)"
+        case .fixtureMutationFailed(let action, let path, let detail):
+            return "Fixture mutation \(action) failed for \(path): \(detail)"
+        case .fixtureMutationTimedOut(let action, let path):
+            return "Fixture mutation \(action) timed out for \(path)"
         case .outsideRootChanged(let before, let after):
             return "Qualification root siblings changed; before=\(before.sorted()) after=\(after.sorted())"
         }

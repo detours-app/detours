@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUITestAppearanceSettingsCommandID: String?
     private var lastUITestPaneStateRequestID: String?
     private var lastUITestRemoteMutationCommandID: String?
+    private var lastUITestFixtureMutationCommandID: String?
 
     private struct UITestTextFrame {
         let label: String
@@ -199,6 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lastUITestAppearanceSettingsCommandID = UITestEnvironment.currentAppearanceSettingsCommand()?.id
         lastUITestPaneStateRequestID = UITestEnvironment.currentPaneStateRequest()?.id
         lastUITestRemoteMutationCommandID = UITestEnvironment.currentRemoteMutationCommand()?.id
+        lastUITestFixtureMutationCommandID = UITestEnvironment.currentFixtureMutationCommand()?.id
     }
 
     private func pollUITestCommands() {
@@ -272,6 +274,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            command.id != lastUITestRemoteMutationCommandID {
             lastUITestRemoteMutationCommandID = command.id
             mainWindowController?.splitViewController.performUITestRemoteMutation(command)
+        }
+
+        if let command = UITestEnvironment.currentFixtureMutationCommand(),
+           command.id != lastUITestFixtureMutationCommandID {
+            lastUITestFixtureMutationCommandID = command.id
+            Task.detached {
+                let result: UITestEnvironment.FixtureMutationResult
+                do {
+                    try UITestFixtureMutator.perform(command)
+                    result = .init(id: command.id, success: true, failure: nil)
+                } catch {
+                    result = .init(id: command.id, success: false, failure: error.localizedDescription)
+                }
+                UITestEnvironment.writeFixtureMutationResult(result)
+            }
         }
     }
 

@@ -23,6 +23,8 @@ enum UITestEnvironment {
     static let paneStateResponseFileName = ".detours-pane-state-response.json"
     static let openedItemsHistoryFileName = ".detours-opened-items-history.json"
     static let remoteMutationCommandFileName = ".detours-remote-mutation-command.json"
+    static let fixtureMutationCommandFileName = ".detours-fixture-mutation-command.json"
+    static let fixtureMutationResultFileName = ".detours-fixture-mutation-result.json"
     static let keychainLifecycleResultFileName = ".detours-keychain-lifecycle-result.json"
 
     struct ResizeMainWindowCommand: Decodable {
@@ -86,6 +88,20 @@ enum UITestEnvironment {
         let id: String
         let sourcePath: String
         let newName: String
+    }
+
+    struct FixtureMutationCommand: Codable, Sendable {
+        let id: String
+        let action: String
+        let relativePath: String
+        let destinationRelativePath: String?
+        let contents: String?
+    }
+
+    struct FixtureMutationResult: Codable, Sendable {
+        let id: String
+        let success: Bool
+        let failure: String?
     }
 
     struct KeychainLifecycleResult: Encodable {
@@ -352,6 +368,14 @@ enum UITestEnvironment {
         controlDirectory?.appendingPathComponent(remoteMutationCommandFileName)
     }
 
+    static var fixtureMutationCommandURL: URL? {
+        controlDirectory?.appendingPathComponent(fixtureMutationCommandFileName)
+    }
+
+    static var fixtureMutationResultURL: URL? {
+        controlDirectory?.appendingPathComponent(fixtureMutationResultFileName)
+    }
+
     static var keychainLifecycleResultURL: URL? {
         controlDirectory?.appendingPathComponent(keychainLifecycleResultFileName)
     }
@@ -476,6 +500,15 @@ enum UITestEnvironment {
         return try? JSONDecoder().decode(RemoteMutationCommand.self, from: data)
     }
 
+    static func currentFixtureMutationCommand() -> FixtureMutationCommand? {
+        guard let url = fixtureMutationCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+        return try? JSONDecoder().decode(FixtureMutationCommand.self, from: data)
+    }
+
     static func acknowledgeShowNetworkShareDialogCommand(id: String) {
         guard let url = showNetworkShareDialogAcknowledgementURL,
               let data = try? JSONEncoder().encode(ShowNetworkShareDialogAcknowledgement(id: id)) else {
@@ -559,6 +592,14 @@ enum UITestEnvironment {
             return
         }
 
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func writeFixtureMutationResult(_ result: FixtureMutationResult) {
+        guard let url = fixtureMutationResultURL,
+              let data = try? JSONEncoder().encode(result) else {
+            return
+        }
         try? data.write(to: url, options: .atomic)
     }
 
