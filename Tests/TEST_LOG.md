@@ -2172,3 +2172,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   the Git cache and applies the modified badge, including canonical/aliased
   path matching; remote badges and local row reconciliation also remained
   green.
+
+- 2026-07-20 11:20 CEST: Foundry
+  `swift test`
+  PASS: the complete XCTest suite and all 46 Swift Testing cases passed with
+  0 failures. This includes refresh architecture, scheduler/reconciliation,
+  local and remote operations, lifecycle, watcher, icon, Git-status, archive,
+  process, responder, and integration coverage.
