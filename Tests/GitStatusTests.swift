@@ -82,7 +82,7 @@ final class GitStatusTests: XCTestCase {
         let originalGitStatusEnabled = SettingsManager.shared.gitStatusEnabled
         SettingsManager.shared.gitStatusEnabled = true
         defer { SettingsManager.shared.gitStatusEnabled = originalGitStatusEnabled }
-        let projectDir = try makeGitRepository()
+        let projectDir = try makeGitRepository().resolvingSymlinksInPath()
         defer { cleanupTempDirectory(projectDir) }
         let tracked = try createTestFile(in: projectDir, name: "tracked.txt", content: "old")
         try runGit(["add", "tracked.txt"], in: projectDir)

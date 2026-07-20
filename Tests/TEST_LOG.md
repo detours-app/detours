@@ -2144,3 +2144,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   coalescing/generations, restore policy, local reconciliation, filtered
   reveals, transaction holds, remote rename, async expansion, icon lifecycle,
   directory cancellation, and watcher behavior all remained green.
+
+- 2026-07-20 11:15 CEST: Foundry
+  `swift test --filter GitStatusTests/testScheduledNoopListingRefreshStillUpdatesGitBadges`
+  FAIL: the new fixture compared a `/var/...` item URL with Git's canonical
+  `/private/var/...` worktree path, so the returned modified status could not
+  match the displayed item key. The fixture now resolves the temporary
+  repository path before creating both the item and controller state.
