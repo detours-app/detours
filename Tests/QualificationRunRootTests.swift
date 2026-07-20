@@ -129,7 +129,7 @@ final class QualificationRunRootTests: XCTestCase {
     }
 
     private func makeFixture() throws -> Fixture {
-        let parent = FileManager.default.temporaryDirectory
+        let parent = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
             .appendingPathComponent("detours-qualification-guard-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
         let outside = parent.appendingPathComponent("outside.txt")
