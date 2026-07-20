@@ -59,8 +59,16 @@ let status = NetFSMountURLSync(
 guard status == 0 else {
     failMount(status: status)
 }
-guard let mountedURLs = mountPoints?.takeRetainedValue() as? [URL],
-      let mountedURL = mountedURLs.first else {
-    fail("mount succeeded without a mount point")
+if let mountedURLs = mountPoints?.takeRetainedValue() as? [URL],
+   let mountedURL = mountedURLs.first {
+    print(mountedURL.standardizedFileURL.path)
+    exit(0)
 }
-print(mountedURL.standardizedFileURL.path)
+
+let expectedMount = mountParent.appendingPathComponent("Detours Qualification", isDirectory: true)
+if FileManager.default.fileExists(atPath: expectedMount.path) {
+    print(expectedMount.standardizedFileURL.path)
+    exit(0)
+}
+FileHandle.standardError.write(Data("detours-qualification-smb-mounter: mount succeeded without a mount point\n".utf8))
+exit(2)
