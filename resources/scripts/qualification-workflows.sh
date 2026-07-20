@@ -6,7 +6,7 @@ run_gui_command() {
     local log_path="$1"
     shift
     local label status_path status_tmp launch_stdout launch_stderr job_state command_status
-    local attempt
+    local attempt exited_without_status_at
     path_is_within "$log_path" "$(run_dir)" || fail "GUI command log escapes the run directory"
     status_path="$log_path.status"
     status_tmp="$status_path.tmp"
@@ -16,6 +16,7 @@ run_gui_command() {
         [[ ! -e "$path" ]] || fail "GUI command artifact already exists: $path"
     done
     label="com.detours.qualification.$(uuidgen)"
+    exited_without_status_at=0
     launchctl submit \
         -l "$label" \
         -o "$launch_stdout" \
@@ -30,8 +31,12 @@ run_gui_command() {
         [[ -n "$job_state" ]] || fail "GUI qualification job disappeared: $label"
         case "$job_state" in
             *"last exit code"*)
-                launchctl remove "$label" 2>/dev/null || true
-                fail "GUI qualification wrapper exited without writing status: $label"
+                if (( exited_without_status_at == 0 )); then
+                    exited_without_status_at="$attempt"
+                elif (( attempt - exited_without_status_at >= 10 )); then
+                    launchctl remove "$label" 2>/dev/null || true
+                    fail "GUI qualification wrapper exited without writing status: $label"
+                fi
                 ;;
         esac
         sleep 0.1
