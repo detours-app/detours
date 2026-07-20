@@ -46,7 +46,9 @@ mount_smb_fixture() {
         fail "SMB credentials must arrive through qualification-foundry.sh"
     [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "DETOURS_SMB_TEST_PASSWORD is required to mount the SMB fixture"
     mkdir -p "$SMB_MOUNT_POINT"
-    DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" expect <<EXPECT >/dev/null 2>&1 || fail "SMB fixture mount failed"
+    local mount_status
+    set +e
+    DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" expect <<EXPECT >/dev/null 2>&1
         log_user 0
         set timeout 20
         spawn mount_smbfs //detours-qualification@devtest/Detours%20Qualification {$SMB_MOUNT_POINT}
@@ -56,6 +58,9 @@ mount_smb_fixture() {
             timeout { exit 124 }
         }
 EXPECT
+    mount_status=$?
+    set -e
+    (( mount_status == 0 )) || fail "SMB fixture mount failed with status $mount_status"
     mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1 || fail "SMB fixture did not mount at $SMB_MOUNT_POINT"
 }
 
