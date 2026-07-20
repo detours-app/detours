@@ -246,6 +246,8 @@ extension FileListViewController {
         remoteQuickLookTask?.cancel()
         refreshScheduler.shutdown()
         PaneFileOperationCoordinator.shared.unregister(scheduler: refreshScheduler)
+        // A transferred tab stays alive, so shutdown must detach before deinit.
+        // swiftlint:disable:next notification_center_detachment
         NotificationCenter.default.removeObserver(self)
 
         Task {

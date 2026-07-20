@@ -28,6 +28,18 @@ qualification_guard() {
     fi
 }
 
+qualification_smb_mounter() {
+    local release_mounter="$PROJECT_DIR/.build/arm64-apple-macosx/release/detours-qualification-smb-mounter"
+    local debug_mounter="$PROJECT_DIR/.build/arm64-apple-macosx/debug/detours-qualification-smb-mounter"
+    if [[ -x "$release_mounter" ]]; then
+        printf '%s\n' "$release_mounter"
+    elif [[ -x "$debug_mounter" ]]; then
+        printf '%s\n' "$debug_mounter"
+    else
+        fail "qualification SMB mounter is not built; run the build command first"
+    fi
+}
+
 usage() {
     cat <<'USAGE'
 Usage: resources/scripts/qualification.sh <command> [options]

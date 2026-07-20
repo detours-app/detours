@@ -25,6 +25,10 @@ let package = Package(
         .library(name: "DetoursProcess", targets: ["DetoursProcess"]),
         .library(name: "QualificationSupport", targets: ["QualificationSupport"]),
         .executable(name: "detours-qualification-guard", targets: ["detours-qualification-guard"]),
+        .executable(
+            name: "detours-qualification-smb-mounter",
+            targets: ["detours-qualification-smb-mounter"]
+        ),
     ],
     targets: [
         .target(
@@ -42,6 +46,10 @@ let package = Package(
             name: "detours-qualification-guard",
             dependencies: ["QualificationSupport"],
             path: "QualificationGuard"
+        ),
+        .executableTarget(
+            name: "detours-qualification-smb-mounter",
+            path: "QualificationSMBMounter"
         ),
         .executableTarget(
             name: "Detours",

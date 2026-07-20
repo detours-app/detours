@@ -78,15 +78,17 @@ mount_smb_fixture() {
     [[ "${DETOURS_QUALIFICATION_SECRET_TRANSPORT:-}" == "stdin-v1" ]] || \
         fail "SMB credentials must arrive through qualification-foundry.sh"
     [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "DETOURS_SMB_TEST_PASSWORD is required to mount the SMB fixture"
-    mkdir -p "$SMB_MOUNT_POINT"
+    local mount_parent
+    mount_parent="$(dirname "$SMB_MOUNT_POINT")"
+    mkdir -p "$mount_parent"
     local mount_status
     smbutil logout devtest >/dev/null 2>&1 || true
-    verify_smb_authentication
     set +e
-    MOUNT_POINT="$SMB_MOUNT_POINT" expect <<'EXPECT' >/dev/null 2>&1
+    SMB_MOUNTER="$(qualification_smb_mounter)" MOUNT_PARENT="$mount_parent" \
+        expect <<'EXPECT' >/dev/null 2>&1
         log_user 0
         set timeout 30
-        spawn mount_smbfs -N //detours-qualification@devtest/Detours%20Qualification $env(MOUNT_POINT)
+        spawn $env(SMB_MOUNTER) --mount-parent $env(MOUNT_PARENT)
         expect {
             eof { catch wait result; exit [lindex $result 3] }
             timeout { exit 124 }
@@ -96,7 +98,7 @@ EXPECT
     set -e
     case "$mount_status" in
         0) ;;
-        124) fail "SMB fixture mount timed out after authentication" ;;
+        124) fail "SMB fixture NetFS mount timed out" ;;
         *) fail "SMB fixture mount failed with status $mount_status" ;;
     esac
     mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1 || fail "SMB fixture did not mount at $SMB_MOUNT_POINT"
