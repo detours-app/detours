@@ -36,14 +36,26 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
 
         // Right pane: open a fresh tab (restored session tabs carry stale
         // views), then navigate into the destination folder.
-        rightOutline.click()
+        let tabCountBefore = try requestRemotePaneState(pane: "right").tabCount
+        rightOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         pressCharKey("t", modifiers: .command)
         addTeardownBlock { [self] in
             // Close the tab this test created in the right pane.
-            visiblePaneOutlines().last?.click()
+            if let rightPane = visiblePaneOutlines().last {
+                rightPane.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+            }
             pressCharKey("w", modifiers: .command)
         }
-        sleep(1)
+        XCTAssertTrue(
+            waitForCondition(timeout: 5) {
+                guard let state = try? self.requestRemotePaneState(pane: "right") else { return false }
+                return state.tabCount == tabCountBefore + 1
+                    && state.tabIDs.indices.contains(state.selectedTabIndex)
+                    && !state.navigationLoadInFlight
+                    && !state.loadingVisible
+            },
+            "Right pane never finished creating its qualification tab"
+        )
         let rightPane = try XCTUnwrap(visiblePaneOutlines().last, "Right pane outline missing")
         // A new tab may open on the home directory or clone the current one;
         // navigate into the test folder only if we are not already there.
@@ -87,28 +99,23 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
         let sourceRow = leftOutline.outlineRow(withStaticText: "t8_copy_me.txt")
         XCTAssertTrue(sourceRow.waitForExistence(timeout: 2))
         sourceRow.staticTexts["t8_copy_me.txt"].click()
+        let destinationMutationCount = try requestRemotePaneState(pane: "right").listingMutationCount
         pressF5Key()
 
-        // The destination pane ends visibly active with the copy selected.
+        // The destination pane ends visibly active with the copy selected after
+        // the watcher-driven destination listing transaction has settled.
         XCTAssertTrue(
             waitForCondition(timeout: 5) {
                 guard let state = try? self.requestRemotePaneState(pane: "right") else { return false }
                 return state.selectedLocations.contains { $0.hasSuffix("T8Dest/t8_copy_me.txt") }
                     && state.focus == "fileList"
+                    && state.listingMutationCount > destinationMutationCount
+                    && !state.refreshInFlight
+                    && !state.navigationLoadInFlight
+                    && !state.operationRunning
+                    && state.operationPendingCount == 0
             },
-            "Copy never selected in the destination pane"
-        )
-
-        // The selection and focus survive trailing watcher activity from the
-        // copy and settle on the destination.
-        sleep(2)
-        XCTAssertTrue(
-            waitForCondition(timeout: 3) {
-                guard let settled = try? self.requestRemotePaneState(pane: "right") else { return false }
-                return settled.selectedLocations.contains { $0.hasSuffix("T8Dest/t8_copy_me.txt") }
-                    && settled.focus == "fileList"
-            },
-            "Selection and focus must survive trailing watcher activity; settled=\(String(describing: try? requestRemotePaneState(pane: "right")))"
+            "Copy never settled with its result selected in the destination pane"
         )
     }
 }
