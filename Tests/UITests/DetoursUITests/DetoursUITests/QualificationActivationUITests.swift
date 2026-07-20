@@ -7,6 +7,12 @@ final class QualificationActivationUITests: BaseUITest {
             .nilIfEmpty
     }
 
+    private var qualificationRemoteContext: String? {
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+    }
+
     override var navigatesToLocalFixtureInSetUp: Bool {
         qualificationRemoteTarget == nil
     }
@@ -14,6 +20,9 @@ final class QualificationActivationUITests: BaseUITest {
     override func configureLaunchEnvironment(_ environment: inout [String: String]) {
         if let qualificationRemoteTarget {
             environment["DETOURS_UI_TEST_REAL_REMOTE_TARGET"] = qualificationRemoteTarget
+        }
+        if let qualificationRemoteContext {
+            environment["DETOURS_UI_TEST_REAL_REMOTE_CONTEXT"] = qualificationRemoteContext
         }
     }
 

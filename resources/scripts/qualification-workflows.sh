@@ -104,7 +104,7 @@ run_installed() {
                 "$log_dir/$selected_group-$root_name" \
                 "$result_dir/$selected_group-$root_name.xcresult"
         done
-        if [[ "$selected_group" == "activation" ]]; then
+        if [[ "$selected_group" == "activation" || "$selected_group" == "refresh" ]]; then
             local target_name remote_target
             for target_name in LINUX_TARGET INTEL_MAC_TARGET WINDOWS_TARGET; do
                 remote_target="${!target_name}"
@@ -142,6 +142,7 @@ prepare_installed_test_bundle() {
         DETOURS_QUALIFICATION_UI_ROOT_SETTING=/detours-qualification-canary/fixture \
         DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=/detours-qualification-canary/control \
         DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=detours-qualification-canary-target \
+        DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING=detours-qualification-canary-context \
         > "$log_path" 2>&1
     status="$?"
     set -e
@@ -162,6 +163,8 @@ prepare_installed_test_bundle() {
         fail "UI test scheme did not expand the control-root setting"
     [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_REAL_REMOTE_TARGET raw "$xctestrun")" == "detours-qualification-canary-target" ]] || \
         fail "UI test scheme did not expand the remote-target setting"
+    [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT raw "$xctestrun")" == "detours-qualification-canary-context" ]] || \
+        fail "UI test scheme did not expand the remote-context setting"
     QUALIFICATION_UI_DERIVED_DATA="$derived_data"
 }
 
@@ -272,6 +275,7 @@ run_installed_once() {
             "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$root_path" \
             "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
             "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=$remote_target" \
+            "DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING=$context_name" \
             -resultBundlePath "$result_bundle" > "$command_output" 2>&1
     status="$?"
     set -e

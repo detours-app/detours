@@ -25,6 +25,10 @@
       {
         "key" : "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET",
         "value" : "$(DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING)"
+      },
+      {
+        "key" : "DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT",
+        "value" : "$(DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING)"
       }
     ],
     "targetForVariableExpansion" : {

@@ -244,6 +244,16 @@ enum UITestEnvironment {
         return target
     }
 
+    static var realRemoteContext: String? {
+        guard realRemoteTarget != nil,
+              let context = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_REAL_REMOTE_CONTEXT"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !context.isEmpty else {
+            return nil
+        }
+        return context
+    }
+
     static var realRemoteConnectionDelay: Duration? {
         guard realRemoteTarget != nil,
               let rawValue = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_REMOTE_CONNECT_DELAY_MS"],
