@@ -1,13 +1,13 @@
 import AppKit
 
-enum ICloudStatus {
+enum ICloudStatus: Sendable {
     case local
     case downloaded
     case notDownloaded
     case downloading
 }
 
-enum SharedItemRole: Equatable {
+enum SharedItemRole: Equatable, Sendable {
     case participant(ownerName: String)
     case owner
 }
@@ -156,15 +156,17 @@ final class FileItem {
         self.dateModified = entry.contentModificationDate
         self.icon = icon
 
-        self.sharedRole = Self.makeSharedRole(
+        self.sharedRole = entry.displaySharedRole ?? Self.makeSharedRole(
             isShared: entry.ubiquitousItemIsShared,
             role: entry.ubiquitousSharedItemCurrentUserRole,
             ownerComponents: entry.ubiquitousSharedItemOwnerNameComponents
         )
-        self.isVirtualSharedFolder = false
+        self.isVirtualSharedFolder = entry.isVirtualSharedFolder
 
         // Determine iCloud download status
-        if entry.ubiquitousItemIsDownloading {
+        if let displayStatus = entry.displayICloudStatus {
+            self.iCloudStatus = displayStatus
+        } else if entry.ubiquitousItemIsDownloading {
             self.iCloudStatus = .downloading
         } else if let status = entry.ubiquitousItemDownloadingStatus {
             switch status {

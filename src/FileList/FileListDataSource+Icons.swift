@@ -5,11 +5,6 @@ extension FileListDataSource {
     /// For network volumes, uses extension-based icons (no network I/O).
     /// Call `loadIconsForVisibleRows()` on scroll to progressively load more.
     func loadIconsAsync(for fileItems: [FileItem], isNetwork: Bool = false) {
-        for task in iconLoadTasks {
-            task.cancel()
-        }
-        iconLoadTasks.removeAll()
-
         guard let outlineView else { return }
 
         // Determine which rows are visible
@@ -43,7 +38,11 @@ extension FileListDataSource {
             if item.isVirtualSharedFolder {
                 continue
             }
-            let task = Task { @MainActor [weak self] in
+            let itemID = ObjectIdentifier(item)
+            guard iconLoadTasks[itemID] == nil else { continue }
+            let task = Task { @MainActor [weak self, weak item] in
+                defer { self?.iconLoadTasks[itemID] = nil }
+                guard let item else { return }
                 guard !Task.isCancelled else { return }
 
                 let icon = await IconLoader.shared.icon(
@@ -67,7 +66,7 @@ extension FileListDataSource {
                 guard let self else { return }
                 self.requestRowRefresh(for: item, columns: IndexSet(integer: 0))
             }
-            iconLoadTasks.append(task)
+            iconLoadTasks[itemID] = task
         }
     }
 }

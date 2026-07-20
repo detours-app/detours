@@ -221,6 +221,7 @@ final class PaneTabBar: NSView {
             button.tabAction = { [weak self] in self?.tabClicked(index) }
             button.closeAction = { [weak self] in self?.closeTabClicked(index) }
             button.dragAction = { [weak self] event in self?.beginDraggingTab(at: index, with: event) }
+            button.setPaneActive(isActive)
 
             tabContainer.addSubview(button)
             tabButtons.append(button)
@@ -250,7 +251,6 @@ final class PaneTabBar: NSView {
     }
 
     func setActive(_ active: Bool) {
-        guard active != isActive else { return }
         isActive = active
         for button in tabButtons {
             button.setPaneActive(active)

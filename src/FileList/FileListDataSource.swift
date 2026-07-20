@@ -351,7 +351,7 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     var currentLoadTask: Task<Void, Never>?
 
     /// Active icon load tasks (cancelled when navigating away)
-    var iconLoadTasks: [Task<Void, Never>] = []
+    var iconLoadTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
 
     /// Child loads currently crossing a remote filesystem or File Provider boundary.
     /// NSOutlineView may ask to expand the same item repeatedly while a reload is in

@@ -98,6 +98,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var errorOverlay: NSView?
     var remoteRefreshErrorBanner: NSView?
     var failedRemoteRefreshDirectory: Location?
+    var failedLocalRefreshDirectory: Location?
     var quickLookPreviewItems: [DetoursQuickLookItem] = []
     var quickLookGenerationTask: Task<Void, Never>?
     var quickLookRequestID = UUID()

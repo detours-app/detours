@@ -2097,3 +2097,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   async helpers inside XCTest assertion autoclosures, which do not support
   concurrency. The awaited results were split into local values before the
   assertions for the rerun.
+
+- 2026-07-20 10:58 CEST: Foundry
+  `swift test --filter "FileListResponderTests/testDeletingExpandedFolderDoesNotShowMissingFolderOverlay|PaneViewControllerTests/testInactivePaneTabBarReloadKeepsEveryTabVisuallyInactive"`
+  FAIL as intended for the two reported regressions: deleting a watched,
+  expanded folder produced a delayed pane-wide error overlay, and rebuilding
+  an inactive pane's tab bar restored the selected button's active-bright
+  state. Executed 2 tests with 2 failures.

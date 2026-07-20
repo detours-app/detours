@@ -246,6 +246,14 @@ extension FileListViewController {
             loadRemoteDirectory(currentRemoteLocation, provider: currentRemoteProvider, preserveExpansion: true)
             return
         }
+        if let failedLocalRefreshDirectory {
+            hideErrorOverlay()
+            refreshScheduler.submitListingRefresh(
+                directory: failedLocalRefreshDirectory,
+                cause: .retry
+            )
+            return
+        }
         guard let currentDirectory else { return }
         hideErrorOverlay()
         loadDirectory(currentDirectory, preserveExpansion: true)

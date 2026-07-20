@@ -84,6 +84,11 @@ struct LoadedFileEntry: Sendable {
     let ubiquitousSharedItemOwnerNameComponents: PersonNameComponents?
     let ubiquitousItemDownloadingStatus: URLUbiquitousItemDownloadingStatus?
     let ubiquitousItemIsDownloading: Bool
+    /// Display-only metadata produced by composed listings such as iCloud's
+    /// synthetic Shared row. Provider listings leave these nil/false.
+    let displaySharedRole: SharedItemRole?
+    let isVirtualSharedFolder: Bool
+    let displayICloudStatus: ICloudStatus?
 
     init(url: URL, resourceValues values: URLResourceValues?) {
         let isSymbolicLink = values?.isSymbolicLink ?? false
@@ -117,6 +122,9 @@ struct LoadedFileEntry: Sendable {
         self.ubiquitousSharedItemOwnerNameComponents = values?.ubiquitousSharedItemOwnerNameComponents
         self.ubiquitousItemDownloadingStatus = values?.ubiquitousItemDownloadingStatus
         self.ubiquitousItemIsDownloading = values?.ubiquitousItemIsDownloading ?? false
+        self.displaySharedRole = nil
+        self.isVirtualSharedFolder = false
+        self.displayICloudStatus = nil
     }
 
     init(
@@ -135,7 +143,10 @@ struct LoadedFileEntry: Sendable {
         ubiquitousSharedItemCurrentUserRole: URLUbiquitousSharedItemRole? = nil,
         ubiquitousSharedItemOwnerNameComponents: PersonNameComponents? = nil,
         ubiquitousItemDownloadingStatus: URLUbiquitousItemDownloadingStatus? = nil,
-        ubiquitousItemIsDownloading: Bool = false
+        ubiquitousItemIsDownloading: Bool = false,
+        displaySharedRole: SharedItemRole? = nil,
+        isVirtualSharedFolder: Bool = false,
+        displayICloudStatus: ICloudStatus? = nil
     ) {
         self.location = location ?? .local(url)
         self.url = url
@@ -153,6 +164,28 @@ struct LoadedFileEntry: Sendable {
         self.ubiquitousSharedItemOwnerNameComponents = ubiquitousSharedItemOwnerNameComponents
         self.ubiquitousItemDownloadingStatus = ubiquitousItemDownloadingStatus
         self.ubiquitousItemIsDownloading = ubiquitousItemIsDownloading
+        self.displaySharedRole = displaySharedRole
+        self.isVirtualSharedFolder = isVirtualSharedFolder
+        self.displayICloudStatus = displayICloudStatus
+    }
+
+    init(fileItem: FileItem) {
+        self.init(
+            location: fileItem.location,
+            url: fileItem.url,
+            name: fileItem.name,
+            isDirectory: fileItem.isDirectory,
+            isPackage: fileItem.isPackage,
+            isAliasFile: fileItem.isAliasFile,
+            isSymbolicLink: fileItem.isSymbolicLink,
+            isReadable: fileItem.isReadable,
+            isHidden: fileItem.isHiddenFile,
+            fileSize: fileItem.size,
+            contentModificationDate: fileItem.dateModified,
+            displaySharedRole: fileItem.sharedRole,
+            isVirtualSharedFolder: fileItem.isVirtualSharedFolder,
+            displayICloudStatus: fileItem.iCloudStatus
+        )
     }
 }
 

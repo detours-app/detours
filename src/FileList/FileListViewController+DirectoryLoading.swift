@@ -10,7 +10,7 @@ extension FileListViewController {
     /// reloads remain navigation-only.
     func refresh() {
         if let currentRemoteLocation, currentRemoteProvider != nil, hasLoadedDirectory {
-            submitManualRefresh(directory: currentRemoteLocation)
+            submitManualRefreshes(root: currentRemoteLocation)
             return
         }
         if let currentRemoteLocation, let currentRemoteProvider {
@@ -18,17 +18,20 @@ extension FileListViewController {
             return
         }
         guard let currentDirectory else { return }
-        submitManualRefresh(directory: .local(currentDirectory))
+        submitManualRefreshes(root: .local(currentDirectory))
     }
 
     /// Manual refresh is the one steady-state scheduler cause that owns visible
     /// loading feedback. Keep the spinner up while coalesced or held work is
     /// pending, then remove it only after a successful apply. Failure and
     /// navigation paths clear it through their existing state handling.
-    private func submitManualRefresh(directory: Location) {
+    private func submitManualRefreshes(root: Location) {
         showLoadingIndicator()
+        for directory in materializedListingDirectories() where directory != root {
+            refreshScheduler.submitListingRefresh(directory: directory, cause: .manual)
+        }
         refreshScheduler.submitListingRefresh(
-            directory: directory,
+            directory: root,
             cause: .manual,
             completion: { [weak self] in
                 self?.hideLoadingIndicator()

@@ -29,7 +29,7 @@ extension FileListViewController {
                 return self.isViewLoaded && !self.isNavigationLoadInFlight
             },
             displaysDirectory: { [weak self] directory in
-                self?.paneDisplaysDirectory(directory) ?? false
+                self?.paneHasRefreshableListing(directory) ?? false
             }
         ))
         PaneFileOperationCoordinator.shared.register(
@@ -55,6 +55,33 @@ extension FileListViewController {
         return path.hasPrefix(prefix)
     }
 
+    /// Scheduler eligibility is narrower than operation routing: descendants
+    /// refresh only while their row still exists in the displayed tree. This
+    /// rejects delayed events from watches whose folder was just deleted.
+    func paneHasRefreshableListing(_ directory: Location) -> Bool {
+        let normalized = PaneRefreshScheduler.normalizedDirectory(directory)
+        let root = currentRemoteLocation ?? currentDirectory.map(Location.local)
+        if let root, PaneRefreshScheduler.normalizedDirectory(root) == normalized {
+            return true
+        }
+        return dataSource.findItem(withLocation: normalized, in: dataSource.items) != nil
+    }
+
+    func materializedListingDirectories() -> [Location] {
+        guard let root = currentRemoteLocation ?? currentDirectory.map(Location.local) else { return [] }
+        var directories = [PaneRefreshScheduler.normalizedDirectory(root)]
+        func collect(_ items: [FileItem]) {
+            for item in items where item.children != nil {
+                directories.append(PaneRefreshScheduler.normalizedDirectory(item.location))
+                if let children = item.children {
+                    collect(children)
+                }
+            }
+        }
+        collect(dataSource.items)
+        return Array(Set(directories))
+    }
+
     // MARK: Fetch
 
     private func fetchListingEntries(for request: PaneListingRequest) async throws -> [LoadedFileEntry] {
@@ -68,11 +95,15 @@ extension FileListViewController {
                 request.directory,
                 showHidden: dataSource.showHiddenFiles
             )
-        case .local:
-            return try await LocalFileProvider.shared.list(
-                request.directory,
-                showHidden: dataSource.showHiddenFiles
-            )
+        case .local(let url):
+            if currentDirectory?.standardizedFileURL == url.standardizedFileURL {
+                return try await dataSource.loadListingEntriesForDisplay(
+                    url,
+                    showHidden: dataSource.showHiddenFiles,
+                    mode: currentICloudListingMode
+                )
+            }
+            return try await LocalFileProvider.shared.list(request.directory, showHidden: dataSource.showHiddenFiles)
         }
     }
 
@@ -201,7 +232,14 @@ extension FileListViewController {
         ) else {
             return PaneListingApplyOutcome(policyConsumed: false)
         }
+        let removedLocalFolders = reconciliation.previousItems.filter {
+            $0.isNavigableFolder && reconciliation.removedLocations.contains($0.location)
+        }
+        for item in removedLocalFolders {
+            unwatchCollapsedDirectory(item.url)
+        }
         hideErrorOverlay()
+        failedLocalRefreshDirectory = nil
 
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
         if applyKind == .noop && policy == nil {
@@ -235,6 +273,13 @@ extension FileListViewController {
             )
         }
 
+
+        if applyKind != .noop,
+           SettingsManager.shared.settings.gitStatusEnabled,
+           let gitRoot = dataSource.currentDirectoryForGit {
+            dataSource.fetchGitStatus(for: gitRoot)
+        }
+
         let consumed = preferredResultsPresent(policy)
         if let policy, consumed {
             runResultReveal(policy)
@@ -264,9 +309,18 @@ extension FileListViewController {
         case .remote:
             guard isCurrentRemoteRefreshDirectory(request.directory) else { return }
             showRemoteRefreshError(directory: request.directory, error: error)
-        case .local:
+        case .local(let url):
+            guard paneHasRefreshableListing(request.directory) else { return }
+            if currentDirectory?.standardizedFileURL != url.standardizedFileURL,
+               (error as? DirectoryLoadError) == .notFound {
+                // A disappeared expanded branch is removed by its parent's
+                // listing refresh; it is not a failure of the pane root.
+                unwatchCollapsedDirectory(url)
+                return
+            }
             // Steady-state local failure retains the displayed tree and shows
             // the overlay; navigation failures keep their existing path.
+            failedLocalRefreshDirectory = request.directory
             let loadError = (error as? DirectoryLoadError) ?? .other(error.localizedDescription)
             showErrorOverlay(for: loadError)
         }

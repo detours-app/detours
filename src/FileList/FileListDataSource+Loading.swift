@@ -190,7 +190,7 @@ extension FileListDataSource {
             task.cancel()
         }
         remoteGitStatusTasks.removeAll()
-        for task in iconLoadTasks {
+        for task in iconLoadTasks.values {
             task.cancel()
         }
         iconLoadTasks.removeAll()
@@ -202,6 +202,15 @@ extension FileListDataSource {
 
     func loadDirectoryEntries(_ url: URL, showHidden: Bool) async throws -> [LoadedFileEntry] {
         try await LocalFileProvider.shared.list(.local(url), showHidden: showHidden)
+    }
+
+    func loadListingEntriesForDisplay(
+        _ directory: URL,
+        showHidden: Bool,
+        mode: ICloudListingMode
+    ) async throws -> [LoadedFileEntry] {
+        try await loadItems(for: directory, showHidden: showHidden, mode: mode)
+            .map(LoadedFileEntry.init(fileItem:))
     }
 
     private func loadItems(for directory: URL, showHidden: Bool, mode: ICloudListingMode) async throws -> [FileItem] {
