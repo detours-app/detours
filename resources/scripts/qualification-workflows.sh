@@ -106,7 +106,7 @@ in_process_method() {
 
 installed_test_filter() {
     case "$1" in
-        activation) printf 'FolderExpansionUITests/testActivePanePreservedOnRelaunch\n' ;;
+        activation) printf 'QualificationActivationUITests/testPaneAndTabStateSurvivesReturnFromFinder\n' ;;
         refresh) printf 'FolderExpansionUITests/testSelectionAndFocusPreservedAfterMenuRefresh\n' ;;
         transfer) printf 'RefreshAuthorityUITests/testF5CopyActivatesDestinationPaneAndSelectsCopy\n' ;;
         mutation) printf 'NewFolderUITests/testNewFolderSelectsNewFolderNotExisting\n' ;;

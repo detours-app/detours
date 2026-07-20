@@ -67,6 +67,11 @@ extension BaseUITest {
     struct RemotePaneState: Decodable {
         let id: String
         let pane: String
+        let activePane: Bool
+        let tabCount: Int
+        let selectedTabIndex: Int
+        let selectedTabID: String?
+        let tabIDs: [String]
         let displayedLocation: String?
         let expandedLocations: [String]
         let selectedLocations: [String]
@@ -80,8 +85,15 @@ extension BaseUITest {
         let sortAscending: Bool
         let activeDropTarget: String?
         let refreshInFlight: Bool
+        let navigationLoadInFlight: Bool
+        let loadingVisible: Bool
         let visibleRowCount: Int
         let firstResponderDescription: String?
+        let operationRunning: Bool
+        let operationPendingCount: Int
+        let currentOperation: String?
+        let providerWatchCount: Int
+        let registeredRemoteProviderCount: Int
     }
 
     struct RemoteProviderCall: Decodable {
