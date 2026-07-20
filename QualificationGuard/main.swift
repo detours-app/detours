@@ -48,7 +48,7 @@ do {
         let candidateURL = URL(fileURLWithPath: value(after: "--path", in: arguments))
         let descriptor = try guardService.readDescriptor(at: descriptorURL)
         try guardService.validate(descriptor: descriptor, candidate: candidateURL)
-        print(candidateURL.standardizedFileURL.path)
+        print(candidateURL.path)
 
     case "remove":
         let descriptorURL = URL(fileURLWithPath: value(after: "--descriptor", in: arguments))

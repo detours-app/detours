@@ -133,7 +133,7 @@ public struct QualificationRunRootGuard {
     }
 
     public func create(provider: QualificationProvider, allowlistedParent: URL, identifier: UUID = UUID()) throws -> QualificationRunRootDescriptor {
-        let parent = allowlistedParent.standardizedFileURL
+        let parent = lexicallyStandardized(allowlistedParent)
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: parent.path, isDirectory: &isDirectory) else {
             throw QualificationRunRootError.parentMissing(parent.path)
@@ -143,7 +143,7 @@ public struct QualificationRunRootGuard {
         }
         try rejectLinksAndAliases(inExistingComponentsOf: parent)
 
-        let canonicalParent = parent.resolvingSymlinksInPath().standardizedFileURL
+        let canonicalParent = lexicallyStandardized(parent.resolvingSymlinksInPath())
         let root = canonicalParent.appendingPathComponent(identifier.uuidString.lowercased(), isDirectory: true)
         try validateExactChild(parent: canonicalParent, root: root, identifier: identifier)
         guard !fileManager.fileExists(atPath: root.path) else {
@@ -171,30 +171,30 @@ public struct QualificationRunRootGuard {
     }
 
     public func validate(descriptor: QualificationRunRootDescriptor, candidate: URL) throws {
-        guard descriptor.rootPath == URL(fileURLWithPath: descriptor.rootPath).standardizedFileURL.path else {
+        guard descriptor.rootPath == lexicallyStandardized(URL(fileURLWithPath: descriptor.rootPath)).path else {
             throw QualificationRunRootError.rootWasRenamed(
                 expected: descriptor.rootPath,
-                actual: URL(fileURLWithPath: descriptor.rootPath).standardizedFileURL.path
+                actual: lexicallyStandardized(URL(fileURLWithPath: descriptor.rootPath)).path
             )
         }
-        let parent = URL(fileURLWithPath: descriptor.parentPath).standardizedFileURL
-        let root = URL(fileURLWithPath: descriptor.rootPath).standardizedFileURL
+        let parent = lexicallyStandardized(URL(fileURLWithPath: descriptor.parentPath))
+        let root = lexicallyStandardized(URL(fileURLWithPath: descriptor.rootPath))
         try validateExactChild(parent: parent, root: root, identifier: descriptor.identifier)
         try rejectLinksAndAliases(inExistingComponentsOf: root)
         try validateSentinel(for: descriptor)
 
-        let standardizedCandidate = candidate.standardizedFileURL
+        let standardizedCandidate = lexicallyStandardized(candidate)
         guard isContained(standardizedCandidate, by: root) else {
             throw QualificationRunRootError.pathOutsideRoot(root: root.path, candidate: standardizedCandidate.path)
         }
         try rejectLinksAndAliases(inExistingComponentsOf: standardizedCandidate)
 
-        let resolvedRoot = root.resolvingSymlinksInPath().standardizedFileURL
+        let resolvedRoot = lexicallyStandardized(root.resolvingSymlinksInPath())
         let resolvedCandidate = deepestExistingAncestor(of: standardizedCandidate)
             .resolvingSymlinksInPath()
-            .standardizedFileURL
-        guard isContained(resolvedCandidate, by: resolvedRoot) else {
-            throw QualificationRunRootError.pathOutsideRoot(root: resolvedRoot.path, candidate: resolvedCandidate.path)
+        let lexicalResolvedCandidate = lexicallyStandardized(resolvedCandidate)
+        guard isContained(lexicalResolvedCandidate, by: resolvedRoot) else {
+            throw QualificationRunRootError.pathOutsideRoot(root: resolvedRoot.path, candidate: lexicalResolvedCandidate.path)
         }
     }
 
@@ -224,7 +224,7 @@ public struct QualificationRunRootGuard {
     private func validateExactChild(parent: URL, root: URL, identifier: UUID) throws {
         let expectedName = identifier.uuidString.lowercased()
         guard root.lastPathComponent == expectedName,
-              root.deletingLastPathComponent().standardizedFileURL.path == parent.standardizedFileURL.path else {
+              lexicallyStandardized(root.deletingLastPathComponent()).path == lexicallyStandardized(parent).path else {
             throw QualificationRunRootError.rootIsNotExactChild(parent: parent.path, root: root.path)
         }
         guard UUID(uuidString: root.lastPathComponent)?.uuidString.lowercased() == root.lastPathComponent else {
@@ -249,7 +249,7 @@ public struct QualificationRunRootGuard {
     }
 
     private func rejectLinksAndAliases(inExistingComponentsOf url: URL) throws {
-        let standardized = url.standardizedFileURL
+        let standardized = lexicallyStandardized(url)
         let components = standardized.pathComponents
         var current = URL(fileURLWithPath: "/", isDirectory: true)
         for component in components.dropFirst() {
@@ -276,5 +276,22 @@ public struct QualificationRunRootGuard {
 
     private func isContained(_ candidate: URL, by root: URL) -> Bool {
         candidate.path == root.path || candidate.path.hasPrefix(root.path + "/")
+    }
+
+    private func lexicallyStandardized(_ url: URL) -> URL {
+        var components: [String] = []
+        for component in url.pathComponents {
+            switch component {
+            case "/", ".", "":
+                continue
+            case "..":
+                if !components.isEmpty { components.removeLast() }
+            default:
+                components.append(component)
+            }
+        }
+        return components.reduce(URL(fileURLWithPath: "/", isDirectory: true)) { partial, component in
+            partial.appendingPathComponent(component)
+        }
     }
 }
