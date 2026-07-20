@@ -244,6 +244,65 @@ extension BaseUITest {
         return condition()
     }
 
+    func performFixtureMutation(
+        action: String,
+        relativePath: String,
+        destinationRelativePath: String? = nil,
+        contents: String? = nil,
+        timeout: TimeInterval = 30
+    ) throws {
+        struct Command: Encodable {
+            let id: String
+            let action: String
+            let relativePath: String
+            let destinationRelativePath: String?
+            let contents: String?
+        }
+        struct Result: Decodable {
+            let id: String
+            let success: Bool
+            let failure: String?
+        }
+
+        let command = Command(
+            id: UUID().uuidString,
+            action: action,
+            relativePath: relativePath,
+            destinationRelativePath: destinationRelativePath,
+            contents: contents
+        )
+        let commandURL = uiTestControlRootURL.appendingPathComponent(".detours-fixture-mutation-command.json")
+        let resultURL = uiTestControlRootURL.appendingPathComponent(".detours-fixture-mutation-result.json")
+        try? FileManager.default.removeItem(at: resultURL)
+        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.detours.uitest.command-ready"),
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
+
+        let completed = waitForCondition(timeout: timeout) {
+            guard let data = try? Data(contentsOf: resultURL),
+                  let result = try? JSONDecoder().decode(Result.self, from: data),
+                  result.id == command.id else { return false }
+            return true
+        }
+        guard completed,
+              let data = try? Data(contentsOf: resultURL),
+              let result = try? JSONDecoder().decode(Result.self, from: data),
+              result.id == command.id else {
+            throw UITestControlError.fixtureMutationTimedOut(action: action, path: relativePath)
+        }
+        guard result.success else {
+            throw UITestControlError.fixtureMutationFailed(
+                action: action,
+                path: relativePath,
+                detail: result.failure ?? "unknown failure"
+            )
+        }
+    }
+
     /// Press a special key with optional modifiers
     func pressKey(_ key: XCUIKeyboardKey, modifiers: XCUIElement.KeyModifierFlags = []) {
         app.typeKey(key, modifierFlags: modifiers)
@@ -559,11 +618,17 @@ extension BaseUITest {
 
 private enum UITestControlError: LocalizedError {
     case timedOut(String)
+    case fixtureMutationFailed(action: String, path: String, detail: String)
+    case fixtureMutationTimedOut(action: String, path: String)
 
     var errorDescription: String? {
         switch self {
         case .timedOut(let operation):
             "Timed out waiting for \(operation)"
+        case .fixtureMutationFailed(let action, let path, let detail):
+            "Fixture mutation \(action) failed for \(path): \(detail)"
+        case .fixtureMutationTimedOut(let action, let path):
+            "Fixture mutation \(action) timed out for \(path)"
         }
     }
 }

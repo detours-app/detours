@@ -607,62 +607,6 @@ final class QualificationRefreshUITests: BaseUITest {
         String(url.standardizedFileURL.path.dropFirst(uiTestRootURL.standardizedFileURL.path.count + 1))
     }
 
-    private func performFixtureMutation(
-        action: String,
-        relativePath: String,
-        destinationRelativePath: String? = nil,
-        contents: String? = nil,
-        timeout: TimeInterval = 30
-    ) throws {
-        struct Command: Encodable {
-            let id: String
-            let action: String
-            let relativePath: String
-            let destinationRelativePath: String?
-            let contents: String?
-        }
-        struct Result: Decodable {
-            let id: String
-            let success: Bool
-            let failure: String?
-        }
-
-        let command = Command(
-            id: UUID().uuidString,
-            action: action,
-            relativePath: relativePath,
-            destinationRelativePath: destinationRelativePath,
-            contents: contents
-        )
-        let commandURL = uiTestControlRootURL.appendingPathComponent(".detours-fixture-mutation-command.json")
-        let resultURL = uiTestControlRootURL.appendingPathComponent(".detours-fixture-mutation-result.json")
-        try? FileManager.default.removeItem(at: resultURL)
-        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
-        DistributedNotificationCenter.default().postNotificationName(
-            Notification.Name("com.detours.uitest.command-ready"),
-            object: nil,
-            userInfo: nil,
-            deliverImmediately: true
-        )
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if let data = try? Data(contentsOf: resultURL),
-               let result = try? JSONDecoder().decode(Result.self, from: data),
-               result.id == command.id {
-                guard result.success else {
-                    throw QualificationRefreshFailure.fixtureMutationFailed(
-                        action: action,
-                        path: relativePath,
-                        detail: result.failure ?? "unknown failure"
-                    )
-                }
-                return
-            }
-            usleep(25_000)
-        }
-        throw QualificationRefreshFailure.fixtureMutationTimedOut(action: action, path: relativePath)
-    }
 }
 
 private enum QualificationRefreshFailure: LocalizedError {
@@ -672,8 +616,6 @@ private enum QualificationRefreshFailure: LocalizedError {
     case remoteSentinelMismatch(String)
     case timedOut(String, BaseUITest.RemotePaneState?)
     case processFailed(command: String, status: Int32, detail: String)
-    case fixtureMutationFailed(action: String, path: String, detail: String)
-    case fixtureMutationTimedOut(action: String, path: String)
     case outsideRootChanged(before: Set<String>, after: Set<String>)
 
     var errorDescription: String? {
@@ -690,10 +632,6 @@ private enum QualificationRefreshFailure: LocalizedError {
             return "Timed out waiting for \(description); last state: \(String(describing: state))"
         case .processFailed(let command, let status, let detail):
             return "\(command) exited \(status): \(detail)"
-        case .fixtureMutationFailed(let action, let path, let detail):
-            return "Fixture mutation \(action) failed for \(path): \(detail)"
-        case .fixtureMutationTimedOut(let action, let path):
-            return "Fixture mutation \(action) timed out for \(path)"
         case .outsideRootChanged(let before, let after):
             return "Qualification root siblings changed; before=\(before.sorted()) after=\(after.sorted())"
         }
