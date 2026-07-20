@@ -47,6 +47,7 @@ extension PaneViewController {
             let oldTab = tabs[0]
 
             // Remove old tab's view
+            oldTab.fileListViewController.shutdown()
             oldTab.fileListViewController.view.removeFromSuperview()
             oldTab.fileListViewController.removeFromParent()
 
@@ -62,6 +63,7 @@ extension PaneViewController {
         let tab = tabs[index]
 
         // Remove view
+        tab.fileListViewController.shutdown()
         tab.fileListViewController.view.removeFromSuperview()
         tab.fileListViewController.removeFromParent()
 

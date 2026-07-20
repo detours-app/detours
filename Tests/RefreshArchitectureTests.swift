@@ -150,6 +150,60 @@ final class RefreshArchitectureTests: XCTestCase {
         )
     }
 
+    func testSortAndFilterInvalidateAsyncDisclosureEligibility() throws {
+        let controller = FileListViewController()
+        controller.loadViewIfNeeded()
+        let initial = controller.refreshScheduler.presentationGeneration
+
+        controller.updateFilter("needle")
+        let nameColumn = try XCTUnwrap(
+            controller.tableView.tableColumns.first { $0.identifier.rawValue == "Name" }
+        )
+        controller.dataSource.outlineView(controller.tableView, didClick: nameColumn)
+
+        XCTAssertEqual(controller.refreshScheduler.presentationGeneration, initial + 2)
+    }
+
+    func testDisclosureEligibilityIncludesSchedulerAndPresentationGenerations() {
+        let dataSource = FileListDataSource()
+        let directory = Location.local(URL(fileURLWithPath: "/tmp/disclosure"))
+        var epoch: UInt64 = 4
+        var generation: UInt64 = 7
+        var presentation: UInt64 = 2
+        dataSource.currentRefreshEpoch = { epoch }
+        dataSource.currentRefreshGeneration = { _ in generation }
+        dataSource.currentPresentationGeneration = { presentation }
+
+        XCTAssertTrue(dataSource.isDisclosureCurrent(
+            directory: directory,
+            epoch: 4,
+            generation: 7,
+            presentation: 2
+        ))
+        generation += 1
+        XCTAssertFalse(dataSource.isDisclosureCurrent(
+            directory: directory,
+            epoch: 4,
+            generation: 7,
+            presentation: 2
+        ))
+        generation -= 1
+        presentation += 1
+        XCTAssertFalse(dataSource.isDisclosureCurrent(
+            directory: directory,
+            epoch: 4,
+            generation: 7,
+            presentation: 2
+        ))
+        epoch += 1
+        XCTAssertFalse(dataSource.isDisclosureCurrent(
+            directory: directory,
+            epoch: 4,
+            generation: 7,
+            presentation: 3
+        ))
+    }
+
     // MARK: - Runtime guard
 
     func testDirectOutlineMutationTripsTheGuard() {

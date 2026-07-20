@@ -49,6 +49,7 @@ extension FileListDataSource {
         } else {
             sortDescriptor = SortDescriptor(column: clickedColumn, ascending: true)
         }
+        notePresentationChange?()
 
         // Update visual sort indicators on header cells
         updateSortIndicators(on: outlineView)

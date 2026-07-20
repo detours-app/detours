@@ -5,6 +5,18 @@ import os.log
 private let logger = Logger(subsystem: "com.detours", category: "filelist")
 
 extension FileListViewController {
+    private func beginNavigationLoad() -> UUID {
+        remoteExpansionRestoreTask?.cancel()
+        remoteExpansionRestoreTask = nil
+        let loadID = UUID()
+        navigationLoadID = loadID
+        return loadID
+    }
+
+    private func isCurrentNavigationLoad(_ loadID: UUID) -> Bool {
+        !isShutDown && navigationLoadID == loadID
+    }
+
     /// Refresh current directory, preserving selection and expansion. A
     /// steady-state refresh reconciles in place through the scheduler; full
     /// reloads remain navigation-only.
@@ -312,6 +324,7 @@ extension FileListViewController {
         // Capture state needed for post-load work. The navigation reveal is
         // bound to this load; a competing refresh cannot consume it.
         let navigationReveal = takePendingNavigationReveal(selectingItem: itemToSelect)
+        let loadID = beginNavigationLoad()
         let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
         let paneCapture = preserveExpansion ? capturePaneState() : nil
         let shouldPreserveExpansion = preserveExpansion
@@ -325,7 +338,7 @@ extension FileListViewController {
         // Set the completion callback BEFORE calling loadDirectory
         // so we do post-load work (expansion, selection, watching) after async load finishes
         dataSource.onLoadCompleted = { [weak self] result in
-            guard let self else { return }
+            guard let self, self.isCurrentNavigationLoad(loadID) else { return }
             self.hideLoadingIndicator()
 
             switch result {
@@ -369,6 +382,7 @@ extension FileListViewController {
                     self.runResultReveal(navigationReveal)
                 }
                 self.isNavigationLoadInFlight = false
+                self.navigationLoadID = nil
                 self.refreshScheduler.activate()
 
             case .failure(let error):
@@ -376,6 +390,7 @@ extension FileListViewController {
                 self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
                 self.isNavigationLoadInFlight = false
+                self.navigationLoadID = nil
                 self.refreshScheduler.activate()
             }
         }
@@ -503,12 +518,13 @@ extension FileListViewController {
         }
 
         let navigationReveal = takePendingNavigationReveal(selectingItem: nil)
+        let loadID = beginNavigationLoad()
         let shouldPreserveExpansion = preserveExpansion
         let previousExpanded = preserveExpansion ? dataSource.expandedFolders : []
         let paneCapture = preserveExpansion ? capturePaneState() : nil
         let shouldRestoreTableViewFocus = preserveExpansion && shouldKeepTableViewFocusedAfterRefresh()
         dataSource.onLoadCompleted = { [weak self] result in
-            guard let self else { return }
+            guard let self, self.isCurrentNavigationLoad(loadID) else { return }
             self.hideLoadingIndicator()
             self.suppressLoadingSpinner = false
             switch result {
@@ -524,10 +540,14 @@ extension FileListViewController {
                     expansionToRestore = []
                 }
                 if !expansionToRestore.isEmpty {
-                    Task { @MainActor in
+                    self.remoteExpansionRestoreTask = Task { @MainActor [weak self] in
+                        guard let self else { return }
                         await self.restoreRemoteExpansion(expansionToRestore)
+                        guard !Task.isCancelled,
+                              self.isCurrentNavigationLoad(loadID) else { return }
                         self.restoreRemoteLoadSelection(paneCapture)
                         self.finishRemoteLoad(
+                            loadID: loadID,
                             restoreTableViewFocus: shouldRestoreTableViewFocus,
                             reveal: navigationReveal
                         )
@@ -536,6 +556,7 @@ extension FileListViewController {
                 }
                 self.restoreRemoteLoadSelection(paneCapture)
                 self.finishRemoteLoad(
+                    loadID: loadID,
                     restoreTableViewFocus: shouldRestoreTableViewFocus,
                     reveal: navigationReveal
                 )
@@ -545,6 +566,7 @@ extension FileListViewController {
                 self.restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
                 self.navigationDelegate?.fileListDidLoadDirectory(self)
                 self.isNavigationLoadInFlight = false
+                self.navigationLoadID = nil
                 self.refreshScheduler.activate()
             }
         }
@@ -638,9 +660,12 @@ extension FileListViewController {
     }
 
     private func finishRemoteLoad(
+        loadID: UUID,
         restoreTableViewFocus shouldRestoreTableViewFocus: Bool,
         reveal: PaneRefreshResultPolicy?
     ) {
+        guard isCurrentNavigationLoad(loadID) else { return }
+        remoteExpansionRestoreTask = nil
         restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
         navigationDelegate?.fileListDidLoadDirectory(self)
 
@@ -648,6 +673,7 @@ extension FileListViewController {
             runResultReveal(reveal)
         }
         isNavigationLoadInFlight = false
+        navigationLoadID = nil
         refreshScheduler.activate()
     }
 

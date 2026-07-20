@@ -6,6 +6,7 @@ private let logger = Logger(subsystem: "com.detours", category: "filelist")
 
 extension FileListViewController {
     func startWatching(_ location: Location, provider: any FileProvider) {
+        guard !isShutDown else { return }
         let normalizedLocation = Self.normalizedWatchLocation(location)
 
         providerWatchGeneration &+= 1
@@ -220,5 +221,42 @@ extension FileListViewController {
         hasLoadedDirectory = false
         suppressLoadingSpinner = false
         showLoadingIndicator()
+    }
+
+    /// Ends every tab-owned asynchronous resource. Tab transfer deliberately
+    /// does not call this; true close and session replacement do.
+    func shutdown() {
+        guard !isShutDown else { return }
+        isShutDown = true
+        navigationLoadID = nil
+        isNavigationLoadInFlight = false
+        remoteExpansionRestoreTask?.cancel()
+        remoteExpansionRestoreTask = nil
+        directoryWatchTask?.cancel()
+        directoryWatchTask = nil
+        providerWatchGeneration &+= 1
+        for task in providerWatchSetupTasks.values {
+            task.cancel()
+        }
+        providerWatchSetupTasks.removeAll()
+        let watches = Array(providerWatches.values)
+        providerWatches.removeAll()
+        dataSource.cancelCurrentLoad()
+        quickLookGenerationTask?.cancel()
+        remoteQuickLookTask?.cancel()
+        refreshScheduler.shutdown()
+        PaneFileOperationCoordinator.shared.unregister(scheduler: refreshScheduler)
+        NotificationCenter.default.removeObserver(self)
+
+        Task {
+            for record in watches {
+                await record.provider.unwatch(record.watch)
+            }
+        }
+        if let hostID = currentRemoteHost?.id {
+            Task {
+                await RemoteConnectionRegistry.shared.paneStoppedViewing(hostID: hostID)
+            }
+        }
     }
 }

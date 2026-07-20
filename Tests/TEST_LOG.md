@@ -2104,3 +2104,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   expanded folder produced a delayed pane-wide error overlay, and rebuilding
   an inactive pane's tab bar restored the selected button's active-bright
   state. Executed 2 tests with 2 failures.
+
+- 2026-07-20 11:02 CEST: Foundry
+  `swift test --filter "FileListResponderTests/testDeletingExpandedFolderDoesNotShowMissingFolderOverlay|PaneViewControllerTests/testInactivePaneTabBarReloadKeepsEveryTabVisuallyInactive"`
+  PASS: 2 tests, 0 failures. A deleted expanded folder no longer produces a
+  delayed pane-wide error, and rebuilding an inactive pane's tab bar keeps
+  every selected-tab indicator visually inactive.

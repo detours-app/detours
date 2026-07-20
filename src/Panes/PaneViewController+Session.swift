@@ -86,6 +86,7 @@ extension PaneViewController {
         guard !urls.isEmpty else { return }
 
         tabs.forEach { tab in
+            tab.fileListViewController.shutdown()
             tab.fileListViewController.view.removeFromSuperview()
             tab.fileListViewController.removeFromParent()
         }

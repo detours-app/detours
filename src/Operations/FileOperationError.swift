@@ -14,6 +14,7 @@ enum FileOperationError: Error {
     case insufficientDiskSpace
     case archivePasswordRequired
     case archivePasswordInvalid(String)
+    case invalidName
 }
 
 extension FileOperationError: LocalizedError {
@@ -45,6 +46,8 @@ extension FileOperationError: LocalizedError {
             return "This archive is password-protected."
         case let .archivePasswordInvalid(message):
             return message
+        case .invalidName:
+            return "The name must be a single file or folder name."
         }
     }
 }

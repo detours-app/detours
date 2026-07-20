@@ -345,4 +345,30 @@ extension FileListDataSourceTests {
         let expectedURL = hiddenAlias.appendingPathComponent("Steuern Tanja").standardizedFileURL
         XCTAssertEqual(items.first?.url.standardizedFileURL, expectedURL)
     }
+
+    func testComposedListingEntriesPreserveVirtualAndSharedPresentationMetadata() throws {
+        let dataSource = FileListDataSource()
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let cloudDocs = try createTestFolder(in: temp, name: "com~apple~CloudDocs")
+        let virtual = FileItem(
+            name: "Shared",
+            url: cloudDocs,
+            isDirectory: true,
+            size: nil,
+            dateModified: Date(),
+            icon: NSImage(),
+            sharedRole: .owner,
+            isVirtualSharedFolder: true,
+            iCloudStatus: .downloaded
+        )
+
+        let rebuilt = dataSource.baseFileItems(for: [LoadedFileEntry(fileItem: virtual)])
+
+        XCTAssertEqual(rebuilt.first?.sharedRole, .owner)
+        XCTAssertTrue(rebuilt.first?.isVirtualSharedFolder == true)
+        guard case .downloaded? = rebuilt.first?.iCloudStatus else {
+            return XCTFail("Expected the composed iCloud status to survive scheduler transport")
+        }
+    }
 }

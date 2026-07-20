@@ -320,6 +320,62 @@ extension FileListResponderTests {
         XCTAssertEqual(loadSpy.directoryLoadCount, 2, "Deleting an expanded folder should refresh only its parent")
     }
 
+    func testRetryAfterScheduledLocalFailureReplaysTheRetainedRefresh() async throws {
+        let temp = try createTempDirectory()
+        _ = try createTestFile(in: temp, name: "before.txt")
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        await loadDirectoryAndWaitAsync(temp, in: viewController)
+        defer { cleanupTempDirectory(temp) }
+
+        try FileManager.default.removeItem(at: temp)
+        viewController.refresh()
+        let failureDeadline = Date().addingTimeInterval(2)
+        while viewController.errorOverlay == nil, Date() < failureDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotNil(viewController.errorOverlay)
+
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        _ = try createTestFile(in: temp, name: "after.txt")
+        viewController.retryCurrentLoadForTesting()
+
+        let reloaded = await waitForRowCount(1, in: viewController.tableView)
+        XCTAssertTrue(reloaded)
+        XCTAssertEqual(viewController.dataSource.items.map(\.name), ["after.txt"])
+        XCTAssertNil(viewController.errorOverlay)
+    }
+
+    func testHiddenFilesRefreshUpdatesMaterializedExpandedBranches() async throws {
+        let originalExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
+        SettingsManager.shared.folderExpansionEnabled = true
+        defer { SettingsManager.shared.folderExpansionEnabled = originalExpansionEnabled }
+        let temp = try createTempDirectory()
+        let folder = try createTestFolder(in: temp, name: "Expanded")
+        _ = try createTestFile(in: folder, name: "visible.txt")
+        _ = try createTestFile(in: folder, name: ".hidden.txt")
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        await loadDirectoryAndWaitAsync(temp, in: viewController)
+        defer { cleanupTempDirectory(temp) }
+
+        let folderItem = try XCTUnwrap(
+            viewController.dataSource.findItem(withURL: folder, in: viewController.dataSource.items)
+        )
+        viewController.tableView.expandItem(folderItem)
+        XCTAssertEqual(folderItem.children?.map(\.name), ["visible.txt"])
+
+        viewController.refreshScheduler.notePresentationChange()
+        viewController.dataSource.showHiddenFiles = true
+        viewController.refresh()
+        let deadline = Date().addingTimeInterval(2)
+        while folderItem.children?.count != 2, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTAssertEqual(Set(folderItem.children?.map(\.name) ?? []), [".hidden.txt", "visible.txt"])
+    }
+
     func testLocalMoveExpandsDestinationAndSelectsResultWithoutWatcherReloads() async throws {
         let originalExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
         SettingsManager.shared.folderExpansionEnabled = true

@@ -177,8 +177,12 @@ extension MainSplitViewController {
         guard !items.isEmpty else { return }
         let destinationPane = otherPane(from: pane)
         // Use effective destination: if a folder is selected, move into it
-        guard let destination = destinationPane.effectiveDestinationLocation else { return }
-        let undoManager = destinationPane.selectedTab?.fileListViewController.undoManager
+        guard let destination = destinationPane.effectiveDestinationLocation,
+              let destinationList = destinationPane.selectedTab?.fileListViewController else { return }
+        let destinationEpoch = destinationList.refreshScheduler.epoch
+        let sourceList = pane.selectedTab?.fileListViewController
+        let sourceEpoch = sourceList?.refreshScheduler.epoch
+        let undoManager = destinationList.undoManager
 
         var moveAffected = Set(items.map { $0.deletingLastPathComponent() })
         moveAffected.insert(destination)
@@ -205,32 +209,50 @@ extension MainSplitViewController {
                 }
                 let usesRemoteLocations = hasRemoteSource || destinationIsRemote
                 guard usesRemoteLocations else {
-                    pane.selectedTab?.fileListViewController.refreshAfterLocalMutation()
-                    if let flvc = destinationPane.selectedTab?.fileListViewController {
-                        let locationToExpand = destination == flvc.currentDirectoryLocation
+                    if let sourceList, sourceList.refreshScheduler.epoch == sourceEpoch {
+                        sourceList.refreshAfterLocalMutation()
+                    }
+                    if isValidOperationTarget(
+                        destinationList,
+                        epoch: destinationEpoch,
+                        destination: destination,
+                        in: destinationPane
+                    ) {
+                        let locationToExpand = destination == destinationList.currentDirectoryLocation
                             ? nil
                             : destination
-                        flvc.refreshSelectingLocations(
+                        destinationList.refreshSelectingLocations(
                             actualLocations,
                             expandingTo: locationToExpand
                         ) { [weak self] in
-                            self?.setActivePaneFromChild(destinationPane)
-                            self?.view.window?.makeFirstResponder(flvc.tableView)
+                            guard let self,
+                                  self.isValidOperationTarget(
+                                    destinationList,
+                                    epoch: destinationEpoch,
+                                    destination: destination,
+                                    in: destinationPane
+                                  ) else { return }
+                            self.setActivePaneFromChild(destinationPane)
+                            self.view.window?.makeFirstResponder(destinationList.tableView)
                         }
+                    } else {
+                        refreshPanes(matching: moveAffected)
                     }
                     return
                 }
                 var affectedDirectories = Set(items.map { $0.deletingLastPathComponent() })
                 affectedDirectories.insert(destination)
-                let destinationList = submitDestinationReveal(
+                let submittedDestinationList = submitDestinationReveal(
                     results: actualLocations,
                     destination: destination,
-                    destinationPane: destinationPane
+                    destinationPane: destinationPane,
+                    destinationList: destinationList,
+                    targetEpoch: destinationEpoch
                 )
                 refreshPanes(
                     matching: affectedDirectories,
                     preferredResultLocations: Set(actualLocations),
-                    excluding: destinationList
+                    excluding: submittedDestinationList
                 )
             } catch {
                 FileOperationQueue.shared.presentError(error)
@@ -242,11 +264,13 @@ extension MainSplitViewController {
         guard !items.isEmpty else { return }
         let destinationPane = otherPane(from: pane)
         // Use effective destination: if a folder is selected, copy into it
-        guard let destination = destinationPane.effectiveDestinationLocation else {
+        guard let destination = destinationPane.effectiveDestinationLocation,
+              let destinationList = destinationPane.selectedTab?.fileListViewController else {
             NSSound.beep()
             return
         }
-        let undoManager = destinationPane.selectedTab?.fileListViewController.undoManager
+        let destinationEpoch = destinationList.refreshScheduler.epoch
+        let undoManager = destinationList.undoManager
 
         var copyAffected = Set(items.map { $0.deletingLastPathComponent() })
         copyAffected.insert(destination)
@@ -273,29 +297,45 @@ extension MainSplitViewController {
                 }
                 let usesRemoteLocations = hasRemoteSource || destinationIsRemote
                 guard usesRemoteLocations else {
-                    if let flvc = destinationPane.selectedTab?.fileListViewController {
-                        let locationToExpand = destination == flvc.currentDirectoryLocation
+                    if isValidOperationTarget(
+                        destinationList,
+                        epoch: destinationEpoch,
+                        destination: destination,
+                        in: destinationPane
+                    ) {
+                        let locationToExpand = destination == destinationList.currentDirectoryLocation
                             ? nil
                             : destination
-                        flvc.refreshSelectingLocations(
+                        destinationList.refreshSelectingLocations(
                             actualLocations,
                             expandingTo: locationToExpand
                         ) { [weak self] in
-                            self?.setActivePaneFromChild(destinationPane)
-                            self?.view.window?.makeFirstResponder(flvc.tableView)
+                            guard let self,
+                                  self.isValidOperationTarget(
+                                    destinationList,
+                                    epoch: destinationEpoch,
+                                    destination: destination,
+                                    in: destinationPane
+                                  ) else { return }
+                            self.setActivePaneFromChild(destinationPane)
+                            self.view.window?.makeFirstResponder(destinationList.tableView)
                         }
+                    } else {
+                        refreshPanes(matching: [destination])
                     }
                     return
                 }
-                let destinationList = submitDestinationReveal(
+                let submittedDestinationList = submitDestinationReveal(
                     results: actualLocations,
                     destination: destination,
-                    destinationPane: destinationPane
+                    destinationPane: destinationPane,
+                    destinationList: destinationList,
+                    targetEpoch: destinationEpoch
                 )
                 refreshPanes(
                     matching: [destination],
                     preferredResultLocations: Set(actualLocations),
-                    excluding: destinationList
+                    excluding: submittedDestinationList
                 )
             } catch {
                 FileOperationQueue.shared.presentError(error)
@@ -314,11 +354,17 @@ extension MainSplitViewController {
     private func submitDestinationReveal(
         results: [Location],
         destination: Location,
-        destinationPane: PaneViewController
+        destinationPane: PaneViewController,
+        destinationList: FileListViewController,
+        targetEpoch: UInt64
     ) -> FileListViewController? {
-        guard let destinationList = destinationPane.selectedTab?.fileListViewController,
-              destinationList.paneDisplaysDirectory(destination) else {
-            return destinationPane.selectedTab?.fileListViewController
+        guard isValidOperationTarget(
+            destinationList,
+            epoch: targetEpoch,
+            destination: destination,
+            in: destinationPane
+        ) else {
+            return nil
         }
         var policy = PaneRefreshResultPolicy()
         policy.preferredResultLocations = Set(results)
@@ -326,6 +372,12 @@ extension MainSplitViewController {
         policy.clearsFilterConcealingResults = true
         policy.onApplied = { [weak self, weak destinationList] in
             guard let self, let destinationList else { return }
+            guard self.isValidOperationTarget(
+                destinationList,
+                epoch: targetEpoch,
+                destination: destination,
+                in: destinationPane
+            ) else { return }
             self.setActivePaneFromChild(destinationPane)
             self.view.window?.makeFirstResponder(destinationList.tableView)
         }
@@ -335,6 +387,19 @@ extension MainSplitViewController {
             policy: policy
         )
         return destinationList
+    }
+
+    private func isValidOperationTarget(
+        _ fileList: FileListViewController,
+        epoch: UInt64,
+        destination: Location,
+        in pane: PaneViewController
+    ) -> Bool {
+        !fileList.isShutDown
+            && fileList.refreshScheduler.epoch == epoch
+            && pane.tabs.contains { $0.fileListViewController === fileList }
+            && pane.selectedTab?.fileListViewController === fileList
+            && fileList.paneDisplaysDirectory(destination)
     }
 
     func refreshPanes(matching directories: Set<URL>) {

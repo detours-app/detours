@@ -264,7 +264,7 @@ final class FileOperationQueue {
                 guard case .remote(let hostID, _) = item else {
                     throw FileProviderError.unsupportedOperation("Mixed rename is not implemented yet")
                 }
-                try self.validateRemoteRenameName(newName)
+                try self.validateSinglePathComponent(newName)
                 let provider = try self.remoteProvider(for: hostID)
                 // The local path refuses a name that is already taken. Do the same here rather than
                 // letting the server's bare move surface as a raw error.
@@ -287,13 +287,13 @@ final class FileOperationQueue {
         }
     }
 
-    private func validateRemoteRenameName(_ name: String) throws {
+    private func validateSinglePathComponent(_ name: String) throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
               trimmed != ".",
               trimmed != "..",
               name.rangeOfCharacter(from: CharacterSet(charactersIn: ":/\0")) == nil else {
-            throw FileProviderError.unsupportedOperation("Name contains invalid characters.")
+            throw FileOperationError.invalidName
         }
     }
 
@@ -308,6 +308,7 @@ final class FileOperationQueue {
     }
 
     func createFolder(in directory: URL, name: String, undoManager: UndoManager? = nil) async throws -> URL {
+        try validateSinglePathComponent(name)
         if !conflictsWithActiveHeavyOperation(sources: [directory], destination: nil) {
             return try await performFastCreateFolder(in: directory, name: name, undoManager: undoManager)
         }
@@ -318,6 +319,7 @@ final class FileOperationQueue {
 
     @discardableResult
     func createFolder(in directory: Location, name: String, undoManager: UndoManager? = nil) async throws -> Location {
+        try validateSinglePathComponent(name)
         if case .local(let directoryURL) = directory {
             return .local(try await createFolder(in: directoryURL, name: name, undoManager: undoManager))
         }
@@ -328,6 +330,7 @@ final class FileOperationQueue {
     }
 
     func createFile(in directory: URL, name: String, content: Data = Data(), undoManager: UndoManager? = nil) async throws -> URL {
+        try validateSinglePathComponent(name)
         if !conflictsWithActiveHeavyOperation(sources: [directory], destination: nil) {
             return try await performFastCreateFile(in: directory, name: name, content: content, undoManager: undoManager)
         }
@@ -338,6 +341,7 @@ final class FileOperationQueue {
 
     @discardableResult
     func createFile(in directory: Location, name: String, content: Data = Data(), undoManager: UndoManager? = nil) async throws -> Location {
+        try validateSinglePathComponent(name)
         if case .local(let directoryURL) = directory {
             return .local(try await createFile(in: directoryURL, name: name, content: content, undoManager: undoManager))
         }

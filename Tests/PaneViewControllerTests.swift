@@ -125,6 +125,32 @@ final class PaneViewControllerTests: XCTestCase {
         XCTAssertEqual(pane.tabs.count, max(1, countBefore - 1))
     }
 
+    func testClosingTabShutsDownItsFileListResources() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let closingTab = try XCTUnwrap(pane.selectedTab)
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        _ = pane.createTab(at: temp, select: true)
+
+        pane.closeTab(at: 0)
+
+        XCTAssertTrue(closingTab.fileListViewController.isShutDown)
+    }
+
+    func testTransferringTabDoesNotShutDownItsFileListResources() throws {
+        let split = MainSplitViewController()
+        split.loadViewIfNeeded()
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let moved = split.leftPane.createTab(at: temp, select: true)
+
+        split.moveTab(moved, fromPane: split.leftPane, toPane: split.rightPane, atIndex: 0)
+
+        XCTAssertFalse(moved.fileListViewController.isShutDown)
+        XCTAssertTrue(split.rightPane.tabs.contains { $0 === moved })
+    }
+
     func testCloseTabSelectsRightNeighbor() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()

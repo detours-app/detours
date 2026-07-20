@@ -26,6 +26,7 @@ extension FileListViewController {
         guard isFilterBarVisible else { return }
 
         isFilterBarVisible = false
+        refreshScheduler.notePresentationChange()
         noMatchesLabel.isHidden = true
 
         // Preserve expansion state before clearing filter
@@ -54,6 +55,7 @@ extension FileListViewController {
     }
 
     func updateFilter(_ text: String) {
+        refreshScheduler.notePresentationChange()
         let previousSelection = tableView.selectedRow >= 0 ? dataSource.item(at: tableView.selectedRow) : nil
         let previousExpanded = dataSource.expandedFolders
 

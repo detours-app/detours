@@ -92,6 +92,7 @@ final class PaneRefreshScheduler {
     private var dependencies: Dependencies?
     private var states: [Location: DirectoryState] = [:]
     private(set) var epoch: UInt64 = 0
+    private(set) var presentationGeneration: UInt64 = 0
 
     /// Open operation holds. While any hold is open, watcher-cause fetches are
     /// retained instead of started; operation results submitted under a hold
@@ -118,12 +119,29 @@ final class PaneRefreshScheduler {
     /// ineligible, pending policies and completions are dropped.
     func noteNavigation() {
         epoch &+= 1
+        presentationGeneration &+= 1
         for state in states.values {
             state.debounceTask?.cancel()
         }
         states.removeAll()
         directoriesAwaitingHoldClose.removeAll()
         pendingRowRefreshes.removeAll()
+    }
+
+    /// Sort, filter, and visibility changes invalidate async disclosure work
+    /// without discarding operation policies retained by listing requests.
+    func notePresentationChange() {
+        presentationGeneration &+= 1
+    }
+
+    func generation(for directory: Location) -> UInt64 {
+        states[Self.normalizedDirectory(directory)]?.nextGeneration ?? 0
+    }
+
+    func shutdown() {
+        noteNavigation()
+        activeHolds.removeAll()
+        dependencies = nil
     }
 
     // MARK: - Listing intents

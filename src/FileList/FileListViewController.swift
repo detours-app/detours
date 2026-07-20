@@ -87,6 +87,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     /// navigation can neither apply against a half-built root nor lose its
     /// result policy to the navigation's default selection.
     var isNavigationLoadInFlight = false
+    var navigationLoadID: UUID?
+    var remoteExpansionRestoreTask: Task<Void, Never>?
+    var isShutDown = false
 
     var isSharedTopLevelView: Bool {
         currentICloudListingMode == .sharedTopLevel &&
@@ -148,6 +151,15 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
         }
         dataSource.currentRefreshEpoch = { [weak self] in
             self?.refreshScheduler.epoch ?? 0
+        }
+        dataSource.currentRefreshGeneration = { [weak self] directory in
+            self?.refreshScheduler.generation(for: directory) ?? 0
+        }
+        dataSource.currentPresentationGeneration = { [weak self] in
+            self?.refreshScheduler.presentationGeneration ?? 0
+        }
+        dataSource.notePresentationChange = { [weak self] in
+            self?.refreshScheduler.notePresentationChange()
         }
         tableView.keyHandler = self
         tableView.contextMenuDelegate = self

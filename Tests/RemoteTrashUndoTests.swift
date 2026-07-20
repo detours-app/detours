@@ -17,8 +17,36 @@ final class RemoteTrashUndoTests: XCTestCase {
             do {
                 _ = try await queue.rename(item: item, to: invalidName)
                 XCTFail("Expected \(invalidName) to be rejected")
-            } catch let error as FileProviderError {
-                XCTAssertEqual(error, .unsupportedOperation("Name contains invalid characters."))
+            } catch let error as FileOperationError {
+                guard case .invalidName = error else {
+                    return XCTFail("Expected invalidName, got \(error)")
+                }
+            }
+        }
+    }
+
+    func testCreateFileRejectsPathTraversalBeforeProviderLookup() async throws {
+        let hostID = UUID()
+        let remoteDirectory = Location.remote(hostID: hostID, path: "/home/marco/project")
+        let localDirectory = URL(fileURLWithPath: "/tmp/detours-create-boundary")
+
+        for invalidName in ["../escaped.txt", "child/name.txt", "/absolute.txt", "..", "."] {
+            do {
+                _ = try await FileOperationQueue.shared.createFile(in: remoteDirectory, name: invalidName)
+                XCTFail("Expected remote name \(invalidName) to be rejected")
+            } catch let error as FileOperationError {
+                guard case .invalidName = error else {
+                    return XCTFail("Expected invalidName, got \(error)")
+                }
+            }
+
+            do {
+                _ = try await FileOperationQueue.shared.createFile(in: localDirectory, name: invalidName)
+                XCTFail("Expected local name \(invalidName) to be rejected")
+            } catch let error as FileOperationError {
+                guard case .invalidName = error else {
+                    return XCTFail("Expected invalidName, got \(error)")
+                }
             }
         }
     }

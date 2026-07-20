@@ -350,6 +350,12 @@ final class FileListDataSource: NSObject, NSOutlineViewDataSource, NSOutlineView
     /// Active directory load task (cancelled when navigating away)
     var currentLoadTask: Task<Void, Never>?
 
+    /// Scheduler-owned eligibility used by async disclosure loads. A result
+    /// may mutate the tree only while all three captured values still match.
+    var currentRefreshGeneration: ((Location) -> UInt64)?
+    var currentPresentationGeneration: (() -> UInt64)?
+    var notePresentationChange: (() -> Void)?
+
     /// Active icon load tasks (cancelled when navigating away)
     var iconLoadTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
 

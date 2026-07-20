@@ -272,6 +272,41 @@ final class CopyMoveMatrixTests: XCTestCase {
         withExtendedLifetime(window) {}
     }
 
+    func testDestinationTabSwitchBeforeCopyCompletesDoesNotRetargetResult() throws {
+        let (splitVC, window) = makeSplit()
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let sourceDir = try createTestFolder(in: temp, name: "source")
+        let destDir = try createTestFolder(in: temp, name: "dest")
+        let file = try createTestFile(in: sourceDir, name: "m_copied.txt")
+        let existing = try createTestFile(in: destDir, name: "a_existing.txt")
+
+        let leftPane = splitVC.leftPane
+        let rightPane = splitVC.rightPane
+        try XCTUnwrap(leftPane.selectedTab).navigate(to: sourceDir)
+        try XCTUnwrap(rightPane.selectedTab).navigate(to: destDir)
+        let leftList = try XCTUnwrap(leftPane.selectedTab).fileListViewController
+        waitUntil("source pane never loaded") { leftList.tableView.numberOfRows == 1 }
+        XCTAssertTrue(leftList.selectItem(at: file))
+        splitVC.setActivePane(0)
+
+        splitVC.copyItems([.local(file)], toOtherPaneFrom: leftPane)
+        let switchedTab = rightPane.createTab(at: destDir, select: true)
+
+        waitUntil("copy never completed") {
+            FileManager.default.fileExists(atPath: destDir.appendingPathComponent("m_copied.txt").path)
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertTrue(rightPane.selectedTab === switchedTab)
+        XCTAssertTrue(splitVC.activePane === leftPane)
+        XCTAssertEqual(
+            self.selectedPaths(switchedTab.fileListViewController),
+            [existing.standardizedFileURL.path],
+            "The operation must not select its result in a tab chosen after it began"
+        )
+        withExtendedLifetime(window) {}
+    }
+
     // MARK: - T11: never-displayed tab retains its intent
 
     func testCopyIntoNeverDisplayedPaneAppliesOnceShown() throws {

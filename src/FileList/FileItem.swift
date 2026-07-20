@@ -422,6 +422,23 @@ final class FileItem {
             return existingChildren
         }
 
+        let sorted = try await fetchChildrenAsync(
+            showHidden: showHidden,
+            sortDescriptor: sortDescriptor,
+            foldersOnTop: foldersOnTop
+        )
+        children = sorted
+        return sorted
+    }
+
+    /// Fetches children without mutating this item. Callers that race other
+    /// listing authorities can validate their generation before applying.
+    @MainActor
+    func fetchChildrenAsync(
+        showHidden: Bool,
+        sortDescriptor: SortDescriptor = .defaultSort,
+        foldersOnTop: Bool = true
+    ) async throws -> [FileItem] {
         let entries = try await DirectoryLoader.shared.loadChildren(url, showHidden: showHidden)
 
         let items = entries.map { entry -> FileItem in
@@ -442,7 +459,6 @@ final class FileItem {
         for item in sorted {
             item.parent = self
         }
-        children = sorted
         return sorted
     }
 

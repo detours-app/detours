@@ -75,6 +75,7 @@ extension PaneViewController {
     }
 
     func toggleHiddenFiles() {
+        selectedTab?.fileListViewController.refreshScheduler.notePresentationChange()
         selectedTab?.fileListViewController.dataSource.showHiddenFiles.toggle()
         refresh()
     }

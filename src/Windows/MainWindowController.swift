@@ -109,6 +109,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - NSWindowDelegate
 
     func windowDidBecomeKey(_ notification: Notification) {
+        // Reassert exactly one active presentation after AppKit reactivates
+        // the window; this also repairs any controls rebuilt while inactive.
+        splitViewController.setActivePane(splitViewController.activePaneIndex)
         // Restore focus to the active pane's table view
         if let tableView = splitViewController.activePane.selectedTab?.fileListViewController.tableView {
             window?.makeFirstResponder(tableView)
