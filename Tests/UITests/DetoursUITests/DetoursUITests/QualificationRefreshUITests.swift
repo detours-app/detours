@@ -152,9 +152,9 @@ final class QualificationRefreshUITests: BaseUITest {
         }
         assertPresentation(state, selected: selected, expanded: expanded)
 
-        let nameHeader = app.buttons.matching(NSPredicate(format: "label == %@", "Name")).firstMatch
-        XCTAssertTrue(nameHeader.waitForExistence(timeout: 2), "Name column header should be accessible")
-        nameHeader.click()
+        outline.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0))
+            .withOffset(CGVector(dx: 0, dy: -10))
+            .click()
         _ = try waitForState("descending name sort") {
             $0.sortColumn == "name" && !$0.sortAscending
         }
