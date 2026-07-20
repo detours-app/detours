@@ -13,7 +13,7 @@ final class QualificationWorkflowTests: XCTestCase {
         UInt64(ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_SEED"] ?? "") ?? 0
     }
 
-    private var roots: [URL] throws {
+    private func qualificationRoots() throws -> [URL] {
         try ["LOCAL_ROOT", "APFS_ROOT", "ICLOUD_ROOT", "SMB_ROOT"].map { key in
             let value = try XCTUnwrap(ProcessInfo.processInfo.environment[key], "Missing \(key)")
             return URL(fileURLWithPath: value, isDirectory: true)
@@ -21,7 +21,7 @@ final class QualificationWorkflowTests: XCTestCase {
     }
 
     func testActivationWorkflow() throws {
-        let roots = try roots
+        let roots = try qualificationRoots()
         for iteration in 0..<repetitions {
             let split = MainSplitViewController()
             split.loadViewIfNeeded()
@@ -38,7 +38,7 @@ final class QualificationWorkflowTests: XCTestCase {
     }
 
     func testRefreshWorkflow() async throws {
-        let roots = try roots
+        let roots = try qualificationRoots()
         for iteration in 0..<repetitions {
             let scenario = try makeScenario(group: "refresh", iteration: iteration, roots: roots)
             defer { validatedCleanup(scenario) }
@@ -55,7 +55,7 @@ final class QualificationWorkflowTests: XCTestCase {
     }
 
     func testTransferWorkflow() async throws {
-        let roots = try roots
+        let roots = try qualificationRoots()
         for iteration in 0..<repetitions {
             let scenario = try makeScenario(group: "transfer", iteration: iteration, roots: roots)
             defer { validatedCleanup(scenario) }
@@ -74,7 +74,7 @@ final class QualificationWorkflowTests: XCTestCase {
     }
 
     func testMutationWorkflow() async throws {
-        let roots = try roots
+        let roots = try qualificationRoots()
         for iteration in 0..<repetitions {
             let scenario = try makeScenario(group: "mutation", iteration: iteration, roots: roots)
             defer { validatedCleanup(scenario) }
@@ -108,7 +108,7 @@ final class QualificationWorkflowTests: XCTestCase {
     }
 
     func testArchiveWorkflow() async throws {
-        let roots = try roots
+        let roots = try qualificationRoots()
         for iteration in 0..<repetitions {
             let scenario = try makeScenario(group: "archive", iteration: iteration, roots: roots)
             defer { validatedCleanup(scenario) }
@@ -123,7 +123,7 @@ final class QualificationWorkflowTests: XCTestCase {
     }
 
     func testSessionWorkflow() throws {
-        let roots = try roots
+        let roots = try qualificationRoots()
         for iteration in 0..<repetitions {
             let pane = PaneViewController()
             pane.loadViewIfNeeded()
@@ -140,7 +140,7 @@ final class QualificationWorkflowTests: XCTestCase {
     }
 
     func testOpeningWorkflow() async throws {
-        let roots = try roots
+        let roots = try qualificationRoots()
         for iteration in 0..<repetitions {
             let scenario = try makeScenario(group: "opening", iteration: iteration, roots: roots)
             defer { validatedCleanup(scenario) }
