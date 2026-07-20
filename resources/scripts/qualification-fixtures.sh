@@ -52,7 +52,7 @@ verify_smb_authentication() {
         log_user 0
         set timeout 15
         set password_prompts 0
-        spawn smbutil view //detours-qualification@devtest
+        spawn smbutil view -A //detours-qualification@devtest
         expect {
             -nocase -re {password} {
                 incr password_prompts
@@ -81,20 +81,14 @@ mount_smb_fixture() {
     mkdir -p "$SMB_MOUNT_POINT"
     local mount_status
     smbutil logout devtest >/dev/null 2>&1 || true
+    verify_smb_authentication
     set +e
-    DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" expect <<EXPECT >/dev/null 2>&1
+    MOUNT_POINT="$SMB_MOUNT_POINT" expect <<'EXPECT' >/dev/null 2>&1
         log_user 0
         set timeout 30
-        set password_prompts 0
-        spawn mount_smbfs -s //detours-qualification@devtest/Detours%20Qualification {$SMB_MOUNT_POINT}
+        spawn mount_smbfs -N //detours-qualification@devtest/Detours%20Qualification $env(MOUNT_POINT)
         expect {
-            -re {(?i)password.*:} {
-                incr password_prompts
-                if {\$password_prompts > 1} { exit 77 }
-                send -- "\$env(DETOURS_SMB_TEST_PASSWORD)\r"
-                exp_continue
-            }
-            eof { catch wait result; exit [lindex \$result 3] }
+            eof { catch wait result; exit [lindex $result 3] }
             timeout { exit 124 }
         }
 EXPECT
@@ -102,8 +96,7 @@ EXPECT
     set -e
     case "$mount_status" in
         0) ;;
-        77) fail "SMB fixture authentication was rejected" ;;
-        124) fail "SMB fixture mount timed out" ;;
+        124) fail "SMB fixture mount timed out after authentication" ;;
         *) fail "SMB fixture mount failed with status $mount_status" ;;
     esac
     mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1 || fail "SMB fixture did not mount at $SMB_MOUNT_POINT"
