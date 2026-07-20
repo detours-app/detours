@@ -510,6 +510,11 @@ final class FileOperationQueue {
                 return ("The archive couldn't be extracted.", message)
             case let .archivePasswordInvalid(message):
                 return (message, "Enter a shorter ZIP password and try again.")
+            case .invalidName:
+                return (
+                    "The name isn't valid.",
+                    "Enter one file or folder name without slashes, colons, or parent-directory components."
+                )
             case .cancelled, .archivePasswordRequired, .partialFailure:
                 // Handled before reaching here; provide a safe fallback.
                 return ("The operation couldn't be completed.", "")
