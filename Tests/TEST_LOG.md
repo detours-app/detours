@@ -2240,5 +2240,15 @@ Spotlight search has no unit test (depends on the live, async-built system index
   loaded its remote location, but XCUI reordered the two identically identified
   outline elements after remote loading; index zero then selected `AAA_First`
   in the physical right pane while the test asserted left-pane focus. Guarded
-  cleanup passed. Pane helpers now derive left/right identity from stable screen
-  position instead of accessibility traversal order.
+  cleanup passed. A one-pass live-target smoke mode was added to isolate this
+  assertion without rerunning the six contexts that had passed.
+
+- 2026-07-21 13:13 CEST: Foundry qualification smoke
+  `activation-windows-smoke-aa46d10-1` FAIL at the same selection assertion,
+  while proving the new live-target smoke path reached Xcode with no Doppler
+  process, SMB mount, APFS image, or iCloud fixture and cleaned its guarded
+  local root. The failure screenshot showed the live Windows listing healthy in
+  the left pane and `AAA_First` selected in the physical right pane. XCUI pane
+  outline ordering and frame-derived ordering are both unsuitable once hidden
+  and remote tab views coexist. The test now selects through the already-proven
+  active file-list focus with a Down Arrow, removing the ambiguous element query.

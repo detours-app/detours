@@ -52,7 +52,7 @@ final class QualificationActivationUITests: BaseUITest {
             state.left.selectedTabID == leftNewTab.left.selectedTabID
         }
         XCTAssertEqual(leftNextTab.left.selectedTabID, leftNewTab.left.selectedTabID)
-        selectFirstVisibleItem(in: app.leftPaneOutlineView)
+        selectFirstVisibleItemInActivePane()
         let leftSelection = try assertPaneAndTabContract(expectedActivePane: "left") { state in
             !state.left.selectedLocations.isEmpty
         }
@@ -92,7 +92,7 @@ final class QualificationActivationUITests: BaseUITest {
             state.right.selectedTabID == rightNewTab.right.selectedTabID
         }
         XCTAssertEqual(rightNextTab.right.selectedTabID, rightNewTab.right.selectedTabID)
-        selectFirstVisibleItem(in: app.rightPaneOutlineView)
+        selectFirstVisibleItemInActivePane()
         let rightSelection = try assertPaneAndTabContract(expectedActivePane: "right") { state in
             !state.right.selectedLocations.isEmpty
         }
@@ -233,12 +233,8 @@ final class QualificationActivationUITests: BaseUITest {
         )
     }
 
-    private func selectFirstVisibleItem(in outline: XCUIElement) {
-        let row = outline.outlineRows.firstMatch
-        XCTAssertTrue(row.existsOrWait(timeout: 10), "The active tab should expose at least one selectable row")
-        let label = row.staticTexts.firstMatch
-        XCTAssertTrue(label.existsOrWait(timeout: 1), "The first visible row should expose a selectable label")
-        label.click()
+    private func selectFirstVisibleItemInActivePane() {
+        pressKey(.downArrow)
     }
 
     private func waitForForeground(_ application: XCUIApplication, timeout: TimeInterval) -> Bool {
