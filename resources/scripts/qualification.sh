@@ -55,7 +55,7 @@ Commands:
   installed <group|all>        Run a named workflow 20 times in the installed app
   workflow-run <group|all>     Run both layers with fixtures in one audit session
   installed-smoke <group> <root|target>
-                               Run one installed repetition in one audit session
+                               Run focused installed repetitions in one audit session
   failure-probe <provider>     Prove one provider failure is preserved and cleaned
   cold-run                     Reset and run one complete cold qualification
   soak                         Run the installed-app campaign for 12 hours
@@ -69,6 +69,7 @@ Options:
   --commit <sha>                Exact clean commit to qualify (default: HEAD)
   --run-id <id>                Evidence run identifier (default: generated UUID)
   --seed <unsigned-integer>     Replay scenario order and fixture-name choices
+  --smoke-repetitions <1-20>    Installed-smoke repetition count (default: 1)
   --cold-index <1|2|3>          Cold-run sequence number
   --linux-target <ssh-alias>    Linux qualification endpoint (default: devtest)
   --intel-mac-target <alias>    Intel Mac qualification endpoint (default: wraith)
@@ -168,6 +169,11 @@ parse_options() {
                 QUALIFICATION_SEED="$2"
                 shift 2
                 ;;
+            --smoke-repetitions)
+                [[ $# -ge 2 ]] || fail "--smoke-repetitions requires a value"
+                QUALIFICATION_SMOKE_REPETITIONS="$2"
+                shift 2
+                ;;
             --cold-index)
                 [[ $# -ge 2 ]] || fail "--cold-index requires a value"
                 QUALIFICATION_COLD_INDEX="$2"
@@ -208,6 +214,10 @@ parse_options() {
     done
 
     is_unsigned_integer "$QUALIFICATION_SEED" || fail "--seed must be an unsigned integer"
+    is_unsigned_integer "$QUALIFICATION_SMOKE_REPETITIONS" || \
+        fail "--smoke-repetitions must be an integer from 1 through 20"
+    (( QUALIFICATION_SMOKE_REPETITIONS >= 1 && QUALIFICATION_SMOKE_REPETITIONS <= 20 )) || \
+        fail "--smoke-repetitions must be an integer from 1 through 20"
     case "$QUALIFICATION_COLD_INDEX" in
         0|1|2|3) ;;
         *) fail "--cold-index must be 1, 2, or 3" ;;
@@ -239,6 +249,7 @@ write_command_metadata() {
         printf 'commit=%s\n' "$(canonical_commit)"
         printf 'run_id=%s\n' "$QUALIFICATION_RUN_ID"
         printf 'seed=%s\n' "$QUALIFICATION_SEED"
+        printf 'smoke_repetitions=%s\n' "$QUALIFICATION_SMOKE_REPETITIONS"
         printf 'cold_index=%s\n' "$QUALIFICATION_COLD_INDEX"
         printf 'linux_target=%s\n' "$QUALIFICATION_LINUX_TARGET"
         printf 'intel_mac_target=%s\n' "$QUALIFICATION_INTEL_MAC_TARGET"
@@ -520,7 +531,7 @@ run_installed_smoke_campaign() {
     esac
     capture_outside_root_snapshots before
     capture_state_observation installed-smoke-before
-    run_installed_smoke "$group" "$context_name"
+    run_installed_smoke "$group" "$context_name" "$QUALIFICATION_SMOKE_REPETITIONS"
     capture_state_observation installed-smoke-after
     capture_outside_root_snapshots after
     compare_outside_root_snapshots
@@ -620,6 +631,7 @@ fi
 QUALIFICATION_COMMIT="HEAD"
 QUALIFICATION_RUN_ID=""
 QUALIFICATION_SEED="0"
+QUALIFICATION_SMOKE_REPETITIONS="1"
 QUALIFICATION_COLD_INDEX="0"
 QUALIFICATION_LINUX_TARGET="${DETOURS_QUALIFICATION_LINUX_TARGET:-devtest}"
 QUALIFICATION_INTEL_MAC_TARGET="${DETOURS_QUALIFICATION_INTEL_MAC_TARGET:-wraith}"
@@ -653,6 +665,9 @@ case "$COMMAND" in
 esac
 
 parse_options "$@"
+if [[ "$COMMAND" != "installed-smoke" && "$QUALIFICATION_SMOKE_REPETITIONS" != "1" ]]; then
+    fail "--smoke-repetitions is available only with installed-smoke"
+fi
 [[ "$QUALIFICATION_SMB_SHARE" != "." \
     && "$QUALIFICATION_SMB_SHARE" != ".." \
     && "$QUALIFICATION_SMB_SHARE" != */* ]] || \
