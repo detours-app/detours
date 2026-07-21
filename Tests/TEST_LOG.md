@@ -2660,3 +2660,15 @@ Spotlight search has no unit test (depends on the live, async-built system index
   26 seconds; no remaining context ran, and guarded cleanup passed. Command
   transport output must remain empty, while Xcode's captured command log is now
   allowed to contain diagnostics and the XCResult remains the pass/fail source.
+
+- 2026-07-21 19:29 CEST: Gate 1 qualification run
+  `gate1-refresh-469df82-1` STOPPED at commit `469df82` when the installed layer
+  exceeded its 90-second budget. The deterministic layer passed 2 tests in
+  0.005 seconds (1 second runner wall time), all 6 mounted/live provider checks
+  passed in 17 seconds, and the installed local and APFS paths passed. The
+  iCloud XCUI invocation then produced no result while the app and runner were
+  alive. The operator-side process was interrupted at 112 seconds instead of
+  waiting through more 30-second UI polls; cleanup removed all four roots and
+  both mounts with no leaked process. The runner now enforces its GUI deadline,
+  and blocking coverage assigns provider reachability to provider contracts
+  rather than repeating the same XCUI wiring journey for every provider.

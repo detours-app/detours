@@ -59,6 +59,12 @@ audit_installed_test_filters() {
         fail "blocking refresh provider filter does not resolve to one test method"
 }
 
+audit_shell_only_orchestration() {
+    local finding
+    finding="$(grep -En '(p[y]thon([0-9.]*)?|ans[i]ble)' "$SCRIPT_DIR"/qualification*.sh || true)"
+    [[ -z "$finding" ]] || fail "qualification orchestration must remain shell-only: $finding"
+}
+
 audit_matrix() {
     [[ -f "$MATRIX_PATH" ]] || fail "matrix is missing: $MATRIX_PATH"
 
@@ -107,6 +113,7 @@ audit_matrix() {
             fail "campaign check catalog entry is unused: $qualification_check"
     done < <(qualification_check_catalog)
 
+    audit_shell_only_orchestration
     audit_installed_test_filters
 
     printf 'matrix audit passed: %s capability rows\n' "$row_count"

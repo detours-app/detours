@@ -35,6 +35,13 @@ run_gui_command() {
         if [[ -f "$status_path" ]]; then
             break
         fi
+        if [[ -n "${QUALIFICATION_BLOCKING_DEADLINE_EPOCH:-}" ]] \
+            && (( $(date +%s) >= QUALIFICATION_BLOCKING_DEADLINE_EPOCH )); then
+            launchctl remove "$label" 2>/dev/null || true
+            rm -f -- "$active_job_file"
+            trap - HUP INT TERM
+            fail "GUI qualification job exceeded the blocking layer deadline: $label"
+        fi
         if ! job_state="$(launchctl print "gui/$(id -u)/$label" 2>&1)"; then
             rm -f -- "$active_job_file"
             fail "GUI qualification job disappeared: $label"

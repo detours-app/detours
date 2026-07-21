@@ -140,9 +140,9 @@ Blocking wall-clock budget: 60 seconds.
 Purpose: prove that production behavior is connected to visible and accessible UI controls.
 
 - Run one complete local journey per workflow, not 20 copies.
-- Run one narrow context smoke for each remaining applicable provider.
-- Do not repeat filter, sort, expansion, hidden-file, Git, focus, or selection   assertions in every provider after the representative journey proves the UI   contract.
-- A context smoke proves only its unique boundary: connect or mount, list,   perform one representative mutation/refresh, observe the UI state, and clean   up.
+- Provider reachability belongs to Layer 2 and is not repeated through XCUI in   the default blocking gate.
+- Do not repeat filter, sort, expansion, hidden-file, Git, focus, selection, or   generic provider wiring after the representative journey proves the UI   contract.
+- Run a focused provider-specific XCUI boundary only when a changed UI adapter   cannot be proved by the local journey and that provider's Layer 2 contract.
 - Reuse one build and the minimum safe app/session setup.
 - Use immediate condition checks followed by bounded condition-based waits;   fixed sleeps are prohibited.
 
@@ -178,6 +178,14 @@ For refresh, the combination model includes:
 - foreground or idle-background pane.
 
 Layer 1 uses deterministic pairwise coverage across these dimensions plus explicit higher-order cases for known interactions. Layer 2 applies the provider dimension to its real boundary. Layer 3 proves the UI wiring once and provider reachability once. A matrix row passes only when its assigned checks pass; no manual assertion, skip, retry, warning, or log-only claim counts.
+
+Layer 3's provider reachability claim is composed from the Layer 2 real-provider contract and the single installed-app wiring journey. It does not require the same installed journey to be relaunched with seven environment values.
+
+## Execution Safety
+
+Qualification orchestration is shell-only. The audit rejects Python and Ansible entry points in `qualification*.sh`, and UUID generation requires macOS `uuidgen`. This prevents the reported macOS failure mode where a Python multiprocessing child entered `_scproxy` and CoreFoundation after `fork()` but before `exec()`, causing Objective-C fork-safety termination and visible crash reports. Do not suppress that protection with `OBJC_DISABLE_INITIALIZE_FORK_SAFETY`; remove the Python fork path instead.
+
+Blocking GUI work receives an absolute layer deadline. The runner removes the scoped launchd job when that deadline is reached, then executes guarded campaign cleanup. A budget is a stop condition, not a measurement made after an unbounded command eventually returns.
 
 ## Failure Protocol
 

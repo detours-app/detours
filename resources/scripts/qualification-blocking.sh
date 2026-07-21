@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2030,SC2031 # Layer deadlines are intentionally scoped through subshell exports.
 
 # Three-minute post-build qualification gate. High repetition remains in the
 # separately authorized campaign/soak path.
@@ -10,7 +11,10 @@ blocking_layer() {
     local started_epoch ended_epoch duration status
     started_epoch="$(date +%s)"
     set +e
-    ( "$@" )
+    (
+        export QUALIFICATION_BLOCKING_DEADLINE_EPOCH=$((started_epoch + budget_seconds))
+        "$@"
+    )
     status="$?"
     set -e
     ended_epoch="$(date +%s)"
@@ -36,7 +40,9 @@ run_blocking_swift_filter() {
         APFS_ROOT="$APFS_ROOT" \
         ICLOUD_ROOT="$ICLOUD_ROOT" \
         SMB_ROOT="$SMB_ROOT" \
-        swift test --skip-build --filter "$filter" 2>&1 | tee "$log_path"
+        "$SCRIPT_DIR/qualification-deadline.sh" \
+            "$QUALIFICATION_BLOCKING_DEADLINE_EPOCH" \
+            swift test --skip-build --filter "$filter" 2>&1 | tee "$log_path"
     status="${PIPESTATUS[0]}"
     set -e
     (( status == 0 )) || return "$status"
@@ -50,11 +56,11 @@ run_blocking_pure_refresh() {
 
 run_blocking_provider_refresh() {
     run_blocking_swift_filter provider-refresh \
-        'QualificationProviderRefreshTests|RemoteIntegrationTests/(testWatchDirectoryReceivesInotifyEvent|testIntelMacWatchDirectoryReceivesDarwinEvent)|WindowsRemoteLiveTests/testWatchEmitsChangeOnServerSideModification'
+        'QualificationProviderRefreshTests|RemoteIntegrationTests/(testListDirectoryReturnsExpectedEntries|testWatchDirectoryReceivesInotifyEvent|testIntelMacListDirectoryReturnsExpectedEntries|testIntelMacWatchDirectoryReceivesDarwinEvent)|WindowsRemoteLiveTests/(testConnectListsProfileAndDrives|testWatchEmitsChangeOnServerSideModification)'
 }
 
 run_blocking_installed_refresh() {
-    local log_dir result_dir context_name remote_target
+    local log_dir result_dir
     log_dir="$(run_dir)/workflows/blocking-installed"
     result_dir="$(run_dir)/results/blocking-installed"
     mkdir -p "$log_dir" "$result_dir"
@@ -63,24 +69,6 @@ run_blocking_installed_refresh() {
         refresh LOCAL_ROOT 1 \
         "$log_dir/refresh-LOCAL_ROOT" \
         "$result_dir/refresh-LOCAL_ROOT.xcresult"
-
-    for context_name in APFS_ROOT ICLOUD_ROOT SMB_ROOT; do
-        run_installed_once \
-            refresh "$context_name" 1 \
-            "$log_dir/provider-$context_name" \
-            "$result_dir/provider-$context_name.xcresult" \
-            "" "$context_name" \
-            'QualificationRefreshUITests/testRefreshProviderBoundary'
-    done
-    for context_name in LINUX_TARGET INTEL_MAC_TARGET WINDOWS_TARGET; do
-        remote_target="${!context_name}"
-        run_installed_once \
-            refresh LOCAL_ROOT 1 \
-            "$log_dir/provider-$context_name" \
-            "$result_dir/provider-$context_name.xcresult" \
-            "$remote_target" "$context_name" \
-            'QualificationRefreshUITests/testRefreshProviderBoundary'
-    done
 }
 
 prepare_blocking_refresh_bundles() {

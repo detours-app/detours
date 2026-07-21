@@ -148,12 +148,8 @@ canonical_commit() {
 }
 
 new_run_id() {
-    if command -v uuidgen >/dev/null 2>&1; then
-        uuidgen | tr '[:upper:]' '[:lower:]'
-    else
-        require_command python3
-        python3 -c 'import uuid; print(uuid.uuid4())'
-    fi
+    require_command uuidgen
+    uuidgen | tr '[:upper:]' '[:lower:]'
 }
 
 is_unsigned_integer() {
