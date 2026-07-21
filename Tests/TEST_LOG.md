@@ -2618,3 +2618,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   rejected two awaited provider listings inside XCTest autoclosures. No test
   ran. Guarded cleanup passed for all four roots and both mounts. The awaited
   listings are now evaluated before their synchronous assertions.
+
+- 2026-07-21 19:18 CEST: Gate 1 qualification invocation
+  `gate1-refresh-bb69879-1` FAILED before its first test at commit `bb69879`:
+  the cached app build and shared test bundle passed, then the timed pure layer
+  found that the runner had written but not sourced `fixtures.env`. Guarded
+  cleanup passed for all four roots and both mounts. The gate now sources and
+  exports the single fixture manifest before any blocking layer starts.

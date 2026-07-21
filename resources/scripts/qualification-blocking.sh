@@ -101,6 +101,10 @@ run_blocking_refresh() {
     run_preflight
     run_build
     run_prepare_fixtures
+    set -a
+    # shellcheck disable=SC1090,SC1091
+    source "$(run_dir)/fixtures.env"
+    set +a
     prepare_blocking_refresh_bundles
     capture_outside_root_snapshots before
 
