@@ -2218,3 +2218,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Cleanup passed after both runs. The app bundle lacked Apple’s protected-file
   usage descriptions; network-volume consent is now declared and the
   qualification runner resets and handles that single scoped consent prompt.
+
+- 2026-07-21 12:37 CEST: Foundry `/opt/homebrew/bin/swiftlint lint --strict`
+  and `swift test --filter BuildCacheTests/testBuiltAppDeclaresProtectedFileLocationUsageDescriptions`
+  PASS: 357 Swift files had 0 lint violations, and the generated-app privacy
+  declaration guard passed 1 test with 0 failures. The first attempt stopped
+  before lint or tests because Foundry's non-login SSH PATH excludes Homebrew;
+  the rerun used the installed absolute SwiftLint path.
