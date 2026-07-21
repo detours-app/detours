@@ -85,7 +85,6 @@ mount_smb_fixture() {
     mount_parent="$(dirname "$SMB_MOUNT_POINT")"
     mkdir -p "$mount_parent"
     local mount_status
-    smbutil logout "$QUALIFICATION_SMB_HOST" >/dev/null 2>&1 || true
     set +e
     SMB_MOUNTER="$(qualification_smb_mounter)" MOUNT_PARENT="$mount_parent" \
         SMB_HOST="$QUALIFICATION_SMB_HOST" SMB_SHARE="$QUALIFICATION_SMB_SHARE" \

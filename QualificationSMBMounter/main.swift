@@ -52,7 +52,6 @@ guard let shareURL = shareComponents.url else {
 
 let openOptions = NSMutableDictionary()
 openOptions[kNetFSUseAuthenticationInfoKey] = true
-openOptions[kNetFSForceNewSessionKey] = true
 openOptions[kNAUIOptionKey] = kNAUIOptionNoUI
 let mountOptions = NSMutableDictionary()
 mountOptions[kNetFSSoftMountKey] = true
