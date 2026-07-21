@@ -22,7 +22,7 @@ let environment = ProcessInfo.processInfo.environment
 guard environment["DETOURS_QUALIFICATION_SECRET_TRANSPORT"] == "stdin-v1" else {
     fail("credential transport marker is missing")
 }
-guard let password = environment["DETOURS_SMB_TEST_PASSWORD"], !password.isEmpty else {
+guard let password = readLine(strippingNewline: true), !password.isEmpty else {
     fail("credential is empty")
 }
 

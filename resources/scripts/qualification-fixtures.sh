@@ -84,27 +84,33 @@ mount_smb_fixture() {
     local mount_parent
     mount_parent="$(dirname "$SMB_MOUNT_POINT")"
     mkdir -p "$mount_parent"
-    local mount_status
+    local credential_fifo credential_fd mount_log mount_status
+    credential_fifo="$(run_dir)/smb-mount-password.fifo"
+    mount_log="$(run_dir)/logs/smb-mount-gui.log"
+    [[ ! -e "$credential_fifo" ]] || fail "SMB credential FIFO already exists"
+    mkdir -p "$(dirname "$mount_log")"
+    mkfifo -m 600 "$credential_fifo"
+    exec {credential_fd}<>"$credential_fifo"
+    printf '%s\n' "$DETOURS_SMB_TEST_PASSWORD" >&"$credential_fd"
     smbutil logout "$QUALIFICATION_SMB_HOST" >/dev/null 2>&1 || true
     set +e
-    SMB_MOUNTER="$(qualification_smb_mounter)" MOUNT_PARENT="$mount_parent" \
-        SMB_HOST="$QUALIFICATION_SMB_HOST" SMB_SHARE="$QUALIFICATION_SMB_SHARE" \
-        SMB_USER="$QUALIFICATION_SMB_USER" \
-        expect <<'EXPECT' >/dev/null 2>&1
-        log_user 0
-        set timeout 30
-        spawn $env(SMB_MOUNTER) --mount-parent $env(MOUNT_PARENT) \
-            --host $env(SMB_HOST) --share $env(SMB_SHARE) --username $env(SMB_USER)
-        expect {
-            eof { catch wait result; exit [lindex $result 3] }
-            timeout { exit 124 }
-        }
-EXPECT
+    (
+        unset DETOURS_SMB_TEST_PASSWORD
+        run_gui_command "$mount_log" \
+            --stdin-fifo "$credential_fifo" \
+            env DETOURS_QUALIFICATION_SECRET_TRANSPORT=stdin-v1 \
+            "$(qualification_smb_mounter)" \
+            --mount-parent "$mount_parent" \
+            --host "$QUALIFICATION_SMB_HOST" \
+            --share "$QUALIFICATION_SMB_SHARE" \
+            --username "$QUALIFICATION_SMB_USER"
+    )
     mount_status=$?
     set -e
+    exec {credential_fd}>&-
+    rm -f -- "$credential_fifo"
     case "$mount_status" in
         0) ;;
-        124) fail "SMB fixture NetFS mount timed out" ;;
         *) fail "SMB fixture mount failed with status $mount_status" ;;
     esac
     mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1 || fail "SMB fixture did not mount at $SMB_MOUNT_POINT"
