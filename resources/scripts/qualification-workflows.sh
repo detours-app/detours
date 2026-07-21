@@ -91,6 +91,7 @@ run_in_process() {
     local group="$1"
     validate_group "$group"
     local fixture_file selected_group method log_dir started_at status
+    local active_deadline_file deadline_epoch
     fixture_file="$(run_dir)/fixtures.env"
     [[ -f "$fixture_file" ]] || fail "fixture record is missing: $fixture_file"
     set -a
@@ -105,10 +106,17 @@ run_in_process() {
         printf '%s\t%s\t%s\n' \
             "$selected_group" "$method" "$QUALIFICATION_IN_PROCESS_REPETITIONS" >> "$(run_dir)/replay.tsv"
         started_at="$(date +%s)"
+        deadline_epoch=$((started_at + 600))
+        active_deadline_file="$(run_dir)/active-deadline"
+        path_is_within "$active_deadline_file" "$(run_dir)" || \
+            fail "active deadline record escapes the run directory"
         set +e
         DETOURS_QUALIFICATION_REPETITIONS="$QUALIFICATION_IN_PROCESS_REPETITIONS" \
             DETOURS_QUALIFICATION_SEED="$QUALIFICATION_SEED" \
-            swift test --filter "QualificationWorkflowTests/$method" 2>&1 | tee "$log_dir/$selected_group.log"
+            QUALIFICATION_ACTIVE_DEADLINE_FILE="$active_deadline_file" \
+            "$SCRIPT_DIR/qualification-deadline.sh" "$deadline_epoch" \
+                swift test --filter "QualificationWorkflowTests/$method" 2>&1 \
+                | tee "$log_dir/$selected_group.log"
         status="${PIPESTATUS[0]}"
         set -e
         record_scenario_timing \

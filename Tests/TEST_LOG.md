@@ -2773,3 +2773,13 @@ Spotlight search has no unit test (depends on the live, async-built system index
   under `set -u`. The exit trap completed guarded cleanup with no remaining
   qualification mount or root. The workflow route now exports the recorded
   fixture paths before preparing or running its permission probes.
+
+- 2026-07-21: Authorized retry `gate2-t5-refresh-cce5ce7-1` passed both
+  permission probes and entered the 100-cycle in-process layer, where monitoring
+  found that the old campaign path had no absolute deadline. The run was
+  cancelled before installed repetition. Cancellation exposed that `cancel`
+  covered only the GUI launchd job: the in-process XCTest tree required exact
+  PID termination before guarded cleanup removed every root and mount. The
+  in-process route now uses the descendant-aware watchdog with a 600-second
+  ceiling and an exact active-deadline record consumed by `cancel`; installed
+  contexts retain their existing 900-second ceiling.

@@ -288,3 +288,5 @@ Authorized by Marco on 2026-07-21. Scope:
 Requires a separate explicit authorization after Gate 1 reports measured runtime, known-defect sensitivity, capability ownership, provider coverage, and cleanup results. Only then may the remaining whole-app qualification tasks and soak resume.
 
 Authorization is scoped to one launcher invocation by setting `DETOURS_QUALIFICATION_GATE2_AUTHORIZED=1` on `qualification-foundry.sh`; the launcher forwards that value only to the selected Foundry command. A repeated refresh campaign must run the bounded iCloud and SMB permission-readiness layer after reset and fixture preparation, before its first behavioral repetition. A readiness failure stops the campaign without entering the 100/20 loops.
+
+Each 100-cycle in-process workflow has a 600-second absolute deadline enforced by the same descendant-aware watchdog as Gate 1. Each installed context retains the GUI runner's 900-second absolute ceiling and exact launchd cancellation record. The external `cancel` route terminates either active form before guarded campaign cleanup; interrupting the launcher must not leave XCTest descendants, mounts, or fixture roots behind.

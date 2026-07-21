@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Runs one command in its own process group and terminates the whole group at an
-# absolute epoch deadline. This is used only by the bounded qualification gate.
+# absolute epoch deadline. Blocking and authorized campaign layers use the same
+# descendant-aware termination path.
 
 set -u
 
@@ -11,10 +12,27 @@ deadline_epoch="$1"
 shift
 remaining=$((deadline_epoch - $(date +%s)))
 (( remaining > 0 )) || exit 124
+active_deadline_file="${QUALIFICATION_ACTIVE_DEADLINE_FILE:-}"
+if [[ -n "$active_deadline_file" ]]; then
+    [[ "$active_deadline_file" == /* && -d "$(dirname "$active_deadline_file")" \
+        && ! -e "$active_deadline_file" ]] || exit 65
+fi
 
 set -m
 "$@" &
 command_pid=$!
+
+# shellcheck disable=SC2329 # Invoked by the EXIT trap below.
+cleanup_active_deadline_file() {
+    if [[ -n "$active_deadline_file" && -f "$active_deadline_file" \
+        && "$(<"$active_deadline_file")" == "$$" ]]; then
+        rm -f -- "$active_deadline_file"
+    fi
+}
+trap cleanup_active_deadline_file EXIT
+if [[ -n "$active_deadline_file" ]]; then
+    printf '%s\n' "$$" > "$active_deadline_file"
+fi
 
 descendant_pids() {
     local parent_pid="$1"

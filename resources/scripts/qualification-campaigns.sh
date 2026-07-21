@@ -155,7 +155,7 @@ run_build() {
 }
 
 run_cancel() {
-    local active_job_file label
+    local active_job_file active_deadline_file label deadline_pid deadline_command attempt
     active_job_file="$(run_dir)/active-gui-job"
     if [[ -f "$active_job_file" ]]; then
         IFS= read -r label < "$active_job_file"
@@ -163,6 +163,23 @@ run_cancel() {
             fail "active GUI qualification job label is invalid"
         launchctl remove "$label" 2>/dev/null || true
         rm -f -- "$active_job_file"
+    fi
+    active_deadline_file="$(run_dir)/active-deadline"
+    if [[ -f "$active_deadline_file" ]]; then
+        IFS= read -r deadline_pid < "$active_deadline_file"
+        [[ "$deadline_pid" =~ ^[0-9]+$ && "$deadline_pid" -gt 1 ]] || \
+            fail "active qualification deadline PID is invalid"
+        deadline_command="$(ps -p "$deadline_pid" -o command= 2>/dev/null || true)"
+        [[ "$deadline_command" == *"/qualification-deadline.sh "* ]] || \
+            fail "active qualification deadline process does not match its record"
+        kill -TERM "$deadline_pid" 2>/dev/null || true
+        for (( attempt = 1; attempt <= 50; attempt++ )); do
+            kill -0 "$deadline_pid" 2>/dev/null || break
+            sleep 0.1
+        done
+        kill -0 "$deadline_pid" 2>/dev/null && \
+            fail "active qualification deadline did not stop"
+        rm -f -- "$active_deadline_file"
     fi
     # xcodebuild may have already detached the tested application from its
     # launchd job. Removing that job therefore does not guarantee that the
