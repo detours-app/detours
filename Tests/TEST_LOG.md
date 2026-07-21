@@ -2309,3 +2309,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   in-test repetition harness completed the live Windows connection cycle in 16
   seconds with 0 failures/skips, wrote and validated its exact connection-cycle
   marker, and passed guarded cleanup. SwiftLint passed with 0 violations.
+
+- 2026-07-21 13:47 CEST: Foundry qualification smoke
+  `archive-local-shared-loop-53e6964-1` PASS at commit `53e6964`: the scoped
+  local-only runner completed the archive-control cycle with 0 failures/skips
+  in 44 seconds, validated its per-cycle marker, and passed guarded cleanup.
+  The run required no Doppler secret and created no SMB, APFS, or iCloud state.
