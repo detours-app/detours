@@ -221,7 +221,7 @@ cleanup_fixture_mounts() {
     if [[ -n "${SMB_ROOT:-}" ]] && mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1; then
         diskutil unmount "$SMB_MOUNT_POINT" >/dev/null
     fi
-    remove_exact_tree "$SMB_MOUNT_POINT" "$QUALIFICATION_ROOT/mounts"
+    remove_exact_tree "$SMB_MOUNT_POINT" /Volumes
     if [[ -n "${APFS_MOUNT:-}" ]] && mount | grep -F " on $APFS_MOUNT " >/dev/null 2>&1; then
         hdiutil detach -quiet "$APFS_MOUNT"
     fi
