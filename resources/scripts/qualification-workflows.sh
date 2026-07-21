@@ -206,6 +206,7 @@ prepare_installed_test_bundle() {
         DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=/detours-qualification-canary/control \
         DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=detours-qualification-canary-target \
         DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING=detours-qualification-canary-context \
+        DETOURS_QUALIFICATION_REPETITIONS_SETTING=1 \
         > "$log_path" 2>&1
     status="$?"
     set -e
@@ -228,6 +229,8 @@ prepare_installed_test_bundle() {
         fail "UI test scheme did not expand the remote-target setting"
     [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT raw "$xctestrun")" == "detours-qualification-canary-context" ]] || \
         fail "UI test scheme did not expand the remote-context setting"
+    [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_REPETITIONS raw "$xctestrun")" == "1" ]] || \
+        fail "UI test scheme did not expand the repetition setting"
     QUALIFICATION_UI_DERIVED_DATA="$derived_data"
 }
 
@@ -285,6 +288,27 @@ verify_installed_result_bundle() {
     fi
 }
 
+verify_activation_repetition_markers() {
+    local control_root="$1"
+    local expected_count="$2"
+    local actual_count iteration marker recorded_iteration recorded_total
+    actual_count="$(find "$control_root" -maxdepth 1 -type f \
+        -name '.detours-qualification-activation-repetition-*.json' | wc -l | tr -d '[:space:]')"
+    [[ "$actual_count" == "$expected_count" ]] || \
+        fail "activation workflow recorded $actual_count completed repetitions instead of $expected_count"
+    for (( iteration = 1; iteration <= expected_count; iteration++ )); do
+        printf -v marker '%s/.detours-qualification-activation-repetition-%03d.json' \
+            "$control_root" "$iteration"
+        [[ -f "$marker" ]] || fail "activation repetition marker is missing: $marker"
+        recorded_iteration="$(plutil -extract iteration raw -o - "$marker")"
+        recorded_total="$(plutil -extract total raw -o - "$marker")"
+        [[ "$recorded_iteration" == "$iteration" ]] || \
+            fail "activation repetition marker has the wrong iteration: $marker"
+        [[ "$recorded_total" == "$expected_count" ]] || \
+            fail "activation repetition marker has the wrong total: $marker"
+    done
+}
+
 stop_installed_app() {
     local attempt
     pkill -x Detours >/dev/null 2>&1 || true
@@ -301,7 +325,7 @@ run_installed_once() {
     local repetitions="$3"
     local log_path="$4"
     local result_bundle="$5"
-    local test_filter root_path started_at status command_output
+    local test_filter root_path started_at status command_output xcode_repetitions
     local control_root remote_target context_name
     local -a repetition_arguments=()
     remote_target="${6:-}"
@@ -320,7 +344,10 @@ run_installed_once() {
     mkdir -p "$control_root"
     printf 'qualification: installed %s %s repetitions 1-%d\n' \
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
-    if (( repetitions > 1 )); then
+    xcode_repetitions="$repetitions"
+    if [[ "$selected_group" == "activation" ]]; then
+        xcode_repetitions=1
+    elif (( repetitions > 1 )); then
         repetition_arguments=(
             -test-iterations "$repetitions"
             -run-tests-until-failure
@@ -345,6 +372,7 @@ run_installed_once() {
             "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
             "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=$remote_target" \
             "DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING=$context_name" \
+            "DETOURS_QUALIFICATION_REPETITIONS_SETTING=$repetitions" \
             -resultBundlePath "$result_bundle" > "$command_output" 2>&1
     status="$?"
     set -e
@@ -352,7 +380,10 @@ run_installed_once() {
     stop_installed_app
     if (( status == 0 )); then
         verify_quiet_xcode_command "$log_path.raw.log"
-        verify_installed_result_bundle "$result_bundle" "$repetitions"
+        verify_installed_result_bundle "$result_bundle" "$xcode_repetitions"
+        if [[ "$selected_group" == "activation" ]]; then
+            verify_activation_repetition_markers "$control_root" "$repetitions"
+        fi
     fi
     record_scenario_timing \
         installed "$selected_group" "$context_name" "$repetitions" "$started_at" "$status"
