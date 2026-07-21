@@ -2232,3 +2232,13 @@ Spotlight search has no unit test (depends on the live, async-built system index
   skips. Detours accepted the scoped network-volume consent, loaded the fixture,
   and completed the pane/tab activation contract. The GUI command returned 0,
   and guarded cleanup verified removal of local, APFS, iCloud, and SMB roots.
+
+- 2026-07-21 13:05 CEST: Foundry qualification run `activation-cb1927f-1`
+  FAIL at the first installed Windows repetition after PASS results for 100
+  in-process repetitions and 20 installed repetitions each on local, APFS,
+  iCloud, SMB, live Linux, and live Intel-macOS contexts. Windows connected and
+  loaded its remote location, but XCUI reordered the two identically identified
+  outline elements after remote loading; index zero then selected `AAA_First`
+  in the physical right pane while the test asserted left-pane focus. Guarded
+  cleanup passed. Pane helpers now derive left/right identity from stable screen
+  position instead of accessibility traversal order.

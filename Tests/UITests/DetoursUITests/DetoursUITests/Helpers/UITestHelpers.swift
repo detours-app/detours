@@ -32,12 +32,23 @@ extension XCUIApplication {
 
     /// Get the first (left pane) file list outline view
     var leftPaneOutlineView: XCUIElement {
-        outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
+        visibleFileListOutlineViews.first
+            ?? outlines.matching(identifier: "fileListOutlineView").firstMatch
     }
 
     /// Get the second (right pane) file list outline view
     var rightPaneOutlineView: XCUIElement {
-        outlines.matching(identifier: "fileListOutlineView").element(boundBy: 1)
+        visibleFileListOutlineViews.last
+            ?? outlines.matching(identifier: "fileListOutlineView").element(boundBy: 1)
+    }
+
+    /// Accessibility traversal order changes when a remote provider replaces a
+    /// pane's listing. Screen position is the stable pane identity.
+    private var visibleFileListOutlineViews: [XCUIElement] {
+        outlines.matching(identifier: "fileListOutlineView")
+            .allElementsBoundByIndex
+            .filter { $0.frame.width > 0 && $0.frame.height > 0 }
+            .sorted { $0.frame.midX < $1.frame.midX }
     }
 }
 
