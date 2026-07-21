@@ -36,18 +36,27 @@ final class QualificationActivationUITests: BaseUITest {
         let leftNewTabButton = app.buttons.matching(identifier: "paneNewTabButton").element(boundBy: 0)
         XCTAssertTrue(leftNewTabButton.existsOrWait(timeout: 1))
         leftNewTabButton.click()
-        let leftNewTab = try assertPaneAndTabContract(expectedActivePane: "left")
+        let leftNewTab = try assertPaneAndTabContract(expectedActivePane: "left") { state in
+            state.left.tabCount == initial.left.tabCount + 1
+                && state.left.selectedTabID != initial.left.selectedTabID
+        }
         XCTAssertEqual(leftNewTab.left.tabCount, initial.left.tabCount + 1)
         XCTAssertNotEqual(leftNewTab.left.selectedTabID, initial.left.selectedTabID)
 
         pressKey(.tab, modifiers: [.control, .shift])
-        let leftPreviousTab = try assertPaneAndTabContract(expectedActivePane: "left")
+        let leftPreviousTab = try assertPaneAndTabContract(expectedActivePane: "left") { state in
+            state.left.selectedTabID == initial.left.selectedTabID
+        }
         XCTAssertEqual(leftPreviousTab.left.selectedTabID, initial.left.selectedTabID)
         pressKey(.tab, modifiers: .control)
-        let leftNextTab = try assertPaneAndTabContract(expectedActivePane: "left")
+        let leftNextTab = try assertPaneAndTabContract(expectedActivePane: "left") { state in
+            state.left.selectedTabID == leftNewTab.left.selectedTabID
+        }
         XCTAssertEqual(leftNextTab.left.selectedTabID, leftNewTab.left.selectedTabID)
         selectFirstVisibleItem(in: app.leftPaneOutlineView)
-        let leftSelection = try assertPaneAndTabContract(expectedActivePane: "left")
+        let leftSelection = try assertPaneAndTabContract(expectedActivePane: "left") { state in
+            !state.left.selectedLocations.isEmpty
+        }
         XCTAssertFalse(leftSelection.left.selectedLocations.isEmpty)
 
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
@@ -55,7 +64,10 @@ final class QualificationActivationUITests: BaseUITest {
         XCTAssertTrue(waitForForeground(finder, timeout: 3))
         app.activate()
         XCTAssertTrue(waitForForeground(app, timeout: 3))
-        let returnedToLeft = try assertPaneAndTabContract(expectedActivePane: "left")
+        let returnedToLeft = try assertPaneAndTabContract(expectedActivePane: "left") { state in
+            state.left.selectedTabID == leftNewTab.left.selectedTabID
+                && state.left.selectedLocations == leftSelection.left.selectedLocations
+        }
         XCTAssertEqual(returnedToLeft.left.selectedTabID, leftNewTab.left.selectedTabID)
         XCTAssertEqual(returnedToLeft.left.selectedLocations, leftSelection.left.selectedLocations)
 
@@ -64,25 +76,37 @@ final class QualificationActivationUITests: BaseUITest {
         let rightNewTabButton = app.buttons.matching(identifier: "paneNewTabButton").element(boundBy: 1)
         XCTAssertTrue(rightNewTabButton.existsOrWait(timeout: 1))
         rightNewTabButton.click()
-        let rightNewTab = try assertPaneAndTabContract(expectedActivePane: "right")
+        let rightNewTab = try assertPaneAndTabContract(expectedActivePane: "right") { state in
+            state.right.tabCount == rightInitial.right.tabCount + 1
+                && state.right.selectedTabID != rightInitial.right.selectedTabID
+        }
         XCTAssertEqual(rightNewTab.right.tabCount, rightInitial.right.tabCount + 1)
         XCTAssertNotEqual(rightNewTab.right.selectedTabID, rightInitial.right.selectedTabID)
 
         pressKey(.tab, modifiers: [.control, .shift])
-        let rightPreviousTab = try assertPaneAndTabContract(expectedActivePane: "right")
+        let rightPreviousTab = try assertPaneAndTabContract(expectedActivePane: "right") { state in
+            state.right.selectedTabID == rightInitial.right.selectedTabID
+        }
         XCTAssertEqual(rightPreviousTab.right.selectedTabID, rightInitial.right.selectedTabID)
         pressKey(.tab, modifiers: .control)
-        let rightNextTab = try assertPaneAndTabContract(expectedActivePane: "right")
+        let rightNextTab = try assertPaneAndTabContract(expectedActivePane: "right") { state in
+            state.right.selectedTabID == rightNewTab.right.selectedTabID
+        }
         XCTAssertEqual(rightNextTab.right.selectedTabID, rightNewTab.right.selectedTabID)
         selectFirstVisibleItem(in: app.rightPaneOutlineView)
-        let rightSelection = try assertPaneAndTabContract(expectedActivePane: "right")
+        let rightSelection = try assertPaneAndTabContract(expectedActivePane: "right") { state in
+            !state.right.selectedLocations.isEmpty
+        }
         XCTAssertFalse(rightSelection.right.selectedLocations.isEmpty)
 
         finder.activate()
         XCTAssertTrue(waitForForeground(finder, timeout: 3))
         app.activate()
         XCTAssertTrue(waitForForeground(app, timeout: 3))
-        let returnedToRight = try assertPaneAndTabContract(expectedActivePane: "right")
+        let returnedToRight = try assertPaneAndTabContract(expectedActivePane: "right") { state in
+            state.right.selectedTabID == rightNewTab.right.selectedTabID
+                && state.right.selectedLocations == rightSelection.right.selectedLocations
+        }
         XCTAssertEqual(returnedToRight.right.selectedTabID, rightNewTab.right.selectedTabID)
         XCTAssertEqual(returnedToRight.right.selectedLocations, rightSelection.right.selectedLocations)
 
@@ -90,12 +114,18 @@ final class QualificationActivationUITests: BaseUITest {
         _ = try assertPaneAndTabContract(expectedActivePane: "left")
 
         pressCharKey("w", modifiers: .command)
-        let leftCleaned = try assertPaneAndTabContract(expectedActivePane: "left")
+        let leftCleaned = try assertPaneAndTabContract(expectedActivePane: "left") { state in
+            state.left.tabCount == initial.left.tabCount
+                && state.left.selectedTabID == initial.left.selectedTabID
+        }
         XCTAssertEqual(leftCleaned.left.tabCount, initial.left.tabCount)
         XCTAssertEqual(leftCleaned.left.selectedTabID, initial.left.selectedTabID)
         pressKey(.tab)
         pressCharKey("w", modifiers: .command)
-        let rightCleaned = try assertPaneAndTabContract(expectedActivePane: "right")
+        let rightCleaned = try assertPaneAndTabContract(expectedActivePane: "right") { state in
+            state.right.tabCount == rightInitial.right.tabCount
+                && state.right.selectedTabID == rightInitial.right.selectedTabID
+        }
         XCTAssertEqual(rightCleaned.right.tabCount, rightInitial.right.tabCount)
         XCTAssertEqual(rightCleaned.right.selectedTabID, rightInitial.right.selectedTabID)
         pressKey(.tab)
@@ -105,11 +135,35 @@ final class QualificationActivationUITests: BaseUITest {
     @discardableResult
     private func assertPaneAndTabContract(
         expectedActivePane: String,
+        until condition: ((left: RemotePaneState, right: RemotePaneState)) -> Bool = { _ in true },
+        timeout: TimeInterval = 3,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> (left: RemotePaneState, right: RemotePaneState) {
-        let left = try requestRemotePaneState(pane: "left")
-        let right = try requestRemotePaneState(pane: "right")
+        let deadline = Date().addingTimeInterval(timeout)
+        var state: (left: RemotePaneState, right: RemotePaneState)?
+        repeat {
+            let candidate = (
+                left: try requestRemotePaneState(pane: "left"),
+                right: try requestRemotePaneState(pane: "right")
+            )
+            state = candidate
+            if paneAndTabContractIsReady(candidate, expectedActivePane: expectedActivePane), condition(candidate) {
+                break
+            }
+            usleep(25_000)
+        } while Date() < deadline
+
+        let result = try XCTUnwrap(state, "Pane state should be observable", file: file, line: line)
+        let left = result.left
+        let right = result.right
+        XCTAssertTrue(
+            paneAndTabContractIsReady(result, expectedActivePane: expectedActivePane),
+            "Pane state did not settle before the timeout",
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(condition(result), "Expected pane transition did not complete", file: file, line: line)
         XCTAssertEqual([left.activePane, right.activePane].filter { $0 }.count, 1, file: file, line: line)
         XCTAssertEqual(left.activePane, expectedActivePane == "left", file: file, line: line)
         XCTAssertEqual(right.activePane, expectedActivePane == "right", file: file, line: line)
@@ -129,7 +183,32 @@ final class QualificationActivationUITests: BaseUITest {
             XCTAssertFalse(pane.navigationLoadInFlight, file: file, line: line)
             XCTAssertFalse(pane.loadingVisible, file: file, line: line)
         }
-        return (left, right)
+        return result
+    }
+
+    private func paneAndTabContractIsReady(
+        _ state: (left: RemotePaneState, right: RemotePaneState),
+        expectedActivePane: String
+    ) -> Bool {
+        let panes = [state.left, state.right]
+        return panes.filter(\.activePane).count == 1
+            && state.left.activePane == (expectedActivePane == "left")
+            && state.right.activePane == (expectedActivePane == "right")
+            && state.left.focus == (expectedActivePane == "left" ? "fileList" : "other")
+            && state.right.focus == (expectedActivePane == "right" ? "fileList" : "other")
+            && panes.allSatisfy { pane in
+                pane.tabCount > 0
+                    && pane.selectedTabIndex >= 0
+                    && pane.selectedTabIndex < pane.tabCount
+                    && pane.tabIDs.count == pane.tabCount
+                    && Set(pane.tabIDs).count == pane.tabCount
+                    && pane.selectedTabID.map(pane.tabIDs.contains) == true
+                    && !pane.operationRunning
+                    && pane.operationPendingCount == 0
+                    && !pane.refreshInFlight
+                    && !pane.navigationLoadInFlight
+                    && !pane.loadingVisible
+            }
     }
 
     private func waitForQualificationRemoteIfNeeded() throws {

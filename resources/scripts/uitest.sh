@@ -109,7 +109,17 @@ echo "data" > "$TEST_DIR/Projects2025/notes.txt"
 
 echo "Running UI tests..."
 
-trap 'rm -rf "$TEST_DIR"' EXIT
+# shellcheck disable=SC2329
+cleanup_test_run() {
+    local attempt
+    pkill -x Detours >/dev/null 2>&1 || true
+    for (( attempt = 1; attempt <= 50; attempt++ )); do
+        pgrep -x Detours >/dev/null 2>&1 || break
+        sleep 0.1
+    done
+    rm -rf "$TEST_DIR"
+}
+trap cleanup_test_run EXIT
 
 if [ -n "$1" ]; then
     # Run specific test
