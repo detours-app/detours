@@ -233,6 +233,7 @@ prepare_installed_test_bundle() {
     [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_REPETITIONS raw "$xctestrun")" == "1" ]] || \
         fail "UI test scheme did not expand the repetition setting"
     QUALIFICATION_UI_DERIVED_DATA="$derived_data"
+    QUALIFICATION_UI_XCTESTRUN="$xctestrun"
 }
 
 verify_quiet_xcode_command() {
@@ -310,6 +311,16 @@ verify_activation_repetition_markers() {
     done
 }
 
+set_xctestrun_environment() {
+    local xctestrun="$1"
+    local key="$2"
+    local value="$3"
+    local path="TestConfigurations.0.TestTargets.0.EnvironmentVariables.$key"
+    plutil -replace "$path" -string "$value" "$xctestrun"
+    [[ "$(plutil -extract "$path" raw -o - "$xctestrun")" == "$value" ]] || \
+        fail "installed-test xctestrun did not retain $key"
+}
+
 stop_installed_app() {
     local attempt
     pkill -x Detours >/dev/null 2>&1 || true
@@ -327,6 +338,7 @@ run_installed_once() {
     local log_path="$4"
     local result_bundle="$5"
     local test_filter root_path started_at status command_output xcode_repetitions
+    local execution_xctestrun
     local control_root remote_target context_name
     local -a repetition_arguments=()
     remote_target="${6:-}"
@@ -335,14 +347,27 @@ run_installed_once() {
     root_path="${!root_name}"
     [[ -n "${QUALIFICATION_UI_DERIVED_DATA:-}" && -d "$QUALIFICATION_UI_DERIVED_DATA" ]] || \
         fail "installed-test derived data is unavailable"
+    [[ -n "${QUALIFICATION_UI_XCTESTRUN:-}" && -f "$QUALIFICATION_UI_XCTESTRUN" ]] || \
+        fail "installed-test xctestrun is unavailable"
     printf '%s\t%s\t%s\t%s\t%s\n' \
         "$selected_group" "$test_filter" "$context_name" "$repetitions" "$remote_target" >> "$(run_dir)/replay.tsv"
     stop_installed_app
     [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
     command_output="$log_path.output.log"
     [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
+    execution_xctestrun="${result_bundle%.xcresult}.xctestrun"
+    [[ ! -e "$execution_xctestrun" ]] || \
+        fail "installed-test execution record already exists: $execution_xctestrun"
+    cp "$QUALIFICATION_UI_XCTESTRUN" "$execution_xctestrun"
     control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/$selected_group-$context_name"
     mkdir -p "$control_root"
+    set_xctestrun_environment "$execution_xctestrun" DETOURS_UI_TEST_APP_PATH \
+        "$PROJECT_DIR/build/Detours.app"
+    set_xctestrun_environment "$execution_xctestrun" DETOURS_QUALIFICATION_UI_ROOT "$root_path"
+    set_xctestrun_environment "$execution_xctestrun" DETOURS_QUALIFICATION_UI_CONTROL_ROOT "$control_root"
+    set_xctestrun_environment "$execution_xctestrun" DETOURS_QUALIFICATION_REAL_REMOTE_TARGET "$remote_target"
+    set_xctestrun_environment "$execution_xctestrun" DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT "$context_name"
+    set_xctestrun_environment "$execution_xctestrun" DETOURS_QUALIFICATION_REPETITIONS "$repetitions"
     printf 'qualification: installed %s %s repetitions 1-%d\n' \
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
     xcode_repetitions="$repetitions"
@@ -361,19 +386,11 @@ run_installed_once() {
             HOME="$HOME" \
             PATH=/usr/bin:/bin:/usr/sbin:/sbin \
             DEVELOPER_DIR="$(xcode-select -p)" \
-            xcodebuild test -quiet \
-            -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
-            -scheme DetoursUITests \
+            xcodebuild test-without-building -quiet \
+            -xctestrun "$execution_xctestrun" \
             -destination 'platform=macOS,arch=arm64' \
-            -derivedDataPath "$QUALIFICATION_UI_DERIVED_DATA" \
             -only-testing:"DetoursUITests/$test_filter" \
             ${repetition_arguments[@]+"${repetition_arguments[@]}"} \
-            "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
-            "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$root_path" \
-            "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
-            "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=$remote_target" \
-            "DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING=$context_name" \
-            "DETOURS_QUALIFICATION_REPETITIONS_SETTING=$repetitions" \
             -resultBundlePath "$result_bundle" > "$command_output" 2>&1
     status="$?"
     set -e
