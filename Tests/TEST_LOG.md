@@ -2604,3 +2604,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Foundry passed the 102-row matrix audit, then the new runner rejected its own
   undeclared `rg` dependency. No Detours build, fixture, or test ran. The
   blocking runner now uses the available POSIX `grep` command instead.
+
+- 2026-07-21 19:15 CEST: Gate 1 qualification invocation
+  `gate1-refresh-fc50b38-1` FAILED during the shared Foundry release build at
+  commit `fc50b38`: Swift 6.2 rejected an optional dictionary subscript in the
+  extracted stable-timestamp helper. No fixture or test ran. The helper now
+  gives the optional file-attribute dictionary an explicit type before reading
+  its modification date.

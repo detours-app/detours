@@ -98,8 +98,10 @@ struct LoadedFileEntry: Sendable {
         if let resourceDate = resourceValues?.contentModificationDate {
             return stableModificationDate(resourceDate: resourceDate, fileAttributeDate: nil)
         }
-        let fileAttributeDate = (try? FileManager.default.attributesOfItem(atPath: url.path))?
-            [.modificationDate] as? Date
+        let fileAttributes: [FileAttributeKey: Any]? = try? FileManager.default.attributesOfItem(
+            atPath: url.path
+        )
+        let fileAttributeDate = fileAttributes?[FileAttributeKey.modificationDate] as? Date
         return stableModificationDate(
             resourceDate: nil,
             fileAttributeDate: fileAttributeDate
