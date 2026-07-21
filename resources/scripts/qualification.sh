@@ -70,6 +70,8 @@ Options:
   --commit <sha>                Exact clean commit to qualify (default: HEAD)
   --run-id <id>                Evidence run identifier (default: generated UUID)
   --seed <unsigned-integer>     Replay scenario order and fixture-name choices
+  --in-process-repetitions <1-100>
+                               Focused in-process repetition count (default: 100)
   --smoke-repetitions <1-20>    Installed-smoke repetition count (default: 1)
   --cold-index <1|2|3>          Cold-run sequence number
   --linux-target <ssh-alias>    Linux qualification endpoint (default: devtest)
@@ -170,6 +172,11 @@ parse_options() {
                 QUALIFICATION_SEED="$2"
                 shift 2
                 ;;
+            --in-process-repetitions)
+                [[ $# -ge 2 ]] || fail "--in-process-repetitions requires a value"
+                QUALIFICATION_IN_PROCESS_REPETITIONS="$2"
+                shift 2
+                ;;
             --smoke-repetitions)
                 [[ $# -ge 2 ]] || fail "--smoke-repetitions requires a value"
                 QUALIFICATION_SMOKE_REPETITIONS="$2"
@@ -215,6 +222,10 @@ parse_options() {
     done
 
     is_unsigned_integer "$QUALIFICATION_SEED" || fail "--seed must be an unsigned integer"
+    is_unsigned_integer "$QUALIFICATION_IN_PROCESS_REPETITIONS" || \
+        fail "--in-process-repetitions must be an integer from 1 through 100"
+    (( QUALIFICATION_IN_PROCESS_REPETITIONS >= 1 && QUALIFICATION_IN_PROCESS_REPETITIONS <= 100 )) || \
+        fail "--in-process-repetitions must be an integer from 1 through 100"
     is_unsigned_integer "$QUALIFICATION_SMOKE_REPETITIONS" || \
         fail "--smoke-repetitions must be an integer from 1 through 20"
     (( QUALIFICATION_SMOKE_REPETITIONS >= 1 && QUALIFICATION_SMOKE_REPETITIONS <= 20 )) || \
@@ -250,6 +261,7 @@ write_command_metadata() {
         printf 'commit=%s\n' "$(canonical_commit)"
         printf 'run_id=%s\n' "$QUALIFICATION_RUN_ID"
         printf 'seed=%s\n' "$QUALIFICATION_SEED"
+        printf 'in_process_repetitions=%s\n' "$QUALIFICATION_IN_PROCESS_REPETITIONS"
         printf 'smoke_repetitions=%s\n' "$QUALIFICATION_SMOKE_REPETITIONS"
         printf 'cold_index=%s\n' "$QUALIFICATION_COLD_INDEX"
         printf 'linux_target=%s\n' "$QUALIFICATION_LINUX_TARGET"
@@ -524,6 +536,7 @@ run_in_process_campaign() {
         printf 'commit=%s\n' "$(canonical_commit)"
         printf 'group=%s\n' "$group"
         printf 'seed=%s\n' "$QUALIFICATION_SEED"
+        printf 'repetitions=%s\n' "$QUALIFICATION_IN_PROCESS_REPETITIONS"
         printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$(run_dir)/in-process.env"
     trap - EXIT
@@ -656,6 +669,7 @@ fi
 QUALIFICATION_COMMIT="HEAD"
 QUALIFICATION_RUN_ID=""
 QUALIFICATION_SEED="0"
+QUALIFICATION_IN_PROCESS_REPETITIONS="100"
 QUALIFICATION_SMOKE_REPETITIONS="1"
 QUALIFICATION_COLD_INDEX="0"
 QUALIFICATION_LINUX_TARGET="${DETOURS_QUALIFICATION_LINUX_TARGET:-devtest}"
@@ -692,6 +706,10 @@ esac
 parse_options "$@"
 if [[ "$COMMAND" != "installed-smoke" && "$QUALIFICATION_SMOKE_REPETITIONS" != "1" ]]; then
     fail "--smoke-repetitions is available only with installed-smoke"
+fi
+if [[ "$COMMAND" != "in-process" && "$COMMAND" != "in-process-run" \
+    && "$QUALIFICATION_IN_PROCESS_REPETITIONS" != "100" ]]; then
+    fail "--in-process-repetitions is available only with in-process or in-process-run"
 fi
 [[ "$QUALIFICATION_SMB_SHARE" != "." \
     && "$QUALIFICATION_SMB_SHARE" != ".." \

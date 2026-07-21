@@ -2531,3 +2531,12 @@ Spotlight search has no unit test (depends on the live, async-built system index
   mounts. The regression fix below waits for a bounded stable provider state
   before taking the unchanged-refresh baseline, while retaining the exact
   zero-redraw assertion for the refresh itself.
+
+- 2026-07-21 17:50 CEST: Foundry qualification run
+  `refresh-in-process-100-dd8ae43-1` FAIL at commit `dd8ae43`: the bounded
+  provider-settle gate completed, but the unchanged-refresh assertion still
+  recorded one real listing mutation in 16 SMB-backed iterations. All local,
+  APFS, and iCloud iterations passed; every failing path identifies only the
+  mounted SMB root. XCTest reported 16 failures in 474.927 seconds, then
+  guarded cleanup removed all four roots and both mounts. This narrows the
+  regression to SMB listing reconciliation rather than delayed prior events.

@@ -95,14 +95,17 @@ run_in_process() {
     mkdir -p "$log_dir"
     while IFS= read -r selected_group; do
         method="$(in_process_method "$selected_group")"
-        printf '%s\t%s\t100\n' "$selected_group" "$method" >> "$(run_dir)/replay.tsv"
+        printf '%s\t%s\t%s\n' \
+            "$selected_group" "$method" "$QUALIFICATION_IN_PROCESS_REPETITIONS" >> "$(run_dir)/replay.tsv"
         started_at="$(date +%s)"
         set +e
-        DETOURS_QUALIFICATION_REPETITIONS=100 DETOURS_QUALIFICATION_SEED="$QUALIFICATION_SEED" \
+        DETOURS_QUALIFICATION_REPETITIONS="$QUALIFICATION_IN_PROCESS_REPETITIONS" \
+            DETOURS_QUALIFICATION_SEED="$QUALIFICATION_SEED" \
             swift test --filter "QualificationWorkflowTests/$method" 2>&1 | tee "$log_dir/$selected_group.log"
         status="${PIPESTATUS[0]}"
         set -e
-        record_scenario_timing in-process "$selected_group" all-roots 100 "$started_at" "$status"
+        record_scenario_timing \
+            in-process "$selected_group" all-roots "$QUALIFICATION_IN_PROCESS_REPETITIONS" "$started_at" "$status"
         (( status == 0 )) || return "$status"
     done < <(selected_workflow_groups "$group")
 }

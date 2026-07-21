@@ -234,13 +234,17 @@ final class QualificationWorkflowTests: XCTestCase {
             }
 
             try await waitForStableRefreshState(controller, delegate: navigationDelegate)
+            let listingBeforeUnchangedRefresh = listingMetadata(in: controller)
             navigationDelegate.resetLoadCount()
             PaneOutlineGuard.resetRecordedViolations()
             try await performManualRefresh(controller, root: scenario)
+            let listingAfterUnchangedRefresh = listingMetadata(in: controller)
             XCTAssertEqual(
                 navigationDelegate.loadCount,
                 0,
-                "An unchanged refresh must not redraw iteration \(iteration) at \(scenario.path)"
+                "An unchanged refresh must not redraw iteration \(iteration) at \(scenario.path); "
+                    + "changes=\(listingChanges(from: listingBeforeUnchangedRefresh, "
+                    + "to: listingAfterUnchangedRefresh))"
             )
             XCTAssertTrue(PaneOutlineGuard.recordedViolations.isEmpty)
             XCTAssertFalse(controller.refreshScheduler.isRefreshInFlight)
@@ -616,6 +620,33 @@ final class QualificationWorkflowTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(25))
         }
         throw QualificationWorkflowFailure.timedOut("stable provider state before unchanged refresh")
+    }
+
+    private func listingMetadata(in controller: FileListViewController) -> [String: String] {
+        var result: [String: String] = [:]
+        func capture(_ items: [FileItem]) {
+            for item in items {
+                result[item.location.path] = [
+                    "size=\(String(describing: item.size))",
+                    "modified=\(item.dateModified.timeIntervalSince1970)",
+                    "readable=\(item.isReadable)",
+                    "hidden=\(item.isHiddenFile)",
+                    "git=\(String(describing: item.gitStatus))",
+                ].joined(separator: ",")
+                if let children = item.children {
+                    capture(children)
+                }
+            }
+        }
+        capture(controller.dataSource.items)
+        return result
+    }
+
+    private func listingChanges(from before: [String: String], to after: [String: String]) -> [String] {
+        Set(before.keys).union(after.keys).sorted().compactMap { path in
+            guard before[path] != after[path] else { return nil }
+            return "\(path): \(before[path] ?? "missing") -> \(after[path] ?? "missing")"
+        }
     }
 
     private func selectedLocation(in controller: FileListViewController) -> Location? {
