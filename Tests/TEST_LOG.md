@@ -2351,3 +2351,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   new-folder workflow completed creation, inline naming, child placement,
   selection, expansion, and per-cycle cleanup in 13 seconds with 0 failures or
   skips. Its mutation-cycle marker and overall guarded cleanup both passed.
+
+- 2026-07-21 13:59 CEST: Foundry qualification smoke
+  `refresh-local-shared-loop-ba97c82-1` PASS at commit `ba97c82`: the final
+  shared-loop conversion completed the watcher, expansion, selection, manual
+  refresh, filter, sort, hidden-file, Git, redraw, and sentinel-checked cleanup
+  contract in 20 seconds with 0 failures/skips. Its refresh marker and overall
+  guarded cleanup passed; SwiftLint had 0 violations.

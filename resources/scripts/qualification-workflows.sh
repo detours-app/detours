@@ -248,9 +248,8 @@ verify_quiet_xcode_command() {
 
 verify_installed_result_bundle() {
     local result_bundle="$1"
-    local expected_count="$2"
-    local summary_path tests_path total passed failed skipped expected result
-    local device_passed device_failed device_skipped repetition_total repetition_passed
+    local summary_path total passed failed skipped expected result
+    local device_passed device_failed device_skipped
     [[ -d "$result_bundle" ]] || fail "installed-test result bundle is missing: $result_bundle"
     summary_path="${result_bundle%.xcresult}-summary.json"
     [[ ! -e "$summary_path" ]] || fail "installed-test result summary already exists: $summary_path"
@@ -272,23 +271,10 @@ verify_installed_result_bundle() {
     device_passed="$(jq '[.devicesAndConfigurations[].passedTests] | add // 0' "$summary_path")"
     device_failed="$(jq '[.devicesAndConfigurations[].failedTests] | add // 0' "$summary_path")"
     device_skipped="$(jq '[.devicesAndConfigurations[].skippedTests] | add // 0' "$summary_path")"
-    [[ "$device_passed" == "$expected_count" ]] || \
-        fail "installed workflow passed $device_passed repetitions instead of $expected_count"
+    [[ "$device_passed" == "1" ]] || \
+        fail "installed workflow passed $device_passed logical tests instead of exactly one"
     [[ "$device_failed" == "0" ]] || fail "installed workflow recorded $device_failed failed repetitions"
     [[ "$device_skipped" == "0" ]] || fail "installed workflow recorded $device_skipped skipped repetitions"
-
-    if (( expected_count > 1 )); then
-        tests_path="${result_bundle%.xcresult}-tests.json"
-        [[ ! -e "$tests_path" ]] || fail "installed-test details already exist: $tests_path"
-        xcrun xcresulttool get test-results tests --compact --path "$result_bundle" > "$tests_path"
-        jq -e . "$tests_path" >/dev/null || fail "installed-test details are invalid JSON"
-        repetition_total="$(jq '[.. | objects | select(.nodeType? == "Repetition")] | length' "$tests_path")"
-        repetition_passed="$(jq '[.. | objects | select(.nodeType? == "Repetition" and .result? == "Passed")] | length' "$tests_path")"
-        [[ "$repetition_total" == "$expected_count" ]] || \
-            fail "XCResult contains $repetition_total repetition nodes instead of $expected_count"
-        [[ "$repetition_passed" == "$expected_count" ]] || \
-            fail "XCResult contains $repetition_passed passing repetition nodes instead of $expected_count"
-    fi
 }
 
 verify_workflow_repetition_markers() {
@@ -313,13 +299,6 @@ verify_workflow_repetition_markers() {
     done
 }
 
-installed_group_uses_in_test_repetitions() {
-    case "$1" in
-        activation|refresh|transfer|mutation|connection|archive|session|opening) return 0 ;;
-        *) return 1 ;;
-    esac
-}
-
 stop_installed_app() {
     local attempt
     pkill -x Detours >/dev/null 2>&1 || true
@@ -336,9 +315,8 @@ run_installed_once() {
     local repetitions="$3"
     local log_path="$4"
     local result_bundle="$5"
-    local test_filter root_path started_at status command_output xcode_repetitions
+    local test_filter root_path started_at status command_output
     local control_root remote_target context_name
-    local -a repetition_arguments=()
     remote_target="${6:-}"
     context_name="${7:-$root_name}"
     test_filter="$(installed_test_filter "$selected_group")"
@@ -355,16 +333,6 @@ run_installed_once() {
     mkdir -p "$control_root"
     printf 'qualification: installed %s %s repetitions 1-%d\n' \
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
-    xcode_repetitions="$repetitions"
-    if installed_group_uses_in_test_repetitions "$selected_group"; then
-        xcode_repetitions=1
-    elif (( repetitions > 1 )); then
-        repetition_arguments=(
-            -test-iterations "$repetitions"
-            -run-tests-until-failure
-            -test-repetition-relaunch-enabled NO
-        )
-    fi
     started_at="$(date +%s)"
     set +e
     run_gui_command "$log_path.raw.log" env \
@@ -377,7 +345,6 @@ run_installed_once() {
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath "$QUALIFICATION_UI_DERIVED_DATA" \
             -only-testing:"DetoursUITests/$test_filter" \
-            ${repetition_arguments[@]+"${repetition_arguments[@]}"} \
             "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
             "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$root_path" \
             "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
@@ -391,10 +358,8 @@ run_installed_once() {
     stop_installed_app
     if (( status == 0 )); then
         verify_quiet_xcode_command "$log_path.raw.log"
-        verify_installed_result_bundle "$result_bundle" "$xcode_repetitions"
-        if installed_group_uses_in_test_repetitions "$selected_group"; then
-            verify_workflow_repetition_markers "$selected_group" "$control_root" "$repetitions"
-        fi
+        verify_installed_result_bundle "$result_bundle"
+        verify_workflow_repetition_markers "$selected_group" "$control_root" "$repetitions"
     fi
     record_scenario_timing \
         installed "$selected_group" "$context_name" "$repetitions" "$started_at" "$status"
