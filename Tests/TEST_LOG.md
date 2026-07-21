@@ -2429,3 +2429,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   final tab close did not remove the fixed roughly 40-second multi-sheet session
   tail, so the shared teardown is restored for groups where it finishes quickly.
   Archive still pays that fixed tail only once for all in-session repetitions.
+
+- 2026-07-21 14:33 CEST: Foundry qualification smoke
+  `opening-local-two-cycle-affae52-1` PASS at commit `affae52`: both Enter and
+  Command-O dispatch cycles completed in about four seconds each inside one
+  logical XCTest. The result recorded 1 pass, 0 failures/skips, two exact cycle
+  markers, and passing guarded cleanup; restored shared teardown also completed.
