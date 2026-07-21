@@ -125,7 +125,7 @@ verify_smb_fixture_session_access() {
     if [[ "$require_gui_probe" == "1" ]]; then
         gui_probe_log="$(run_dir)/logs/smb-session-$COMMAND.log"
         run_gui_command "$gui_probe_log" \
-            /usr/bin/test -f "$SMB_ROOT/.detours-qualification-root.json" || \
+            /bin/test -f "$SMB_ROOT/.detours-qualification-root.json" || \
             fail "SMB fixture is unavailable to the current GUI qualification session"
     fi
 }
