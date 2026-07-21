@@ -54,6 +54,8 @@ Commands:
   in-process <group|all>       Run a named workflow 100 times in process
   installed <group|all>        Run a named workflow 20 times in the installed app
   workflow-run <group|all>     Run both layers with fixtures in one audit session
+  installed-smoke <group> <root>
+                               Run one installed repetition in one audit session
   failure-probe <provider>     Prove one provider failure is preserved and cleaned
   cold-run                     Reset and run one complete cold qualification
   soak                         Run the installed-app campaign for 12 hours
@@ -474,6 +476,31 @@ run_workflow_campaign() {
     trap - EXIT
 }
 
+run_installed_smoke_campaign() {
+    local group="$1"
+    local root_name="$2"
+    validate_group "$group"
+    [[ "$group" != "all" ]] || fail "installed-smoke requires one named workflow group"
+    case "$root_name" in
+        LOCAL_ROOT|APFS_ROOT|ICLOUD_ROOT|SMB_ROOT) ;;
+        *) fail "installed-smoke root must be LOCAL_ROOT, APFS_ROOT, ICLOUD_ROOT, or SMB_ROOT" ;;
+    esac
+    trap 'campaign_cleanup_on_exit "$?"' EXIT
+    run_reset
+    run_preflight
+    run_build
+    run_prepare_fixtures
+    capture_outside_root_snapshots before
+    capture_state_observation installed-smoke-before
+    run_installed_smoke "$group" "$root_name"
+    capture_state_observation installed-smoke-after
+    capture_outside_root_snapshots after
+    compare_outside_root_snapshots
+    run_cleanup
+    verify_qualification_cleanup
+    trap - EXIT
+}
+
 run_soak() {
     run_twelve_hour_soak
 }
@@ -573,6 +600,7 @@ QUALIFICATION_SMB_HOST="${DETOURS_QUALIFICATION_SMB_HOST:-devtest}"
 QUALIFICATION_SMB_SHARE="${DETOURS_QUALIFICATION_SMB_SHARE:-Detours Qualification}"
 QUALIFICATION_SMB_USER="${DETOURS_QUALIFICATION_SMB_USER:-detours-qualification}"
 GROUP="all"
+SMOKE_ROOT=""
 FAILURE_PROVIDER=""
 
 case "$COMMAND" in
@@ -581,6 +609,13 @@ case "$COMMAND" in
             GROUP="$1"
             shift
         fi
+        ;;
+    installed-smoke)
+        [[ $# -ge 2 && "$1" != --* && "$2" != --* ]] || \
+            fail "installed-smoke requires a workflow group and fixture root"
+        GROUP="$1"
+        SMOKE_ROOT="$2"
+        shift 2
         ;;
     failure-probe)
         [[ $# -gt 0 && "$1" != --* ]] || fail "failure-probe requires a provider"
@@ -636,6 +671,7 @@ case "$COMMAND" in
     in-process) run_in_process "$GROUP" ;;
     installed) run_installed "$GROUP" ;;
     workflow-run) run_workflow_campaign "$GROUP" ;;
+    installed-smoke) run_installed_smoke_campaign "$GROUP" "$SMOKE_ROOT" ;;
     failure-probe) run_provider_failure_probe "$FAILURE_PROVIDER" ;;
     cold-run) run_cold ;;
     soak) run_soak ;;

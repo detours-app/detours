@@ -144,6 +144,27 @@ run_installed() {
     done < <(selected_workflow_groups "$group")
 }
 
+run_installed_smoke() {
+    local group="$1"
+    local root_name="$2"
+    local fixture_file log_dir result_dir
+    fixture_file="$(run_dir)/fixtures.env"
+    [[ -f "$fixture_file" ]] || fail "fixture record is missing: $fixture_file"
+    set -a
+    # shellcheck disable=SC1090
+    source "$fixture_file"
+    set +a
+    verify_smb_fixture_session_access
+    log_dir="$(run_dir)/workflows/installed-smoke"
+    result_dir="$(run_dir)/results/installed-smoke"
+    mkdir -p "$log_dir" "$result_dir"
+    prepare_installed_test_bundle "$log_dir/build-for-testing.log"
+    run_installed_once \
+        "$group" "$root_name" 1 \
+        "$log_dir/$group-$root_name" \
+        "$result_dir/$group-$root_name.xcresult"
+}
+
 prepare_installed_test_bundle() {
     local log_path="$1"
     local derived_data status xctestrun
