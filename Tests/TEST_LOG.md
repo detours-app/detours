@@ -2296,3 +2296,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   project/scheme `test-without-building` path ran the live Windows activation
   cycle with 0 failures/skips in 25 seconds, retained its per-cycle evidence,
   emitted no successful-command warning, and passed guarded cleanup.
+
+- 2026-07-21 13:42 CEST: Foundry qualification smoke
+  `connection-windows-smoke-3ead7dd-1` PASS at commit `3ead7dd`: the corrected
+  connection workflow completed one delayed live Windows connection in 16
+  seconds with 0 failures/skips, preserved right-pane focus while the captured
+  left pane connected and established its watch, and passed guarded cleanup.
+  SwiftLint also passed with 0 violations.
