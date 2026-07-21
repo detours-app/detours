@@ -2399,3 +2399,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   seconds, down from 88, and guarded cleanup passed. XCResult's only remaining
   gaps above 1.4 seconds were the two intentional 81-character boundary inputs;
   that boundary now runs twice per 20-cycle context rather than every cycle.
+
+- 2026-07-21 14:23 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-9020fa0-1` PASS at commit `9020fa0`: both optimized
+  archive cycles passed with exact markers and guarded cleanup. XCResult
+  activities show 16.5 and 14.6 seconds of actual cycle work (about 63% below
+  the former 42-second cycles), but the command then idled for about 42 seconds
+  after teardown actions ended. Qualification teardown now explicitly terminates
+  its finished app instead of waiting for the outer runner to do it.
