@@ -2320,3 +2320,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   before preflight because its requested expanded commit hash did not exist.
   No Detours process or fixture was created. The rerun below uses the exact hash
   returned by `git rev-parse HEAD` on both Spectre and Foundry.
+
+- 2026-07-21 13:49 CEST: Foundry qualification smoke
+  `opening-local-shared-loop-a0af1c4-1` PASS at commit `a0af1c4`: the corrected
+  `MultiFileOpenUITests` mapping completed Enter and Command-O multi-open checks
+  in 11 seconds with 0 failures/skips, validated its per-cycle marker, and
+  passed guarded cleanup without Doppler, SMB, APFS, or iCloud setup.
