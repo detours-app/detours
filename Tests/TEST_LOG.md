@@ -2385,3 +2385,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   skips. The second cycle toggled from its inherited sort direction, both exact
   completion markers passed validation, and guarded cleanup removed the local
   fixture with an unchanged outside-root snapshot.
+
+- 2026-07-21 14:15 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-33f7ce6-1` PASS at commit `33f7ce6`: one logical
+  XCTest completed both archive-control cycles with 0 failures/skips and passing
+  guarded cleanup. XCResult measured 88 seconds inside the test (123 seconds
+  including launch/build orchestration), exposing redundant per-cycle format
+  enumeration and avoidable existence waits that are tightened below.

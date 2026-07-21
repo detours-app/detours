@@ -417,7 +417,7 @@ extension BaseUITest {
         fileMenu.click()
 
         let item = fileMenu.menuItems[title]
-        XCTAssertTrue(item.waitForExistence(timeout: timeout), "\(title) menu item should exist")
+        XCTAssertTrue(item.existsOrWait(timeout: timeout), "\(title) menu item should exist")
         XCTAssertTrue(item.isEnabled, "\(title) menu item should be enabled")
         item.click()
     }
@@ -428,7 +428,7 @@ extension BaseUITest {
         goMenu.click()
 
         let item = goMenu.menuItems[title]
-        XCTAssertTrue(item.waitForExistence(timeout: timeout), "\(title) menu item should exist")
+        XCTAssertTrue(item.existsOrWait(timeout: timeout), "\(title) menu item should exist")
         XCTAssertTrue(item.isEnabled, "\(title) menu item should be enabled")
         item.click()
     }
