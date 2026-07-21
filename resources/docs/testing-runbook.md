@@ -185,6 +185,8 @@ Layer 3's provider reachability claim is composed from the Layer 2 real-provider
 
 Qualification orchestration is shell-only. The audit rejects Python and Ansible entry points in `qualification*.sh`, and UUID generation requires macOS `uuidgen`. This prevents the reported macOS failure mode where a Python multiprocessing child entered `_scproxy` and CoreFoundation after `fork()` but before `exec()`, causing Objective-C fork-safety termination and visible crash reports. Do not suppress that protection with `OBJC_DISABLE_INITIALIZE_FORK_SAFETY`; remove the Python fork path instead.
 
+Credential-bearing Foundry launches require `resources/scripts/qualification-foundry.sh --warm-doppler` first. A successful warm-up writes a non-secret, one-use timestamp marker with a 60-second safety margin inside the fixed 15-minute Doppler cache window. The launch consumes that marker before fetching the secret and fails immediately when the marker is missing or stale. It never probes the token cache and never starts an implicit Touch ID flow.
+
 Blocking GUI work receives an absolute layer deadline. The runner removes the scoped launchd job when that deadline is reached, then executes guarded campaign cleanup. A budget is a stop condition, not a measurement made after an unbounded command eventually returns.
 
 ## Failure Protocol

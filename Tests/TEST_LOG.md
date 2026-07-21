@@ -2672,3 +2672,12 @@ Spotlight search has no unit test (depends on the live, async-built system index
   both mounts with no leaked process. The runner now enforces its GUI deadline,
   and blocking coverage assigns provider reachability to provider contracts
   rather than repeating the same XCUI wiring journey for every provider.
+
+- 2026-07-21 19:36 CEST: Gate 1 qualification invocation
+  `gate1-refresh-9d7d27f-1` STOPPED on Spectre before SSH, build, fixtures, or
+  tests. The prior explicit Doppler warm-up had expired, and `get_secret`
+  started an implicit second Touch ID flow. The launcher was interrupted as
+  soon as its process tree identified the prompt path; no Foundry command
+  metadata exists. Credential-bearing launches now require and consume a
+  one-use explicit warm-up marker, so an absent or stale warm-up fails before
+  `get_secret` and cannot display a surprise prompt.

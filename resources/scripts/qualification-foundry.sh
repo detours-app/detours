@@ -7,15 +7,29 @@ set -euo pipefail
 set +x
 
 GET_SECRET="$HOME/dev/scripts/get_secret"
+DOPPLER_TOUCHID="$HOME/dev/scripts/doppler-touchid"
+DOPPLER_WARM_MARKER="${TMPDIR:-/tmp}/detours-qualification-doppler-warm-$(id -u)"
 
 usage() {
-    printf 'Usage: resources/scripts/qualification-foundry.sh <qualification arguments...>\n' >&2
+    printf 'Usage: resources/scripts/qualification-foundry.sh <qualification arguments...> | --warm-doppler\n' >&2
 }
 
 [[ $# -gt 0 ]] || {
     usage
     exit 64
 }
+
+if [[ "$1" == "--warm-doppler" ]]; then
+    [[ $# -eq 1 && -x "$DOPPLER_TOUCHID" ]] || {
+        usage
+        exit 64
+    }
+    "$DOPPLER_TOUCHID" me >/dev/null
+    printf '%s\n' "$(date +%s)" > "$DOPPLER_WARM_MARKER"
+    chmod 600 "$DOPPLER_WARM_MARKER"
+    printf 'qualification-foundry: Doppler warm-up recorded for one qualification flow\n'
+    exit 0
+fi
 
 smb_secret=""
 requires_smb_secret=1
@@ -58,6 +72,18 @@ else
         requires_smb_secret=0
     fi
     if (( requires_smb_secret == 1 )); then
+        warm_epoch=""
+        if [[ -f "$DOPPLER_WARM_MARKER" ]]; then
+            warm_epoch="$(<"$DOPPLER_WARM_MARKER")"
+        fi
+        rm -f -- "$DOPPLER_WARM_MARKER"
+        now_epoch="$(date +%s)"
+        [[ "$warm_epoch" =~ ^[0-9]+$ \
+            && "$now_epoch" -ge "$warm_epoch" \
+            && $((now_epoch - warm_epoch)) -lt 840 ]] || {
+            printf 'qualification-foundry: Doppler is not explicitly warm; run %s --warm-doppler first\n' "$0" >&2
+            exit 67
+        }
         [[ -x "$GET_SECRET" ]] || {
             printf 'qualification-foundry: secret helper is unavailable\n' >&2
             exit 65
