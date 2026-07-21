@@ -2358,3 +2358,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   refresh, filter, sort, hidden-file, Git, redraw, and sentinel-checked cleanup
   contract in 20 seconds with 0 failures/skips. Its refresh marker and overall
   guarded cleanup passed; SwiftLint had 0 violations.
+
+- 2026-07-21 14:01 CEST: Foundry qualification smoke
+  `opening-no-xcode-repeat-ac9bc48-1` PASS at commit `ac9bc48`: after deleting
+  the runner's Xcode repetition path, one logical XCTest completed the multi-open
+  cycle in 11 seconds with 0 failures/skips, one validated workflow marker, no
+  unexpected command output, and passing guarded cleanup.
