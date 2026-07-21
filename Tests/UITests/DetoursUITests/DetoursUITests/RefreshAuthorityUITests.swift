@@ -23,13 +23,11 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
         let suffix = "\(iteration)-" + String(UUID().uuidString.lowercased().prefix(8))
         let sourceName = "qualification-copy-\(suffix).txt"
         let destinationName = "QualificationTransfer-\(suffix)"
-        let sourceFile = uiTestRootURL.appendingPathComponent(sourceName)
-        let destFolder = uiTestRootURL.appendingPathComponent(destinationName)
-        FileManager.default.createFile(atPath: sourceFile.path, contents: Data("t8".utf8))
-        try FileManager.default.createDirectory(at: destFolder, withIntermediateDirectories: true)
+        try performFixtureMutation(action: "write", relativePath: sourceName, contents: "t8")
+        try performFixtureMutation(action: "createDirectory", relativePath: destinationName)
         defer {
-            try? FileManager.default.removeItem(at: sourceFile)
-            try? FileManager.default.removeItem(at: destFolder)
+            try? performFixtureMutation(action: "remove", relativePath: sourceName)
+            try? performFixtureMutation(action: "remove", relativePath: destinationName)
         }
 
         let panes = visiblePaneOutlines()

@@ -2332,3 +2332,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   applicable local session-geometry context completed its divider persistence
   and relaunch cycle in 23 seconds with 0 failures/skips, validated its marker,
   and passed guarded cleanup. SwiftLint passed with 0 violations.
+
+- 2026-07-21 13:53 CEST: Foundry qualification smoke
+  `transfer-local-shared-loop-df94a18-1` FAIL before the copy action because
+  the sandboxed UI-test runner attempted to create its fixture directly in the
+  guarded qualification root and macOS denied that write. The XCResult recorded
+  1 failure and no pass; guarded cleanup passed. Transfer fixtures now use the
+  existing guarded app-side mutation seam for creation and removal.
