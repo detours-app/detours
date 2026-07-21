@@ -2290,3 +2290,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Guarded cleanup passed. The runner now uses the project/scheme form of
   `test-without-building`, preserving native macOS destination resolution and
   per-context settings while reusing the prepared products.
+
+- 2026-07-21 13:36 CEST: Foundry qualification smoke
+  `activation-windows-no-build-smoke-1d02964-1` PASS at commit `1d02964`: the
+  project/scheme `test-without-building` path ran the live Windows activation
+  cycle with 0 failures/skips in 25 seconds, retained its per-cycle evidence,
+  emitted no successful-command warning, and passed guarded cleanup.
