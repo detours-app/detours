@@ -455,7 +455,7 @@ run_report() {
 }
 
 run_cleanup() {
-    local descriptors_dir descriptor guard_binary
+    local descriptors_dir descriptor fixture_file guard_binary
     pkill -x Detours >/dev/null 2>&1 || true
     local _
     for _ in {1..50}; do
@@ -467,6 +467,15 @@ run_cleanup() {
     ! pgrep -x xcodebuild >/dev/null 2>&1 || fail "xcodebuild remains active during cleanup"
 
     descriptors_dir="$(run_dir)/roots"
+    fixture_file="$(run_dir)/fixtures.env"
+    if [[ -f "$descriptors_dir/smb.json" && -f "$fixture_file" ]]; then
+        # The prior workflow's SMB mount belongs to a different audit session.
+        # Remount before guarded deletion so cleanup removes the remote fixture,
+        # rather than mistaking an inaccessible mount for an absent root.
+        # shellcheck disable=SC1090
+        source "$fixture_file"
+        remount_smb_fixture_for_current_session 0
+    fi
     if [[ -d "$descriptors_dir" ]]; then
         guard_binary="$(qualification_guard)"
         while IFS= read -r descriptor; do

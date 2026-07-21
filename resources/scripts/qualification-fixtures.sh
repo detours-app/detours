@@ -55,7 +55,7 @@ verify_smb_authentication() {
         log_user 0
         set timeout 15
         set password_prompts 0
-        spawn smbutil view $env(SMB_AUTH_URL)
+        spawn smbutil view -f $env(SMB_AUTH_URL)
         expect {
             -nocase -re {password} {
                 incr password_prompts
@@ -114,6 +114,7 @@ EXPECT
 }
 
 remount_smb_fixture_for_current_session() {
+    local require_gui_probe="${1:-1}"
     local gui_probe_log
     if mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1; then
         diskutil unmount "$SMB_MOUNT_POINT" >/dev/null
@@ -124,10 +125,12 @@ remount_smb_fixture_for_current_session() {
         fail "SMB fixture root is unavailable in the current qualification session"
     find "$SMB_ROOT" -maxdepth 1 -name '.detours-qualification-root.json' -print -quit | grep -q . || \
         fail "SMB fixture sentinel is unavailable in the current qualification session"
-    gui_probe_log="$(run_dir)/logs/smb-session-$COMMAND.log"
-    run_gui_command "$gui_probe_log" \
-        /usr/bin/test -f "$SMB_ROOT/.detours-qualification-root.json" || \
-        fail "SMB fixture is unavailable to the current GUI qualification session"
+    if [[ "$require_gui_probe" == "1" ]]; then
+        gui_probe_log="$(run_dir)/logs/smb-session-$COMMAND.log"
+        run_gui_command "$gui_probe_log" \
+            /usr/bin/test -f "$SMB_ROOT/.detours-qualification-root.json" || \
+            fail "SMB fixture is unavailable to the current GUI qualification session"
+    fi
 }
 
 fixture_setup_cleanup_on_exit() {
