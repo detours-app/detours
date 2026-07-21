@@ -2647,3 +2647,16 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Guarded runner cleanup passed for every root and mount. The refresh fixture
   now uses exact in-root filesystem removal, leaving Trash semantics to the
   mutation workflow that owns them.
+
+- 2026-07-21 19:23 CEST: Gate 1 qualification run
+  `gate1-refresh-fc97d9e-1` FAILED in runner verification at commit `fc97d9e`.
+  The deterministic layer passed 2 tests in 0.005 seconds (1 second runner
+  wall time), and the complete mounted/live provider layer passed in 17
+  seconds. The representative local installed refresh passed, followed by the
+  APFS provider-boundary test passing as the second installed invocation.
+  Xcode returned status 0 and its XCResult records exactly 1 pass with 0
+  failures/skips, but the runner rejected ordinary `xcodebuild -quiet` timing
+  diagnostics before it parsed that result. The installed layer stopped after
+  26 seconds; no remaining context ran, and guarded cleanup passed. Command
+  transport output must remain empty, while Xcode's captured command log is now
+  allowed to contain diagnostics and the XCResult remains the pass/fail source.

@@ -243,9 +243,10 @@ prepare_installed_test_bundle() {
 verify_quiet_xcode_command() {
     local command_log="$1"
     local artifact
-    for artifact in "$command_log" "$command_log.launch-stdout" "$command_log.launch-stderr"; do
+    [[ -e "$command_log" ]] || fail "Xcode command artifact is missing: $command_log"
+    for artifact in "$command_log.launch-stdout" "$command_log.launch-stderr"; do
         [[ -e "$artifact" ]] || fail "Xcode command artifact is missing: $artifact"
-        [[ ! -s "$artifact" ]] || fail "successful quiet Xcode command emitted unexpected output: $artifact"
+        [[ ! -s "$artifact" ]] || fail "Xcode command transport emitted unexpected output: $artifact"
     done
 }
 
