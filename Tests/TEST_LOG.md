@@ -2502,3 +2502,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   The test itself took 59.7 seconds; evidence contains only `smb.json` and SMB
   fixture variables. Guarded cleanup removed the UUID root and unmounted the
   share, leaving neither the root nor mount behind.
+
+- 2026-07-21 16:29 CEST: Foundry qualification run
+  `activation-in-process-100-7e6d13f-1` PASS at commit `7e6d13f`: the activation
+  workflow completed its recorded 100 in-process repetitions in 5.108 seconds
+  with 0 failures. Outside-root snapshots remained unchanged, and guarded
+  cleanup removed all four marked local, APFS, iCloud, and SMB roots plus both
+  mounts; `in-process.env` records the campaign pass.
