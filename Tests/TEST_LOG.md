@@ -2573,3 +2573,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   timestamp shifted by 3.7-8.2 ms between consecutive listings. XCTest reported
   4 failures in 417.055 seconds. The runner stopped without retrying or starting
   installed contexts, and guarded cleanup removed all four roots and both mounts.
+
+- 2026-07-21 18:11 CEST: Foundry focused regression PASS at commit `dca7d4b`:
+  `FileItemTests/testListingMetadataIgnoresOnlySubToleranceNetworkTimestampJitter`
+  passed (1 test in 0.001 seconds). It proves sub-20 ms timestamp jitter is
+  ignored only for network-volume listing reconciliation, while a 50 ms network
+  change and the same 8.5 ms change on local storage remain visible changes.
