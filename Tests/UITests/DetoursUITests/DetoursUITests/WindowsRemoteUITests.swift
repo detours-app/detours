@@ -116,7 +116,7 @@ final class WindowsRemoteUITests: BaseUITest {
             usleep(50_000)
         }
         return "Windows host \(target) did not reach a connected, watched remote pane; "
-            + "location=\(lastState?.displayedLocation ?? \"nil\") "
+            + "location=\(lastState?.displayedLocation ?? "nil") "
             + "states=\(lastState?.connectionStates ?? [:]) "
             + "watches=\(lastState?.providerWatchCount ?? -1)"
     }
