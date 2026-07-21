@@ -2521,3 +2521,13 @@ Spotlight search has no unit test (depends on the live, async-built system index
   live Linux refresh cycles completed in 31.3 seconds with 0 failures/skips,
   both exact markers, sentinel-checked remote scenario removal, unchanged remote
   siblings, and green guarded local cleanup.
+
+- 2026-07-21 16:42 CEST: Foundry qualification run
+  `refresh-full-e5c0c8b-1` FAIL at commit `e5c0c8b` before installed contexts:
+  the 100-iteration in-process refresh test recorded three iterations where a
+  delayed provider event produced one listing load after the unchanged-refresh
+  baseline was taken. XCTest reported 3 failures in 414.782 seconds. The runner
+  stopped without retrying and guarded cleanup removed all four roots and both
+  mounts. The regression fix below waits for a bounded stable provider state
+  before taking the unchanged-refresh baseline, while retaining the exact
+  zero-redraw assertion for the refresh itself.

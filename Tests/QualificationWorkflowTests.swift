@@ -233,10 +233,15 @@ final class QualificationWorkflowTests: XCTestCase {
                 controller.dataSource.findItem(withURL: tracked, in: controller.dataSource.items)?.gitStatus == .modified
             }
 
+            try await waitForStableRefreshState(controller, delegate: navigationDelegate)
             navigationDelegate.resetLoadCount()
             PaneOutlineGuard.resetRecordedViolations()
             try await performManualRefresh(controller, root: scenario)
-            XCTAssertEqual(navigationDelegate.loadCount, 0, "An unchanged refresh must not redraw the listing")
+            XCTAssertEqual(
+                navigationDelegate.loadCount,
+                0,
+                "An unchanged refresh must not redraw iteration \(iteration) at \(scenario.path)"
+            )
             XCTAssertTrue(PaneOutlineGuard.recordedViolations.isEmpty)
             XCTAssertFalse(controller.refreshScheduler.isRefreshInFlight)
             XCTAssertFalse(controller.refreshScheduler.hasOpenOperationHold)
@@ -585,6 +590,32 @@ final class QualificationWorkflowTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(25))
         }
         throw QualificationWorkflowFailure.timedOut(description)
+    }
+
+    private func waitForStableRefreshState(
+        _ controller: FileListViewController,
+        delegate: QualificationRefreshDelegate,
+        stableFor: TimeInterval = 0.5,
+        timeout: TimeInterval = 30
+    ) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        var stableSince = Date()
+        var observedLoadCount = delegate.loadCount
+        while Date() < deadline {
+            let loadCount = delegate.loadCount
+            let isStable = !controller.refreshScheduler.isRefreshInFlight
+                && !controller.refreshScheduler.hasOpenOperationHold
+                && !controller.isNavigationLoadInFlight
+                && controller.providerWatchSetupTasks.isEmpty
+            if !isStable || loadCount != observedLoadCount {
+                stableSince = Date()
+                observedLoadCount = loadCount
+            } else if Date().timeIntervalSince(stableSince) >= stableFor {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        throw QualificationWorkflowFailure.timedOut("stable provider state before unchanged refresh")
     }
 
     private func selectedLocation(in controller: FileListViewController) -> Location? {
