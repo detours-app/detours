@@ -322,7 +322,7 @@ run_installed_once() {
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath "$QUALIFICATION_UI_DERIVED_DATA" \
             -only-testing:"DetoursUITests/$test_filter" \
-            "${repetition_arguments[@]}" \
+            ${repetition_arguments[@]+"${repetition_arguments[@]}"} \
             "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
             "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$root_path" \
             "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
