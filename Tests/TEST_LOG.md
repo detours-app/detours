@@ -2696,3 +2696,13 @@ Spotlight search has no unit test (depends on the live, async-built system index
   failure artifact remained. Foundry required a one-time macOS iCloud access
   Allow during this work; it explains the earlier stalled iCloud XCUI path and
   is recorded as an environment prerequisite, not a test assertion.
+
+- 2026-07-21 20:55 CEST: Gate 1 permission-readiness run
+  `gate1-refresh-7e1ca1d-1` STOPPED before deterministic, provider, or workflow
+  tests at exact commit `7e1ca1d`. The new iCloud installed-app preflight
+  reached its 30-second hard deadline without producing an XCResult; the
+  process group was terminated and guarded cleanup removed every root and
+  mount. The interruption monitor had been registered, but XCUI invokes those
+  monitors only after an application interaction. Setup now performs that
+  interaction immediately after launch for iCloud and SMB roots, before it
+  waits for the app window or guarded-root state.

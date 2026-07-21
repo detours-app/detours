@@ -46,8 +46,13 @@ class BaseUITest: XCTestCase {
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
         app.launchEnvironment["DETOURS_UI_TEST_CONTROL_ROOT"] = uiTestControlRootURL.path
         configureLaunchEnvironment(&app.launchEnvironment)
-        installStoragePermissionHandlerIfNeeded()
+        let expectsStoragePermission = installStoragePermissionHandlerIfNeeded()
         app.launch()
+        if expectsStoragePermission {
+            // XCUI interruption monitors run only after an interaction. Trigger
+            // one immediately so an access dialog cannot sit ahead of readiness.
+            app.tap()
+        }
 
         // Wait for app to be ready
         let window = app.windows.firstMatch
@@ -107,7 +112,7 @@ class BaseUITest: XCTestCase {
         try data.write(to: markerURL, options: .atomic)
     }
 
-    private func installStoragePermissionHandlerIfNeeded() {
+    private func installStoragePermissionHandlerIfNeeded() -> Bool {
         let rootPath = uiTestRootURL.standardizedFileURL.path
         let cloudDocumentsPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
@@ -124,7 +129,7 @@ class BaseUITest: XCTestCase {
             isNetwork = (try? uiTestRootURL.resourceValues(forKeys: [.volumeIsLocalKey]))?
                 .volumeIsLocal == false
         }
-        guard isICloud || isNetwork else { return }
+        guard isICloud || isNetwork else { return false }
 
         addUIInterruptionMonitor(withDescription: "Detours storage access") { alert in
             let allowButton = alert.buttons["Allow"]
@@ -132,6 +137,7 @@ class BaseUITest: XCTestCase {
             allowButton.click()
             return true
         }
+        return true
     }
 
     override func tearDownWithError() throws {
