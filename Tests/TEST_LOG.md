@@ -2415,3 +2415,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   is removed. The remaining shared signal is secure-field character injection,
   which invokes XCUITest interruption handling; the next proof uses one paste
   event and restores the prior Foundry clipboard value.
+
+- 2026-07-21 14:28 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-626016c-1` PASS at commit `626016c`: paste-based
+  entry preserved both normal and 81-byte password assertions, exact markers,
+  and cleanup while reducing actual cycles to about 12.5 and 15 seconds. The
+  unchanged 45-second tail begins at the legacy teardown Command-W idle wait.
+  Qualification now leaves tab disposal to its existing outer app-stop step.
