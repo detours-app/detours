@@ -114,6 +114,7 @@ EXPECT
 }
 
 remount_smb_fixture_for_current_session() {
+    local gui_probe_log
     if mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1; then
         diskutil unmount "$SMB_MOUNT_POINT" >/dev/null
     fi
@@ -123,6 +124,10 @@ remount_smb_fixture_for_current_session() {
         fail "SMB fixture root is unavailable in the current qualification session"
     find "$SMB_ROOT" -maxdepth 1 -name '.detours-qualification-root.json' -print -quit | grep -q . || \
         fail "SMB fixture sentinel is unavailable in the current qualification session"
+    gui_probe_log="$(run_dir)/logs/smb-session-$COMMAND.log"
+    run_gui_command "$gui_probe_log" \
+        /usr/bin/test -f "$SMB_ROOT/.detours-qualification-root.json" || \
+        fail "SMB fixture is unavailable to the current GUI qualification session"
 }
 
 fixture_setup_cleanup_on_exit() {
