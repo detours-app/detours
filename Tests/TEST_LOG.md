@@ -2584,3 +2584,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `refresh-smb-jitter-20-988472c-1` STOPPED before preflight: the Foundry
   orchestration wrapper was invoked inside Foundry, where its Spectre-side
   secret helper is intentionally unavailable. No build, fixture, or test ran.
+
+- 2026-07-21 18:14 CEST: Foundry qualification smoke
+  `refresh-smb-jitter-20-acc3452-1` PASS at commit `acc3452`: all 20 focused
+  in-process refresh repetitions passed in 135.653 seconds with 0 failures.
+  Seed 419 deliberately assigned 11 of the 20 repetitions to the SMB root,
+  directly exercising the timestamp-jitter guard; guarded cleanup removed all
+  four roots and both mounts.
