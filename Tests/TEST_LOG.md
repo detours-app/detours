@@ -2266,3 +2266,12 @@ Spotlight search has no unit test (depends on the live, async-built system index
   and passing guarded cleanup. SwiftLint also passed with 0 violations. The
   target-scoped run did not invoke Doppler or create SMB, APFS, or iCloud
   fixtures.
+
+- 2026-07-21 13:28 CEST: Foundry qualification run
+  `activation-windows-20-session-884cd6f-1` PASS at commit `884cd6f`: all 20
+  activation, pane-focus, tab-focus, and Finder-return cycles passed against
+  the live Windows target in one installed-app session, with 0 failures/skips,
+  20 matching per-cycle evidence records, and passing guarded cleanup. The
+  complete installed command took 226 seconds; XCResult activities show the
+  meaningful cycles at roughly 7–8 seconds each versus 12–13 seconds under the
+  prior per-repetition XCTest lifecycle.
