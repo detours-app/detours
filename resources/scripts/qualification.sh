@@ -52,6 +52,7 @@ Commands:
   fixtures                     Create and mount every guarded fixture root
   build                        Build the qualifying app without installing it
   in-process <group|all>       Run a named workflow 100 times in process
+  in-process-run <group|all>   Run a guarded in-process-only campaign
   installed <group|all>        Run a named workflow 20 times in the installed app
   workflow-run <group|all>     Run both layers with fixtures in one audit session
   installed-smoke <group> <root|target>
@@ -322,7 +323,7 @@ run_preflight() {
         [[ "$windows_platform" == *$'DETOURS_WINDOWS_POWERSHELL\tWin32NT'* ]] || \
             fail "configured Windows endpoint did not provide Windows PowerShell: $windows_platform"
     fi
-    if [[ "$scope" == "full" || "$scope" == "SMB_ROOT" ]]; then
+    if [[ "$scope" == "full" || "$scope" == "SMB_ROOT" || "$scope" == "STORAGE_ROOTS" ]]; then
         nc -G 8 -z "$QUALIFICATION_SMB_HOST" 445 >/dev/null 2>&1 || \
             fail "SMB port 445 is unreachable: $QUALIFICATION_SMB_HOST"
 
@@ -331,7 +332,7 @@ run_preflight() {
         [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "SMB credential transport returned an empty value"
         verify_smb_authentication
     fi
-    if [[ "$scope" == "full" || "$scope" == "ICLOUD_ROOT" ]]; then
+    if [[ "$scope" == "full" || "$scope" == "ICLOUD_ROOT" || "$scope" == "STORAGE_ROOTS" ]]; then
         [[ -d "$ICLOUD_PARENT" ]] || fail "iCloud qualification parent is missing: $ICLOUD_PARENT"
         if find "$ICLOUD_PARENT" -name '*.icloud' -print -quit | grep -q .; then
             fail "iCloud qualification parent contains non-local placeholders"
@@ -502,6 +503,32 @@ run_workflow_campaign() {
     trap - EXIT
 }
 
+run_in_process_campaign() {
+    local group="$1"
+    validate_group "$group"
+    trap 'campaign_cleanup_on_exit "$?"' EXIT
+    run_reset
+    run_preflight STORAGE_ROOTS
+    run_build
+    run_prepare_fixtures
+    capture_outside_root_snapshots before
+    capture_state_observation in-process-before
+    run_in_process "$group"
+    capture_state_observation in-process-after
+    capture_outside_root_snapshots after
+    compare_outside_root_snapshots
+    run_cleanup
+    verify_qualification_cleanup
+    {
+        printf 'status=passed\n'
+        printf 'commit=%s\n' "$(canonical_commit)"
+        printf 'group=%s\n' "$group"
+        printf 'seed=%s\n' "$QUALIFICATION_SEED"
+        printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$(run_dir)/in-process.env"
+    trap - EXIT
+}
+
 run_installed_smoke_campaign() {
     local group="$1"
     local context_name="$2"
@@ -642,7 +669,7 @@ SMOKE_ROOT=""
 FAILURE_PROVIDER=""
 
 case "$COMMAND" in
-    in-process|installed|workflow-run)
+    in-process|in-process-run|installed|workflow-run)
         if [[ $# -gt 0 && "$1" != --* ]]; then
             GROUP="$1"
             shift
@@ -710,6 +737,7 @@ case "$COMMAND" in
     fixtures) run_prepare_fixtures_command ;;
     build) run_build ;;
     in-process) run_in_process "$GROUP" ;;
+    in-process-run) run_in_process_campaign "$GROUP" ;;
     installed) run_installed "$GROUP" ;;
     workflow-run) run_workflow_campaign "$GROUP" ;;
     installed-smoke) run_installed_smoke_campaign "$GROUP" "$SMOKE_ROOT" ;;
