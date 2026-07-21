@@ -14,10 +14,15 @@ XCODEPROJ="$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj"
 UITEST_DESTINATION="platform=macOS,arch=arm64"
 APP_PATH="/Applications/Detours.app"
 BUILD_ARGS=()
-WINDOWS_TARGET_SETTING="DETOURS_WINDOWS_TEST_TARGET_SETTING=${DETOURS_WINDOWS_TEST_TARGET:-}"
 
 # Test directory setup in home (accessible and easy to navigate)
 TEST_DIR="$HOME/DetoursUITests-Temp"
+TEST_BUILD_SETTINGS=(
+    "DETOURS_QUALIFICATION_APP_PATH_SETTING=$APP_PATH"
+    "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$TEST_DIR"
+    "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$TEST_DIR"
+    "DETOURS_WINDOWS_TEST_TARGET_SETTING=${DETOURS_WINDOWS_TEST_TARGET:-}"
+)
 
 if [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
     BUILD_ARGS+=(--screenshot-fixtures)
@@ -109,7 +114,7 @@ if [ -n "$1" ]; then
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
-        "$WINDOWS_TARGET_SETTING" \
+        "${TEST_BUILD_SETTINGS[@]}" \
         -only-testing:"DetoursUITests/$1"
 elif [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
     # Screenshot capture depends on the deterministic session written by
@@ -119,14 +124,14 @@ elif [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
-        "$WINDOWS_TARGET_SETTING" \
+        "${TEST_BUILD_SETTINGS[@]}" \
         -only-testing:"DetoursUITests/ChromePolishScreenshotTests"
 
     DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" xcodebuild test \
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
-        "$WINDOWS_TARGET_SETTING" \
+        "${TEST_BUILD_SETTINGS[@]}" \
         -skip-testing:"DetoursUITests/ChromePolishScreenshotTests"
 else
     # Run all tests
@@ -134,7 +139,7 @@ else
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
-        "$WINDOWS_TARGET_SETTING"
+        "${TEST_BUILD_SETTINGS[@]}"
 fi
 
 copy_screenshot_captures

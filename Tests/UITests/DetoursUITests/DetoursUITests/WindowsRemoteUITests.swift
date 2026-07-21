@@ -86,7 +86,9 @@ final class WindowsRemoteUITests: BaseUITest {
     }
 
     private func dropRealWindowsConnection(target: String) throws {
-        let controlPath = FileManager.default.homeDirectoryForCurrentUser
+        let accountHome = FileManager.default.homeDirectory(forUser: NSUserName())
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        let controlPath = accountHome
             .appendingPathComponent(".detours/ssh/%C").path
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
