@@ -33,6 +33,10 @@
       {
         "key" : "DETOURS_WINDOWS_TEST_TARGET",
         "value" : "$(DETOURS_WINDOWS_TEST_TARGET_SETTING)"
+      },
+      {
+        "key" : "DETOURS_TEST_ACCOUNT_HOME",
+        "value" : "$(DETOURS_TEST_ACCOUNT_HOME_SETTING)"
       }
     ],
     "targetForVariableExpansion" : {

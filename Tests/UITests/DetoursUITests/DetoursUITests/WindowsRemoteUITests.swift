@@ -86,9 +86,12 @@ final class WindowsRemoteUITests: BaseUITest {
     }
 
     private func dropRealWindowsConnection(target: String) throws {
-        let accountHome = FileManager.default.homeDirectory(forUser: NSUserName())
-            ?? FileManager.default.homeDirectoryForCurrentUser
-        let controlPath = accountHome
+        let accountHome = try XCTUnwrap(
+            ProcessInfo.processInfo.environment["DETOURS_TEST_ACCOUNT_HOME"]
+                .flatMap { $0.isEmpty ? nil : $0 },
+            "The XCUI runner must receive the app account home"
+        )
+        let controlPath = URL(fileURLWithPath: accountHome, isDirectory: true)
             .appendingPathComponent(".detours/ssh/%C").path
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
