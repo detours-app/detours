@@ -22,6 +22,7 @@ command_pid=$!
     kill -KILL -- "-$command_pid" 2>/dev/null || true
 ) &
 watchdog_pid=$!
+set +m
 
 # shellcheck disable=SC2329 # Invoked by the signal trap below.
 terminate_groups() {
