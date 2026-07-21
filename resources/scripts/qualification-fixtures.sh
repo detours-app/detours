@@ -84,14 +84,14 @@ mount_smb_fixture() {
     local mount_parent
     mount_parent="$(dirname "$SMB_MOUNT_POINT")"
     mkdir -p "$mount_parent"
-    local credential_fifo credential_fd mount_log mount_status
+    local credential_fifo mount_log mount_status
     credential_fifo="$(run_dir)/smb-mount-password.fifo"
     mount_log="$(run_dir)/logs/smb-mount-gui.log"
     [[ ! -e "$credential_fifo" ]] || fail "SMB credential FIFO already exists"
     mkdir -p "$(dirname "$mount_log")"
     mkfifo -m 600 "$credential_fifo"
-    exec {credential_fd}<>"$credential_fifo"
-    printf '%s\n' "$DETOURS_SMB_TEST_PASSWORD" >&"$credential_fd"
+    exec 9<>"$credential_fifo"
+    printf '%s\n' "$DETOURS_SMB_TEST_PASSWORD" >&9
     smbutil logout "$QUALIFICATION_SMB_HOST" >/dev/null 2>&1 || true
     set +e
     (
@@ -107,7 +107,7 @@ mount_smb_fixture() {
     )
     mount_status=$?
     set -e
-    exec {credential_fd}>&-
+    exec 9>&-
     rm -f -- "$credential_fifo"
     case "$mount_status" in
         0) ;;
@@ -213,6 +213,7 @@ run_prepare_fixtures() {
 
 cleanup_fixture_mounts() {
     local fixture_file
+    rm -f -- "$(run_dir)/smb-mount-password.fifo"
     fixture_file="$(run_dir)/fixtures.env"
     [[ -f "$fixture_file" ]] || return 0
     # shellcheck disable=SC1090
