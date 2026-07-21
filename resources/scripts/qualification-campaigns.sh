@@ -212,6 +212,10 @@ run_workflow_campaign() {
     run_prepare_fixtures
     capture_outside_root_snapshots before
     if [[ "$group" == "refresh" ]]; then
+        set -a
+        # shellcheck disable=SC1090,SC1091
+        source "$(run_dir)/fixtures.env"
+        set +a
         prepare_blocking_refresh_bundles
         blocking_layer storage-permissions 30 run_blocking_storage_permissions
     fi

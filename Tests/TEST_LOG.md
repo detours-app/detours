@@ -2766,3 +2766,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   invocation only, and `workflow-run refresh` runs the bounded iCloud and SMB
   permission probes before entering either repetition loop. Shellcheck and the
   changed-file lint gate pass.
+
+- 2026-07-21: Gate 2 T5 run `gate2-t5-refresh-abaa7c2-1` stopped before
+  permission or behavioral execution because the newly shared permission route
+  had not loaded `fixtures.env`; indirect `ICLOUD_ROOT` lookup therefore failed
+  under `set -u`. The exit trap completed guarded cleanup with no remaining
+  qualification mount or root. The workflow route now exports the recorded
+  fixture paths before preparing or running its permission probes.
