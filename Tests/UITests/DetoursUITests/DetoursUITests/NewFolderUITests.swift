@@ -8,6 +8,12 @@ final class NewFolderUITests: BaseUITest {
     /// 3. New folder is created inside that folder (not alongside it)
     /// 4. The new folder is selected
     func testNewFolderSelectsNewFolderNotExisting() throws {
+        try runQualificationRepetitions(group: "mutation") { _ in
+            try self.runNewFolderSelectionCycle()
+        }
+    }
+
+    private func runNewFolderSelectionCycle() throws {
         let scenarioName = "QualificationMutation-" + UUID().uuidString.lowercased()
         let existingName = "Existing"
         let createdName = "created-" + String(UUID().uuidString.lowercased().prefix(8))

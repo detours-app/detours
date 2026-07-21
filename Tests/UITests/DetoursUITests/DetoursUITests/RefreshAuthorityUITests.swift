@@ -13,9 +13,18 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
     }
 
     func testF5CopyActivatesDestinationPaneAndSelectsCopy() throws {
+        try runQualificationRepetitions(group: "transfer") { iteration in
+            try self.runCopyCycle(iteration: iteration)
+        }
+    }
+
+    private func runCopyCycle(iteration: Int) throws {
         // Fixtures: a source file and a destination folder inside the test root.
-        let sourceFile = uiTestRootURL.appendingPathComponent("t8_copy_me.txt")
-        let destFolder = uiTestRootURL.appendingPathComponent("T8Dest")
+        let suffix = "\(iteration)-" + String(UUID().uuidString.lowercased().prefix(8))
+        let sourceName = "qualification-copy-\(suffix).txt"
+        let destinationName = "QualificationTransfer-\(suffix)"
+        let sourceFile = uiTestRootURL.appendingPathComponent(sourceName)
+        let destFolder = uiTestRootURL.appendingPathComponent(destinationName)
         FileManager.default.createFile(atPath: sourceFile.path, contents: Data("t8".utf8))
         try FileManager.default.createDirectory(at: destFolder, withIntermediateDirectories: true)
         defer {
@@ -30,7 +39,7 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
 
         // The watcher shows the new fixtures without any manual refresh.
         XCTAssertTrue(
-            leftOutline.outlineRow(withStaticText: "t8_copy_me.txt").waitForExistence(timeout: 5),
+            leftOutline.outlineRow(withStaticText: sourceName).waitForExistence(timeout: 5),
             "External change must appear via the watcher"
         )
 
@@ -39,7 +48,7 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
         let tabCountBefore = try requestRemotePaneState(pane: "right").tabCount
         rightOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         pressCharKey("t", modifiers: .command)
-        addTeardownBlock { [self] in
+        defer {
             // Close the tab this test created in the right pane.
             if let rightPane = visiblePaneOutlines().last {
                 rightPane.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
@@ -75,30 +84,30 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
             },
             "Right pane never entered the test folder; displayed=\(String(describing: (try? requestRemotePaneState(pane: "right"))?.displayedLocation))"
         )
-        let destRight = rightPane.outlineRow(withStaticText: "T8Dest")
+        let destRight = rightPane.outlineRow(withStaticText: destinationName)
         if !destRight.waitForExistence(timeout: 5) {
             let rows = rightOutline.outlineRows.allElementsBoundByIndex.prefix(20).map { row in
                 row.staticTexts.allElementsBoundByIndex.map { $0.value as? String ?? $0.label }.joined(separator: "|")
             }
             let state = try? requestRemotePaneState(pane: "right")
             let disk = (try? FileManager.default.contentsOfDirectory(atPath: uiTestRootURL.path)) ?? []
-            XCTFail("T8Dest row missing in right pane; rows=\(rows) displayed=\(String(describing: state?.displayedLocation)) count=\(String(describing: state?.visibleRowCount)) disk=\(disk.sorted())")
+            XCTFail("\(destinationName) row missing in right pane; rows=\(rows) displayed=\(String(describing: state?.displayedLocation)) count=\(String(describing: state?.visibleRowCount)) disk=\(disk.sorted())")
             return
         }
-        destRight.staticTexts["T8Dest"].doubleClick()
+        destRight.staticTexts[destinationName].doubleClick()
         XCTAssertTrue(
             waitForCondition(timeout: 5) {
                 let state = try? self.requestRemotePaneState(pane: "right")
-                return state?.displayedLocation?.hasSuffix("T8Dest") == true
+                return state?.displayedLocation?.hasSuffix(destinationName) == true
             },
-            "Right pane never entered T8Dest"
+            "Right pane never entered \(destinationName)"
         )
 
         // Left pane: select the source and copy with F5.
         leftOutline.click()
-        let sourceRow = leftOutline.outlineRow(withStaticText: "t8_copy_me.txt")
+        let sourceRow = leftOutline.outlineRow(withStaticText: sourceName)
         XCTAssertTrue(sourceRow.waitForExistence(timeout: 2))
-        sourceRow.staticTexts["t8_copy_me.txt"].click()
+        sourceRow.staticTexts[sourceName].click()
         let destinationMutationCount = try requestRemotePaneState(pane: "right").listingMutationCount
         pressF5Key()
 
@@ -107,7 +116,9 @@ final class RefreshAuthorityCopyUITests: BaseUITest {
         XCTAssertTrue(
             waitForCondition(timeout: 5) {
                 guard let state = try? self.requestRemotePaneState(pane: "right") else { return false }
-                return state.selectedLocations.contains { $0.hasSuffix("T8Dest/t8_copy_me.txt") }
+                return state.selectedLocations.contains {
+                    $0.hasSuffix(destinationName + "/" + sourceName)
+                }
                     && state.focus == "fileList"
                     && state.listingMutationCount > destinationMutationCount
                     && !state.refreshInFlight
