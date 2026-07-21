@@ -55,6 +55,8 @@ audit_installed_test_filters() {
         installed_filter_pair_exists "$class_name" "$method_name" || \
             fail "installed workflow filter does not resolve to one test method: $group=$filter"
     done < <(workflow_groups)
+    installed_filter_pair_exists QualificationRefreshUITests testRefreshProviderBoundary || \
+        fail "blocking refresh provider filter does not resolve to one test method"
 }
 
 audit_matrix() {

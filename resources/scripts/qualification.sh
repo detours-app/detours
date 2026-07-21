@@ -56,19 +56,20 @@ Commands:
   smb-auth                     Validate SMB authentication without mounting
   fixtures                     Create and mount every guarded fixture root
   build                        Build the qualifying app without installing it
-  in-process <group|all>       Run a named workflow 100 times in process
-  in-process-run <group|all>   Run a guarded in-process-only campaign
-  installed <group|all>        Run a named workflow 20 times in the installed app
-  workflow-run <group|all>     Run both layers with fixtures in one audit session
+  blocking-refresh             Run the post-build refresh gate (hard limit: 180s)
+  in-process <group|all>       Gate 2 soak-only: run 100 times in process
+  in-process-run <group|all>   Gate 2 soak-only: guarded in-process campaign
+  installed <group|all>        Gate 2 soak-only: run 20 installed-app cycles
+  workflow-run <group|all>     Gate 2 soak-only: run both repeated layers
   installed-smoke <group> <root|target>
                                Run focused installed repetitions in one audit session
   failure-probe <provider>     Prove one provider failure is preserved and cleaned
-  cold-run                     Reset and run one complete cold qualification
-  soak                         Run the installed-app campaign for 12 hours
+  cold-run                     Gate 2 soak-only: run one complete cold qualification
+  soak                         Gate 2 soak-only: run the 12-hour installed campaign
   report                       Generate the tracked matrix and result report
   cleanup                      Remove exact marked qualification state
   cancel                       Stop the exact active GUI job for a run
-  run                          Run preflight, build, three cold runs, and soak
+  run                          Gate 2 soak-only: run three cold runs and soak
   help                         Show this help
 
 Options:
@@ -368,6 +369,8 @@ source "$SCRIPT_DIR/qualification-audit.sh"
 source "$SCRIPT_DIR/qualification-failure-probe.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-campaigns.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/qualification-blocking.sh"
 
 run_all() {
     run_build
@@ -472,17 +475,18 @@ case "$COMMAND" in
     smb-auth) verify_smb_authentication ;;
     fixtures) run_prepare_fixtures_command ;;
     build) run_build ;;
-    in-process) run_in_process "$GROUP" ;;
-    in-process-run) run_in_process_campaign "$GROUP" ;;
-    installed) run_installed "$GROUP" ;;
-    workflow-run) run_workflow_campaign "$GROUP" ;;
+    blocking-refresh) run_blocking_refresh ;;
+    in-process) require_gate2_authorization; run_in_process "$GROUP" ;;
+    in-process-run) require_gate2_authorization; run_in_process_campaign "$GROUP" ;;
+    installed) require_gate2_authorization; run_installed "$GROUP" ;;
+    workflow-run) require_gate2_authorization; run_workflow_campaign "$GROUP" ;;
     installed-smoke) run_installed_smoke_campaign "$GROUP" "$SMOKE_ROOT" ;;
     failure-probe) run_provider_failure_probe "$FAILURE_PROVIDER" ;;
-    cold-run) run_cold ;;
-    soak) run_soak ;;
+    cold-run) require_gate2_authorization; run_cold ;;
+    soak) require_gate2_authorization; run_soak ;;
     report) run_report ;;
     cleanup) run_cleanup ;;
     cancel) run_cancel ;;
-    run) run_all ;;
+    run) require_gate2_authorization; run_all ;;
     *) fail "unknown command: $COMMAND (run '$0 help')" ;;
 esac

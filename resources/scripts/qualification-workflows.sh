@@ -322,7 +322,7 @@ run_installed_once() {
     local control_root remote_target context_name
     remote_target="${6:-}"
     context_name="${7:-$root_name}"
-    test_filter="$(installed_test_filter "$selected_group")"
+    test_filter="${8:-$(installed_test_filter "$selected_group")}"
     root_path="${!root_name}"
     [[ -n "${QUALIFICATION_UI_DERIVED_DATA:-}" && -d "$QUALIFICATION_UI_DERIVED_DATA" ]] || \
         fail "installed-test derived data is unavailable"

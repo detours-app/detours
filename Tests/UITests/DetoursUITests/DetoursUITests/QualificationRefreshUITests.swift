@@ -108,13 +108,19 @@ final class QualificationRefreshUITests: BaseUITest {
 
     func testRefreshStateRemainsCoherentAcrossExternalChanges() throws {
         try runQualificationRepetitions(group: "refresh") { _ in
-            try self.runRefreshCycleWithCleanup()
+            try self.runRefreshCycleWithCleanup(fullPresentation: true)
         }
     }
 
-    private func runRefreshCycleWithCleanup() throws {
+    func testRefreshProviderBoundary() throws {
+        try runQualificationRepetitions(group: "refresh") { _ in
+            try self.runRefreshCycleWithCleanup(fullPresentation: false)
+        }
+    }
+
+    private func runRefreshCycleWithCleanup(fullPresentation: Bool) throws {
         do {
-            try runRefreshWorkflowCycle()
+            try runRefreshWorkflowCycle(fullPresentation: fullPresentation)
         } catch {
             let workflowError = error
             do {
@@ -130,9 +136,12 @@ final class QualificationRefreshUITests: BaseUITest {
         try cleanupCurrentScenario()
     }
 
-    private func runRefreshWorkflowCycle() throws {
+    private func runRefreshWorkflowCycle(fullPresentation: Bool) throws {
         if let qualificationRemoteTarget {
-            try runRemoteRefreshWorkflow(target: qualificationRemoteTarget)
+            try runRemoteRefreshWorkflow(
+                target: qualificationRemoteTarget,
+                fullPresentation: fullPresentation
+            )
             return
         }
 
@@ -157,13 +166,15 @@ final class QualificationRefreshUITests: BaseUITest {
         let hidden = scenario.appendingPathComponent(".hidden.txt")
         let tracked = scenario.appendingPathComponent("tracked.txt")
         try performFixtureMutation(action: "createDirectory", relativePath: scenarioName)
-        try performFixtureMutation(action: "createDirectory", relativePath: scenarioName + "/Expanded")
-        try performFixtureMutation(action: "write", relativePath: relativePath(of: nested), contents: "nested")
         try performFixtureMutation(action: "write", relativePath: relativePath(of: selected), contents: "selected")
-        try performFixtureMutation(action: "write", relativePath: relativePath(of: deleted), contents: "delete")
-        try performFixtureMutation(action: "write", relativePath: relativePath(of: hidden), contents: "hidden")
-        try performFixtureMutation(action: "write", relativePath: relativePath(of: tracked), contents: "tracked")
-        try performFixtureMutation(action: "gitInit", relativePath: scenarioName)
+        if fullPresentation {
+            try performFixtureMutation(action: "createDirectory", relativePath: scenarioName + "/Expanded")
+            try performFixtureMutation(action: "write", relativePath: relativePath(of: nested), contents: "nested")
+            try performFixtureMutation(action: "write", relativePath: relativePath(of: deleted), contents: "delete")
+            try performFixtureMutation(action: "write", relativePath: relativePath(of: hidden), contents: "hidden")
+            try performFixtureMutation(action: "write", relativePath: relativePath(of: tracked), contents: "tracked")
+            try performFixtureMutation(action: "gitInit", relativePath: scenarioName)
+        }
 
         let actions = FixtureActions(
             write: { url, contents in
@@ -184,10 +195,14 @@ final class QualificationRefreshUITests: BaseUITest {
                 try self.performFixtureMutation(action: "remove", relativePath: self.relativePath(of: url))
             }
         )
-        try runPresentationWorkflow(scenario: scenario, verifiesGit: true, actions: actions)
+        if fullPresentation {
+            try runPresentationWorkflow(scenario: scenario, verifiesGit: true, actions: actions)
+        } else {
+            try runProviderBoundaryWorkflow(scenario: scenario, actions: actions)
+        }
     }
 
-    private func runRemoteRefreshWorkflow(target: String) throws {
+    private func runRemoteRefreshWorkflow(target: String, fullPresentation: Bool) throws {
         let ready = try waitForState("live remote qualification root", timeout: 45) {
             $0.registeredRemoteProviderCount == 1
                 && $0.displayedLocation != nil
@@ -237,14 +252,17 @@ final class QualificationRefreshUITests: BaseUITest {
         let hidden = scenario.appendingPathComponent(".hidden.txt")
         let tracked = scenario.appendingPathComponent("tracked.txt")
 
-        let initialFiles = [
-            (nested, "nested"),
-            (selected, "selected"),
-            (deleted, "delete"),
-            (hidden, "hidden"),
-            (tracked, "tracked"),
-        ]
-        var setupCommands = ["mkdir " + sftpQuote(expanded.path)]
+        var initialFiles = [(selected, "selected")]
+        var setupCommands: [String] = []
+        if fullPresentation {
+            initialFiles.append(contentsOf: [
+                (nested, "nested"),
+                (deleted, "delete"),
+                (hidden, "hidden"),
+                (tracked, "tracked"),
+            ])
+            setupCommands.append("mkdir " + sftpQuote(expanded.path))
+        }
         for (url, contents) in initialFiles {
             let local = staging.appendingPathComponent(url.lastPathComponent)
             try Data(contents.utf8).write(to: local)
@@ -252,7 +270,7 @@ final class QualificationRefreshUITests: BaseUITest {
         }
         try runSFTP(target: target, commands: setupCommands)
 
-        let verifiesGit = qualificationRemoteContext != "WINDOWS_TARGET"
+        let verifiesGit = fullPresentation && qualificationRemoteContext != "WINDOWS_TARGET"
         if verifiesGit {
             try initializeRemoteGitRepository(target: target, scenario: scenarioPath)
         }
@@ -271,7 +289,59 @@ final class QualificationRefreshUITests: BaseUITest {
                 try self.runSFTP(target: target, commands: ["rm " + self.sftpQuote(url.path)])
             }
         )
-        try runPresentationWorkflow(scenario: scenario, verifiesGit: verifiesGit, actions: actions)
+        if fullPresentation {
+            try runPresentationWorkflow(scenario: scenario, verifiesGit: verifiesGit, actions: actions)
+        } else {
+            try runProviderBoundaryWorkflow(scenario: scenario, actions: actions)
+        }
+    }
+
+    private func runProviderBoundaryWorkflow(scenario: URL, actions: FixtureActions) throws {
+        let selected = scenario.appendingPathComponent("alpha-selected.txt")
+        let scenarioName = scenario.lastPathComponent
+        let outline = app.leftPaneOutlineView
+        let scenarioRow = outline.outlineRow(withStaticText: scenarioName)
+        XCTAssertTrue(
+            scenarioRow.existsOrWait(timeout: 30),
+            "The provider watcher should expose the qualification scenario"
+        )
+        scenarioRow.staticTexts[scenarioName].doubleClick()
+        var state = try waitForState("provider boundary initial listing") {
+            $0.displayedLocation == scenario.path
+                && $0.visibleLocations.contains(selected.path)
+                && $0.directoryWatchActive
+                && $0.providerWatchCount == 1
+                && $0.providerWatchSetupCount == 0
+                && self.isQuiescent($0)
+        }
+        selectRow(named: selected.lastPathComponent)
+        state = try waitForState("provider boundary selection") {
+            $0.selectedLocations == [selected.path]
+                && $0.focus == "fileList"
+                && self.isQuiescent($0)
+        }
+
+        let created = scenario.appendingPathComponent("provider-created.txt")
+        let mutationCount = state.listingMutationCount
+        try actions.write(created, "created")
+        state = try waitForState("provider boundary watcher mutation") {
+            $0.visibleLocations.contains(created.path)
+                && $0.listingMutationCount > mutationCount
+                && $0.selectedLocations == [selected.path]
+                && self.isQuiescent($0)
+        }
+
+        let unchangedMutationCount = state.listingMutationCount
+        let requestCount = state.refreshRequestCount
+        state = try performManualRefresh(after: state)
+        XCTAssertGreaterThan(state.refreshRequestCount, requestCount)
+        XCTAssertEqual(
+            state.listingMutationCount,
+            unchangedMutationCount,
+            "An unchanged provider-boundary refresh must not redraw"
+        )
+        XCTAssertEqual(state.selectedLocations, [selected.path])
+        XCTAssertEqual(state.focus, "fileList")
     }
 
     private func runPresentationWorkflow(

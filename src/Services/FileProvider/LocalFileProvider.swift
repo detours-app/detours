@@ -71,8 +71,12 @@ actor LocalFileProvider: FileProvider {
         let watcher = MultiDirectoryWatcher { changedURL in
             onChange(.local(changedURL))
         }
-        watcher.watch(url)
         watchers[token] = watcher
+        await withCheckedContinuation { continuation in
+            watcher.watch(url) {
+                continuation.resume()
+            }
+        }
         return token
     }
 
