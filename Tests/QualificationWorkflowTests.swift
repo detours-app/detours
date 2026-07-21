@@ -239,12 +239,15 @@ final class QualificationWorkflowTests: XCTestCase {
             PaneOutlineGuard.resetRecordedViolations()
             try await performManualRefresh(controller, root: scenario)
             let listingAfterUnchangedRefresh = listingMetadata(in: controller)
+            let unchangedRefreshChanges = listingChanges(
+                from: listingBeforeUnchangedRefresh,
+                to: listingAfterUnchangedRefresh
+            )
             XCTAssertEqual(
                 navigationDelegate.loadCount,
                 0,
                 "An unchanged refresh must not redraw iteration \(iteration) at \(scenario.path); "
-                    + "changes=\(listingChanges(from: listingBeforeUnchangedRefresh, "
-                    + "to: listingAfterUnchangedRefresh))"
+                    + "changes=\(unchangedRefreshChanges)"
             )
             XCTAssertTrue(PaneOutlineGuard.recordedViolations.isEmpty)
             XCTAssertFalse(controller.refreshScheduler.isRefreshInFlight)

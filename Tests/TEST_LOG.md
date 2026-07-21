@@ -2540,3 +2540,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   mounted SMB root. XCTest reported 16 failures in 474.927 seconds, then
   guarded cleanup removed all four roots and both mounts. This narrows the
   regression to SMB listing reconciliation rather than delayed prior events.
+
+- 2026-07-21 17:54 CEST: Foundry qualification smoke
+  `refresh-in-process-diagnostic-two-2925b21-1` FAIL at commit `2925b21`
+  during test compilation: Swift rejected a diagnostic interpolation split
+  across concatenated string literals. No test iteration ran; the new focused
+  count reduced this feedback to 10 seconds, and guarded cleanup removed all
+  four roots and both mounts. The diagnostic now computes its delta separately.
