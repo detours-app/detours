@@ -519,7 +519,7 @@ run_installed_smoke_campaign() {
     trap 'campaign_cleanup_on_exit "$?"' EXIT
     run_reset
     case "$context_name" in
-        LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)
+        LOCAL_ROOT|LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)
             run_preflight "$context_name"
             ;;
         *)
@@ -528,7 +528,7 @@ run_installed_smoke_campaign() {
     esac
     run_build
     case "$context_name" in
-        LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET) run_prepare_local_fixture ;;
+        LOCAL_ROOT|LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET) run_prepare_local_fixture ;;
         *) run_prepare_fixtures ;;
     esac
     capture_outside_root_snapshots before

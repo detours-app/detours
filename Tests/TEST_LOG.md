@@ -2303,3 +2303,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   seconds with 0 failures/skips, preserved right-pane focus while the captured
   left pane connected and established its watch, and passed guarded cleanup.
   SwiftLint also passed with 0 violations.
+
+- 2026-07-21 13:45 CEST: Foundry qualification smoke
+  `connection-shared-loop-smoke-f24d034-1` PASS at commit `f24d034`: the shared
+  in-test repetition harness completed the live Windows connection cycle in 16
+  seconds with 0 failures/skips, wrote and validated its exact connection-cycle
+  marker, and passed guarded cleanup. SwiftLint passed with 0 violations.
