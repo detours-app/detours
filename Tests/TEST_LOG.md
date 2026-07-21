@@ -2378,3 +2378,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   the name header again, toggled back to ascending, and then waited for descending
   until XCTest failed. Guarded cleanup passed. The workflow now verifies the real
   direction toggle relative to each cycle's observed starting state.
+
+- 2026-07-21 14:10 CEST: Foundry qualification smoke
+  `refresh-local-two-cycle-beadc96-1` PASS at commit `beadc96`: both refresh
+  cycles completed inside one logical XCTest in 58 seconds with 0 failures or
+  skips. The second cycle toggled from its inherited sort direction, both exact
+  completion markers passed validation, and guarded cleanup removed the local
+  fixture with an unchanged outside-root snapshot.
