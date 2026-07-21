@@ -2422,3 +2422,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   and cleanup while reducing actual cycles to about 12.5 and 15 seconds. The
   unchanged 45-second tail begins at the legacy teardown Command-W idle wait.
   Qualification now leaves tab disposal to its existing outer app-stop step.
+
+- 2026-07-21 14:31 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-424ab76-1` PASS at commit `424ab76`: both optimized
+  cycles, markers, and guarded cleanup passed in 73 XCTest seconds. Skipping the
+  final tab close did not remove the fixed roughly 40-second multi-sheet session
+  tail, so the shared teardown is restored for groups where it finishes quickly.
+  Archive still pays that fixed tail only once for all in-session repetitions.

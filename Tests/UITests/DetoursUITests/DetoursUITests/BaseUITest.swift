@@ -113,16 +113,6 @@ class BaseUITest: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        let qualificationRepetitions = ProcessInfo.processInfo.environment[
-            "DETOURS_QUALIFICATION_REPETITIONS"
-        ] ?? ""
-        if !qualificationRepetitions.isEmpty {
-            // qualification-workflows.sh stops the app after this one logical test.
-            // Closing the fixture tab here duplicates cleanup and can leave Xcode
-            // waiting tens of seconds for a final application-idle transition.
-            return
-        }
-
         // IMPORTANT: Activate LEFT pane before closing tab
         // This ensures we close the tab we created, not a tab in another pane
         XCTAssertTrue(
