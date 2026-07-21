@@ -286,6 +286,7 @@ run_installed_once() {
     local result_bundle="$5"
     local test_filter root_path started_at status command_output
     local control_root remote_target context_name
+    local -a repetition_arguments=()
     remote_target="${6:-}"
     context_name="${7:-$root_name}"
     test_filter="$(installed_test_filter "$selected_group")"
@@ -302,6 +303,13 @@ run_installed_once() {
     mkdir -p "$control_root"
     printf 'qualification: installed %s %s repetitions 1-%d\n' \
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
+    if (( repetitions > 1 )); then
+        repetition_arguments=(
+            -test-iterations "$repetitions"
+            -run-tests-until-failure
+            -test-repetition-relaunch-enabled NO
+        )
+    fi
     started_at="$(date +%s)"
     set +e
     run_gui_command "$log_path.raw.log" env \
@@ -314,9 +322,7 @@ run_installed_once() {
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath "$QUALIFICATION_UI_DERIVED_DATA" \
             -only-testing:"DetoursUITests/$test_filter" \
-            -test-iterations "$repetitions" \
-            -run-tests-until-failure \
-            -test-repetition-relaunch-enabled NO \
+            "${repetition_arguments[@]}" \
             "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
             "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$root_path" \
             "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
