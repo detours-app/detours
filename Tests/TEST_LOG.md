@@ -2475,3 +2475,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   context completed all 20 alternating activation cycles in one logical XCTest
   in 248 seconds with 0 failures/skips, all 20 exact markers, and passing guarded
   cleanup. No remote target, APFS image, iCloud root, or SMB mount was prepared.
+
+- 2026-07-21 15:11 CEST: Foundry qualification run
+  `activation-apfs-20-c941f69-1` PASS at commit `c941f69`: the APFS context
+  completed all 20 alternating activation cycles in one logical XCTest in 219
+  seconds with 0 failures/skips, all 20 exact markers, and passing guarded
+  cleanup. Evidence contains only `apfs.json` and APFS fixture variables; no
+  Doppler secret, SMB mount, iCloud root, or local fixture was used.
