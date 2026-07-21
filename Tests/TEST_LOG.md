@@ -2625,3 +2625,14 @@ Spotlight search has no unit test (depends on the live, async-built system index
   found that the runner had written but not sourced `fixtures.env`. Guarded
   cleanup passed for all four roots and both mounts. The gate now sources and
   exports the single fixture manifest before any blocking layer starts.
+
+- 2026-07-21 19:19 CEST: Gate 1 qualification run
+  `gate1-refresh-8bf661f-1` FAILED in the provider layer at commit `8bf661f`.
+  The deterministic layer passed 2 tests in 0.005 seconds (1 second runner wall
+  time), including explicit pairwise refresh cases and all four known-defect
+  replays. The first mounted-provider case then received multiple legitimate
+  low-level notifications for one filesystem write and over-fulfilled a
+  one-shot XCTest expectation, terminating xctest with signal 6. Cleanup passed
+  for all four roots and both mounts. The boundary observer is now a locked
+  one-shot latch; duplicate provider events remain production input but cannot
+  crash the assertion mechanism.

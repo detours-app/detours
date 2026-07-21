@@ -1,3 +1,4 @@
+import Foundation
 import QualificationSupport
 import XCTest
 @testable import Detours
@@ -29,8 +30,9 @@ final class QualificationProviderRefreshTests: XCTestCase {
         XCTAssertTrue(initialListing.isEmpty)
 
         let changeReceived = expectation(description: "provider change for \(scenario.path)")
+        let changeLatch = OneShotExpectation(changeReceived)
         let watch = try await provider.watch(location) { _ in
-            changeReceived.fulfill()
+            changeLatch.fulfill()
         }
         do {
             let created = scenario.appendingPathComponent("created.txt")
@@ -89,5 +91,23 @@ final class QualificationProviderRefreshTests: XCTestCase {
                 String(entry.contentModificationDate.timeIntervalSince1970),
             ].joined(separator: "|")
         }.sorted()
+    }
+}
+
+private final class OneShotExpectation: @unchecked Sendable {
+    private let lock = NSLock()
+    private let expectation: XCTestExpectation
+    private var isFulfilled = false
+
+    init(_ expectation: XCTestExpectation) {
+        self.expectation = expectation
+    }
+
+    func fulfill() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !isFulfilled else { return }
+        isFulfilled = true
+        expectation.fulfill()
     }
 }
