@@ -51,7 +51,9 @@ class BaseUITest: XCTestCase {
         if expectsStoragePermission {
             // XCUI interruption monitors run only after an interaction. Trigger
             // one immediately so an access dialog cannot sit ahead of readiness.
-            app.tap()
+            // A coordinate tap does not require the still-launching app element
+            // itself to be hittable when no permission dialog is present.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         }
 
         // Wait for app to be ready

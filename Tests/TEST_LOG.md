@@ -2706,3 +2706,13 @@ Spotlight search has no unit test (depends on the live, async-built system index
   monitors only after an application interaction. Setup now performs that
   interaction immediately after launch for iCloud and SMB roots, before it
   waits for the app window or guarded-root state.
+
+- 2026-07-21 20:58 CEST: Gate 1 permission-readiness run
+  `gate1-refresh-8d04d50-1` stopped before behavioral tests at exact commit
+  `8d04d50`. The new iCloud access probe passed in 5.5 seconds without operator
+  action. The following SMB probe failed immediately because an unconditional
+  `XCUIApplication.tap()` requires the still-launching app element to be
+  hittable when no dialog is present. XCResult recorded exactly that failure,
+  and guarded cleanup passed. The interruption trigger now uses an application
+  coordinate, which can generate the required interaction without asserting
+  application-element hittability.
