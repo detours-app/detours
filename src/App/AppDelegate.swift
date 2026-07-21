@@ -242,17 +242,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let command = UITestEnvironment.currentRemoteFailureCommand(),
            command.id != lastUITestRemoteFailureCommandID {
             lastUITestRemoteFailureCommandID = command.id
-            if let target = UITestEnvironment.realRemoteTarget {
+            if UITestEnvironment.realRemoteTarget != nil {
                 Task { @MainActor in
-                    let controlDirectory = FileManager.default.homeDirectoryForCurrentUser
-                        .appendingPathComponent(".detours/ssh", isDirectory: true)
-                    let transport = PowerShellProcessTransport(
-                        sshTarget: target,
-                        controlDirectory: controlDirectory,
-                        hostTrust: SSHHostTrust()
-                    )
-                    await transport.closeControlConnection()
-                    UITestEnvironment.acknowledgeRemoteFailureCommand(id: command.id, handled: true)
+                    let handled = await RemoteConnectionRegistry.shared.interruptWindowsConnectionsForUITest()
+                    UITestEnvironment.acknowledgeRemoteFailureCommand(id: command.id, handled: handled)
                 }
             } else {
                 let handled = mainWindowController?.splitViewController.performUITestRemoteFailure() ?? false

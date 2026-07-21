@@ -78,6 +78,20 @@ actor RemoteConnectionRegistry {
         try await registered.connection.forceReconnect()
     }
 
+    /// Stops the real Windows providers and channels registered by the app, then publishes
+    /// their normal failed state. The caller is the runtime-gated UI-test command handler.
+    func interruptWindowsConnectionsForUITest() async -> Bool {
+        let registered = Array(connections.values)
+        var handled = false
+        for entry in registered {
+            guard let channel = entry.connection as? PowerShellChannel else { continue }
+            await entry.onDisconnect?()
+            await channel.interruptForUITest()
+            handled = true
+        }
+        return handled
+    }
+
     /// Disconnects every live connection. Called on app termination so SSH control masters and
     /// the remote watcher/helper processes multiplexed over them die with the app instead of
     /// lingering (Windows masters persist for minutes via ControlPersist otherwise).

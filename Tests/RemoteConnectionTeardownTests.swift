@@ -78,6 +78,31 @@ final class RemoteConnectionTeardownTests: XCTestCase {
         let called = await hook.called
         XCTAssertTrue(called, "disconnectAll must run the onDisconnect hook so watch channels tear down on quit")
     }
+
+    @MainActor
+    func testUITestInterruptionStopsWindowsResourcesAndPublishesFailure() async throws {
+        RemoteConnectionStateStore.shared.clearForTesting()
+        defer { RemoteConnectionStateStore.shared.clearForTesting() }
+        let transport = RecordingTeardownTransport()
+        let hostID = UUID()
+        let channel = PowerShellChannel(transport: transport, hostID: hostID)
+        let registry = RemoteConnectionRegistry()
+        let hook = OnDisconnectFlag()
+        await registry.register(channel, onDisconnect: { await hook.markCalled() }, for: hostID)
+
+        let handled = await registry.interruptWindowsConnectionsForUITest()
+        let stopped = await transport.didStop
+        let closed = await transport.didCloseControlConnection
+        let hookCalled = await hook.called
+
+        XCTAssertTrue(handled)
+        XCTAssertTrue(stopped)
+        XCTAssertTrue(closed)
+        XCTAssertTrue(hookCalled)
+        guard case .failed = RemoteConnectionStateStore.shared.state(for: hostID) else {
+            return XCTFail("Windows interruption must publish the failed state used by the reconnect banner")
+        }
+    }
 }
 
 private actor OnDisconnectFlag {
