@@ -115,7 +115,7 @@ run_blocking_refresh() {
     started_epoch="$(date +%s)"
     blocking_layer storage-permissions 30 run_blocking_storage_permissions
     blocking_layer pure-refresh 10 run_blocking_pure_refresh
-    blocking_layer provider-refresh 60 run_blocking_provider_refresh
+    blocking_layer provider-refresh 75 run_blocking_provider_refresh
     blocking_layer installed-refresh 90 run_blocking_installed_refresh
     capture_outside_root_snapshots after
     compare_outside_root_snapshots

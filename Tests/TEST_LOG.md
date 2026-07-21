@@ -2733,3 +2733,16 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `XCUIApplication` frame on macOS. Cleanup passed. The permission trigger now
   waits up to five seconds for the first real app window and uses that finite
   window coordinate to invoke the system interruption monitor.
+
+- 2026-07-21 21:05 CEST: Gate 1 qualification run
+  `gate1-refresh-037c76a-1` stopped before the installed workflow at exact
+  commit `037c76a`. Both iCloud and SMB permission probes passed in 14 seconds
+  without operator action, followed by the 2 deterministic tests passing in 2
+  seconds. The live-provider layer reached its 60-second deadline during the
+  variable Windows boundary. The watchdog terminated `swift test`, but its
+  separately grouped `xctest` child was briefly alive when cleanup began, so
+  cleanup failed closed. The child exited, then the exact guarded cleanup
+  command removed all four roots and both mounts; manual verification found no
+  remaining process, mount, or root. The watchdog now captures and terminates
+  descendants before returning, and the provider ceiling is 75 seconds while
+  the complete gate remains capped at 180 seconds.

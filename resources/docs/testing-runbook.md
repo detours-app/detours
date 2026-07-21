@@ -248,7 +248,7 @@ Timing begins after the shared build and ends after cleanup/evidence validation.
 | --- | ---: |
 | Storage permission readiness | 30 s |
 | Pure behavior/state | 10 s |
-| Provider contracts | 60 s |
+| Provider contracts | 75 s |
 | Installed XCUI boundary | 90 s |
 | Runner/evidence allowance | 20 s |
 | Total | 180 s |
