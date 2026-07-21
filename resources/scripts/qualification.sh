@@ -456,6 +456,7 @@ run_report() {
 
 run_cleanup() {
     local descriptors_dir descriptor fixture_file guard_binary
+    local progress_dir progress_marker progress_tmp recorded_root root_path
     pkill -x Detours >/dev/null 2>&1 || true
     local _
     for _ in {1..50}; do
@@ -478,8 +479,26 @@ run_cleanup() {
     fi
     if [[ -d "$descriptors_dir" ]]; then
         guard_binary="$(qualification_guard)"
+        progress_dir="$(run_dir)/cleanup/removed-roots"
+        mkdir -p "$progress_dir"
         while IFS= read -r descriptor; do
+            root_path="$(plutil -extract rootPath raw -o - "$descriptor")"
+            progress_marker="$progress_dir/$(basename "$descriptor").env"
+            if [[ -f "$progress_marker" ]]; then
+                recorded_root="$(sed -n 's/^root_path=//p' "$progress_marker")"
+                [[ "$recorded_root" == "$root_path" ]] || \
+                    fail "cleanup checkpoint does not match descriptor: $descriptor"
+                [[ ! -e "$root_path" && ! -L "$root_path" ]] || \
+                    fail "checkpointed qualification root reappeared: $root_path"
+                continue
+            fi
             "$guard_binary" remove --descriptor "$descriptor"
+            progress_tmp="$progress_marker.tmp.$$"
+            {
+                printf 'root_path=%s\n' "$root_path"
+                printf 'removed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            } > "$progress_tmp"
+            mv "$progress_tmp" "$progress_marker"
         done < <(find "$descriptors_dir" -maxdepth 1 -type f -name '*.json' | sort)
     fi
 
