@@ -2591,3 +2591,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Seed 419 deliberately assigned 11 of the 20 repetitions to the SMB root,
   directly exercising the timestamp-jitter guard; guarded cleanup removed all
   four roots and both mounts.
+
+- 2026-07-21 18:15 CEST: Qualification invocation
+  `refresh-in-process-100-07f5254-1` STOPPED before preflight: the scoped
+  secret helper could not fetch `DETOURS_SMB_TEST_PASSWORD` because no Doppler
+  token was available in the keychain. No build, fixture, or test ran. The
+  subsequent approved warm-up returned the same keychain error without showing
+  Touch ID, so the flow stopped without retrying or bypassing the auth guard.
