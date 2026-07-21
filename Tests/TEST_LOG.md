@@ -2252,3 +2252,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   outline ordering and frame-derived ordering are both unsuitable once hidden
   and remote tab views coexist. The test now selects through the already-proven
   active file-list focus with a Down Arrow, removing the ambiguous element query.
+
+- 2026-07-21 13:18 CEST: Foundry qualification smoke
+  `activation-windows-smoke-3b29cc0-1` PASS at commit `3b29cc0`: 1 installed
+  activation UI test ran against the live Windows target with 0 failures and
+  0 skips in 23 seconds. Guarded local-root cleanup passed. The target-scoped
+  run did not invoke Doppler or create SMB, APFS, or iCloud fixtures.
