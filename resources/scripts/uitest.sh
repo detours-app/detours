@@ -14,6 +14,7 @@ XCODEPROJ="$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj"
 UITEST_DESTINATION="platform=macOS,arch=arm64"
 APP_PATH="/Applications/Detours.app"
 BUILD_ARGS=()
+WINDOWS_TARGET_SETTING="DETOURS_WINDOWS_TEST_TARGET_SETTING=${DETOURS_WINDOWS_TEST_TARGET:-}"
 
 # Test directory setup in home (accessible and easy to navigate)
 TEST_DIR="$HOME/DetoursUITests-Temp"
@@ -108,6 +109,7 @@ if [ -n "$1" ]; then
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
+        "$WINDOWS_TARGET_SETTING" \
         -only-testing:"DetoursUITests/$1"
 elif [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
     # Screenshot capture depends on the deterministic session written by
@@ -117,19 +119,22 @@ elif [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
+        "$WINDOWS_TARGET_SETTING" \
         -only-testing:"DetoursUITests/ChromePolishScreenshotTests"
 
     DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" xcodebuild test \
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
+        "$WINDOWS_TARGET_SETTING" \
         -skip-testing:"DetoursUITests/ChromePolishScreenshotTests"
 else
     # Run all tests
     DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" xcodebuild test \
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
-        -destination "$UITEST_DESTINATION"
+        -destination "$UITEST_DESTINATION" \
+        "$WINDOWS_TARGET_SETTING"
 fi
 
 copy_screenshot_captures
