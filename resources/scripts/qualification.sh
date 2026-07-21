@@ -11,7 +11,7 @@ export MATRIX_PATH="$PROJECT_DIR/resources/docs/260720-whole-app-stability-quali
 QUALIFICATION_ROOT="$PROJECT_DIR/.build/qualification"
 LOCAL_PARENT="$HOME/DetoursQualification"
 ICLOUD_PARENT="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Detours Qualification"
-SMB_MOUNT_POINT="$QUALIFICATION_ROOT/mounts/Detours Qualification"
+SMB_MOUNT_POINT=""
 APP_BUNDLE_ID="com.detours.app"
 QUALIFICATION_KEYCHAIN_SERVICE="com.detours.qualification"
 MINIMUM_FREE_KILOBYTES=$((50 * 1024 * 1024))
@@ -374,7 +374,7 @@ run_reset() {
     if mount | grep -F "$SMB_MOUNT_POINT" >/dev/null 2>&1; then
         diskutil unmount "$SMB_MOUNT_POINT" >/dev/null
     fi
-    remove_exact_tree "$SMB_MOUNT_POINT" "$QUALIFICATION_ROOT/mounts"
+    remove_exact_tree "$SMB_MOUNT_POINT" /Volumes
     local mounted_apfs
     while IFS= read -r mounted_apfs; do
         [[ -n "$mounted_apfs" ]] || continue
@@ -590,6 +590,11 @@ case "$COMMAND" in
 esac
 
 parse_options "$@"
+[[ "$QUALIFICATION_SMB_SHARE" != "." \
+    && "$QUALIFICATION_SMB_SHARE" != ".." \
+    && "$QUALIFICATION_SMB_SHARE" != */* ]] || \
+    fail "--smb-share must be a single path component"
+SMB_MOUNT_POINT="/Volumes/$QUALIFICATION_SMB_SHARE"
 QUALIFICATION_TARGET_ARGUMENTS=(
     --linux-target "$QUALIFICATION_LINUX_TARGET"
     --intel-mac-target "$QUALIFICATION_INTEL_MAC_TARGET"
