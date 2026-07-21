@@ -2258,3 +2258,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   activation UI test ran against the live Windows target with 0 failures and
   0 skips in 23 seconds. Guarded local-root cleanup passed. The target-scoped
   run did not invoke Doppler or create SMB, APFS, or iCloud fixtures.
+
+- 2026-07-21 13:23 CEST: Foundry qualification smoke
+  `activation-windows-session-smoke-2e649ed-1` PASS at commit `2e649ed`: the
+  optimized single-session activation path completed 1 live Windows cycle in
+  25 seconds with 0 failures/skips, one matching per-cycle evidence record,
+  and passing guarded cleanup. SwiftLint also passed with 0 violations. The
+  target-scoped run did not invoke Doppler or create SMB, APFS, or iCloud
+  fixtures.
