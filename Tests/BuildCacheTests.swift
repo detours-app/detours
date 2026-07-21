@@ -53,6 +53,22 @@ final class BuildCacheTests: XCTestCase {
         XCTAssertTrue(script.contains("preview.css"))
     }
 
+    func testBuiltAppDeclaresProtectedFileLocationUsageDescriptions() throws {
+        let script = try String(contentsOfFile: "resources/scripts/build.sh", encoding: .utf8)
+        let requiredUsageDescriptions = [
+            "NSDesktopFolderUsageDescription",
+            "NSDocumentsFolderUsageDescription",
+            "NSDownloadsFolderUsageDescription",
+            "NSFileProviderDomainUsageDescription",
+            "NSNetworkVolumesUsageDescription",
+            "NSRemovableVolumesUsageDescription",
+        ]
+
+        for key in requiredUsageDescriptions {
+            XCTAssertTrue(script.contains("<key>\(key)</key>"), "Missing \(key) from generated Info.plist")
+        }
+    }
+
     func testGeneratedHelpersIgnored() throws {
         XCTAssertTrue(try isIgnored("resources/Servers/detours-server-x86_64-linux"))
         XCTAssertTrue(try isIgnored("resources/Servers/detours-server-x86_64-darwin"))

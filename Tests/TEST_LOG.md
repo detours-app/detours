@@ -2188,3 +2188,33 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Cmd-R, app activation and pane chrome, independent tabs and panes, expanded
   folder deletion/watcher refresh, selection preservation, copy/move/rename,
   remote refresh, undo, relaunch, and window geometry.
+
+- 2026-07-21: Foundry qualification run `activation-a569ea6-1`
+  FAIL after the activation workflow passed 100 in-process repetitions. The
+  installed layer stopped before Xcode because the SMB GUI-session probe used
+  the nonexistent `/usr/bin/test`; cleanup removed and verified all guarded
+  fixture roots. The probe now uses macOS `/bin/test`.
+
+- 2026-07-21: Foundry qualification runs `activation-c2c321e-1` and
+  `activation-8c9688f-1` FAIL. The first exposed SMB session churn caused by
+  logout/force-new mounting. After reusing the authenticated session, the
+  second passed 100 in-process activation repetitions and 20 installed
+  repetitions each on local, APFS, and iCloud roots, then failed its first SMB
+  repetition because the app process could not resolve the shell-session
+  mount. Cleanup passed after both runs.
+
+- 2026-07-21: Foundry qualification smoke `activation-smb-smoke-20dbef5-1`
+  FAIL before the UI test because Xcode rejects repetition flags with one
+  iteration. The SMB share mounted successfully in the GUI session and cleanup
+  passed. The smoke runner now omits repetition flags for a one-pass run.
+
+- 2026-07-21: Foundry qualification smokes
+  `activation-smb-smoke-ad7750f-1` and `activation-smb-smoke-bc5d4da-1` FAIL.
+  The first reached installed-test dispatch and exposed Bash 3.2 treating an
+  empty array expansion as unbound. After that compatibility fix, Xcode ran
+  the focused test and failed with “Temp directory should load in the left
+  pane.” The result screenshot showed Detours at the exact SMB fixture path
+  with “Access denied” in both panes while the runner retained fixture access.
+  Cleanup passed after both runs. The app bundle lacked Apple’s protected-file
+  usage descriptions; network-volume consent is now declared and the
+  qualification runner resets and handles that single scoped consent prompt.

@@ -38,6 +38,7 @@ class BaseUITest: XCTestCase {
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
         app.launchEnvironment["DETOURS_UI_TEST_CONTROL_ROOT"] = uiTestControlRootURL.path
         configureLaunchEnvironment(&app.launchEnvironment)
+        installNetworkVolumePermissionHandlerIfNeeded()
         app.launch()
 
         // Wait for app to be ready
@@ -59,6 +60,18 @@ class BaseUITest: XCTestCase {
     }
 
     func configureLaunchEnvironment(_ environment: inout [String: String]) {}
+
+    private func installNetworkVolumePermissionHandlerIfNeeded() {
+        let volumeValues = try? uiTestRootURL.resourceValues(forKeys: [.volumeIsLocalKey])
+        guard volumeValues?.volumeIsLocal == false else { return }
+
+        addUIInterruptionMonitor(withDescription: "Detours network volume access") { alert in
+            let allowButton = alert.buttons["Allow"]
+            guard allowButton.exists else { return false }
+            allowButton.click()
+            return true
+        }
+    }
 
     override func tearDownWithError() throws {
         // IMPORTANT: Activate LEFT pane before closing tab

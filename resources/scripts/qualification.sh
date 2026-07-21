@@ -391,6 +391,11 @@ run_reset() {
     remove_exact_tree "$HOME/DetoursUITests-Temp" "$HOME"
     rm -f -- "$QUALIFICATION_ROOT/.soak-active"
 
+    # Every SMB campaign starts from the same consent state. The qualification
+    # UI test accepts only the network-volume prompt and only when its fixture
+    # root is on a non-local volume.
+    tccutil reset SystemPolicyNetworkVolumes "$APP_BUNDLE_ID" >/dev/null
+
     mkdir -p "$(run_dir)/reset"
     printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$(run_dir)/reset/result.env"
 }
