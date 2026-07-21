@@ -58,6 +58,7 @@ Commands:
   soak                         Run the installed-app campaign for 12 hours
   report                       Generate the tracked matrix and result report
   cleanup                      Remove exact marked qualification state
+  cancel                       Stop the exact active GUI job for a run
   run                          Run preflight, build, three cold runs, and soak
   help                         Show this help
 
@@ -397,6 +398,17 @@ run_build() {
         "$SCRIPT_DIR/build.sh" --no-install 2>&1 | tee "$(run_dir)/logs/build.log"
 }
 
+run_cancel() {
+    local active_job_file label
+    active_job_file="$(run_dir)/active-gui-job"
+    [[ -f "$active_job_file" ]] || return 0
+    IFS= read -r label < "$active_job_file"
+    [[ "$label" =~ ^com\.detours\.qualification\.[A-F0-9-]+$ ]] || \
+        fail "active GUI qualification job label is invalid"
+    launchctl remove "$label" 2>/dev/null || true
+    rm -f -- "$active_job_file"
+}
+
 run_cold() {
     [[ "$QUALIFICATION_COLD_INDEX" != "0" ]] || fail "cold-run requires --cold-index 1, 2, or 3"
     trap 'campaign_cleanup_on_exit "$?"' EXIT
@@ -562,6 +574,7 @@ case "$COMMAND" in
     soak) run_soak ;;
     report) run_report ;;
     cleanup) run_cleanup ;;
+    cancel) run_cancel ;;
     run) run_all ;;
     *) fail "unknown command: $COMMAND (run '$0 help')" ;;
 esac

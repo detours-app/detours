@@ -28,13 +28,13 @@ final class QualificationActivationUITests: BaseUITest {
 
     func testPaneAndTabStateSurvivesReturnFromFinder() throws {
         let leftOutline = app.leftPaneOutlineView
-        XCTAssertTrue(leftOutline.waitForExistence(timeout: 3))
+        XCTAssertTrue(leftOutline.existsOrWait(timeout: 3))
         leftOutline.click()
         try waitForQualificationRemoteIfNeeded()
         let initial = try assertPaneAndTabContract(expectedActivePane: "left")
 
         let leftNewTabButton = app.buttons.matching(identifier: "paneNewTabButton").element(boundBy: 0)
-        XCTAssertTrue(leftNewTabButton.waitForExistence(timeout: 1))
+        XCTAssertTrue(leftNewTabButton.existsOrWait(timeout: 1))
         leftNewTabButton.click()
         let leftNewTab = try assertPaneAndTabContract(expectedActivePane: "left")
         XCTAssertEqual(leftNewTab.left.tabCount, initial.left.tabCount + 1)
@@ -52,9 +52,9 @@ final class QualificationActivationUITests: BaseUITest {
 
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
         finder.activate()
-        XCTAssertTrue(finder.wait(for: .runningForeground, timeout: 3))
+        XCTAssertTrue(waitForForeground(finder, timeout: 3))
         app.activate()
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 3))
+        XCTAssertTrue(waitForForeground(app, timeout: 3))
         let returnedToLeft = try assertPaneAndTabContract(expectedActivePane: "left")
         XCTAssertEqual(returnedToLeft.left.selectedTabID, leftNewTab.left.selectedTabID)
         XCTAssertEqual(returnedToLeft.left.selectedLocations, leftSelection.left.selectedLocations)
@@ -62,7 +62,7 @@ final class QualificationActivationUITests: BaseUITest {
         pressKey(.tab)
         let rightInitial = try assertPaneAndTabContract(expectedActivePane: "right")
         let rightNewTabButton = app.buttons.matching(identifier: "paneNewTabButton").element(boundBy: 1)
-        XCTAssertTrue(rightNewTabButton.waitForExistence(timeout: 1))
+        XCTAssertTrue(rightNewTabButton.existsOrWait(timeout: 1))
         rightNewTabButton.click()
         let rightNewTab = try assertPaneAndTabContract(expectedActivePane: "right")
         XCTAssertEqual(rightNewTab.right.tabCount, rightInitial.right.tabCount + 1)
@@ -79,9 +79,9 @@ final class QualificationActivationUITests: BaseUITest {
         XCTAssertFalse(rightSelection.right.selectedLocations.isEmpty)
 
         finder.activate()
-        XCTAssertTrue(finder.wait(for: .runningForeground, timeout: 3))
+        XCTAssertTrue(waitForForeground(finder, timeout: 3))
         app.activate()
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 3))
+        XCTAssertTrue(waitForForeground(app, timeout: 3))
         let returnedToRight = try assertPaneAndTabContract(expectedActivePane: "right")
         XCTAssertEqual(returnedToRight.right.selectedTabID, rightNewTab.right.selectedTabID)
         XCTAssertEqual(returnedToRight.right.selectedLocations, rightSelection.right.selectedLocations)
@@ -156,10 +156,14 @@ final class QualificationActivationUITests: BaseUITest {
 
     private func selectFirstVisibleItem(in outline: XCUIElement) {
         let row = outline.outlineRows.firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "The active tab should expose at least one selectable row")
+        XCTAssertTrue(row.existsOrWait(timeout: 10), "The active tab should expose at least one selectable row")
         let label = row.staticTexts.firstMatch
-        XCTAssertTrue(label.waitForExistence(timeout: 1), "The first visible row should expose a selectable label")
+        XCTAssertTrue(label.existsOrWait(timeout: 1), "The first visible row should expose a selectable label")
         label.click()
+    }
+
+    private func waitForForeground(_ application: XCUIApplication, timeout: TimeInterval) -> Bool {
+        application.state == .runningForeground || application.wait(for: .runningForeground, timeout: timeout)
     }
 }
 

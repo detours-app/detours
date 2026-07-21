@@ -25,6 +25,24 @@ cleanup_secret() {
 trap cleanup_secret EXIT
 trap 'exit 130' HUP INT TERM
 
+cancel_commit=""
+cancel_run_id=""
+
+# shellcheck disable=SC2329
+cancel_remote_run() {
+    trap - HUP INT TERM
+    if [[ -n "$cancel_commit" && -n "$cancel_run_id" ]]; then
+        local quoted_commit quoted_run_id
+        printf -v quoted_commit '%q' "$cancel_commit"
+        printf -v quoted_run_id '%q' "$cancel_run_id"
+        # shellcheck disable=SC2029
+        ssh foundry \
+            "cd ~/dev/detours && resources/scripts/qualification.sh cancel --commit $quoted_commit --run-id $quoted_run_id" \
+            >/dev/null 2>&1 || true
+    fi
+    exit 130
+}
+
 if [[ "$1" == "--self-test" ]]; then
     [[ $# -eq 1 ]] || {
         usage
@@ -49,6 +67,19 @@ else
         printf -v quoted_argument '%q' "$argument"
         remote_command+=" $quoted_argument"
     done
+
+    arguments=("$@")
+    for (( index = 0; index < ${#arguments[@]}; index++ )); do
+        case "${arguments[$index]}" in
+            --commit)
+                (( index + 1 < ${#arguments[@]} )) && cancel_commit="${arguments[$((index + 1))]}"
+                ;;
+            --run-id)
+                (( index + 1 < ${#arguments[@]} )) && cancel_run_id="${arguments[$((index + 1))]}"
+                ;;
+        esac
+    done
+    trap cancel_remote_run HUP INT TERM
 fi
 
 redact_secret() {

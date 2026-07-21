@@ -42,6 +42,12 @@ extension XCUIApplication {
 }
 
 extension XCUIElement {
+    /// XCTest's waiter delays its first existence check by about one second. Most callers
+    /// already expect the element to be present, so take an immediate snapshot before polling.
+    func existsOrWait(timeout: TimeInterval) -> Bool {
+        exists || waitForExistence(timeout: timeout)
+    }
+
     /// Find an outline row containing the given static text, scoped to this outline view.
     ///
     /// Prefer this over `XCUIApplication.outlineRow(containing:)` whenever the name can also appear
@@ -586,7 +592,7 @@ extension BaseUITest {
     /// Select a row by clicking on it
     func selectRow(named name: String) {
         let row = outlineRow(named: name)
-        XCTAssertTrue(row.waitForExistence(timeout: 2), "Row '\(name)' should exist")
+        XCTAssertTrue(row.existsOrWait(timeout: 2), "Row '\(name)' should exist")
         // Click the static text inside the row (row itself has no free space)
         row.staticTexts[name].click()
     }
@@ -600,7 +606,7 @@ extension BaseUITest {
     /// Wait for a row to appear
     func waitForRow(named name: String, timeout: TimeInterval = 2) -> Bool {
         let row = outlineRow(named: name)
-        return row.waitForExistence(timeout: timeout)
+        return row.existsOrWait(timeout: timeout)
     }
 
     /// Get the name of the currently selected row by reading its first static text

@@ -6,7 +6,7 @@ run_gui_command() {
     local log_path="$1"
     shift
     local label status_path status_tmp launch_stdout launch_stderr job_state command_status
-    local attempt exited_without_status_at
+    local attempt exited_without_status_at active_job_file
     path_is_within "$log_path" "$(run_dir)" || fail "GUI command log escapes the run directory"
     status_path="$log_path.status"
     status_tmp="$status_path.tmp"
@@ -16,25 +16,40 @@ run_gui_command() {
         [[ ! -e "$path" ]] || fail "GUI command artifact already exists: $path"
     done
     label="com.detours.qualification.$(uuidgen)"
+    active_job_file="$(run_dir)/active-gui-job"
+    [[ ! -e "$active_job_file" ]] || fail "another GUI qualification job is already recorded"
+    printf '%s\n' "$label" > "$active_job_file"
+    trap 'launchctl remove "$label" 2>/dev/null || true; rm -f -- "$active_job_file"; exit 130' HUP INT TERM
     exited_without_status_at=0
-    launchctl submit \
+    if ! launchctl submit \
         -l "$label" \
         -o "$launch_stdout" \
         -e "$launch_stderr" \
-        -- "$SCRIPT_DIR/qualification-gui-command.sh" "$log_path" "$status_path" "$@"
+        -- "$SCRIPT_DIR/qualification-gui-command.sh" "$log_path" "$status_path" "$@"; then
+        rm -f -- "$active_job_file"
+        trap - HUP INT TERM
+        fail "GUI qualification job could not be submitted: $label"
+    fi
     job_state=""
     for (( attempt = 1; attempt <= 9000; attempt++ )); do
         if [[ -f "$status_path" ]]; then
             break
         fi
-        job_state="$(launchctl print "gui/$(id -u)/$label" 2>&1 || true)"
-        [[ -n "$job_state" ]] || fail "GUI qualification job disappeared: $label"
+        if ! job_state="$(launchctl print "gui/$(id -u)/$label" 2>&1)"; then
+            rm -f -- "$active_job_file"
+            fail "GUI qualification job disappeared: $label"
+        fi
+        [[ -n "$job_state" ]] || {
+            rm -f -- "$active_job_file"
+            fail "GUI qualification job disappeared: $label"
+        }
         if [[ "$job_state" =~ last\ exit\ code\ =\ -?[0-9]+ ]] \
             || [[ "$job_state" =~ last\ terminating\ signal\ =\ [0-9]+ ]]; then
             if (( exited_without_status_at == 0 )); then
                 exited_without_status_at="$attempt"
             elif (( attempt - exited_without_status_at >= 10 )); then
                 launchctl remove "$label" 2>/dev/null || true
+                rm -f -- "$active_job_file"
                 fail "GUI qualification wrapper exited without writing status: $label"
             fi
         fi
@@ -42,11 +57,19 @@ run_gui_command() {
     done
     if [[ ! -f "$status_path" ]]; then
         launchctl remove "$label" 2>/dev/null || true
+        rm -f -- "$active_job_file"
         fail "GUI qualification job timed out: $label"
     fi
     command_status="$(cat "$status_path")"
-    [[ "$command_status" =~ ^[0-9]+$ ]] || fail "GUI qualification job wrote an invalid status"
+    if [[ ! "$command_status" =~ ^[0-9]+$ ]]; then
+        launchctl remove "$label" 2>/dev/null || true
+        rm -f -- "$active_job_file"
+        trap - HUP INT TERM
+        fail "GUI qualification job wrote an invalid status"
+    fi
     launchctl remove "$label" 2>/dev/null || true
+    rm -f -- "$active_job_file"
+    trap - HUP INT TERM
     if [[ -s "$launch_stdout" ]]; then
         cat "$launch_stdout"
     fi

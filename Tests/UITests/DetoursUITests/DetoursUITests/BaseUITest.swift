@@ -42,15 +42,14 @@ class BaseUITest: XCTestCase {
 
         // Wait for app to be ready
         let window = app.windows.firstMatch
-        XCTAssertTrue(window.waitForExistence(timeout: 5), "App window should exist")
+        XCTAssertTrue(window.existsOrWait(timeout: 5), "App window should exist")
 
         // IMPORTANT: Activate the LEFT pane before creating tab
         // This ensures we create the tab in a predictable location
         // Clicking the outline element itself makes XCUI try to scroll the entire
         // document view into view. Tall remote listings can never satisfy that
         // request, even though the visible center is directly clickable.
-        activateLeftPane(useCoordinateClick: true)
-        XCTAssertTrue(waitForLeftPaneReady(), "Left pane should be ready")
+        XCTAssertTrue(activateLeftPane(useCoordinateClick: true), "Left pane should be ready")
 
         // DETOURS_UI_TEST_ROOT launches the app into an isolated test tab, so tests that
         // assert Cmd-1/Cmd-2 tab behavior can use stable indexes.
@@ -64,32 +63,29 @@ class BaseUITest: XCTestCase {
     override func tearDownWithError() throws {
         // IMPORTANT: Activate LEFT pane before closing tab
         // This ensures we close the tab we created, not a tab in another pane
-        activateLeftPane(useCoordinateClick: true)
-        XCTAssertTrue(waitForLeftPaneReady(), "Left pane should be ready before closing the test tab")
+        XCTAssertTrue(
+            activateLeftPane(useCoordinateClick: true),
+            "Left pane should be ready before closing the test tab"
+        )
 
         // Close the tab we created (Cmd-W)
         pressCharKey("w", modifiers: .command)
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 2))
 
         // Don't terminate - uitest.sh handles quitting and relaunching
         // Terminating too quickly after Cmd-W causes tab state to not be saved
     }
 
     /// Activate the left pane by clicking its outline view
-    private func activateLeftPane(useCoordinateClick: Bool = false) {
+    @discardableResult
+    private func activateLeftPane(useCoordinateClick: Bool = false) -> Bool {
         let leftOutline = app.outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
-        if leftOutline.waitForExistence(timeout: 3) {
-            if useCoordinateClick {
-                leftOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
-            } else {
-                leftOutline.click()
-            }
+        guard leftOutline.existsOrWait(timeout: 3) else { return false }
+        if useCoordinateClick {
+            leftOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        } else {
+            leftOutline.click()
         }
-    }
-
-    private func waitForLeftPaneReady(timeout: TimeInterval = 3) -> Bool {
-        app.outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
-            .waitForExistence(timeout: timeout)
+        return true
     }
 
     /// Ensures folder expansion is enabled. Call this at the start of tests that need disclosure triangles.
@@ -120,7 +116,7 @@ class BaseUITest: XCTestCase {
 
         // Click the first home button (left pane) to go to home directory
         let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
-        guard homeButton.waitForExistence(timeout: 2) else {
+        guard homeButton.existsOrWait(timeout: 2) else {
             XCTFail("Home button not found")
             return
         }
@@ -130,7 +126,7 @@ class BaseUITest: XCTestCase {
         // Look for the test folder by its name (static text content within the row)
         let testFolderRow = app.outlineRow(containing: testFolderName)
 
-        guard testFolderRow.waitForExistence(timeout: 3) else {
+        guard testFolderRow.existsOrWait(timeout: 3) else {
             // Debug: print what rows we can see
             let allRows = app.outlineRows.allElementsBoundByIndex
             print("DEBUG: Found \(allRows.count) outline rows")
@@ -145,6 +141,6 @@ class BaseUITest: XCTestCase {
         // Click on the static text inside the row (row itself has no free space)
         let folderName = testFolderRow.staticTexts[testFolderName]
         folderName.doubleClick()
-        XCTAssertTrue(waitForLeftPaneReady(), "Temp directory should load in the left pane")
+        XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "Temp directory should load in the left pane")
     }
 }
