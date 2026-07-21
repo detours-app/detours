@@ -29,7 +29,6 @@ final class QualificationActivationUITests: BaseUITest {
     func testPaneAndTabStateSurvivesReturnFromFinder() throws {
         let leftOutline = app.leftPaneOutlineView
         XCTAssertTrue(leftOutline.existsOrWait(timeout: 3))
-        leftOutline.click()
         try waitForQualificationRemoteIfNeeded()
         let initial = try assertPaneAndTabContract(expectedActivePane: "left")
 
@@ -159,7 +158,7 @@ final class QualificationActivationUITests: BaseUITest {
         let right = result.right
         XCTAssertTrue(
             paneAndTabContractIsReady(result, expectedActivePane: expectedActivePane),
-            "Pane state did not settle before the timeout",
+            "Pane state did not settle before the timeout: \(paneStateDescription(result))",
             file: file,
             line: line
         )
@@ -184,6 +183,17 @@ final class QualificationActivationUITests: BaseUITest {
             XCTAssertFalse(pane.loadingVisible, file: file, line: line)
         }
         return result
+    }
+
+    private func paneStateDescription(
+        _ state: (left: RemotePaneState, right: RemotePaneState)
+    ) -> String {
+        [state.left, state.right].map { pane in
+            "\(pane.pane){active=\(pane.activePane),focus=\(pane.focus),tabs=\(pane.tabCount),"
+                + "selected=\(pane.selectedTabIndex),operation=\(pane.operationRunning),"
+                + "pending=\(pane.operationPendingCount),refresh=\(pane.refreshInFlight),"
+                + "navigation=\(pane.navigationLoadInFlight),loading=\(pane.loadingVisible)}"
+        }.joined(separator: " ")
     }
 
     private func paneAndTabContractIsReady(
