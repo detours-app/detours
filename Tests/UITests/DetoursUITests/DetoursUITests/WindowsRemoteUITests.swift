@@ -94,13 +94,31 @@ final class WindowsRemoteUITests: BaseUITest {
         let controlPath = URL(fileURLWithPath: accountHome, isDirectory: true)
             .appendingPathComponent(".detours/ssh/%C").path
         let process = Process()
+        let errorPipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = ["-o", "ControlPath=\(controlPath)", "-O", "exit", target]
+        process.arguments = [
+            "-F", URL(fileURLWithPath: accountHome, isDirectory: true)
+                .appendingPathComponent(".ssh/config").path,
+            "-o", "ControlPath=\(controlPath)",
+            "-O", "exit",
+            target,
+        ]
+        process.environment = ProcessInfo.processInfo.environment.merging(["HOME": accountHome]) { _, account in
+            account
+        }
         process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        process.standardError = errorPipe
         try process.run()
         process.waitUntilExit()
-        XCTAssertEqual(process.terminationStatus, 0, "The Detours SSH control master should be active")
+        let error = String(
+            data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
+            encoding: .utf8
+        ) ?? ""
+        XCTAssertEqual(
+            process.terminationStatus,
+            0,
+            "The Detours SSH control master should be active: \(error)"
+        )
     }
 
     private func waitForRealWindowsConnection(target: String) throws -> String? {
