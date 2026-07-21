@@ -355,7 +355,7 @@ run_installed_once() {
     [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
     command_output="$log_path.output.log"
     [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
-    execution_xctestrun="${result_bundle%.xcresult}.xctestrun"
+    execution_xctestrun="$(dirname "$QUALIFICATION_UI_XCTESTRUN")/DetoursQualification-$selected_group-$context_name.xctestrun"
     [[ ! -e "$execution_xctestrun" ]] || \
         fail "installed-test execution record already exists: $execution_xctestrun"
     cp "$QUALIFICATION_UI_XCTESTRUN" "$execution_xctestrun"
@@ -388,7 +388,6 @@ run_installed_once() {
             DEVELOPER_DIR="$(xcode-select -p)" \
             xcodebuild test-without-building -quiet \
             -xctestrun "$execution_xctestrun" \
-            -destination 'platform=macOS,arch=arm64' \
             -only-testing:"DetoursUITests/$test_filter" \
             ${repetition_arguments[@]+"${repetition_arguments[@]}"} \
             -resultBundlePath "$result_bundle" > "$command_output" 2>&1

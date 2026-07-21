@@ -2275,3 +2275,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   complete installed command took 226 seconds; XCResult activities show the
   meaningful cycles at roughly 7–8 seconds each versus 12–13 seconds under the
   prior per-repetition XCTest lifecycle.
+
+- 2026-07-21 13:32 CEST: Foundry qualification smoke
+  `activation-windows-no-build-smoke-2a0c655-1` FAIL before launching Detours.
+  The prepared `.xctestrun` was copied into the results directory, so Xcode
+  resolved its relative `__TESTROOT__` there and could not find the already
+  built UI-test product. Guarded cleanup passed. The execution record now stays
+  beside the prepared build products, and the exact smoke is rerun below.
