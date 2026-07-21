@@ -8,11 +8,11 @@ struct RemoteIntegrationSession {
     static func make() async throws -> RemoteIntegrationSession {
         try RemoteIntegrationTests.runSSH("test -x ~/.detours-server/detours-server")
         let deployer = ServerDeployer(
-            client: SSHServerDeploymentClient(sshTarget: "devtest"),
+            client: SSHServerDeploymentClient(sshTarget: RemoteIntegrationTests.linuxTestTarget),
             bundledBinaryDirectoryURL: URL(fileURLWithPath: "resources/Servers")
         )
         _ = try await deployer.deployIfNeeded()
-        return try make(sshTarget: "devtest")
+        return try make(sshTarget: RemoteIntegrationTests.linuxTestTarget)
     }
 
     static func make(sshTarget: String) throws -> RemoteIntegrationSession {
@@ -29,13 +29,13 @@ struct RemoteIntegrationSession {
 
     static func makeIntelMac() async throws -> RemoteIntegrationSession {
         try await deployIntelMacHelper()
-        return try make(sshTarget: "wraith")
+        return try make(sshTarget: RemoteIntegrationTests.intelMacTestTarget)
     }
 
     static func deployIntelMacHelper() async throws {
-        try RemoteIntegrationTests.requireIntelMacHost("wraith")
+        try RemoteIntegrationTests.requireIntelMacHost(RemoteIntegrationTests.intelMacTestTarget)
         let deployer = ServerDeployer(
-            client: SSHServerDeploymentClient(sshTarget: "wraith"),
+            client: SSHServerDeploymentClient(sshTarget: RemoteIntegrationTests.intelMacTestTarget),
             bundledBinaryDirectoryURL: URL(fileURLWithPath: "resources/Servers")
         )
         _ = try await deployer.deployIfNeeded()
@@ -119,7 +119,7 @@ final class PersistentRemoteRPCSession: @unchecked Sendable {
         self.stderr = stderr
     }
 
-    static func start(sshTarget: String = "devtest") throws -> PersistentRemoteRPCSession {
+    static func start(sshTarget: String = RemoteIntegrationTests.linuxTestTarget) throws -> PersistentRemoteRPCSession {
         try RemoteIntegrationTests.prepareDefaultSSHControlDirectory()
         let process = Process()
         let stdin = Pipe()
