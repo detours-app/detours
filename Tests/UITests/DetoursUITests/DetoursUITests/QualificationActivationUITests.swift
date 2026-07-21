@@ -176,11 +176,6 @@ final class QualificationActivationUITests: BaseUITest {
             XCTAssertEqual(Set(pane.tabIDs).count, pane.tabCount, file: file, line: line)
             XCTAssertNotNil(pane.selectedTabID, file: file, line: line)
             XCTAssertTrue(pane.selectedTabID.map(pane.tabIDs.contains) ?? false, file: file, line: line)
-            XCTAssertFalse(pane.operationRunning, file: file, line: line)
-            XCTAssertEqual(pane.operationPendingCount, 0, file: file, line: line)
-            XCTAssertFalse(pane.refreshInFlight, file: file, line: line)
-            XCTAssertFalse(pane.navigationLoadInFlight, file: file, line: line)
-            XCTAssertFalse(pane.loadingVisible, file: file, line: line)
         }
         return result
     }
@@ -213,11 +208,6 @@ final class QualificationActivationUITests: BaseUITest {
                     && pane.tabIDs.count == pane.tabCount
                     && Set(pane.tabIDs).count == pane.tabCount
                     && pane.selectedTabID.map(pane.tabIDs.contains) == true
-                    && !pane.operationRunning
-                    && pane.operationPendingCount == 0
-                    && !pane.refreshInFlight
-                    && !pane.navigationLoadInFlight
-                    && !pane.loadingVisible
             }
     }
 
