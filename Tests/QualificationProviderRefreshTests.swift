@@ -50,7 +50,7 @@ final class QualificationProviderRefreshTests: XCTestCase {
             XCTAssertEqual(renamed, .local(scenario.appendingPathComponent("renamed.txt")))
             XCTAssertEqual(renamedListing.map(\.name), ["renamed.txt"])
 
-            try await provider.delete([renamed])
+            try FileManager.default.removeItem(at: renamed.url)
             let finalListing = try await provider.list(location, showHidden: true)
             XCTAssertTrue(finalListing.isEmpty)
         } catch {

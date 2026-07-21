@@ -2636,3 +2636,14 @@ Spotlight search has no unit test (depends on the live, async-built system index
   for all four roots and both mounts. The boundary observer is now a locked
   one-shot latch; duplicate provider events remain production input but cannot
   crash the assertion mechanism.
+
+- 2026-07-21 19:21 CEST: Gate 1 qualification run
+  `gate1-refresh-89737ec-1` FAILED in the mounted SMB contract at commit
+  `89737ec`. The deterministic layer passed 2 tests in 0.005 seconds. The four
+  provider contracts completed in 18.8 seconds: Intel watch passed in 2.459
+  seconds, Linux watch in 0.567 seconds, and Windows watch in 13.344 seconds.
+  The mounted contract passed local, APFS, and iCloud, then its fixture cleanup
+  incorrectly used the app Trash path on an SMB share without a Trash folder.
+  Guarded runner cleanup passed for every root and mount. The refresh fixture
+  now uses exact in-root filesystem removal, leaving Trash semantics to the
+  mutation workflow that owns them.
