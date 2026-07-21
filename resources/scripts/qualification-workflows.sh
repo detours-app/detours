@@ -315,7 +315,7 @@ verify_workflow_repetition_markers() {
 
 installed_group_uses_in_test_repetitions() {
     case "$1" in
-        activation|transfer|mutation|connection|archive|session|opening) return 0 ;;
+        activation|refresh|transfer|mutation|connection|archive|session|opening) return 0 ;;
         *) return 1 ;;
     esac
 }

@@ -2345,3 +2345,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   guarded fixture path completed the cross-pane F5 copy, destination activation,
   result selection, and per-cycle cleanup in 17 seconds with 0 failures/skips.
   Its transfer-cycle marker and overall guarded cleanup both passed.
+
+- 2026-07-21 13:56 CEST: Foundry qualification smoke
+  `mutation-local-shared-loop-612ff5a-1` PASS at commit `612ff5a`: the guarded
+  new-folder workflow completed creation, inline naming, child placement,
+  selection, expansion, and per-cycle cleanup in 13 seconds with 0 failures or
+  skips. Its mutation-cycle marker and overall guarded cleanup both passed.

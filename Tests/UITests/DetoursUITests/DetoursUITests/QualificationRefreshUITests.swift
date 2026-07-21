@@ -42,66 +42,95 @@ final class QualificationRefreshUITests: BaseUITest {
 
     override func tearDownWithError() throws {
         var cleanupError: Error?
-        if let target = qualificationRemoteTarget,
-           let home = remoteHomePath,
-           let scenario = remoteScenarioPath,
-           let sentinelID = remoteSentinelID {
-            do {
-                if let state = try? requestRemotePaneState(pane: "left"),
-                   state.displayedLocation == scenario {
-                    app.leftPaneOutlineView.click()
-                    pressKey(.upArrow, modifiers: .command)
-                    _ = try waitForState("return to remote qualification parent") {
-                        $0.displayedLocation == home
-                    }
-                }
-                try cleanupRemoteScenario(
-                    target: target,
-                    home: home,
-                    scenario: scenario,
-                    sentinelID: sentinelID
-                )
-                let outsideNamesAfter = try remoteDirectoryNames(target: target, path: home)
-                guard outsideNamesAfter == remoteOutsideNamesBefore else {
-                    throw QualificationRefreshFailure.outsideRootChanged(
-                        before: remoteOutsideNamesBefore,
-                        after: outsideNamesAfter
-                    )
-                }
-            } catch {
-                cleanupError = error
-            }
+        do {
+            try cleanupCurrentScenario()
+        } catch {
+            cleanupError = error
         }
-        if let scenarioURL {
-            do {
-                if let state = try? requestRemotePaneState(pane: "left"),
-                   state.displayedLocation == scenarioURL.path {
-                    app.leftPaneOutlineView.click()
-                    pressKey(.upArrow, modifiers: .command)
-                    _ = try waitForState("return to guarded qualification root") {
-                        $0.displayedLocation == self.uiTestRootURL.path
-                    }
-                }
-                try performFixtureMutation(action: "remove", relativePath: scenarioURL.lastPathComponent)
-                let outsideNamesAfter = try rootNames(excluding: scenarioURL.lastPathComponent)
-                guard outsideNamesAfter == outsideNamesBefore else {
-                    throw QualificationRefreshFailure.outsideRootChanged(
-                        before: outsideNamesBefore,
-                        after: outsideNamesAfter
-                    )
-                }
-            } catch {
-                cleanupError = error
-            }
-        }
-
         try super.tearDownWithError()
         if let cleanupError {
             throw cleanupError
         }
     }
 
+    private func cleanupCurrentScenario() throws {
+        if let target = qualificationRemoteTarget,
+           let home = remoteHomePath,
+           let scenario = remoteScenarioPath,
+           let sentinelID = remoteSentinelID {
+            if let state = try? requestRemotePaneState(pane: "left"),
+               state.displayedLocation == scenario {
+                app.leftPaneOutlineView.click()
+                pressKey(.upArrow, modifiers: .command)
+                _ = try waitForState("return to remote qualification parent") {
+                    $0.displayedLocation == home
+                }
+            }
+            try cleanupRemoteScenario(
+                target: target,
+                home: home,
+                scenario: scenario,
+                sentinelID: sentinelID
+            )
+            let outsideNamesAfter = try remoteDirectoryNames(target: target, path: home)
+            guard outsideNamesAfter == remoteOutsideNamesBefore else {
+                throw QualificationRefreshFailure.outsideRootChanged(
+                    before: remoteOutsideNamesBefore,
+                    after: outsideNamesAfter
+                )
+            }
+            remoteHomePath = nil
+            remoteScenarioPath = nil
+            remoteSentinelID = nil
+            remoteOutsideNamesBefore = []
+        }
+        if let scenarioURL {
+            if let state = try? requestRemotePaneState(pane: "left"),
+               state.displayedLocation == scenarioURL.path {
+                app.leftPaneOutlineView.click()
+                pressKey(.upArrow, modifiers: .command)
+                _ = try waitForState("return to guarded qualification root") {
+                    $0.displayedLocation == self.uiTestRootURL.path
+                }
+            }
+            try performFixtureMutation(action: "remove", relativePath: scenarioURL.lastPathComponent)
+            let outsideNamesAfter = try rootNames(excluding: scenarioURL.lastPathComponent)
+            guard outsideNamesAfter == outsideNamesBefore else {
+                throw QualificationRefreshFailure.outsideRootChanged(
+                    before: outsideNamesBefore,
+                    after: outsideNamesAfter
+                )
+            }
+            self.scenarioURL = nil
+            outsideNamesBefore = []
+        }
+    }
+
     func testRefreshStateRemainsCoherentAcrossExternalChanges() throws {
+        try runQualificationRepetitions(group: "refresh") { _ in
+            try self.runRefreshCycleWithCleanup()
+        }
+    }
+
+    private func runRefreshCycleWithCleanup() throws {
+        do {
+            try runRefreshWorkflowCycle()
+        } catch {
+            let workflowError = error
+            do {
+                try cleanupCurrentScenario()
+            } catch {
+                throw QualificationRefreshFailure.workflowAndCleanupFailed(
+                    workflow: String(describing: workflowError),
+                    cleanup: String(describing: error)
+                )
+            }
+            throw workflowError
+        }
+        try cleanupCurrentScenario()
+    }
+
+    private func runRefreshWorkflowCycle() throws {
         if let qualificationRemoteTarget {
             try runRemoteRefreshWorkflow(target: qualificationRemoteTarget)
             return
@@ -617,6 +646,7 @@ private enum QualificationRefreshFailure: LocalizedError {
     case timedOut(String, BaseUITest.RemotePaneState?)
     case processFailed(command: String, status: Int32, detail: String)
     case outsideRootChanged(before: Set<String>, after: Set<String>)
+    case workflowAndCleanupFailed(workflow: String, cleanup: String)
 
     var errorDescription: String? {
         switch self {
@@ -634,6 +664,8 @@ private enum QualificationRefreshFailure: LocalizedError {
             return "\(command) exited \(status): \(detail)"
         case .outsideRootChanged(let before, let after):
             return "Qualification root siblings changed; before=\(before.sorted()) after=\(after.sorted())"
+        case .workflowAndCleanupFailed(let workflow, let cleanup):
+            return "Refresh workflow failed (\(workflow)) and its guarded cleanup failed (\(cleanup))"
         }
     }
 }
