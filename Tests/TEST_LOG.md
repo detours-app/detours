@@ -2450,3 +2450,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   cycle in 4.1 seconds, with 0 failures/skips, both exact markers, and passing
   guarded cleanup. This proves alternating cycles preserve both pane paths while
   roughly halving repeated UI actions.
+
+- 2026-07-21 14:49 CEST: Foundry qualification run
+  `activation-windows-20-045a925-1` PASS at commit `045a925`: the optimized live
+  Windows context completed all 20 cycles in one logical XCTest with 0 failures
+  or skips, 20 exact markers, and passing guarded cleanup. XCTest time fell from
+  336 to 219 seconds (35% end to end); meaningful workflow work fell from about
+  195 to roughly 90 seconds while retaining 10 full cycles per pane.
