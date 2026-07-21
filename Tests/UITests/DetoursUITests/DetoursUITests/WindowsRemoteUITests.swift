@@ -71,9 +71,10 @@ final class WindowsRemoteUITests: BaseUITest {
         XCTAssertNil(readinessFailure, readinessFailure ?? "")
         guard readinessFailure == nil else { return }
 
-        // Drop the exact shared control master used by Detours. The active remote watch receives
-        // EOF and publishes the real failed state that owns the reconnect banner.
-        try dropRealWindowsConnection(target: target)
+        // Ask Detours to close its own shared control master. The XCUI runner is sandboxed away
+        // from the app-owned Unix socket; the active remote watch still receives real EOF and
+        // publishes the failed state that owns the reconnect banner.
+        try sendRemoteFailureCommand()
         let banner = app.groups["remoteReconnectBanner"]
         XCTAssertTrue(banner.waitForExistence(timeout: 5), "A real Windows drop should publish a failed state and show the banner")
 
@@ -83,42 +84,6 @@ final class WindowsRemoteUITests: BaseUITest {
         reconnect.click()
         XCTAssertTrue(waitForNonExistence(banner, timeout: 30), "A successful reconnect should clear the banner")
         XCTAssertTrue(rightOutline.exists, "Local/Unix pane is unaffected by the Windows drop")
-    }
-
-    private func dropRealWindowsConnection(target: String) throws {
-        let accountHome = try XCTUnwrap(
-            ProcessInfo.processInfo.environment["DETOURS_TEST_ACCOUNT_HOME"]
-                .flatMap { $0.isEmpty ? nil : $0 },
-            "The XCUI runner must receive the app account home"
-        )
-        let controlPath = URL(fileURLWithPath: accountHome, isDirectory: true)
-            .appendingPathComponent(".detours/ssh/%C").path
-        let process = Process()
-        let errorPipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = [
-            "-F", URL(fileURLWithPath: accountHome, isDirectory: true)
-                .appendingPathComponent(".ssh/config").path,
-            "-o", "ControlPath=\(controlPath)",
-            "-O", "exit",
-            target,
-        ]
-        process.environment = ProcessInfo.processInfo.environment.merging(["HOME": accountHome]) { _, account in
-            account
-        }
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = errorPipe
-        try process.run()
-        process.waitUntilExit()
-        let error = String(
-            data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
-            encoding: .utf8
-        ) ?? ""
-        XCTAssertEqual(
-            process.terminationStatus,
-            0,
-            "The Detours SSH control master should be active: \(error)"
-        )
     }
 
     private func waitForRealWindowsConnection(target: String) throws -> String? {
