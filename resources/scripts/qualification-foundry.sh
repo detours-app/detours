@@ -18,6 +18,7 @@ usage() {
 }
 
 smb_secret=""
+requires_smb_secret=1
 # shellcheck disable=SC2329
 cleanup_secret() {
     unset smb_secret
@@ -52,17 +53,24 @@ if [[ "$1" == "--self-test" ]]; then
     # shellcheck disable=SC2016
     remote_command='cd ~/dev/detours && exec resources/scripts/qualification-secret-stdin.sh /bin/bash -c '\''printf "%s\n" "$DETOURS_SMB_TEST_PASSWORD"; test "$DETOURS_QUALIFICATION_SECRET_TRANSPORT" = stdin-v1'\'''
 else
-    [[ -x "$GET_SECRET" ]] || {
-        printf 'qualification-foundry: secret helper is unavailable\n' >&2
-        exit 65
-    }
-    smb_secret="$($GET_SECRET infra DETOURS_SMB_TEST_PASSWORD prd)"
-    [[ -n "$smb_secret" ]] || {
-        printf 'qualification-foundry: credential is empty\n' >&2
-        exit 66
-    }
-
-    remote_command="cd ~/dev/detours && exec resources/scripts/qualification-secret-stdin.sh resources/scripts/qualification.sh"
+    if [[ "${1:-}" == "installed-smoke" \
+        && "${3:-}" =~ ^(LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)$ ]]; then
+        requires_smb_secret=0
+    fi
+    if (( requires_smb_secret == 1 )); then
+        [[ -x "$GET_SECRET" ]] || {
+            printf 'qualification-foundry: secret helper is unavailable\n' >&2
+            exit 65
+        }
+        smb_secret="$($GET_SECRET infra DETOURS_SMB_TEST_PASSWORD prd)"
+        [[ -n "$smb_secret" ]] || {
+            printf 'qualification-foundry: credential is empty\n' >&2
+            exit 66
+        }
+        remote_command="cd ~/dev/detours && exec resources/scripts/qualification-secret-stdin.sh resources/scripts/qualification.sh"
+    else
+        remote_command="cd ~/dev/detours && exec resources/scripts/qualification.sh"
+    fi
     for argument in "$@"; do
         printf -v quoted_argument '%q' "$argument"
         remote_command+=" $quoted_argument"
@@ -90,11 +98,17 @@ redact_secret() {
 }
 
 set +e
-# shellcheck disable=SC2029
-printf '%s\n' "$smb_secret" \
-    | ssh foundry "$remote_command" 2>&1 \
-    | redact_secret
-launcher_status="${PIPESTATUS[1]}"
+if (( requires_smb_secret == 1 )); then
+    # shellcheck disable=SC2029
+    printf '%s\n' "$smb_secret" \
+        | ssh foundry "$remote_command" 2>&1 \
+        | redact_secret
+    launcher_status="${PIPESTATUS[1]}"
+else
+    # shellcheck disable=SC2029
+    ssh foundry "$remote_command"
+    launcher_status="$?"
+fi
 set -e
 
 if [[ "$launcher_status" -ne 0 ]]; then

@@ -117,7 +117,9 @@ run_installed() {
     # shellcheck disable=SC1090
     source "$fixture_file"
     set +a
-    verify_smb_fixture_session_access
+    if [[ -n "${SMB_ROOT:-}" ]]; then
+        verify_smb_fixture_session_access
+    fi
     log_dir="$(run_dir)/workflows/installed"
     result_dir="$(run_dir)/results/installed"
     mkdir -p "$log_dir" "$result_dir"
@@ -154,7 +156,9 @@ run_installed_smoke() {
     # shellcheck disable=SC1090
     source "$fixture_file"
     set +a
-    verify_smb_fixture_session_access
+    if [[ -n "${SMB_ROOT:-}" ]]; then
+        verify_smb_fixture_session_access
+    fi
     log_dir="$(run_dir)/workflows/installed-smoke"
     result_dir="$(run_dir)/results/installed-smoke"
     mkdir -p "$log_dir" "$result_dir"

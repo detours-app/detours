@@ -227,6 +227,26 @@ run_prepare_fixtures() {
     printf '%s\n' "$fixture_file"
 }
 
+run_prepare_local_fixture() {
+    local destination roots_dir fixture_file local_id local_root
+    destination="$(run_dir)"
+    roots_dir="$destination/roots"
+    fixture_file="$destination/fixtures.env"
+    mkdir -p "$roots_dir" "$LOCAL_PARENT"
+    local_id="$(new_run_id)"
+    local_root="$LOCAL_PARENT/$local_id"
+    {
+        printf 'LOCAL_ROOT=%q\n' "$local_root"
+        printf 'LINUX_TARGET=%q\n' "$QUALIFICATION_LINUX_TARGET"
+        printf 'INTEL_MAC_TARGET=%q\n' "$QUALIFICATION_INTEL_MAC_TARGET"
+        printf 'WINDOWS_TARGET=%q\n' "$QUALIFICATION_WINDOWS_TARGET"
+    } > "$fixture_file"
+    [[ "$(create_guarded_fixture_root local "$LOCAL_PARENT" "$roots_dir/local.json" "$local_id")" == "$local_root" ]] || \
+        fail "local fixture root differed from its recorded path"
+    seed_installed_fixture "$local_root"
+    printf '%s\n' "$fixture_file"
+}
+
 cleanup_fixture_mounts() {
     local fixture_file
     rm -f -- "$(run_dir)/smb-mount-password.fifo"

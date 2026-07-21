@@ -265,8 +265,12 @@ validate_group() {
 }
 
 run_preflight() {
+    local scope="${1:-full}"
     local requested_commit head_commit current_branch free_kilobytes boot_epoch
     local linux_platform intel_mac_platform windows_platform
+    linux_platform=""
+    intel_mac_platform=""
+    windows_platform=""
     requested_commit="$(canonical_commit)"
     head_commit="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
     [[ "$head_commit" == "$requested_commit" ]] || fail "HEAD $head_commit does not match requested commit $requested_commit"
@@ -281,41 +285,46 @@ run_preflight() {
     boot_epoch="$(sysctl -n kern.boottime | sed -E 's/^.*sec = ([0-9]+).*$/\1/')"
     is_unsigned_integer "$boot_epoch" || fail "could not read Foundry boot time"
 
-    local host
-    for host in \
-        "$QUALIFICATION_LINUX_TARGET" \
-        "$QUALIFICATION_INTEL_MAC_TARGET" \
-        "$QUALIFICATION_WINDOWS_TARGET"; do
-        # `exit 0` is accepted by POSIX shells and by the PowerShell SSH
-        # endpoint used by the Windows fixture. The Unix-only `true` command
-        # made a reachable Windows host fail preflight.
-        ssh -o BatchMode=yes -o ConnectTimeout=8 "$host" 'exit 0' >/dev/null 2>&1 || fail "required host is unreachable: $host"
-    done
-    linux_platform="$(ssh -o BatchMode=yes -o ConnectTimeout=8 \
-        "$QUALIFICATION_LINUX_TARGET" 'uname -s')"
-    [[ "$linux_platform" == "Linux" ]] || \
-        fail "configured Linux endpoint reported an unexpected platform: $linux_platform"
-    intel_mac_platform="$(ssh -o BatchMode=yes -o ConnectTimeout=8 \
-        "$QUALIFICATION_INTEL_MAC_TARGET" 'uname -sm')"
-    [[ "$intel_mac_platform" == "Darwin x86_64" ]] || \
-        fail "configured Intel Mac endpoint reported an unexpected platform: $intel_mac_platform"
-    windows_platform="$(ssh -o BatchMode=yes -o ConnectTimeout=8 \
-        "$QUALIFICATION_WINDOWS_TARGET" \
-        '[Console]::WriteLine("DETOURS_WINDOWS_POWERSHELL`t$([System.Environment]::OSVersion.Platform)")')"
-    [[ "$windows_platform" == *$'DETOURS_WINDOWS_POWERSHELL\tWin32NT'* ]] || \
-        fail "configured Windows endpoint did not provide Windows PowerShell: $windows_platform"
-    nc -G 8 -z "$QUALIFICATION_SMB_HOST" 445 >/dev/null 2>&1 || \
-        fail "SMB port 445 is unreachable: $QUALIFICATION_SMB_HOST"
-
-    [[ -d "$ICLOUD_PARENT" ]] || fail "iCloud qualification parent is missing: $ICLOUD_PARENT"
-    if find "$ICLOUD_PARENT" -name '*.icloud' -print -quit | grep -q .; then
-        fail "iCloud qualification parent contains non-local placeholders"
+    if [[ "$scope" == "full" || "$scope" == "LINUX_TARGET" ]]; then
+        ssh -o BatchMode=yes -o ConnectTimeout=8 "$QUALIFICATION_LINUX_TARGET" 'exit 0' >/dev/null 2>&1 || \
+            fail "required host is unreachable: $QUALIFICATION_LINUX_TARGET"
+        linux_platform="$(ssh -o BatchMode=yes -o ConnectTimeout=8 \
+            "$QUALIFICATION_LINUX_TARGET" 'uname -s')"
+        [[ "$linux_platform" == "Linux" ]] || \
+            fail "configured Linux endpoint reported an unexpected platform: $linux_platform"
     fi
+    if [[ "$scope" == "full" || "$scope" == "INTEL_MAC_TARGET" ]]; then
+        ssh -o BatchMode=yes -o ConnectTimeout=8 "$QUALIFICATION_INTEL_MAC_TARGET" 'exit 0' >/dev/null 2>&1 || \
+            fail "required host is unreachable: $QUALIFICATION_INTEL_MAC_TARGET"
+        intel_mac_platform="$(ssh -o BatchMode=yes -o ConnectTimeout=8 \
+            "$QUALIFICATION_INTEL_MAC_TARGET" 'uname -sm')"
+        [[ "$intel_mac_platform" == "Darwin x86_64" ]] || \
+            fail "configured Intel Mac endpoint reported an unexpected platform: $intel_mac_platform"
+    fi
+    if [[ "$scope" == "full" || "$scope" == "WINDOWS_TARGET" ]]; then
+        # `exit 0` is accepted by the PowerShell SSH endpoint.
+        ssh -o BatchMode=yes -o ConnectTimeout=8 "$QUALIFICATION_WINDOWS_TARGET" 'exit 0' >/dev/null 2>&1 || \
+            fail "required host is unreachable: $QUALIFICATION_WINDOWS_TARGET"
+        windows_platform="$(ssh -o BatchMode=yes -o ConnectTimeout=8 \
+            "$QUALIFICATION_WINDOWS_TARGET" \
+            '[Console]::WriteLine("DETOURS_WINDOWS_POWERSHELL`t$([System.Environment]::OSVersion.Platform)")')"
+        [[ "$windows_platform" == *$'DETOURS_WINDOWS_POWERSHELL\tWin32NT'* ]] || \
+            fail "configured Windows endpoint did not provide Windows PowerShell: $windows_platform"
+    fi
+    if [[ "$scope" == "full" ]]; then
+        nc -G 8 -z "$QUALIFICATION_SMB_HOST" 445 >/dev/null 2>&1 || \
+            fail "SMB port 445 is unreachable: $QUALIFICATION_SMB_HOST"
 
-    [[ "${DETOURS_QUALIFICATION_SECRET_TRANSPORT:-}" == "stdin-v1" ]] || \
-        fail "SMB credentials must arrive through qualification-foundry.sh"
-    [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "SMB credential transport returned an empty value"
-    verify_smb_authentication
+        [[ -d "$ICLOUD_PARENT" ]] || fail "iCloud qualification parent is missing: $ICLOUD_PARENT"
+        if find "$ICLOUD_PARENT" -name '*.icloud' -print -quit | grep -q .; then
+            fail "iCloud qualification parent contains non-local placeholders"
+        fi
+
+        [[ "${DETOURS_QUALIFICATION_SECRET_TRANSPORT:-}" == "stdin-v1" ]] || \
+            fail "SMB credentials must arrive through qualification-foundry.sh"
+        [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "SMB credential transport returned an empty value"
+        verify_smb_authentication
+    fi
 
     ! pgrep -x Detours >/dev/null 2>&1 || fail "Detours is running"
     ! pgrep -x detours-server >/dev/null 2>&1 || fail "a local detours-server process is running"
@@ -496,9 +505,19 @@ run_installed_smoke_campaign() {
     esac
     trap 'campaign_cleanup_on_exit "$?"' EXIT
     run_reset
-    run_preflight
+    case "$context_name" in
+        LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)
+            run_preflight "$context_name"
+            ;;
+        *)
+            run_preflight
+            ;;
+    esac
     run_build
-    run_prepare_fixtures
+    case "$context_name" in
+        LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET) run_prepare_local_fixture ;;
+        *) run_prepare_fixtures ;;
+    esac
     capture_outside_root_snapshots before
     capture_state_observation installed-smoke-before
     run_installed_smoke "$group" "$context_name"
