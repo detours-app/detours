@@ -2746,3 +2746,15 @@ Spotlight search has no unit test (depends on the live, async-built system index
   remaining process, mount, or root. The watchdog now captures and terminates
   descendants before returning, and the provider ceiling is 75 seconds while
   the complete gate remains capped at 180 seconds.
+
+- 2026-07-21 21:11 CEST: Gate 1 qualification run
+  `gate1-refresh-82db6ee-1` PASS at exact commit `82db6ee`, seed 0. The iCloud
+  and SMB installed-app permission probes passed first in 14 seconds without
+  operator action. Only then did 2 deterministic pairwise/known-defect tests
+  pass in 2 seconds, followed by 7 mounted/live provider listing and watcher
+  tests in 53 seconds and the single representative installed refresh journey
+  in 15 seconds. All 12 logical tests passed with 0 failures, skips, expected
+  failures, warnings, or retries. Complete post-build wall time was 85 seconds
+  against the 180-second budget and 2,153.055-second baseline, a 25.33x
+  speedup. All outside-root entry sets were unchanged; cleanup removed all four
+  roots and both mounts and left no app, Xcode, xctest, or runner process.

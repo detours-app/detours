@@ -72,18 +72,19 @@ Shared build and fixture-orchestration time are excluded from both the current a
 
 ## Gate 1 Measured Proof
 
-Gate 1 passed on Foundry on 2026-07-21 at commit `b8efc85297ccaf9124cd3224cd46bf56b26d7095`, run ID `gate1-refresh-b8efc85-1`, seed 0. Timing starts after the shared build and fixture setup and ends after outside-root comparison and guarded cleanup.
+Gate 1 passed on Foundry on 2026-07-21 at commit `82db6ee73877e94bb7796dbd2d92157658a39866`, run ID `gate1-refresh-82db6ee-1`, seed 0. Timing starts after the shared build and fixture setup and ends after outside-root comparison and guarded cleanup.
 
 | Layer | Tests | Wall time | Budget | Result |
 | --- | ---: | ---: | ---: | --- |
+| iCloud and SMB permission readiness | 2 | 14 s | 30 s | Pass |
 | Pure behavior and known-defect replay | 2 | 2 s | 10 s | Pass |
-| Mounted and live provider contracts | 7 | 53 s | 60 s | Pass |
-| Representative installed-app XCUI | 1 | 20 s | 90 s | Pass |
-| Complete blocking gate | 10 | 76 s | 180 s | Pass |
+| Mounted and live provider contracts | 7 | 53 s | 75 s | Pass |
+| Representative installed-app XCUI | 1 | 15 s | 90 s | Pass |
+| Complete blocking gate | 12 | 85 s | 180 s | Pass |
 
-The measured speedup is 28.33x against the 2,153.055-second baseline. The run recorded zero failures, skips, expected failures, warnings, retries, leaked processes, leaked mounts, or outside-root entry changes. All four known defects passed deterministic replay, all seven provider roles exercised real listing or watcher boundaries, the XCResult contains exactly one passed installed-app test, and guarded cleanup passed.
+The measured speedup is 25.33x against the 2,153.055-second baseline. The run recorded zero failures, skips, expected failures, warnings, retries, leaked processes, leaked mounts, or outside-root entry changes. All four known defects passed deterministic replay, all seven provider roles exercised real listing or watcher boundaries, each of the three XCResults contains exactly one pass, and guarded cleanup passed.
 
-Foundry presented a one-time macOS iCloud access dialog during this work and Marco selected Allow. This explains the earlier iCloud XCUI wait; the successful proof did not retry a failed test into a pass. The permission is an environment prerequisite, not a test assertion.
+Foundry presented a one-time macOS iCloud access dialog during this work and Marco selected Allow. That observation produced the mandatory permission-readiness layer above. In the final proof, both iCloud and SMB readiness probes passed without operator action before behavioral work began; permission is an environment prerequisite, not a test assertion.
 
 ### Additional workflow timing evidence
 
