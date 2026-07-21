@@ -90,6 +90,7 @@ run_in_process() {
     # shellcheck disable=SC1090
     source "$fixture_file"
     set +a
+    remount_smb_fixture_for_current_session
     log_dir="$(run_dir)/workflows/in-process"
     mkdir -p "$log_dir"
     while IFS= read -r selected_group; do
@@ -116,6 +117,7 @@ run_installed() {
     # shellcheck disable=SC1090
     source "$fixture_file"
     set +a
+    remount_smb_fixture_for_current_session
     log_dir="$(run_dir)/workflows/installed"
     result_dir="$(run_dir)/results/installed"
     mkdir -p "$log_dir" "$result_dir"
