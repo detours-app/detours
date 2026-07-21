@@ -27,6 +27,12 @@ final class MultiFileOpenUITests: BaseUITest {
     }
 
     func testEnterAndCommandOpenDispatchAllSelectedFiles() throws {
+        try runQualificationRepetitions(group: "opening") { _ in
+            try self.runMultiFileOpenCycle()
+        }
+    }
+
+    private func runMultiFileOpenCycle() throws {
         let outline = app.leftPaneOutlineView
         let first = outline.outlineRow(withStaticText: "file1.txt").staticTexts["file1.txt"]
         let second = outline.outlineRow(withStaticText: "file2.txt").staticTexts["file2.txt"]

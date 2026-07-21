@@ -29,6 +29,19 @@ final class QualificationConnectionUITests: BaseUITest {
     }
 
     func testConnectionLoadsCapturedPaneWithoutDisturbingOtherPane() throws {
+        try runQualificationRepetitions(group: "connection") { iteration in
+            if iteration > 1 {
+                try self.relaunchQualificationApp()
+            }
+            try self.runConnectionCycle()
+        }
+    }
+
+    private func runConnectionCycle() throws {
+        let leftOutline = app.leftPaneOutlineView
+        XCTAssertTrue(leftOutline.existsOrWait(timeout: 3))
+        leftOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+
         guard let qualificationRemoteTarget else {
             try assertMountedSMBConnection()
             return
@@ -56,6 +69,13 @@ final class QualificationConnectionUITests: BaseUITest {
             connected.connectionStates.values.contains("connected"),
             "Remote target did not connect: \(qualificationRemoteTarget)"
         )
+    }
+
+    private func relaunchQualificationApp() throws {
+        app.terminate()
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 5))
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.existsOrWait(timeout: 8))
     }
 
     private func assertMountedSMBConnection() throws {

@@ -1,7 +1,13 @@
 import XCTest
 
 final class ArchivePasswordUITests: BaseUITest {
-    func testCreationControlsFollowSelectedFormat() {
+    func testCreationControlsFollowSelectedFormat() throws {
+        try runQualificationRepetitions(group: "archive") { _ in
+            self.runCreationControlsCycle()
+        }
+    }
+
+    private func runCreationControlsCycle() {
         selectRow(named: "file1.txt")
         chooseFileMenuItem("Archive...")
 

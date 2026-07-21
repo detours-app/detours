@@ -32,20 +32,8 @@ final class QualificationActivationUITests: BaseUITest {
         XCTAssertTrue(leftOutline.existsOrWait(timeout: 3))
         try waitForQualificationRemoteIfNeeded()
 
-        let rawRepetitions = ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REPETITIONS"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty ?? "1"
-        let repetitions = try XCTUnwrap(Int(rawRepetitions), "Qualification repetition count must be an integer")
-        guard (1...100).contains(repetitions) else {
-            XCTFail("Qualification repetition count must be between 1 and 100")
-            return
-        }
-
-        for iteration in 1...repetitions {
-            try XCTContext.runActivity(named: "Activation repetition \(iteration) of \(repetitions)") { _ in
-                try runActivationWorkflowCycle()
-                try recordCompletedRepetition(iteration, total: repetitions)
-            }
+        try runQualificationRepetitions(group: "activation") { _ in
+            try self.runActivationWorkflowCycle()
         }
     }
 
@@ -149,19 +137,6 @@ final class QualificationActivationUITests: BaseUITest {
         XCTAssertEqual(rightCleaned.right.selectedTabID, rightInitial.right.selectedTabID)
         pressKey(.tab)
         _ = try assertPaneAndTabContract(expectedActivePane: "left")
-    }
-
-    private func recordCompletedRepetition(_ iteration: Int, total: Int) throws {
-        let fileName = String(
-            format: ".detours-qualification-activation-repetition-%03d.json",
-            iteration
-        )
-        let markerURL = uiTestControlRootURL.appendingPathComponent(fileName)
-        let data = try JSONSerialization.data(
-            withJSONObject: ["iteration": iteration, "total": total],
-            options: [.sortedKeys]
-        )
-        try data.write(to: markerURL, options: .atomic)
     }
 
     @discardableResult

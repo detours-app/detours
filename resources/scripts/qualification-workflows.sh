@@ -291,25 +291,33 @@ verify_installed_result_bundle() {
     fi
 }
 
-verify_activation_repetition_markers() {
-    local control_root="$1"
-    local expected_count="$2"
+verify_workflow_repetition_markers() {
+    local group="$1"
+    local control_root="$2"
+    local expected_count="$3"
     local actual_count iteration marker recorded_iteration recorded_total
     actual_count="$(find "$control_root" -maxdepth 1 -type f \
-        -name '.detours-qualification-activation-repetition-*.json' | wc -l | tr -d '[:space:]')"
+        -name ".detours-qualification-$group-repetition-*.json" | wc -l | tr -d '[:space:]')"
     [[ "$actual_count" == "$expected_count" ]] || \
-        fail "activation workflow recorded $actual_count completed repetitions instead of $expected_count"
+        fail "$group workflow recorded $actual_count completed repetitions instead of $expected_count"
     for (( iteration = 1; iteration <= expected_count; iteration++ )); do
-        printf -v marker '%s/.detours-qualification-activation-repetition-%03d.json' \
-            "$control_root" "$iteration"
-        [[ -f "$marker" ]] || fail "activation repetition marker is missing: $marker"
+        printf -v marker '%s/.detours-qualification-%s-repetition-%03d.json' \
+            "$control_root" "$group" "$iteration"
+        [[ -f "$marker" ]] || fail "$group repetition marker is missing: $marker"
         recorded_iteration="$(plutil -extract iteration raw -o - "$marker")"
         recorded_total="$(plutil -extract total raw -o - "$marker")"
         [[ "$recorded_iteration" == "$iteration" ]] || \
-            fail "activation repetition marker has the wrong iteration: $marker"
+            fail "$group repetition marker has the wrong iteration: $marker"
         [[ "$recorded_total" == "$expected_count" ]] || \
-            fail "activation repetition marker has the wrong total: $marker"
+            fail "$group repetition marker has the wrong total: $marker"
     done
+}
+
+installed_group_uses_in_test_repetitions() {
+    case "$1" in
+        activation|connection|archive|opening) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 stop_installed_app() {
@@ -348,7 +356,7 @@ run_installed_once() {
     printf 'qualification: installed %s %s repetitions 1-%d\n' \
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
     xcode_repetitions="$repetitions"
-    if [[ "$selected_group" == "activation" ]]; then
+    if installed_group_uses_in_test_repetitions "$selected_group"; then
         xcode_repetitions=1
     elif (( repetitions > 1 )); then
         repetition_arguments=(
@@ -384,8 +392,8 @@ run_installed_once() {
     if (( status == 0 )); then
         verify_quiet_xcode_command "$log_path.raw.log"
         verify_installed_result_bundle "$result_bundle" "$xcode_repetitions"
-        if [[ "$selected_group" == "activation" ]]; then
-            verify_activation_repetition_markers "$control_root" "$repetitions"
+        if installed_group_uses_in_test_repetitions "$selected_group"; then
+            verify_workflow_repetition_markers "$selected_group" "$control_root" "$repetitions"
         fi
     fi
     record_scenario_timing \

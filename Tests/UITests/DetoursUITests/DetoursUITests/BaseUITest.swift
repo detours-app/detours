@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 
 class BaseUITest: XCTestCase {
@@ -60,6 +61,44 @@ class BaseUITest: XCTestCase {
     }
 
     func configureLaunchEnvironment(_ environment: inout [String: String]) {}
+
+    func runQualificationRepetitions(
+        group: String,
+        cycle: (Int) throws -> Void
+    ) throws {
+        let rawValue = ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REPETITIONS"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !rawValue.isEmpty else {
+            try cycle(1)
+            return
+        }
+        let repetitions = try XCTUnwrap(Int(rawValue), "Qualification repetition count must be an integer")
+        guard (1...100).contains(repetitions) else {
+            XCTFail("Qualification repetition count must be between 1 and 100")
+            return
+        }
+
+        for iteration in 1...repetitions {
+            try XCTContext.runActivity(named: "\(group) repetition \(iteration) of \(repetitions)") { _ in
+                try cycle(iteration)
+                try recordQualificationRepetition(group: group, iteration: iteration, total: repetitions)
+            }
+        }
+    }
+
+    private func recordQualificationRepetition(group: String, iteration: Int, total: Int) throws {
+        let fileName = String(
+            format: ".detours-qualification-%@-repetition-%03d.json",
+            group,
+            iteration
+        )
+        let markerURL = uiTestControlRootURL.appendingPathComponent(fileName)
+        let data = try JSONSerialization.data(
+            withJSONObject: ["iteration": iteration, "total": total],
+            options: [.sortedKeys]
+        )
+        try data.write(to: markerURL, options: .atomic)
+    }
 
     private func installNetworkVolumePermissionHandlerIfNeeded() {
         let volumeValues = try? uiTestRootURL.resourceValues(forKeys: [.volumeIsLocalKey])
