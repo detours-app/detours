@@ -419,11 +419,11 @@ installed_test_filter() {
     case "$1" in
         activation) printf 'QualificationActivationUITests/testPaneAndTabStateSurvivesReturnFromFinder\n' ;;
         refresh) printf 'QualificationRefreshUITests/testRefreshStateRemainsCoherentAcrossExternalChanges\n' ;;
-        transfer) printf 'RefreshAuthorityUITests/testF5CopyActivatesDestinationPaneAndSelectsCopy\n' ;;
+        transfer) printf 'RefreshAuthorityCopyUITests/testF5CopyActivatesDestinationPaneAndSelectsCopy\n' ;;
         mutation) printf 'NewFolderUITests/testNewFolderSelectsNewFolderNotExisting\n' ;;
-        connection) printf 'RemoteQuickOpenUITests/testDelayedRealConnectionLoadsPaneCapturedBeforeFocusSwitch\n' ;;
+        connection) printf 'RealRemoteFileOperationsUITests/testDelayedRealConnectionLoadsPaneCapturedBeforeFocusSwitch\n' ;;
         archive) printf 'ArchivePasswordUITests/testCreationControlsFollowSelectedFormat\n' ;;
         session) printf 'WindowPaneGeometryUITests/testPaneDividerDragPersistsAcrossRelaunch\n' ;;
-        opening) printf 'RemoteQuickOpenUITests/testEnterAndCommandOpenDispatchAllSelectedFiles\n' ;;
+        opening) printf 'MultiFileOpenUITests/testEnterAndCommandOpenDispatchAllSelectedFiles\n' ;;
     esac
 }

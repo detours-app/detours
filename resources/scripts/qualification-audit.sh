@@ -23,6 +23,40 @@ Q.sidebarVolumes|full-installed
 CATALOG
 }
 
+installed_filter_pair_exists() {
+    local class_name="$1"
+    local method_name="$2"
+    awk -v wanted_class="$class_name" -v wanted_method="$method_name" '
+        $1 == "final" && $2 == "class" {
+            current_class = $3
+            sub(/:.*/, "", current_class)
+        }
+        $1 == "class" {
+            current_class = $2
+            sub(/:.*/, "", current_class)
+        }
+        current_class == wanted_class && $1 == "func" {
+            current_method = $2
+            sub(/\(.*/, "", current_method)
+            if (current_method == wanted_method) found = 1
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$PROJECT_DIR"/Tests/UITests/DetoursUITests/DetoursUITests/*.swift
+}
+
+audit_installed_test_filters() {
+    local group filter class_name method_name
+    while IFS= read -r group; do
+        filter="$(installed_test_filter "$group")"
+        class_name="${filter%%/*}"
+        method_name="${filter#*/}"
+        [[ -n "$class_name" && -n "$method_name" && "$class_name" != "$method_name" ]] || \
+            fail "installed workflow has an invalid test filter: $group=$filter"
+        installed_filter_pair_exists "$class_name" "$method_name" || \
+            fail "installed workflow filter does not resolve to one test method: $group=$filter"
+    done < <(workflow_groups)
+}
+
 audit_matrix() {
     [[ -f "$MATRIX_PATH" ]] || fail "matrix is missing: $MATRIX_PATH"
 
@@ -70,6 +104,8 @@ audit_matrix() {
         grep -F "$qualification_check" "$MATRIX_PATH" >/dev/null || \
             fail "campaign check catalog entry is unused: $qualification_check"
     done < <(qualification_check_catalog)
+
+    audit_installed_test_filters
 
     printf 'matrix audit passed: %s capability rows\n' "$row_count"
 }
