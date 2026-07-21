@@ -2509,3 +2509,15 @@ Spotlight search has no unit test (depends on the live, async-built system index
   with 0 failures. Outside-root snapshots remained unchanged, and guarded
   cleanup removed all four marked local, APFS, iCloud, and SMB roots plus both
   mounts; `in-process.env` records the campaign pass.
+
+- 2026-07-21 16:33 CEST: Foundry qualification smoke
+  `refresh-local-tight-two-d6f5cf4-1` PASS at commit `d6f5cf4`: two consecutive
+  refresh cycles completed in one logical XCTest in 24.8 seconds with 0
+  failures/skips, both exact markers, unchanged outside-root state, and green
+  guarded cleanup. Equivalent pre-optimization coverage took 58 seconds.
+
+- 2026-07-21 16:34 CEST: Foundry qualification smoke
+  `refresh-linux-tight-two-d6f5cf4-1` PASS at commit `d6f5cf4`: two consecutive
+  live Linux refresh cycles completed in 31.3 seconds with 0 failures/skips,
+  both exact markers, sentinel-checked remote scenario removal, unchanged remote
+  siblings, and green guarded local cleanup.
