@@ -356,15 +356,17 @@ final class QualificationRefreshUITests: BaseUITest {
         }
         assertPresentation(state, selected: selected, expanded: expanded)
 
+        XCTAssertEqual(state.sortColumn, "name")
+        let expectedSortAscending = !state.sortAscending
         outline.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0))
             .withOffset(CGVector(dx: 0, dy: -10))
             .click()
-        _ = try waitForState("descending name sort") {
-            $0.sortColumn == "name" && !$0.sortAscending
+        state = try waitForState("name sort direction toggle") {
+            $0.sortColumn == "name" && $0.sortAscending == expectedSortAscending
         }
         let sortedWatcher = scenario.appendingPathComponent("zzzz-sort.txt")
         try actions.write(sortedWatcher, "sort")
-        state = try waitForState("watcher refresh through descending sort") {
+        state = try waitForState("watcher refresh through active sort") {
             $0.visibleLocations.contains(sortedWatcher.path) && self.isQuiescent($0)
         }
         let rootFileNames = state.visibleLocations.compactMap { path -> String? in
@@ -375,7 +377,10 @@ final class QualificationRefreshUITests: BaseUITest {
         }
         XCTAssertEqual(
             rootFileNames,
-            rootFileNames.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedDescending }
+            rootFileNames.sorted {
+                $0.localizedCaseInsensitiveCompare($1)
+                    == (expectedSortAscending ? .orderedAscending : .orderedDescending)
+            }
         )
         assertPresentation(state, selected: selected, expanded: expanded)
 

@@ -2371,3 +2371,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   with 0 failures/skips. Both uniquely named fixtures were removed between
   cycles, both completion markers matched the requested total, and guarded
   cleanup passed.
+
+- 2026-07-21 14:07 CEST: Foundry qualification smoke
+  `refresh-local-two-cycle-415c127-1` FAIL at commit `415c127`: cycle one passed,
+  but cycle two inherited its descending name sort. The workflow blindly clicked
+  the name header again, toggled back to ascending, and then waited for descending
+  until XCTest failed. Guarded cleanup passed. The workflow now verifies the real
+  direction toggle relative to each cycle's observed starting state.
