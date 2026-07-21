@@ -2598,3 +2598,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   token was available in the keychain. No build, fixture, or test ran. The
   subsequent approved warm-up returned the same keychain error without showing
   Touch ID, so the flow stopped without retrying or bypassing the auth guard.
+
+- 2026-07-21 19:14 CEST: Gate 1 qualification invocation
+  `gate1-refresh-6f680fc-1` STOPPED before build and tests at commit `6f680fc`:
+  Foundry passed the 102-row matrix audit, then the new runner rejected its own
+  undeclared `rg` dependency. No Detours build, fixture, or test ran. The
+  blocking runner now uses the available POSIX `grep` command instead.

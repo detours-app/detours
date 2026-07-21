@@ -40,7 +40,7 @@ run_blocking_swift_filter() {
     status="${PIPESTATUS[0]}"
     set -e
     (( status == 0 )) || return "$status"
-    ! rg -n 'Test Case .* skipped|✘.*skipped' "$log_path" >/dev/null || \
+    ! grep -En 'Test Case .* skipped|✘.*skipped' "$log_path" >/dev/null || \
         fail "$label recorded a skipped test"
 }
 
@@ -90,7 +90,7 @@ prepare_blocking_refresh_bundles() {
         DETOURS_INTEL_MAC_TEST_TARGET="$QUALIFICATION_INTEL_MAC_TARGET" \
         DETOURS_WINDOWS_TEST_TARGET="$QUALIFICATION_WINDOWS_TARGET" \
         swift test list > "$swift_log" 2>&1
-    ! rg -n 'warning:' "$swift_log" >/dev/null || fail "blocking test build emitted warnings"
+    ! grep -En 'warning:' "$swift_log" >/dev/null || fail "blocking test build emitted warnings"
     prepare_installed_test_bundle "$(run_dir)/logs/blocking-ui-build.log"
 }
 
@@ -99,7 +99,6 @@ run_blocking_refresh() {
     trap 'campaign_cleanup_on_exit "$?"' EXIT
     run_reset
     run_preflight
-    require_command rg
     run_build
     run_prepare_fixtures
     prepare_blocking_refresh_bundles
