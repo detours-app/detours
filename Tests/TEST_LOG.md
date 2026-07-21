@@ -2339,3 +2339,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   guarded qualification root and macOS denied that write. The XCResult recorded
   1 failure and no pass; guarded cleanup passed. Transfer fixtures now use the
   existing guarded app-side mutation seam for creation and removal.
+
+- 2026-07-21 13:55 CEST: Foundry qualification smoke
+  `transfer-local-shared-loop-2f10824-1` PASS at commit `2f10824`: the corrected
+  guarded fixture path completed the cross-pane F5 copy, destination activation,
+  result selection, and per-cycle cleanup in 17 seconds with 0 failures/skips.
+  Its transfer-cycle marker and overall guarded cleanup both passed.
