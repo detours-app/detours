@@ -2282,3 +2282,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   resolved its relative `__TESTROOT__` there and could not find the already
   built UI-test product. Guarded cleanup passed. The execution record now stays
   beside the prepared build products, and the exact smoke is rerun below.
+
+- 2026-07-21 13:33 CEST: Foundry qualification smoke
+  `activation-windows-no-build-smoke-ee2a1df-1` FAIL before launching Detours.
+  Xcode requires a destination when given a raw `.xctestrun`, whose missing
+  supported-platform metadata also produced ambiguous-destination diagnostics.
+  Guarded cleanup passed. The runner now uses the project/scheme form of
+  `test-without-building`, preserving native macOS destination resolution and
+  per-context settings while reusing the prepared products.
