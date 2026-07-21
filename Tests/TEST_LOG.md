@@ -2489,3 +2489,8 @@ Spotlight search has no unit test (depends on the live, async-built system index
   seconds with 0 failures/skips, all 20 exact markers, and passing guarded
   cleanup. Evidence contains only `icloud.json` and `ICLOUD_ROOT`; no Doppler
   secret, SMB mount, APFS image, or local fixture was used.
+
+- 2026-07-21 15:18 CEST: Foundry static verification PASS: `bash -n` accepted
+  `qualification.sh`, `qualification-fixtures.sh`, and
+  `qualification-foundry.sh`; SwiftLint 0.65.0 checked 358 Swift files under
+  `--strict` and reported 0 violations.
