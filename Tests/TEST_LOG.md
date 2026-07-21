@@ -2407,3 +2407,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   the former 42-second cycles), but the command then idled for about 42 seconds
   after teardown actions ended. Qualification teardown now explicitly terminates
   its finished app instead of waiting for the outer runner to do it.
+
+- 2026-07-21 14:25 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-af92f6e-1` PASS at commit `af92f6e`: both cycles,
+  markers, and guarded cleanup passed, but explicit app termination left the
+  same 42-second post-action tail and added another teardown action. That change
+  is removed. The remaining shared signal is secure-field character injection,
+  which invokes XCUITest interruption handling; the next proof uses one paste
+  event and restores the prior Foundry clipboard value.

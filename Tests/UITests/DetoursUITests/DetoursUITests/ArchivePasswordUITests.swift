@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 final class ArchivePasswordUITests: BaseUITest {
@@ -40,11 +41,11 @@ final class ArchivePasswordUITests: BaseUITest {
 
         let limitMessage = sheet.staticTexts["ZIP passwords are limited to 80 UTF-8 bytes"]
         if (iteration - 1).isMultiple(of: 10) {
-            passwordField.typeText(String(repeating: "a", count: 81))
+            pastePassword(String(repeating: "a", count: 81), into: passwordField)
             XCTAssertTrue(limitMessage.existsOrWait(timeout: 2))
             XCTAssertFalse(sheet.buttons["archiveConfirmButton"].isEnabled)
         } else {
-            passwordField.typeText("a")
+            pastePassword("a", into: passwordField)
             XCTAssertFalse(limitMessage.exists)
             XCTAssertTrue(sheet.buttons["archiveConfirmButton"].isEnabled)
         }
@@ -96,6 +97,21 @@ final class ArchivePasswordUITests: BaseUITest {
         let item = app.descendants(matching: .any)["archiveFormat-\(identifier)"]
         XCTAssertTrue(item.existsOrWait(timeout: 2), "\(identifier) archive format should exist")
         item.click()
+    }
+
+    private func pastePassword(_ password: String, into field: XCUIElement) {
+        let pasteboard = NSPasteboard.general
+        let priorString = pasteboard.string(forType: .string)
+        defer {
+            pasteboard.clearContents()
+            if let priorString {
+                _ = pasteboard.setString(priorString, forType: .string)
+            }
+        }
+
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.setString(password, forType: .string))
+        field.typeKey("v", modifierFlags: .command)
     }
 
     private func submitExtractionPassword(_ password: String) {

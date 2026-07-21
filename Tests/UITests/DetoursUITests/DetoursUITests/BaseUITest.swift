@@ -123,16 +123,8 @@ class BaseUITest: XCTestCase {
         // Close the tab we created (Cmd-W)
         pressCharKey("w", modifiers: .command)
 
-        // The legacy whole-suite launcher owns its app lifecycle. Qualification runs one
-        // logical XCTest per context, so leaving the app attached here can make Xcode idle
-        // for tens of seconds before returning control to the runner.
-        let qualificationRepetitions = ProcessInfo.processInfo.environment[
-            "DETOURS_QUALIFICATION_REPETITIONS"
-        ] ?? ""
-        if !qualificationRepetitions.isEmpty {
-            app.terminate()
-            XCTAssertTrue(app.wait(for: .notRunning, timeout: 5), "Qualification app should terminate")
-        }
+        // Don't terminate - uitest.sh handles quitting and relaunching
+        // Terminating too quickly after Cmd-W causes tab state to not be saved
     }
 
     /// Activate the left pane by clicking its outline view
