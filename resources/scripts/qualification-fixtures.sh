@@ -49,7 +49,7 @@ verify_smb_authentication() {
     local auth_status
     set +e
     local smb_auth_url
-    smb_auth_url="//$QUALIFICATION_SMB_USER@$QUALIFICATION_SMB_HOST/$QUALIFICATION_SMB_SHARE"
+    smb_auth_url="//$QUALIFICATION_SMB_USER@$QUALIFICATION_SMB_HOST"
     DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" SMB_AUTH_URL="$smb_auth_url" \
         expect <<'EXPECT' >/dev/null 2>&1
         log_user 0
