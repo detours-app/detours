@@ -32,111 +32,94 @@ final class QualificationActivationUITests: BaseUITest {
         XCTAssertTrue(leftOutline.existsOrWait(timeout: 3))
         try waitForQualificationRemoteIfNeeded()
 
-        try runQualificationRepetitions(group: "activation") { _ in
-            try self.runActivationWorkflowCycle()
+        try runQualificationRepetitions(group: "activation") { iteration in
+            try self.runActivationWorkflowCycle(iteration: iteration)
         }
     }
 
-    private func runActivationWorkflowCycle() throws {
+    private func runActivationWorkflowCycle(iteration: Int) throws {
         let initial = try assertPaneAndTabContract(expectedActivePane: "left")
-
-        let leftNewTabButton = app.buttons.matching(identifier: "paneNewTabButton").element(boundBy: 0)
-        XCTAssertTrue(leftNewTabButton.existsOrWait(timeout: 1))
-        leftNewTabButton.click()
-        let leftNewTab = try assertPaneAndTabContract(expectedActivePane: "left") { state in
-            state.left.tabCount == initial.left.tabCount + 1
-                && state.left.selectedTabID != initial.left.selectedTabID
-        }
-        XCTAssertEqual(leftNewTab.left.tabCount, initial.left.tabCount + 1)
-        XCTAssertNotEqual(leftNewTab.left.selectedTabID, initial.left.selectedTabID)
-
-        pressKey(.tab, modifiers: [.control, .shift])
-        let leftPreviousTab = try assertPaneAndTabContract(expectedActivePane: "left") { state in
-            state.left.selectedTabID == initial.left.selectedTabID
-        }
-        XCTAssertEqual(leftPreviousTab.left.selectedTabID, initial.left.selectedTabID)
-        pressKey(.tab, modifiers: .control)
-        let leftNextTab = try assertPaneAndTabContract(expectedActivePane: "left") { state in
-            state.left.selectedTabID == leftNewTab.left.selectedTabID
-        }
-        XCTAssertEqual(leftNextTab.left.selectedTabID, leftNewTab.left.selectedTabID)
-        selectFirstVisibleItemInActivePane()
-        let leftSelection = try assertPaneAndTabContract(expectedActivePane: "left") { state in
-            !state.left.selectedLocations.isEmpty
-        }
-        XCTAssertFalse(leftSelection.left.selectedLocations.isEmpty)
-
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
-        finder.activate()
-        XCTAssertTrue(waitForForeground(finder, timeout: 3))
-        app.activate()
-        XCTAssertTrue(waitForForeground(app, timeout: 3))
-        let returnedToLeft = try assertPaneAndTabContract(expectedActivePane: "left") { state in
-            state.left.selectedTabID == leftNewTab.left.selectedTabID
-                && state.left.selectedLocations == leftSelection.left.selectedLocations
+        let testsRightPane = iteration.isMultiple(of: 2)
+        if testsRightPane {
+            pressKey(.tab)
+            _ = try assertPaneAndTabContract(expectedActivePane: "right")
         }
-        XCTAssertEqual(returnedToLeft.left.selectedTabID, leftNewTab.left.selectedTabID)
-        XCTAssertEqual(returnedToLeft.left.selectedLocations, leftSelection.left.selectedLocations)
 
-        pressKey(.tab)
-        let rightInitial = try assertPaneAndTabContract(expectedActivePane: "right")
-        let rightNewTabButton = app.buttons.matching(identifier: "paneNewTabButton").element(boundBy: 1)
-        XCTAssertTrue(rightNewTabButton.existsOrWait(timeout: 1))
-        rightNewTabButton.click()
-        let rightNewTab = try assertPaneAndTabContract(expectedActivePane: "right") { state in
-            state.right.tabCount == rightInitial.right.tabCount + 1
-                && state.right.selectedTabID != rightInitial.right.selectedTabID
+        let paneName = testsRightPane ? "right" : "left"
+        let paneIndex = testsRightPane ? 1 : 0
+        let paneInitial: RemotePaneState
+        if testsRightPane {
+            paneInitial = try requestRemotePaneState(pane: "right")
+        } else {
+            paneInitial = initial.left
         }
-        XCTAssertEqual(rightNewTab.right.tabCount, rightInitial.right.tabCount + 1)
-        XCTAssertNotEqual(rightNewTab.right.selectedTabID, rightInitial.right.selectedTabID)
+        let newTabButton = app.buttons.matching(identifier: "paneNewTabButton").element(boundBy: paneIndex)
+        XCTAssertTrue(newTabButton.existsOrWait(timeout: 1))
+        newTabButton.click()
+        let newTab = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
+            let pane = testsRightPane ? state.right : state.left
+            return pane.tabCount == paneInitial.tabCount + 1
+                && pane.selectedTabID != paneInitial.selectedTabID
+        }
+        let newTabPane = testsRightPane ? newTab.right : newTab.left
+        XCTAssertEqual(newTabPane.tabCount, paneInitial.tabCount + 1)
+        XCTAssertNotEqual(newTabPane.selectedTabID, paneInitial.selectedTabID)
 
         pressKey(.tab, modifiers: [.control, .shift])
-        let rightPreviousTab = try assertPaneAndTabContract(expectedActivePane: "right") { state in
-            state.right.selectedTabID == rightInitial.right.selectedTabID
+        let previousTab = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
+            let pane = testsRightPane ? state.right : state.left
+            return pane.selectedTabID == paneInitial.selectedTabID
         }
-        XCTAssertEqual(rightPreviousTab.right.selectedTabID, rightInitial.right.selectedTabID)
+        XCTAssertEqual(
+            testsRightPane ? previousTab.right.selectedTabID : previousTab.left.selectedTabID,
+            paneInitial.selectedTabID
+        )
         pressKey(.tab, modifiers: .control)
-        let rightNextTab = try assertPaneAndTabContract(expectedActivePane: "right") { state in
-            state.right.selectedTabID == rightNewTab.right.selectedTabID
+        let nextTab = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
+            let pane = testsRightPane ? state.right : state.left
+            return pane.selectedTabID == newTabPane.selectedTabID
         }
-        XCTAssertEqual(rightNextTab.right.selectedTabID, rightNewTab.right.selectedTabID)
+        XCTAssertEqual(
+            testsRightPane ? nextTab.right.selectedTabID : nextTab.left.selectedTabID,
+            newTabPane.selectedTabID
+        )
+
         selectFirstVisibleItemInActivePane()
-        let rightSelection = try assertPaneAndTabContract(expectedActivePane: "right") { state in
-            !state.right.selectedLocations.isEmpty
+        let selection = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
+            let pane = testsRightPane ? state.right : state.left
+            return !pane.selectedLocations.isEmpty
         }
-        XCTAssertFalse(rightSelection.right.selectedLocations.isEmpty)
+        let selectedPane = testsRightPane ? selection.right : selection.left
+        XCTAssertFalse(selectedPane.selectedLocations.isEmpty)
 
         finder.activate()
         XCTAssertTrue(waitForForeground(finder, timeout: 3))
         app.activate()
         XCTAssertTrue(waitForForeground(app, timeout: 3))
-        let returnedToRight = try assertPaneAndTabContract(expectedActivePane: "right") { state in
-            state.right.selectedTabID == rightNewTab.right.selectedTabID
-                && state.right.selectedLocations == rightSelection.right.selectedLocations
+        let returned = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
+            let pane = testsRightPane ? state.right : state.left
+            return pane.selectedTabID == newTabPane.selectedTabID
+                && pane.selectedLocations == selectedPane.selectedLocations
         }
-        XCTAssertEqual(returnedToRight.right.selectedTabID, rightNewTab.right.selectedTabID)
-        XCTAssertEqual(returnedToRight.right.selectedLocations, rightSelection.right.selectedLocations)
-
-        pressKey(.tab)
-        _ = try assertPaneAndTabContract(expectedActivePane: "left")
+        let returnedPane = testsRightPane ? returned.right : returned.left
+        XCTAssertEqual(returnedPane.selectedTabID, newTabPane.selectedTabID)
+        XCTAssertEqual(returnedPane.selectedLocations, selectedPane.selectedLocations)
 
         pressCharKey("w", modifiers: .command)
-        let leftCleaned = try assertPaneAndTabContract(expectedActivePane: "left") { state in
-            state.left.tabCount == initial.left.tabCount
-                && state.left.selectedTabID == initial.left.selectedTabID
+        let cleaned = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
+            let pane = testsRightPane ? state.right : state.left
+            return pane.tabCount == paneInitial.tabCount
+                && pane.selectedTabID == paneInitial.selectedTabID
         }
-        XCTAssertEqual(leftCleaned.left.tabCount, initial.left.tabCount)
-        XCTAssertEqual(leftCleaned.left.selectedTabID, initial.left.selectedTabID)
-        pressKey(.tab)
-        pressCharKey("w", modifiers: .command)
-        let rightCleaned = try assertPaneAndTabContract(expectedActivePane: "right") { state in
-            state.right.tabCount == rightInitial.right.tabCount
-                && state.right.selectedTabID == rightInitial.right.selectedTabID
+        let cleanedPane = testsRightPane ? cleaned.right : cleaned.left
+        XCTAssertEqual(cleanedPane.tabCount, paneInitial.tabCount)
+        XCTAssertEqual(cleanedPane.selectedTabID, paneInitial.selectedTabID)
+
+        if testsRightPane {
+            pressKey(.tab)
+            _ = try assertPaneAndTabContract(expectedActivePane: "left")
         }
-        XCTAssertEqual(rightCleaned.right.tabCount, rightInitial.right.tabCount)
-        XCTAssertEqual(rightCleaned.right.selectedTabID, rightInitial.right.selectedTabID)
-        pressKey(.tab)
-        _ = try assertPaneAndTabContract(expectedActivePane: "left")
     }
 
     @discardableResult

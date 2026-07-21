@@ -2435,3 +2435,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Command-O dispatch cycles completed in about four seconds each inside one
   logical XCTest. The result recorded 1 pass, 0 failures/skips, two exact cycle
   markers, and passing guarded cleanup; restored shared teardown also completed.
+
+- 2026-07-21 14:41 CEST: Foundry qualification run
+  `activation-windows-20-f840a9d-1` PASS at commit `f840a9d`: one logical
+  XCTest completed all 20 live Windows activation cycles, emitted all 20 exact
+  markers, recorded 0 failures/skips, and passed guarded cleanup. The workflows
+  took about 195 seconds, while Xcode post-cycle processing accumulated another
+  roughly 123 seconds. Each cycle redundantly exercised both panes; coverage now
+  alternates panes, retaining 10 complete workflows per pane in a 20-cycle run.
