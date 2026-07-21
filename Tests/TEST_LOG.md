@@ -2579,3 +2579,8 @@ Spotlight search has no unit test (depends on the live, async-built system index
   passed (1 test in 0.001 seconds). It proves sub-20 ms timestamp jitter is
   ignored only for network-volume listing reconciliation, while a 50 ms network
   change and the same 8.5 ms change on local storage remain visible changes.
+
+- 2026-07-21 18:12 CEST: Qualification invocation
+  `refresh-smb-jitter-20-988472c-1` STOPPED before preflight: the Foundry
+  orchestration wrapper was invoked inside Foundry, where its Spectre-side
+  secret helper is intentionally unavailable. No build, fixture, or test ran.
