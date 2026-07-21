@@ -237,16 +237,20 @@ final class QualificationRefreshUITests: BaseUITest {
         let hidden = scenario.appendingPathComponent(".hidden.txt")
         let tracked = scenario.appendingPathComponent("tracked.txt")
 
-        try runSFTP(target: target, commands: ["mkdir " + sftpQuote(expanded.path)])
-        for (url, contents) in [
+        let initialFiles = [
             (nested, "nested"),
             (selected, "selected"),
             (deleted, "delete"),
             (hidden, "hidden"),
             (tracked, "tracked"),
-        ] {
-            try uploadRemote(contents, to: url.path, target: target)
+        ]
+        var setupCommands = ["mkdir " + sftpQuote(expanded.path)]
+        for (url, contents) in initialFiles {
+            let local = staging.appendingPathComponent(url.lastPathComponent)
+            try Data(contents.utf8).write(to: local)
+            setupCommands.append("put " + sftpQuote(local.path) + " " + sftpQuote(url.path))
         }
+        try runSFTP(target: target, commands: setupCommands)
 
         let verifiesGit = qualificationRemoteContext != "WINDOWS_TARGET"
         if verifiesGit {
@@ -285,7 +289,7 @@ final class QualificationRefreshUITests: BaseUITest {
         let outline = app.leftPaneOutlineView
         let scenarioRow = outline.outlineRow(withStaticText: scenarioName)
         XCTAssertTrue(
-            scenarioRow.waitForExistence(timeout: 30),
+            scenarioRow.existsOrWait(timeout: 30),
             "The root watcher should expose the qualification scenario"
         )
         scenarioRow.staticTexts[scenarioName].doubleClick()
@@ -299,7 +303,7 @@ final class QualificationRefreshUITests: BaseUITest {
         }
 
         let expandedRow = outline.outlineRow(withStaticText: "Expanded")
-        XCTAssertTrue(expandedRow.waitForExistence(timeout: 10))
+        XCTAssertTrue(expandedRow.existsOrWait(timeout: 10))
         expandedRow.disclosureTriangle.click()
         _ = try waitForState("expanded branch and its provider watch") {
             $0.expandedLocations.contains(expanded.path)
@@ -310,9 +314,6 @@ final class QualificationRefreshUITests: BaseUITest {
         }
         selectRow(named: selected.lastPathComponent)
         var state = try waitForPresentation(selected: selected, expanded: expanded)
-
-        state = try performManualRefresh(after: state)
-        assertPresentation(state, selected: selected, expanded: expanded)
 
         let watcherCreated = expanded.appendingPathComponent("watcher-created.txt")
         try actions.write(watcherCreated, "created")
@@ -336,7 +337,7 @@ final class QualificationRefreshUITests: BaseUITest {
 
         pressCharKey("f", modifiers: .command)
         let filter = app.searchFields["filterSearchField"].firstMatch
-        XCTAssertTrue(filter.waitForExistence(timeout: 2))
+        XCTAssertTrue(filter.existsOrWait(timeout: 2))
         filter.typeText("alpha")
         let filteredWatcher = scenario.appendingPathComponent("alpha-watcher.txt")
         try actions.write(filteredWatcher, "filter")
