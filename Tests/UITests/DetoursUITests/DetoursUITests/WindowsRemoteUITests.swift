@@ -58,21 +58,24 @@ final class WindowsRemoteUITests: BaseUITest {
         try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
-        // Connect to the real Windows host so the banner is driven by the PowerShell channel's
-        // published state, with no test-only state injection.
-        app.launchEnvironment["DETOURS_UI_TEST_WINDOWS_TARGET"] = target
+        // Connect through the same real-remote launch route used by qualification workflows.
+        app.launchEnvironment["DETOURS_UI_TEST_REAL_REMOTE_TARGET"] = target
+        app.launchEnvironment["DETOURS_UI_TEST_REAL_REMOTE_CONTEXT"] = "WINDOWS_TARGET"
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10), "App window should exist")
 
         // A local/Unix tab in the right pane must remain usable while the Windows tab drops.
         let rightOutline = app.rightPaneOutlineView
         XCTAssertTrue(rightOutline.waitForExistence(timeout: 5), "Right pane outline should exist")
+        let readinessFailure = try waitForRealWindowsConnection(target: target)
+        XCTAssertNil(readinessFailure, readinessFailure ?? "")
+        guard readinessFailure == nil else { return }
 
-        // Drop the real connection (kill its ssh control master) and assert the banner appears
-        // from the published .failed state.
+        // Drop the exact shared control master used by Detours. The active remote watch receives
+        // EOF and publishes the real failed state that owns the reconnect banner.
         try dropRealWindowsConnection(target: target)
         let banner = app.groups["remoteReconnectBanner"]
-        XCTAssertTrue(banner.waitForExistence(timeout: 15), "A real Windows drop should publish a failed state and show the banner")
+        XCTAssertTrue(banner.waitForExistence(timeout: 5), "A real Windows drop should publish a failed state and show the banner")
 
         // A successful reconnect clears the banner.
         let reconnect = app.buttons["remoteReconnectButton"]
@@ -83,14 +86,39 @@ final class WindowsRemoteUITests: BaseUITest {
     }
 
     private func dropRealWindowsConnection(target: String) throws {
-        // Force the shared control master closed so the next channel request observes the drop.
+        let controlPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".detours/ssh/%C").path
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = ["-O", "exit", target]
+        process.arguments = ["-o", "ControlPath=\(controlPath)", "-O", "exit", target]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        try? process.run()
+        try process.run()
         process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0, "The Detours SSH control master should be active")
+    }
+
+    private func waitForRealWindowsConnection(target: String) throws -> String? {
+        let deadline = Date().addingTimeInterval(30)
+        var lastState: RemotePaneState?
+        while Date() < deadline {
+            let state = try requestRemotePaneState(pane: "left")
+            lastState = state
+            if state.registeredRemoteProviderCount == 1,
+               state.connectionStates.values.contains("connected"),
+               state.providerWatchCount > 0,
+               state.displayedLocation != nil,
+               state.displayedLocation != uiTestRootURL.path,
+               !state.navigationLoadInFlight,
+               !state.loadingVisible {
+                return nil
+            }
+            usleep(50_000)
+        }
+        return "Windows host \(target) did not reach a connected, watched remote pane; "
+            + "location=\(lastState?.displayedLocation ?? \"nil\") "
+            + "states=\(lastState?.connectionStates ?? [:]) "
+            + "watches=\(lastState?.providerWatchCount ?? -1)"
     }
 
     private func launchRemote(mode: String) throws {
