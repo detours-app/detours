@@ -205,9 +205,22 @@ run_installed_smoke() {
 
 prepare_installed_test_bundle() {
     local log_path="$1"
-    local derived_data status xctestrun
+    local derived_data ready_file status xctestrun
     local -a candidates=()
     derived_data="$(run_dir)/xcode-derived-data"
+    ready_file="$(run_dir)/xcode-derived-data.ready"
+    if [[ -d "$derived_data" ]]; then
+        [[ -f "$ready_file" ]] || \
+            fail "installed-test derived data exists without a readiness record: $derived_data"
+        IFS= read -r xctestrun < "$ready_file"
+        path_is_within "$xctestrun" "$derived_data" || \
+            fail "installed-test readiness record escapes derived data"
+        [[ -f "$xctestrun" ]] || fail "installed-test readiness bundle is missing: $xctestrun"
+        [[ ! -e "$log_path" ]] || fail "installed-test reuse log already exists: $log_path"
+        printf 'reused=%s\n' "$xctestrun" > "$log_path"
+        QUALIFICATION_UI_DERIVED_DATA="$derived_data"
+        return
+    fi
     [[ ! -e "$derived_data" ]] || fail "installed-test derived data already exists: $derived_data"
     pgrep -x Finder >/dev/null 2>&1 || fail "Finder GUI session is unavailable"
     require_command jq
@@ -252,6 +265,7 @@ prepare_installed_test_bundle() {
         fail "UI test scheme did not expand the remote-context setting"
     [[ "$(plutil -extract TestConfigurations.0.TestTargets.0.EnvironmentVariables.DETOURS_QUALIFICATION_REPETITIONS raw "$xctestrun")" == "1" ]] || \
         fail "UI test scheme did not expand the repetition setting"
+    printf '%s\n' "$xctestrun" > "$ready_file"
     QUALIFICATION_UI_DERIVED_DATA="$derived_data"
 }
 

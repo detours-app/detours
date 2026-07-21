@@ -2789,3 +2789,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   the campaign watchdog, cancelled it through the real qualification `cancel`
   command, and returned status 130. The child was gone and the active-deadline
   record was removed; no broad process match or manual cleanup was used.
+
+- 2026-07-21: Authorized run `gate2-t5-refresh-2a26500-1` passed the permission
+  gate in 20 seconds and all 100 in-process refresh repetitions in 425.533
+  seconds, inside the 600-second deadline. It stopped before installed
+  repetition because permission readiness had already prepared the XCUI derived
+  data and the installed dispatcher rejected that same-run bundle instead of
+  reusing it. Guarded cleanup passed. Bundle preparation now writes a validated
+  readiness record and allows only that exact in-run bundle to be reused.
