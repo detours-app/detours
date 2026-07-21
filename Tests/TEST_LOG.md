@@ -2482,3 +2482,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   seconds with 0 failures/skips, all 20 exact markers, and passing guarded
   cleanup. Evidence contains only `apfs.json` and APFS fixture variables; no
   Doppler secret, SMB mount, iCloud root, or local fixture was used.
+
+- 2026-07-21 15:16 CEST: Foundry qualification run
+  `activation-icloud-20-57e9789-1` PASS at commit `57e9789`: the iCloud context
+  completed all 20 alternating activation cycles in one logical XCTest in 237
+  seconds with 0 failures/skips, all 20 exact markers, and passing guarded
+  cleanup. Evidence contains only `icloud.json` and `ICLOUD_ROOT`; no Doppler
+  secret, SMB mount, APFS image, or local fixture was used.
