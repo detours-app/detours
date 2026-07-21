@@ -211,6 +211,10 @@ run_workflow_campaign() {
     run_build
     run_prepare_fixtures
     capture_outside_root_snapshots before
+    if [[ "$group" == "refresh" ]]; then
+        prepare_blocking_refresh_bundles
+        blocking_layer storage-permissions 30 run_blocking_storage_permissions
+    fi
     capture_state_observation workflow-before
     run_in_process "$group"
     run_installed "$group"

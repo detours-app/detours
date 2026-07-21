@@ -33,6 +33,15 @@ fi
 
 smb_secret=""
 requires_smb_secret=1
+gate2_prefix=""
+case "${DETOURS_QUALIFICATION_GATE2_AUTHORIZED:-0}" in
+    0) ;;
+    1) gate2_prefix="env DETOURS_QUALIFICATION_GATE2_AUTHORIZED=1 " ;;
+    *)
+        printf 'qualification-foundry: DETOURS_QUALIFICATION_GATE2_AUTHORIZED must be 0 or 1\n' >&2
+        exit 64
+        ;;
+esac
 # shellcheck disable=SC2329
 cleanup_secret() {
     unset smb_secret
@@ -93,9 +102,9 @@ else
             printf 'qualification-foundry: credential is empty\n' >&2
             exit 66
         }
-        remote_command="cd ~/dev/detours && exec resources/scripts/qualification-secret-stdin.sh resources/scripts/qualification.sh"
+        remote_command="cd ~/dev/detours && exec ${gate2_prefix}resources/scripts/qualification-secret-stdin.sh resources/scripts/qualification.sh"
     else
-        remote_command="cd ~/dev/detours && exec resources/scripts/qualification.sh"
+        remote_command="cd ~/dev/detours && exec ${gate2_prefix}resources/scripts/qualification.sh"
     fi
     for argument in "$@"; do
         printf -v quoted_argument '%q' "$argument"

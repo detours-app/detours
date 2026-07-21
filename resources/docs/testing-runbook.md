@@ -286,3 +286,5 @@ Authorized by Marco on 2026-07-21. Scope:
 ### Gate 2: resume whole-app qualification
 
 Requires a separate explicit authorization after Gate 1 reports measured runtime, known-defect sensitivity, capability ownership, provider coverage, and cleanup results. Only then may the remaining whole-app qualification tasks and soak resume.
+
+Authorization is scoped to one launcher invocation by setting `DETOURS_QUALIFICATION_GATE2_AUTHORIZED=1` on `qualification-foundry.sh`; the launcher forwards that value only to the selected Foundry command. A repeated refresh campaign must run the bounded iCloud and SMB permission-readiness layer after reset and fixture preparation, before its first behavioral repetition. A readiness failure stops the campaign without entering the 100/20 loops.

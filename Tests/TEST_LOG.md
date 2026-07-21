@@ -2758,3 +2758,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   against the 180-second budget and 2,153.055-second baseline, a 25.33x
   speedup. All outside-root entry sets were unchanged; cleanup removed all four
   roots and both mounts and left no app, Xcode, xctest, or runner process.
+
+- 2026-07-21: Gate 2 T5 authorization audit found that the local launcher did
+  not forward its explicit authorization value to the Foundry process and that
+  the repeated refresh route could reset storage consent without rerunning the
+  permission-readiness layer. The launcher now forwards authorization for one
+  invocation only, and `workflow-run refresh` runs the bounded iCloud and SMB
+  permission probes before entering either repetition loop. Shellcheck and the
+  changed-file lint gate pass.
