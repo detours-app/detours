@@ -57,6 +57,8 @@ audit_installed_test_filters() {
     done < <(workflow_groups)
     installed_filter_pair_exists QualificationRefreshUITests testRefreshProviderBoundary || \
         fail "blocking refresh provider filter does not resolve to one test method"
+    installed_filter_pair_exists QualificationRefreshUITests testStoragePermissionPreflight || \
+        fail "blocking storage-permission filter does not resolve to one test method"
 }
 
 audit_shell_only_orchestration() {

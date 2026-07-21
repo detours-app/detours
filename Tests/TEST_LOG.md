@@ -2681,3 +2681,18 @@ Spotlight search has no unit test (depends on the live, async-built system index
   metadata exists. Credential-bearing launches now require and consume a
   one-use explicit warm-up marker, so an absent or stale warm-up fails before
   `get_secret` and cannot display a surprise prompt.
+
+- 2026-07-21 20:44 CEST: Gate 1 qualification run
+  `gate1-refresh-b8efc85-1` PASS at exact commit `b8efc85`, seed 0. The
+  deterministic layer passed 2 tests, including the explicit pairwise table and
+  all four known-defect replays, in 2 seconds runner wall time. The provider
+  layer passed 7 tests across local, APFS, iCloud, SMB, Linux, Intel Mac, and
+  Windows listing/watch boundaries in 53 seconds. The single representative
+  installed-app refresh journey passed in 20 seconds with exactly 1 XCResult
+  pass and 0 failures/skips/expected failures. End-to-end post-build time was
+  76 seconds against the 180-second budget and 2,153.055-second baseline: a
+  28.33x speedup. Outside-root entries were unchanged, cleanup removed all four
+  guarded roots and both mounts, and no test/app process, warning, retry, or
+  failure artifact remained. Foundry required a one-time macOS iCloud access
+  Allow during this work; it explains the earlier stalled iCloud XCUI path and
+  is recorded as an environment prerequisite, not a test assertion.

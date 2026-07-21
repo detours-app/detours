@@ -70,6 +70,21 @@ The resulting current refresh baseline is:
 
 Shared build and fixture-orchestration time are excluded from both the current and target figures. A recorded uncached release build took 57.64 seconds and a cached release build took approximately 0.30 seconds; build work must occur once per qualification, never once per context or repetition.
 
+## Gate 1 Measured Proof
+
+Gate 1 passed on Foundry on 2026-07-21 at commit `b8efc85297ccaf9124cd3224cd46bf56b26d7095`, run ID `gate1-refresh-b8efc85-1`, seed 0. Timing starts after the shared build and fixture setup and ends after outside-root comparison and guarded cleanup.
+
+| Layer | Tests | Wall time | Budget | Result |
+| --- | ---: | ---: | ---: | --- |
+| Pure behavior and known-defect replay | 2 | 2 s | 10 s | Pass |
+| Mounted and live provider contracts | 7 | 53 s | 60 s | Pass |
+| Representative installed-app XCUI | 1 | 20 s | 90 s | Pass |
+| Complete blocking gate | 10 | 76 s | 180 s | Pass |
+
+The measured speedup is 28.33x against the 2,153.055-second baseline. The run recorded zero failures, skips, expected failures, warnings, retries, leaked processes, leaked mounts, or outside-root entry changes. All four known defects passed deterministic replay, all seven provider roles exercised real listing or watcher boundaries, the XCResult contains exactly one passed installed-app test, and guarded cleanup passed.
+
+Foundry presented a one-time macOS iCloud access dialog during this work and Marco selected Allow. This explains the earlier iCloud XCUI wait; the successful proof did not retry a failed test into a pass. The permission is an environment prerequisite, not a test assertion.
+
 ### Additional workflow timing evidence
 
 The problem is not confined to refresh. Recorded installed timings include:
@@ -102,6 +117,15 @@ Purpose: reject structural violations before runtime work.
 - No fixtures, live providers, or GUI.
 
 Interactive budget: 30 seconds when cached. A longer clean build is reported separately and reused by all later layers.
+
+### Permission readiness preflight
+
+Purpose: detect macOS access dialogs before behavioral work can wait behind them.
+
+- After the shared build and fixture creation, run one minimal installed-app access probe against iCloud and one against SMB before pure, provider, or workflow tests.
+- Register the XCUI system-interruption handler before the app launches and before the test runner directly touches an explicit qualification root.
+- Accept only the expected `Allow` action, then prove the app reached the exact guarded root with an active directory watch and quiescent state.
+- If the dialog cannot be handled or the guarded root is not usable, fail within 30 seconds and run cleanup. Never discover permission readiness through a 30-second workflow poll or operator observation.
 
 ### Layer 1: pure behavior and state-transition tests
 
@@ -222,6 +246,7 @@ Timing begins after the shared build and ends after cleanup/evidence validation.
 
 | Layer | Maximum wall time |
 | --- | ---: |
+| Storage permission readiness | 30 s |
 | Pure behavior/state | 10 s |
 | Provider contracts | 60 s |
 | Installed XCUI boundary | 90 s |

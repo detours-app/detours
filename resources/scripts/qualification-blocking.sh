@@ -59,6 +59,22 @@ run_blocking_provider_refresh() {
         'QualificationProviderRefreshTests|RemoteIntegrationTests/(testListDirectoryReturnsExpectedEntries|testWatchDirectoryReceivesInotifyEvent|testIntelMacListDirectoryReturnsExpectedEntries|testIntelMacWatchDirectoryReceivesDarwinEvent)|WindowsRemoteLiveTests/(testConnectListsProfileAndDrives|testWatchEmitsChangeOnServerSideModification)'
 }
 
+run_blocking_storage_permissions() {
+    local log_dir result_dir context_name
+    log_dir="$(run_dir)/workflows/blocking-permissions"
+    result_dir="$(run_dir)/results/blocking-permissions"
+    mkdir -p "$log_dir" "$result_dir"
+
+    for context_name in ICLOUD_ROOT SMB_ROOT; do
+        run_installed_once \
+            refresh "$context_name" 1 \
+            "$log_dir/$context_name" \
+            "$result_dir/$context_name.xcresult" \
+            "" "$context_name" \
+            'QualificationRefreshUITests/testStoragePermissionPreflight'
+    done
+}
+
 run_blocking_installed_refresh() {
     local log_dir result_dir
     log_dir="$(run_dir)/workflows/blocking-installed"
@@ -97,6 +113,7 @@ run_blocking_refresh() {
     capture_outside_root_snapshots before
 
     started_epoch="$(date +%s)"
+    blocking_layer storage-permissions 30 run_blocking_storage_permissions
     blocking_layer pure-refresh 10 run_blocking_pure_refresh
     blocking_layer provider-refresh 60 run_blocking_provider_refresh
     blocking_layer installed-refresh 90 run_blocking_installed_refresh
