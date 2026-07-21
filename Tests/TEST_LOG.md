@@ -2443,3 +2443,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   took about 195 seconds, while Xcode post-cycle processing accumulated another
   roughly 123 seconds. Each cycle redundantly exercised both panes; coverage now
   alternates panes, retaining 10 complete workflows per pane in a 20-cycle run.
+
+- 2026-07-21 14:44 CEST: Foundry qualification smoke
+  `activation-windows-two-pane-5ef7be6-1` PASS at commit `5ef7be6`: one logical
+  XCTest completed a full left-pane cycle in 5.3 seconds and a full right-pane
+  cycle in 4.1 seconds, with 0 failures/skips, both exact markers, and passing
+  guarded cleanup. This proves alternating cycles preserve both pane paths while
+  roughly halving repeated UI actions.
