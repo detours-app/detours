@@ -2547,3 +2547,12 @@ Spotlight search has no unit test (depends on the live, async-built system index
   across concatenated string literals. No test iteration ran; the new focused
   count reduced this feedback to 10 seconds, and guarded cleanup removed all
   four roots and both mounts. The diagnostic now computes its delta separately.
+
+- 2026-07-21 17:55 CEST: Foundry qualification smoke
+  `refresh-in-process-diagnostic-two-d9252c3-1` reproduced the SMB redraw in
+  13.967 seconds at commit `d9252c3`. The exact delta was only
+  `zzzz-sort.txt`'s modification date changing by 8.5 ms while size, name,
+  readability, hidden state, and Git status stayed identical. The cause is
+  `LoadedFileEntry` using the current time whenever SMB omits the requested
+  resource timestamp; guarded cleanup passed. The fallback now reads the
+  stable file-stat timestamp instead.
