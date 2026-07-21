@@ -113,14 +113,11 @@ EXPECT
     mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1 || fail "SMB fixture did not mount at $SMB_MOUNT_POINT"
 }
 
-remount_smb_fixture_for_current_session() {
+verify_smb_fixture_session_access() {
     local require_gui_probe="${1:-1}"
     local gui_probe_log
-    if mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1; then
-        diskutil unmount "$SMB_MOUNT_POINT" >/dev/null
-    fi
-    remove_exact_tree "$SMB_MOUNT_POINT" "$QUALIFICATION_ROOT/mounts"
-    mount_smb_fixture
+    mount | grep -F " on $SMB_MOUNT_POINT " >/dev/null 2>&1 || \
+        fail "SMB fixture mount was lost; refusing to remount with a new guard identity"
     [[ -n "${SMB_ROOT:-}" && -d "$SMB_ROOT" ]] || \
         fail "SMB fixture root is unavailable in the current qualification session"
     find "$SMB_ROOT" -maxdepth 1 -name '.detours-qualification-root.json' -print -quit | grep -q . || \

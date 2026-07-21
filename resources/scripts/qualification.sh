@@ -53,6 +53,7 @@ Commands:
   build                        Build the qualifying app without installing it
   in-process <group|all>       Run a named workflow 100 times in process
   installed <group|all>        Run a named workflow 20 times in the installed app
+  workflow-run <group|all>     Run both layers with fixtures in one audit session
   failure-probe <provider>     Prove one provider failure is preserved and cleaned
   cold-run                     Reset and run one complete cold qualification
   soak                         Run the installed-app campaign for 12 hours
@@ -423,8 +424,8 @@ run_cold() {
     run_prepare_fixtures
     capture_outside_root_snapshots before
     capture_state_observation cold-before
-    "$0" in-process all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX" "${QUALIFICATION_TARGET_ARGUMENTS[@]}"
-    "$0" installed all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX" "${QUALIFICATION_TARGET_ARGUMENTS[@]}"
+    run_in_process all
+    run_installed all
     capture_state_observation cold-after
     capture_outside_root_snapshots after
     compare_outside_root_snapshots
@@ -443,6 +444,33 @@ run_cold() {
         printf 'completed_epoch=%s\n' "$(date +%s)"
         printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$(run_dir)/cold.env"
+    trap - EXIT
+}
+
+run_workflow_campaign() {
+    local group="$1"
+    validate_group "$group"
+    trap 'campaign_cleanup_on_exit "$?"' EXIT
+    run_reset
+    run_preflight
+    run_build
+    run_prepare_fixtures
+    capture_outside_root_snapshots before
+    capture_state_observation workflow-before
+    run_in_process "$group"
+    run_installed "$group"
+    capture_state_observation workflow-after
+    capture_outside_root_snapshots after
+    compare_outside_root_snapshots
+    run_cleanup
+    verify_qualification_cleanup
+    {
+        printf 'status=passed\n'
+        printf 'commit=%s\n' "$(canonical_commit)"
+        printf 'group=%s\n' "$group"
+        printf 'seed=%s\n' "$QUALIFICATION_SEED"
+        printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$(run_dir)/workflow.env"
     trap - EXIT
 }
 
@@ -470,12 +498,12 @@ run_cleanup() {
     descriptors_dir="$(run_dir)/roots"
     fixture_file="$(run_dir)/fixtures.env"
     if [[ -f "$descriptors_dir/smb.json" && -f "$fixture_file" ]]; then
-        # The prior workflow's SMB mount belongs to a different audit session.
-        # Remount before guarded deletion so cleanup removes the remote fixture,
-        # rather than mistaking an inaccessible mount for an absent root.
+        # Cleanup must use the exact mount recorded when the SMB fixture was
+        # created. A remount has a different volume identity and must fail
+        # closed instead of weakening or rebinding the destructive guard.
         # shellcheck disable=SC1090
         source "$fixture_file"
-        remount_smb_fixture_for_current_session 0
+        verify_smb_fixture_session_access 0
     fi
     if [[ -d "$descriptors_dir" ]]; then
         guard_binary="$(qualification_guard)"
@@ -548,7 +576,7 @@ GROUP="all"
 FAILURE_PROVIDER=""
 
 case "$COMMAND" in
-    in-process|installed)
+    in-process|installed|workflow-run)
         if [[ $# -gt 0 && "$1" != --* ]]; then
             GROUP="$1"
             shift
@@ -602,6 +630,7 @@ case "$COMMAND" in
     build) run_build ;;
     in-process) run_in_process "$GROUP" ;;
     installed) run_installed "$GROUP" ;;
+    workflow-run) run_workflow_campaign "$GROUP" ;;
     failure-probe) run_provider_failure_probe "$FAILURE_PROVIDER" ;;
     cold-run) run_cold ;;
     soak) run_soak ;;
