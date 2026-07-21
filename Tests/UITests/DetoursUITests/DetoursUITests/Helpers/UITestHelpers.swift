@@ -48,6 +48,11 @@ extension XCUIElement {
         exists || waitForExistence(timeout: timeout)
     }
 
+    /// Avoid XCTest's delayed first poll when callers expect a just-dismissed element to be gone.
+    func doesNotExistOrWait(timeout: TimeInterval) -> Bool {
+        !exists || waitForNonExistence(timeout: timeout)
+    }
+
     /// Find an outline row containing the given static text, scoped to this outline view.
     ///
     /// Prefer this over `XCUIApplication.outlineRow(containing:)` whenever the name can also appear

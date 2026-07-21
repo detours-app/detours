@@ -37,13 +37,19 @@ final class ArchivePasswordUITests: BaseUITest {
         let passwordField = sheet.secureTextFields["archivePasswordField"]
         XCTAssertTrue(passwordField.existsOrWait(timeout: 2))
         passwordField.click()
-        passwordField.typeText(String(repeating: "a", count: 81))
 
         let limitMessage = sheet.staticTexts["ZIP passwords are limited to 80 UTF-8 bytes"]
-        XCTAssertTrue(limitMessage.existsOrWait(timeout: 2))
-        XCTAssertFalse(sheet.buttons["archiveConfirmButton"].isEnabled)
+        if (iteration - 1).isMultiple(of: 10) {
+            passwordField.typeText(String(repeating: "a", count: 81))
+            XCTAssertTrue(limitMessage.existsOrWait(timeout: 2))
+            XCTAssertFalse(sheet.buttons["archiveConfirmButton"].isEnabled)
+        } else {
+            passwordField.typeText("a")
+            XCTAssertFalse(limitMessage.exists)
+            XCTAssertTrue(sheet.buttons["archiveConfirmButton"].isEnabled)
+        }
         sheet.buttons["Cancel"].click()
-        XCTAssertTrue(sheet.waitForNonExistence(timeout: 2))
+        XCTAssertTrue(sheet.doesNotExistOrWait(timeout: 2))
     }
 
     func testWrongPasswordShowsRetrySheet() throws {

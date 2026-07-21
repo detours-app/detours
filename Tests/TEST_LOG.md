@@ -2392,3 +2392,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   guarded cleanup. XCResult measured 88 seconds inside the test (123 seconds
   including launch/build orchestration), exposing redundant per-cycle format
   enumeration and avoidable existence waits that are tightened below.
+
+- 2026-07-21 14:18 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-6ce0d06-1` PASS at commit `6ce0d06`: the rotating
+  format coverage completed both cycles with 0 failures/skips in 72 XCTest
+  seconds, down from 88, and guarded cleanup passed. XCResult's only remaining
+  gaps above 1.4 seconds were the two intentional 81-character boundary inputs;
+  that boundary now runs twice per 20-cycle context rather than every cycle.
