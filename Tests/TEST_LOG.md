@@ -2225,3 +2225,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   declaration guard passed 1 test with 0 failures. The first attempt stopped
   before lint or tests because Foundry's non-login SSH PATH excludes Homebrew;
   the rerun used the installed absolute SwiftLint path.
+
+- 2026-07-21 12:38 CEST: Foundry qualification smoke
+  `activation-smb-smoke-15060fb-1` PASS at commit `15060fb`: 1 installed
+  activation UI test ran against the live SMB fixture with 0 failures and 0
+  skips. Detours accepted the scoped network-volume consent, loaded the fixture,
+  and completed the pane/tab activation contract. The GUI command returned 0,
+  and guarded cleanup verified removal of local, APFS, iCloud, and SMB roots.
