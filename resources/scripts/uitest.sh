@@ -15,8 +15,10 @@ UITEST_DESTINATION="platform=macOS,arch=arm64"
 APP_PATH="/Applications/Detours.app"
 BUILD_ARGS=()
 
-# Test directory setup in home (accessible and easy to navigate)
-TEST_DIR="$HOME/DetoursUITests-Temp"
+# Seed the XCUI runner's writable container directly. Creating the fixture in the account home
+# makes XCUI fall back to a different unseeded container copy or fail with EPERM when it writes
+# control files, so one shared container root is the only truthful ordinary UI-test fixture.
+TEST_DIR="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursUITests-Temp"
 TEST_BUILD_SETTINGS=(
     "DETOURS_QUALIFICATION_APP_PATH_SETTING=$APP_PATH"
     "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$TEST_DIR"
