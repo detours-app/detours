@@ -54,7 +54,7 @@ Commands:
   in-process <group|all>       Run a named workflow 100 times in process
   installed <group|all>        Run a named workflow 20 times in the installed app
   workflow-run <group|all>     Run both layers with fixtures in one audit session
-  installed-smoke <group> <root>
+  installed-smoke <group> <root|target>
                                Run one installed repetition in one audit session
   failure-probe <provider>     Prove one provider failure is preserved and cleaned
   cold-run                     Reset and run one complete cold qualification
@@ -483,12 +483,16 @@ run_workflow_campaign() {
 
 run_installed_smoke_campaign() {
     local group="$1"
-    local root_name="$2"
+    local context_name="$2"
     validate_group "$group"
     [[ "$group" != "all" ]] || fail "installed-smoke requires one named workflow group"
-    case "$root_name" in
+    case "$context_name" in
         LOCAL_ROOT|APFS_ROOT|ICLOUD_ROOT|SMB_ROOT) ;;
-        *) fail "installed-smoke root must be LOCAL_ROOT, APFS_ROOT, ICLOUD_ROOT, or SMB_ROOT" ;;
+        LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)
+            [[ "$group" == "activation" || "$group" == "refresh" ]] || \
+                fail "remote installed smoke is available only for activation or refresh"
+            ;;
+        *) fail "installed-smoke context must be a fixture root or live remote target" ;;
     esac
     trap 'campaign_cleanup_on_exit "$?"' EXIT
     run_reset
@@ -497,7 +501,7 @@ run_installed_smoke_campaign() {
     run_prepare_fixtures
     capture_outside_root_snapshots before
     capture_state_observation installed-smoke-before
-    run_installed_smoke "$group" "$root_name"
+    run_installed_smoke "$group" "$context_name"
     capture_state_observation installed-smoke-after
     capture_outside_root_snapshots after
     compare_outside_root_snapshots
@@ -617,7 +621,7 @@ case "$COMMAND" in
         ;;
     installed-smoke)
         [[ $# -ge 2 && "$1" != --* && "$2" != --* ]] || \
-            fail "installed-smoke requires a workflow group and fixture root"
+            fail "installed-smoke requires a workflow group and context"
         GROUP="$1"
         SMOKE_ROOT="$2"
         shift 2

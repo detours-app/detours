@@ -146,8 +146,8 @@ run_installed() {
 
 run_installed_smoke() {
     local group="$1"
-    local root_name="$2"
-    local fixture_file log_dir result_dir
+    local context_name="$2"
+    local fixture_file log_dir result_dir remote_target
     fixture_file="$(run_dir)/fixtures.env"
     [[ -f "$fixture_file" ]] || fail "fixture record is missing: $fixture_file"
     set -a
@@ -159,10 +159,23 @@ run_installed_smoke() {
     result_dir="$(run_dir)/results/installed-smoke"
     mkdir -p "$log_dir" "$result_dir"
     prepare_installed_test_bundle "$log_dir/build-for-testing.log"
-    run_installed_once \
-        "$group" "$root_name" 1 \
-        "$log_dir/$group-$root_name" \
-        "$result_dir/$group-$root_name.xcresult"
+    case "$context_name" in
+        LOCAL_ROOT|APFS_ROOT|ICLOUD_ROOT|SMB_ROOT)
+            run_installed_once \
+                "$group" "$context_name" 1 \
+                "$log_dir/$group-$context_name" \
+                "$result_dir/$group-$context_name.xcresult"
+            ;;
+        LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)
+            remote_target="${!context_name}"
+            [[ -n "$remote_target" ]] || fail "remote smoke target is missing: $context_name"
+            run_installed_once \
+                "$group" LOCAL_ROOT 1 \
+                "$log_dir/$group-$context_name" \
+                "$result_dir/$group-$context_name.xcresult" \
+                "$remote_target" "$context_name"
+            ;;
+    esac
 }
 
 prepare_installed_test_bundle() {
