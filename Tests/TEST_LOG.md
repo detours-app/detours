@@ -2315,3 +2315,8 @@ Spotlight search has no unit test (depends on the live, async-built system index
   local-only runner completed the archive-control cycle with 0 failures/skips
   in 44 seconds, validated its per-cycle marker, and passed guarded cleanup.
   The run required no Doppler secret and created no SMB, APFS, or iCloud state.
+
+- 2026-07-21 13:48 CEST: The first opening-smoke launcher command was rejected
+  before preflight because its requested expanded commit hash did not exist.
+  No Detours process or fixture was created. The rerun below uses the exact hash
+  returned by `git rev-parse HEAD` on both Spectre and Foundry.
