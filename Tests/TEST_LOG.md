@@ -2716,3 +2716,12 @@ Spotlight search has no unit test (depends on the live, async-built system index
   and guarded cleanup passed. The interruption trigger now uses an application
   coordinate, which can generate the required interaction without asserting
   application-element hittability.
+
+- 2026-07-21 21:00 CEST: Gate 1 permission-readiness run
+  `gate1-refresh-3efc6cb-1` stopped before behavioral tests at exact commit
+  `3efc6cb`. The iCloud access probe again passed in 5.4 seconds without
+  operator action. The SMB probe then proved the application coordinate was
+  requested before the launching app had a finite frame, and XCResult failed
+  immediately with that exact AppKit invariant instead of waiting. Cleanup
+  passed. Storage setup now requires `.runningForeground` within five seconds
+  before generating the interaction that invokes the interruption monitor.
