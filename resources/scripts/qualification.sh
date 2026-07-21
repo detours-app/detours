@@ -401,12 +401,17 @@ run_build() {
 run_cancel() {
     local active_job_file label
     active_job_file="$(run_dir)/active-gui-job"
-    [[ -f "$active_job_file" ]] || return 0
-    IFS= read -r label < "$active_job_file"
-    [[ "$label" =~ ^com\.detours\.qualification\.[A-F0-9-]+$ ]] || \
-        fail "active GUI qualification job label is invalid"
-    launchctl remove "$label" 2>/dev/null || true
-    rm -f -- "$active_job_file"
+    if [[ -f "$active_job_file" ]]; then
+        IFS= read -r label < "$active_job_file"
+        [[ "$label" =~ ^com\.detours\.qualification\.[A-F0-9-]+$ ]] || \
+            fail "active GUI qualification job label is invalid"
+        launchctl remove "$label" 2>/dev/null || true
+        rm -f -- "$active_job_file"
+    fi
+    # xcodebuild may have already detached the tested application from its
+    # launchd job. Removing that job therefore does not guarantee that the
+    # qualification app has stopped.
+    stop_installed_app
 }
 
 run_cold() {
