@@ -2725,3 +2725,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   immediately with that exact AppKit invariant instead of waiting. Cleanup
   passed. Storage setup now requires `.runningForeground` within five seconds
   before generating the interaction that invokes the interruption monitor.
+
+- 2026-07-21 21:02 CEST: Gate 1 permission-readiness run
+  `gate1-refresh-7092653-1` stopped before behavioral tests at exact commit
+  `7092653`. The iCloud probe passed in 5.4 seconds; the SMB result proved that
+  `.runningForeground` still does not guarantee a finite
+  `XCUIApplication` frame on macOS. Cleanup passed. The permission trigger now
+  waits up to five seconds for the first real app window and uses that finite
+  window coordinate to invoke the system interruption monitor.

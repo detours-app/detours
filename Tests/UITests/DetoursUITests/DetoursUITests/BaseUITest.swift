@@ -48,20 +48,18 @@ class BaseUITest: XCTestCase {
         configureLaunchEnvironment(&app.launchEnvironment)
         let expectsStoragePermission = installStoragePermissionHandlerIfNeeded()
         app.launch()
+        let window = app.windows.firstMatch
         if expectsStoragePermission {
             XCTAssertTrue(
-                app.wait(for: .runningForeground, timeout: 5),
-                "App should reach the foreground before storage permission handling"
+                window.existsOrWait(timeout: 5),
+                "App window should exist before storage permission handling"
             )
             // XCUI interruption monitors run only after an interaction. Trigger
             // one immediately so an access dialog cannot sit ahead of readiness.
-            // A coordinate tap does not require the still-launching app element
-            // itself to be hittable once the foreground app has a finite frame.
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         }
 
         // Wait for app to be ready
-        let window = app.windows.firstMatch
         XCTAssertTrue(window.existsOrWait(timeout: 5), "App window should exist")
 
         // IMPORTANT: Activate the LEFT pane before creating tab
