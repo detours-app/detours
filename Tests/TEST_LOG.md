@@ -2611,3 +2611,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   extracted stable-timestamp helper. No fixture or test ran. The helper now
   gives the optional file-attribute dictionary an explicit type before reading
   its modification date.
+
+- 2026-07-21 19:16 CEST: Gate 1 qualification invocation
+  `gate1-refresh-2608a25-1` FAILED while compiling the shared test bundle at
+  commit `2608a25`: the app release build passed in 45.37 seconds, then Swift
+  rejected two awaited provider listings inside XCTest autoclosures. No test
+  ran. Guarded cleanup passed for all four roots and both mounts. The awaited
+  listings are now evaluated before their synchronous assertions.

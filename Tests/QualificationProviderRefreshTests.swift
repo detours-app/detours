@@ -25,7 +25,8 @@ final class QualificationProviderRefreshTests: XCTestCase {
     private func assertRefreshContract(at scenario: URL) async throws {
         let provider = LocalFileProvider.shared
         let location = Location.local(scenario)
-        XCTAssertTrue(try await provider.list(location, showHidden: true).isEmpty)
+        let initialListing = try await provider.list(location, showHidden: true)
+        XCTAssertTrue(initialListing.isEmpty)
 
         let changeReceived = expectation(description: "provider change for \(scenario.path)")
         let watch = try await provider.watch(location) { _ in
@@ -48,7 +49,8 @@ final class QualificationProviderRefreshTests: XCTestCase {
             XCTAssertEqual(renamedListing.map(\.name), ["renamed.txt"])
 
             try await provider.delete([renamed])
-            XCTAssertTrue(try await provider.list(location, showHidden: true).isEmpty)
+            let finalListing = try await provider.list(location, showHidden: true)
+            XCTAssertTrue(finalListing.isEmpty)
         } catch {
             await provider.unwatch(watch)
             throw error
