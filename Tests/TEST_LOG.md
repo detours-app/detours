@@ -2364,3 +2364,10 @@ Spotlight search has no unit test (depends on the live, async-built system index
   the runner's Xcode repetition path, one logical XCTest completed the multi-open
   cycle in 11 seconds with 0 failures/skips, one validated workflow marker, no
   unexpected command output, and passing guarded cleanup.
+
+- 2026-07-21 14:03 CEST: Foundry qualification smoke
+  `transfer-local-two-cycle-f750b96-1` PASS at commit `f750b96`: two consecutive
+  cross-pane transfer cycles completed inside one XCTest session in 28 seconds
+  with 0 failures/skips. Both uniquely named fixtures were removed between
+  cycles, both completion markers matched the requested total, and guarded
+  cleanup passed.
