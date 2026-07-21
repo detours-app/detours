@@ -247,6 +247,78 @@ run_prepare_local_fixture() {
     printf '%s\n' "$fixture_file"
 }
 
+run_prepare_apfs_fixture() {
+    local destination roots_dir images_dir fixture_file apfs_id
+    local volume_name image_path mount_point apfs_root
+    destination="$(run_dir)"
+    roots_dir="$destination/roots"
+    images_dir="$QUALIFICATION_ROOT/images"
+    fixture_file="$destination/fixtures.env"
+    mkdir -p "$roots_dir" "$images_dir"
+    apfs_id="$(new_run_id)"
+    volume_name="DetoursQualification-$apfs_id"
+    image_path="$images_dir/$volume_name.sparsebundle"
+    mount_point="/Volumes/$volume_name"
+    apfs_root="$mount_point/$apfs_id"
+    {
+        printf 'APFS_ROOT=%q\n' "$apfs_root"
+        printf 'APFS_IMAGE=%q\n' "$image_path"
+        printf 'APFS_MOUNT=%q\n' "$mount_point"
+    } > "$fixture_file"
+
+    [[ ! -e "$image_path" ]] || fail "APFS fixture image already exists: $image_path"
+    hdiutil create -quiet -size 2g -fs APFS -volname "$volume_name" -type SPARSEBUNDLE "$image_path"
+    hdiutil attach -quiet -nobrowse "$image_path"
+    mount | grep -F " on $mount_point " >/dev/null 2>&1 || fail "APFS fixture did not mount at $mount_point"
+    [[ "$(create_guarded_fixture_root apfs "$mount_point" "$roots_dir/apfs.json" "$apfs_id")" == "$apfs_root" ]] || \
+        fail "APFS fixture root differed from its recorded path"
+    seed_installed_fixture "$apfs_root"
+    printf '%s\n' "$fixture_file"
+}
+
+run_prepare_icloud_fixture() {
+    local destination roots_dir fixture_file icloud_id icloud_root
+    destination="$(run_dir)"
+    roots_dir="$destination/roots"
+    fixture_file="$destination/fixtures.env"
+    mkdir -p "$roots_dir"
+    [[ -d "$ICLOUD_PARENT" ]] || fail "iCloud qualification parent is missing"
+    icloud_id="$(new_run_id)"
+    icloud_root="$ICLOUD_PARENT/$icloud_id"
+    printf 'ICLOUD_ROOT=%q\n' "$icloud_root" > "$fixture_file"
+
+    brctl download "$ICLOUD_PARENT" >/dev/null 2>&1 || fail "Keep Downloaded request failed for iCloud fixture"
+    if find "$ICLOUD_PARENT" -name '*.icloud' -print -quit | grep -q .; then
+        fail "iCloud fixture is not fully local after Keep Downloaded"
+    fi
+    [[ "$(create_guarded_fixture_root iCloud "$ICLOUD_PARENT" "$roots_dir/icloud.json" "$icloud_id")" == "$icloud_root" ]] || \
+        fail "iCloud fixture root differed from its recorded path"
+    seed_installed_fixture "$icloud_root"
+    printf '%s\n' "$fixture_file"
+}
+
+run_prepare_smb_fixture() {
+    local destination roots_dir fixture_file smb_id smb_root
+    destination="$(run_dir)"
+    roots_dir="$destination/roots"
+    fixture_file="$destination/fixtures.env"
+    mkdir -p "$roots_dir"
+    smb_id="$(new_run_id)"
+    smb_root="$SMB_MOUNT_POINT/$smb_id"
+    {
+        printf 'SMB_ROOT=%q\n' "$smb_root"
+        printf 'SMB_HOST=%q\n' "$QUALIFICATION_SMB_HOST"
+        printf 'SMB_SHARE=%q\n' "$QUALIFICATION_SMB_SHARE"
+        printf 'SMB_USER=%q\n' "$QUALIFICATION_SMB_USER"
+    } > "$fixture_file"
+
+    mount_smb_fixture
+    [[ "$(create_guarded_fixture_root smb "$SMB_MOUNT_POINT" "$roots_dir/smb.json" "$smb_id")" == "$smb_root" ]] || \
+        fail "SMB fixture root differed from its recorded path"
+    seed_installed_fixture "$smb_root"
+    printf '%s\n' "$fixture_file"
+}
+
 cleanup_fixture_mounts() {
     local fixture_file
     rm -f -- "$(run_dir)/smb-mount-password.fifo"

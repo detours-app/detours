@@ -54,7 +54,7 @@ if [[ "$1" == "--self-test" ]]; then
     remote_command='cd ~/dev/detours && exec resources/scripts/qualification-secret-stdin.sh /bin/bash -c '\''printf "%s\n" "$DETOURS_SMB_TEST_PASSWORD"; test "$DETOURS_QUALIFICATION_SECRET_TRANSPORT" = stdin-v1'\'''
 else
     if [[ "${1:-}" == "installed-smoke" \
-        && "${3:-}" =~ ^(LOCAL_ROOT|LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)$ ]]; then
+        && "${3:-}" =~ ^(LOCAL_ROOT|APFS_ROOT|ICLOUD_ROOT|LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)$ ]]; then
         requires_smb_secret=0
     fi
     if (( requires_smb_secret == 1 )); then

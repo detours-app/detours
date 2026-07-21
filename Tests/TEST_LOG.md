@@ -2469,3 +2469,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Mac context completed all 20 alternating activation cycles in one logical
   XCTest in 239 seconds with 0 failures/skips, all 20 exact markers, and passing
   guarded cleanup. Only its guarded local fixture and configured target were used.
+
+- 2026-07-21 15:04 CEST: Foundry qualification run
+  `activation-local-20-3d62964-1` PASS at commit `3d62964`: the guarded local
+  context completed all 20 alternating activation cycles in one logical XCTest
+  in 248 seconds with 0 failures/skips, all 20 exact markers, and passing guarded
+  cleanup. No remote target, APFS image, iCloud root, or SMB mount was prepared.

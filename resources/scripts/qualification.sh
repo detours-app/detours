@@ -322,19 +322,20 @@ run_preflight() {
         [[ "$windows_platform" == *$'DETOURS_WINDOWS_POWERSHELL\tWin32NT'* ]] || \
             fail "configured Windows endpoint did not provide Windows PowerShell: $windows_platform"
     fi
-    if [[ "$scope" == "full" ]]; then
+    if [[ "$scope" == "full" || "$scope" == "SMB_ROOT" ]]; then
         nc -G 8 -z "$QUALIFICATION_SMB_HOST" 445 >/dev/null 2>&1 || \
             fail "SMB port 445 is unreachable: $QUALIFICATION_SMB_HOST"
-
-        [[ -d "$ICLOUD_PARENT" ]] || fail "iCloud qualification parent is missing: $ICLOUD_PARENT"
-        if find "$ICLOUD_PARENT" -name '*.icloud' -print -quit | grep -q .; then
-            fail "iCloud qualification parent contains non-local placeholders"
-        fi
 
         [[ "${DETOURS_QUALIFICATION_SECRET_TRANSPORT:-}" == "stdin-v1" ]] || \
             fail "SMB credentials must arrive through qualification-foundry.sh"
         [[ -n "${DETOURS_SMB_TEST_PASSWORD:-}" ]] || fail "SMB credential transport returned an empty value"
         verify_smb_authentication
+    fi
+    if [[ "$scope" == "full" || "$scope" == "ICLOUD_ROOT" ]]; then
+        [[ -d "$ICLOUD_PARENT" ]] || fail "iCloud qualification parent is missing: $ICLOUD_PARENT"
+        if find "$ICLOUD_PARENT" -name '*.icloud' -print -quit | grep -q .; then
+            fail "iCloud qualification parent contains non-local placeholders"
+        fi
     fi
 
     ! pgrep -x Detours >/dev/null 2>&1 || fail "Detours is running"
@@ -518,18 +519,13 @@ run_installed_smoke_campaign() {
         fail "$context_name is not an applicable installed context for $group"
     trap 'campaign_cleanup_on_exit "$?"' EXIT
     run_reset
-    case "$context_name" in
-        LOCAL_ROOT|LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)
-            run_preflight "$context_name"
-            ;;
-        *)
-            run_preflight
-            ;;
-    esac
+    run_preflight "$context_name"
     run_build
     case "$context_name" in
         LOCAL_ROOT|LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET) run_prepare_local_fixture ;;
-        *) run_prepare_fixtures ;;
+        APFS_ROOT) run_prepare_apfs_fixture ;;
+        ICLOUD_ROOT) run_prepare_icloud_fixture ;;
+        SMB_ROOT) run_prepare_smb_fixture ;;
     esac
     capture_outside_root_snapshots before
     capture_state_observation installed-smoke-before
