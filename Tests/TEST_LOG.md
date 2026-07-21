@@ -2564,3 +2564,12 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `DirectoryLoaderTests/testLoadedFileEntryUsesStableModificationDateFallback`
   regression also passed (1 test in 0.004 seconds), proving repeated entries
   use the file's actual stat timestamp when resource metadata omits it.
+
+- 2026-07-21 18:07 CEST: Foundry qualification run
+  `refresh-full-df42d3f-1` FAIL at commit `df42d3f` before installed contexts:
+  96 of 100 in-process refresh repetitions passed, while SMB-backed iterations
+  1, 39, 66, and 92 each reported only `zzzz-sort.txt` as changed. File size,
+  readability, hidden state, and Git status were identical; the SMB modification
+  timestamp shifted by 3.7-8.2 ms between consecutive listings. XCTest reported
+  4 failures in 417.055 seconds. The runner stopped without retrying or starting
+  installed contexts, and guarded cleanup removed all four roots and both mounts.
