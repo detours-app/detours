@@ -2556,3 +2556,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `LoadedFileEntry` using the current time whenever SMB omits the requested
   resource timestamp; guarded cleanup passed. The fallback now reads the
   stable file-stat timestamp instead.
+
+- 2026-07-21 17:58 CEST: Foundry qualification smoke
+  `refresh-in-process-fixed-two-7faa720-1` PASS at commit `7faa720`: the same
+  seed-0 local/SMB pair completed in 12.571 seconds with 0 failures and complete
+  four-root cleanup. The focused
+  `DirectoryLoaderTests/testLoadedFileEntryUsesStableModificationDateFallback`
+  regression also passed (1 test in 0.004 seconds), proving repeated entries
+  use the file's actual stat timestamp when resource metadata omits it.
