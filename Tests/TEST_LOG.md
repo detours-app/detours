@@ -2463,3 +2463,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   context completed all 20 alternating activation cycles in one logical XCTest
   in 217 seconds with 0 failures/skips, all 20 exact markers, and passing guarded
   cleanup. Only the guarded local fixture and configured Linux target were used.
+
+- 2026-07-21 14:59 CEST: Foundry qualification run
+  `activation-intel-mac-20-a0ebad7-1` PASS at commit `a0ebad7`: the live Intel
+  Mac context completed all 20 alternating activation cycles in one logical
+  XCTest in 239 seconds with 0 failures/skips, all 20 exact markers, and passing
+  guarded cleanup. Only its guarded local fixture and configured target were used.
