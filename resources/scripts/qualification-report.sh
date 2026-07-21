@@ -80,11 +80,18 @@ write_qualification_result() {
     local soak="$5"
     local result_path row_count timing_count screenshot_count bundle_count regression_count
     local cold_one_dir cold_two_dir cold_three_dir soak_dir
+    local environment_file linux_target intel_mac_target windows_target smb_host smb_share
     result_path="$PROJECT_DIR/resources/docs/260720-whole-app-stability-qualification-result.md"
     cold_one_dir="$(dirname "$cold_one")"
     cold_two_dir="$(dirname "$cold_two")"
     cold_three_dir="$(dirname "$cold_three")"
     soak_dir="$(dirname "$soak")"
+    environment_file="$cold_one_dir/preflight/environment.env"
+    linux_target="$(report_env_value linux_target "$environment_file")"
+    intel_mac_target="$(report_env_value intel_mac_target "$environment_file")"
+    windows_target="$(report_env_value windows_target "$environment_file")"
+    smb_host="$(report_env_value smb_host "$environment_file")"
+    smb_share="$(report_env_value smb_share "$environment_file")"
     row_count="$(grep -Ec '^\| [A-Z]+-[0-9]{3} \|' "$MATRIX_PATH")"
     timing_count="$(find "$cold_one_dir" "$cold_two_dir" "$cold_three_dir" "$soak_dir" -path '*/timing/scenarios.tsv' -exec awk 'END { total += NR } END { print total }' {} \; | awk '{ total += $1 } END { print total + 0 }')"
     screenshot_count="$(find "$cold_one_dir" "$cold_two_dir" "$cold_three_dir" "$soak_dir" -type f \( -name '*.png' -o -name '*.jpg' \) | wc -l | tr -d ' ')"
@@ -120,8 +127,10 @@ write_qualification_result() {
         printf 'scenario timing, state observations, outside-root snapshots, logs, XCResult bundles, '
         printf 'screenshots, and verified cleanup under `.build/qualification/%s/`.\n\n' "$qualified_commit"
         printf 'The qualified locations were local storage, a disposable APFS volume, real iCloud Drive, '
-        printf 'the dedicated SMB share, Linux `devtest`, Intel Mac `wraith`, and Windows '
-        printf '`win-carriercall`. No applicable result was skipped or retried into a pass.\n\n'
+        printf 'SMB `%s/%s`, Linux `%s`, Intel Mac `%s`, and Windows `%s`. ' \
+            "$smb_host" "$smb_share" "$linux_target" "$intel_mac_target" "$windows_target"
+        printf 'These are recorded logical endpoints, not machine identities. No applicable result was '
+        printf 'skipped or retried into a pass.\n\n'
         printf '## Regressions fixed\n\n'
         if (( regression_count == 0 )); then
             printf 'No matrix or repeated-workflow failure occurred during the final qualification sequence.\n\n'

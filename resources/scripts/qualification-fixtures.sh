@@ -48,11 +48,14 @@ verify_smb_authentication() {
     require_command expect
     local auth_status
     set +e
-    DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" expect <<'EXPECT' >/dev/null 2>&1
+    local smb_auth_url
+    smb_auth_url="//$QUALIFICATION_SMB_USER@$QUALIFICATION_SMB_HOST/$QUALIFICATION_SMB_SHARE"
+    DETOURS_SMB_TEST_PASSWORD="$DETOURS_SMB_TEST_PASSWORD" SMB_AUTH_URL="$smb_auth_url" \
+        expect <<'EXPECT' >/dev/null 2>&1
         log_user 0
         set timeout 15
         set password_prompts 0
-        spawn smbutil view //detours-qualification@devtest
+        spawn smbutil view $env(SMB_AUTH_URL)
         expect {
             -nocase -re {password} {
                 incr password_prompts
@@ -82,13 +85,16 @@ mount_smb_fixture() {
     mount_parent="$(dirname "$SMB_MOUNT_POINT")"
     mkdir -p "$mount_parent"
     local mount_status
-    smbutil logout devtest >/dev/null 2>&1 || true
+    smbutil logout "$QUALIFICATION_SMB_HOST" >/dev/null 2>&1 || true
     set +e
     SMB_MOUNTER="$(qualification_smb_mounter)" MOUNT_PARENT="$mount_parent" \
+        SMB_HOST="$QUALIFICATION_SMB_HOST" SMB_SHARE="$QUALIFICATION_SMB_SHARE" \
+        SMB_USER="$QUALIFICATION_SMB_USER" \
         expect <<'EXPECT' >/dev/null 2>&1
         log_user 0
         set timeout 30
-        spawn $env(SMB_MOUNTER) --mount-parent $env(MOUNT_PARENT)
+        spawn $env(SMB_MOUNTER) --mount-parent $env(MOUNT_PARENT) \
+            --host $env(SMB_HOST) --share $env(SMB_SHARE) --username $env(SMB_USER)
         expect {
             eof { catch wait result; exit [lindex $result 3] }
             timeout { exit 124 }
@@ -162,9 +168,12 @@ run_prepare_fixtures() {
         printf 'APFS_MOUNT=%q\n' "$mount_point"
         printf 'ICLOUD_ROOT=%q\n' "$icloud_root"
         printf 'SMB_ROOT=%q\n' "$smb_root"
-        printf 'LINUX_TARGET=%q\n' devtest
-        printf 'INTEL_MAC_TARGET=%q\n' wraith
-        printf 'WINDOWS_TARGET=%q\n' win-carriercall
+        printf 'LINUX_TARGET=%q\n' "$QUALIFICATION_LINUX_TARGET"
+        printf 'INTEL_MAC_TARGET=%q\n' "$QUALIFICATION_INTEL_MAC_TARGET"
+        printf 'WINDOWS_TARGET=%q\n' "$QUALIFICATION_WINDOWS_TARGET"
+        printf 'SMB_HOST=%q\n' "$QUALIFICATION_SMB_HOST"
+        printf 'SMB_SHARE=%q\n' "$QUALIFICATION_SMB_SHARE"
+        printf 'SMB_USER=%q\n' "$QUALIFICATION_SMB_USER"
     } > "$fixture_file"
 
     [[ "$(create_guarded_fixture_root local "$LOCAL_PARENT" "$roots_dir/local.json" "$local_id")" == "$local_root" ]] || \

@@ -385,7 +385,12 @@ final class QualificationWorkflowTests: XCTestCase {
     }
 
     func testConnectionWorkflow() async {
-        let targets = ["devtest", "wraith", "win-carriercall"]
+        let environment = ProcessInfo.processInfo.environment
+        let targets = [
+            environment["LINUX_TARGET"] ?? "qualification-linux",
+            environment["INTEL_MAC_TARGET"] ?? "qualification-intel-mac",
+            environment["WINDOWS_TARGET"] ?? "qualification-windows",
+        ]
         for iteration in 0..<repetitions {
             let target = targets[index(for: iteration, count: targets.count)]
             let connection = SSHConnection(

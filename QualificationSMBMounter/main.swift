@@ -27,6 +27,12 @@ guard let password = environment["DETOURS_SMB_TEST_PASSWORD"], !password.isEmpty
 }
 
 let arguments = Array(CommandLine.arguments.dropFirst())
+let host = value(after: "--host", in: arguments)
+let share = value(after: "--share", in: arguments)
+let username = value(after: "--username", in: arguments)
+guard !host.isEmpty, !share.isEmpty, !username.isEmpty else {
+    fail("SMB host, share, and username must be non-empty")
+}
 let mountParent = URL(
     fileURLWithPath: value(after: "--mount-parent", in: arguments),
     isDirectory: true
@@ -36,8 +42,12 @@ guard FileManager.default.fileExists(atPath: mountParent.path, isDirectory: &isD
       isDirectory.boolValue else {
     fail("mount parent is unavailable")
 }
-guard let shareURL = URL(string: "smb://devtest/Detours%20Qualification") else {
-    fail("fixed share URL is invalid")
+var shareComponents = URLComponents()
+shareComponents.scheme = "smb"
+shareComponents.host = host
+shareComponents.path = "/\(share)"
+guard let shareURL = shareComponents.url else {
+    fail("configured share URL is invalid")
 }
 
 let openOptions = NSMutableDictionary()
@@ -50,7 +60,7 @@ var mountPoints: Unmanaged<CFArray>?
 let status = NetFSMountURLSync(
     shareURL as CFURL,
     mountParent as CFURL,
-    "detours-qualification" as CFString,
+    username as CFString,
     password as CFString,
     openOptions as CFMutableDictionary,
     mountOptions as CFMutableDictionary,
@@ -65,7 +75,7 @@ if let mountedURLs = mountPoints?.takeRetainedValue() as? [URL],
     exit(0)
 }
 
-let expectedMount = mountParent.appendingPathComponent("Detours Qualification", isDirectory: true)
+let expectedMount = mountParent.appendingPathComponent(share, isDirectory: true)
 if FileManager.default.fileExists(atPath: expectedMount.path) {
     print(expectedMount.standardizedFileURL.path)
     exit(0)

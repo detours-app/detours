@@ -34,7 +34,7 @@ Create a one-time inventory of everything Detours promises today, connect every 
 ### Acceptance Criteria
 
 - [ ] **A1** The completed capability inventory covers every current command, shortcut, shortcut-menu action, drag action, setting, automatic behavior, user-guide promise, and behavior from every completed feature spec (the newest governing when specs disagree), with an automated result for each applicable environment.
-- [ ] **A2** All current app capabilities pass on Foundry across local storage, the APFS test volume, real iCloud Drive, the dedicated SMB share, `devtest`, `wraith`, and `win-carriercall`, with no applicable skips.
+- [ ] **A2** All current app capabilities pass on Foundry across local storage, the APFS test volume, real iCloud Drive, the configured dedicated SMB share, and configured Linux, Intel Mac, and Windows endpoints, with no applicable skips.
 - [ ] **A3** Pane, tab, focus, activation, navigation, refresh, selection, expansion, filtering, sorting, hidden-file, session, sidebar, volume, settings, appearance, Git, and progress behavior stays correct throughout the repeated workflows.
 - [ ] **A4** Every file operation, undo or redo path, archive path, opening path, Quick Look path, Finder reveal, sharing path, credential path, connection path, cancellation path, retry path, and error path ends in a correct and usable state.
 - [ ] **A5** Each named workflow group passes 100 consecutive in-process repetitions, and each matching installed-app workflow passes 20 consecutive repetitions in every applicable location and context.
@@ -64,15 +64,17 @@ This is a one-time discovery-to-green campaign built by extending the existing S
 
 The tracked capability matrix lives at `resources/docs/260720-whole-app-stability-qualification-matrix.md`. Each row records a stable capability ID, the surface that exposes it, the intended behavior, applicable locations and contexts, the automated check, repetition level, result, and any defect/fix reference. The census draws from `src/App/MainMenu.swift`, file-list shortcut menus and responder actions, keyboard mappings, pane and tab controls, drag destinations, preferences, sidebar and volume actions, `resources/docs/USER_GUIDE.md`, every completed spec, and automatic behaviors such as folder watching, reconnect, progress, session restore, and Git updates. The newest completed spec governs when specs disagree; the user guide governs behavior not specified there and is corrected when it conflicts. A genuine remaining intent ambiguity goes to Marco for a decision before that matrix row can pass.
 
-The locations are fixed:
+The location roles are fixed, while replaceable infrastructure is supplied through recorded logical endpoints:
 
 - local: a UUID child of `~/DetoursQualification`
 - APFS: a disposable disk image stored under `.build/qualification/images`, mounted as a UUID-named volume
 - iCloud: a UUID child of `~/Library/Mobile Documents/com~apple~CloudDocs/Detours Qualification` on Foundry (the folder already exists), pinned with Keep Downloaded by the iCloud fixture adapter and required local by preflight
-- SMB: a UUID child of the mounted `Detours Qualification` share from `devtest` (created by the `~/dev/ansible` spec `260720-detours-smb-test-share`; Foundry mounts `smb://devtest/Detours Qualification` with the dedicated account, password `DETOURS_SMB_TEST_PASSWORD` in Doppler `infra/prd`)
-- Linux SSH: the existing UUID fixture root on `devtest`
-- Intel Mac SSH: the existing UUID fixture root on `wraith`
-- Windows SSH: the existing UUID fixture root on `win-carriercall`
+- SMB: a UUID child of the configured dedicated share (currently `Detours Qualification`; password `DETOURS_SMB_TEST_PASSWORD` in Doppler `infra/prd`)
+- Linux SSH: a UUID fixture root on the configured Linux target
+- Intel Mac SSH: a UUID fixture root on the configured Intel Mac target
+- Windows SSH: a UUID fixture root on the configured Windows target
+
+The runner accepts the four logical endpoints, SMB share, and SMB account as command options and records them in every command, preflight, fixture, and final report. Current lab aliases remain compatibility defaults only. Replacing a VM or host behind an endpoint does not change the app, tests, matrix, or qualification workflow.
 
 Every destructive path has three independent controls. The runner creates a fresh UUID root only below the exact allowlisted parent and writes a sentinel containing that UUID. The operation guard canonicalizes source and destination, rejects aliases or symbolic links that escape, and requires the matching sentinel before a destructive call. Provider-specific snapshots taken before and after the workflow fail the run if any sibling or parent state outside the UUID roots changes. Cleanup applies the same guard and names each exact root and mount; no broad wildcard or home-directory deletion is permitted.
 
@@ -104,7 +106,7 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 - Apple's repeated-test support confirms repetition as a direct way to expose intermittent behavior: <https://developer.apple.com/documentation/xcode/running-tests-and-interpreting-results>.
 - FoundationDB's deterministic simulation and TigerBeetle's deterministic testing informed the narrow seed-and-replay rule; this spec adopts replayable ordering only, not either system's general simulation architecture: <https://apple.github.io/foundationdb/testing.html> and <https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/ARCHITECTURE.md>.
 - Apple's iCloud documentation defines Keep Downloaded and cloud-item status, which supports the preflight requirement that the qualification root is local before a run: <https://support.apple.com/en-ie/guide/mac-help/-mchl1a02d711/mac> and <https://support.apple.com/en-mide/guide/mac-help/mchlc994344b/mac>.
-- The existing suite already supplies the right anchors: `PaneRefreshSchedulerTests`, `UITestEnvironment.PaneStateResponse`, `resources/scripts/uitest.sh`, live `RemoteIntegrationTests` on `devtest` and `wraith`, and `WindowsRemoteLiveTests` on `win-carriercall`. The missing layer is complete traceability, strict live preflight, targeted repetition, soak, and consolidated evidence.
+- The existing suite already supplies the right anchors: `PaneRefreshSchedulerTests`, `UITestEnvironment.PaneStateResponse`, `resources/scripts/uitest.sh`, live `RemoteIntegrationTests` on configured Linux and Intel Mac endpoints, and `WindowsRemoteLiveTests` on the configured Windows endpoint. The missing layer is complete traceability, strict live preflight, targeted repetition, soak, and consolidated evidence.
 
 ### Architectural Invariants
 
@@ -136,7 +138,7 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 - [x] **C3** Add the provider-neutral run-root descriptor and independent destructive-operation guard with exact parent allowlists, UUID sentinels, canonical path checks, alias and symbolic-link rejection, and provider snapshots outside each run root.
 - [x] **C4** Add strict Foundry preflight and reset support for commit identity, clean worktree, machine reachability, local iCloud status, SMB authentication, storage headroom, app processes, watches, mounts, preferences, caches, session, test credentials, and marked fixtures.
 - [x] **C5** Extend existing `UITestEnvironment` observations only where the matrix needs inaccessible state, including active pane and tab, first responder, expansion, selection, visible rows, progress, connection state, menus, mounts, and cleanup counters.
-- [x] **C6** Add fixture adapters for the local root, disposable APFS image, iCloud root (pinning it with Keep Downloaded), mounted SMB share, `devtest`, `wraith`, and `win-carriercall`, reusing the current remote fixture implementations and creating no second provider model.
+- [x] **C6** Add fixture adapters for the local root, disposable APFS image, iCloud root (pinning it with Keep Downloaded), mounted SMB share, and configured Linux, Intel Mac, and Windows endpoints, reusing the current remote fixture implementations and creating no second provider model.
 - [x] **C7** Add the fixed named workflow groups and seed-replay record, with 100 in-process repetitions and 20 installed-app repetitions for each applicable location and context.
 - [x] **C8** Add the 12-hour soak mode that cycles the named installed-app workflows, samples app and helper health, detects stuck work and stale state, and performs the same guarded cleanup at completion or failure.
 - [x] **C9** Add structured raw evidence under `.build/qualification/<commit>/<run-id>/` for preflight, scenario timing, state observations, filesystem snapshots, logs, screenshots, result bundles, failure traces, and cleanup.
@@ -165,7 +167,7 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 
 ### Complete environment coverage
 
-- [ ] **T11** Run the full unit and integration suites on Foundry with local, APFS, iCloud, SMB, `devtest`, `wraith`, and `win-carriercall` credentials available; no applicable skip, warning, timeout, unexpected log, leaked process, leaked watch, leaked mount, partial file, or cleanup issue remains.
+- [ ] **T11** Run the full unit and integration suites on Foundry with local, APFS, iCloud, SMB, Linux, Intel Mac, and Windows credentials available through the recorded logical endpoints; no applicable skip, warning, timeout, unexpected log, leaked process, leaked watch, leaked mount, partial file, or cleanup issue remains.
 - [ ] **T12** Run the full installed-app suite on Foundry with the same locations, including the live Windows reconnect path, and require every matrix-linked check and reliability limit to pass.
 - [ ] **T13** Run structural and accessibility assertions across every installed-app workflow and capture the fixed reference-image set for theme, density, pane focus, rename, drag target, progress, and connection-loss states.
 - [ ] **T14** Complete cold full run one after guarded reset and record its run ID against the exact app commit.
@@ -185,7 +187,7 @@ Raw logs, result bundles, screenshots, and generated test results stay under `.b
 - **C3 verification** Foundry `resources/scripts/build.sh --no-install` compiled the support module and guard, then exposed the Linux static-Foundation `mktemp` linker warning. Replaced server-side `Data.write`/atomic `String.write` use with an exclusive partial-file `FileHandle` writer so helper verification can remain warning-free without weakening upload or trash rollback.
 - **C4** Added Foundry reset-before-preflight gates for exact commit/branch/tree identity, 50 GB free space, SSH reachability, SMB TCP and non-logging authenticated access, local iCloud contents, app/helper processes, soak markers, APFS/SMB mounts, preferences, caches, saved state, UI fixtures, and qualification Keychain state. Reset stops only Detours, unmounts only qualification volumes, removes only guard-validated roots and named test state, and records environment evidence.
 - **C5** Extended the existing pane-state request/response seam with active pane and selected-tab identity, all tab locations, visible rows, hidden/loading/refresh state, operation progress, remote connection states, actual menu enablement predicates, mounted volumes, and local/remote watch/provider cleanup counters. Qualification still observes production state and cannot alter outcomes.
-- **C6** Added the fixed fixture plan and runner adapters: guard-created local and iCloud roots, Keep Downloaded enforcement, a disposable APFS sparse image and mounted root, prompt-driven authenticated SMB mounting without a secret in arguments or logs, and the existing remote fixture targets (`devtest`, `wraith`, `win-carriercall`). Fixture paths are recorded per run and cleanup validates roots before unmounting or deleting the exact sparse image.
+- **C6** Added the fixed-role fixture plan and runner adapters: guard-created local and iCloud roots, Keep Downloaded enforcement, a disposable APFS sparse image and mounted root, prompt-driven authenticated SMB mounting without a secret in arguments or logs, and configured Linux, Intel Mac, and Windows targets. Fixture paths and logical endpoints are recorded per run; cleanup validates roots before unmounting or deleting the exact sparse image.
 - **C7** Added eight explicit seeded workflow groups. `QualificationWorkflowTests` performs 100 guarded iterations per in-process group, including real SSH reachability for all three remote targets; installed-app mappings run 20 Xcode iterations per group and per local/APFS/iCloud/SMB root. The seed determines group/root order only, and every invocation is appended to `replay.tsv` with its exact filter and repetition count.
 - **C7 verification** Foundry's Swift test target compiles and enumerates the complete suite with the qualification workflows included.
 - **C8** Added an exact 43,200-second installed-app soak that cycles each fixed workflow across all four mounted roots, retains an XCResult per iteration, requests left and right production-state observations, enforces one active pane and quiescent operations, rejects partial files or stuck test processes, samples processes and mounts, and always invokes guarded cleanup from its exit trap.

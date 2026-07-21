@@ -31,9 +31,15 @@ public struct QualificationFixturePlan: Codable, Equatable, Sendable {
         self.remoteFixtures = remoteFixtures
     }
 
-    public static let remoteTargets = [
-        RemoteFixture(provider: .linux, sshTarget: "devtest"),
-        RemoteFixture(provider: .intelMac, sshTarget: "wraith"),
-        RemoteFixture(provider: .windows, sshTarget: "win-carriercall"),
-    ]
+    public static func remoteTargets(
+        linux: String,
+        intelMac: String,
+        windows: String
+    ) -> [RemoteFixture] {
+        [
+            RemoteFixture(provider: .linux, sshTarget: linux),
+            RemoteFixture(provider: .intelMac, sshTarget: intelMac),
+            RemoteFixture(provider: .windows, sshTarget: windows),
+        ]
+    }
 }

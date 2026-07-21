@@ -66,6 +66,12 @@ Options:
   --run-id <id>                Evidence run identifier (default: generated UUID)
   --seed <unsigned-integer>     Replay scenario order and fixture-name choices
   --cold-index <1|2|3>          Cold-run sequence number
+  --linux-target <ssh-alias>    Linux qualification endpoint (default: devtest)
+  --intel-mac-target <alias>    Intel Mac qualification endpoint (default: wraith)
+  --windows-target <alias>      Windows qualification endpoint (default: win-carriercall)
+  --smb-host <host>             SMB qualification endpoint (default: devtest)
+  --smb-share <name>            SMB qualification share (default: Detours Qualification)
+  --smb-user <name>             SMB qualification account (default: detours-qualification)
 
 Named workflow groups:
   activation
@@ -163,6 +169,36 @@ parse_options() {
                 QUALIFICATION_COLD_INDEX="$2"
                 shift 2
                 ;;
+            --linux-target)
+                [[ $# -ge 2 ]] || fail "--linux-target requires a value"
+                QUALIFICATION_LINUX_TARGET="$2"
+                shift 2
+                ;;
+            --intel-mac-target)
+                [[ $# -ge 2 ]] || fail "--intel-mac-target requires a value"
+                QUALIFICATION_INTEL_MAC_TARGET="$2"
+                shift 2
+                ;;
+            --windows-target)
+                [[ $# -ge 2 ]] || fail "--windows-target requires a value"
+                QUALIFICATION_WINDOWS_TARGET="$2"
+                shift 2
+                ;;
+            --smb-host)
+                [[ $# -ge 2 ]] || fail "--smb-host requires a value"
+                QUALIFICATION_SMB_HOST="$2"
+                shift 2
+                ;;
+            --smb-share)
+                [[ $# -ge 2 ]] || fail "--smb-share requires a value"
+                QUALIFICATION_SMB_SHARE="$2"
+                shift 2
+                ;;
+            --smb-user)
+                [[ $# -ge 2 ]] || fail "--smb-user requires a value"
+                QUALIFICATION_SMB_USER="$2"
+                shift 2
+                ;;
             *) fail "unknown option: $1" ;;
         esac
     done
@@ -172,6 +208,17 @@ parse_options() {
         0|1|2|3) ;;
         *) fail "--cold-index must be 1, 2, or 3" ;;
     esac
+    local configured_value
+    for configured_value in \
+        "$QUALIFICATION_LINUX_TARGET" \
+        "$QUALIFICATION_INTEL_MAC_TARGET" \
+        "$QUALIFICATION_WINDOWS_TARGET" \
+        "$QUALIFICATION_SMB_HOST" \
+        "$QUALIFICATION_SMB_SHARE" \
+        "$QUALIFICATION_SMB_USER"; do
+        [[ -n "$configured_value" && "$configured_value" != *$'\n'* ]] || \
+            fail "qualification target values must be non-empty single lines"
+    done
 }
 
 run_dir() {
@@ -189,6 +236,12 @@ write_command_metadata() {
         printf 'run_id=%s\n' "$QUALIFICATION_RUN_ID"
         printf 'seed=%s\n' "$QUALIFICATION_SEED"
         printf 'cold_index=%s\n' "$QUALIFICATION_COLD_INDEX"
+        printf 'linux_target=%s\n' "$QUALIFICATION_LINUX_TARGET"
+        printf 'intel_mac_target=%s\n' "$QUALIFICATION_INTEL_MAC_TARGET"
+        printf 'windows_target=%s\n' "$QUALIFICATION_WINDOWS_TARGET"
+        printf 'smb_host=%s\n' "$QUALIFICATION_SMB_HOST"
+        printf 'smb_share=%s\n' "$QUALIFICATION_SMB_SHARE"
+        printf 'smb_user=%s\n' "$QUALIFICATION_SMB_USER"
         printf 'host=%s\n' "$(host_name)"
         printf 'started_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$metadata_path"
@@ -209,6 +262,7 @@ validate_group() {
 
 run_preflight() {
     local requested_commit head_commit current_branch free_kilobytes boot_epoch
+    local linux_platform intel_mac_platform windows_platform
     requested_commit="$(canonical_commit)"
     head_commit="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
     [[ "$head_commit" == "$requested_commit" ]] || fail "HEAD $head_commit does not match requested commit $requested_commit"
@@ -224,13 +278,30 @@ run_preflight() {
     is_unsigned_integer "$boot_epoch" || fail "could not read Foundry boot time"
 
     local host
-    for host in devtest wraith win-carriercall; do
+    for host in \
+        "$QUALIFICATION_LINUX_TARGET" \
+        "$QUALIFICATION_INTEL_MAC_TARGET" \
+        "$QUALIFICATION_WINDOWS_TARGET"; do
         # `exit 0` is accepted by POSIX shells and by the PowerShell SSH
         # endpoint used by the Windows fixture. The Unix-only `true` command
         # made a reachable Windows host fail preflight.
         ssh -o BatchMode=yes -o ConnectTimeout=8 "$host" 'exit 0' >/dev/null 2>&1 || fail "required host is unreachable: $host"
     done
-    nc -G 8 -z devtest 445 >/dev/null 2>&1 || fail "devtest SMB port 445 is unreachable"
+    linux_platform="$(ssh -o BatchMode=yes -o ConnectTimeout=8 \
+        "$QUALIFICATION_LINUX_TARGET" 'uname -s')"
+    [[ "$linux_platform" == "Linux" ]] || \
+        fail "configured Linux endpoint reported an unexpected platform: $linux_platform"
+    intel_mac_platform="$(ssh -o BatchMode=yes -o ConnectTimeout=8 \
+        "$QUALIFICATION_INTEL_MAC_TARGET" 'uname -sm')"
+    [[ "$intel_mac_platform" == "Darwin x86_64" ]] || \
+        fail "configured Intel Mac endpoint reported an unexpected platform: $intel_mac_platform"
+    windows_platform="$(ssh -o BatchMode=yes -o ConnectTimeout=8 \
+        "$QUALIFICATION_WINDOWS_TARGET" \
+        '[Console]::WriteLine("DETOURS_WINDOWS_POWERSHELL`t$([System.Environment]::OSVersion.Platform)")')"
+    [[ "$windows_platform" == *$'DETOURS_WINDOWS_POWERSHELL\tWin32NT'* ]] || \
+        fail "configured Windows endpoint did not provide Windows PowerShell: $windows_platform"
+    nc -G 8 -z "$QUALIFICATION_SMB_HOST" 445 >/dev/null 2>&1 || \
+        fail "SMB port 445 is unreachable: $QUALIFICATION_SMB_HOST"
 
     [[ -d "$ICLOUD_PARENT" ]] || fail "iCloud qualification parent is missing: $ICLOUD_PARENT"
     if find "$ICLOUD_PARENT" -name '*.icloud' -print -quit | grep -q .; then
@@ -264,6 +335,15 @@ run_preflight() {
         printf 'macos=%s\n' "$(sw_vers -productVersion)"
         printf 'xcode=%s\n' "$(xcodebuild -version | tr '\n' ' ')"
         printf 'swift=%s\n' "$(swift --version | head -1)"
+        printf 'linux_target=%s\n' "$QUALIFICATION_LINUX_TARGET"
+        printf 'intel_mac_target=%s\n' "$QUALIFICATION_INTEL_MAC_TARGET"
+        printf 'windows_target=%s\n' "$QUALIFICATION_WINDOWS_TARGET"
+        printf 'smb_host=%s\n' "$QUALIFICATION_SMB_HOST"
+        printf 'smb_share=%s\n' "$QUALIFICATION_SMB_SHARE"
+        printf 'smb_user=%s\n' "$QUALIFICATION_SMB_USER"
+        printf 'linux_platform=%s\n' "$linux_platform"
+        printf 'intel_mac_platform=%s\n' "$intel_mac_platform"
+        printf 'windows_platform=%s\n' "$windows_platform"
         printf 'checked_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$(run_dir)/preflight/environment.env"
 }
@@ -326,8 +406,8 @@ run_cold() {
     run_prepare_fixtures
     capture_outside_root_snapshots before
     capture_state_observation cold-before
-    "$0" in-process all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX"
-    "$0" installed all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX"
+    "$0" in-process all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX" "${QUALIFICATION_TARGET_ARGUMENTS[@]}"
+    "$0" installed all --commit "$(canonical_commit)" --run-id "$QUALIFICATION_RUN_ID" --seed "$QUALIFICATION_SEED" --cold-index "$QUALIFICATION_COLD_INDEX" "${QUALIFICATION_TARGET_ARGUMENTS[@]}"
     capture_state_observation cold-after
     capture_outside_root_snapshots after
     compare_outside_root_snapshots
@@ -339,6 +419,10 @@ run_cold() {
         printf 'cold_index=%s\n' "$QUALIFICATION_COLD_INDEX"
         printf 'seed=%s\n' "$QUALIFICATION_SEED"
         printf 'boot_epoch=%s\n' "$(sed -n 's/^boot_epoch=//p' "$(run_dir)/preflight/environment.env")"
+        printf 'linux_target=%s\n' "$QUALIFICATION_LINUX_TARGET"
+        printf 'intel_mac_target=%s\n' "$QUALIFICATION_INTEL_MAC_TARGET"
+        printf 'windows_target=%s\n' "$QUALIFICATION_WINDOWS_TARGET"
+        printf 'smb_host=%s\n' "$QUALIFICATION_SMB_HOST"
         printf 'completed_epoch=%s\n' "$(date +%s)"
         printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$(run_dir)/cold.env"
@@ -395,7 +479,7 @@ run_all() {
     run_build
     local index
     for index in 1 2; do
-        "$0" cold-run --commit "$(canonical_commit)" --run-id "$(new_run_id)" --seed "$QUALIFICATION_SEED" --cold-index "$index"
+        "$0" cold-run --commit "$(canonical_commit)" --run-id "$(new_run_id)" --seed "$QUALIFICATION_SEED" --cold-index "$index" "${QUALIFICATION_TARGET_ARGUMENTS[@]}"
     done
     fail "reboot Foundry before cold run 3, then resume with cold-run --cold-index 3"
 }
@@ -409,6 +493,12 @@ QUALIFICATION_COMMIT="HEAD"
 QUALIFICATION_RUN_ID=""
 QUALIFICATION_SEED="0"
 QUALIFICATION_COLD_INDEX="0"
+QUALIFICATION_LINUX_TARGET="${DETOURS_QUALIFICATION_LINUX_TARGET:-devtest}"
+QUALIFICATION_INTEL_MAC_TARGET="${DETOURS_QUALIFICATION_INTEL_MAC_TARGET:-wraith}"
+QUALIFICATION_WINDOWS_TARGET="${DETOURS_QUALIFICATION_WINDOWS_TARGET:-win-carriercall}"
+QUALIFICATION_SMB_HOST="${DETOURS_QUALIFICATION_SMB_HOST:-devtest}"
+QUALIFICATION_SMB_SHARE="${DETOURS_QUALIFICATION_SMB_SHARE:-Detours Qualification}"
+QUALIFICATION_SMB_USER="${DETOURS_QUALIFICATION_SMB_USER:-detours-qualification}"
 GROUP="all"
 FAILURE_PROVIDER=""
 
@@ -427,6 +517,14 @@ case "$COMMAND" in
 esac
 
 parse_options "$@"
+QUALIFICATION_TARGET_ARGUMENTS=(
+    --linux-target "$QUALIFICATION_LINUX_TARGET"
+    --intel-mac-target "$QUALIFICATION_INTEL_MAC_TARGET"
+    --windows-target "$QUALIFICATION_WINDOWS_TARGET"
+    --smb-host "$QUALIFICATION_SMB_HOST"
+    --smb-share "$QUALIFICATION_SMB_SHARE"
+    --smb-user "$QUALIFICATION_SMB_USER"
+)
 
 case "$COMMAND" in
     help|-h|--help)

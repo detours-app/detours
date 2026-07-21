@@ -3,6 +3,21 @@ import QualificationSupport
 import XCTest
 
 final class QualificationRunRootTests: XCTestCase {
+    func testRemoteFixtureRolesUseConfiguredLogicalEndpoints() {
+        XCTAssertEqual(
+            QualificationFixturePlan.remoteTargets(
+                linux: "qualification-linux",
+                intelMac: "qualification-intel-mac",
+                windows: "qualification-windows"
+            ),
+            [
+                .init(provider: .linux, sshTarget: "qualification-linux"),
+                .init(provider: .intelMac, sshTarget: "qualification-intel-mac"),
+                .init(provider: .windows, sshTarget: "qualification-windows"),
+            ]
+        )
+    }
+
     func testEveryProviderCreatesValidatesAndRemovesOnlyItsMarkedRoot() throws {
         for provider in QualificationProvider.allCases {
             let fixture = try makeFixture()
