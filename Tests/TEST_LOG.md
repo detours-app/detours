@@ -2494,3 +2494,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `qualification.sh`, `qualification-fixtures.sh`, and
   `qualification-foundry.sh`; SwiftLint 0.65.0 checked 358 Swift files under
   `--strict` and reported 0 violations.
+
+- 2026-07-21 16:27 CEST: Foundry qualification run
+  `activation-smb-20-4bdae7d-2` PASS at commit `4bdae7d`: the guarded SMB
+  context completed all 20 alternating activation cycles in one logical
+  XCTest, with 0 failures/skips and all 20 exact XCResult activity markers.
+  The test itself took 59.7 seconds; evidence contains only `smb.json` and SMB
+  fixture variables. Guarded cleanup removed the UUID root and unmounted the
+  share, leaving neither the root nor mount behind.
