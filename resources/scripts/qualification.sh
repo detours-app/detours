@@ -509,11 +509,13 @@ run_installed_smoke_campaign() {
     case "$context_name" in
         LOCAL_ROOT|APFS_ROOT|ICLOUD_ROOT|SMB_ROOT) ;;
         LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)
-            [[ "$group" == "activation" || "$group" == "refresh" ]] || \
-                fail "remote installed smoke is available only for activation or refresh"
+            installed_group_uses_remote_targets "$group" || \
+                fail "remote installed smoke is unavailable for $group"
             ;;
         *) fail "installed-smoke context must be a fixture root or live remote target" ;;
     esac
+    installed_contexts "$group" | grep -Fx "$context_name" >/dev/null || \
+        fail "$context_name is not an applicable installed context for $group"
     trap 'campaign_cleanup_on_exit "$?"' EXIT
     run_reset
     case "$context_name" in

@@ -125,13 +125,13 @@ run_installed() {
     mkdir -p "$log_dir" "$result_dir"
     prepare_installed_test_bundle "$log_dir/build-for-testing.log"
     while IFS= read -r selected_group; do
-        for root_name in LOCAL_ROOT APFS_ROOT ICLOUD_ROOT SMB_ROOT; do
+        while IFS= read -r root_name; do
             run_installed_once \
                 "$selected_group" "$root_name" 20 \
                 "$log_dir/$selected_group-$root_name" \
                 "$result_dir/$selected_group-$root_name.xcresult"
-        done
-        if [[ "$selected_group" == "activation" || "$selected_group" == "refresh" ]]; then
+        done < <(installed_root_contexts "$selected_group")
+        if installed_group_uses_remote_targets "$selected_group"; then
             local target_name remote_target
             for target_name in LINUX_TARGET INTEL_MAC_TARGET WINDOWS_TARGET; do
                 remote_target="${!target_name}"
@@ -160,6 +160,8 @@ run_installed_smoke() {
     if [[ -n "${SMB_ROOT:-}" ]]; then
         verify_smb_fixture_session_access
     fi
+    installed_contexts "$group" | grep -Fx "$context_name" >/dev/null || \
+        fail "$context_name is not an applicable installed context for $group"
     log_dir="$(run_dir)/workflows/installed-smoke"
     result_dir="$(run_dir)/results/installed-smoke"
     mkdir -p "$log_dir" "$result_dir"
@@ -402,6 +404,29 @@ selected_workflow_groups() {
     done < <(workflow_groups) | sort | cut -d' ' -f2
 }
 
+installed_root_contexts() {
+    case "$1" in
+        connection) printf 'SMB_ROOT\n' ;;
+        session) printf 'LOCAL_ROOT\n' ;;
+        *) printf '%s\n' LOCAL_ROOT APFS_ROOT ICLOUD_ROOT SMB_ROOT ;;
+    esac
+}
+
+installed_group_uses_remote_targets() {
+    case "$1" in
+        activation|refresh|connection) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+installed_contexts() {
+    local group="$1"
+    installed_root_contexts "$group"
+    if installed_group_uses_remote_targets "$group"; then
+        printf '%s\n' LINUX_TARGET INTEL_MAC_TARGET WINDOWS_TARGET
+    fi
+}
+
 in_process_method() {
     case "$1" in
         activation) printf 'testActivationWorkflow\n' ;;
@@ -421,7 +446,7 @@ installed_test_filter() {
         refresh) printf 'QualificationRefreshUITests/testRefreshStateRemainsCoherentAcrossExternalChanges\n' ;;
         transfer) printf 'RefreshAuthorityCopyUITests/testF5CopyActivatesDestinationPaneAndSelectsCopy\n' ;;
         mutation) printf 'NewFolderUITests/testNewFolderSelectsNewFolderNotExisting\n' ;;
-        connection) printf 'RealRemoteFileOperationsUITests/testDelayedRealConnectionLoadsPaneCapturedBeforeFocusSwitch\n' ;;
+        connection) printf 'QualificationConnectionUITests/testConnectionLoadsCapturedPaneWithoutDisturbingOtherPane\n' ;;
         archive) printf 'ArchivePasswordUITests/testCreationControlsFollowSelectedFormat\n' ;;
         session) printf 'WindowPaneGeometryUITests/testPaneDividerDragPersistsAcrossRelaunch\n' ;;
         opening) printf 'MultiFileOpenUITests/testEnterAndCommandOpenDispatchAllSelectedFiles\n' ;;
