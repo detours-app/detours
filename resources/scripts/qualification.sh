@@ -68,7 +68,7 @@ Options:
   --cold-index <1|2|3>          Cold-run sequence number
   --linux-target <ssh-alias>    Linux qualification endpoint (default: devtest)
   --intel-mac-target <alias>    Intel Mac qualification endpoint (default: wraith)
-  --windows-target <alias>      Windows qualification endpoint (default: win-carriercall)
+  --windows-target <alias>      Windows qualification endpoint (default: detours-windows)
   --smb-host <host>             SMB qualification endpoint (default: devtest)
   --smb-share <name>            SMB qualification share (default: Detours Qualification)
   --smb-user <name>             SMB qualification account (default: detours-qualification)
@@ -495,7 +495,7 @@ QUALIFICATION_SEED="0"
 QUALIFICATION_COLD_INDEX="0"
 QUALIFICATION_LINUX_TARGET="${DETOURS_QUALIFICATION_LINUX_TARGET:-devtest}"
 QUALIFICATION_INTEL_MAC_TARGET="${DETOURS_QUALIFICATION_INTEL_MAC_TARGET:-wraith}"
-QUALIFICATION_WINDOWS_TARGET="${DETOURS_QUALIFICATION_WINDOWS_TARGET:-win-carriercall}"
+QUALIFICATION_WINDOWS_TARGET="${DETOURS_QUALIFICATION_WINDOWS_TARGET:-detours-windows}"
 QUALIFICATION_SMB_HOST="${DETOURS_QUALIFICATION_SMB_HOST:-devtest}"
 QUALIFICATION_SMB_SHARE="${DETOURS_QUALIFICATION_SMB_SHARE:-Detours Qualification}"
 QUALIFICATION_SMB_USER="${DETOURS_QUALIFICATION_SMB_USER:-detours-qualification}"
