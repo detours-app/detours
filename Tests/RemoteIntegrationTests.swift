@@ -927,6 +927,7 @@ final class RemoteIntegrationTests: XCTestCase {
         try runSSH(command, target: linuxTestTarget)
     }
 
+    @discardableResult
     static func runSSH(_ command: String, target: String) throws -> String {
         let process = try configuredSSHProcess(command: command, target: target)
         let output = Pipe()
