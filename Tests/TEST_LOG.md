@@ -2783,3 +2783,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   in-process route now uses the descendant-aware watchdog with a 600-second
   ceiling and an exact active-deadline record consumed by `cancel`; installed
   contexts retain their existing 900-second ceiling.
+
+- 2026-07-21: Foundry shell self-test
+  `deadline-cancel-selftest-fd4f50d-1` launched a nested 29-second child through
+  the campaign watchdog, cancelled it through the real qualification `cancel`
+  command, and returned status 130. The child was gone and the active-deadline
+  record was removed; no broad process match or manual cleanup was used.
