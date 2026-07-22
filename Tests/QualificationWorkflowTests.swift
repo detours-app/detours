@@ -5,6 +5,10 @@ import QualificationSupport
 
 @MainActor
 final class QualificationWorkflowTests: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+
     private var repetitions: Int {
         Int(ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REPETITIONS"] ?? "") ?? 100
     }
@@ -512,7 +516,7 @@ final class QualificationWorkflowTests: XCTestCase {
 
     private func recordProgress(group: String, completedIteration: Int) {
         guard completedIteration == 1
-            || completedIteration.isMultiple(of: 5)
+            || completedIteration.isMultiple(of: 3)
             || completedIteration == repetitions else { return }
         let line = "qualification-progress group=\(group) completed=\(completedIteration) total=\(repetitions)\n"
         FileHandle.standardOutput.write(Data(line.utf8))
