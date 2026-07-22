@@ -2873,3 +2873,16 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `prompt-guard-ui-build-9886788b-e72c-49a8-aafc-3d68558062cd` completed with no
   warning or error, no test/app launch, a green prompt audit, and no Detours,
   xctest, or xcodebuild process afterward.
+
+- 2026-07-22: A `DetoursUITests-Runner` local-network dialog invalidated the
+  single-channel prompt audit: the visible 260×250 dialog was owned by
+  `UserNotificationCenter`, and XCUI staging recorded both `Found 1
+  interrupting element` and the matching dialog geometry, but the old `tccd
+  display_prompt` predicate recorded zero events. At exact commit `4105f36`,
+  Foundry's permission-free CoreGraphics scanner detected that still-visible
+  window as number 11153 before guard readiness. Controlled run
+  `prompt-current-4105f36-1` returned 90, wrote `type=prompt_detected`, killed
+  its dummy parent, and launched no Detours, xctest, or xcodebuild process. A
+  replay of the preserved XCUI interruption returned the same detection status.
+  Qualification now requires live TCC, visible-window, and XCUI-staging
+  channels plus all three post-run checks before it can record zero prompts.
