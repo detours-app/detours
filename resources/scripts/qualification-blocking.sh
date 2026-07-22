@@ -77,7 +77,7 @@ run_blocking_swift_filter() {
 
 run_blocking_deterministic_qualification() {
     run_blocking_swift_filter deterministic-contracts \
-        'QualificationWorkflowTests|QualificationRunRootTests|RefreshQualificationContractTests|FileListCellTests|FileListDensityTests|ThemeTests|PreferencesTests|EqualSplitIndicatorViewTests|RemoteConnectionTeardownTests|StatusBarProgressTests|RemoteInlineRenameRefreshTests'
+        'QualificationWorkflowTests|QualificationRunRootTests|RefreshQualificationContractTests|FileListCellTests|FileListDensityTests|ThemeTests|PreferencesTests|EqualSplitIndicatorViewTests|RemoteConnectionTeardownTests|StatusBarProgressTests/(testProgressModeShowsProgressViews|testProgressUpdatesSetsBarValue|testThemeChangeUpdatesColors)|RemoteInlineRenameRefreshTests'
 }
 
 run_blocking_pure_refresh() {
