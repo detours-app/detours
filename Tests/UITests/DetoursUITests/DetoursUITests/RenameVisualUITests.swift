@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 final class RenameVisualUITests: BaseUITest {
@@ -33,5 +34,38 @@ final class RenameVisualUITests: BaseUITest {
 
         let renamedRow = app.outlineRows.containing(.staticText, identifier: "renameproof.txt").firstMatch
         XCTAssertTrue(renamedRow.waitForExistence(timeout: 5), "Typing after Shift-Return should rename the selected file")
+    }
+
+    func testInlineRenameEditorExpandsAfterPastingLongName() throws {
+        selectRow(named: "file1.txt")
+        pressKey(.return, modifiers: [.shift])
+
+        let editor = app.textFields["inlineRenameField"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 2), "Inline rename editor should appear")
+        let initialWidth = editor.frame.width
+
+        let pasteboard = NSPasteboard.general
+        let priorString = pasteboard.string(forType: .string)
+        defer {
+            pasteboard.clearContents()
+            if let priorString {
+                _ = pasteboard.setString(priorString, forType: .string)
+            }
+        }
+
+        pasteboard.clearContents()
+        XCTAssertTrue(
+            pasteboard.setString(
+                "a-much-longer-file-name-pasted-into-the-inline-editor",
+                forType: .string
+            )
+        )
+        editor.typeKey("v", modifierFlags: .command)
+
+        XCTAssertTrue(
+            waitForCondition { editor.frame.width > initialWidth + 20 },
+            "Inline rename editor should expand immediately after a long paste"
+        )
+        pressKey(.escape)
     }
 }
