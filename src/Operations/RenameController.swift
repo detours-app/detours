@@ -13,6 +13,8 @@ protocol RenameControllerDelegate: AnyObject {
 
 @MainActor
 final class RenameController: NSObject, NSTextFieldDelegate {
+    private static let renameFieldTextPadding: CGFloat = 10
+
     weak var delegate: RenameControllerDelegate?
     var onSwitchPane: (() -> Void)?
 
@@ -22,6 +24,8 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     private var currentItem: FileItem?
     private var currentRow: Int?
     private var isNewItem: Bool = false
+    private var renameFieldMinimumWidth: CGFloat = 0
+    private var renameFieldMaximumWidth: CGFloat = 0
 
     private var currentUndoManager: UndoManager?
 
@@ -69,12 +73,24 @@ final class RenameController: NSObject, NSTextFieldDelegate {
             )
         }
 
-        let field = NSTextField(frame: targetRect)
+        let visibleRightEdge = tableView.visibleRect.width > 0
+            ? min(cellFrame.maxX, tableView.visibleRect.maxX)
+            : cellFrame.maxX
+        renameFieldMaximumWidth = max(
+            1,
+            visibleRightEdge - density.renameHorizontalInset - targetRect.minX
+        )
+        renameFieldMinimumWidth = min(targetRect.width, renameFieldMaximumWidth)
+
+        var initialFrame = targetRect
+        initialFrame.size.width = renameFieldMinimumWidth
+        let field = NSTextField(frame: initialFrame)
         configureRenameField(field, item: item)
         field.wantsLayer = true
         field.layer?.zPosition = 1000
         textField = field
         tableView.addSubview(field)
+        resizeRenameField(toFit: field.stringValue)
         tableView.window?.makeFirstResponder(field)
         selectFilenameStem(in: field, for: item)
         delegate?.renameControllerDidBeginEditing(self, item: item)
@@ -110,6 +126,23 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         } else {
             editor.selectAll(nil)
         }
+    }
+
+    private func resizeRenameField(toFit value: String) {
+        guard let field = textField, renameFieldMaximumWidth > 0 else { return }
+
+        let font = field.font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        let textWidth = (value as NSString).size(withAttributes: [.font: font]).width
+        let desiredWidth = ceil(textWidth) + Self.renameFieldTextPadding
+        let width = min(
+            max(renameFieldMinimumWidth, desiredWidth),
+            renameFieldMaximumWidth
+        )
+        guard field.frame.width != width else { return }
+
+        var frame = field.frame
+        frame.size.width = width
+        field.frame = frame
     }
 
     func commitRename() {
@@ -245,6 +278,8 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         currentItem = nil
         currentRow = nil
         isNewItem = false
+        renameFieldMinimumWidth = 0
+        renameFieldMaximumWidth = 0
         currentUndoManager = nil
 
         // End AppKit's field-editor session before removing the temporary field.
@@ -286,6 +321,12 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         }
 
         return false
+    }
+
+    func controlTextDidChange(_ notification: Notification) {
+        guard let field = notification.object as? NSTextField,
+              field === textField else { return }
+        resizeRenameField(toFit: field.currentEditor()?.string ?? field.stringValue)
     }
 
     func controlTextDidEndEditing(_ notification: Notification) {

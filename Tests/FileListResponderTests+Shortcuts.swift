@@ -119,6 +119,33 @@ extension FileListResponderTests {
         XCTAssertGreaterThan(afterCount, beforeCount)
     }
 
+    func testInlineRenameFieldExpandsForLongPastedNameWithinNameColumn() throws {
+        let (viewController, _, cleanup) = try makeViewControllerWithSelection(fileName: "a.txt")
+        defer { cleanup() }
+
+        viewController.view.frame = NSRect(x: 0, y: 0, width: 640, height: 480)
+        viewController.view.layoutSubtreeIfNeeded()
+        viewController.tableView.layoutSubtreeIfNeeded()
+        viewController.renameSelection()
+
+        let field = try XCTUnwrap(inlineRenameField(in: viewController.tableView))
+        let initialWidth = field.frame.width
+        field.stringValue = String(repeating: "pasted-long-name-", count: 20) + ".txt"
+        viewController.renameController.controlTextDidChange(
+            Notification(name: NSControl.textDidChangeNotification, object: field)
+        )
+
+        XCTAssertGreaterThan(field.frame.width, initialWidth)
+        let nameCellFrame = viewController.tableView.frameOfCell(
+            atColumn: 0,
+            row: viewController.tableView.selectedRow
+        )
+        XCTAssertLessThanOrEqual(
+            field.frame.maxX,
+            nameCellFrame.maxX - SettingsManager.shared.fileListRowDensity.renameHorizontalInset + 0.5
+        )
+    }
+
     func testHandleKeyDownHandlesCmdRRefresh() async throws {
         let temp = try createTempDirectory()
         _ = try createTestFile(in: temp, name: "a.txt")
