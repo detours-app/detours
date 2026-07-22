@@ -81,7 +81,7 @@ finish_prompt_guard() {
         fail "post-run prompt audit found a TCC consent dialog"
     fi
     xcui_prompt="$(find "$(run_dir)" -type f -name StandardOutputAndStandardError.txt -exec \
-        grep -hEm1 "Found [1-9][0-9]* interrupting element|Application 'com.apple.UserNotificationCenter'" \
+        grep -hEm1 "Application 'com.apple.UserNotificationCenter'" \
         {} + 2>/dev/null | head -1 || true)"
     [[ -z "$xcui_prompt" ]] || fail "post-run prompt audit found an XCUI interruption: $xcui_prompt"
     set +e

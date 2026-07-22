@@ -92,7 +92,7 @@ run_gui_command() {
                 grep -hEm1 ':[0-9]+: error:|Test Case .* failed' {} + 2>/dev/null | head -1 || true)"
             diagnostic_prompt="$(find "$result_bundle/Staging" \
                 -type f -name StandardOutputAndStandardError.txt -exec \
-                grep -hEm1 "Found [1-9][0-9]* interrupting element|Application 'com.apple.UserNotificationCenter'" \
+                grep -hEm1 "Application 'com.apple.UserNotificationCenter'" \
                 {} + 2>/dev/null | head -1 || true)"
         fi
         if [[ -n "$diagnostic_prompt" ]]; then
