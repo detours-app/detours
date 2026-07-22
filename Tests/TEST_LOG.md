@@ -2820,3 +2820,24 @@ Spotlight search has no unit test (depends on the live, async-built system index
   fail-fast message before reset, build, fixture creation, or XCUI. The evidence
   directory contains only command and green no-op cleanup records; no Detours,
   xctest, xcodebuild, qualification mount, or fixture root remained.
+
+- 2026-07-22: Focused refresh run
+  `focused-refresh-local-13-9c59716-1` passed all 13 installed local refresh
+  repetitions in 116 seconds after the scenario-row double click was reduced
+  to one coordinate event. XCResult records exactly 1 pass and 0 failures,
+  skips, or expected failures; outside-root comparison and guarded cleanup
+  passed.
+
+- 2026-07-22: Same-tab local/remote history fix at exact app commit `e78dbfd`.
+  Foundry `resources/scripts/build.sh --no-install` passed, the focused
+  `testBackReturnsFromRemoteToLocalAndForwardRestoresRemoteInSameTab` regression
+  passed in 0.197 seconds, and the combined `PaneTabTests|PaneViewControllerTests`
+  filter passed 52 tests with 0 failures in 1.797 seconds.
+
+- 2026-07-22: Live same-tab history run
+  `focused-local-remote-back-b1df1b4-1` passed against Linux target `devtest`.
+  The one installed XCUI test connected the existing local tab to the live
+  remote folder, used Back to restore the guarded local root, and used Forward
+  to restore the same remote location. XCResult records exactly 1 pass and 0
+  failures/skips/expected failures in 12 seconds; the repetition marker,
+  outside-root comparison, and guarded cleanup all passed.
