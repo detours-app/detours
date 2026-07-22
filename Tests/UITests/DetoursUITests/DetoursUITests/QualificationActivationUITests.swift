@@ -57,11 +57,20 @@ final class QualificationActivationUITests: BaseUITest {
         let newTabButton = app.buttons.matching(identifier: "paneNewTabButton").element(boundBy: paneIndex)
         XCTAssertTrue(newTabButton.existsOrWait(timeout: 1))
         newTabButton.click()
-        let newTab = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
-            let pane = testsRightPane ? state.right : state.left
-            return pane.tabCount == paneInitial.tabCount + 1
-                && pane.selectedTabID != paneInitial.selectedTabID
-        }
+        let newTab = try assertPaneAndTabContract(
+            expectedActivePane: paneName,
+            until: { state in
+                let pane = testsRightPane ? state.right : state.left
+                return pane.tabCount == paneInitial.tabCount + 1
+                    && pane.selectedTabID != paneInitial.selectedTabID
+                    && pane.displayedLocation == paneInitial.displayedLocation
+                    && !pane.navigationLoadInFlight
+                    && !pane.refreshInFlight
+                    && !pane.loadingVisible
+            },
+            timeout: 5,
+            conditionDescription: "New tab did not finish loading the inherited location"
+        )
         let newTabPane = testsRightPane ? newTab.right : newTab.left
         XCTAssertEqual(newTabPane.tabCount, paneInitial.tabCount + 1)
         XCTAssertNotEqual(newTabPane.selectedTabID, paneInitial.selectedTabID)
@@ -104,11 +113,16 @@ final class QualificationActivationUITests: BaseUITest {
         XCTAssertTrue(waitForForeground(finder, timeout: 3))
         app.activate()
         XCTAssertTrue(waitForForeground(app, timeout: 3))
-        let returned = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
-            let pane = testsRightPane ? state.right : state.left
-            return pane.selectedTabID == newTabPane.selectedTabID
-                && pane.selectedLocations == selectedLocations
-        }
+        let returned = try assertPaneAndTabContract(
+            expectedActivePane: paneName,
+            until: { state in
+                let pane = testsRightPane ? state.right : state.left
+                return pane.selectedTabID == newTabPane.selectedTabID
+                    && pane.selectedLocations == selectedLocations
+            },
+            conditionDescription: "Expected tab \(newTabPane.selectedTabID ?? "nil") "
+                + "and selections \(selectedLocations) after returning from Finder"
+        )
         let returnedPane = testsRightPane ? returned.right : returned.left
         XCTAssertEqual(returnedPane.selectedTabID, newTabPane.selectedTabID)
         XCTAssertEqual(returnedPane.selectedLocations, selectedLocations)
@@ -134,6 +148,7 @@ final class QualificationActivationUITests: BaseUITest {
         expectedActivePane: String,
         until condition: ((left: RemotePaneState, right: RemotePaneState)) -> Bool = { _ in true },
         timeout: TimeInterval = 3,
+        conditionDescription: String = "Expected pane transition did not complete",
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> (left: RemotePaneState, right: RemotePaneState) {
@@ -162,7 +177,7 @@ final class QualificationActivationUITests: BaseUITest {
         )
         XCTAssertTrue(
             condition(result),
-            "Expected pane transition did not complete: \(paneStateDescription(result))",
+            "\(conditionDescription): actual \(paneStateDescription(result))",
             file: file,
             line: line
         )
