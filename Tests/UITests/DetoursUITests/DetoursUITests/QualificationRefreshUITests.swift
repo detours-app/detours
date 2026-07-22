@@ -316,7 +316,10 @@ final class QualificationRefreshUITests: BaseUITest {
             scenarioRow.existsOrWait(timeout: 30),
             "The provider watcher should expose the qualification scenario"
         )
-        scenarioRow.staticTexts[scenarioName].doubleClick()
+        // The first click navigates into the scenario, which invalidates the
+        // row before XCUI can re-resolve an element-targeted second click.
+        // Capture a visible coordinate so the double-click is one input event.
+        scenarioRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).doubleClick()
         var state = try waitForState("provider boundary initial listing") {
             $0.displayedLocation == scenario.path
                 && $0.visibleLocations.contains(selected.path)

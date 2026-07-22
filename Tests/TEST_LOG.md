@@ -2797,3 +2797,12 @@ Spotlight search has no unit test (depends on the live, async-built system index
   data and the installed dispatcher rejected that same-run bundle instead of
   reusing it. Guarded cleanup passed. Bundle preparation now writes a validated
   readiness record and allows only that exact in-run bundle to be reused.
+
+- 2026-07-21: Authorized run `gate2-t5-refresh-18c05fc-1` passed both permission
+  probes and all 100 in-process refresh repetitions in 414 seconds. The first
+  installed local context passed repetitions 1 through 12, then iteration 13
+  failed at `QualificationRefreshUITests.swift:376`: element-targeted
+  double-click tried to resolve a scroll view after the first click had already
+  navigated and invalidated the row. The campaign stopped before the other six
+  contexts and guarded cleanup passed. The scenario row now receives one
+  coordinate-based double-click event.
