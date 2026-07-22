@@ -284,7 +284,9 @@ final class QualificationWorkflowTests: XCTestCase {
             defer {
                 queue.conflictChoiceOverrideForTesting = nil
                 queue.moveReplacementCancellationProbeForTesting = nil
+                queue.forceLocalDisplacementFallbackForTesting = false
             }
+            queue.forceLocalDisplacementFallbackForTesting = true
 
             let copySource = sourceScenario.appendingPathComponent("copy.txt")
             try write("copy-\(iteration)", to: copySource)

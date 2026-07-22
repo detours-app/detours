@@ -102,7 +102,10 @@ extension FileOperationQueue {
         let fileManager = FileManager.default
         var displacedCurrent: LocalDisplacedItem?
         if fileManager.fileExists(atPath: item.original.path) {
-            displacedCurrent = try displaceLocalItemSync(item.original)
+            displacedCurrent = try displaceLocalItemSync(
+                item.original,
+                forceFallback: item.storage == .fallback
+            )
         }
         do {
             try fileManager.moveItem(at: item.trash, to: item.original)
@@ -154,9 +157,13 @@ extension FileOperationQueue {
     ) throws {
         let fileManager = FileManager.default
         var removedCreatedItems: [LocalDisplacedItem] = []
+        let keepDisplacementsContained = displacedItems.contains { $0.storage == .fallback }
         do {
             for item in createdItems where fileManager.fileExists(atPath: item.path) {
-                removedCreatedItems.append(try displaceLocalItemSync(item))
+                removedCreatedItems.append(try displaceLocalItemSync(
+                    item,
+                    forceFallback: keepDisplacementsContained
+                ))
             }
             for item in displacedItems.reversed() {
                 try restoreLocalDisplacementSync(item)
