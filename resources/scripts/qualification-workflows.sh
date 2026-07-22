@@ -9,6 +9,7 @@ run_gui_command() {
     local attempt exited_without_status_at active_job_file
     local heartbeat_dir heartbeat_group heartbeat_context heartbeat_total
     local heartbeat_count current_heartbeat_count last_progress_epoch now_epoch iteration
+    local cycles_complete_reported
     assert_prompt_guard_healthy
     path_is_within "$log_path" "$(run_dir)" || fail "GUI command log escapes the run directory"
     status_path="$log_path.status"
@@ -24,6 +25,7 @@ run_gui_command() {
     heartbeat_context="${QUALIFICATION_GUI_HEARTBEAT_CONTEXT:-}"
     heartbeat_total="${QUALIFICATION_GUI_HEARTBEAT_TOTAL:-0}"
     heartbeat_count=0
+    cycles_complete_reported=0
     last_progress_epoch="$(date +%s)"
     if [[ -n "$heartbeat_dir" ]]; then
         path_is_within "$heartbeat_dir" \
@@ -66,6 +68,11 @@ run_gui_command() {
                 done
                 heartbeat_count="$current_heartbeat_count"
                 last_progress_epoch="$(date +%s)"
+                if (( heartbeat_count == heartbeat_total && cycles_complete_reported == 0 )); then
+                    printf 'qualification-progress group=%s context=%s phase=cycles-complete awaiting=result-bundle\n' \
+                        "$heartbeat_group" "$heartbeat_context"
+                    cycles_complete_reported=1
+                fi
             fi
         fi
         if [[ -f "$status_path" ]]; then
@@ -73,11 +80,17 @@ run_gui_command() {
         fi
         if [[ -n "$heartbeat_dir" ]]; then
             now_epoch="$(date +%s)"
-            if (( now_epoch - last_progress_epoch >= 30 )); then
+            if (( heartbeat_count < heartbeat_total && now_epoch - last_progress_epoch >= 30 )); then
                 launchctl remove "$label" 2>/dev/null || true
                 rm -f -- "$active_job_file"
                 trap - HUP INT TERM
                 fail "installed $heartbeat_group $heartbeat_context produced no progress for 30 seconds"
+            fi
+            if (( heartbeat_count == heartbeat_total && now_epoch - last_progress_epoch >= 60 )); then
+                launchctl remove "$label" 2>/dev/null || true
+                rm -f -- "$active_job_file"
+                trap - HUP INT TERM
+                fail "installed $heartbeat_group $heartbeat_context did not finalize its result within 60 seconds"
             fi
         fi
         if [[ -n "${QUALIFICATION_BLOCKING_DEADLINE_EPOCH:-}" ]] \
