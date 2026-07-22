@@ -14,7 +14,8 @@ start_prompt_guard() {
     mkdir -p "$evidence_dir"
     [[ ! -e "$ready_file" && ! -e "$evidence_dir/incident.env" ]] || \
         fail "prompt sentry evidence already exists"
-    QUALIFICATION_PROMPT_AUDIT_START="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    # macOS `log show` accepts this local-time format for --start/--end.
+    QUALIFICATION_PROMPT_AUDIT_START="$(date '+%Y-%m-%d %H:%M:%S')"
     "$SCRIPT_DIR/qualification-prompt-guard.sh" live \
         "$$" "$PROJECT_DIR" "$(canonical_commit)" "$QUALIFICATION_RUN_ID" "$evidence_dir" &
     QUALIFICATION_PROMPT_GUARD_PID=$!
@@ -61,7 +62,7 @@ stop_prompt_guard() {
 finish_prompt_guard() {
     local evidence_dir audit_end audit_log status
     evidence_dir="$(run_dir)/prompt-guard"
-    audit_end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    audit_end="$(date '+%Y-%m-%d %H:%M:%S')"
     stop_prompt_guard
     [[ -n "${QUALIFICATION_PROMPT_AUDIT_START:-}" ]] || fail "prompt audit start time is missing"
     audit_log="$evidence_dir/post-run-audit.log"
@@ -80,6 +81,7 @@ finish_prompt_guard() {
         printf 'status=passed\n'
         printf 'started_at=%s\n' "$QUALIFICATION_PROMPT_AUDIT_START"
         printf 'ended_at=%s\n' "$audit_end"
+        printf 'timezone=%s\n' "$(date +%z)"
         printf 'prompt_events=0\n'
     } > "$evidence_dir/result.env"
     QUALIFICATION_PROMPT_AUDIT_START=""
