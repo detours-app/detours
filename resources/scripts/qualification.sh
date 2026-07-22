@@ -63,6 +63,7 @@ Commands:
   workflow-run <group|all>     Gate 2 only: run both repeated layers
   installed-smoke <group> <root|target>
                                Run focused installed repetitions in one audit session
+  visibility-probe             Prove live progress, failure reporting, and termination
   failure-probe <provider>     Prove one provider failure is preserved and cleaned
   cold-run                     Gate 2 only: run one complete cold qualification
   soak                         Disabled; requires a separate future authorization
@@ -362,6 +363,8 @@ source "$SCRIPT_DIR/qualification-prompts.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-workflows.sh"
 # shellcheck disable=SC1091
+source "$SCRIPT_DIR/qualification-visibility-probe.sh"
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-soak.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-evidence.sh"
@@ -493,6 +496,7 @@ case "$COMMAND" in
     installed) require_gate2_authorization; run_installed "$GROUP" ;;
     workflow-run) require_gate2_authorization; run_workflow_campaign "$GROUP" ;;
     installed-smoke) run_installed_smoke_campaign "$GROUP" "$SMOKE_ROOT" ;;
+    visibility-probe) run_failure_visibility_probe ;;
     failure-probe) run_provider_failure_probe "$FAILURE_PROVIDER" ;;
     cold-run) require_gate2_authorization; run_cold ;;
     soak) run_soak ;;
