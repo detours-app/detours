@@ -44,7 +44,7 @@ extension FileOperationQueue {
         #else
         let forceFallback = false
         #endif
-        try await runFileIO {
+        return try await runFileIO {
             try Self.displaceLocalItemSync(url, forceFallback: forceFallback)
         }
     }
@@ -55,7 +55,7 @@ extension FileOperationQueue {
         #else
         let forceFallback = false
         #endif
-        try await runUntrackedFileIO {
+        return try await runUntrackedFileIO {
             try Self.displaceLocalItemSync(url, forceFallback: forceFallback)
         }
     }
