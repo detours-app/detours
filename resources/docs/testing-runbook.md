@@ -242,6 +242,20 @@ checks, and is never a reason to replay the full workflow during diagnosis.
 
 A focused feedback step must not take a minute. If a selected check approaches 30–60 seconds, reduce it further or move it to the provider layer or a separately authorized reliability exercise. Output must stream while longer approved work is active.
 
+### Failure visibility is a design gate
+
+The primary purpose of test-runner output is to expose a failure at the earliest moment the harness can know about it. A runner that line-buffers, captures, or withholds its only actionable log until test completion is invalid, even if it eventually produces a complete report. Do not approve, repeat, or build further qualification work on that design. Add an independent live failure channel first.
+
+Before any repeated or longer-running test is authorized, demonstrate all of the following with a deliberately failing probe:
+
+1. The parent reports the failing workflow, context, iteration, and assertion while the test process is still running.
+2. The parent terminates that exact test process and its descendants immediately; no later iterations execute.
+3. A separate flushed progress channel reports successful progress at least every 30 seconds and is not derived from completion-buffered XCTest output.
+4. Silence, malformed progress, loss of the diagnostic source, or result-finalization overrun is itself a hard failure with a bounded deadline.
+5. The preserved result bundle and logs remain post-run evidence, but they are never the first place an operator learns that the run failed.
+
+This probe is a prerequisite for repetition, not another qualification loop. If the live channel cannot be demonstrated, run only one focused case while repairing the harness.
+
 Repeated tests must be fail-fast and observable by construction. Their purpose is to reveal and localize a defect quickly, not merely to produce a result after a long loop. No repeated workflow may be opaque between XCTest start and completion, buffer all useful output until the group ends, or defer an iteration failure behind later work. Each failure is emitted immediately with its workflow, iteration, context, and replay seed; successful work emits a flushed heartbeat often enough that approved repetition is never silent for more than 30 seconds.
 
 In-process campaigns currently meet that contract by disabling XCTest continuation after failure and writing a flushed evidence heartbeat after iteration 1, every third completed iteration, and the final iteration, naming the workflow, completed/total count, and replay seed. The parent shell—not `swift test`'s captured stdout—streams and validates that file and cancels the exact descendant tree after 30 seconds without progress. Installed workflows retain their per-cycle completion markers, disable continuation after failure, and have those markers streamed and watched by the parent launchd controller under the same silence limit. The controller also watches the live XCResult diagnostic staging files and reports an XCTest assertion as soon as it appears, without waiting for Xcode attachment finalization. After the final installed cycle, the parent emits an explicit result-bundle-finalization phase with a separate 60-second ceiling. Any new repeated design must define and verify its progress signal, maximum silence interval, per-iteration failure surface, and descendant-killing deadline before its repetition count is authorized. If a heartbeat stops while the process remains alive, the silence watchdog fails the run and the absolute deadline remains a second termination authority; never infer progress from an unchanged log, watch an app that is not exposing checked progress, or restart the same broad loop to investigate it.
