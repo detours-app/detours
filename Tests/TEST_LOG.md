@@ -2841,3 +2841,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   to restore the same remote location. XCResult records exactly 1 pass and 0
   failures/skips/expected failures in 12 seconds; the repetition marker,
   outside-root comparison, and guarded cleanup all passed.
+
+- 2026-07-22: Authorized T5 invocation `gate2-t5-refresh-90fdbe0-1`
+  stopped in host preflight before reset, build, fixtures, permission probes, or
+  behavioral tests because `detours-windows` was unreachable. Both Spectre and
+  Foundry received no ARP response from `10.10.1.24`; Atticus was reachable but
+  had no running QEMU process for the configured VM 707. The qualification
+  evidence contains only command metadata plus green no-op reset and cleanup
+  records.
