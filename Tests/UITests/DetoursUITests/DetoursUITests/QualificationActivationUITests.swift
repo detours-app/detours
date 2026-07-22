@@ -160,7 +160,12 @@ final class QualificationActivationUITests: BaseUITest {
             file: file,
             line: line
         )
-        XCTAssertTrue(condition(result), "Expected pane transition did not complete", file: file, line: line)
+        XCTAssertTrue(
+            condition(result),
+            "Expected pane transition did not complete: \(paneStateDescription(result))",
+            file: file,
+            line: line
+        )
         XCTAssertEqual([left.activePane, right.activePane].filter { $0 }.count, 1, file: file, line: line)
         XCTAssertEqual(left.activePane, expectedActivePane == "left", file: file, line: line)
         XCTAssertEqual(right.activePane, expectedActivePane == "right", file: file, line: line)
@@ -183,7 +188,9 @@ final class QualificationActivationUITests: BaseUITest {
     ) -> String {
         [state.left, state.right].map { pane in
             "\(pane.pane){active=\(pane.activePane),focus=\(pane.focus),tabs=\(pane.tabCount),"
-                + "selected=\(pane.selectedTabIndex),operation=\(pane.operationRunning),"
+                + "selectedTabIndex=\(pane.selectedTabIndex),selectedTabID=\(pane.selectedTabID ?? "nil"),"
+                + "location=\(pane.displayedLocation ?? "nil"),selections=\(pane.selectedLocations),"
+                + "operation=\(pane.operationRunning),"
                 + "pending=\(pane.operationPendingCount),refresh=\(pane.refreshInFlight),"
                 + "navigation=\(pane.navigationLoadInFlight),loading=\(pane.loadingVisible)}"
         }.joined(separator: " ")
