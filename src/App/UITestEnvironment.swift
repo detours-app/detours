@@ -191,6 +191,7 @@ enum UITestEnvironment {
         let loadingVisible: Bool
         let visibleRowCount: Int
         let firstResponderDescription: String?
+        let renameEditorWidth: Double?
         let hiddenFilesVisible: Bool
         let operationRunning: Bool
         let operationPendingCount: Int

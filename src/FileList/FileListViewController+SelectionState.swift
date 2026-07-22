@@ -108,6 +108,7 @@ extension FileListViewController {
             loadingVisible: loadingSpinner?.isHidden == false,
             visibleRowCount: tableView.numberOfRows,
             firstResponderDescription: (view.window?.firstResponder).map { String(describing: type(of: $0)) },
+            renameEditorWidth: renameController.activeEditorWidth.map(Double.init),
             hiddenFilesVisible: dataSource.showHiddenFiles,
             operationRunning: operationQueue.isRunning,
             operationPendingCount: operationQueue.pendingCount,

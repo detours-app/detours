@@ -29,6 +29,10 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
     private var currentUndoManager: UndoManager?
 
+    var activeEditorWidth: CGFloat? {
+        textField?.frame.width
+    }
+
     func beginRename(for item: FileItem, in tableView: NSTableView, at row: Int, isNewItem: Bool = false, undoManager: UndoManager? = nil) {
         cancelRename()
 

@@ -41,9 +41,18 @@ final class RenameVisualUITests: BaseUITest {
             selectRow(named: "file1.txt")
             pressKey(.return, modifiers: [.shift])
 
-            let editor = app.textFields["inlineRenameField"]
-            XCTAssertTrue(editor.waitForExistence(timeout: 2), "Inline rename editor should appear")
-            let initialWidth = editor.frame.width
+            var initialWidth: Double?
+            XCTAssertTrue(
+                waitForCondition {
+                    guard let state = try? self.requestRemotePaneState(pane: "left"),
+                          state.firstResponderDescription == "NSTextView",
+                          let width = state.renameEditorWidth else { return false }
+                    initialWidth = width
+                    return true
+                },
+                "Inline rename editing session should become active"
+            )
+            let widthBeforePaste = try XCTUnwrap(initialWidth)
 
             let pasteboard = NSPasteboard.general
             let priorString = pasteboard.string(forType: .string)
@@ -61,10 +70,14 @@ final class RenameVisualUITests: BaseUITest {
                     forType: .string
                 )
             )
-            editor.typeKey("v", modifierFlags: .command)
+            app.typeKey("v", modifierFlags: .command)
 
             XCTAssertTrue(
-                waitForCondition { editor.frame.width > initialWidth + 20 },
+                waitForCondition {
+                    guard let state = try? self.requestRemotePaneState(pane: "left"),
+                          let width = state.renameEditorWidth else { return false }
+                    return width > widthBeforePaste + 20
+                },
                 "Inline rename editor should expand immediately after a long paste"
             )
             pressKey(.escape)
