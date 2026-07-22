@@ -81,6 +81,9 @@ final class FileOperationQueue {
     /// Test seam used after a Replace destination has been displaced but before
     /// the source move starts. This makes the rollback boundary deterministic.
     var moveReplacementCancellationProbeForTesting: (() -> Bool)?
+    /// Forces the same rollback-safe sibling fallback used by mounted volumes
+    /// that do not implement Finder Trash.
+    var forceLocalDisplacementFallbackForTesting = false
     /// Test seam used after a real Windows target has moved to the recycle bin and before
     /// the staged item is renamed. Live-host tests use it to exercise remote rollback.
     var windowsReplacementFailureProbeForTesting: (() -> Bool)?

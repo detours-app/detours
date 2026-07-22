@@ -150,6 +150,8 @@ extension FileOperationQueue {
                 ? "Copy \"\(successes[0].destination.lastPathComponent)\""
                 : "Copy \(successes.count) Items"
             undoManager.setActionName(actionName)
+        } else {
+            try await finalizeLocalDisplacements(successes.compactMap(\.displaced))
         }
 
         let copiedItems = successes.map(\.destination)
@@ -296,6 +298,8 @@ extension FileOperationQueue {
             }
             let actionName = successes.count == 1 ? "Move \"\(successes[0].destination.lastPathComponent)\"" : "Move \(successes.count) Items"
             undoManager.setActionName(actionName)
+        } else {
+            try await finalizeLocalDisplacements(successes.compactMap(\.displaced))
         }
 
         try handleFailures(successes: successes.map { $0.destination }, failures: failures)
@@ -590,7 +594,7 @@ extension FileOperationQueue {
     ) async throws -> ProviderMoveSourceRestore {
         switch location {
         case .local(let url):
-            return .local(LocalDisplacedItem(original: url, trash: try await recycle(item: url)))
+            return .local(try await displaceLocalItem(url))
         case .remote:
             let trashedItems = try await provider.trash([location])
             guard let trashedItem = trashedItems.first else {

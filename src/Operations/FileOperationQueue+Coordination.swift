@@ -373,6 +373,7 @@ extension FileOperationQueue {
         onOperationPaused = nil
         copyProgressCancellationProbeForTesting = nil
         moveReplacementCancellationProbeForTesting = nil
+        forceLocalDisplacementFallbackForTesting = false
         windowsReplacementFailureProbeForTesting = nil
     }
     #endif

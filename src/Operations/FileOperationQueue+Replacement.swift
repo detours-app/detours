@@ -1,8 +1,14 @@
 import Foundation
 
 struct LocalDisplacedItem: Sendable {
+    enum Storage: Sendable, Equatable {
+        case trash
+        case fallback
+    }
+
     let original: URL
     let trash: URL
+    let storage: Storage
 }
 
 enum ProviderMoveSourceRestore: Sendable {
@@ -33,33 +39,51 @@ extension FileOperationQueue {
     }
 
     func displaceLocalItem(_ url: URL) async throws -> LocalDisplacedItem {
+        #if DEBUG
+        let forceFallback = forceLocalDisplacementFallbackForTesting
+        #else
+        let forceFallback = false
+        #endif
         try await runFileIO {
-            var trashURL: NSURL?
-            try FileManager.default.trashItem(at: url, resultingItemURL: &trashURL)
-            guard let trashURL = trashURL as URL? else {
-                throw FileOperationError.unknown(NSError(
-                    domain: "Detours",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to record the Trash location for \"\(url.lastPathComponent)\"."]
-                ))
-            }
-            return LocalDisplacedItem(original: url, trash: trashURL)
+            try Self.displaceLocalItemSync(url, forceFallback: forceFallback)
         }
     }
 
     func displaceLocalItemUntracked(_ url: URL) async throws -> LocalDisplacedItem {
+        #if DEBUG
+        let forceFallback = forceLocalDisplacementFallbackForTesting
+        #else
+        let forceFallback = false
+        #endif
         try await runUntrackedFileIO {
-            var trashURL: NSURL?
-            try FileManager.default.trashItem(at: url, resultingItemURL: &trashURL)
-            guard let trashURL = trashURL as URL? else {
-                throw FileOperationError.unknown(NSError(
-                    domain: "Detours",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to record the Trash location for \"\(url.lastPathComponent)\"."]
-                ))
-            }
-            return LocalDisplacedItem(original: url, trash: trashURL)
+            try Self.displaceLocalItemSync(url, forceFallback: forceFallback)
         }
+    }
+
+    nonisolated static func displaceLocalItemSync(
+        _ url: URL,
+        forceFallback: Bool = false
+    ) throws -> LocalDisplacedItem {
+        let fileManager = FileManager.default
+        if !forceFallback {
+            var trashURL: NSURL?
+            do {
+                try fileManager.trashItem(at: url, resultingItemURL: &trashURL)
+                if let trashURL = trashURL as URL? {
+                    return LocalDisplacedItem(original: url, trash: trashURL, storage: .trash)
+                }
+            } catch {
+                // SMB and some removable volumes do not implement Finder Trash.
+                // Keep the displaced item beside its destination until commit or
+                // undo so replacement remains rollback-safe on those volumes.
+            }
+        }
+
+        let fallbackURL = url.deletingLastPathComponent().appendingPathComponent(
+            ".detours-replacement-\(UUID().uuidString.lowercased())-\(url.lastPathComponent)"
+        )
+        try fileManager.moveItem(at: url, to: fallbackURL)
+        return LocalDisplacedItem(original: url, trash: fallbackURL, storage: .fallback)
     }
 
     func rollbackLocalDisplacement(_ item: LocalDisplacedItem) async throws {
@@ -76,21 +100,78 @@ extension FileOperationQueue {
 
     nonisolated static func restoreLocalDisplacementSync(_ item: LocalDisplacedItem) throws {
         let fileManager = FileManager.default
+        var displacedCurrent: LocalDisplacedItem?
         if fileManager.fileExists(atPath: item.original.path) {
-            try fileManager.trashItem(at: item.original, resultingItemURL: nil)
+            displacedCurrent = try displaceLocalItemSync(item.original)
         }
-        try fileManager.moveItem(at: item.trash, to: item.original)
+        do {
+            try fileManager.moveItem(at: item.trash, to: item.original)
+        } catch {
+            if let displacedCurrent,
+               !fileManager.fileExists(atPath: item.original.path) {
+                try? fileManager.moveItem(at: displacedCurrent.trash, to: item.original)
+            }
+            throw error
+        }
+        if let displacedCurrent, displacedCurrent.storage == .fallback {
+            try fileManager.removeItem(at: displacedCurrent.trash)
+        }
+    }
+
+    func finalizeLocalDisplacements(_ items: [LocalDisplacedItem]) async throws {
+        let fallbackURLs = items.filter { $0.storage == .fallback }.map(\.trash)
+        guard !fallbackURLs.isEmpty else { return }
+        try await runFileIO {
+            for url in fallbackURLs where FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
+    func finalizeLocalDisplacementsUntracked(_ items: [LocalDisplacedItem]) async throws {
+        let fallbackURLs = items.filter { $0.storage == .fallback }.map(\.trash)
+        guard !fallbackURLs.isEmpty else { return }
+        try await runUntrackedFileIO {
+            for url in fallbackURLs where FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+        }
     }
 
     nonisolated func undoLocalReplacementSync(
         createdItems: [URL],
         displacedItems: [LocalDisplacedItem]
     ) throws {
-        for item in createdItems where FileManager.default.fileExists(atPath: item.path) {
-            try FileManager.default.trashItem(at: item, resultingItemURL: nil)
-        }
-        for item in displacedItems.reversed() {
-            try Self.restoreLocalDisplacementSync(item)
+        try Self.replaceCreatedItemsWithDisplacementsSync(
+            createdItems: createdItems,
+            displacedItems: displacedItems
+        )
+    }
+
+    nonisolated static func replaceCreatedItemsWithDisplacementsSync(
+        createdItems: [URL],
+        displacedItems: [LocalDisplacedItem]
+    ) throws {
+        let fileManager = FileManager.default
+        var removedCreatedItems: [LocalDisplacedItem] = []
+        do {
+            for item in createdItems where fileManager.fileExists(atPath: item.path) {
+                removedCreatedItems.append(try displaceLocalItemSync(item))
+            }
+            for item in displacedItems.reversed() {
+                try restoreLocalDisplacementSync(item)
+            }
+            for item in removedCreatedItems
+            where item.storage == .fallback && fileManager.fileExists(atPath: item.trash.path) {
+                try fileManager.removeItem(at: item.trash)
+            }
+        } catch {
+            for item in removedCreatedItems.reversed()
+            where !fileManager.fileExists(atPath: item.original.path)
+                && fileManager.fileExists(atPath: item.trash.path) {
+                try? fileManager.moveItem(at: item.trash, to: item.original)
+            }
+            throw error
         }
     }
 
@@ -98,12 +179,10 @@ extension FileOperationQueue {
         let createdItems = ledger.createdItems
         let displacedItems = ledger.displacedItems
         try await runFileIO {
-            for item in createdItems.reversed() where FileManager.default.fileExists(atPath: item.path) {
-                try FileManager.default.trashItem(at: item, resultingItemURL: nil)
-            }
-            for item in displacedItems.reversed() {
-                try Self.restoreLocalDisplacementSync(item)
-            }
+            try Self.replaceCreatedItemsWithDisplacementsSync(
+                createdItems: Array(createdItems.reversed()),
+                displacedItems: displacedItems
+            )
         }
     }
 
