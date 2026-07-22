@@ -168,6 +168,7 @@ run_installed_smoke() {
     local group="$1"
     local context_name="$2"
     local repetitions="$3"
+    local test_filter="${4:-}"
     local fixture_file log_dir result_dir remote_target
     fixture_file="$(run_dir)/fixtures.env"
     [[ -f "$fixture_file" ]] || fail "fixture record is missing: $fixture_file"
@@ -189,7 +190,8 @@ run_installed_smoke() {
             run_installed_once \
                 "$group" "$context_name" "$repetitions" \
                 "$log_dir/$group-$context_name" \
-                "$result_dir/$group-$context_name.xcresult"
+                "$result_dir/$group-$context_name.xcresult" \
+                "" "$context_name" "$test_filter"
             ;;
         LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)
             remote_target="${!context_name}"
@@ -198,7 +200,7 @@ run_installed_smoke() {
                 "$group" LOCAL_ROOT "$repetitions" \
                 "$log_dir/$group-$context_name" \
                 "$result_dir/$group-$context_name.xcresult" \
-                "$remote_target" "$context_name"
+                "$remote_target" "$context_name" "$test_filter"
             ;;
     esac
 }

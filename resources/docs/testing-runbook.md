@@ -228,6 +228,12 @@ Every Foundry GUI campaign must prove that the expected user owns an unlocked co
 8. Run the three-minute blocking qualification once after the workstream is stable.
 9. Leave repetition to the explicit soak.
 
+A single installed-app regression may be selected with
+`qualification-foundry.sh installed-smoke <group> <context> --smoke-repetitions 1 --test-filter <Class/testMethod> ...`.
+The filter accepts one XCTest class/method identifier, still performs the normal
+preflight, fixture, result-bundle, repetition-marker, outside-root, and cleanup
+checks, and is never a reason to replay the full workflow during diagnosis.
+
 A focused feedback step must not take a minute. If a selected check approaches 30–60 seconds, reduce it further or move it to the provider/soak layer. Output must stream while longer approved work is active.
 
 ## Known-Defect Replay

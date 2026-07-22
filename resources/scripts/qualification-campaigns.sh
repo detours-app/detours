@@ -337,7 +337,8 @@ run_installed_smoke_campaign() {
     esac
     capture_outside_root_snapshots before
     capture_state_observation installed-smoke-before
-    run_installed_smoke "$group" "$context_name" "$QUALIFICATION_SMOKE_REPETITIONS"
+    run_installed_smoke \
+        "$group" "$context_name" "$QUALIFICATION_SMOKE_REPETITIONS" "$QUALIFICATION_TEST_FILTER"
     capture_state_observation installed-smoke-after
     capture_outside_root_snapshots after
     compare_outside_root_snapshots

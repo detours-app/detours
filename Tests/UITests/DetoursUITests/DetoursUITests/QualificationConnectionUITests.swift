@@ -37,6 +37,42 @@ final class QualificationConnectionUITests: BaseUITest {
         }
     }
 
+    func testBackReturnsToLocalAfterSameTabRemoteConnection() throws {
+        guard qualificationRemoteTarget != nil else {
+            throw XCTSkip("This regression requires a live remote qualification target.")
+        }
+        try runQualificationRepetitions(group: "connection") { _ in
+            try self.runLocalRemoteHistoryCycle()
+        }
+    }
+
+    private func runLocalRemoteHistoryCycle() throws {
+        let remote = try waitForPaneState(
+            pane: "left",
+            description: "same-tab remote connection"
+        ) { state in
+            state.displayedLocation != nil
+                && state.displayedLocation != self.uiTestRootURL.path
+                && state.connectionStates.values.contains("connected")
+                && self.isQuiescent(state)
+        }
+
+        let backButton = app.buttons.matching(identifier: "paneBackButton").element(boundBy: 0)
+        XCTAssertTrue(backButton.existsOrWait(timeout: 3))
+        XCTAssertTrue(backButton.isEnabled)
+        backButton.click()
+        _ = try waitForPaneState(pane: "left", description: "local history restoration") { state in
+            state.displayedLocation == self.uiTestRootURL.path && self.isQuiescent(state)
+        }
+
+        let forwardButton = app.buttons.matching(identifier: "paneForwardButton").element(boundBy: 0)
+        XCTAssertTrue(forwardButton.isEnabled)
+        forwardButton.click()
+        _ = try waitForPaneState(pane: "left", description: "remote history restoration") { state in
+            state.displayedLocation == remote.displayedLocation && self.isQuiescent(state)
+        }
+    }
+
     private func runConnectionCycle() throws {
         let leftOutline = app.leftPaneOutlineView
         XCTAssertTrue(leftOutline.existsOrWait(timeout: 3))

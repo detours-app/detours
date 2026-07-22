@@ -79,6 +79,7 @@ Options:
   --in-process-repetitions <1-100>
                                Focused in-process repetition count (default: 100)
   --smoke-repetitions <1-20>    Installed-smoke repetition count (default: 1)
+  --test-filter <Class/method>   Installed-smoke XCUI filter override
   --cold-index <1|2|3>          Cold-run sequence number
   --linux-target <ssh-alias>    Linux qualification endpoint (default: devtest)
   --intel-mac-target <alias>    Intel Mac qualification endpoint (default: wraith)
@@ -182,6 +183,11 @@ parse_options() {
             --smoke-repetitions)
                 [[ $# -ge 2 ]] || fail "--smoke-repetitions requires a value"
                 QUALIFICATION_SMOKE_REPETITIONS="$2"
+                shift 2
+                ;;
+            --test-filter)
+                [[ $# -ge 2 ]] || fail "--test-filter requires a value"
+                QUALIFICATION_TEST_FILTER="$2"
                 shift 2
                 ;;
             --cold-index)
@@ -388,6 +394,7 @@ QUALIFICATION_RUN_ID=""
 QUALIFICATION_SEED="0"
 QUALIFICATION_IN_PROCESS_REPETITIONS="100"
 QUALIFICATION_SMOKE_REPETITIONS="1"
+QUALIFICATION_TEST_FILTER=""
 QUALIFICATION_COLD_INDEX="0"
 QUALIFICATION_LINUX_TARGET="${DETOURS_QUALIFICATION_LINUX_TARGET:-devtest}"
 QUALIFICATION_INTEL_MAC_TARGET="${DETOURS_QUALIFICATION_INTEL_MAC_TARGET:-wraith}"
@@ -423,6 +430,13 @@ esac
 parse_options "$@"
 if [[ "$COMMAND" != "installed-smoke" && "$QUALIFICATION_SMOKE_REPETITIONS" != "1" ]]; then
     fail "--smoke-repetitions is available only with installed-smoke"
+fi
+if [[ "$COMMAND" != "installed-smoke" && -n "$QUALIFICATION_TEST_FILTER" ]]; then
+    fail "--test-filter is available only with installed-smoke"
+fi
+if [[ -n "$QUALIFICATION_TEST_FILTER" \
+    && ! "$QUALIFICATION_TEST_FILTER" =~ ^[A-Za-z_][A-Za-z0-9_]*/test[A-Za-z0-9_]+$ ]]; then
+    fail "--test-filter must be a Class/testMethod identifier"
 fi
 if [[ "$COMMAND" != "in-process" && "$COMMAND" != "in-process-run" \
     && "$QUALIFICATION_IN_PROCESS_REPETITIONS" != "100" ]]; then
