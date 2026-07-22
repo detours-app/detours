@@ -33,7 +33,7 @@ run_replay() {
     local input_log="$1"
     local evidence_dir="$2"
     local line
-    [[ -f "$input_log" ]] || usage
+    [[ -r "$input_log" ]] || usage
     mkdir -p "$evidence_dir"
     while IFS= read -r line || [[ -n "$line" ]]; do
         printf '%s\n' "$line" >> "$evidence_dir/replay.log"
