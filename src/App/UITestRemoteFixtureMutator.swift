@@ -97,7 +97,8 @@ enum UITestRemoteFixtureMutator {
                 )
                 try await provider.delete([location])
             case "gitInit":
-                guard let host = RemoteHostStore.shared.host(id: hostID), host.kind != .windows else {
+                guard UITestEnvironment.realRemoteContext != "WINDOWS_TARGET",
+                      let target = UITestEnvironment.realRemoteTarget else {
                     throw MutationError.gitUnavailable
                 }
                 let path = shellQuote(scenarioPath)
@@ -107,7 +108,7 @@ enum UITestRemoteFixtureMutator {
                     + " -c user.name='Detours Qualification'"
                     + " -c user.email=qualification@detours.invalid"
                     + " commit -q -m 'initial fixture'"
-                _ = try await SSHRemoteHostKindProbeClient(sshTarget: host.sshTarget).run(command)
+                _ = try await SSHRemoteHostKindProbeClient(sshTarget: target).run(command)
             case "cleanup":
                 try await provider.delete([scenario])
             default:
