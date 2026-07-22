@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.11.3 - 2026-07-22
+
+### Bug Fixes
+
+- **Back works across local and remote folders** - Navigating from a local
+  folder to a remote folder in the same tab now records both destinations, so
+  Back and Forward restore the correct local or remote location.
+- **Remote trees stay current without collapsing** - Expanded remote branches
+  are watched and refreshed by location while stale listing work is rejected,
+  preserving expansion, selection, scrolling, and focus during updates.
+- **Refreshes preserve what you are working on** - Clearing a filter restores
+  selection by item instead of row number, app activation keeps the active
+  pane stable, and unchanged SMB timestamps no longer trigger false redraws.
+- **Replacement failures recover without relying on Trash** - Copy, move, and
+  extraction replacements retain displaced local items in guarded fallback
+  storage when a volume cannot use Trash, allowing rollback to restore data.
+
 ## 1.11.2 - 2026-07-17
 
 ### Bug Fixes
