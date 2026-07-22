@@ -2886,3 +2886,5 @@ Spotlight search has no unit test (depends on the live, async-built system index
   replay of the preserved XCUI interruption returned the same detection status.
   Qualification now requires live TCC, visible-window, and XCUI-staging
   channels plus all three post-run checks before it can record zero prompts.
+
+- 2026-07-22 13:47 CEST: Foundry whole-app blocking qualification PASS for `e02b166586a05a6b1e609152b706110decd7fe90`, run `final-whole-app-e02b166-1`: 132s against the 180s budget (16.31x over baseline), 8 installed workflows in 1 XCResult, 0 prompts, 0 skips, and green guarded cleanup.
