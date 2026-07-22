@@ -29,39 +29,10 @@ blocking_layer() {
 run_blocking_swift_filter() {
     local label="$1"
     local filter="$2"
-    local log_path status
-    log_path="$(run_dir)/logs/blocking-$label.log"
-    printf '%s\t%s\t%s\n' "$label" "$filter" "1" >> "$(run_dir)/replay.tsv"
-    set +e
-    DETOURS_LINUX_TEST_TARGET="$QUALIFICATION_LINUX_TARGET" \
-        DETOURS_INTEL_MAC_TEST_TARGET="$QUALIFICATION_INTEL_MAC_TARGET" \
-        DETOURS_WINDOWS_TEST_TARGET="$QUALIFICATION_WINDOWS_TARGET" \
-        LOCAL_ROOT="$LOCAL_ROOT" \
-        APFS_ROOT="$APFS_ROOT" \
-        ICLOUD_ROOT="$ICLOUD_ROOT" \
-        SMB_ROOT="$SMB_ROOT" \
-        "$SCRIPT_DIR/qualification-deadline.sh" \
-            "$QUALIFICATION_BLOCKING_DEADLINE_EPOCH" \
-            swift test --skip-build --filter "$filter" 2>&1 | tee "$log_path"
-    status="${PIPESTATUS[0]}"
-    set -e
-    (( status == 0 )) || return "$status"
-    ! grep -En 'Test Case .* skipped|✘.*skipped' "$log_path" >/dev/null || \
-        fail "$label recorded a skipped test"
-}
-
-run_blocking_swift_suite() {
     local log_path status_path status stream_pid diagnostic detected
-    log_path="$(run_dir)/logs/blocking-swift-suite.log"
-    status_path="$(run_dir)/logs/blocking-swift-suite.status"
-    printf '%s\t%s\t%s\n' "swift-suite" "all-tests" "1" >> "$(run_dir)/replay.tsv"
-    {
-        printf 'host_architecture=arm64\n'
-        printf 'excluded=DarwinServerSmokeTests/testMalformedRequestDoesNotTerminateDarwinHelper\n'
-        printf 'excluded=DarwinServerSmokeTests/testProtocolVersionFromDarwinHelper\n'
-        printf 'owner=RemoteIntegrationTests/testIntelMacListDirectoryReturnsExpectedEntries\n'
-        printf 'owner=RemoteIntegrationTests/testIntelMacWatchDirectoryReceivesDarwinEvent\n'
-    } > "$(run_dir)/logs/blocking-host-routing.env"
+    log_path="$(run_dir)/logs/blocking-$label.log"
+    status_path="$(run_dir)/logs/blocking-$label.status"
+    printf '%s\t%s\t%s\n' "$label" "$filter" "1" >> "$(run_dir)/replay.tsv"
     set +e
     (
         DETOURS_QUALIFICATION_REPETITIONS=1 \
@@ -76,9 +47,7 @@ run_blocking_swift_suite() {
             QUALIFICATION_ACTIVE_DEADLINE_FILE="$(run_dir)/active-deadline" \
             "$SCRIPT_DIR/qualification-deadline.sh" \
                 "$QUALIFICATION_BLOCKING_DEADLINE_EPOCH" \
-                swift test --skip-build \
-                    --skip 'DarwinServerSmokeTests/(testMalformedRequestDoesNotTerminateDarwinHelper|testProtocolVersionFromDarwinHelper)' \
-                2>&1 | tee "$log_path"
+                swift test --skip-build --filter "$filter" 2>&1 | tee "$log_path"
         printf '%s\n' "${PIPESTATUS[0]}" > "$status_path"
     ) &
     stream_pid=$!
@@ -98,12 +67,17 @@ run_blocking_swift_suite() {
     wait "$stream_pid" >/dev/null 2>&1 || true
     set -e
     (( detected == 0 )) || return 92
-    [[ -f "$status_path" ]] || fail "whole-app Swift suite status is missing"
+    [[ -f "$status_path" ]] || fail "$label status is missing"
     IFS= read -r status < "$status_path"
-    [[ "$status" =~ ^[0-9]+$ ]] || fail "whole-app Swift suite status is invalid"
+    [[ "$status" =~ ^[0-9]+$ ]] || fail "$label status is invalid"
     (( status == 0 )) || return "$status"
     ! grep -En 'Test Case .* skipped|✘.*skipped|warning:' "$log_path" >/dev/null || \
-        fail "whole-app Swift suite recorded a skip or warning"
+        fail "$label recorded a skip or warning"
+}
+
+run_blocking_deterministic_qualification() {
+    run_blocking_swift_filter deterministic-contracts \
+        'QualificationWorkflowTests|QualificationRunRootTests|RefreshQualificationContractTests|FileListCellTests|FileListDensityTests|ThemeTests|PreferencesTests|EqualSplitIndicatorViewTests|RemoteConnectionTeardownTests|StatusBarProgressTests|RemoteInlineRenameRefreshTests'
 }
 
 run_blocking_pure_refresh() {
@@ -211,7 +185,8 @@ run_blocking_qualification() {
     capture_state_observation blocking-before
 
     started_epoch="$(date +%s)"
-    blocking_layer swift-suite 75 run_blocking_swift_suite
+    blocking_layer deterministic-contracts 10 run_blocking_deterministic_qualification
+    blocking_layer provider-contracts 75 run_blocking_provider_refresh
     blocking_layer installed-workflows 90 run_blocking_installed_qualification
     capture_state_observation blocking-after
     capture_outside_root_snapshots after

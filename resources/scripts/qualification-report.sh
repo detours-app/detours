@@ -104,7 +104,7 @@ write_qualification_result() {
         printf '| --- | --- | ---: | --- |\n'
         printf '| `%s` | %s | 0 | Passed |\n\n' \
             "$(basename "$selected_dir")" "$(report_env_value completed_at "$blocking_record")"
-        printf 'The gate used one shared build, the complete deterministic and live-provider Swift suite, '
+        printf 'The gate used one shared build, the selected deterministic workflow, known-defect, safety, structural, and accessibility contracts, the complete live-provider contract set, '
         printf 'and one installed-app boundary journey for each of the eight named workflows. '
         printf 'The older 100-by-20 GUI campaigns are retained only as a separately authorized reliability exercise; '
         printf 'they are not a blocking completion gate. The 12-hour soak was removed by Marco on 2026-07-22.\n\n'
