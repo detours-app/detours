@@ -2,6 +2,40 @@ import XCTest
 @testable import Detours
 
 extension PaneViewControllerTests {
+    func testBackReturnsFromRemoteToLocalAndForwardRestoresRemoteInSameTab() throws {
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let local = try createTempDirectory()
+        defer { cleanupTempDirectory(local) }
+        let host = RemoteHost(displayName: "Dev VM", sshTarget: "devtest")
+        let provider = PaneRemoteProvider(listings: ["/home/marco": []])
+
+        pane.navigate(to: local)
+        pane.loadRemoteHost(host, provider: provider, path: "/home/marco")
+        waitUntil(
+            pane.selectedTab?.fileListViewController.currentRemoteLocation
+                == .remote(hostID: host.id, path: "/home/marco")
+        )
+
+        XCTAssertTrue(pane.selectedTab?.canGoBack == true)
+        pane.goBack()
+        waitUntil(pane.selectedTab?.fileListViewController.currentRemoteLocation == nil)
+        XCTAssertEqual(
+            pane.selectedTab?.currentDirectory.standardizedFileURL,
+            local.standardizedFileURL
+        )
+        XCTAssertFalse(breadcrumbTitles(in: pane.view).contains("Dev VM"))
+
+        XCTAssertTrue(pane.selectedTab?.canGoForward == true)
+        pane.goForward()
+        waitUntil(
+            pane.selectedTab?.fileListViewController.currentRemoteLocation
+                == .remote(hostID: host.id, path: "/home/marco")
+        )
+        XCTAssertEqual(pane.selectedTab?.fileListViewController.currentRemoteHost, host)
+        XCTAssertTrue(breadcrumbTitles(in: pane.view).contains("Dev VM"))
+    }
+
     func testRemovingRemoteHostNavigatesBackToPreviousLocalDirectory() throws {
         let pane = PaneViewController()
         pane.loadViewIfNeeded()

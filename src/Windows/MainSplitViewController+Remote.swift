@@ -47,7 +47,12 @@ extension MainSplitViewController {
                 leftPane.resumePendingRemoteTabs(for: host, provider: resources.provider)
                 rightPane.resumePendingRemoteTabs(for: host, provider: resources.provider)
                 if !selectedTabWasPending {
-                    targetPane.loadRemoteHost(host, provider: resources.provider, path: resources.homePath)
+                    targetPane.loadRemoteHost(
+                        host,
+                        provider: resources.provider,
+                        path: resources.homePath,
+                        addToHistory: false
+                    )
                 }
                 if activePane === targetPane {
                     view.window?.makeFirstResponder(targetPane.selectedTab?.fileListViewController.tableView)
