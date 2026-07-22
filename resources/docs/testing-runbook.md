@@ -4,7 +4,7 @@
 
 This is the canonical runbook for designing, selecting, running, and evaluating Detours tests. It governs the placement of coverage, interactive feedback loops, whole-app qualification, and separately authorized reliability exercises. When a qualification spec or matrix assigns repetition differently, this runbook controls the testing process while the capability contract remains authoritative about what behavior must be proved.
 
-The current qualification runner still implements the older 100 in-process and 20 installed-app repetitions. Those campaign entry points are suspended. Gate 1 may redesign the blocking suite, but only Gate 2 authorization may resume the campaign repetition entry points.
+The qualification runner retains the older 100 in-process and 20 installed-app repetition machinery only for a separately scoped reliability exercise. Those campaign entry points are not blocking completion and remain suspended unless Marco explicitly authorizes the workflow groups, contexts, repetition count, and duration for that exercise.
 
 All Detours tests, test builds, runtime probes, UI automation, and fixture setup run on Foundry. Spectre is never a test fallback and receives only the final install-only build after Foundry verification.
 
@@ -323,9 +323,9 @@ Authorized by Marco on 2026-07-21. Scope:
 
 ### Gate 2: resume whole-app qualification
 
-Requires a separate explicit authorization after Gate 1 reports measured runtime, known-defect sensitivity, capability ownership, provider coverage, and cleanup results. Only then may the remaining whole-app qualification tasks resume. The 12-hour soak is not part of this gate.
+Authorized by Marco on 2026-07-22 after Gate 1 reported measured runtime, known-defect sensitivity, capability ownership, provider coverage, and cleanup results. This authorizes the bounded whole-app blocking qualification and final evidence work. It does not authorize Layer 4 repetition; that requires a separately stated scope and duration. The 12-hour soak is not part of this gate.
 
-Authorization is scoped to one launcher invocation by setting `DETOURS_QUALIFICATION_GATE2_AUTHORIZED=1` on `qualification-foundry.sh`; the launcher forwards that value only to the selected Foundry command. Every campaign must establish the independent prompt sentry after the shared build and before fixture mounting, test work, or app launch. Sentry readiness failure stops the campaign before behavioral work.
+Every campaign must establish the independent prompt sentry after the shared build and before fixture mounting, test work, or app launch. Sentry readiness failure stops the campaign before behavioral work. The bounded `blocking`/`run` commands need no repetition authorization; legacy repetition commands retain the one-invocation authorization guard and are not used for completion.
 
 Each 100-cycle in-process workflow has a 600-second absolute deadline enforced by the same descendant-aware watchdog as Gate 1. Each installed context retains the GUI runner's 900-second absolute ceiling and exact launchd cancellation record. The external `cancel` route terminates either active form before guarded campaign cleanup; interrupting the launcher must not leave XCTest descendants, mounts, or fixture roots behind.
 

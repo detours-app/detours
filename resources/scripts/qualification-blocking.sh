@@ -50,6 +50,30 @@ run_blocking_swift_filter() {
         fail "$label recorded a skipped test"
 }
 
+run_blocking_swift_suite() {
+    local log_path status
+    log_path="$(run_dir)/logs/blocking-swift-suite.log"
+    printf '%s\t%s\t%s\n' "swift-suite" "all-tests" "1" >> "$(run_dir)/replay.tsv"
+    set +e
+    DETOURS_QUALIFICATION_REPETITIONS=1 \
+        DETOURS_QUALIFICATION_SEED="$QUALIFICATION_SEED" \
+        DETOURS_LINUX_TEST_TARGET="$QUALIFICATION_LINUX_TARGET" \
+        DETOURS_INTEL_MAC_TEST_TARGET="$QUALIFICATION_INTEL_MAC_TARGET" \
+        DETOURS_WINDOWS_TEST_TARGET="$QUALIFICATION_WINDOWS_TARGET" \
+        LOCAL_ROOT="$LOCAL_ROOT" \
+        APFS_ROOT="$APFS_ROOT" \
+        ICLOUD_ROOT="$ICLOUD_ROOT" \
+        SMB_ROOT="$SMB_ROOT" \
+        "$SCRIPT_DIR/qualification-deadline.sh" \
+            "$QUALIFICATION_BLOCKING_DEADLINE_EPOCH" \
+            swift test --skip-build 2>&1 | tee "$log_path"
+    status="${PIPESTATUS[0]}"
+    set -e
+    (( status == 0 )) || return "$status"
+    ! grep -En 'Test Case .* skipped|✘.*skipped|warning:' "$log_path" >/dev/null || \
+        fail "whole-app Swift suite recorded a skip or warning"
+}
+
 run_blocking_pure_refresh() {
     run_blocking_swift_filter pure-refresh 'RefreshQualificationContractTests'
 }
@@ -69,6 +93,27 @@ run_blocking_installed_refresh() {
         refresh LOCAL_ROOT 1 \
         "$log_dir/refresh-LOCAL_ROOT" \
         "$result_dir/refresh-LOCAL_ROOT.xcresult"
+}
+
+run_blocking_installed_qualification() {
+    local log_dir result_dir selected_group remote_target context_name
+    log_dir="$(run_dir)/workflows/blocking-installed"
+    result_dir="$(run_dir)/results/blocking-installed"
+    mkdir -p "$log_dir" "$result_dir"
+
+    while IFS= read -r selected_group; do
+        remote_target=""
+        context_name="LOCAL_ROOT"
+        if [[ "$selected_group" == "connection" ]]; then
+            remote_target="$QUALIFICATION_LINUX_TARGET"
+            context_name="LINUX_TARGET"
+        fi
+        run_installed_once \
+            "$selected_group" LOCAL_ROOT 1 \
+            "$log_dir/$selected_group-$context_name" \
+            "$result_dir/$selected_group-$context_name.xcresult" \
+            "$remote_target" "$context_name"
+    done < <(workflow_groups)
 }
 
 prepare_blocking_refresh_bundles() {
@@ -113,6 +158,55 @@ run_blocking_refresh() {
         "$duration" "$(awk -v baseline=2153.055 -v actual="$duration" 'BEGIN { printf "%.2f", baseline / actual }')" \
         > "$(run_dir)/timing/blocking-summary.env"
     (( duration <= 180 )) || fail "blocking refresh exceeded its 180s budget (${duration}s)"
+    trap - EXIT
+}
+
+run_blocking_qualification() {
+    local started_epoch ended_epoch duration bundle_count
+    trap 'campaign_cleanup_on_exit "$?"' EXIT
+    start_console_awake_guard
+    run_reset
+    run_preflight
+    run_build
+    start_prompt_guard
+    run_prepare_fixtures
+    set -a
+    # shellcheck disable=SC1090,SC1091
+    source "$(run_dir)/fixtures.env"
+    set +a
+    prepare_blocking_refresh_bundles
+    capture_outside_root_snapshots before
+    capture_state_observation blocking-before
+
+    started_epoch="$(date +%s)"
+    blocking_layer swift-suite 75 run_blocking_swift_suite
+    blocking_layer installed-workflows 90 run_blocking_installed_qualification
+    capture_state_observation blocking-after
+    capture_outside_root_snapshots after
+    compare_outside_root_snapshots
+    run_cleanup
+    verify_qualification_cleanup
+    finish_prompt_guard
+    ended_epoch="$(date +%s)"
+    duration=$((ended_epoch - started_epoch))
+    bundle_count="$(find "$(run_dir)/results/blocking-installed" -maxdepth 1 \
+        -type d -name '*.xcresult' | wc -l | tr -d '[:space:]')"
+    [[ "$bundle_count" == "8" ]] || \
+        fail "whole-app blocking gate produced $bundle_count installed result bundles instead of 8"
+    {
+        printf 'status=passed\n'
+        printf 'commit=%s\n' "$(canonical_commit)"
+        printf 'run_id=%s\n' "$QUALIFICATION_RUN_ID"
+        printf 'completed_epoch=%s\n' "$ended_epoch"
+        printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        printf 'wall_seconds=%s\n' "$duration"
+        printf 'budget_seconds=180\n'
+        printf 'baseline_seconds=2153.055\n'
+        printf 'speedup=%s\n' \
+            "$(awk -v baseline=2153.055 -v actual="$duration" 'BEGIN { printf "%.2f", baseline / actual }')"
+        printf 'installed_workflows=8\n'
+    } > "$(run_dir)/blocking.env"
+    (( duration <= 180 )) || fail "whole-app blocking gate exceeded its 180s budget (${duration}s)"
     trap - EXIT
 }
 

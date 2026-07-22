@@ -56,7 +56,8 @@ Commands:
   smb-auth                     Validate SMB authentication without mounting
   fixtures                     Create and mount every guarded fixture root
   build                        Build the qualifying app without installing it
-  blocking-refresh             Run the post-build refresh gate (hard limit: 180s)
+  blocking                     Run the whole-app blocking gate (hard limit: 180s)
+  blocking-refresh             Run the focused refresh blocking gate (hard limit: 180s)
   in-process <group|all>       Gate 2 only: run 100 times in process
   in-process-run <group|all>   Gate 2 only: guarded in-process campaign
   installed <group|all>        Gate 2 only: run 20 installed-app cycles
@@ -65,12 +66,12 @@ Commands:
                                Run focused installed repetitions in one audit session
   visibility-probe             Prove live progress, failure reporting, and termination
   failure-probe <provider>     Prove one provider failure is preserved and cleaned
-  cold-run                     Gate 2 only: run one complete cold qualification
+  cold-run                     Separately authorized reliability campaign only
   soak                         Disabled; requires a separate future authorization
   report                       Generate the tracked matrix and result report
   cleanup                      Remove exact marked qualification state
   cancel                       Stop the exact active GUI job for a run
-  run                          Gate 2 only: run the three cold qualifications
+  run                          Run the whole-app blocking qualification
   help                         Show this help
 
 Options:
@@ -99,7 +100,6 @@ Named workflow groups:
   session
   opening
 
-The third cold run must begin after a Foundry reboot recorded by preflight.
 USAGE
 }
 
@@ -380,12 +380,7 @@ source "$SCRIPT_DIR/qualification-campaigns.sh"
 source "$SCRIPT_DIR/qualification-blocking.sh"
 
 run_all() {
-    run_build
-    local index
-    for index in 1 2; do
-        "$0" cold-run --commit "$(canonical_commit)" --run-id "$(new_run_id)" --seed "$QUALIFICATION_SEED" --cold-index "$index" "${QUALIFICATION_TARGET_ARGUMENTS[@]}"
-    done
-    fail "reboot Foundry before cold run 3, then resume with cold-run --cold-index 3"
+    run_blocking_qualification
 }
 
 COMMAND="${1:-help}"
@@ -452,15 +447,6 @@ fi
     fail "--smb-share must be a single path component"
 # shellcheck disable=SC2034 # Consumed by sourced qualification modules.
 SMB_MOUNT_POINT="/Volumes/$QUALIFICATION_SMB_SHARE"
-QUALIFICATION_TARGET_ARGUMENTS=(
-    --linux-target "$QUALIFICATION_LINUX_TARGET"
-    --intel-mac-target "$QUALIFICATION_INTEL_MAC_TARGET"
-    --windows-target "$QUALIFICATION_WINDOWS_TARGET"
-    --smb-host "$QUALIFICATION_SMB_HOST"
-    --smb-share "$QUALIFICATION_SMB_SHARE"
-    --smb-user "$QUALIFICATION_SMB_USER"
-)
-
 case "$COMMAND" in
     help|-h|--help)
         usage
@@ -490,6 +476,7 @@ case "$COMMAND" in
     smb-auth) verify_smb_authentication ;;
     fixtures) run_prepare_fixtures_command ;;
     build) run_build ;;
+    blocking) run_blocking_qualification ;;
     blocking-refresh) run_blocking_refresh ;;
     in-process) require_gate2_authorization; run_in_process "$GROUP" ;;
     in-process-run) require_gate2_authorization; run_in_process_campaign "$GROUP" ;;
@@ -503,6 +490,6 @@ case "$COMMAND" in
     report) run_report ;;
     cleanup) run_cleanup ;;
     cancel) run_cancel ;;
-    run) require_gate2_authorization; run_all ;;
+    run) run_all ;;
     *) fail "unknown command: $COMMAND (run '$0 help')" ;;
 esac
