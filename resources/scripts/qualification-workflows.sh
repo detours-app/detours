@@ -9,7 +9,7 @@ run_gui_command() {
     local attempt exited_without_status_at active_job_file
     local heartbeat_dir heartbeat_group heartbeat_context heartbeat_total
     local heartbeat_count current_heartbeat_count last_progress_epoch now_epoch iteration
-    local cycles_complete_reported
+    local cycles_complete_reported result_bundle diagnostic_failure
     assert_prompt_guard_healthy
     path_is_within "$log_path" "$(run_dir)" || fail "GUI command log escapes the run directory"
     status_path="$log_path.status"
@@ -24,6 +24,7 @@ run_gui_command() {
     heartbeat_group="${QUALIFICATION_GUI_HEARTBEAT_GROUP:-}"
     heartbeat_context="${QUALIFICATION_GUI_HEARTBEAT_CONTEXT:-}"
     heartbeat_total="${QUALIFICATION_GUI_HEARTBEAT_TOTAL:-0}"
+    result_bundle="${QUALIFICATION_GUI_RESULT_BUNDLE:-}"
     heartbeat_count=0
     cycles_complete_reported=0
     last_progress_epoch="$(date +%s)"
@@ -35,6 +36,8 @@ run_gui_command() {
         [[ "$heartbeat_context" =~ ^[A-Z_-]+$ ]] || fail "installed heartbeat context is invalid"
         [[ "$heartbeat_total" =~ ^[0-9]+$ && "$heartbeat_total" -gt 0 ]] || \
             fail "installed heartbeat total is invalid"
+        path_is_within "$result_bundle" "$(run_dir)" || \
+            fail "installed result bundle escapes the run directory"
     fi
     active_job_file="$(run_dir)/active-gui-job"
     [[ ! -e "$active_job_file" ]] || fail "another GUI qualification job is already recorded"
@@ -53,6 +56,19 @@ run_gui_command() {
     job_state=""
     for (( attempt = 1; attempt <= 9000; attempt++ )); do
         assert_prompt_guard_healthy
+        diagnostic_failure=""
+        if [[ -d "$result_bundle/Staging" ]]; then
+            diagnostic_failure="$(find "$result_bundle/Staging" \
+                -type f -name StandardOutputAndStandardError.txt -exec \
+                grep -hEm1 ':[0-9]+: error:|Test Case .* failed' {} + 2>/dev/null | head -1 || true)"
+        fi
+        if [[ -n "$diagnostic_failure" ]]; then
+            printf '%s\n' "$diagnostic_failure" >&2
+            launchctl remove "$label" 2>/dev/null || true
+            rm -f -- "$active_job_file"
+            trap - HUP INT TERM
+            fail "installed $heartbeat_group $heartbeat_context reported a test failure"
+        fi
         if [[ -n "$heartbeat_dir" ]]; then
             current_heartbeat_count="$(find "$heartbeat_dir" -maxdepth 1 -type f \
                 -name ".detours-qualification-$heartbeat_group-repetition-*.json" \
@@ -504,6 +520,7 @@ run_installed_once() {
         QUALIFICATION_GUI_HEARTBEAT_GROUP="$selected_group" \
         QUALIFICATION_GUI_HEARTBEAT_CONTEXT="$context_name" \
         QUALIFICATION_GUI_HEARTBEAT_TOTAL="$repetitions" \
+        QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
         run_gui_command "$log_path.raw.log" env \
             HOME="$HOME" \
             PATH=/usr/bin:/bin:/usr/sbin:/sbin \

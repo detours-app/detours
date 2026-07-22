@@ -85,13 +85,20 @@ final class QualificationActivationUITests: BaseUITest {
             newTabPane.selectedTabID
         )
 
-        selectFirstVisibleItemInActivePane()
-        let selection = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
-            let pane = testsRightPane ? state.right : state.left
-            return !pane.selectedLocations.isEmpty
+        let selectedLocations: [String]
+        if newTabPane.visibleRowCount > 0 {
+            selectFirstVisibleItemInActivePane()
+            let selection = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
+                let pane = testsRightPane ? state.right : state.left
+                return !pane.selectedLocations.isEmpty
+            }
+            let selectedPane = testsRightPane ? selection.right : selection.left
+            XCTAssertFalse(selectedPane.selectedLocations.isEmpty)
+            selectedLocations = selectedPane.selectedLocations
+        } else {
+            XCTAssertTrue(newTabPane.selectedLocations.isEmpty)
+            selectedLocations = []
         }
-        let selectedPane = testsRightPane ? selection.right : selection.left
-        XCTAssertFalse(selectedPane.selectedLocations.isEmpty)
 
         finder.activate()
         XCTAssertTrue(waitForForeground(finder, timeout: 3))
@@ -100,11 +107,11 @@ final class QualificationActivationUITests: BaseUITest {
         let returned = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
             let pane = testsRightPane ? state.right : state.left
             return pane.selectedTabID == newTabPane.selectedTabID
-                && pane.selectedLocations == selectedPane.selectedLocations
+                && pane.selectedLocations == selectedLocations
         }
         let returnedPane = testsRightPane ? returned.right : returned.left
         XCTAssertEqual(returnedPane.selectedTabID, newTabPane.selectedTabID)
-        XCTAssertEqual(returnedPane.selectedLocations, selectedPane.selectedLocations)
+        XCTAssertEqual(returnedPane.selectedLocations, selectedLocations)
 
         pressCharKey("w", modifiers: .command)
         let cleaned = try assertPaneAndTabContract(expectedActivePane: paneName) { state in
