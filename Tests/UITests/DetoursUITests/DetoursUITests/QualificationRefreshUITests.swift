@@ -604,16 +604,37 @@ final class QualificationRefreshUITests: BaseUITest {
         timeout: TimeInterval = 30,
         condition: (RemotePaneState) -> Bool
     ) throws -> RemotePaneState {
-        let deadline = Date().addingTimeInterval(timeout)
+        let startedAt = Date()
+        let deadline = startedAt.addingTimeInterval(timeout)
+        var nextActivityAt = startedAt
         var lastState: RemotePaneState?
         while Date() < deadline {
             let state = try requestRemotePaneState(pane: "left")
             lastState = state
             if condition(state) {
+                try recordQualificationActivity(
+                    phase: "state-satisfied",
+                    detail: description,
+                    elapsedSeconds: Int(Date().timeIntervalSince(startedAt))
+                )
                 return state
+            }
+            let now = Date()
+            if now >= nextActivityAt {
+                try recordQualificationActivity(
+                    phase: "state-wait",
+                    detail: description,
+                    elapsedSeconds: Int(now.timeIntervalSince(startedAt))
+                )
+                nextActivityAt = now.addingTimeInterval(10)
             }
             usleep(25_000)
         }
+        try recordQualificationActivity(
+            phase: "state-timeout",
+            detail: description,
+            elapsedSeconds: Int(Date().timeIntervalSince(startedAt))
+        )
         throw QualificationRefreshFailure.timedOut(description, lastState)
     }
 

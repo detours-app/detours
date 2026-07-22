@@ -10,6 +10,9 @@ run_gui_command() {
     local heartbeat_dir heartbeat_group heartbeat_context heartbeat_total
     local heartbeat_count current_heartbeat_count last_progress_epoch now_epoch iteration
     local cycles_complete_reported result_bundle diagnostic_failure
+    local activity_path activity_snapshot activity_digest previous_activity_digest activity_group activity_phase
+    local activity_detail activity_iteration activity_total activity_sequence activity_elapsed
+    local last_activity_sequence
     assert_prompt_guard_healthy
     path_is_within "$log_path" "$(run_dir)" || fail "GUI command log escapes the run directory"
     status_path="$log_path.status"
@@ -27,6 +30,9 @@ run_gui_command() {
     result_bundle="${QUALIFICATION_GUI_RESULT_BUNDLE:-}"
     heartbeat_count=0
     cycles_complete_reported=0
+    activity_path=""
+    previous_activity_digest=""
+    last_activity_sequence=0
     last_progress_epoch="$(date +%s)"
     if [[ -n "$heartbeat_dir" ]]; then
         path_is_within "$heartbeat_dir" \
@@ -38,6 +44,12 @@ run_gui_command() {
             fail "installed heartbeat total is invalid"
         path_is_within "$result_bundle" "$(run_dir)" || \
             fail "installed result bundle escapes the run directory"
+        activity_path="$heartbeat_dir/.detours-qualification-$heartbeat_group-activity.json"
+        path_is_within "$activity_path" "$heartbeat_dir" || \
+            fail "installed activity record escapes the heartbeat directory"
+        activity_snapshot="$(run_dir)/live-activity-$heartbeat_group-$heartbeat_context.json"
+        path_is_within "$activity_snapshot" "$(run_dir)" || \
+            fail "installed activity snapshot escapes the run directory"
     fi
     active_job_file="$(run_dir)/active-gui-job"
     [[ ! -e "$active_job_file" ]] || fail "another GUI qualification job is already recorded"
@@ -70,6 +82,45 @@ run_gui_command() {
             fail "installed $heartbeat_group $heartbeat_context reported a test failure"
         fi
         if [[ -n "$heartbeat_dir" ]]; then
+            if [[ -f "$activity_path" ]]; then
+                cp "$activity_path" "$activity_snapshot"
+                activity_digest="$(shasum -a 256 "$activity_snapshot" | awk '{print $1}')"
+                if [[ "$activity_digest" != "$previous_activity_digest" ]]; then
+                    if ! activity_group="$(plutil -extract group raw -o - "$activity_snapshot" 2>/dev/null)" \
+                        || ! activity_phase="$(plutil -extract phase raw -o - "$activity_snapshot" 2>/dev/null)" \
+                        || ! activity_detail="$(plutil -extract detail raw -o - "$activity_snapshot" 2>/dev/null)" \
+                        || ! activity_iteration="$(plutil -extract iteration raw -o - "$activity_snapshot" 2>/dev/null)" \
+                        || ! activity_total="$(plutil -extract total raw -o - "$activity_snapshot" 2>/dev/null)" \
+                        || ! activity_sequence="$(plutil -extract sequence raw -o - "$activity_snapshot" 2>/dev/null)" \
+                        || ! activity_elapsed="$(plutil -extract elapsedSeconds raw -o - "$activity_snapshot" 2>/dev/null)"; then
+                        launchctl remove "$label" 2>/dev/null || true
+                        rm -f -- "$active_job_file"
+                        trap - HUP INT TERM
+                        fail "installed activity record is malformed"
+                    fi
+                    if [[ "$activity_group" != "$heartbeat_group" \
+                        || ! "$activity_phase" =~ ^[a-z-]+$ \
+                        || -z "$activity_detail" \
+                        || ! "$activity_iteration" =~ ^[0-9]+$ \
+                        || "$activity_iteration" -lt 1 \
+                        || "$activity_iteration" -gt "$heartbeat_total" \
+                        || "$activity_total" != "$heartbeat_total" \
+                        || ! "$activity_sequence" =~ ^[0-9]+$ \
+                        || "$activity_sequence" -le "$last_activity_sequence" \
+                        || ! "$activity_elapsed" =~ ^[0-9]+$ ]]; then
+                        launchctl remove "$label" 2>/dev/null || true
+                        rm -f -- "$active_job_file"
+                        trap - HUP INT TERM
+                        fail "installed activity record is invalid"
+                    fi
+                    printf 'qualification-progress group=%s context=%s iteration=%s total=%s phase=%s elapsed=%ss detail=%s\n' \
+                        "$heartbeat_group" "$heartbeat_context" "$activity_iteration" "$activity_total" \
+                        "$activity_phase" "$activity_elapsed" "$activity_detail"
+                    previous_activity_digest="$activity_digest"
+                    last_activity_sequence="$activity_sequence"
+                    last_progress_epoch="$(date +%s)"
+                fi
+            fi
             current_heartbeat_count="$(find "$heartbeat_dir" -maxdepth 1 -type f \
                 -name ".detours-qualification-$heartbeat_group-repetition-*.json" \
                 | wc -l | tr -d '[:space:]')"

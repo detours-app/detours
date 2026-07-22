@@ -288,12 +288,27 @@ extension BaseUITest {
             userInfo: nil,
             deliverImmediately: true
         )
-        let completed = waitForCondition(timeout: timeout) {
-            guard let data = try? Data(contentsOf: resultURL),
-                  let result = try? JSONDecoder().decode(RemoteFixtureMutationResult.self, from: data) else {
-                return false
+        let startedAt = Date()
+        let deadline = startedAt.addingTimeInterval(timeout)
+        var nextActivityAt = startedAt
+        var completed = false
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: resultURL),
+               let result = try? JSONDecoder().decode(RemoteFixtureMutationResult.self, from: data),
+               result.id == command.id {
+                completed = true
+                break
             }
-            return result.id == command.id
+            let now = Date()
+            if now >= nextActivityAt {
+                try recordQualificationActivity(
+                    phase: "remote-fixture-wait",
+                    detail: action,
+                    elapsedSeconds: Int(now.timeIntervalSince(startedAt))
+                )
+                nextActivityAt = now.addingTimeInterval(10)
+            }
+            usleep(25_000)
         }
         guard completed,
               let data = try? Data(contentsOf: resultURL),

@@ -4,6 +4,21 @@ import XCTest
 class BaseUITest: XCTestCase {
     var app: XCUIApplication!
 
+    private struct QualificationActivity: Encodable {
+        let sequence: Int
+        let group: String
+        let iteration: Int
+        let total: Int
+        let phase: String
+        let detail: String
+        let elapsedSeconds: Int
+    }
+
+    private var activeQualificationGroup: String?
+    private var activeQualificationIteration = 0
+    private var activeQualificationTotal = 0
+    private var qualificationActivitySequence = 0
+
     /// Name of test directory (created by uitest.sh in home before tests run)
     var testFolderName: String {
         ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_ROOT"]
@@ -83,13 +98,61 @@ class BaseUITest: XCTestCase {
             XCTFail("Qualification repetition count must be between 1 and 100")
             return
         }
+        guard group.range(of: "^[a-z-]+$", options: .regularExpression) != nil else {
+            XCTFail("Qualification group contains invalid characters")
+            return
+        }
+        defer {
+            activeQualificationGroup = nil
+            activeQualificationIteration = 0
+            activeQualificationTotal = 0
+        }
 
         for iteration in 1...repetitions {
+            activeQualificationGroup = group
+            activeQualificationIteration = iteration
+            activeQualificationTotal = repetitions
+            try recordQualificationActivity(phase: "cycle-start", detail: "starting")
             try XCTContext.runActivity(named: "\(group) repetition \(iteration) of \(repetitions)") { _ in
                 try cycle(iteration)
+                try recordQualificationActivity(phase: "cycle-complete", detail: "completed")
                 try recordQualificationRepetition(group: group, iteration: iteration, total: repetitions)
             }
         }
+    }
+
+    func recordQualificationActivity(
+        phase: String,
+        detail: String,
+        elapsedSeconds: Int = 0
+    ) throws {
+        guard let group = activeQualificationGroup else { return }
+        guard phase.range(of: "^[a-z-]+$", options: .regularExpression) != nil,
+              !detail.isEmpty,
+              !detail.contains("\n"),
+              elapsedSeconds >= 0 else {
+            throw NSError(
+                domain: "DetoursQualificationActivity",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid qualification activity"]
+            )
+        }
+        qualificationActivitySequence += 1
+        let activity = QualificationActivity(
+            sequence: qualificationActivitySequence,
+            group: group,
+            iteration: activeQualificationIteration,
+            total: activeQualificationTotal,
+            phase: phase,
+            detail: detail,
+            elapsedSeconds: elapsedSeconds
+        )
+        let markerURL = uiTestControlRootURL.appendingPathComponent(
+            ".detours-qualification-\(group)-activity.json"
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(activity).write(to: markerURL, options: .atomic)
     }
 
     private func recordQualificationRepetition(group: String, iteration: Int, total: Int) throws {
