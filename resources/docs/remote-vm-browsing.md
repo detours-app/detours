@@ -4,7 +4,7 @@ Detours remote panes connect over the system `/usr/bin/ssh` to x86_64 Linux, Int
 
 ## SSH Configuration
 
-Add a host in Detours with a single SSH target, such as `devtest`, `wraith`, or `marco@devtest`. The target is the label shown in the sidebar and breadcrumb. Authentication is delegated to OpenSSH and the running SSH agent. Detours does not ask for a display name, password, key path, or private key passphrase.
+Add a host in Detours with a single SSH target, such as `build-linux`, `intel-mac`, or `user@example-host`. The target is the label shown in the sidebar and breadcrumb. Authentication is delegated to OpenSSH and the running SSH agent. Detours does not ask for a display name, password, key path, or private key passphrase.
 
 The Add Remote Host sheet suggests entries from `~/.ssh/config`. Suggestions come from top-level `Host` blocks only. Literal aliases and wildcard host patterns are suggested. `Match` blocks and conditional `Include` files are not used for suggestions. Adding a host immediately connects it in the active pane and persists it under Remote Hosts for later reconnects.
 
@@ -48,7 +48,8 @@ Current remote exceptions:
 
 - Duplicate and Duplicate Structure are local-only because those commands still operate on local URL selections.
 - Reveal in Finder and Share are local-only because Finder and macOS sharing services require local files. Drag-out and Open With are the supported materialization paths for remote files.
-- Delete Immediately currently moves remote items to host-side Trash; permanent deletion is local-only.
+- Delete Immediately permanently removes remote items after the same explicit,
+  non-recoverable confirmation used for local items.
 - Password-protected ZIP and 7Z work through the bundled helper on supported macOS and Linux hosts. Windows remote hosts support unencrypted archives only.
 - Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported because this release bundles only `x86_64 Linux` and `x86_64 macOS` helpers.
 

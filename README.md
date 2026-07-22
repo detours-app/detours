@@ -108,6 +108,10 @@ detours/
 │   ├── QuickLook/        # Detours-native text preview generation
 │   └── Utilities/        # Helpers
 ├── Server/               # Remote helper source
+├── Shared/               # Shared process and PTY support
+├── QualificationSupport/ # Qualification run-root/evidence contracts
+├── QualificationGuard/   # Qualification path-guard executable
+├── QualificationSMBMounter/ # Qualification SMB mount helper
 ├── Tests/                # XCTest suite
 ├── resources/
 │   ├── docs/             # User guide, changelog

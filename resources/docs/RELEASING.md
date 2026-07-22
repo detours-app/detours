@@ -40,20 +40,29 @@ git push public main
 
 ## Creating a Release
 
+Reconcile and commit the release documentation on Spectre, push `main` to `origin`, then update a clean Foundry checkout with `git pull --ff-only`. Run the preflight confirmation and the release itself on Foundry, which owns the build-sign-notarize toolchain and its local `.build` preflight marker.
+
 ### Using the release script
 
 Run the docs reconciliation before every release:
 
+On Spectre:
+
 ```bash
 $update-docs
+git push origin main
+ssh foundry 'cd ~/dev/detours && git pull --ff-only'
+```
+
+Then, in a Foundry terminal:
+
+```bash
+cd ~/dev/detours
 resources/scripts/confirm-update-docs.sh
+./resources/scripts/release.sh
 ```
 
 The confirmation helper records the current clean commit after the docs pass. `release.sh` refuses to continue if the confirmation is missing, stale, or the worktree has uncommitted changes.
-
-```bash
-./resources/scripts/release.sh
-```
 
 The script reads the version from the root `VERSION` file and:
 

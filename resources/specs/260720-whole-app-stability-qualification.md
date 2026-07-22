@@ -3,8 +3,9 @@
 ## Meta
 
 - Status: Implemented
-- Branch: testing/whole-app-stability-qualification
-- Campaign condition: unrelated feature work remains frozen from the first implementation commit through the final evidence commit
+- Branch: merged into `main`
+- Campaign condition: completed; the feature freeze ended after the final
+  evidence commit
 
 ---
 

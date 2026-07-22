@@ -10,9 +10,9 @@ All Detours tests, test builds, runtime probes, UI automation, and fixture setup
 
 ## Objective
 
-Produce faster, more reliable, and more diagnostic feedback without weakening the capability contract. Blocking qualification test execution must be at least ten times faster than the current refresh workflow baseline.
+Produce faster, more reliable, and more diagnostic feedback without weakening the capability contract. Blocking qualification test execution must remain at least ten times faster than the historical refresh workflow baseline.
 
-The blocking qualification has a hard wall-clock budget of 180 seconds after one shared build. The current baseline is at least 2,153 seconds on the same basis, so the required improvement is at least 11.9 times.
+The blocking qualification has a hard wall-clock budget of 180 seconds after one shared build. The historical baseline is at least 2,153 seconds on the same basis. The accepted final gate completed in 132 seconds, a 16.31x improvement; see `resources/docs/260720-whole-app-stability-qualification-result.md`.
 
 The redesign is accepted only when measured runtime is at or below the budget and known-defect replay proves that the smaller suite still detects the defects that the old repeated workflows found.
 
@@ -238,11 +238,7 @@ Every Foundry GUI campaign must prove that the expected user owns an unlocked co
 8. Run the three-minute blocking qualification once after the workstream is stable.
 9. Leave repetition to a separately authorized reliability exercise.
 
-A single installed-app regression may be selected with
-`qualification-foundry.sh installed-smoke <group> <context> --smoke-repetitions 1 --test-filter <Class/testMethod> ...`.
-The filter accepts one XCTest class/method identifier, still performs the normal
-preflight, fixture, result-bundle, repetition-marker, outside-root, and cleanup
-checks, and is never a reason to replay the full workflow during diagnosis.
+A single installed-app regression may be selected with `qualification-foundry.sh installed-smoke <group> <context> --smoke-repetitions 1 --test-filter <Class/testMethod> ...`. The filter accepts one XCTest class/method identifier, still performs the normal preflight, fixture, result-bundle, repetition-marker, outside-root, and cleanup checks, and is never a reason to replay the full workflow during diagnosis.
 
 A focused feedback step must not take a minute. If a selected check approaches 30–60 seconds, reduce it further or move it to the provider layer or a separately authorized reliability exercise. Output must stream while longer approved work is active.
 

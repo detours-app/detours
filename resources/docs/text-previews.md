@@ -40,4 +40,4 @@ Cache entries are keyed by source metadata, preview kind, active theme, font siz
 1. Check current package versions with `npm view markdown-it version` and `npm view highlight.js version`.
 2. Replace the files under `resources/PreviewAssets/vendor/`.
 3. Update `resources/PreviewAssets/manifest.json` with the pinned versions, source URLs, and license filenames.
-4. Run the focused preview tests and `resources/scripts/build.sh --no-install` to confirm the app bundle contains `Contents/Resources/PreviewAssets/`.
+4. On Foundry, run the focused preview tests and `resources/scripts/build.sh --no-install` to confirm the app bundle contains `Contents/Resources/PreviewAssets/`.

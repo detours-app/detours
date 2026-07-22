@@ -2888,3 +2888,16 @@ Spotlight search has no unit test (depends on the live, async-built system index
   channels plus all three post-run checks before it can record zero prompts.
 
 - 2026-07-22 13:47 CEST: Foundry whole-app blocking qualification PASS for `e02b166586a05a6b1e609152b706110decd7fe90`, run `final-whole-app-e02b166-1`: 132s against the 180s budget (16.31x over baseline), 8 installed workflows in 1 XCResult, 0 prompts, 0 skips, and green guarded cleanup.
+
+- 2026-07-22 14:09 CEST: Foundry focused installed rename regression PASS
+  at exact commit `94961fa8734a136e26021dc1e620878c21112e72`, run
+  `rename-paste-94961fa-1`. The real Command-V path pasted a longer filename
+  into the inline editor and proved its width expanded immediately inside the
+  visible Name column. XCResult records 1 pass, 0 failures, skips, or expected
+  failures in 6.415 seconds; all three prompt channels recorded zero events,
+  outside-root comparison passed, and guarded cleanup removed the local root.
+  The preceding `rename-paste-bea68c0-1` attempt failed because the first XCUI
+  assertion tried to discover the overlay editor directly through an unstable
+  accessibility query. The final test observes the production editor width
+  through the existing guarded pane-state seam and preserves the real paste
+  action.

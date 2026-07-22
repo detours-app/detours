@@ -85,30 +85,9 @@ Wait for both panes to load before capturing.
 
 ## Automated Capture
 
-For chrome-polish verification, capture both active-pane states through the UI test runner:
+The legacy direct UI-test capture route is suspended. It bypasses the mandatory qualification prompt sentry and can leave an `Allow` dialog unattended. Do not invoke `resources/scripts/uitest.sh` directly for screenshot capture.
 
-```bash
-DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 \
-DETOURS_UI_TEST_SCREENSHOT_REMOTE_FIXTURES=1 \
-DETOURS_SCREENSHOT_THEME=dark \
-DETOURS_SCREENSHOT_CAPTURE_THEME=dark \
-DETOURS_SCREENSHOT_CAPTURE_DIR=resources/docs \
-resources/scripts/uitest.sh ChromePolishScreenshotTests/testCaptureChromePolishScreenshots
-
-DETOURS_UI_TEST_SCREENSHOT_FIXTURES=1 \
-DETOURS_UI_TEST_SCREENSHOT_REMOTE_FIXTURES=1 \
-DETOURS_SCREENSHOT_THEME=light \
-DETOURS_SCREENSHOT_CAPTURE_THEME=light \
-DETOURS_SCREENSHOT_CAPTURE_DIR=resources/docs \
-resources/scripts/uitest.sh ChromePolishScreenshotTests/testCaptureChromePolishScreenshots
-```
-
-The tests write:
-
-- `resources/docs/chrome-polish-dark-left-active.png`
-- `resources/docs/chrome-polish-dark-right-active.png`
-- `resources/docs/chrome-polish-light-left-active.png`
-- `resources/docs/chrome-polish-light-right-active.png`
+Until screenshot capture is integrated with the guarded qualification launcher, use the fixture setup above and capture from Foundry's logged-in GUI session. Any future automated route must stream output while the test runs and inherit the same fail-closed visible-prompt monitoring used by `qualification-foundry.sh`.
 
 ## Manual Capture
 

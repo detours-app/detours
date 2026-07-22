@@ -46,7 +46,7 @@ The script:
 
 Do not separately launch the app after building. The script owns relaunch when it installs.
 
-**Always build after making changes** - never just edit files and call it done. Run the build script on Foundry to verify changes work. The only Spectre build is the final normal `resources/scripts/build.sh` install after Foundry verification.
+**Always build after app, test, or automation changes** - never just edit executable code and call it done. Run the build script on Foundry to verify changes work. The only Spectre build is the final normal `resources/scripts/build.sh` install after Foundry verification. Documentation-only changes use documentation validation and do not require an app build.
 
 ### Linting
 
@@ -71,28 +71,21 @@ ssh foundry 'cd ~/dev/detours && swift test --filter SomeTestClass'
 Run the full Foundry suite once as a final confirmation when the change spans shared file operations, remote providers, release automation, or another broad integration surface.
 
 - Test files go in `Tests/`
-- No mocks - use the real filesystem with temp directories on Foundry only
+- Put deterministic behavior and state transitions in pure tests. Use real temporary files and live provider boundaries only where the contract cannot be proved below the provider layer, always on Foundry.
 - Update `Tests/TEST_LOG.md` immediately after EVERY test run
 - If a test fails, fix it. No "pre-existing" excuses.
 - **Any test marked FAIL in TEST_LOG.md must have a comment in the same table row explaining why** - no unexplained failures allowed
 
 ### UI Testing with XCUITest
 
-For repeatable UI tests that don't steal focus, use XCUITest:
-
-```bash
-# Run all UI tests
-resources/scripts/uitest.sh
-
-# Run specific test
-resources/scripts/uitest.sh FolderExpansionUITests/testDisclosureTriangleExpand
-```
+For repeatable installed-app UI tests, use XCUITest through the guarded Foundry qualification launcher. Follow `resources/docs/testing-runbook.md` and select one focused `installed-smoke` test during iteration. Do not invoke `resources/scripts/uitest.sh` directly; it is an implementation detail of the guarded runner and does not establish the mandatory prompt sentry or cleanup contract by itself.
 
 - Tests live in `Tests/UITests/DetoursUITests/`
 - Tests target the installed `/Applications/Detours.app`
-- The script builds the app first, then runs tests
+- The guarded runner reuses one build, streams checked progress, starts the
+  independent prompt sentry before app/test launch, and performs bounded cleanup
 
-**XCUI runs on Foundry: NO permission gate, ever.** Foundry is the dedicated build/test machine and is not in active use, so XCUI tests run there freely without asking Marco for permission, including reruns after failure. Just sync Foundry, run the tests, and update `Tests/TEST_LOG.md`. There is no Spectre/local-focus exception and no permission path for running a Detours test on Spectre.
+Bounded single-case and blocking XCUI commands on Foundry do not need a separate repetition authorization. Reliability repetition does. No workflow may accept, dismiss, or work around an operating-system consent dialog: the independent TCC, visible-window, and XCUI-staging sentries must cancel the exact run and fail closed. Never ask Marco to watch for or clear an `Allow` prompt.
 
 **NEVER use MCP `macos-ui-automation` tools for this project.** They trigger permission prompts. Use XCUITest exclusively.
 
@@ -155,7 +148,7 @@ rm -f temp.png temp2.png mask.png
 
 ### Build, Prove, Then Install on Spectre (MANDATORY FLOW)
 
-Every change follows this order. Do not skip ahead, and never declare a change done before it is proven crash-free on Foundry.
+Every app, test, or automation change follows this order. Do not skip ahead, and never declare executable changes done before they are proven crash-free on Foundry. Documentation-only changes use the docs reconciliation and validation workflow instead.
 
 1. **Edit + commit on Spectre.** Source changes and commits happen here. No test or test-data command runs here.
 2. **Build and prove on Foundry.** Build with `build.sh` on Foundry and run every relevant unit, integration, live-host, runtime, and XCUI check there. **A launch crash MUST be caught here, not by Marco.** UI tests that launch the app (e.g. `waitForExistence` on the main window) fail when the app crashes on launch — so always run the UI suite after any change that touches window/view/controller setup, and treat a crash as a failing test to fix before continuing. If Foundry is unavailable or any build/test is red, the change is not done; never substitute Spectre.
@@ -168,7 +161,7 @@ A change is not complete until it is proven on Foundry AND installed on Spectre.
 - Commit on Spectre first. Do not leave source changes as the source of truth on Foundry.
 - Before using Foundry for builds, screenshots, or runtime verification, check `git status --short --branch` and `git rev-parse HEAD` on both Spectre and Foundry.
 - Foundry must be clean and at the same commit as Spectre before runtime or screenshot work starts.
-- **Sync Foundry with an ff-only pull.** Push the Spectre commit to `origin`, then, when Foundry is clean, bring it to the same branch with `git fetch && git checkout <branch> && git pull --ff-only`.
+- **Sync Foundry with an ff-only pull.** Push the Spectre commit to `origin`, then, when Foundry is clean and already on the intended branch, run `git pull --ff-only` there.
 - **Never `git reset --hard` a clean Foundry.** Reset is destructive and is reserved for the one case where Foundry is genuinely dirty or has diverged and `git pull` refuses to fast-forward. If you reach for reset on a clean tree, stop, you are overcomplicating it.
 - If files were temporarily copied to Foundry for staging, reconcile them by committing on Spectre, pushing, then `git pull --ff-only` on Foundry.
 - Do not leave Foundry with uncommitted repo changes after a task. If Foundry is dirty, stop and cleanly reconcile it before continuing.
@@ -212,6 +205,10 @@ src/
 ├── Preferences/   # Settings UI
 └── Utilities/     # Helpers, extensions
 Server/            # Remote helper source
+Shared/            # Shared process/PTY support used by app and helper
+QualificationSupport/     # Qualification run-root and evidence contracts
+QualificationGuard/       # Qualification path-guard executable
+QualificationSMBMounter/  # Qualification SMB mount helper
 Tests/             # XCTest files
 ├── UITests/       # XCUITest project
 resources/
@@ -255,6 +252,10 @@ The ONLY exception is the explicit "Delete Immediately" menu action which:
 - **Partial archive files** (e.g. incomplete `.zip` being written) — safe to delete on cancel/error
 - **`.detours-extract-*` temp directories** — use `removeAppCreatedDirectory()` which validates the prefix before deleting and refuses anything else
 - **App-created wrapper directories** — tracked via `appCreatedExtractionDir` flag in extraction code; only directories created in the current operation are eligible
+- **Guarded replacement fallback files** — when a volume cannot use Trash,
+  Detours moves the displaced destination to a generated
+  `.detours-replacement-*` sibling, restores it on rollback/undo, and removes
+  only that generated fallback after the replacement commits
 
 **NEVER pass a user-provided path to `removeItem`.** Extraction destinations, parent directories, download folders — these are user directories and must never be deleted by cleanup code.
 

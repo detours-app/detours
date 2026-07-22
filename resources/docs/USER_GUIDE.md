@@ -142,6 +142,8 @@ Open acts on every selected ordinary file in the order shown. Folders, archives,
 
 The File menu and context menu also include New File choices for Text File, Markdown File, and Empty File.
 
+The inline Rename field grows as you type or paste a longer name, up to the visible edge of the Name column.
+
 **Duplicate Structure** creates a copy of a folder's entire directory hierarchy without copying files. Ideal for year-based folder templates (e.g., `Clients/2025/` → `Clients/2026/`). Auto-detects years in folder names and offers to substitute them.
 
 ### Cross-Pane Operations
@@ -253,7 +255,7 @@ Detours can browse supported remote machines directly over SSH without mounting 
 ### Adding a Remote Host
 
 1. Choose File → Add Remote Host... or press Cmd-K.
-2. Enter an SSH target such as `devtest`, `wraith`, or `user@example-host`.
+2. Enter an SSH target such as `build-linux`, `intel-mac`, or `user@example-host`.
 3. Confirm the host. Detours connects with the system `/usr/bin/ssh`, using the same SSH config, known-hosts files, and agent as Terminal.
 
 The Add Remote Host sheet suggests entries from `~/.ssh/config`. Adding a host saves it in the Remote Hosts section and opens it in the active pane.
@@ -300,7 +302,8 @@ Current remote exceptions:
 
 - Duplicate and Duplicate Structure are local-only because those commands still operate on local URL selections.
 - Reveal in Finder and Share are local-only because Finder and macOS sharing services need local files. Use drag-out or Open With when you need a local materialized copy.
-- Delete Immediately currently moves remote items to host-side Trash; permanent deletion is local-only.
+- Delete Immediately permanently removes remote items after the same explicit,
+  non-recoverable confirmation used for local items.
 - Windows remote hosts do not support password-protected archives. Supported macOS and Linux helper hosts support password-protected ZIP and 7Z without placing passwords in process arguments.
 - Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported because this release bundles only `x86_64 Linux` and `x86_64 macOS` helpers.
 

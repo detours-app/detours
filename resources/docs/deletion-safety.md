@@ -1,8 +1,8 @@
 # Deletion Safety Audit
 
-Last audited: 2026-07-14
+Last audited: 2026-07-22
 
-Detours follows a strict policy: **no user file or folder is permanently deleted without explicit confirmation**. Normal deletion, conflict replacement, and undo cleanup use Trash. Direct filesystem removal is reserved for confirmed local Delete Immediately operations and app-created temporary files.
+Detours follows a strict policy: **no user file or folder is permanently deleted without explicit confirmation**. Normal deletion, conflict replacement, and undo cleanup use Trash or guarded rollback storage. Direct filesystem removal is reserved for confirmed local or remote Delete Immediately operations and app-created temporary or rollback files.
 
 ## The Incident
 
@@ -12,9 +12,9 @@ The extraction flow now tracks whether it created a destination, keeps cleanup i
 
 ## Current Permanent-Deletion Surfaces
 
-### Confirmed local Delete Immediately
+### Confirmed Delete Immediately
 
-`FileListViewController.deleteSelectionImmediately()` is the common entry point for the menu, context-menu, and keyboard actions. It presents a destructive confirmation dialog before calling `FileOperationQueue.deleteImmediately`. The local implementation enumerates the confirmed selection and removes the deepest descendants first in `src/Operations/FileOperationQueue+OperationsContinued.swift`.
+`FileListViewController.deleteSelectionImmediately()` is the common entry point for the menu, context-menu, and keyboard actions. It presents a destructive confirmation dialog before calling `FileOperationQueue.deleteImmediately`. The local implementation enumerates the confirmed selection and removes the deepest descendants first in `src/Operations/FileOperationQueue+OperationsContinued.swift`. Unix remote providers call the helper's permanent delete RPC; Windows providers use the permanent PowerShell delete path.
 
 No undo handler calls this path.
 
@@ -27,6 +27,8 @@ Other filesystem `removeItem` calls clean up data created by Detours itself:
 - incomplete archive outputs and `.detours-extract-*` directories;
 - generated Quick Look previews and stale preview-cache entries;
 - drag-out partials and temporary Open With lookup directories;
+- committed `.detours-replacement-*` fallback items created when a volume
+  cannot move a displaced destination to Trash;
 - test-only session roots created by the UI-test environment.
 
 These paths are constructed by Detours under temporary/cache locations or use an operation-specific generated suffix. They are not caller-supplied user directories.
@@ -39,13 +41,12 @@ Normal Move to Trash operations are recoverable:
 - Unix remote files use the remote user's FreeDesktop trash through the helper.
 - Windows remote files use a Detours-managed `.detours-trash` folder in the
   signed-in user's profile.
-- Replace conflict handling moves the displaced destination to the appropriate
-  Trash before placing the replacement.
+- Replace conflict handling moves the displaced destination to the appropriate Trash before placing the replacement. When a local volume cannot use Trash, it uses a generated `.detours-replacement-*` sibling as rollback storage and removes that app-created fallback only after commit.
 - Undo cleanup for copied, duplicated, renamed, or newly created items uses the
   same Trash-backed paths.
 - Archive extraction conflicts move replaced wrappers/items to Trash.
 
-Remote Delete Immediately currently routes through each provider's delete path, which is Trash-backed on the Unix and Windows providers. It therefore does not permanently erase a remote item, despite showing the confirmation used by the local command. This behavior is tracked in `resources/docs/ISSUES.md`.
+Remote Delete Immediately routes through each provider's permanent delete path. Normal remote Move to Trash remains recoverable through the separate provider trash and restore contract.
 
 ## Extraction Safeguards
 
@@ -69,12 +70,15 @@ Cancel/error cleanup removes only the incomplete archive output selected by the 
 
 The codebase uses independent controls against involuntary deletion:
 
-1. UI confirmation gates the only local user-path `removeItem` workflow.
+1. UI confirmation gates every local or remote permanent-delete workflow.
 2. Normal deletion, replacement, and undo use local or host-side Trash.
 3. Extraction cleanup records whether Detours created the directory.
 4. Generic extraction cleanup requires the `.detours-extract-` prefix.
 5. Transfer/archive/preview cleanup uses generated app-owned partial, staging,
    cache, or temporary paths.
+6. Replacement fallback removal is limited to generated
+   `.detours-replacement-*` siblings created and tracked by the current
+   operation.
 
 ## Rules for Future Development
 
