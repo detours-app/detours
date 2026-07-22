@@ -76,7 +76,7 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
                state.displayedLocation == home + "/" + remoteDirectoryName {
                 app.leftPaneOutlineView.click()
                 pressKey(.upArrow, modifiers: .command)
-                _ = try waitForState("return to real remote fixture parent") {
+                _ = try waitForRemoteState("return to real remote fixture parent") {
                     $0.displayedLocation == home
                 }
             }
@@ -141,7 +141,7 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
     }
 
     private func createRemoteScenario() throws {
-        let ready = try waitForState("real remote fixture home", timeout: 45) {
+        let ready = try waitForRemoteState("real remote fixture home", timeout: 45) {
             $0.registeredRemoteProviderCount == 1
                 && $0.displayedLocation != nil
                 && $0.displayedLocation != self.uiTestRootURL.path
@@ -164,6 +164,33 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
         remoteHomePath = home
     }
 
+    private func waitForRemoteState(
+        _ description: String,
+        timeout: TimeInterval = 30,
+        condition: (RemotePaneState) -> Bool
+    ) throws -> RemotePaneState {
+        let startedAt = Date()
+        let deadline = startedAt.addingTimeInterval(timeout)
+        var nextActivityAt = startedAt
+        var lastState: RemotePaneState?
+        while Date() < deadline {
+            let state = try requestRemotePaneState(pane: "left")
+            lastState = state
+            if condition(state) { return state }
+            let now = Date()
+            if now >= nextActivityAt {
+                try recordQualificationActivity(
+                    phase: "state-wait",
+                    detail: description,
+                    elapsedSeconds: Int(now.timeIntervalSince(startedAt))
+                )
+                nextActivityAt = now.addingTimeInterval(10)
+            }
+            usleep(25_000)
+        }
+        throw RealRemoteFixtureFailure.timedOut(description, lastState)
+    }
+
     private func launchRealRemote(connectionDelayMilliseconds: Int? = nil) {
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
@@ -175,4 +202,8 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
     }
 
+}
+
+private enum RealRemoteFixtureFailure: Error {
+    case timedOut(String, BaseUITest.RemotePaneState?)
 }

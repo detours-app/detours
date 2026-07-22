@@ -12,7 +12,7 @@ run_gui_command() {
     local cycles_complete_reported result_bundle diagnostic_failure diagnostic_prompt
     local activity_path activity_snapshot activity_digest previous_activity_digest activity_group activity_phase
     local activity_detail activity_iteration activity_total activity_sequence activity_elapsed
-    local last_activity_sequence
+    local last_activity_sequence streamed_log_lines current_log_lines
     assert_prompt_guard_healthy
     path_is_within "$log_path" "$(run_dir)" || fail "GUI command log escapes the run directory"
     status_path="$log_path.status"
@@ -33,6 +33,7 @@ run_gui_command() {
     activity_path=""
     previous_activity_digest=""
     last_activity_sequence=0
+    streamed_log_lines=0
     last_progress_epoch="$(date +%s)"
     if [[ -n "$heartbeat_dir" ]]; then
         path_is_within "$heartbeat_dir" \
@@ -68,6 +69,14 @@ run_gui_command() {
     job_state=""
     for (( attempt = 1; attempt <= 9000; attempt++ )); do
         assert_prompt_guard_healthy
+        if [[ -z "$heartbeat_dir" && -f "$log_path" ]]; then
+            current_log_lines="$(wc -l < "$log_path" | tr -d '[:space:]')"
+            if [[ "$current_log_lines" =~ ^[0-9]+$ ]] \
+                && (( current_log_lines > streamed_log_lines )); then
+                sed -n "$((streamed_log_lines + 1)),${current_log_lines}p" "$log_path"
+                streamed_log_lines="$current_log_lines"
+            fi
+        fi
         diagnostic_failure=""
         diagnostic_prompt=""
         if [[ -d "$result_bundle/Staging" ]]; then
@@ -220,7 +229,11 @@ run_gui_command() {
     if [[ -s "$launch_stderr" ]]; then
         cat "$launch_stderr" >&2
     fi
-    cat "$log_path"
+    if [[ -z "$heartbeat_dir" ]]; then
+        tail -n "+$((streamed_log_lines + 1))" "$log_path"
+    else
+        cat "$log_path"
+    fi
     return "$command_status"
 }
 
@@ -441,7 +454,7 @@ prepare_installed_test_bundle() {
         HOME="$HOME" \
         PATH=/usr/bin:/bin:/usr/sbin:/sbin \
         DEVELOPER_DIR="$(xcode-select -p)" \
-        xcodebuild build-for-testing -quiet \
+        xcodebuild build-for-testing \
         -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
         -scheme DetoursUITests \
         -destination 'platform=macOS,arch=arm64' \
@@ -451,11 +464,10 @@ prepare_installed_test_bundle() {
         DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=/detours-qualification-canary/control \
         DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=detours-qualification-canary-target \
         DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING=detours-qualification-canary-context \
-        DETOURS_QUALIFICATION_REPETITIONS_SETTING=1 \
-        > "$log_path" 2>&1
+        DETOURS_QUALIFICATION_REPETITIONS_SETTING=1
     status="$?"
     set -e
-    cat "$log_path"
+    cp "$log_path.raw" "$log_path"
     (( status == 0 )) || return "$status"
     verify_quiet_xcode_command "$log_path.raw"
     while IFS= read -r candidate; do
