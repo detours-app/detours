@@ -8,6 +8,7 @@ run_gui_command() {
     local label status_path status_tmp launch_stdout launch_stderr job_state command_status
     local attempt exited_without_status_at active_job_file
     local heartbeat_dir heartbeat_group heartbeat_context heartbeat_total
+    local heartbeat_pattern
     local heartbeat_count current_heartbeat_count last_progress_epoch now_epoch iteration
     local cycles_complete_reported result_bundle diagnostic_failure diagnostic_prompt
     local activity_path activity_snapshot activity_digest previous_activity_digest activity_group activity_phase
@@ -27,6 +28,7 @@ run_gui_command() {
     heartbeat_group="${QUALIFICATION_GUI_HEARTBEAT_GROUP:-}"
     heartbeat_context="${QUALIFICATION_GUI_HEARTBEAT_CONTEXT:-}"
     heartbeat_total="${QUALIFICATION_GUI_HEARTBEAT_TOTAL:-0}"
+    heartbeat_pattern=""
     result_bundle="${QUALIFICATION_GUI_RESULT_BUNDLE:-}"
     heartbeat_count=0
     cycles_complete_reported=0
@@ -45,12 +47,17 @@ run_gui_command() {
             fail "installed heartbeat total is invalid"
         path_is_within "$result_bundle" "$(run_dir)" || \
             fail "installed result bundle escapes the run directory"
-        activity_path="$heartbeat_dir/.detours-qualification-$heartbeat_group-activity.json"
-        path_is_within "$activity_path" "$heartbeat_dir" || \
-            fail "installed activity record escapes the heartbeat directory"
-        activity_snapshot="$(run_dir)/live-activity-$heartbeat_group-$heartbeat_context.json"
-        path_is_within "$activity_snapshot" "$(run_dir)" || \
-            fail "installed activity snapshot escapes the run directory"
+        heartbeat_pattern=".detours-qualification-$heartbeat_group-repetition-*.json"
+        if [[ "$heartbeat_group" == "all" ]]; then
+            heartbeat_pattern='.detours-qualification-*-repetition-*.json'
+        else
+            activity_path="$heartbeat_dir/.detours-qualification-$heartbeat_group-activity.json"
+            path_is_within "$activity_path" "$heartbeat_dir" || \
+                fail "installed activity record escapes the heartbeat directory"
+            activity_snapshot="$(run_dir)/live-activity-$heartbeat_group-$heartbeat_context.json"
+            path_is_within "$activity_snapshot" "$(run_dir)" || \
+                fail "installed activity snapshot escapes the run directory"
+        fi
     fi
     active_job_file="$(run_dir)/active-gui-job"
     [[ ! -e "$active_job_file" ]] || fail "another GUI qualification job is already recorded"
@@ -103,7 +110,7 @@ run_gui_command() {
             fail "installed $heartbeat_group $heartbeat_context reported a test failure"
         fi
         if [[ -n "$heartbeat_dir" ]]; then
-            if [[ -f "$activity_path" ]]; then
+            if [[ -n "$activity_path" && -f "$activity_path" ]]; then
                 cp "$activity_path" "$activity_snapshot"
                 activity_digest="$(shasum -a 256 "$activity_snapshot" | awk '{print $1}')"
                 if [[ "$activity_digest" != "$previous_activity_digest" ]]; then
@@ -143,7 +150,7 @@ run_gui_command() {
                 fi
             fi
             current_heartbeat_count="$(find "$heartbeat_dir" -maxdepth 1 -type f \
-                -name ".detours-qualification-$heartbeat_group-repetition-*.json" \
+                -name "$heartbeat_pattern" \
                 | wc -l | tr -d '[:space:]')"
             [[ "$current_heartbeat_count" =~ ^[0-9]+$ \
                 && "$current_heartbeat_count" -ge "$heartbeat_count" \
@@ -504,6 +511,7 @@ verify_quiet_xcode_command() {
 
 verify_installed_result_bundle() {
     local result_bundle="$1"
+    local expected_count="${2:-1}"
     local summary_path total passed failed skipped expected result
     local device_passed device_failed device_skipped
     [[ -d "$result_bundle" ]] || fail "installed-test result bundle is missing: $result_bundle"
@@ -517,8 +525,10 @@ verify_installed_result_bundle() {
     skipped="$(jq -r '.skippedTests // empty' "$summary_path")"
     expected="$(jq -r '.expectedFailures // empty' "$summary_path")"
     result="$(jq -r '.result // empty' "$summary_path")"
-    [[ "$total" == "1" ]] || fail "installed workflow ran $total logical tests instead of exactly one"
-    [[ "$passed" == "1" ]] || fail "installed workflow passed $passed logical tests instead of exactly one"
+    [[ "$total" == "$expected_count" ]] || \
+        fail "installed workflow ran $total logical tests instead of $expected_count"
+    [[ "$passed" == "$expected_count" ]] || \
+        fail "installed workflow passed $passed logical tests instead of $expected_count"
     [[ "$failed" == "0" ]] || fail "installed iteration recorded $failed failed tests"
     [[ "$skipped" == "0" ]] || fail "installed iteration recorded $skipped skipped tests"
     [[ "$expected" == "0" ]] || fail "installed iteration recorded $expected expected failures"
@@ -527,8 +537,8 @@ verify_installed_result_bundle() {
     device_passed="$(jq '[.devicesAndConfigurations[].passedTests] | add // 0' "$summary_path")"
     device_failed="$(jq '[.devicesAndConfigurations[].failedTests] | add // 0' "$summary_path")"
     device_skipped="$(jq '[.devicesAndConfigurations[].skippedTests] | add // 0' "$summary_path")"
-    [[ "$device_passed" == "1" ]] || \
-        fail "installed workflow passed $device_passed logical tests instead of exactly one"
+    [[ "$device_passed" == "$expected_count" ]] || \
+        fail "installed workflow passed $device_passed logical tests instead of $expected_count"
     [[ "$device_failed" == "0" ]] || fail "installed workflow recorded $device_failed failed repetitions"
     [[ "$device_skipped" == "0" ]] || fail "installed workflow recorded $device_skipped skipped repetitions"
 }
@@ -624,6 +634,67 @@ run_installed_once() {
     fi
     record_scenario_timing \
         installed "$selected_group" "$context_name" "$repetitions" "$started_at" "$status"
+    (( status == 0 )) || return "$status"
+}
+
+run_installed_qualification_batch() {
+    local log_path="$1"
+    local result_bundle="$2"
+    local control_root command_output started_at status selected_group test_filter
+    local -a only_testing=()
+    [[ -n "${QUALIFICATION_UI_DERIVED_DATA:-}" && -d "$QUALIFICATION_UI_DERIVED_DATA" ]] || \
+        fail "installed-test derived data is unavailable"
+    [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
+    command_output="$log_path.output.log"
+    [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
+    control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/blocking-all"
+    mkdir -p "$control_root"
+    while IFS= read -r selected_group; do
+        test_filter="$(installed_test_filter "$selected_group")"
+        only_testing+=("-only-testing:DetoursUITests/$test_filter")
+        printf '%s\t%s\t%s\t%s\t%s\n' \
+            "$selected_group" "$test_filter" "BLOCKING_ALL" "1" "$QUALIFICATION_LINUX_TARGET" \
+            >> "$(run_dir)/replay.tsv"
+    done < <(workflow_groups)
+    stop_installed_app
+    printf 'qualification: installed workflow batch activation-refresh-transfer-mutation-connection-archive-session-opening\n' \
+        | tee -a "$log_path.log"
+    started_at="$(date +%s)"
+    set +e
+    QUALIFICATION_GUI_HEARTBEAT_DIR="$control_root" \
+        QUALIFICATION_GUI_HEARTBEAT_GROUP=all \
+        QUALIFICATION_GUI_HEARTBEAT_CONTEXT=BLOCKING_ALL \
+        QUALIFICATION_GUI_HEARTBEAT_TOTAL=8 \
+        QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
+        run_gui_command "$log_path.raw.log" env \
+            HOME="$HOME" \
+            PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+            DEVELOPER_DIR="$(xcode-select -p)" \
+            xcodebuild test-without-building -quiet \
+            -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
+            -scheme DetoursUITests \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$QUALIFICATION_UI_DERIVED_DATA" \
+            "${only_testing[@]}" \
+            "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
+            "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$LOCAL_ROOT" \
+            "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
+            "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=$QUALIFICATION_LINUX_TARGET" \
+            "DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING=LINUX_TARGET" \
+            "DETOURS_QUALIFICATION_REPETITIONS_SETTING=1" \
+            -resultBundlePath "$result_bundle" 2>&1 | tee "$command_output"
+    status="${PIPESTATUS[0]}"
+    set -e
+    cat "$command_output" >> "$log_path.log"
+    stop_installed_app
+    if (( status == 0 )); then
+        verify_quiet_xcode_command "$log_path.raw.log"
+        verify_installed_result_bundle "$result_bundle" 8
+        while IFS= read -r selected_group; do
+            verify_workflow_repetition_markers "$selected_group" "$control_root" 1
+        done < <(workflow_groups)
+    fi
+    record_scenario_timing installed all BLOCKING_ALL 8 "$started_at" "$status"
     (( status == 0 )) || return "$status"
 }
 

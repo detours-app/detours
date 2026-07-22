@@ -97,7 +97,7 @@ write_qualification_result() {
         printf -- '- Speedup over the 2,153.055-second baseline: %sx\n' \
             "$(report_env_value speedup "$blocking_record")"
         printf -- '- Recorded scenario executions: %s\n' "$timing_count"
-        printf -- '- Installed-app XCResult bundles: %s\n' "$bundle_count"
+        printf -- '- Installed-app logical workflow tests: 8 in %s XCResult bundle\n' "$bundle_count"
         printf -- '- Preserved failure traces for the final app commit: %s\n\n' "$regression_count"
         printf '## Final clean gate\n\n'
         printf '| Run ID | Completed (UTC) | Prompt events | Cleanup |\n'
@@ -105,7 +105,7 @@ write_qualification_result() {
         printf '| `%s` | %s | 0 | Passed |\n\n' \
             "$(basename "$selected_dir")" "$(report_env_value completed_at "$blocking_record")"
         printf 'The gate used one shared build, the selected deterministic workflow, known-defect, safety, structural, and accessibility contracts, the complete live-provider contract set, '
-        printf 'and one installed-app boundary journey for each of the eight named workflows. '
+        printf 'and one installed-app boundary journey for each of the eight named workflows in a single Xcode invocation. '
         printf 'The older 100-by-20 GUI campaigns are retained only as a separately authorized reliability exercise; '
         printf 'they are not a blocking completion gate. The 12-hour soak was removed by Marco on 2026-07-22.\n\n'
         printf '## Environments and evidence\n\n'
@@ -124,7 +124,7 @@ append_qualification_test_log() {
     local selected_dir
     selected_dir="$(dirname "$blocking_record")"
     {
-        printf '\n- %s: Foundry whole-app blocking qualification PASS for `%s`, run `%s`: %ss against the 180s budget (%sx over baseline), 8 installed workflow XCResults, 0 prompts, 0 skips, and green guarded cleanup.\n' \
+        printf '\n- %s: Foundry whole-app blocking qualification PASS for `%s`, run `%s`: %ss against the 180s budget (%sx over baseline), 8 installed workflows in 1 XCResult, 0 prompts, 0 skips, and green guarded cleanup.\n' \
             "$(date '+%Y-%m-%d %H:%M %Z')" "$qualified_commit" "$(basename "$selected_dir")" \
             "$(report_env_value wall_seconds "$blocking_record")" \
             "$(report_env_value speedup "$blocking_record")"

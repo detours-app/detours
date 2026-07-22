@@ -102,24 +102,13 @@ run_blocking_installed_refresh() {
 }
 
 run_blocking_installed_qualification() {
-    local log_dir result_dir selected_group remote_target context_name
+    local log_dir result_dir
     log_dir="$(run_dir)/workflows/blocking-installed"
     result_dir="$(run_dir)/results/blocking-installed"
     mkdir -p "$log_dir" "$result_dir"
-
-    while IFS= read -r selected_group; do
-        remote_target=""
-        context_name="LOCAL_ROOT"
-        if [[ "$selected_group" == "connection" ]]; then
-            remote_target="$QUALIFICATION_LINUX_TARGET"
-            context_name="LINUX_TARGET"
-        fi
-        run_installed_once \
-            "$selected_group" LOCAL_ROOT 1 \
-            "$log_dir/$selected_group-$context_name" \
-            "$result_dir/$selected_group-$context_name.xcresult" \
-            "$remote_target" "$context_name"
-    done < <(workflow_groups)
+    run_installed_qualification_batch \
+        "$log_dir/all-BLOCKING_ALL" \
+        "$result_dir/all-BLOCKING_ALL.xcresult"
 }
 
 prepare_blocking_refresh_bundles() {
@@ -198,8 +187,8 @@ run_blocking_qualification() {
     duration=$((ended_epoch - started_epoch))
     bundle_count="$(find "$(run_dir)/results/blocking-installed" -maxdepth 1 \
         -type d -name '*.xcresult' | wc -l | tr -d '[:space:]')"
-    [[ "$bundle_count" == "8" ]] || \
-        fail "whole-app blocking gate produced $bundle_count installed result bundles instead of 8"
+    [[ "$bundle_count" == "1" ]] || \
+        fail "whole-app blocking gate produced $bundle_count installed result bundles instead of 1"
     {
         printf 'status=passed\n'
         printf 'commit=%s\n' "$(canonical_commit)"
@@ -212,6 +201,7 @@ run_blocking_qualification() {
         printf 'speedup=%s\n' \
             "$(awk -v baseline=2153.055 -v actual="$duration" 'BEGIN { printf "%.2f", baseline / actual }')"
         printf 'installed_workflows=8\n'
+        printf 'installed_result_bundles=1\n'
     } > "$(run_dir)/blocking.env"
     (( duration <= 180 )) || fail "whole-app blocking gate exceeded its 180s budget (${duration}s)"
     trap - EXIT
