@@ -48,7 +48,7 @@ enum UITestRemoteFixtureMutator {
                 throw error
             }
             return nil
-        case "createDirectory", "write", "move", "remove", "cleanup":
+        case "createDirectory", "write", "move", "remove", "gitInit", "cleanup":
             guard let sentinelID = command.sentinelID, UUID(uuidString: sentinelID) != nil else {
                 throw MutationError.invalidSentinel
             }
@@ -96,6 +96,18 @@ enum UITestRemoteFixtureMutator {
                     hostID: hostID
                 )
                 try await provider.delete([location])
+            case "gitInit":
+                guard let host = RemoteHostStore.shared.host(id: hostID), host.kind != .windows else {
+                    throw MutationError.gitUnavailable
+                }
+                let path = shellQuote(scenarioPath)
+                let command = "git -C " + path + " init -q"
+                    + " && git -C " + path + " add tracked.txt"
+                    + " && git -C " + path
+                    + " -c user.name='Detours Qualification'"
+                    + " -c user.email=qualification@detours.invalid"
+                    + " commit -q -m 'initial fixture'"
+                _ = try await SSHRemoteHostKindProbeClient(sshTarget: host.sshTarget).run(command)
             case "cleanup":
                 try await provider.delete([scenario])
             default:
@@ -155,6 +167,13 @@ enum UITestRemoteFixtureMutator {
         provider: any FileProvider
     ) async throws {
         let location = childLocation(sentinelName, scenarioPath: scenarioPath, hostID: hostID)
+        if let windowsProvider = provider as? WindowsRemoteProvider {
+            let data = try await windowsProvider.readSmallControlFile(location)
+            guard String(data: data, encoding: .utf8) == expected else {
+                throw MutationError.sentinelMismatch(scenarioPath)
+            }
+            return
+        }
         let temporary = FileManager.default.temporaryDirectory
             .appendingPathComponent("detours-remote-sentinel-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: temporary) }
@@ -168,6 +187,14 @@ enum UITestRemoteFixtureMutator {
         to location: Location,
         provider: any FileProvider
     ) async throws {
+        if let windowsProvider = provider as? WindowsRemoteProvider {
+            try await windowsProvider.writeSmallControlFile(
+                data,
+                to: location,
+                hidden: lastPathComponent(location.path).hasPrefix(".")
+            )
+            return
+        }
         let temporary = FileManager.default.temporaryDirectory
             .appendingPathComponent("detours-remote-upload-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: temporary) }
@@ -177,6 +204,10 @@ enum UITestRemoteFixtureMutator {
 
     private static func lastPathComponent(_ path: String) -> String {
         String(path.split(separator: "/").last ?? "")
+    }
+
+    private static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
     }
 
     enum MutationError: LocalizedError {
@@ -189,6 +220,7 @@ enum UITestRemoteFixtureMutator {
         case scenarioExists(String)
         case missingContents
         case crossDirectoryMove
+        case gitUnavailable
         case sentinelMismatch(String)
         case unknownAction(String)
 
@@ -203,6 +235,7 @@ enum UITestRemoteFixtureMutator {
             case .scenarioExists(let path): "The remote fixture scenario already exists: \(path)"
             case .missingContents: "The remote fixture write has no contents."
             case .crossDirectoryMove: "The remote fixture move crossed directories."
+            case .gitUnavailable: "The remote fixture Git setup is unavailable."
             case .sentinelMismatch(let path): "The remote fixture sentinel did not match: \(path)"
             case .unknownAction(let action): "Unknown remote fixture mutation action: \(action)"
             }

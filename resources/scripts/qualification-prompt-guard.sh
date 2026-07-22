@@ -29,7 +29,23 @@ contains_prompt_event() {
     [[ "$1" == *'display_prompt: called'* ]] \
         || [[ "$1" == visible_prompt:\ owner=UserNotificationCenter* ]] \
         || [[ "$1" =~ Found\ [1-9][0-9]*\ interrupting\ element ]] \
-        || [[ "$1" == *"Application 'com.apple.UserNotificationCenter'"* ]]
+        || [[ "$1" == *"Application 'com.apple.UserNotificationCenter'"* ]] \
+        || [[ "$1" == runner_network_violation:* ]]
+}
+
+runner_network_violation() {
+    local runner_pid helper
+    while IFS= read -r runner_pid; do
+        [[ "$runner_pid" =~ ^[0-9]+$ ]] || continue
+        helper="$(ps -axo pid=,ppid=,comm= | awk -v parent="$runner_pid" '
+            $2 == parent && $3 ~ /\/(ssh|sftp|scp|curl|nc)$/ { print $1 " " $3; exit }
+        ')"
+        if [[ -n "$helper" ]]; then
+            printf 'runner_network_violation: runner=%s helper=%s\n' "$runner_pid" "$helper"
+            return 0
+        fi
+    done < <(ps -axo pid=,comm= | awk '$2 ~ /\/DetoursUITests-Runner$/ { print $1 }')
+    return 1
 }
 
 run_replay() {
@@ -139,6 +155,9 @@ run_live() {
         line="$(grep -F -m1 'display_prompt: called' "$tccd_log" 2>/dev/null || true)"
         if [[ -z "$line" && -f "$visible_incident" ]]; then
             line="$(head -1 "$visible_incident")"
+        fi
+        if [[ -z "$line" ]]; then
+            line="$(runner_network_violation || true)"
         fi
         if [[ -n "$line" ]] && contains_prompt_event "$line"; then
             write_incident prompt_detected "$line" "$evidence_dir/incident.env"

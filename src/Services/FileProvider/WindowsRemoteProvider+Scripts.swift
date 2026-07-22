@@ -67,6 +67,28 @@ extension WindowsRemoteProvider {
         """
     )
 
+    static let smallFileWriteScript = PowerShellScript.prelude(
+        operationBody: """
+        param($Arguments)
+        $bytes = [Convert]::FromBase64String([string]$Arguments.contentsBase64)
+        [System.IO.File]::WriteAllBytes([string]$Arguments.path, $bytes)
+        $item = Get-Item -LiteralPath $Arguments.path -Force
+        if ([bool]$Arguments.hidden) {
+            $item.Attributes = $item.Attributes -bor [System.IO.FileAttributes]::Hidden
+        } else {
+            $item.Attributes = $item.Attributes -band (-bnot [System.IO.FileAttributes]::Hidden)
+        }
+        $item.FullName
+        """
+    )
+
+    static let smallFileReadScript = PowerShellScript.prelude(
+        operationBody: """
+        param($Arguments)
+        [Convert]::ToBase64String([System.IO.File]::ReadAllBytes([string]$Arguments.path))
+        """
+    )
+
     static let renameScript = PowerShellScript.prelude(
         operationBody: """
         param($Arguments)

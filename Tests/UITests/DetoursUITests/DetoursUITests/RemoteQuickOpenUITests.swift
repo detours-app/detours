@@ -57,31 +57,61 @@ final class MultiFileOpenUITests: BaseUITest {
 final class RealRemoteFileOperationsUITests: BaseUITest {
     private var remoteDirectoryName = ""
     private var sshTarget = ""
+    private var remoteHomePath: String?
+    private var remoteSentinelID = ""
+    private var remoteOutsideNamesBefore: Set<String> = []
 
     override func setUpWithError() throws {
         continueAfterFailure = false
         sshTarget = ProcessInfo.processInfo.environment["DETOURS_REMOTE_TEST_TARGET"] ?? "devtest"
-        remoteDirectoryName = "DetoursRemoteUITests-\(UUID().uuidString)"
-        try runSSH("mkdir -p \"$HOME/\(remoteDirectoryName)\"")
+        remoteDirectoryName = "QualificationRefresh-\(UUID().uuidString.lowercased())"
+        remoteSentinelID = UUID().uuidString.lowercased()
         try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
     }
 
     override func tearDownWithError() throws {
-        app?.terminate()
-        if !remoteDirectoryName.isEmpty {
-            _ = try? runSSH("rm -rf \"$HOME/\(remoteDirectoryName)\"")
+        defer { app?.terminate() }
+        if let home = remoteHomePath {
+            if let state = try? requestRemotePaneState(pane: "left"),
+               state.displayedLocation == home + "/" + remoteDirectoryName {
+                app.leftPaneOutlineView.click()
+                pressKey(.upArrow, modifiers: .command)
+                _ = try waitForState("return to real remote fixture parent") {
+                    $0.displayedLocation == home
+                }
+            }
+            try performRemoteFixtureMutation(
+                action: "cleanup",
+                homePath: home,
+                scenarioName: remoteDirectoryName,
+                sentinelID: remoteSentinelID
+            )
+            let names = try performRemoteFixtureMutation(
+                action: "snapshot",
+                homePath: home,
+                scenarioName: remoteDirectoryName
+            )
+            XCTAssertEqual(Set(names), remoteOutsideNamesBefore)
         }
     }
 
     func testCommandRRefreshesRealRemoteListing() throws {
         launchRealRemote()
+        try createRemoteScenario()
         let remoteRoot = app.leftPaneOutlineView.outlineRow(withStaticText: remoteDirectoryName)
         XCTAssertTrue(remoteRoot.waitForExistence(timeout: 30), "Real remote home should load in the left pane")
         remoteRoot.staticTexts[remoteDirectoryName].doubleClick()
         XCTAssertTrue(app.leftPaneOutlineView.waitForExistence(timeout: 5))
 
         let fileName = "cmd-r-\(UUID().uuidString).txt"
-        try runSSH("printf remote-refresh > \"$HOME/\(remoteDirectoryName)/\(fileName)\"")
+        try performRemoteFixtureMutation(
+            action: "write",
+            homePath: try XCTUnwrap(remoteHomePath),
+            scenarioName: remoteDirectoryName,
+            relativePath: fileName,
+            contents: "remote-refresh",
+            sentinelID: remoteSentinelID
+        )
         XCTAssertFalse(app.leftPaneOutlineView.outlineRow(withStaticText: fileName).exists)
 
         app.leftPaneOutlineView.click()
@@ -100,6 +130,7 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
         rightOutline.click()
         XCTAssertTrue(rightOutline.outlineRow(withStaticText: "FolderA").waitForExistence(timeout: 5))
 
+        try createRemoteScenario()
         let leftRemoteRoot = app.leftPaneOutlineView.outlineRow(withStaticText: remoteDirectoryName)
         XCTAssertTrue(
             leftRemoteRoot.waitForExistence(timeout: 30),
@@ -107,6 +138,30 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
         )
         XCTAssertTrue(rightOutline.outlineRow(withStaticText: "FolderA").exists)
         XCTAssertFalse(rightOutline.outlineRow(withStaticText: remoteDirectoryName).exists)
+    }
+
+    private func createRemoteScenario() throws {
+        let ready = try waitForState("real remote fixture home", timeout: 45) {
+            $0.registeredRemoteProviderCount == 1
+                && $0.displayedLocation != nil
+                && $0.displayedLocation != self.uiTestRootURL.path
+                && $0.directoryWatchActive
+                && $0.providerWatchCount == 1
+                && !($0.refreshInFlight || $0.navigationLoadInFlight || $0.loadingVisible)
+        }
+        let home = try XCTUnwrap(ready.displayedLocation)
+        remoteOutsideNamesBefore = Set(try performRemoteFixtureMutation(
+            action: "snapshot",
+            homePath: home,
+            scenarioName: remoteDirectoryName
+        ))
+        try performRemoteFixtureMutation(
+            action: "createScenario",
+            homePath: home,
+            scenarioName: remoteDirectoryName,
+            sentinelID: remoteSentinelID
+        )
+        remoteHomePath = home
     }
 
     private func launchRealRemote(connectionDelayMilliseconds: Int? = nil) {
@@ -120,27 +175,4 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
     }
 
-    @discardableResult
-    private func runSSH(_ command: String) throws -> String {
-        let process = Process()
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = [
-            "-o", "BatchMode=yes",
-            "-o", "ConnectTimeout=5",
-            sshTarget,
-            command,
-        ]
-        process.standardOutput = stdout
-        process.standardError = stderr
-        try process.run()
-        process.waitUntilExit()
-        let output = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let error = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        guard process.terminationStatus == 0 else {
-            throw XCTSkip("Remote UI fixture \(sshTarget) unavailable: \(error)")
-        }
-        return output
-    }
 }

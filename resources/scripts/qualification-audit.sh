@@ -66,6 +66,11 @@ audit_prompt_safety() {
     finding="$(grep -En 'addUIInterruptionMonitor|buttons\["Allow"\]' \
         "$PROJECT_DIR"/Tests/UITests/DetoursUITests/DetoursUITests/*.swift || true)"
     [[ -z "$finding" ]] || fail "qualification must never auto-accept consent dialogs: $finding"
+    finding="$(grep -REn '/usr/bin/(ssh|sftp|scp|curl|nc)|NWConnection|URLSession' \
+        "$PROJECT_DIR"/Tests/UITests/DetoursUITests/DetoursUITests \
+        --include='*.swift' || true)"
+    [[ -z "$finding" ]] || \
+        fail "the XCUI runner must never create a local-network client: $finding"
     [[ -x "$SCRIPT_DIR/qualification-prompt-guard.sh" ]] || fail "prompt sentry is not executable"
     [[ -r "$SCRIPT_DIR/qualification-visible-prompt-scan.js" ]] || \
         fail "visible prompt scanner is missing"
@@ -74,6 +79,8 @@ audit_prompt_safety() {
     grep -F "Application 'com.apple.UserNotificationCenter'" \
         "$SCRIPT_DIR/qualification-workflows.sh" >/dev/null || \
         fail "live XCUI output does not detect UserNotificationCenter interruptions"
+    grep -F 'runner_network_violation' "$SCRIPT_DIR/qualification-prompt-guard.sh" >/dev/null || \
+        fail "the prompt sentry does not reject runner-owned network helpers"
     # Verify the literal source expression.
     # shellcheck disable=SC2016
     grep -F 'source "$SCRIPT_DIR/qualification-prompts.sh"' "$SCRIPT_DIR/qualification.sh" >/dev/null || \
