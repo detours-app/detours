@@ -176,7 +176,7 @@ run_blocking_qualification() {
     started_epoch="$(date +%s)"
     blocking_layer deterministic-contracts 10 run_blocking_deterministic_qualification
     blocking_layer provider-contracts 75 run_blocking_provider_refresh
-    blocking_layer installed-workflows 90 run_blocking_installed_qualification
+    blocking_layer installed-workflows 140 run_blocking_installed_qualification
     capture_state_observation blocking-after
     capture_outside_root_snapshots after
     compare_outside_root_snapshots

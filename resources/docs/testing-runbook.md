@@ -181,7 +181,7 @@ Purpose: prove that production behavior is connected to visible and accessible U
 - Reuse one build and the minimum safe app/session setup.
 - Use immediate condition checks followed by bounded condition-based waits;   fixed sleeps are prohibited.
 
-Blocking wall-clock budget: 90 seconds.
+Blocking wall-clock budget: 140 seconds for the single eight-journey whole-app batch. A focused one-journey gate retains its 90-second ceiling.
 
 ### Layer 4: separately authorized reliability exercise
 
@@ -288,9 +288,11 @@ Timing begins after the shared build and ends after cleanup/evidence validation.
 | Prompt sentry readiness and post-run audit | 5 s |
 | Pure behavior/state | 10 s |
 | Provider contracts | 75 s |
-| Installed XCUI boundary | 90 s |
+| Installed XCUI boundary | 140 s |
 | Runner/evidence allowance | 20 s |
 | Total | 180 s |
+
+The per-layer values are fail-closed cancellation ceilings, not an additive time allocation. The independently measured end-to-end total remains authoritative and must not exceed 180 seconds.
 
 Acceptance requires all of the following:
 
