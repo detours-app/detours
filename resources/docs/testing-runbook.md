@@ -126,12 +126,15 @@ Purpose: make a macOS consent dialog a mechanically detected run failure instead
 - Qualification never runs `tccutil reset`. Apple documents that resetting protected-resource access causes the system to ask again; the matrix audit rejects any reset added to `qualification*.sh`.
 - XCUI never receives an APFS, iCloud, or SMB root. Installed UI proof uses the guarded local root. Real APFS, iCloud, and SMB boundaries are proved by Layer 2 provider contracts, while live Linux, Intel Mac, and Windows UI paths keep the XCUI runner's root local.
 - XCTest interruption monitors and automatic `Allow` clicks are prohibited. They cannot protect a runner blocked in direct `FileManager` access because XCTest invokes interruption monitors only when an XCUI element interaction is blocked.
-- Before fixture mounting, test work, or app launch, the runner starts an independent `tccd` unified-log sentry and verifies its readiness and liveness. No workflow function runs without that handshake.
-- A `display_prompt: called` event records the authoritative log line, invokes the exact run's canonical `cancel` route, terminates the campaign parent, and proceeds through guarded cleanup. If the sentry exits unexpectedly, the same cancellation path runs.
-- After cleanup, the runner queries the exact start/end interval with `log show` and requires zero prompt events. This catches a stream race or sentry defect before a run can pass.
+- Before fixture mounting, test work, or app launch, the runner starts two independent prompt channels and verifies both are ready and alive: the `tccd` unified-log stream and a CoreGraphics scan of on-screen `UserNotificationCenter` windows. The window scan uses no Apple Events, Accessibility, Screen Recording, screenshots, or UI automation, so checking for a dialog cannot create another consent request. No workflow function runs without both channels.
+- A `display_prompt: called` event or any on-screen `UserNotificationCenter` window records the authoritative evidence, invokes the exact run's canonical `cancel` route, terminates the campaign parent, and proceeds through guarded cleanup. Either detector ending unexpectedly is also a fail-closed cancellation.
+- The GUI parent independently scans XCResult staging continuously. `Found N interrupting element` or a dialog owned by `com.apple.UserNotificationCenter` is an immediate failure; it is never deferred until test completion.
+- After cleanup, the runner queries the exact unified-log interval, scans all XCUI staging logs, and performs a final visible-window scan. A run can record zero prompt events only when all three channels are green.
 - `qualification-foundry.sh cancel` is secret-free and never waits for Doppler or Touch ID. Cancellation must remain available when authentication is unavailable.
 
 The sentry is a containment guard, not a prompt handler. A detected dialog is never clicked, retried, or converted into a pass.
+
+On 2026-07-22 a local-network prompt from `DetoursUITests-Runner` exposed the single-channel design defect: the dialog was visibly owned by `UserNotificationCenter` and XCTest logged an interrupting element, but no `tccd display_prompt` line matched the guard predicate, so the old audit incorrectly wrote `prompt_events=0`. That result is invalid. Local-network consent and future non-TCC dialog paths are why visible-window detection, live XCUI interruption detection, and cross-channel post-run evidence are mandatory.
 
 ### Layer 1: pure behavior and state-transition tests
 

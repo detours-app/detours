@@ -9,7 +9,7 @@ run_gui_command() {
     local attempt exited_without_status_at active_job_file
     local heartbeat_dir heartbeat_group heartbeat_context heartbeat_total
     local heartbeat_count current_heartbeat_count last_progress_epoch now_epoch iteration
-    local cycles_complete_reported result_bundle diagnostic_failure
+    local cycles_complete_reported result_bundle diagnostic_failure diagnostic_prompt
     local activity_path activity_snapshot activity_digest previous_activity_digest activity_group activity_phase
     local activity_detail activity_iteration activity_total activity_sequence activity_elapsed
     local last_activity_sequence
@@ -69,10 +69,22 @@ run_gui_command() {
     for (( attempt = 1; attempt <= 9000; attempt++ )); do
         assert_prompt_guard_healthy
         diagnostic_failure=""
+        diagnostic_prompt=""
         if [[ -d "$result_bundle/Staging" ]]; then
             diagnostic_failure="$(find "$result_bundle/Staging" \
                 -type f -name StandardOutputAndStandardError.txt -exec \
                 grep -hEm1 ':[0-9]+: error:|Test Case .* failed' {} + 2>/dev/null | head -1 || true)"
+            diagnostic_prompt="$(find "$result_bundle/Staging" \
+                -type f -name StandardOutputAndStandardError.txt -exec \
+                grep -hEm1 "Found [1-9][0-9]* interrupting element|Application 'com.apple.UserNotificationCenter'" \
+                {} + 2>/dev/null | head -1 || true)"
+        fi
+        if [[ -n "$diagnostic_prompt" ]]; then
+            printf '%s\n' "$diagnostic_prompt" >&2
+            launchctl remove "$label" 2>/dev/null || true
+            rm -f -- "$active_job_file"
+            trap - HUP INT TERM
+            fail "installed $heartbeat_group $heartbeat_context reported a macOS consent prompt"
         fi
         if [[ -n "$diagnostic_failure" ]]; then
             printf '%s\n' "$diagnostic_failure" >&2

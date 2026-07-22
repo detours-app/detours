@@ -67,6 +67,15 @@ audit_prompt_safety() {
         "$PROJECT_DIR"/Tests/UITests/DetoursUITests/DetoursUITests/*.swift || true)"
     [[ -z "$finding" ]] || fail "qualification must never auto-accept consent dialogs: $finding"
     [[ -x "$SCRIPT_DIR/qualification-prompt-guard.sh" ]] || fail "prompt sentry is not executable"
+    [[ -r "$SCRIPT_DIR/qualification-visible-prompt-scan.js" ]] || \
+        fail "visible prompt scanner is missing"
+    grep -F 'CGWindowListCopyWindowInfo' "$SCRIPT_DIR/qualification-visible-prompt-scan.js" >/dev/null || \
+        fail "visible prompt scanner does not enumerate on-screen windows"
+    grep -F "Application 'com.apple.UserNotificationCenter'" \
+        "$SCRIPT_DIR/qualification-workflows.sh" >/dev/null || \
+        fail "live XCUI output does not detect UserNotificationCenter interruptions"
+    # Verify the literal source expression.
+    # shellcheck disable=SC2016
     grep -F 'source "$SCRIPT_DIR/qualification-prompts.sh"' "$SCRIPT_DIR/qualification.sh" >/dev/null || \
         fail "qualification does not load prompt safety"
     for group in $(workflow_groups); do

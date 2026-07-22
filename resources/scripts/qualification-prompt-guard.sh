@@ -26,7 +26,10 @@ write_incident() {
 }
 
 contains_prompt_event() {
-    [[ "$1" == *'display_prompt: called'* ]]
+    [[ "$1" == *'display_prompt: called'* ]] \
+        || [[ "$1" == visible_prompt:\ owner=UserNotificationCenter* ]] \
+        || [[ "$1" =~ Found\ [1-9][0-9]*\ interrupting\ element ]] \
+        || [[ "$1" == *"Application 'com.apple.UserNotificationCenter'"* ]]
 }
 
 run_replay() {
@@ -52,9 +55,13 @@ run_live() {
     local commit="$3"
     local run_id="$4"
     local evidence_dir="$5"
-    local fifo="$evidence_dir/tccd.fifo"
     local stream_pid=""
-    local line
+    local visible_pid=""
+    local visible_ready="$evidence_dir/visible-ready.env"
+    local visible_incident="$evidence_dir/visible-incident.log"
+    local tccd_log="$evidence_dir/live.log"
+    local visible_scan="$project_dir/resources/scripts/qualification-visible-prompt-scan.js"
+    local line attempt
 
     [[ "$parent_pid" =~ ^[0-9]+$ && "$parent_pid" -gt 1 ]] || usage
     [[ -d "$project_dir/.git" ]] || usage
@@ -63,56 +70,96 @@ run_live() {
         *) usage ;;
     esac
     kill -0 "$parent_pid" 2>/dev/null || exit 1
+    [[ -r "$visible_scan" ]] || exit 1
     mkdir -p "$evidence_dir"
-    [[ ! -e "$fifo" ]] || exit 1
-    mkfifo "$fifo"
+    [[ ! -e "$visible_ready" && ! -e "$visible_incident" && ! -e "$tccd_log" ]] || exit 1
 
     cleanup() {
         if [[ -n "$stream_pid" ]] && kill -0 "$stream_pid" 2>/dev/null; then
             kill -TERM "$stream_pid" 2>/dev/null || true
             wait "$stream_pid" 2>/dev/null || true
         fi
-        rm -f -- "$fifo"
+        if [[ -n "$visible_pid" ]] && kill -0 "$visible_pid" 2>/dev/null; then
+            kill -TERM "$visible_pid" 2>/dev/null || true
+            wait "$visible_pid" 2>/dev/null || true
+        fi
     }
     trap 'cleanup; exit 0' HUP INT TERM
     trap cleanup EXIT
 
     /usr/bin/log stream --style compact --level info \
         --predicate 'process == "tccd" && eventMessage CONTAINS "display_prompt"' \
-        > "$fifo" 2> "$evidence_dir/stream-stderr.log" &
+        > "$tccd_log" 2> "$evidence_dir/stream-stderr.log" &
     stream_pid=$!
-    {
-        printf 'status=ready\n'
-        printf 'guard_pid=%s\n' "$$"
-        printf 'stream_pid=%s\n' "$stream_pid"
-        printf 'parent_pid=%s\n' "$parent_pid"
-        printf 'started_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    } > "$evidence_dir/ready.env"
 
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        printf '%s\n' "$line" >> "$evidence_dir/live.log"
-        if contains_prompt_event "$line"; then
+    (
+        while true; do
+            line="$(/usr/bin/osascript -l JavaScript "$visible_scan")" || exit 92
+            if [[ -n "$line" ]]; then
+                printf '%s\n' "$line" > "$visible_incident.tmp.$$"
+                mv "$visible_incident.tmp.$$" "$visible_incident"
+                exit 90
+            fi
+            if [[ ! -f "$visible_ready" ]]; then
+                printf 'status=ready\nchecked_at=%s\n' \
+                    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$visible_ready.tmp.$$"
+                mv "$visible_ready.tmp.$$" "$visible_ready"
+            fi
+            sleep 0.2
+        done
+    ) > "$evidence_dir/visible-stdout.log" 2> "$evidence_dir/visible-stderr.log" &
+    visible_pid=$!
+
+    for (( attempt = 1; attempt <= 50; attempt++ )); do
+        if [[ -f "$visible_incident" ]]; then
+            line="$(head -1 "$visible_incident")"
             write_incident prompt_detected "$line" "$evidence_dir/incident.env"
-            kill -TERM "$stream_pid" 2>/dev/null || true
-            wait "$stream_pid" 2>/dev/null || true
-            stream_pid=""
             "$project_dir/resources/scripts/qualification.sh" cancel \
                 --commit "$commit" --run-id "$run_id" \
                 > "$evidence_dir/cancel.log" 2>&1 || true
             kill -TERM "$parent_pid" 2>/dev/null || true
             exit 90
         fi
-    done < "$fifo"
+        [[ -f "$visible_ready" ]] && break
+        kill -0 "$stream_pid" 2>/dev/null || exit 91
+        kill -0 "$visible_pid" 2>/dev/null || exit 91
+        sleep 0.1
+    done
+    [[ -f "$visible_ready" ]] || exit 91
+    {
+        printf 'status=ready\n'
+        printf 'guard_pid=%s\n' "$$"
+        printf 'stream_pid=%s\n' "$stream_pid"
+        printf 'visible_pid=%s\n' "$visible_pid"
+        printf 'parent_pid=%s\n' "$parent_pid"
+        printf 'started_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$evidence_dir/ready.env"
 
-    if kill -0 "$parent_pid" 2>/dev/null; then
-        write_incident guard_failed 'tccd log stream ended while the qualification parent was active' \
-            "$evidence_dir/incident.env"
-        "$project_dir/resources/scripts/qualification.sh" cancel \
-            --commit "$commit" --run-id "$run_id" \
-            > "$evidence_dir/cancel.log" 2>&1 || true
-        kill -TERM "$parent_pid" 2>/dev/null || true
-        exit 91
-    fi
+    while kill -0 "$parent_pid" 2>/dev/null; do
+        line="$(grep -F -m1 'display_prompt: called' "$tccd_log" 2>/dev/null || true)"
+        if [[ -z "$line" && -f "$visible_incident" ]]; then
+            line="$(head -1 "$visible_incident")"
+        fi
+        if [[ -n "$line" ]] && contains_prompt_event "$line"; then
+            write_incident prompt_detected "$line" "$evidence_dir/incident.env"
+            "$project_dir/resources/scripts/qualification.sh" cancel \
+                --commit "$commit" --run-id "$run_id" \
+                > "$evidence_dir/cancel.log" 2>&1 || true
+            kill -TERM "$parent_pid" 2>/dev/null || true
+            exit 90
+        fi
+        if ! kill -0 "$stream_pid" 2>/dev/null || ! kill -0 "$visible_pid" 2>/dev/null; then
+            write_incident guard_failed \
+                'a prompt-detection channel ended while the qualification parent was active' \
+                "$evidence_dir/incident.env"
+            "$project_dir/resources/scripts/qualification.sh" cancel \
+                --commit "$commit" --run-id "$run_id" \
+                > "$evidence_dir/cancel.log" 2>&1 || true
+            kill -TERM "$parent_pid" 2>/dev/null || true
+            exit 91
+        fi
+        sleep 0.1
+    done
 }
 
 case "${1:-}" in

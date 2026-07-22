@@ -33,7 +33,7 @@ start_prompt_guard() {
 }
 
 assert_prompt_guard_healthy() {
-    local evidence_dir stream_pid
+    local evidence_dir stream_pid visible_pid
     evidence_dir="$(run_dir)/prompt-guard"
     [[ -n "${QUALIFICATION_PROMPT_GUARD_PID:-}" ]] || fail "prompt sentry is not active"
     [[ -f "$evidence_dir/ready.env" ]] || fail "prompt sentry readiness record is missing"
@@ -43,6 +43,10 @@ assert_prompt_guard_healthy() {
     [[ "$stream_pid" =~ ^[0-9]+$ && "$stream_pid" -gt 1 ]] || \
         fail "prompt sentry stream PID is invalid"
     kill -0 "$stream_pid" 2>/dev/null || fail "prompt sentry log stream is not running"
+    visible_pid="$(sed -n 's/^visible_pid=//p' "$evidence_dir/ready.env")"
+    [[ "$visible_pid" =~ ^[0-9]+$ && "$visible_pid" -gt 1 ]] || \
+        fail "prompt sentry visible-window PID is invalid"
+    kill -0 "$visible_pid" 2>/dev/null || fail "prompt sentry visible-window scan is not running"
 }
 
 stop_prompt_guard() {
@@ -60,7 +64,7 @@ stop_prompt_guard() {
 }
 
 finish_prompt_guard() {
-    local evidence_dir audit_end audit_log status
+    local evidence_dir audit_end audit_log status visible_prompt xcui_prompt
     evidence_dir="$(run_dir)/prompt-guard"
     audit_end="$(date '+%Y-%m-%d %H:%M:%S')"
     stop_prompt_guard
@@ -76,6 +80,17 @@ finish_prompt_guard() {
     if grep -F 'display_prompt: called' "$audit_log" >/dev/null; then
         fail "post-run prompt audit found a TCC consent dialog"
     fi
+    xcui_prompt="$(find "$(run_dir)" -type f -name StandardOutputAndStandardError.txt -exec \
+        grep -hEm1 "Found [1-9][0-9]* interrupting element|Application 'com.apple.UserNotificationCenter'" \
+        {} + 2>/dev/null | head -1 || true)"
+    [[ -z "$xcui_prompt" ]] || fail "post-run prompt audit found an XCUI interruption: $xcui_prompt"
+    set +e
+    visible_prompt="$(/usr/bin/osascript -l JavaScript \
+        "$SCRIPT_DIR/qualification-visible-prompt-scan.js" 2> "$evidence_dir/visible-final-stderr.log")"
+    status=$?
+    set -e
+    (( status == 0 )) || fail "post-run visible-prompt audit failed"
+    [[ -z "$visible_prompt" ]] || fail "post-run prompt audit found a visible dialog: $visible_prompt"
     [[ ! -f "$evidence_dir/incident.env" ]] || fail "prompt sentry recorded an incident"
     {
         printf 'status=passed\n'
@@ -83,6 +98,9 @@ finish_prompt_guard() {
         printf 'ended_at=%s\n' "$audit_end"
         printf 'timezone=%s\n' "$(date +%z)"
         printf 'prompt_events=0\n'
+        printf 'tcc_prompt_events=0\n'
+        printf 'xcui_interruptions=0\n'
+        printf 'visible_prompt_windows=0\n'
     } > "$evidence_dir/result.env"
     QUALIFICATION_PROMPT_AUDIT_START=""
 }
