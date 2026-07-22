@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: testing/whole-app-stability-qualification
 - Campaign condition: unrelated feature work remains frozen from the first implementation commit through the final evidence commit
 
@@ -43,7 +43,7 @@ Create a one-time inventory of everything Detours promises today, connect every 
 - [x] **A8** Interactive actions respond within the stated reliability limits or present a clear recoverable failure, and no operation silently remains busy past its limit.
 - [x] **A9** Every destructive action remains inside its marked run folder, outside-root snapshots remain unchanged, and all run folders, mounts, credentials created for the run, processes, and watches are removed afterward.
 - [x] **A10** The final tracked matrix and plain-language result report identify the exact qualified commit, environments, clean runs, screenshots, regressions fixed, prompt-audit evidence, and remaining failures; completion requires zero remaining failures.
-- [ ] **A11** After Foundry is fully green, the ordinary Spectre build installs and relaunches Detours without running any qualification fixture, probe, or test on Spectre.
+- [x] **A11** After Foundry is fully green, the ordinary Spectre build installs and relaunches Detours without running any qualification fixture, probe, or test on Spectre.
 
 ### Out of scope
 
@@ -175,7 +175,7 @@ Raw logs, result bundles, screenshots, prompt-sentry records, post-run prompt au
 - [x] **T16** Confirm the final run's outside-root comparison and guarded cleanup leave no marked root, mount, app, helper, test process, or watch.
 - [x] **T17** Record Marco's 2026-07-22 decision that the 12-hour soak is not part of this qualification, make the command fail closed, and require separate authorization for any future reliability exercise.
 - [x] **T18** Confirm all acceptance criteria from the final records, commit only this completed spec, the matrix, result report, and `Tests/TEST_LOG.md` entries as the child of the qualified app commit, and record both commit hashes in the report.
-- [ ] **T19** Run `resources/scripts/build.sh` on Spectre without `--no-install` after the Foundry gates and evidence commit pass, then perform no fixture, probe, test, or scripted app exercise on Spectre.
+- [x] **T19** Run `resources/scripts/build.sh` on Spectre without `--no-install` after the Foundry gates and evidence commit pass, then perform no fixture, probe, test, or scripted app exercise on Spectre.
 
 ---
 
@@ -223,3 +223,4 @@ Raw logs, result bundles, screenshots, prompt-sentry records, post-run prompt au
 - **T12 prompt-classification correction** `final-whole-app-246fe38-1` was canceled at 10.74 seconds when XCTest called the archive sheet an "interrupting element." The staged owner was `com.detours.app`; the independent visible-window scan, TCC log, and incident record found no system consent dialog, and cleanup passed. Live and final staging checks now fail only on the owner `com.apple.UserNotificationCenter`, which is the system dialog identity seen in the real local-network incident, while the other two independent prompt channels remain unchanged.
 - **T12 installed-layer measurement** `final-whole-app-7c5bd21-1` completed seven of eight journeys in the single Xcode invocation before the original 90-second installed-layer estimate canceled it. Both lower layers passed in 28 seconds, prompt counts stayed zero, and cleanup passed. The installed-layer cap is now 140 seconds; the independent whole-gate cap remains 180 seconds, so the measured composition still has to beat the approved greater-than-10x target.
 - **T5-T18 final evidence** Foundry run `final-whole-app-e02b166-1` passed at qualified app commit `e02b166586a05a6b1e609152b706110decd7fe90`: 68 deterministic contracts in 4 seconds, 7 real-provider contracts in 24 seconds, and all 8 installed workflow journeys in one XCResult in 102 seconds. End-to-end blocking time was 132 seconds, a 16.31x speedup over baseline. The run recorded 0 failures, skips, expected failures, warnings, retries, prompt events, outside-root changes, leaked mounts, or remaining processes; guarded cleanup passed. Evidence commit `f651645aa11dce67c991cfe5d2d1b14ffe455c89` records 102 passed matrix rows, the result report, and `Tests/TEST_LOG.md`.
+- **T19 final delivery** Spectre `resources/scripts/build.sh` completed the release build in 49.14 seconds, created and signed the app bundle, found no stale installation, installed Detours to `/Applications`, and relaunched it. No qualification fixture, probe, test, screenshot, or scripted app exercise ran on Spectre afterward.
