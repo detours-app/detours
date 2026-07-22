@@ -242,6 +242,8 @@ checks, and is never a reason to replay the full workflow during diagnosis.
 
 A focused feedback step must not take a minute. If a selected check approaches 30–60 seconds, reduce it further or move it to the provider layer or a separately authorized reliability exercise. Output must stream while longer approved work is active.
 
+No repeated workflow may be opaque between XCTest start and completion. In-process campaigns emit a flushed heartbeat after iteration 1, every fifth completed iteration, and the final iteration, naming the workflow and the completed/total count. Installed workflows retain their per-cycle completion markers. If either heartbeat stops while the process remains alive, the absolute descendant-killing deadline remains the termination authority; never infer progress from an unchanged log or restart the same broad loop to investigate it.
+
 ## Known-Defect Replay
 
 The replacement suite must deterministically detect these defects found by the current qualification work:

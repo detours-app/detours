@@ -55,6 +55,7 @@ final class QualificationWorkflowTests: XCTestCase {
             split.switchToOtherPane()
             assertActivationContract(split, expectedActivePane: initialActivePane)
             shutdown(split)
+            recordProgress(group: "activation", completedIteration: iteration + 1)
         }
     }
 
@@ -256,6 +257,7 @@ final class QualificationWorkflowTests: XCTestCase {
             XCTAssertNil(controller.errorOverlay)
             XCTAssertEqual(controller.providerWatches.count, 2)
             XCTAssertTrue(controller.providerWatchSetupTasks.isEmpty)
+            recordProgress(group: "refresh", completedIteration: iteration + 1)
         }
     }
 
@@ -376,6 +378,7 @@ final class QualificationWorkflowTests: XCTestCase {
             XCTAssertFalse(queue.isRunning)
             XCTAssertEqual(queue.pendingCount, 0)
             XCTAssertNil(queue.currentOperation)
+            recordProgress(group: "transfer", completedIteration: iteration + 1)
         }
     }
 
@@ -394,6 +397,7 @@ final class QualificationWorkflowTests: XCTestCase {
             XCTAssertEqual(duplicated.count, 1)
             try await queue.deleteImmediately(items: duplicated)
             XCTAssertFalse(FileManager.default.fileExists(atPath: duplicated[0].path))
+            recordProgress(group: "mutation", completedIteration: iteration + 1)
         }
     }
 
@@ -451,6 +455,7 @@ final class QualificationWorkflowTests: XCTestCase {
                 generationBeforeDisconnect,
                 "Disconnect must retire the old helper stream generation for \(target)"
             )
+            recordProgress(group: "connection", completedIteration: iteration + 1)
         }
     }
 
@@ -466,6 +471,7 @@ final class QualificationWorkflowTests: XCTestCase {
             )
             let extracted = try await FileOperationQueue.shared.extract(archive: archive, password: nil)
             XCTAssertTrue(FileManager.default.fileExists(atPath: extracted.path))
+            recordProgress(group: "archive", completedIteration: iteration + 1)
         }
     }
 
@@ -483,6 +489,7 @@ final class QualificationWorkflowTests: XCTestCase {
             pane.selectNextTab()
             XCTAssertEqual(pane.selectedTab?.id, selected)
             for tab in pane.tabs { tab.fileListViewControllerIfLoaded?.shutdown() }
+            recordProgress(group: "session", completedIteration: iteration + 1)
         }
     }
 
@@ -499,7 +506,16 @@ final class QualificationWorkflowTests: XCTestCase {
                 DetoursPreviewKind.classify(url: file),
                 .plainText(language: "plaintext")
             )
+            recordProgress(group: "opening", completedIteration: iteration + 1)
         }
+    }
+
+    private func recordProgress(group: String, completedIteration: Int) {
+        guard completedIteration == 1
+            || completedIteration.isMultiple(of: 5)
+            || completedIteration == repetitions else { return }
+        let line = "qualification-progress group=\(group) completed=\(completedIteration) total=\(repetitions)\n"
+        FileHandle.standardOutput.write(Data(line.utf8))
     }
 
     private func index(for iteration: Int, count: Int) -> Int {
