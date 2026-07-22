@@ -7,6 +7,8 @@ run_gui_command() {
     shift
     local label status_path status_tmp launch_stdout launch_stderr job_state command_status
     local attempt exited_without_status_at active_job_file
+    local heartbeat_dir heartbeat_group heartbeat_context heartbeat_total
+    local heartbeat_count current_heartbeat_count last_progress_epoch now_epoch iteration
     assert_prompt_guard_healthy
     path_is_within "$log_path" "$(run_dir)" || fail "GUI command log escapes the run directory"
     status_path="$log_path.status"
@@ -17,6 +19,21 @@ run_gui_command() {
         [[ ! -e "$path" ]] || fail "GUI command artifact already exists: $path"
     done
     label="com.detours.qualification.$(uuidgen)"
+    heartbeat_dir="${QUALIFICATION_GUI_HEARTBEAT_DIR:-}"
+    heartbeat_group="${QUALIFICATION_GUI_HEARTBEAT_GROUP:-}"
+    heartbeat_context="${QUALIFICATION_GUI_HEARTBEAT_CONTEXT:-}"
+    heartbeat_total="${QUALIFICATION_GUI_HEARTBEAT_TOTAL:-0}"
+    heartbeat_count=0
+    last_progress_epoch="$(date +%s)"
+    if [[ -n "$heartbeat_dir" ]]; then
+        path_is_within "$heartbeat_dir" \
+            "$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification" || \
+            fail "installed heartbeat directory escapes the qualification container"
+        [[ "$heartbeat_group" =~ ^[a-z-]+$ ]] || fail "installed heartbeat group is invalid"
+        [[ "$heartbeat_context" =~ ^[A-Z_-]+$ ]] || fail "installed heartbeat context is invalid"
+        [[ "$heartbeat_total" =~ ^[0-9]+$ && "$heartbeat_total" -gt 0 ]] || \
+            fail "installed heartbeat total is invalid"
+    fi
     active_job_file="$(run_dir)/active-gui-job"
     [[ ! -e "$active_job_file" ]] || fail "another GUI qualification job is already recorded"
     printf '%s\n' "$label" > "$active_job_file"
@@ -34,8 +51,34 @@ run_gui_command() {
     job_state=""
     for (( attempt = 1; attempt <= 9000; attempt++ )); do
         assert_prompt_guard_healthy
+        if [[ -n "$heartbeat_dir" ]]; then
+            current_heartbeat_count="$(find "$heartbeat_dir" -maxdepth 1 -type f \
+                -name ".detours-qualification-$heartbeat_group-repetition-*.json" \
+                | wc -l | tr -d '[:space:]')"
+            [[ "$current_heartbeat_count" =~ ^[0-9]+$ \
+                && "$current_heartbeat_count" -ge "$heartbeat_count" \
+                && "$current_heartbeat_count" -le "$heartbeat_total" ]] || \
+                fail "installed heartbeat count is invalid"
+            if (( current_heartbeat_count > heartbeat_count )); then
+                for (( iteration = heartbeat_count + 1; iteration <= current_heartbeat_count; iteration++ )); do
+                    printf 'qualification-progress group=%s context=%s completed=%d total=%d\n' \
+                        "$heartbeat_group" "$heartbeat_context" "$iteration" "$heartbeat_total"
+                done
+                heartbeat_count="$current_heartbeat_count"
+                last_progress_epoch="$(date +%s)"
+            fi
+        fi
         if [[ -f "$status_path" ]]; then
             break
+        fi
+        if [[ -n "$heartbeat_dir" ]]; then
+            now_epoch="$(date +%s)"
+            if (( now_epoch - last_progress_epoch >= 30 )); then
+                launchctl remove "$label" 2>/dev/null || true
+                rm -f -- "$active_job_file"
+                trap - HUP INT TERM
+                fail "installed $heartbeat_group $heartbeat_context produced no progress for 30 seconds"
+            fi
         fi
         if [[ -n "${QUALIFICATION_BLOCKING_DEADLINE_EPOCH:-}" ]] \
             && (( $(date +%s) >= QUALIFICATION_BLOCKING_DEADLINE_EPOCH )); then
@@ -89,12 +132,34 @@ run_gui_command() {
     return "$command_status"
 }
 
+verify_in_process_heartbeats() {
+    local heartbeat_path="$1"
+    local group="$2"
+    local repetitions="$3"
+    local seed="$4"
+    local iteration expected_count actual_count expected_line
+    expected_count=0
+    for (( iteration = 1; iteration <= repetitions; iteration++ )); do
+        if (( iteration == 1 || iteration % 3 == 0 || iteration == repetitions )); then
+            expected_line="qualification-progress group=$group completed=$iteration total=$repetitions seed=$seed"
+            [[ "$(grep -Fxc "$expected_line" "$heartbeat_path" || true)" == "1" ]] || \
+                fail "in-process heartbeat is missing or duplicated: $expected_line"
+            ((expected_count += 1))
+        fi
+    done
+    actual_count="$(wc -l < "$heartbeat_path" | tr -d '[:space:]')"
+    [[ "$actual_count" == "$expected_count" ]] || \
+        fail "in-process heartbeat file has $actual_count lines instead of $expected_count"
+}
+
 run_in_process() {
     local group="$1"
     validate_group "$group"
     assert_prompt_guard_healthy
     local fixture_file selected_group method log_dir started_at status
-    local active_deadline_file deadline_epoch
+    local active_deadline_file deadline_epoch heartbeat_path status_path stream_pid path
+    local heartbeat_count current_heartbeat_count last_progress_epoch now_epoch
+    local heartbeat_timed_out stream_status
     fixture_file="$(run_dir)/fixtures.env"
     [[ -f "$fixture_file" ]] || fail "fixture record is missing: $fixture_file"
     set -a
@@ -111,21 +176,67 @@ run_in_process() {
         started_at="$(date +%s)"
         deadline_epoch=$((started_at + 600))
         active_deadline_file="$(run_dir)/active-deadline"
+        heartbeat_path="$log_dir/$selected_group.heartbeat.log"
+        status_path="$log_dir/$selected_group.status"
         path_is_within "$active_deadline_file" "$(run_dir)" || \
             fail "active deadline record escapes the run directory"
+        for path in "$heartbeat_path" "$status_path" "$log_dir/$selected_group.log"; do
+            [[ ! -e "$path" ]] || fail "in-process workflow artifact already exists: $path"
+        done
+        : > "$heartbeat_path"
         set +e
-        DETOURS_QUALIFICATION_REPETITIONS="$QUALIFICATION_IN_PROCESS_REPETITIONS" \
-            DETOURS_QUALIFICATION_SEED="$QUALIFICATION_SEED" \
-            QUALIFICATION_ACTIVE_DEADLINE_FILE="$active_deadline_file" \
-            "$SCRIPT_DIR/qualification-deadline.sh" "$deadline_epoch" \
-                swift test --filter "QualificationWorkflowTests/$method" 2>&1 \
-                | tee "$log_dir/$selected_group.log"
-        status="${PIPESTATUS[0]}"
+        (
+            DETOURS_QUALIFICATION_REPETITIONS="$QUALIFICATION_IN_PROCESS_REPETITIONS" \
+                DETOURS_QUALIFICATION_SEED="$QUALIFICATION_SEED" \
+                DETOURS_QUALIFICATION_HEARTBEAT_FILE="$heartbeat_path" \
+                QUALIFICATION_ACTIVE_DEADLINE_FILE="$active_deadline_file" \
+                "$SCRIPT_DIR/qualification-deadline.sh" "$deadline_epoch" \
+                    swift test --filter "QualificationWorkflowTests/$method"
+            printf '%s\n' "$?" > "$status_path"
+        ) 2>&1 | tee "$log_dir/$selected_group.log" &
+        stream_pid=$!
+        heartbeat_count=0
+        last_progress_epoch="$started_at"
+        heartbeat_timed_out=0
+        while kill -0 "$stream_pid" 2>/dev/null; do
+            current_heartbeat_count="$(wc -l < "$heartbeat_path" | tr -d '[:space:]')"
+            if (( current_heartbeat_count > heartbeat_count )); then
+                sed -n "$((heartbeat_count + 1)),${current_heartbeat_count}p" "$heartbeat_path"
+                heartbeat_count="$current_heartbeat_count"
+                last_progress_epoch="$(date +%s)"
+            fi
+            now_epoch="$(date +%s)"
+            if (( now_epoch - last_progress_epoch >= 30 )); then
+                printf 'qualification: in-process %s produced no progress for 30 seconds\n' \
+                    "$selected_group" >&2
+                run_cancel
+                heartbeat_timed_out=1
+                break
+            fi
+            sleep 0.2
+        done
+        wait "$stream_pid"
+        stream_status="$?"
         set -e
+        current_heartbeat_count="$(wc -l < "$heartbeat_path" | tr -d '[:space:]')"
+        if (( current_heartbeat_count > heartbeat_count )); then
+            sed -n "$((heartbeat_count + 1)),${current_heartbeat_count}p" "$heartbeat_path"
+            heartbeat_count="$current_heartbeat_count"
+        fi
+        (( stream_status == 0 )) || fail "in-process output stream failed"
+        if (( heartbeat_timed_out == 1 )); then
+            status=93
+        else
+            [[ -f "$status_path" ]] || fail "in-process workflow status is missing"
+            IFS= read -r status < "$status_path"
+            [[ "$status" =~ ^[0-9]+$ ]] || fail "in-process workflow status is invalid"
+        fi
         assert_prompt_guard_healthy
         record_scenario_timing \
             in-process "$selected_group" all-roots "$QUALIFICATION_IN_PROCESS_REPETITIONS" "$started_at" "$status"
         (( status == 0 )) || return "$status"
+        verify_in_process_heartbeats \
+            "$heartbeat_path" "$selected_group" "$QUALIFICATION_IN_PROCESS_REPETITIONS" "$QUALIFICATION_SEED"
     done < <(selected_workflow_groups "$group")
 }
 
@@ -376,7 +487,11 @@ run_installed_once() {
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
     started_at="$(date +%s)"
     set +e
-    run_gui_command "$log_path.raw.log" env \
+    QUALIFICATION_GUI_HEARTBEAT_DIR="$control_root" \
+        QUALIFICATION_GUI_HEARTBEAT_GROUP="$selected_group" \
+        QUALIFICATION_GUI_HEARTBEAT_CONTEXT="$context_name" \
+        QUALIFICATION_GUI_HEARTBEAT_TOTAL="$repetitions" \
+        run_gui_command "$log_path.raw.log" env \
             HOME="$HOME" \
             PATH=/usr/bin:/bin:/usr/sbin:/sbin \
             DEVELOPER_DIR="$(xcode-select -p)" \
@@ -392,10 +507,10 @@ run_installed_once() {
             "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=$remote_target" \
             "DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING=$context_name" \
             "DETOURS_QUALIFICATION_REPETITIONS_SETTING=$repetitions" \
-            -resultBundlePath "$result_bundle" > "$command_output" 2>&1
-    status="$?"
+            -resultBundlePath "$result_bundle" 2>&1 | tee "$command_output"
+    status="${PIPESTATUS[0]}"
     set -e
-    tee -a "$log_path.log" < "$command_output"
+    cat "$command_output" >> "$log_path.log"
     stop_installed_app
     if (( status == 0 )); then
         verify_quiet_xcode_command "$log_path.raw.log"

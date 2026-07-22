@@ -518,8 +518,24 @@ final class QualificationWorkflowTests: XCTestCase {
         guard completedIteration == 1
             || completedIteration.isMultiple(of: 3)
             || completedIteration == repetitions else { return }
-        let line = "qualification-progress group=\(group) completed=\(completedIteration) total=\(repetitions)\n"
-        FileHandle.standardOutput.write(Data(line.utf8))
+        let line = "qualification-progress group=\(group) completed=\(completedIteration) "
+            + "total=\(repetitions) seed=\(seed)\n"
+        let data = Data(line.utf8)
+        guard let heartbeatPath = ProcessInfo.processInfo.environment[
+            "DETOURS_QUALIFICATION_HEARTBEAT_FILE"
+        ] else {
+            FileHandle.standardOutput.write(data)
+            return
+        }
+        do {
+            let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: heartbeatPath))
+            handle.seekToEndOfFile()
+            handle.write(data)
+            handle.synchronizeFile()
+            try handle.close()
+        } catch {
+            XCTFail("Could not publish qualification progress: \(error.localizedDescription)")
+        }
     }
 
     private func index(for iteration: Int, count: Int) -> Int {
