@@ -16,7 +16,7 @@ Restore confidence in Detours by proving that the whole current app works reliab
 
 ### Proposal
 
-Create a one-time inventory of everything Detours promises today, connect every promise to an automated check, exercise the riskiest workflows repeatedly in real conditions, and run the complete qualification three clean times. Keep the feature freeze until the complete result is green, then return to normal development without adding a permanent release process.
+Create a one-time inventory of everything Detours promises today, connect every promise to an automated check, exercise each risk at the lowest useful deterministic, provider, or installed-app layer, and run one bounded complete qualification. Keep the feature freeze until the complete result is green, then return to normal development without adding a permanent release process.
 
 ### Behaviors
 
@@ -28,21 +28,21 @@ Create a one-time inventory of everything Detours promises today, connect every 
 - Opening files, Quick Look, Finder reveal, sharing, password prompts, saved credentials, mounted volumes, server connections, and recovery from unavailable locations work without hangs or misleading success.
 - Local folders, an APFS disk image, the real iCloud Drive test folder, the dedicated SMB share, Linux, Intel Mac, and Windows locations receive the applicable checks.
 - Destructive checks touch only a newly created qualification folder and fail before acting if that boundary cannot be proven.
-- A failure is never waived to obtain a green result. Its smallest failing trace becomes a regression check, the defect is fixed, and the clean-run count restarts.
+- A failure is never waived to obtain a green result. Its smallest failing trace becomes a regression check, the defect is fixed, and the bounded final gate runs again from guarded reset.
 - After the final clean result, the campaign feature freeze ends; the qualification does not become a permanent restriction on normal app work.
 
 ### Acceptance Criteria
 
-- [ ] **A1** The completed capability inventory covers every current command, shortcut, shortcut-menu action, drag action, setting, automatic behavior, user-guide promise, and behavior from every completed feature spec (the newest governing when specs disagree), with an automated result for each applicable environment.
-- [ ] **A2** All current app capabilities pass on Foundry across local storage, the APFS test volume, real iCloud Drive, the configured dedicated SMB share, and configured Linux, Intel Mac, and Windows endpoints, with no applicable skips.
-- [ ] **A3** Pane, tab, focus, activation, navigation, refresh, selection, expansion, filtering, sorting, hidden-file, session, sidebar, volume, settings, appearance, Git, and progress behavior stays correct throughout the repeated workflows.
-- [ ] **A4** Every file operation, undo or redo path, archive path, opening path, Quick Look path, Finder reveal, sharing path, credential path, connection path, cancellation path, retry path, and error path ends in a correct and usable state.
-- [ ] **A5** Each named workflow is covered at the lowest useful deterministic or real-provider layer and passes one representative installed-app boundary journey, with the complete blocking gate at least 10x faster than the 2,153.055-second baseline.
-- [ ] **A6** One complete blocking qualification passes from guarded reset state against the exact app commit within 180 seconds after the shared build; repetition remains a separately authorized reliability exercise.
+- [x] **A1** The completed capability inventory covers every current command, shortcut, shortcut-menu action, drag action, setting, automatic behavior, user-guide promise, and behavior from every completed feature spec (the newest governing when specs disagree), with an automated result for each applicable environment.
+- [x] **A2** All current app capabilities pass on Foundry across local storage, the APFS test volume, real iCloud Drive, the configured dedicated SMB share, and configured Linux, Intel Mac, and Windows endpoints, with no applicable skips.
+- [x] **A3** Pane, tab, focus, activation, navigation, refresh, selection, expansion, filtering, sorting, hidden-file, session, sidebar, volume, settings, appearance, Git, and progress behavior stays correct throughout the repeated workflows.
+- [x] **A4** Every file operation, undo or redo path, archive path, opening path, Quick Look path, Finder reveal, sharing path, credential path, connection path, cancellation path, retry path, and error path ends in a correct and usable state.
+- [x] **A5** Each named workflow is covered at the lowest useful deterministic or real-provider layer and passes one representative installed-app boundary journey, with the complete blocking gate at least 10x faster than the 2,153.055-second baseline.
+- [x] **A6** One complete blocking qualification passes from guarded reset state against the exact app commit within 180 seconds after the shared build; repetition remains a separately authorized reliability exercise.
 - [x] **A7** Marco removed the 12-hour soak from this qualification on 2026-07-22. It is not a completion gate, the command fails closed, and any future reliability exercise requires separate authorization.
-- [ ] **A8** Interactive actions respond within the stated reliability limits or present a clear recoverable failure, and no operation silently remains busy past its limit.
-- [ ] **A9** Every destructive action remains inside its marked run folder, outside-root snapshots remain unchanged, and all run folders, mounts, credentials created for the run, processes, and watches are removed afterward.
-- [ ] **A10** The final tracked matrix and plain-language result report identify the exact qualified commit, environments, clean runs, screenshots, regressions fixed, prompt-audit evidence, and remaining failures; completion requires zero remaining failures.
+- [x] **A8** Interactive actions respond within the stated reliability limits or present a clear recoverable failure, and no operation silently remains busy past its limit.
+- [x] **A9** Every destructive action remains inside its marked run folder, outside-root snapshots remain unchanged, and all run folders, mounts, credentials created for the run, processes, and watches are removed afterward.
+- [x] **A10** The final tracked matrix and plain-language result report identify the exact qualified commit, environments, clean runs, screenshots, regressions fixed, prompt-audit evidence, and remaining failures; completion requires zero remaining failures.
 - [ ] **A11** After Foundry is fully green, the ordinary Spectre build installs and relaunches Detours without running any qualification fixture, probe, or test on Spectre.
 
 ### Out of scope
@@ -97,7 +97,7 @@ Reliability limits are failure gates, not a performance benchmarking program. Fo
 
 Structural and accessibility assertions cover every installed-app workflow: exactly one active pane, exactly one active tab in each pane, focus matches the action target, menus expose the correct enabled state, labels and roles remain available, progress clears, and error surfaces can be dismissed or retried. Reference images cover both active panes in Light, Dark, Foolscap, Drafting, and one campaign-defined custom theme (fixed colors applied through the existing custom-theme setting) at compact density; Dark additionally covers comfortable and spacious density; focused rename, drag target, operation progress, and connection-loss states each have a representative image. The matrix records the exact reference-image set so the set is finite and reviewable.
 
-Raw logs, result bundles, screenshots, prompt-sentry records, post-run prompt audits, and generated test results stay under `.build/qualification/`. The tracked result report lives at `resources/docs/260720-whole-app-stability-qualification-result.md` and contains the qualified commit, environment versions, matrix totals, run IDs, reliability observations, fixed regressions with minimized traces, and a zero-failure conclusion. The three clean runs execute against one exact app commit. After they pass, a child commit changes only the completed matrix, the result report, and the required `Tests/TEST_LOG.md` entries. The normal Spectre build/install runs from that child commit, then no app exercise occurs on Spectre.
+Raw logs, result bundles, screenshots, prompt-sentry records, post-run prompt audits, and generated test results stay under `.build/qualification/`. The tracked result report lives at `resources/docs/260720-whole-app-stability-qualification-result.md` and contains the qualified commit, environment versions, matrix totals, run IDs, reliability observations, fixed regressions with minimized traces, and a zero-failure conclusion. The bounded final run executes against one exact app commit. After it passes, a documentation-only child records the completed matrix, result report, and required `Tests/TEST_LOG.md` entry; the completed spec follows without changing app or test code. The normal Spectre build/install then runs, followed by no app exercise on Spectre.
 
 ### Approach Validation
 
@@ -113,7 +113,7 @@ Raw logs, result bundles, screenshots, prompt-sentry records, post-run prompt au
 - App code has one behavior in ordinary use and qualification; observations expose state but never choose outcomes or make operations succeed.
 - Every matrix row names the automated check that proves it; no applicable row passes through a manual assertion, skip, retry, warning, or log-only claim.
 - A workflow cannot call a destructive operation until all three root controls pass, and cleanup is subject to the same controls.
-- A failed iteration preserves its evidence, stops the current gate, and restarts the consecutive-clean count only after its regression check and fix are green.
+- A failed iteration preserves its evidence, stops the current gate, and requires a new bounded final run only after its regression check and fix are green.
 - The exact app commit remains unchanged during the final blocking run; the evidence-only child commit contains no app or test code.
 - Qualification additions extend existing seams and runners; they do not become a second runtime state model or a permanent gate on ordinary development.
 
@@ -125,7 +125,7 @@ Raw logs, result bundles, screenshots, prompt-sentry records, post-run prompt au
 | Repetition creates a large generic harness that is harder to trust than the app. | Keep a fixed list of named workflows, reuse existing helpers, and limit the seed to order and fixture names. |
 | A live destructive test touches personal or shared data. | Exact allowlisted parents, per-run UUID plus sentinel, independent canonical-path guard, and outside-root before/after snapshots all fail closed. |
 | Real iCloud or network timing makes a run appear intermittent. | Preflight location readiness, explicit reliability limits, exact failure evidence, and no retry-based pass; an intermittent result is a failure to fix. |
-| A suite passes while the installed app is visually confused or stuck. | Installed-app state observations, accessibility assertions, representative reference images, bounded progress checks, and three cold runs cover visible state. |
+| A suite passes while the installed app is visually confused or stuck. | Installed-app state observations, accessibility assertions, representative reference images, bounded progress checks, and one boundary journey per named workflow cover visible state. |
 | Environment drift invalidates comparisons between clean runs. | Record versions and mount identities, reset before each run, require one exact commit, and restart the sequence after any environment or code change. |
 | Qualification work turns into permanent process overhead. | Keep the campaign bounded by the final evidence commit and explicitly exclude permanent locks, labels, and approval ceremony. |
 
@@ -158,23 +158,23 @@ Raw logs, result bundles, screenshots, prompt-sentry records, post-run prompt au
 ### Targeted repeated workflows
 
 - [x] **T4** Run activation, pane focus, and tab focus workflows 100 times in process and 20 times through the installed app, including return from another app, and require exactly one active pane and one active tab per pane after every action.
-- [ ] **T5** Pass deterministic refresh combinations, every real provider refresh contract, and one installed refresh boundary covering expansion, deletion, rename, filter, sort, hidden-file, Git, selection, and idle-background changes.
-- [ ] **T6** Pass deterministic and provider transfer contracts plus one installed cross-pane copy/move boundary covering navigation, destination capture, cancellation, conflict, failure, undo, redo, and partial cleanup.
-- [ ] **T7** Pass deterministic mutation and archive contracts plus one installed boundary for create, rename, duplicate, delete, trash, restore, archive, extraction, conflict, cancellation, retry, and recovery.
-- [ ] **T8** Pass real disconnect, delay, authentication, connection-loss, reconnect, watcher-restart, helper-exit, and disappearance contracts plus one installed remote connection boundary.
-- [ ] **T9** Pass opening, Quick Look, Finder reveal, sharing, credential, volume, sidebar, and Quick Nav contracts plus one installed opening boundary.
-- [ ] **T10** Pass session, tab/window lifecycle, settings, density, theme, sidebar, and dual-pane contracts plus one installed session boundary.
+- [x] **T5** Pass deterministic refresh combinations, every real provider refresh contract, and one installed refresh boundary covering expansion, deletion, rename, filter, sort, hidden-file, Git, selection, and idle-background changes.
+- [x] **T6** Pass deterministic and provider transfer contracts plus one installed cross-pane copy/move boundary covering navigation, destination capture, cancellation, conflict, failure, undo, redo, and partial cleanup.
+- [x] **T7** Pass deterministic mutation and archive contracts plus one installed boundary for create, rename, duplicate, delete, trash, restore, archive, extraction, conflict, cancellation, retry, and recovery.
+- [x] **T8** Pass real disconnect, delay, authentication, connection-loss, reconnect, watcher-restart, helper-exit, and disappearance contracts plus one installed remote connection boundary.
+- [x] **T9** Pass opening, Quick Look, Finder reveal, sharing, credential, volume, sidebar, and Quick Nav contracts plus one installed opening boundary.
+- [x] **T10** Pass session, tab/window lifecycle, settings, density, theme, sidebar, and dual-pane contracts plus one installed session boundary.
 
 ### Complete environment coverage
 
-- [ ] **T11** Run the blocking deterministic workflow, known-defect, safety, structural, and accessibility contracts plus the complete live-provider contract set once on Foundry with local, APFS, iCloud, SMB, Linux, Intel Mac, and Windows endpoints; no applicable skip, warning, timeout, unexpected log, leak, partial file, or cleanup issue remains.
-- [ ] **T12** Run one installed-app boundary journey for each named workflow on Foundry, including live remote connection wiring, and require every selected result to pass within the installed layer deadline.
-- [ ] **T13** Confirm the installed workflows' structural and accessibility assertions and the finite tracked reference-image contracts for theme, density, pane focus, rename, drag target, progress, and connection-loss states.
-- [ ] **T14** Complete the runbook-governed blocking qualification after guarded reset and record its run ID against the exact app commit.
-- [ ] **T15** Confirm the final run's independent TCC, visible-window, and XCUI-staging channels record zero consent prompts and no runner-owned network helper.
-- [ ] **T16** Confirm the final run's outside-root comparison and guarded cleanup leave no marked root, mount, app, helper, test process, or watch.
+- [x] **T11** Run the blocking deterministic workflow, known-defect, safety, structural, and accessibility contracts plus the complete live-provider contract set once on Foundry with local, APFS, iCloud, SMB, Linux, Intel Mac, and Windows endpoints; no applicable skip, warning, timeout, unexpected log, leak, partial file, or cleanup issue remains.
+- [x] **T12** Run one installed-app boundary journey for each named workflow on Foundry, including live remote connection wiring, and require every selected result to pass within the installed layer deadline.
+- [x] **T13** Confirm the installed workflows' structural and accessibility assertions and the finite tracked reference-image contracts for theme, density, pane focus, rename, drag target, progress, and connection-loss states.
+- [x] **T14** Complete the runbook-governed blocking qualification after guarded reset and record its run ID against the exact app commit.
+- [x] **T15** Confirm the final run's independent TCC, visible-window, and XCUI-staging channels record zero consent prompts and no runner-owned network helper.
+- [x] **T16** Confirm the final run's outside-root comparison and guarded cleanup leave no marked root, mount, app, helper, test process, or watch.
 - [x] **T17** Record Marco's 2026-07-22 decision that the 12-hour soak is not part of this qualification, make the command fail closed, and require separate authorization for any future reliability exercise.
-- [ ] **T18** Confirm all acceptance criteria from the final records, commit only this completed spec, the matrix, result report, and `Tests/TEST_LOG.md` entries as the child of the qualified app commit, and record both commit hashes in the report.
+- [x] **T18** Confirm all acceptance criteria from the final records, commit only this completed spec, the matrix, result report, and `Tests/TEST_LOG.md` entries as the child of the qualified app commit, and record both commit hashes in the report.
 - [ ] **T19** Run `resources/scripts/build.sh` on Spectre without `--no-install` after the Foundry gates and evidence commit pass, then perform no fixture, probe, test, or scripted app exercise on Spectre.
 
 ---
@@ -222,3 +222,4 @@ Raw logs, result bundles, screenshots, prompt-sentry records, post-run prompt au
 - **T12 Xcode launch correction** `final-whole-app-b345f36-1` completed six installed journeys but reached the 90-second layer deadline because it launched Xcode separately for every sub-second test. The run stopped before session execution, with zero prompt events and green cleanup. The eight selected journeys now share one Xcode invocation and one XCResult while retaining one completion marker per workflow, live aggregate progress, staged failure/prompt detection, and the same per-layer deadline.
 - **T12 prompt-classification correction** `final-whole-app-246fe38-1` was canceled at 10.74 seconds when XCTest called the archive sheet an "interrupting element." The staged owner was `com.detours.app`; the independent visible-window scan, TCC log, and incident record found no system consent dialog, and cleanup passed. Live and final staging checks now fail only on the owner `com.apple.UserNotificationCenter`, which is the system dialog identity seen in the real local-network incident, while the other two independent prompt channels remain unchanged.
 - **T12 installed-layer measurement** `final-whole-app-7c5bd21-1` completed seven of eight journeys in the single Xcode invocation before the original 90-second installed-layer estimate canceled it. Both lower layers passed in 28 seconds, prompt counts stayed zero, and cleanup passed. The installed-layer cap is now 140 seconds; the independent whole-gate cap remains 180 seconds, so the measured composition still has to beat the approved greater-than-10x target.
+- **T5-T18 final evidence** Foundry run `final-whole-app-e02b166-1` passed at qualified app commit `e02b166586a05a6b1e609152b706110decd7fe90`: 68 deterministic contracts in 4 seconds, 7 real-provider contracts in 24 seconds, and all 8 installed workflow journeys in one XCResult in 102 seconds. End-to-end blocking time was 132 seconds, a 16.31x speedup over baseline. The run recorded 0 failures, skips, expected failures, warnings, retries, prompt events, outside-root changes, leaked mounts, or remaining processes; guarded cleanup passed. Evidence commit `f651645aa11dce67c991cfe5d2d1b14ffe455c89` records 102 passed matrix rows, the result report, and `Tests/TEST_LOG.md`.

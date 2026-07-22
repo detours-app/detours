@@ -5,7 +5,7 @@
 Detours passed the runbook-governed whole-app blocking qualification with zero remaining failures.
 
 - Qualified app commit: `e02b166586a05a6b1e609152b706110decd7fe90`
-- Evidence commit: the documentation-only child containing this report
+- Evidence commit: `f651645aa11dce67c991cfe5d2d1b14ffe455c89`
 - Capability results: 102 passed, 0 failed, 0 pending
 - Final run ID: `final-whole-app-e02b166-1`
 - Blocking wall time: 132 seconds (budget: 180 seconds)
