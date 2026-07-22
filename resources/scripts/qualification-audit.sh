@@ -57,8 +57,24 @@ audit_installed_test_filters() {
     done < <(workflow_groups)
     installed_filter_pair_exists QualificationRefreshUITests testRefreshProviderBoundary || \
         fail "blocking refresh provider filter does not resolve to one test method"
-    installed_filter_pair_exists QualificationRefreshUITests testStoragePermissionPreflight || \
-        fail "blocking storage-permission filter does not resolve to one test method"
+}
+
+audit_prompt_safety() {
+    local finding group context
+    finding="$(grep -En 'tccutil[[:space:]]+reset' "$SCRIPT_DIR"/qualification*.sh || true)"
+    [[ -z "$finding" ]] || fail "qualification must never reset TCC consent: $finding"
+    finding="$(grep -En 'addUIInterruptionMonitor|buttons\["Allow"\]' \
+        "$PROJECT_DIR"/Tests/UITests/DetoursUITests/DetoursUITests/*.swift || true)"
+    [[ -z "$finding" ]] || fail "qualification must never auto-accept consent dialogs: $finding"
+    [[ -x "$SCRIPT_DIR/qualification-prompt-guard.sh" ]] || fail "prompt sentry is not executable"
+    grep -F 'source "$SCRIPT_DIR/qualification-prompts.sh"' "$SCRIPT_DIR/qualification.sh" >/dev/null || \
+        fail "qualification does not load prompt safety"
+    for group in $(workflow_groups); do
+        while IFS= read -r context; do
+            [[ -z "$context" || "$context" == "LOCAL_ROOT" ]] || \
+                fail "installed XCUI routes $group through protected root $context"
+        done < <(installed_root_contexts "$group")
+    done
 }
 
 audit_shell_only_orchestration() {
@@ -117,6 +133,7 @@ audit_matrix() {
 
     audit_shell_only_orchestration
     audit_installed_test_filters
+    audit_prompt_safety
 
     printf 'matrix audit passed: %s capability rows\n' "$row_count"
 }

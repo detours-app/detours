@@ -164,11 +164,6 @@ run_reset() {
     remove_exact_tree "$HOME/DetoursUITests-Temp" "$HOME"
     rm -f -- "$QUALIFICATION_ROOT/.soak-active"
 
-    # Every SMB campaign starts from the same consent state. The qualification
-    # UI test accepts only the network-volume prompt and only when its fixture
-    # root is on a non-local volume.
-    tccutil reset SystemPolicyNetworkVolumes "$APP_BUNDLE_ID" >/dev/null
-
     mkdir -p "$(run_dir)/reset"
     printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$(run_dir)/reset/result.env"
 }
@@ -219,6 +214,7 @@ run_cold() {
     run_reset
     run_preflight
     run_build
+    start_prompt_guard
     run_prepare_fixtures
     capture_outside_root_snapshots before
     capture_state_observation cold-before
@@ -229,6 +225,7 @@ run_cold() {
     compare_outside_root_snapshots
     run_cleanup
     verify_qualification_cleanup
+    finish_prompt_guard
     {
         printf 'status=passed\n'
         printf 'commit=%s\n' "$(canonical_commit)"
@@ -253,16 +250,9 @@ run_workflow_campaign() {
     run_reset
     run_preflight
     run_build
+    start_prompt_guard
     run_prepare_fixtures
     capture_outside_root_snapshots before
-    if [[ "$group" == "refresh" ]]; then
-        set -a
-        # shellcheck disable=SC1090,SC1091
-        source "$(run_dir)/fixtures.env"
-        set +a
-        prepare_blocking_refresh_bundles
-        blocking_layer storage-permissions 30 run_blocking_storage_permissions
-    fi
     capture_state_observation workflow-before
     run_in_process "$group"
     run_installed "$group"
@@ -271,6 +261,7 @@ run_workflow_campaign() {
     compare_outside_root_snapshots
     run_cleanup
     verify_qualification_cleanup
+    finish_prompt_guard
     {
         printf 'status=passed\n'
         printf 'commit=%s\n' "$(canonical_commit)"
@@ -289,6 +280,7 @@ run_in_process_campaign() {
     run_reset
     run_preflight STORAGE_ROOTS
     run_build
+    start_prompt_guard
     run_prepare_fixtures
     capture_outside_root_snapshots before
     capture_state_observation in-process-before
@@ -298,6 +290,7 @@ run_in_process_campaign() {
     compare_outside_root_snapshots
     run_cleanup
     verify_qualification_cleanup
+    finish_prompt_guard
     {
         printf 'status=passed\n'
         printf 'commit=%s\n' "$(canonical_commit)"
@@ -315,12 +308,15 @@ run_installed_smoke_campaign() {
     validate_group "$group"
     [[ "$group" != "all" ]] || fail "installed-smoke requires one named workflow group"
     case "$context_name" in
-        LOCAL_ROOT|APFS_ROOT|ICLOUD_ROOT|SMB_ROOT) ;;
+        LOCAL_ROOT) ;;
         LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)
             installed_group_uses_remote_targets "$group" || \
                 fail "remote installed smoke is unavailable for $group"
             ;;
-        *) fail "installed-smoke context must be a fixture root or live remote target" ;;
+        APFS_ROOT|ICLOUD_ROOT|SMB_ROOT)
+            fail "installed XCUI may use only LOCAL_ROOT or a live remote target; protected storage is verified below XCUI"
+            ;;
+        *) fail "installed-smoke context must be LOCAL_ROOT or a live remote target" ;;
     esac
     installed_contexts "$group" | grep -Fx "$context_name" >/dev/null || \
         fail "$context_name is not an applicable installed context for $group"
@@ -329,11 +325,9 @@ run_installed_smoke_campaign() {
     run_reset
     run_preflight "$context_name"
     run_build
+    start_prompt_guard
     case "$context_name" in
         LOCAL_ROOT|LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET) run_prepare_local_fixture ;;
-        APFS_ROOT) run_prepare_apfs_fixture ;;
-        ICLOUD_ROOT) run_prepare_icloud_fixture ;;
-        SMB_ROOT) run_prepare_smb_fixture ;;
     esac
     capture_outside_root_snapshots before
     capture_state_observation installed-smoke-before
@@ -344,5 +338,6 @@ run_installed_smoke_campaign() {
     compare_outside_root_snapshots
     run_cleanup
     verify_qualification_cleanup
+    finish_prompt_guard
     trap - EXIT
 }

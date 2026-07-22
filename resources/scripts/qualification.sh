@@ -57,19 +57,19 @@ Commands:
   fixtures                     Create and mount every guarded fixture root
   build                        Build the qualifying app without installing it
   blocking-refresh             Run the post-build refresh gate (hard limit: 180s)
-  in-process <group|all>       Gate 2 soak-only: run 100 times in process
-  in-process-run <group|all>   Gate 2 soak-only: guarded in-process campaign
-  installed <group|all>        Gate 2 soak-only: run 20 installed-app cycles
-  workflow-run <group|all>     Gate 2 soak-only: run both repeated layers
+  in-process <group|all>       Gate 2 only: run 100 times in process
+  in-process-run <group|all>   Gate 2 only: guarded in-process campaign
+  installed <group|all>        Gate 2 only: run 20 installed-app cycles
+  workflow-run <group|all>     Gate 2 only: run both repeated layers
   installed-smoke <group> <root|target>
                                Run focused installed repetitions in one audit session
   failure-probe <provider>     Prove one provider failure is preserved and cleaned
-  cold-run                     Gate 2 soak-only: run one complete cold qualification
-  soak                         Gate 2 soak-only: run the 12-hour installed campaign
+  cold-run                     Gate 2 only: run one complete cold qualification
+  soak                         Disabled; requires a separate future authorization
   report                       Generate the tracked matrix and result report
   cleanup                      Remove exact marked qualification state
   cancel                       Stop the exact active GUI job for a run
-  run                          Gate 2 soak-only: run three cold runs and soak
+  run                          Gate 2 only: run the three cold qualifications
   help                         Show this help
 
 Options:
@@ -297,8 +297,7 @@ validate_group() {
 }
 
 run_soak() {
-    start_console_awake_guard
-    run_twelve_hour_soak
+    fail "the 12-hour soak was removed from this qualification on 2026-07-22; a future reliability exercise requires separate authorization"
 }
 
 run_report() {
@@ -358,6 +357,8 @@ run_cleanup() {
 
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-fixtures.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/qualification-prompts.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/qualification-workflows.sh"
 # shellcheck disable=SC1091
@@ -494,7 +495,7 @@ case "$COMMAND" in
     installed-smoke) run_installed_smoke_campaign "$GROUP" "$SMOKE_ROOT" ;;
     failure-probe) run_provider_failure_probe "$FAILURE_PROVIDER" ;;
     cold-run) require_gate2_authorization; run_cold ;;
-    soak) require_gate2_authorization; run_soak ;;
+    soak) run_soak ;;
     report) run_report ;;
     cleanup) run_cleanup ;;
     cancel) run_cancel ;;

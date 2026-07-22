@@ -46,18 +46,8 @@ class BaseUITest: XCTestCase {
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
         app.launchEnvironment["DETOURS_UI_TEST_CONTROL_ROOT"] = uiTestControlRootURL.path
         configureLaunchEnvironment(&app.launchEnvironment)
-        let expectsStoragePermission = installStoragePermissionHandlerIfNeeded()
         app.launch()
         let window = app.windows.firstMatch
-        if expectsStoragePermission {
-            XCTAssertTrue(
-                window.existsOrWait(timeout: 5),
-                "App window should exist before storage permission handling"
-            )
-            // XCUI interruption monitors run only after an interaction. Trigger
-            // one immediately so an access dialog cannot sit ahead of readiness.
-            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        }
 
         // Wait for app to be ready
         XCTAssertTrue(window.existsOrWait(timeout: 5), "App window should exist")
@@ -114,34 +104,6 @@ class BaseUITest: XCTestCase {
             options: [.sortedKeys]
         )
         try data.write(to: markerURL, options: .atomic)
-    }
-
-    private func installStoragePermissionHandlerIfNeeded() -> Bool {
-        let rootPath = uiTestRootURL.standardizedFileURL.path
-        let cloudDocumentsPath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
-            .standardizedFileURL.path
-        let context = ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT"]
-        let isICloud = rootPath == cloudDocumentsPath
-            || rootPath.hasPrefix(cloudDocumentsPath + "/")
-        let isNetwork: Bool
-        if context == "SMB_ROOT" {
-            isNetwork = true
-        } else if isICloud {
-            isNetwork = false
-        } else {
-            isNetwork = (try? uiTestRootURL.resourceValues(forKeys: [.volumeIsLocalKey]))?
-                .volumeIsLocal == false
-        }
-        guard isICloud || isNetwork else { return false }
-
-        addUIInterruptionMonitor(withDescription: "Detours storage access") { alert in
-            let allowButton = alert.buttons["Allow"]
-            guard allowButton.exists else { return false }
-            allowButton.click()
-            return true
-        }
-        return true
     }
 
     override func tearDownWithError() throws {

@@ -145,6 +145,14 @@ fixture_setup_cleanup_on_exit() {
         verify_qualification_cleanup
         cleanup_status=$?
     fi
+    if [[ -n "${QUALIFICATION_PROMPT_GUARD_PID:-}" \
+        || -n "${QUALIFICATION_PROMPT_AUDIT_START:-}" ]]; then
+        finish_prompt_guard
+        local prompt_status=$?
+        if (( cleanup_status == 0 && prompt_status != 0 )); then
+            cleanup_status="$prompt_status"
+        fi
+    fi
     if (( cleanup_status != 0 )); then
         printf 'qualification: partial fixture cleanup failed with status %s\n' "$cleanup_status" >&2
         exit "$cleanup_status"
@@ -154,7 +162,9 @@ fixture_setup_cleanup_on_exit() {
 
 run_prepare_fixtures_command() {
     trap 'fixture_setup_cleanup_on_exit "$?"' EXIT
+    start_prompt_guard
     run_prepare_fixtures
+    finish_prompt_guard
     trap - EXIT
 }
 

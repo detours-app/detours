@@ -28,24 +28,6 @@ select_cold_record() {
     printf '%s\n' "$selected"
 }
 
-select_soak_record() {
-    local commit_dir="$1"
-    local record status duration ended selected="" selected_ended=0
-    for record in "$commit_dir"/*/soak.env; do
-        [[ -f "$record" ]] || continue
-        status="$(report_env_value status "$record")"
-        duration="$(report_env_value duration_seconds "$record")"
-        ended="$(report_env_value ended_epoch "$record")"
-        if [[ "$status" == "passed" ]] && is_unsigned_integer "$duration" && \
-            is_unsigned_integer "$ended" && (( duration >= 43200 && ended > selected_ended )); then
-            selected="$record"
-            selected_ended="$ended"
-        fi
-    done
-    [[ -n "$selected" ]] || fail "no passing 12-hour soak exists for the qualified commit"
-    printf '%s\n' "$selected"
-}
-
 require_clean_selected_run() {
     local summary="$1"
     local selected_dir
@@ -53,6 +35,10 @@ require_clean_selected_run() {
     [[ -f "$selected_dir/cleanup/result.env" ]] || fail "cleanup evidence is missing: $selected_dir"
     [[ "$(report_env_value status "$selected_dir/cleanup/result.env")" == "passed" ]] || \
         fail "cleanup evidence is not green: $selected_dir"
+    [[ -f "$selected_dir/prompt-guard/result.env" ]] || \
+        fail "prompt-audit evidence is missing: $selected_dir"
+    [[ "$(report_env_value status "$selected_dir/prompt-guard/result.env")" == "passed" ]] || \
+        fail "prompt-audit evidence is not green: $selected_dir"
     if find "$selected_dir/failures" -type f -name failure.env -print -quit | grep -q .; then
         fail "selected final run contains a failure trace: $selected_dir"
     fi
@@ -77,15 +63,13 @@ write_qualification_result() {
     local cold_one="$2"
     local cold_two="$3"
     local cold_three="$4"
-    local soak="$5"
     local result_path row_count timing_count screenshot_count bundle_count regression_count
-    local cold_one_dir cold_two_dir cold_three_dir soak_dir
+    local cold_one_dir cold_two_dir cold_three_dir
     local environment_file linux_target intel_mac_target windows_target smb_host smb_share
     result_path="$PROJECT_DIR/resources/docs/260720-whole-app-stability-qualification-result.md"
     cold_one_dir="$(dirname "$cold_one")"
     cold_two_dir="$(dirname "$cold_two")"
     cold_three_dir="$(dirname "$cold_three")"
-    soak_dir="$(dirname "$soak")"
     environment_file="$cold_one_dir/preflight/environment.env"
     linux_target="$(report_env_value linux_target "$environment_file")"
     intel_mac_target="$(report_env_value intel_mac_target "$environment_file")"
@@ -93,9 +77,9 @@ write_qualification_result() {
     smb_host="$(report_env_value smb_host "$environment_file")"
     smb_share="$(report_env_value smb_share "$environment_file")"
     row_count="$(grep -Ec '^\| [A-Z]+-[0-9]{3} \|' "$MATRIX_PATH")"
-    timing_count="$(find "$cold_one_dir" "$cold_two_dir" "$cold_three_dir" "$soak_dir" -path '*/timing/scenarios.tsv' -exec awk 'END { total += NR } END { print total }' {} \; | awk '{ total += $1 } END { print total + 0 }')"
-    screenshot_count="$(find "$cold_one_dir" "$cold_two_dir" "$cold_three_dir" "$soak_dir" -type f \( -name '*.png' -o -name '*.jpg' \) | wc -l | tr -d ' ')"
-    bundle_count="$(find "$cold_one_dir" "$cold_two_dir" "$cold_three_dir" "$soak_dir" -type d -name '*.xcresult' | wc -l | tr -d ' ')"
+    timing_count="$(find "$cold_one_dir" "$cold_two_dir" "$cold_three_dir" -path '*/timing/scenarios.tsv' -exec awk 'END { total += NR } END { print total }' {} \; | awk '{ total += $1 } END { print total + 0 }')"
+    screenshot_count="$(find "$cold_one_dir" "$cold_two_dir" "$cold_three_dir" -type f \( -name '*.png' -o -name '*.jpg' \) | wc -l | tr -d ' ')"
+    bundle_count="$(find "$cold_one_dir" "$cold_two_dir" "$cold_three_dir" -type d -name '*.xcresult' | wc -l | tr -d ' ')"
     regression_count="$(find "$QUALIFICATION_ROOT/$qualified_commit" -path '*/failures/*/failure.env' -type f | wc -l | tr -d ' ')"
 
     {
@@ -118,10 +102,9 @@ write_qualification_result() {
             "$(report_env_value completed_at "$cold_two")" "$(report_env_value boot_epoch "$cold_two")"
         printf '| Cold 3 | `%s` | %s | %s |\n' "$(basename "$cold_three_dir")" \
             "$(report_env_value completed_at "$cold_three")" "$(report_env_value boot_epoch "$cold_three")"
-        printf '| 12-hour soak | `%s` | epoch %s | n/a |\n\n' "$(basename "$soak_dir")" \
-            "$(report_env_value ended_epoch "$soak")"
-        printf 'Cold run 3 began after a Foundry reboot distinct from cold run 2. The soak ran for '
-        printf '%s seconds after cold run 3.\n\n' "$(report_env_value duration_seconds "$soak")"
+        printf '\nCold run 3 began after a Foundry reboot distinct from cold run 2. '
+        printf 'Marco removed the 12-hour soak from this qualification on 2026-07-22; '
+        printf 'it is not a completion gate and any future reliability exercise requires separate authorization.\n\n'
         printf '## Environments and evidence\n\n'
         printf 'Each selected run contains preflight environment versions, deterministic replay records, '
         printf 'scenario timing, state observations, outside-root snapshots, logs, XCResult bundles, '
@@ -150,18 +133,17 @@ append_qualification_test_log() {
     local cold_one="$2"
     local cold_two="$3"
     local cold_three="$4"
-    local soak="$5"
     {
-        printf '\n- %s: Foundry whole-app qualification PASS for `%s`. Cold run IDs: `%s`, `%s`, `%s`; 12-hour soak run ID: `%s`. All matrix rows passed, selected runs contained no failure trace, and guarded cleanup passed.\n' \
+        printf '\n- %s: Foundry whole-app qualification PASS for `%s`. Cold run IDs: `%s`, `%s`, `%s`. All matrix rows passed, selected runs contained no failure trace, prompt audits and guarded cleanup passed. Marco removed the 12-hour soak from this qualification on 2026-07-22.\n' \
             "$(date '+%Y-%m-%d %H:%M %Z')" "$qualified_commit" \
             "$(basename "$(dirname "$cold_one")")" "$(basename "$(dirname "$cold_two")")" \
-            "$(basename "$(dirname "$cold_three")")" "$(basename "$(dirname "$soak")")"
+            "$(basename "$(dirname "$cold_three")")"
     } >> "$PROJECT_DIR/Tests/TEST_LOG.md"
 }
 
 generate_qualification_report() {
-    local qualified_commit commit_dir cold_one cold_two cold_three soak
-    local first_epoch second_epoch third_epoch soak_epoch second_boot third_boot changed_path
+    local qualified_commit commit_dir cold_one cold_two cold_three
+    local first_epoch second_epoch third_epoch second_boot third_boot changed_path
     [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]] || fail "report generation requires a clean worktree"
     qualified_commit="$(canonical_commit)"
     commit_dir="$QUALIFICATION_ROOT/$qualified_commit"
@@ -169,24 +151,22 @@ generate_qualification_report() {
     cold_one="$(select_cold_record "$commit_dir" 1)"
     cold_two="$(select_cold_record "$commit_dir" 2)"
     cold_three="$(select_cold_record "$commit_dir" 3)"
-    soak="$(select_soak_record "$commit_dir")"
-    for changed_path in "$cold_one" "$cold_two" "$cold_three" "$soak"; do
+    for changed_path in "$cold_one" "$cold_two" "$cold_three"; do
         require_clean_selected_run "$changed_path"
     done
 
     first_epoch="$(report_env_value completed_epoch "$cold_one")"
     second_epoch="$(report_env_value completed_epoch "$cold_two")"
     third_epoch="$(report_env_value completed_epoch "$cold_three")"
-    soak_epoch="$(report_env_value ended_epoch "$soak")"
-    (( first_epoch < second_epoch && second_epoch < third_epoch && third_epoch < soak_epoch )) || \
-        fail "final cold runs and soak are not an ordered consecutive sequence"
+    (( first_epoch < second_epoch && second_epoch < third_epoch )) || \
+        fail "final cold runs are not an ordered consecutive sequence"
     second_boot="$(report_env_value boot_epoch "$cold_two")"
     third_boot="$(report_env_value boot_epoch "$cold_three")"
     [[ "$second_boot" != "$third_boot" ]] || fail "cold run 3 did not begin after a Foundry reboot"
 
     update_qualification_matrix_results
-    write_qualification_result "$qualified_commit" "$cold_one" "$cold_two" "$cold_three" "$soak"
-    append_qualification_test_log "$qualified_commit" "$cold_one" "$cold_two" "$cold_three" "$soak"
+    write_qualification_result "$qualified_commit" "$cold_one" "$cold_two" "$cold_three"
+    append_qualification_test_log "$qualified_commit" "$cold_one" "$cold_two" "$cold_three"
     while IFS= read -r changed_path; do
         case "$changed_path" in
             resources/docs/260720-whole-app-stability-qualification-matrix.md|\

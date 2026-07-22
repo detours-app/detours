@@ -7,6 +7,7 @@ run_gui_command() {
     shift
     local label status_path status_tmp launch_stdout launch_stderr job_state command_status
     local attempt exited_without_status_at active_job_file
+    assert_prompt_guard_healthy
     path_is_within "$log_path" "$(run_dir)" || fail "GUI command log escapes the run directory"
     status_path="$log_path.status"
     status_tmp="$status_path.tmp"
@@ -32,6 +33,7 @@ run_gui_command() {
     fi
     job_state=""
     for (( attempt = 1; attempt <= 9000; attempt++ )); do
+        assert_prompt_guard_healthy
         if [[ -f "$status_path" ]]; then
             break
         fi
@@ -90,6 +92,7 @@ run_gui_command() {
 run_in_process() {
     local group="$1"
     validate_group "$group"
+    assert_prompt_guard_healthy
     local fixture_file selected_group method log_dir started_at status
     local active_deadline_file deadline_epoch
     fixture_file="$(run_dir)/fixtures.env"
@@ -119,6 +122,7 @@ run_in_process() {
                 | tee "$log_dir/$selected_group.log"
         status="${PIPESTATUS[0]}"
         set -e
+        assert_prompt_guard_healthy
         record_scenario_timing \
             in-process "$selected_group" all-roots "$QUALIFICATION_IN_PROCESS_REPETITIONS" "$started_at" "$status"
         (( status == 0 )) || return "$status"
@@ -128,6 +132,7 @@ run_in_process() {
 run_installed() {
     local group="$1"
     validate_group "$group"
+    assert_prompt_guard_healthy
     local fixture_file selected_group root_name log_dir result_dir
     fixture_file="$(run_dir)/fixtures.env"
     [[ -f "$fixture_file" ]] || fail "fixture record is missing: $fixture_file"
@@ -170,6 +175,7 @@ run_installed_smoke() {
     local repetitions="$3"
     local test_filter="${4:-}"
     local fixture_file log_dir result_dir remote_target
+    assert_prompt_guard_healthy
     fixture_file="$(run_dir)/fixtures.env"
     [[ -f "$fixture_file" ]] || fail "fixture record is missing: $fixture_file"
     set -a
@@ -186,7 +192,7 @@ run_installed_smoke() {
     mkdir -p "$log_dir" "$result_dir"
     prepare_installed_test_bundle "$log_dir/build-for-testing.log"
     case "$context_name" in
-        LOCAL_ROOT|APFS_ROOT|ICLOUD_ROOT|SMB_ROOT)
+        LOCAL_ROOT)
             run_installed_once \
                 "$group" "$context_name" "$repetitions" \
                 "$log_dir/$group-$context_name" \
@@ -414,9 +420,8 @@ selected_workflow_groups() {
 
 installed_root_contexts() {
     case "$1" in
-        connection) printf 'SMB_ROOT\n' ;;
-        session) printf 'LOCAL_ROOT\n' ;;
-        *) printf '%s\n' LOCAL_ROOT APFS_ROOT ICLOUD_ROOT SMB_ROOT ;;
+        connection) ;;
+        *) printf 'LOCAL_ROOT\n' ;;
     esac
 }
 

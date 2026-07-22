@@ -2,7 +2,7 @@
 
 ## Authority
 
-This is the canonical runbook for designing, selecting, running, and evaluating Detours tests. It governs the placement of coverage, interactive feedback loops, whole-app qualification, and soak testing. When a qualification spec or matrix assigns repetition differently, this runbook controls the testing process while the capability contract remains authoritative about what behavior must be proved.
+This is the canonical runbook for designing, selecting, running, and evaluating Detours tests. It governs the placement of coverage, interactive feedback loops, whole-app qualification, and separately authorized reliability exercises. When a qualification spec or matrix assigns repetition differently, this runbook controls the testing process while the capability contract remains authoritative about what behavior must be proved.
 
 The current qualification runner still implements the older 100 in-process and 20 installed-app repetitions. Those campaign entry points are suspended. Gate 1 may redesign the blocking suite, but only Gate 2 authorization may resume the campaign repetition entry points.
 
@@ -76,7 +76,7 @@ Gate 1 passed on Foundry on 2026-07-21 at commit `82db6ee73877e94bb7796dbd2d9215
 
 | Layer | Tests | Wall time | Budget | Result |
 | --- | ---: | ---: | ---: | --- |
-| iCloud and SMB permission readiness | 2 | 14 s | 30 s | Pass |
+| Historical iCloud and SMB access probes (superseded) | 2 | 14 s | 30 s | Pass |
 | Pure behavior and known-defect replay | 2 | 2 s | 10 s | Pass |
 | Mounted and live provider contracts | 7 | 53 s | 75 s | Pass |
 | Representative installed-app XCUI | 1 | 15 s | 90 s | Pass |
@@ -84,7 +84,7 @@ Gate 1 passed on Foundry on 2026-07-21 at commit `82db6ee73877e94bb7796dbd2d9215
 
 The measured speedup is 25.33x against the 2,153.055-second baseline. The run recorded zero failures, skips, expected failures, warnings, retries, leaked processes, leaked mounts, or outside-root entry changes. All four known defects passed deterministic replay, all seven provider roles exercised real listing or watcher boundaries, each of the three XCResults contains exactly one pass, and guarded cleanup passed.
 
-Foundry presented a one-time macOS iCloud access dialog during this work and Marco selected Allow. That observation produced the mandatory permission-readiness layer above. In the final proof, both iCloud and SMB readiness probes passed without operator action before behavioral work began; permission is an environment prerequisite, not a test assertion.
+Foundry presented macOS access dialogs during this work. The earlier probe result is retained only as baseline history; the prompt incident documented below proved that runner-side access probes and automatic handling are not safe. The prompt-free protected-provider policy supersedes that approach.
 
 ### Additional workflow timing evidence
 
@@ -119,14 +119,19 @@ Purpose: reject structural violations before runtime work.
 
 Interactive budget: 30 seconds when cached. A longer clean build is reported separately and reused by all later layers.
 
-### Permission readiness preflight
+### Prompt-free protected-provider policy
 
-Purpose: detect macOS access dialogs before behavioral work can wait behind them.
+Purpose: make a macOS consent dialog a mechanically detected run failure instead of an operator interruption.
 
-- After the shared build and fixture creation, run one minimal installed-app access probe against iCloud and one against SMB before pure, provider, or workflow tests.
-- Register the XCUI system-interruption handler before the app launches and before the test runner directly touches an explicit qualification root.
-- Accept only the expected `Allow` action, then prove the app reached the exact guarded root with an active directory watch and quiescent state.
-- If the dialog cannot be handled or the guarded root is not usable, fail within 30 seconds and run cleanup. Never discover permission readiness through a 30-second workflow poll or operator observation.
+- Qualification never runs `tccutil reset`. Apple documents that resetting protected-resource access causes the system to ask again; the matrix audit rejects any reset added to `qualification*.sh`.
+- XCUI never receives an APFS, iCloud, or SMB root. Installed UI proof uses the guarded local root. Real APFS, iCloud, and SMB boundaries are proved by Layer 2 provider contracts, while live Linux, Intel Mac, and Windows UI paths keep the XCUI runner's root local.
+- XCTest interruption monitors and automatic `Allow` clicks are prohibited. They cannot protect a runner blocked in direct `FileManager` access because XCTest invokes interruption monitors only when an XCUI element interaction is blocked.
+- Before fixture mounting, test work, or app launch, the runner starts an independent `tccd` unified-log sentry and verifies its readiness and liveness. No workflow function runs without that handshake.
+- A `display_prompt: called` event records the authoritative log line, invokes the exact run's canonical `cancel` route, terminates the campaign parent, and proceeds through guarded cleanup. If the sentry exits unexpectedly, the same cancellation path runs.
+- After cleanup, the runner queries the exact start/end interval with `log show` and requires zero prompt events. This catches a stream race or sentry defect before a run can pass.
+- `qualification-foundry.sh cancel` is secret-free and never waits for Doppler or Touch ID. Cancellation must remain available when authentication is unavailable.
+
+The sentry is a containment guard, not a prompt handler. A detected dialog is never clicked, retried, or converted into a pass.
 
 ### Layer 1: pure behavior and state-transition tests
 
@@ -165,6 +170,7 @@ Blocking wall-clock budget: 60 seconds.
 Purpose: prove that production behavior is connected to visible and accessible UI controls.
 
 - Run one complete local journey per workflow, not 20 copies.
+- Never point the XCUI runner at APFS, iCloud, or SMB. Direct access from an ad-hoc rebuilt test runner has unstable TCC identity and can generate consent dialogs that no application UI handler can clear.
 - Provider reachability belongs to Layer 2 and is not repeated through XCUI in   the default blocking gate.
 - Do not repeat filter, sort, expansion, hidden-file, Git, focus, selection, or   generic provider wiring after the representative journey proves the UI   contract.
 - Run a focused provider-specific XCUI boundary only when a changed UI adapter   cannot be proved by the local journey and that provider's Layer 2 contract.
@@ -173,7 +179,7 @@ Purpose: prove that production behavior is connected to visible and accessible U
 
 Blocking wall-clock budget: 90 seconds.
 
-### Layer 4: scheduled or explicitly requested soak
+### Layer 4: separately authorized reliability exercise
 
 Purpose: detect timing-dependent, resource-lifetime, and environmental failures that focused blocking tests cannot establish.
 
@@ -183,7 +189,7 @@ Purpose: detect timing-dependent, resource-lifetime, and environmental failures 
 - It stops on the first failure, preserves evidence, and does not retry into a   pass.
 - Independent contexts are sharded where fixture and app isolation permit.
 
-The 12-hour soak remains a campaign reliability gate when explicitly approved; it is not an interactive feedback mechanism.
+Marco removed the 12-hour soak from the current qualification on 2026-07-22. It is not a completion gate. The `soak` command fails closed, and any future long-running reliability exercise requires separate explicit authorization and a newly stated duration and scope.
 
 ## Coverage Model
 
@@ -226,7 +232,7 @@ Every Foundry GUI campaign must prove that the expected user owns an unlocked co
 6. Run the affected provider contract if the failure crossed a provider boundary.
 7. Run one affected XCUI boundary check only if UI wiring was involved.
 8. Run the three-minute blocking qualification once after the workstream is stable.
-9. Leave repetition to the explicit soak.
+9. Leave repetition to a separately authorized reliability exercise.
 
 A single installed-app regression may be selected with
 `qualification-foundry.sh installed-smoke <group> <context> --smoke-repetitions 1 --test-filter <Class/testMethod> ...`.
@@ -234,7 +240,7 @@ The filter accepts one XCTest class/method identifier, still performs the normal
 preflight, fixture, result-bundle, repetition-marker, outside-root, and cleanup
 checks, and is never a reason to replay the full workflow during diagnosis.
 
-A focused feedback step must not take a minute. If a selected check approaches 30–60 seconds, reduce it further or move it to the provider/soak layer. Output must stream while longer approved work is active.
+A focused feedback step must not take a minute. If a selected check approaches 30–60 seconds, reduce it further or move it to the provider layer or a separately authorized reliability exercise. Output must stream while longer approved work is active.
 
 ## Known-Defect Replay
 
@@ -255,7 +261,7 @@ Timing begins after the shared build and ends after cleanup/evidence validation.
 
 | Layer | Maximum wall time |
 | --- | ---: |
-| Storage permission readiness | 30 s |
+| Prompt sentry readiness and post-run audit | 5 s |
 | Pure behavior/state | 10 s |
 | Provider contracts | 75 s |
 | Installed XCUI boundary | 90 s |
@@ -270,7 +276,7 @@ Acceptance requires all of the following:
 - all 102 capability rows retain an automated owner;
 - every applicable provider boundary is exercised;
 - no test or fixture runs on Spectre;
-- failure and interruption cleanup remains fail-closed;
+- prompt detection and cleanup remain fail-closed;
 - no warning, skip, retry-derived pass, leaked process, leaked watch, leaked   mount, or outside-root change remains.
 
 If the replacement exceeds the budget or misses a known defect, it is rejected and must be redesigned before qualification resumes.
@@ -288,13 +294,17 @@ Authorized by Marco on 2026-07-21. Scope:
 - implement the layered coverage and pairwise refresh cases;
 - implement known-defect replay;
 - implement timing records and the 180-second fail gate;
-- retain the old repetition runner as explicit soak only;
+- retain repetition only behind explicit campaign authorization;
 - verify the replacement on Foundry against one synchronized commit.
 
 ### Gate 2: resume whole-app qualification
 
-Requires a separate explicit authorization after Gate 1 reports measured runtime, known-defect sensitivity, capability ownership, provider coverage, and cleanup results. Only then may the remaining whole-app qualification tasks and soak resume.
+Requires a separate explicit authorization after Gate 1 reports measured runtime, known-defect sensitivity, capability ownership, provider coverage, and cleanup results. Only then may the remaining whole-app qualification tasks resume. The 12-hour soak is not part of this gate.
 
-Authorization is scoped to one launcher invocation by setting `DETOURS_QUALIFICATION_GATE2_AUTHORIZED=1` on `qualification-foundry.sh`; the launcher forwards that value only to the selected Foundry command. A repeated refresh campaign must run the bounded iCloud and SMB permission-readiness layer after reset and fixture preparation, before its first behavioral repetition. A readiness failure stops the campaign without entering the 100/20 loops.
+Authorization is scoped to one launcher invocation by setting `DETOURS_QUALIFICATION_GATE2_AUTHORIZED=1` on `qualification-foundry.sh`; the launcher forwards that value only to the selected Foundry command. Every campaign must establish the independent prompt sentry after the shared build and before fixture mounting, test work, or app launch. Sentry readiness failure stops the campaign before behavioral work.
 
 Each 100-cycle in-process workflow has a 600-second absolute deadline enforced by the same descendant-aware watchdog as Gate 1. Each installed context retains the GUI runner's 900-second absolute ceiling and exact launchd cancellation record. The external `cancel` route terminates either active form before guarded campaign cleanup; interrupting the launcher must not leave XCTest descendants, mounts, or fixture roots behind.
+
+### Prompt incident that established this policy
+
+On 2026-07-21 Foundry's unified log recorded the signed Detours app receiving user-consented network-volume access at 09:11:08. At 09:11:10 the separately signed, ad-hoc `MAF.DetoursUITests.xctrunner` requested `kTCCServiceSystemPolicyNetworkVolumes`, received an unknown result, and `tccd` emitted `display_prompt: called`. The runner was blocked in direct `FileManager` access, so the registered XCUI interruption monitor never ran; the dialog remained until an operator response at 09:24:43. This evidence is why protected-volume XCUI and automatic prompt acceptance are prohibited rather than treated as timing problems.

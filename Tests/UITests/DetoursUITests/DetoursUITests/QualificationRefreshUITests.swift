@@ -118,17 +118,6 @@ final class QualificationRefreshUITests: BaseUITest {
         }
     }
 
-    func testStoragePermissionPreflight() throws {
-        try runQualificationRepetitions(group: "refresh") { _ in
-            _ = try self.waitForState("qualification storage permission", timeout: 10) {
-                $0.displayedLocation == self.uiTestRootURL.path
-                    && $0.directoryWatchActive
-                    && $0.providerWatchCount == 1
-                    && self.isQuiescent($0)
-            }
-        }
-    }
-
     private func runRefreshCycleWithCleanup(fullPresentation: Bool) throws {
         do {
             try runRefreshWorkflowCycle(fullPresentation: fullPresentation)
