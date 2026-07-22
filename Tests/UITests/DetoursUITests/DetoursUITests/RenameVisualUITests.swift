@@ -37,35 +37,37 @@ final class RenameVisualUITests: BaseUITest {
     }
 
     func testInlineRenameEditorExpandsAfterPastingLongName() throws {
-        selectRow(named: "file1.txt")
-        pressKey(.return, modifiers: [.shift])
+        try runQualificationRepetitions(group: "mutation") { _ in
+            selectRow(named: "file1.txt")
+            pressKey(.return, modifiers: [.shift])
 
-        let editor = app.textFields["inlineRenameField"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 2), "Inline rename editor should appear")
-        let initialWidth = editor.frame.width
+            let editor = app.textFields["inlineRenameField"]
+            XCTAssertTrue(editor.waitForExistence(timeout: 2), "Inline rename editor should appear")
+            let initialWidth = editor.frame.width
 
-        let pasteboard = NSPasteboard.general
-        let priorString = pasteboard.string(forType: .string)
-        defer {
-            pasteboard.clearContents()
-            if let priorString {
-                _ = pasteboard.setString(priorString, forType: .string)
+            let pasteboard = NSPasteboard.general
+            let priorString = pasteboard.string(forType: .string)
+            defer {
+                pasteboard.clearContents()
+                if let priorString {
+                    _ = pasteboard.setString(priorString, forType: .string)
+                }
             }
-        }
 
-        pasteboard.clearContents()
-        XCTAssertTrue(
-            pasteboard.setString(
-                "a-much-longer-file-name-pasted-into-the-inline-editor",
-                forType: .string
+            pasteboard.clearContents()
+            XCTAssertTrue(
+                pasteboard.setString(
+                    "a-much-longer-file-name-pasted-into-the-inline-editor",
+                    forType: .string
+                )
             )
-        )
-        editor.typeKey("v", modifierFlags: .command)
+            editor.typeKey("v", modifierFlags: .command)
 
-        XCTAssertTrue(
-            waitForCondition { editor.frame.width > initialWidth + 20 },
-            "Inline rename editor should expand immediately after a long paste"
-        )
-        pressKey(.escape)
+            XCTAssertTrue(
+                waitForCondition { editor.frame.width > initialWidth + 20 },
+                "Inline rename editor should expand immediately after a long paste"
+            )
+            pressKey(.escape)
+        }
     }
 }
