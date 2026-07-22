@@ -90,6 +90,16 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var navigationLoadID: UUID?
     var remoteExpansionRestoreTask: Task<Void, Never>?
     var isShutDown = false
+    private(set) var qualificationRefreshRequestCount = 0
+    private(set) var qualificationListingMutationCount = 0
+
+    func recordQualificationRefreshRequest() {
+        qualificationRefreshRequestCount += 1
+    }
+
+    func recordQualificationListingMutation() {
+        qualificationListingMutationCount += 1
+    }
 
     var isSharedTopLevelView: Bool {
         currentICloudListingMode == .sharedTopLevel &&

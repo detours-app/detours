@@ -1,0 +1,62 @@
+{
+  "configurations" : [
+    {
+      "id" : "3A934170-4C98-43B9-BF50-C546F2E245C7",
+      "name" : "Qualification",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "environmentVariableEntries" : [
+      {
+        "key" : "DETOURS_UI_TEST_APP_PATH",
+        "value" : "$(DETOURS_QUALIFICATION_APP_PATH_SETTING)"
+      },
+      {
+        "key" : "DETOURS_QUALIFICATION_UI_ROOT",
+        "value" : "$(DETOURS_QUALIFICATION_UI_ROOT_SETTING)"
+      },
+      {
+        "key" : "DETOURS_QUALIFICATION_UI_CONTROL_ROOT",
+        "value" : "$(DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING)"
+      },
+      {
+        "key" : "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET",
+        "value" : "$(DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING)"
+      },
+      {
+        "key" : "DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT",
+        "value" : "$(DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING)"
+      },
+      {
+        "key" : "DETOURS_QUALIFICATION_REPETITIONS",
+        "value" : "$(DETOURS_QUALIFICATION_REPETITIONS_SETTING)"
+      },
+      {
+        "key" : "DETOURS_WINDOWS_TEST_TARGET",
+        "value" : "$(DETOURS_WINDOWS_TEST_TARGET_SETTING)"
+      },
+      {
+        "key" : "DETOURS_TEST_ACCOUNT_HOME",
+        "value" : "$(DETOURS_TEST_ACCOUNT_HOME_SETTING)"
+      }
+    ],
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:DetoursUITests.xcodeproj",
+      "identifier" : "A90D87812F20E7C70044CCE6",
+      "name" : "DetoursUITests"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:DetoursUITests.xcodeproj",
+        "identifier" : "A90D87812F20E7C70044CCE6",
+        "name" : "DetoursUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

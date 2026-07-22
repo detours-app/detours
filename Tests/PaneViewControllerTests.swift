@@ -63,7 +63,7 @@ final class PaneViewControllerTests: XCTestCase {
     }
 
     private func tabButtons(in view: NSView) -> [TabButton] {
-        var buttons = view is TabButton ? [view as! TabButton] : []
+        var buttons = (view as? TabButton).map { [$0] } ?? []
         for subview in view.subviews {
             buttons.append(contentsOf: tabButtons(in: subview))
         }

@@ -2188,3 +2188,703 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Cmd-R, app activation and pane chrome, independent tabs and panes, expanded
   folder deletion/watcher refresh, selection preservation, copy/move/rename,
   remote refresh, undo, relaunch, and window geometry.
+
+- 2026-07-21: Foundry qualification run `activation-a569ea6-1`
+  FAIL after the activation workflow passed 100 in-process repetitions. The
+  installed layer stopped before Xcode because the SMB GUI-session probe used
+  the nonexistent `/usr/bin/test`; cleanup removed and verified all guarded
+  fixture roots. The probe now uses macOS `/bin/test`.
+
+- 2026-07-21: Foundry qualification runs `activation-c2c321e-1` and
+  `activation-8c9688f-1` FAIL. The first exposed SMB session churn caused by
+  logout/force-new mounting. After reusing the authenticated session, the
+  second passed 100 in-process activation repetitions and 20 installed
+  repetitions each on local, APFS, and iCloud roots, then failed its first SMB
+  repetition because the app process could not resolve the shell-session
+  mount. Cleanup passed after both runs.
+
+- 2026-07-21: Foundry qualification smoke `activation-smb-smoke-20dbef5-1`
+  FAIL before the UI test because Xcode rejects repetition flags with one
+  iteration. The SMB share mounted successfully in the GUI session and cleanup
+  passed. The smoke runner now omits repetition flags for a one-pass run.
+
+- 2026-07-21: Foundry qualification smokes
+  `activation-smb-smoke-ad7750f-1` and `activation-smb-smoke-bc5d4da-1` FAIL.
+  The first reached installed-test dispatch and exposed Bash 3.2 treating an
+  empty array expansion as unbound. After that compatibility fix, Xcode ran
+  the focused test and failed with “Temp directory should load in the left
+  pane.” The result screenshot showed Detours at the exact SMB fixture path
+  with “Access denied” in both panes while the runner retained fixture access.
+  Cleanup passed after both runs. The app bundle lacked Apple’s protected-file
+  usage descriptions; network-volume consent is now declared and the
+  qualification runner resets and handles that single scoped consent prompt.
+
+- 2026-07-21 12:37 CEST: Foundry `/opt/homebrew/bin/swiftlint lint --strict`
+  and `swift test --filter BuildCacheTests/testBuiltAppDeclaresProtectedFileLocationUsageDescriptions`
+  PASS: 357 Swift files had 0 lint violations, and the generated-app privacy
+  declaration guard passed 1 test with 0 failures. The first attempt stopped
+  before lint or tests because Foundry's non-login SSH PATH excludes Homebrew;
+  the rerun used the installed absolute SwiftLint path.
+
+- 2026-07-21 12:38 CEST: Foundry qualification smoke
+  `activation-smb-smoke-15060fb-1` PASS at commit `15060fb`: 1 installed
+  activation UI test ran against the live SMB fixture with 0 failures and 0
+  skips. Detours accepted the scoped network-volume consent, loaded the fixture,
+  and completed the pane/tab activation contract. The GUI command returned 0,
+  and guarded cleanup verified removal of local, APFS, iCloud, and SMB roots.
+
+- 2026-07-21 13:05 CEST: Foundry qualification run `activation-cb1927f-1`
+  FAIL at the first installed Windows repetition after PASS results for 100
+  in-process repetitions and 20 installed repetitions each on local, APFS,
+  iCloud, SMB, live Linux, and live Intel-macOS contexts. Windows connected and
+  loaded its remote location, but XCUI reordered the two identically identified
+  outline elements after remote loading; index zero then selected `AAA_First`
+  in the physical right pane while the test asserted left-pane focus. Guarded
+  cleanup passed. A one-pass live-target smoke mode was added to isolate this
+  assertion without rerunning the six contexts that had passed.
+
+- 2026-07-21 13:13 CEST: Foundry qualification smoke
+  `activation-windows-smoke-aa46d10-1` FAIL at the same selection assertion,
+  while proving the new live-target smoke path reached Xcode with no Doppler
+  process, SMB mount, APFS image, or iCloud fixture and cleaned its guarded
+  local root. The failure screenshot showed the live Windows listing healthy in
+  the left pane and `AAA_First` selected in the physical right pane. XCUI pane
+  outline ordering and frame-derived ordering are both unsuitable once hidden
+  and remote tab views coexist. The test now selects through the already-proven
+  active file-list focus with a Down Arrow, removing the ambiguous element query.
+
+- 2026-07-21 13:18 CEST: Foundry qualification smoke
+  `activation-windows-smoke-3b29cc0-1` PASS at commit `3b29cc0`: 1 installed
+  activation UI test ran against the live Windows target with 0 failures and
+  0 skips in 23 seconds. Guarded local-root cleanup passed. The target-scoped
+  run did not invoke Doppler or create SMB, APFS, or iCloud fixtures.
+
+- 2026-07-21 13:23 CEST: Foundry qualification smoke
+  `activation-windows-session-smoke-2e649ed-1` PASS at commit `2e649ed`: the
+  optimized single-session activation path completed 1 live Windows cycle in
+  25 seconds with 0 failures/skips, one matching per-cycle evidence record,
+  and passing guarded cleanup. SwiftLint also passed with 0 violations. The
+  target-scoped run did not invoke Doppler or create SMB, APFS, or iCloud
+  fixtures.
+
+- 2026-07-21 13:28 CEST: Foundry qualification run
+  `activation-windows-20-session-884cd6f-1` PASS at commit `884cd6f`: all 20
+  activation, pane-focus, tab-focus, and Finder-return cycles passed against
+  the live Windows target in one installed-app session, with 0 failures/skips,
+  20 matching per-cycle evidence records, and passing guarded cleanup. The
+  complete installed command took 226 seconds; XCResult activities show the
+  meaningful cycles at roughly 7–8 seconds each versus 12–13 seconds under the
+  prior per-repetition XCTest lifecycle.
+
+- 2026-07-21 13:32 CEST: Foundry qualification smoke
+  `activation-windows-no-build-smoke-2a0c655-1` FAIL before launching Detours.
+  The prepared `.xctestrun` was copied into the results directory, so Xcode
+  resolved its relative `__TESTROOT__` there and could not find the already
+  built UI-test product. Guarded cleanup passed. The execution record now stays
+  beside the prepared build products, and the exact smoke is rerun below.
+
+- 2026-07-21 13:33 CEST: Foundry qualification smoke
+  `activation-windows-no-build-smoke-ee2a1df-1` FAIL before launching Detours.
+  Xcode requires a destination when given a raw `.xctestrun`, whose missing
+  supported-platform metadata also produced ambiguous-destination diagnostics.
+  Guarded cleanup passed. The runner now uses the project/scheme form of
+  `test-without-building`, preserving native macOS destination resolution and
+  per-context settings while reusing the prepared products.
+
+- 2026-07-21 13:36 CEST: Foundry qualification smoke
+  `activation-windows-no-build-smoke-1d02964-1` PASS at commit `1d02964`: the
+  project/scheme `test-without-building` path ran the live Windows activation
+  cycle with 0 failures/skips in 25 seconds, retained its per-cycle evidence,
+  emitted no successful-command warning, and passed guarded cleanup.
+
+- 2026-07-21 13:42 CEST: Foundry qualification smoke
+  `connection-windows-smoke-3ead7dd-1` PASS at commit `3ead7dd`: the corrected
+  connection workflow completed one delayed live Windows connection in 16
+  seconds with 0 failures/skips, preserved right-pane focus while the captured
+  left pane connected and established its watch, and passed guarded cleanup.
+  SwiftLint also passed with 0 violations.
+
+- 2026-07-21 13:45 CEST: Foundry qualification smoke
+  `connection-shared-loop-smoke-f24d034-1` PASS at commit `f24d034`: the shared
+  in-test repetition harness completed the live Windows connection cycle in 16
+  seconds with 0 failures/skips, wrote and validated its exact connection-cycle
+  marker, and passed guarded cleanup. SwiftLint passed with 0 violations.
+
+- 2026-07-21 13:47 CEST: Foundry qualification smoke
+  `archive-local-shared-loop-53e6964-1` PASS at commit `53e6964`: the scoped
+  local-only runner completed the archive-control cycle with 0 failures/skips
+  in 44 seconds, validated its per-cycle marker, and passed guarded cleanup.
+  The run required no Doppler secret and created no SMB, APFS, or iCloud state.
+
+- 2026-07-21 13:48 CEST: The first opening-smoke launcher command was rejected
+  before preflight because its requested expanded commit hash did not exist.
+  No Detours process or fixture was created. The rerun below uses the exact hash
+  returned by `git rev-parse HEAD` on both Spectre and Foundry.
+
+- 2026-07-21 13:49 CEST: Foundry qualification smoke
+  `opening-local-shared-loop-a0af1c4-1` PASS at commit `a0af1c4`: the corrected
+  `MultiFileOpenUITests` mapping completed Enter and Command-O multi-open checks
+  in 11 seconds with 0 failures/skips, validated its per-cycle marker, and
+  passed guarded cleanup without Doppler, SMB, APFS, or iCloud setup.
+
+- 2026-07-21 13:51 CEST: Foundry qualification smoke
+  `session-local-shared-loop-16c8979-1` PASS at commit `16c8979`: the sole
+  applicable local session-geometry context completed its divider persistence
+  and relaunch cycle in 23 seconds with 0 failures/skips, validated its marker,
+  and passed guarded cleanup. SwiftLint passed with 0 violations.
+
+- 2026-07-21 13:53 CEST: Foundry qualification smoke
+  `transfer-local-shared-loop-df94a18-1` FAIL before the copy action because
+  the sandboxed UI-test runner attempted to create its fixture directly in the
+  guarded qualification root and macOS denied that write. The XCResult recorded
+  1 failure and no pass; guarded cleanup passed. Transfer fixtures now use the
+  existing guarded app-side mutation seam for creation and removal.
+
+- 2026-07-21 13:55 CEST: Foundry qualification smoke
+  `transfer-local-shared-loop-2f10824-1` PASS at commit `2f10824`: the corrected
+  guarded fixture path completed the cross-pane F5 copy, destination activation,
+  result selection, and per-cycle cleanup in 17 seconds with 0 failures/skips.
+  Its transfer-cycle marker and overall guarded cleanup both passed.
+
+- 2026-07-21 13:56 CEST: Foundry qualification smoke
+  `mutation-local-shared-loop-612ff5a-1` PASS at commit `612ff5a`: the guarded
+  new-folder workflow completed creation, inline naming, child placement,
+  selection, expansion, and per-cycle cleanup in 13 seconds with 0 failures or
+  skips. Its mutation-cycle marker and overall guarded cleanup both passed.
+
+- 2026-07-21 13:59 CEST: Foundry qualification smoke
+  `refresh-local-shared-loop-ba97c82-1` PASS at commit `ba97c82`: the final
+  shared-loop conversion completed the watcher, expansion, selection, manual
+  refresh, filter, sort, hidden-file, Git, redraw, and sentinel-checked cleanup
+  contract in 20 seconds with 0 failures/skips. Its refresh marker and overall
+  guarded cleanup passed; SwiftLint had 0 violations.
+
+- 2026-07-21 14:01 CEST: Foundry qualification smoke
+  `opening-no-xcode-repeat-ac9bc48-1` PASS at commit `ac9bc48`: after deleting
+  the runner's Xcode repetition path, one logical XCTest completed the multi-open
+  cycle in 11 seconds with 0 failures/skips, one validated workflow marker, no
+  unexpected command output, and passing guarded cleanup.
+
+- 2026-07-21 14:03 CEST: Foundry qualification smoke
+  `transfer-local-two-cycle-f750b96-1` PASS at commit `f750b96`: two consecutive
+  cross-pane transfer cycles completed inside one XCTest session in 28 seconds
+  with 0 failures/skips. Both uniquely named fixtures were removed between
+  cycles, both completion markers matched the requested total, and guarded
+  cleanup passed.
+
+- 2026-07-21 14:07 CEST: Foundry qualification smoke
+  `refresh-local-two-cycle-415c127-1` FAIL at commit `415c127`: cycle one passed,
+  but cycle two inherited its descending name sort. The workflow blindly clicked
+  the name header again, toggled back to ascending, and then waited for descending
+  until XCTest failed. Guarded cleanup passed. The workflow now verifies the real
+  direction toggle relative to each cycle's observed starting state.
+
+- 2026-07-21 14:10 CEST: Foundry qualification smoke
+  `refresh-local-two-cycle-beadc96-1` PASS at commit `beadc96`: both refresh
+  cycles completed inside one logical XCTest in 58 seconds with 0 failures or
+  skips. The second cycle toggled from its inherited sort direction, both exact
+  completion markers passed validation, and guarded cleanup removed the local
+  fixture with an unchanged outside-root snapshot.
+
+- 2026-07-21 14:15 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-33f7ce6-1` PASS at commit `33f7ce6`: one logical
+  XCTest completed both archive-control cycles with 0 failures/skips and passing
+  guarded cleanup. XCResult measured 88 seconds inside the test (123 seconds
+  including launch/build orchestration), exposing redundant per-cycle format
+  enumeration and avoidable existence waits that are tightened below.
+
+- 2026-07-21 14:18 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-6ce0d06-1` PASS at commit `6ce0d06`: the rotating
+  format coverage completed both cycles with 0 failures/skips in 72 XCTest
+  seconds, down from 88, and guarded cleanup passed. XCResult's only remaining
+  gaps above 1.4 seconds were the two intentional 81-character boundary inputs;
+  that boundary now runs twice per 20-cycle context rather than every cycle.
+
+- 2026-07-21 14:23 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-9020fa0-1` PASS at commit `9020fa0`: both optimized
+  archive cycles passed with exact markers and guarded cleanup. XCResult
+  activities show 16.5 and 14.6 seconds of actual cycle work (about 63% below
+  the former 42-second cycles), but the command then idled for about 42 seconds
+  after teardown actions ended. Qualification teardown now explicitly terminates
+  its finished app instead of waiting for the outer runner to do it.
+
+- 2026-07-21 14:25 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-af92f6e-1` PASS at commit `af92f6e`: both cycles,
+  markers, and guarded cleanup passed, but explicit app termination left the
+  same 42-second post-action tail and added another teardown action. That change
+  is removed. The remaining shared signal is secure-field character injection,
+  which invokes XCUITest interruption handling; the next proof uses one paste
+  event and restores the prior Foundry clipboard value.
+
+- 2026-07-21 14:28 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-626016c-1` PASS at commit `626016c`: paste-based
+  entry preserved both normal and 81-byte password assertions, exact markers,
+  and cleanup while reducing actual cycles to about 12.5 and 15 seconds. The
+  unchanged 45-second tail begins at the legacy teardown Command-W idle wait.
+  Qualification now leaves tab disposal to its existing outer app-stop step.
+
+- 2026-07-21 14:31 CEST: Foundry qualification smoke
+  `archive-local-two-cycle-424ab76-1` PASS at commit `424ab76`: both optimized
+  cycles, markers, and guarded cleanup passed in 73 XCTest seconds. Skipping the
+  final tab close did not remove the fixed roughly 40-second multi-sheet session
+  tail, so the shared teardown is restored for groups where it finishes quickly.
+  Archive still pays that fixed tail only once for all in-session repetitions.
+
+- 2026-07-21 14:33 CEST: Foundry qualification smoke
+  `opening-local-two-cycle-affae52-1` PASS at commit `affae52`: both Enter and
+  Command-O dispatch cycles completed in about four seconds each inside one
+  logical XCTest. The result recorded 1 pass, 0 failures/skips, two exact cycle
+  markers, and passing guarded cleanup; restored shared teardown also completed.
+
+- 2026-07-21 14:41 CEST: Foundry qualification run
+  `activation-windows-20-f840a9d-1` PASS at commit `f840a9d`: one logical
+  XCTest completed all 20 live Windows activation cycles, emitted all 20 exact
+  markers, recorded 0 failures/skips, and passed guarded cleanup. The workflows
+  took about 195 seconds, while Xcode post-cycle processing accumulated another
+  roughly 123 seconds. Each cycle redundantly exercised both panes; coverage now
+  alternates panes, retaining 10 complete workflows per pane in a 20-cycle run.
+
+- 2026-07-21 14:44 CEST: Foundry qualification smoke
+  `activation-windows-two-pane-5ef7be6-1` PASS at commit `5ef7be6`: one logical
+  XCTest completed a full left-pane cycle in 5.3 seconds and a full right-pane
+  cycle in 4.1 seconds, with 0 failures/skips, both exact markers, and passing
+  guarded cleanup. This proves alternating cycles preserve both pane paths while
+  roughly halving repeated UI actions.
+
+- 2026-07-21 14:49 CEST: Foundry qualification run
+  `activation-windows-20-045a925-1` PASS at commit `045a925`: the optimized live
+  Windows context completed all 20 cycles in one logical XCTest with 0 failures
+  or skips, 20 exact markers, and passing guarded cleanup. XCTest time fell from
+  336 to 219 seconds (35% end to end); meaningful workflow work fell from about
+  195 to roughly 90 seconds while retaining 10 full cycles per pane.
+
+- 2026-07-21 14:54 CEST: Foundry qualification run
+  `activation-linux-20-2cbb5d0-1` PASS at commit `2cbb5d0`: the live Linux
+  context completed all 20 alternating activation cycles in one logical XCTest
+  in 217 seconds with 0 failures/skips, all 20 exact markers, and passing guarded
+  cleanup. Only the guarded local fixture and configured Linux target were used.
+
+- 2026-07-21 14:59 CEST: Foundry qualification run
+  `activation-intel-mac-20-a0ebad7-1` PASS at commit `a0ebad7`: the live Intel
+  Mac context completed all 20 alternating activation cycles in one logical
+  XCTest in 239 seconds with 0 failures/skips, all 20 exact markers, and passing
+  guarded cleanup. Only its guarded local fixture and configured target were used.
+
+- 2026-07-21 15:04 CEST: Foundry qualification run
+  `activation-local-20-3d62964-1` PASS at commit `3d62964`: the guarded local
+  context completed all 20 alternating activation cycles in one logical XCTest
+  in 248 seconds with 0 failures/skips, all 20 exact markers, and passing guarded
+  cleanup. No remote target, APFS image, iCloud root, or SMB mount was prepared.
+
+- 2026-07-21 15:11 CEST: Foundry qualification run
+  `activation-apfs-20-c941f69-1` PASS at commit `c941f69`: the APFS context
+  completed all 20 alternating activation cycles in one logical XCTest in 219
+  seconds with 0 failures/skips, all 20 exact markers, and passing guarded
+  cleanup. Evidence contains only `apfs.json` and APFS fixture variables; no
+  Doppler secret, SMB mount, iCloud root, or local fixture was used.
+
+- 2026-07-21 15:16 CEST: Foundry qualification run
+  `activation-icloud-20-57e9789-1` PASS at commit `57e9789`: the iCloud context
+  completed all 20 alternating activation cycles in one logical XCTest in 237
+  seconds with 0 failures/skips, all 20 exact markers, and passing guarded
+  cleanup. Evidence contains only `icloud.json` and `ICLOUD_ROOT`; no Doppler
+  secret, SMB mount, APFS image, or local fixture was used.
+
+- 2026-07-21 15:18 CEST: Foundry static verification PASS: `bash -n` accepted
+  `qualification.sh`, `qualification-fixtures.sh`, and
+  `qualification-foundry.sh`; SwiftLint 0.65.0 checked 358 Swift files under
+  `--strict` and reported 0 violations.
+
+- 2026-07-21 16:27 CEST: Foundry qualification run
+  `activation-smb-20-4bdae7d-2` PASS at commit `4bdae7d`: the guarded SMB
+  context completed all 20 alternating activation cycles in one logical
+  XCTest, with 0 failures/skips and all 20 exact XCResult activity markers.
+  The test itself took 59.7 seconds; evidence contains only `smb.json` and SMB
+  fixture variables. Guarded cleanup removed the UUID root and unmounted the
+  share, leaving neither the root nor mount behind.
+
+- 2026-07-21 16:29 CEST: Foundry qualification run
+  `activation-in-process-100-7e6d13f-1` PASS at commit `7e6d13f`: the activation
+  workflow completed its recorded 100 in-process repetitions in 5.108 seconds
+  with 0 failures. Outside-root snapshots remained unchanged, and guarded
+  cleanup removed all four marked local, APFS, iCloud, and SMB roots plus both
+  mounts; `in-process.env` records the campaign pass.
+
+- 2026-07-21 16:33 CEST: Foundry qualification smoke
+  `refresh-local-tight-two-d6f5cf4-1` PASS at commit `d6f5cf4`: two consecutive
+  refresh cycles completed in one logical XCTest in 24.8 seconds with 0
+  failures/skips, both exact markers, unchanged outside-root state, and green
+  guarded cleanup. Equivalent pre-optimization coverage took 58 seconds.
+
+- 2026-07-21 16:34 CEST: Foundry qualification smoke
+  `refresh-linux-tight-two-d6f5cf4-1` PASS at commit `d6f5cf4`: two consecutive
+  live Linux refresh cycles completed in 31.3 seconds with 0 failures/skips,
+  both exact markers, sentinel-checked remote scenario removal, unchanged remote
+  siblings, and green guarded local cleanup.
+
+- 2026-07-21 16:42 CEST: Foundry qualification run
+  `refresh-full-e5c0c8b-1` FAIL at commit `e5c0c8b` before installed contexts:
+  the 100-iteration in-process refresh test recorded three iterations where a
+  delayed provider event produced one listing load after the unchanged-refresh
+  baseline was taken. XCTest reported 3 failures in 414.782 seconds. The runner
+  stopped without retrying and guarded cleanup removed all four roots and both
+  mounts. The regression fix below waits for a bounded stable provider state
+  before taking the unchanged-refresh baseline, while retaining the exact
+  zero-redraw assertion for the refresh itself.
+
+- 2026-07-21 17:50 CEST: Foundry qualification run
+  `refresh-in-process-100-dd8ae43-1` FAIL at commit `dd8ae43`: the bounded
+  provider-settle gate completed, but the unchanged-refresh assertion still
+  recorded one real listing mutation in 16 SMB-backed iterations. All local,
+  APFS, and iCloud iterations passed; every failing path identifies only the
+  mounted SMB root. XCTest reported 16 failures in 474.927 seconds, then
+  guarded cleanup removed all four roots and both mounts. This narrows the
+  regression to SMB listing reconciliation rather than delayed prior events.
+
+- 2026-07-21 17:54 CEST: Foundry qualification smoke
+  `refresh-in-process-diagnostic-two-2925b21-1` FAIL at commit `2925b21`
+  during test compilation: Swift rejected a diagnostic interpolation split
+  across concatenated string literals. No test iteration ran; the new focused
+  count reduced this feedback to 10 seconds, and guarded cleanup removed all
+  four roots and both mounts. The diagnostic now computes its delta separately.
+
+- 2026-07-21 17:55 CEST: Foundry qualification smoke
+  `refresh-in-process-diagnostic-two-d9252c3-1` reproduced the SMB redraw in
+  13.967 seconds at commit `d9252c3`. The exact delta was only
+  `zzzz-sort.txt`'s modification date changing by 8.5 ms while size, name,
+  readability, hidden state, and Git status stayed identical. The cause is
+  `LoadedFileEntry` using the current time whenever SMB omits the requested
+  resource timestamp; guarded cleanup passed. The fallback now reads the
+  stable file-stat timestamp instead.
+
+- 2026-07-21 17:58 CEST: Foundry qualification smoke
+  `refresh-in-process-fixed-two-7faa720-1` PASS at commit `7faa720`: the same
+  seed-0 local/SMB pair completed in 12.571 seconds with 0 failures and complete
+  four-root cleanup. The focused
+  `DirectoryLoaderTests/testLoadedFileEntryUsesStableModificationDateFallback`
+  regression also passed (1 test in 0.004 seconds), proving repeated entries
+  use the file's actual stat timestamp when resource metadata omits it.
+
+- 2026-07-21 18:07 CEST: Foundry qualification run
+  `refresh-full-df42d3f-1` FAIL at commit `df42d3f` before installed contexts:
+  96 of 100 in-process refresh repetitions passed, while SMB-backed iterations
+  1, 39, 66, and 92 each reported only `zzzz-sort.txt` as changed. File size,
+  readability, hidden state, and Git status were identical; the SMB modification
+  timestamp shifted by 3.7-8.2 ms between consecutive listings. XCTest reported
+  4 failures in 417.055 seconds. The runner stopped without retrying or starting
+  installed contexts, and guarded cleanup removed all four roots and both mounts.
+
+- 2026-07-21 18:11 CEST: Foundry focused regression PASS at commit `dca7d4b`:
+  `FileItemTests/testListingMetadataIgnoresOnlySubToleranceNetworkTimestampJitter`
+  passed (1 test in 0.001 seconds). It proves sub-20 ms timestamp jitter is
+  ignored only for network-volume listing reconciliation, while a 50 ms network
+  change and the same 8.5 ms change on local storage remain visible changes.
+
+- 2026-07-21 18:12 CEST: Qualification invocation
+  `refresh-smb-jitter-20-988472c-1` STOPPED before preflight: the Foundry
+  orchestration wrapper was invoked inside Foundry, where its Spectre-side
+  secret helper is intentionally unavailable. No build, fixture, or test ran.
+
+- 2026-07-21 18:14 CEST: Foundry qualification smoke
+  `refresh-smb-jitter-20-acc3452-1` PASS at commit `acc3452`: all 20 focused
+  in-process refresh repetitions passed in 135.653 seconds with 0 failures.
+  Seed 419 deliberately assigned 11 of the 20 repetitions to the SMB root,
+  directly exercising the timestamp-jitter guard; guarded cleanup removed all
+  four roots and both mounts.
+
+- 2026-07-21 18:15 CEST: Qualification invocation
+  `refresh-in-process-100-07f5254-1` STOPPED before preflight: the scoped
+  secret helper could not fetch `DETOURS_SMB_TEST_PASSWORD` because no Doppler
+  token was available in the keychain. No build, fixture, or test ran. The
+  subsequent approved warm-up returned the same keychain error without showing
+  Touch ID, so the flow stopped without retrying or bypassing the auth guard.
+
+- 2026-07-21 19:14 CEST: Gate 1 qualification invocation
+  `gate1-refresh-6f680fc-1` STOPPED before build and tests at commit `6f680fc`:
+  Foundry passed the 102-row matrix audit, then the new runner rejected its own
+  undeclared `rg` dependency. No Detours build, fixture, or test ran. The
+  blocking runner now uses the available POSIX `grep` command instead.
+
+- 2026-07-21 19:15 CEST: Gate 1 qualification invocation
+  `gate1-refresh-fc50b38-1` FAILED during the shared Foundry release build at
+  commit `fc50b38`: Swift 6.2 rejected an optional dictionary subscript in the
+  extracted stable-timestamp helper. No fixture or test ran. The helper now
+  gives the optional file-attribute dictionary an explicit type before reading
+  its modification date.
+
+- 2026-07-21 19:16 CEST: Gate 1 qualification invocation
+  `gate1-refresh-2608a25-1` FAILED while compiling the shared test bundle at
+  commit `2608a25`: the app release build passed in 45.37 seconds, then Swift
+  rejected two awaited provider listings inside XCTest autoclosures. No test
+  ran. Guarded cleanup passed for all four roots and both mounts. The awaited
+  listings are now evaluated before their synchronous assertions.
+
+- 2026-07-21 19:18 CEST: Gate 1 qualification invocation
+  `gate1-refresh-bb69879-1` FAILED before its first test at commit `bb69879`:
+  the cached app build and shared test bundle passed, then the timed pure layer
+  found that the runner had written but not sourced `fixtures.env`. Guarded
+  cleanup passed for all four roots and both mounts. The gate now sources and
+  exports the single fixture manifest before any blocking layer starts.
+
+- 2026-07-21 19:19 CEST: Gate 1 qualification run
+  `gate1-refresh-8bf661f-1` FAILED in the provider layer at commit `8bf661f`.
+  The deterministic layer passed 2 tests in 0.005 seconds (1 second runner wall
+  time), including explicit pairwise refresh cases and all four known-defect
+  replays. The first mounted-provider case then received multiple legitimate
+  low-level notifications for one filesystem write and over-fulfilled a
+  one-shot XCTest expectation, terminating xctest with signal 6. Cleanup passed
+  for all four roots and both mounts. The boundary observer is now a locked
+  one-shot latch; duplicate provider events remain production input but cannot
+  crash the assertion mechanism.
+
+- 2026-07-21 19:21 CEST: Gate 1 qualification run
+  `gate1-refresh-89737ec-1` FAILED in the mounted SMB contract at commit
+  `89737ec`. The deterministic layer passed 2 tests in 0.005 seconds. The four
+  provider contracts completed in 18.8 seconds: Intel watch passed in 2.459
+  seconds, Linux watch in 0.567 seconds, and Windows watch in 13.344 seconds.
+  The mounted contract passed local, APFS, and iCloud, then its fixture cleanup
+  incorrectly used the app Trash path on an SMB share without a Trash folder.
+  Guarded runner cleanup passed for every root and mount. The refresh fixture
+  now uses exact in-root filesystem removal, leaving Trash semantics to the
+  mutation workflow that owns them.
+
+- 2026-07-21 19:23 CEST: Gate 1 qualification run
+  `gate1-refresh-fc97d9e-1` FAILED in runner verification at commit `fc97d9e`.
+  The deterministic layer passed 2 tests in 0.005 seconds (1 second runner
+  wall time), and the complete mounted/live provider layer passed in 17
+  seconds. The representative local installed refresh passed, followed by the
+  APFS provider-boundary test passing as the second installed invocation.
+  Xcode returned status 0 and its XCResult records exactly 1 pass with 0
+  failures/skips, but the runner rejected ordinary `xcodebuild -quiet` timing
+  diagnostics before it parsed that result. The installed layer stopped after
+  26 seconds; no remaining context ran, and guarded cleanup passed. Command
+  transport output must remain empty, while Xcode's captured command log is now
+  allowed to contain diagnostics and the XCResult remains the pass/fail source.
+
+- 2026-07-21 19:29 CEST: Gate 1 qualification run
+  `gate1-refresh-469df82-1` STOPPED at commit `469df82` when the installed layer
+  exceeded its 90-second budget. The deterministic layer passed 2 tests in
+  0.005 seconds (1 second runner wall time), all 6 mounted/live provider checks
+  passed in 17 seconds, and the installed local and APFS paths passed. The
+  iCloud XCUI invocation then produced no result while the app and runner were
+  alive. The operator-side process was interrupted at 112 seconds instead of
+  waiting through more 30-second UI polls; cleanup removed all four roots and
+  both mounts with no leaked process. The runner now enforces its GUI deadline,
+  and blocking coverage assigns provider reachability to provider contracts
+  rather than repeating the same XCUI wiring journey for every provider.
+
+- 2026-07-21 19:36 CEST: Gate 1 qualification invocation
+  `gate1-refresh-9d7d27f-1` STOPPED on Spectre before SSH, build, fixtures, or
+  tests. The prior explicit Doppler warm-up had expired, and `get_secret`
+  started an implicit second Touch ID flow. The launcher was interrupted as
+  soon as its process tree identified the prompt path; no Foundry command
+  metadata exists. Credential-bearing launches now require and consume a
+  one-use explicit warm-up marker, so an absent or stale warm-up fails before
+  `get_secret` and cannot display a surprise prompt.
+
+- 2026-07-21 20:44 CEST: Gate 1 qualification run
+  `gate1-refresh-b8efc85-1` PASS at exact commit `b8efc85`, seed 0. The
+  deterministic layer passed 2 tests, including the explicit pairwise table and
+  all four known-defect replays, in 2 seconds runner wall time. The provider
+  layer passed 7 tests across local, APFS, iCloud, SMB, Linux, Intel Mac, and
+  Windows listing/watch boundaries in 53 seconds. The single representative
+  installed-app refresh journey passed in 20 seconds with exactly 1 XCResult
+  pass and 0 failures/skips/expected failures. End-to-end post-build time was
+  76 seconds against the 180-second budget and 2,153.055-second baseline: a
+  28.33x speedup. Outside-root entries were unchanged, cleanup removed all four
+  guarded roots and both mounts, and no test/app process, warning, retry, or
+  failure artifact remained. Foundry required a one-time macOS iCloud access
+  Allow during this work; it explains the earlier stalled iCloud XCUI path and
+  is recorded as an environment prerequisite, not a test assertion.
+
+- 2026-07-21 20:55 CEST: Gate 1 permission-readiness run
+  `gate1-refresh-7e1ca1d-1` STOPPED before deterministic, provider, or workflow
+  tests at exact commit `7e1ca1d`. The new iCloud installed-app preflight
+  reached its 30-second hard deadline without producing an XCResult; the
+  process group was terminated and guarded cleanup removed every root and
+  mount. The interruption monitor had been registered, but XCUI invokes those
+  monitors only after an application interaction. Setup now performs that
+  interaction immediately after launch for iCloud and SMB roots, before it
+  waits for the app window or guarded-root state.
+
+- 2026-07-21 20:58 CEST: Gate 1 permission-readiness run
+  `gate1-refresh-8d04d50-1` stopped before behavioral tests at exact commit
+  `8d04d50`. The new iCloud access probe passed in 5.5 seconds without operator
+  action. The following SMB probe failed immediately because an unconditional
+  `XCUIApplication.tap()` requires the still-launching app element to be
+  hittable when no dialog is present. XCResult recorded exactly that failure,
+  and guarded cleanup passed. The interruption trigger now uses an application
+  coordinate, which can generate the required interaction without asserting
+  application-element hittability.
+
+- 2026-07-21 21:00 CEST: Gate 1 permission-readiness run
+  `gate1-refresh-3efc6cb-1` stopped before behavioral tests at exact commit
+  `3efc6cb`. The iCloud access probe again passed in 5.4 seconds without
+  operator action. The SMB probe then proved the application coordinate was
+  requested before the launching app had a finite frame, and XCResult failed
+  immediately with that exact AppKit invariant instead of waiting. Cleanup
+  passed. Storage setup now requires `.runningForeground` within five seconds
+  before generating the interaction that invokes the interruption monitor.
+
+- 2026-07-21 21:02 CEST: Gate 1 permission-readiness run
+  `gate1-refresh-7092653-1` stopped before behavioral tests at exact commit
+  `7092653`. The iCloud probe passed in 5.4 seconds; the SMB result proved that
+  `.runningForeground` still does not guarantee a finite
+  `XCUIApplication` frame on macOS. Cleanup passed. The permission trigger now
+  waits up to five seconds for the first real app window and uses that finite
+  window coordinate to invoke the system interruption monitor.
+
+- 2026-07-21 21:05 CEST: Gate 1 qualification run
+  `gate1-refresh-037c76a-1` stopped before the installed workflow at exact
+  commit `037c76a`. Both iCloud and SMB permission probes passed in 14 seconds
+  without operator action, followed by the 2 deterministic tests passing in 2
+  seconds. The live-provider layer reached its 60-second deadline during the
+  variable Windows boundary. The watchdog terminated `swift test`, but its
+  separately grouped `xctest` child was briefly alive when cleanup began, so
+  cleanup failed closed. The child exited, then the exact guarded cleanup
+  command removed all four roots and both mounts; manual verification found no
+  remaining process, mount, or root. The watchdog now captures and terminates
+  descendants before returning, and the provider ceiling is 75 seconds while
+  the complete gate remains capped at 180 seconds.
+
+- 2026-07-21 21:11 CEST: Gate 1 qualification run
+  `gate1-refresh-82db6ee-1` PASS at exact commit `82db6ee`, seed 0. The iCloud
+  and SMB installed-app permission probes passed first in 14 seconds without
+  operator action. Only then did 2 deterministic pairwise/known-defect tests
+  pass in 2 seconds, followed by 7 mounted/live provider listing and watcher
+  tests in 53 seconds and the single representative installed refresh journey
+  in 15 seconds. All 12 logical tests passed with 0 failures, skips, expected
+  failures, warnings, or retries. Complete post-build wall time was 85 seconds
+  against the 180-second budget and 2,153.055-second baseline, a 25.33x
+  speedup. All outside-root entry sets were unchanged; cleanup removed all four
+  roots and both mounts and left no app, Xcode, xctest, or runner process.
+
+- 2026-07-21: Gate 2 T5 authorization audit found that the local launcher did
+  not forward its explicit authorization value to the Foundry process and that
+  the repeated refresh route could reset storage consent without rerunning the
+  permission-readiness layer. The launcher now forwards authorization for one
+  invocation only, and `workflow-run refresh` runs the bounded iCloud and SMB
+  permission probes before entering either repetition loop. Shellcheck and the
+  changed-file lint gate pass.
+
+- 2026-07-21: Gate 2 T5 run `gate2-t5-refresh-abaa7c2-1` stopped before
+  permission or behavioral execution because the newly shared permission route
+  had not loaded `fixtures.env`; indirect `ICLOUD_ROOT` lookup therefore failed
+  under `set -u`. The exit trap completed guarded cleanup with no remaining
+  qualification mount or root. The workflow route now exports the recorded
+  fixture paths before preparing or running its permission probes.
+
+- 2026-07-21: Authorized retry `gate2-t5-refresh-cce5ce7-1` passed both
+  permission probes and entered the 100-cycle in-process layer, where monitoring
+  found that the old campaign path had no absolute deadline. The run was
+  cancelled before installed repetition. Cancellation exposed that `cancel`
+  covered only the GUI launchd job: the in-process XCTest tree required exact
+  PID termination before guarded cleanup removed every root and mount. The
+  in-process route now uses the descendant-aware watchdog with a 600-second
+  ceiling and an exact active-deadline record consumed by `cancel`; installed
+  contexts retain their existing 900-second ceiling.
+
+- 2026-07-21: Foundry shell self-test
+  `deadline-cancel-selftest-fd4f50d-1` launched a nested 29-second child through
+  the campaign watchdog, cancelled it through the real qualification `cancel`
+  command, and returned status 130. The child was gone and the active-deadline
+  record was removed; no broad process match or manual cleanup was used.
+
+- 2026-07-21: Authorized run `gate2-t5-refresh-2a26500-1` passed the permission
+  gate in 20 seconds and all 100 in-process refresh repetitions in 425.533
+  seconds, inside the 600-second deadline. It stopped before installed
+  repetition because permission readiness had already prepared the XCUI derived
+  data and the installed dispatcher rejected that same-run bundle instead of
+  reusing it. Guarded cleanup passed. Bundle preparation now writes a validated
+  readiness record and allows only that exact in-run bundle to be reused.
+
+- 2026-07-21: Authorized run `gate2-t5-refresh-18c05fc-1` passed both permission
+  probes and all 100 in-process refresh repetitions in 414 seconds. The first
+  installed local context passed repetitions 1 through 12, then iteration 13
+  failed at `QualificationRefreshUITests.swift:376`: element-targeted
+  double-click tried to resolve a scroll view after the first click had already
+  navigated and invalidated the row. The campaign stopped before the other six
+  contexts and guarded cleanup passed. The scenario row now receives one
+  coordinate-based double-click event.
+
+- 2026-07-22: Focused run `focused-refresh-local-13-464e31d-1` stopped in
+  `BaseUITest.setUpWithError` before repetition 1 because Detours remained
+  `Running Background`. Foundry's authoritative `IOConsoleUsers` record showed
+  `CGSSessionScreenIsLocked=Yes`; the lock occurred during the preceding
+  seven-minute in-process layer. Qualification preflight now requires the
+  expected unlocked console, and GUI campaigns hold `caffeinate` display-idle
+  and user-active assertions for their process lifetime.
+
+- 2026-07-22: Locked-console proof
+  `locked-console-preflight-b5a240e-1` returned status 1 with the exact
+  fail-fast message before reset, build, fixture creation, or XCUI. The evidence
+  directory contains only command and green no-op cleanup records; no Detours,
+  xctest, xcodebuild, qualification mount, or fixture root remained.
+
+- 2026-07-22: Focused refresh run
+  `focused-refresh-local-13-9c59716-1` passed all 13 installed local refresh
+  repetitions in 116 seconds after the scenario-row double click was reduced
+  to one coordinate event. XCResult records exactly 1 pass and 0 failures,
+  skips, or expected failures; outside-root comparison and guarded cleanup
+  passed.
+
+- 2026-07-22: Same-tab local/remote history fix at exact app commit `e78dbfd`.
+  Foundry `resources/scripts/build.sh --no-install` passed, the focused
+  `testBackReturnsFromRemoteToLocalAndForwardRestoresRemoteInSameTab` regression
+  passed in 0.197 seconds, and the combined `PaneTabTests|PaneViewControllerTests`
+  filter passed 52 tests with 0 failures in 1.797 seconds.
+
+- 2026-07-22: Live same-tab history run
+  `focused-local-remote-back-b1df1b4-1` passed against Linux target `devtest`.
+  The one installed XCUI test connected the existing local tab to the live
+  remote folder, used Back to restore the guarded local root, and used Forward
+  to restore the same remote location. XCResult records exactly 1 pass and 0
+  failures/skips/expected failures in 12 seconds; the repetition marker,
+  outside-root comparison, and guarded cleanup all passed.
+
+- 2026-07-22: Authorized T5 invocation `gate2-t5-refresh-90fdbe0-1`
+  stopped in host preflight before reset, build, fixtures, permission probes, or
+  behavioral tests because `detours-windows` was unreachable. Both Spectre and
+  Foundry received no ARP response from `10.10.1.24`; Atticus was reachable but
+  had no running QEMU process for the configured VM 707. The qualification
+  evidence contains only command metadata plus green no-op reset and cleanup
+  records.
+
+- 2026-07-22: Foundry's unified TCC log identified the missed network-volume
+  dialog. The signed `com.detours.app` process received user-consented access at
+  09:11:08, while the separately signed ad-hoc
+  `MAF.DetoursUITests.xctrunner` requested
+  `kTCCServiceSystemPolicyNetworkVolumes` at 09:11:10, received an unknown
+  result, and caused `tccd` to emit `display_prompt: called`. The runner was
+  blocked in direct `FileManager` access, so its XCUI interruption monitor could
+  not execute; the dialog remained until the operator response at 09:24:43.
+
+- 2026-07-22: Prompt-safety verification passed at exact commit `1c125f6` on
+  Foundry without launching Detours or running XCUI. The matrix/static audit
+  passed all 102 rows; replay of the captured TCC line returned the required
+  detection status and wrote `type=prompt_detected`; a clear-log control passed.
+  `prompt-guard-lifecycle-2b19b830-49de-4cfe-b6b8-86708a3a506f` proved the real
+  start/readiness/liveness/stop/post-audit lifecycle with zero prompt events.
+  `prompt-guard-death-c6856bd1-3a32-4edc-8d76-cd32cced7156` killed the sentry's
+  log stream and proved fail-closed `type=guard_failed`, exact-run cancellation,
+  parent termination, and no active GUI/deadline record. Spectre-side cancel
+  `prompt-cancel-routing-946396e4-a434-49d8-b044-06f124f55f1b` returned success
+  without Doppler warm-up. UI test bundle compile
+  `prompt-guard-ui-build-9886788b-e72c-49a8-aafc-3d68558062cd` completed with no
+  warning or error, no test/app launch, a green prompt audit, and no Detours,
+  xctest, or xcodebuild process afterward.
+
+- 2026-07-22: A `DetoursUITests-Runner` local-network dialog invalidated the
+  single-channel prompt audit: the visible 260×250 dialog was owned by
+  `UserNotificationCenter`, and XCUI staging recorded both `Found 1
+  interrupting element` and the matching dialog geometry, but the old `tccd
+  display_prompt` predicate recorded zero events. At exact commit `4105f36`,
+  Foundry's permission-free CoreGraphics scanner detected that still-visible
+  window as number 11153 before guard readiness. Controlled run
+  `prompt-current-4105f36-1` returned 90, wrote `type=prompt_detected`, killed
+  its dummy parent, and launched no Detours, xctest, or xcodebuild process. A
+  replay of the preserved XCUI interruption returned the same detection status.
+  Qualification now requires live TCC, visible-window, and XCUI-staging
+  channels plus all three post-run checks before it can record zero prompts.
+
+- 2026-07-22 13:47 CEST: Foundry whole-app blocking qualification PASS for `e02b166586a05a6b1e609152b706110decd7fe90`, run `final-whole-app-e02b166-1`: 132s against the 180s budget (16.31x over baseline), 8 installed workflows in 1 XCResult, 0 prompts, 0 skips, and green guarded cleanup.

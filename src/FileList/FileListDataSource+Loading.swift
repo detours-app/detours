@@ -274,13 +274,19 @@ extension FileListDataSource {
         var updatedItems: Set<ObjectIdentifier> = []
         var reconciledItems: [FileItem] = []
         reconciledItems.reserveCapacity(entries.count)
+        let isNetworkVolume = if case .local(let url) = normalizedDirectory {
+            VolumeMonitor.isNetworkVolume(url)
+        } else {
+            false
+        }
 
         for entry in entries {
             if let existingItem = existingByLocation.removeValue(forKey: entry.location) {
                 // The throwaway item only feeds the metadata diff; skip the
                 // folder-icon tinting a display item would get.
                 let metadataChanged = existingItem.updateListingMetadata(
-                    from: FileItem(entry: entry, icon: IconLoader.placeholderFileIcon)
+                    from: FileItem(entry: entry, icon: IconLoader.placeholderFileIcon),
+                    isNetworkVolume: isNetworkVolume
                 )
                 let newGitStatus = gitStatus(for: entry.location)
                 let gitChanged = existingItem.gitStatus != newGitStatus

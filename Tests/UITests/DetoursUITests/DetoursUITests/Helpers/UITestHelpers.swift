@@ -42,6 +42,17 @@ extension XCUIApplication {
 }
 
 extension XCUIElement {
+    /// XCTest's waiter delays its first existence check by about one second. Most callers
+    /// already expect the element to be present, so take an immediate snapshot before polling.
+    func existsOrWait(timeout: TimeInterval) -> Bool {
+        exists || waitForExistence(timeout: timeout)
+    }
+
+    /// Avoid XCTest's delayed first poll when callers expect a just-dismissed element to be gone.
+    func doesNotExistOrWait(timeout: TimeInterval) -> Bool {
+        !exists || waitForNonExistence(timeout: timeout)
+    }
+
     /// Find an outline row containing the given static text, scoped to this outline view.
     ///
     /// Prefer this over `XCUIApplication.outlineRow(containing:)` whenever the name can also appear
@@ -67,9 +78,16 @@ extension BaseUITest {
     struct RemotePaneState: Decodable {
         let id: String
         let pane: String
+        let activePane: Bool
+        let tabCount: Int
+        let selectedTabIndex: Int
+        let selectedTabID: String?
+        let tabIDs: [String]
+        let tabLocations: [String]
         let displayedLocation: String?
         let expandedLocations: [String]
         let selectedLocations: [String]
+        let visibleLocations: [String]
         let topVisibleLocation: String?
         let topVisibleOffset: Double
         let horizontalOffset: Double
@@ -80,8 +98,26 @@ extension BaseUITest {
         let sortAscending: Bool
         let activeDropTarget: String?
         let refreshInFlight: Bool
+        let navigationLoadInFlight: Bool
+        let loadingVisible: Bool
         let visibleRowCount: Int
         let firstResponderDescription: String?
+        let hiddenFilesVisible: Bool
+        let operationRunning: Bool
+        let operationPendingCount: Int
+        let currentOperation: String?
+        let operationProgress: Double?
+        let pausedRemoteHostCount: Int
+        let connectionStates: [String: String]
+        let enabledMenus: [String: Bool]
+        let mountedVolumes: [String]
+        let providerWatchCount: Int
+        let providerWatchSetupCount: Int
+        let directoryWatchActive: Bool
+        let registeredRemoteProviderCount: Int
+        let gitStatuses: [String: String]
+        let refreshRequestCount: Int
+        let listingMutationCount: Int
     }
 
     struct RemoteProviderCall: Decodable {
@@ -110,6 +146,24 @@ extension BaseUITest {
         let newName: String
     }
 
+    private struct RemoteFixtureMutationControl: Encodable {
+        let id: String
+        let action: String
+        let homePath: String
+        let scenarioName: String
+        let relativePath: String?
+        let destinationRelativePath: String?
+        let contents: String?
+        let sentinelID: String?
+    }
+
+    private struct RemoteFixtureMutationResult: Decodable {
+        let id: String
+        let success: Bool
+        let names: [String]?
+        let failure: String?
+    }
+
     private struct ListingGateNotice: Decodable {
         let sequence: UInt64
         let path: String
@@ -118,12 +172,12 @@ extension BaseUITest {
 
     func resetOpenedItemsHistory() {
         try? FileManager.default.removeItem(
-            at: uiTestRootURL.appendingPathComponent(".detours-opened-items-history.json")
+            at: uiTestControlRootURL.appendingPathComponent(".detours-opened-items-history.json")
         )
     }
 
     func openedItemsHistory() -> [String] {
-        let url = uiTestRootURL.appendingPathComponent(".detours-opened-items-history.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-opened-items-history.json")
         guard let data = try? Data(contentsOf: url) else { return [] }
         return (try? JSONDecoder().decode([String].self, from: data)) ?? []
     }
@@ -133,10 +187,16 @@ extension BaseUITest {
         timeout: TimeInterval = 3
     ) throws -> RemotePaneState {
         let request = PaneStateRequest(id: UUID().uuidString, pane: pane)
-        let requestURL = uiTestRootURL.appendingPathComponent(".detours-pane-state-request.json")
-        let responseURL = uiTestRootURL.appendingPathComponent(".detours-pane-state-response.json")
+        let requestURL = uiTestControlRootURL.appendingPathComponent(".detours-pane-state-request.json")
+        let responseURL = uiTestControlRootURL.appendingPathComponent(".detours-pane-state-response.json")
         try? FileManager.default.removeItem(at: responseURL)
         try JSONEncoder().encode(request).write(to: requestURL, options: .atomic)
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.detours.uitest.command-ready"),
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if let data = try? Data(contentsOf: responseURL),
@@ -153,7 +213,7 @@ extension BaseUITest {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             let urls = (try? FileManager.default.contentsOfDirectory(
-                at: uiTestRootURL,
+                at: uiTestControlRootURL,
                 includingPropertiesForKeys: nil
             )) ?? []
             for url in urls where url.lastPathComponent.hasPrefix(".detours-remote-list-gate-")
@@ -169,7 +229,7 @@ extension BaseUITest {
     }
 
     func releaseRemoteListingGate(sequence: UInt64) throws {
-        let url = uiTestRootURL.appendingPathComponent(
+        let url = uiTestControlRootURL.appendingPathComponent(
             ".detours-remote-list-gate-\(sequence).release"
         )
         try Data().write(to: url, options: .atomic)
@@ -181,7 +241,7 @@ extension BaseUITest {
             operation: operation,
             message: message
         )
-        let url = uiTestRootURL.appendingPathComponent(".detours-remote-provider-failure.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-remote-provider-failure.json")
         try JSONEncoder().encode(control).write(to: url, options: .atomic)
     }
 
@@ -191,12 +251,82 @@ extension BaseUITest {
             sourcePath: sourcePath,
             newName: newName
         )
-        let url = uiTestRootURL.appendingPathComponent(".detours-remote-mutation-command.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-remote-mutation-command.json")
         try JSONEncoder().encode(control).write(to: url, options: .atomic)
     }
 
+    @discardableResult
+    func performRemoteFixtureMutation(
+        action: String,
+        homePath: String,
+        scenarioName: String,
+        relativePath: String? = nil,
+        destinationRelativePath: String? = nil,
+        contents: String? = nil,
+        sentinelID: String? = nil,
+        timeout: TimeInterval = 30
+    ) throws -> [String] {
+        let command = RemoteFixtureMutationControl(
+            id: UUID().uuidString,
+            action: action,
+            homePath: homePath,
+            scenarioName: scenarioName,
+            relativePath: relativePath,
+            destinationRelativePath: destinationRelativePath,
+            contents: contents,
+            sentinelID: sentinelID
+        )
+        let commandURL = uiTestControlRootURL
+            .appendingPathComponent(".detours-remote-fixture-mutation-command.json")
+        let resultURL = uiTestControlRootURL
+            .appendingPathComponent(".detours-remote-fixture-mutation-result.json")
+        try? FileManager.default.removeItem(at: resultURL)
+        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.detours.uitest.command-ready"),
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
+        let startedAt = Date()
+        let deadline = startedAt.addingTimeInterval(timeout)
+        var nextActivityAt = startedAt
+        var completed = false
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: resultURL),
+               let result = try? JSONDecoder().decode(RemoteFixtureMutationResult.self, from: data),
+               result.id == command.id {
+                completed = true
+                break
+            }
+            let now = Date()
+            if now >= nextActivityAt {
+                try recordQualificationActivity(
+                    phase: "remote-fixture-wait",
+                    detail: action,
+                    elapsedSeconds: Int(now.timeIntervalSince(startedAt))
+                )
+                nextActivityAt = now.addingTimeInterval(10)
+            }
+            usleep(25_000)
+        }
+        guard completed,
+              let data = try? Data(contentsOf: resultURL),
+              let result = try? JSONDecoder().decode(RemoteFixtureMutationResult.self, from: data),
+              result.id == command.id else {
+            throw UITestControlError.timedOut("remote fixture \(action)")
+        }
+        guard result.success else {
+            throw UITestControlError.remoteFixtureMutationFailed(
+                action: action,
+                detail: result.failure ?? "unknown failure"
+            )
+        }
+        return result.names ?? []
+    }
+
     func remoteProviderHistory() -> [RemoteProviderCall] {
-        let url = uiTestRootURL.appendingPathComponent(".detours-remote-provider-history.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-remote-provider-history.json")
         guard let data = try? Data(contentsOf: url) else { return [] }
         return (try? JSONDecoder().decode([RemoteProviderCall].self, from: data)) ?? []
     }
@@ -211,6 +341,65 @@ extension BaseUITest {
             usleep(25_000)
         }
         return condition()
+    }
+
+    func performFixtureMutation(
+        action: String,
+        relativePath: String,
+        destinationRelativePath: String? = nil,
+        contents: String? = nil,
+        timeout: TimeInterval = 30
+    ) throws {
+        struct Command: Encodable {
+            let id: String
+            let action: String
+            let relativePath: String
+            let destinationRelativePath: String?
+            let contents: String?
+        }
+        struct Result: Decodable {
+            let id: String
+            let success: Bool
+            let failure: String?
+        }
+
+        let command = Command(
+            id: UUID().uuidString,
+            action: action,
+            relativePath: relativePath,
+            destinationRelativePath: destinationRelativePath,
+            contents: contents
+        )
+        let commandURL = uiTestControlRootURL.appendingPathComponent(".detours-fixture-mutation-command.json")
+        let resultURL = uiTestControlRootURL.appendingPathComponent(".detours-fixture-mutation-result.json")
+        try? FileManager.default.removeItem(at: resultURL)
+        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.detours.uitest.command-ready"),
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
+
+        let completed = waitForCondition(timeout: timeout) {
+            guard let data = try? Data(contentsOf: resultURL),
+                  let result = try? JSONDecoder().decode(Result.self, from: data),
+                  result.id == command.id else { return false }
+            return true
+        }
+        guard completed,
+              let data = try? Data(contentsOf: resultURL),
+              let result = try? JSONDecoder().decode(Result.self, from: data),
+              result.id == command.id else {
+            throw UITestControlError.fixtureMutationTimedOut(action: action, path: relativePath)
+        }
+        guard result.success else {
+            throw UITestControlError.fixtureMutationFailed(
+                action: action,
+                path: relativePath,
+                detail: result.failure ?? "unknown failure"
+            )
+        }
     }
 
     /// Press a special key with optional modifiers
@@ -321,7 +510,7 @@ extension BaseUITest {
         fileMenu.click()
 
         let item = fileMenu.menuItems[title]
-        XCTAssertTrue(item.waitForExistence(timeout: timeout), "\(title) menu item should exist")
+        XCTAssertTrue(item.existsOrWait(timeout: timeout), "\(title) menu item should exist")
         XCTAssertTrue(item.isEnabled, "\(title) menu item should be enabled")
         item.click()
     }
@@ -332,7 +521,7 @@ extension BaseUITest {
         goMenu.click()
 
         let item = goMenu.menuItems[title]
-        XCTAssertTrue(item.waitForExistence(timeout: timeout), "\(title) menu item should exist")
+        XCTAssertTrue(item.existsOrWait(timeout: timeout), "\(title) menu item should exist")
         XCTAssertTrue(item.isEnabled, "\(title) menu item should be enabled")
         item.click()
     }
@@ -367,7 +556,7 @@ extension BaseUITest {
         }
 
         let command = Command(id: UUID().uuidString, query: query, action: action)
-        let url = uiTestRootURL.appendingPathComponent(".detours-quick-nav-command.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-quick-nav-command.json")
         XCTAssertNoThrow(try JSONEncoder().encode(command).write(to: url, options: .atomic))
     }
 
@@ -382,8 +571,8 @@ extension BaseUITest {
         }
 
         let request = Request(id: UUID().uuidString)
-        let requestURL = uiTestRootURL.appendingPathComponent(".detours-undo-menu-title-request.json")
-        let responseURL = uiTestRootURL.appendingPathComponent(".detours-undo-menu-title-response.json")
+        let requestURL = uiTestControlRootURL.appendingPathComponent(".detours-undo-menu-title-request.json")
+        let responseURL = uiTestControlRootURL.appendingPathComponent(".detours-undo-menu-title-response.json")
         try? FileManager.default.removeItem(at: responseURL)
         try JSONEncoder().encode(request).write(to: requestURL, options: .atomic)
 
@@ -428,18 +617,18 @@ extension BaseUITest {
             ".detours-duplicate-structure-action.json",
             ".detours-duplicate-structure-dismissed.json"
         ] {
-            try? FileManager.default.removeItem(at: uiTestRootURL.appendingPathComponent(fileName))
+            try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(fileName))
         }
     }
 
     func showDuplicateStructureForUITest(relativePath: String) throws {
         let request = DuplicateStructureShowRequest(id: UUID().uuidString, relativePath: relativePath)
-        let url = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-show-request.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-duplicate-structure-show-request.json")
         try JSONEncoder().encode(request).write(to: url, options: .atomic)
     }
 
     func waitForDuplicateStructurePresented(timeout: TimeInterval = 3) throws -> DuplicateStructurePresentation {
-        let url = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-presented.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-duplicate-structure-presented.json")
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if let data = try? Data(contentsOf: url),
@@ -455,15 +644,15 @@ extension BaseUITest {
 
     func sendDuplicateStructureAction(_ action: String, timeout: TimeInterval = 3) throws {
         let command = DuplicateStructureAction(id: UUID().uuidString, action: action)
-        let commandURL = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-action.json")
-        let dismissedURL = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
+        let commandURL = uiTestControlRootURL.appendingPathComponent(".detours-duplicate-structure-action.json")
+        let dismissedURL = uiTestControlRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
         try? FileManager.default.removeItem(at: dismissedURL)
         try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
         try waitForDuplicateStructureDismissed(matching: command.id, timeout: timeout)
     }
 
     func waitForDuplicateStructureDismissed(matching id: String? = nil, timeout: TimeInterval = 3) throws {
-        let url = uiTestRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-duplicate-structure-dismissed.json")
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if let data = try? Data(contentsOf: url),
@@ -496,7 +685,7 @@ extension BaseUITest {
     /// Select a row by clicking on it
     func selectRow(named name: String) {
         let row = outlineRow(named: name)
-        XCTAssertTrue(row.waitForExistence(timeout: 2), "Row '\(name)' should exist")
+        XCTAssertTrue(row.existsOrWait(timeout: 2), "Row '\(name)' should exist")
         // Click the static text inside the row (row itself has no free space)
         row.staticTexts[name].click()
     }
@@ -510,7 +699,7 @@ extension BaseUITest {
     /// Wait for a row to appear
     func waitForRow(named name: String, timeout: TimeInterval = 2) -> Bool {
         let row = outlineRow(named: name)
-        return row.waitForExistence(timeout: timeout)
+        return row.existsOrWait(timeout: timeout)
     }
 
     /// Get the name of the currently selected row by reading its first static text
@@ -528,11 +717,20 @@ extension BaseUITest {
 
 private enum UITestControlError: LocalizedError {
     case timedOut(String)
+    case fixtureMutationFailed(action: String, path: String, detail: String)
+    case fixtureMutationTimedOut(action: String, path: String)
+    case remoteFixtureMutationFailed(action: String, detail: String)
 
     var errorDescription: String? {
         switch self {
         case .timedOut(let operation):
             "Timed out waiting for \(operation)"
+        case .fixtureMutationFailed(let action, let path, let detail):
+            "Fixture mutation \(action) failed for \(path): \(detail)"
+        case .fixtureMutationTimedOut(let action, let path):
+            "Fixture mutation \(action) timed out for \(path)"
+        case .remoteFixtureMutationFailed(let action, let detail):
+            "Remote fixture mutation \(action) failed: \(detail)"
         }
     }
 }

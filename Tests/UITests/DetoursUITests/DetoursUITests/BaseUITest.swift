@@ -1,71 +1,200 @@
+import Foundation
 import XCTest
 
 class BaseUITest: XCTestCase {
     var app: XCUIApplication!
 
+    private struct QualificationActivity: Encodable {
+        let sequence: Int
+        let group: String
+        let iteration: Int
+        let total: Int
+        let phase: String
+        let detail: String
+        let elapsedSeconds: Int
+    }
+
+    private var activeQualificationGroup: String?
+    private var activeQualificationIteration = 0
+    private var activeQualificationTotal = 0
+    private var qualificationActivitySequence = 0
+
     /// Name of test directory (created by uitest.sh in home before tests run)
-    let testFolderName = "DetoursUITests-Temp"
+    var testFolderName: String {
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_ROOT"]
+            .flatMap { $0.isEmpty ? nil : $0 }
+            .map { URL(fileURLWithPath: $0).lastPathComponent }
+            ?? "DetoursUITests-Temp"
+    }
 
     var uiTestRootURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(testFolderName)
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_ROOT"]
+            .flatMap { $0.isEmpty ? nil : $0 }
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(testFolderName)
+    }
+
+    var uiTestControlRootURL: URL {
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_CONTROL_ROOT"]
+            .flatMap { $0.isEmpty ? nil : $0 }
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? uiTestRootURL
+    }
+
+    var navigatesToLocalFixtureInSetUp: Bool { true }
+
+    private var hasExplicitQualificationRoot: Bool {
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_ROOT"]?
+            .isEmpty == false
     }
 
     override func setUpWithError() throws {
         continueAfterFailure = false
 
-        try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
+        if !hasExplicitQualificationRoot {
+            try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
+        }
+        try FileManager.default.createDirectory(at: uiTestControlRootURL, withIntermediateDirectories: true)
 
         // Launch the installed app targeted by the UI test runner.
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
+        app.launchEnvironment["DETOURS_UI_TEST_CONTROL_ROOT"] = uiTestControlRootURL.path
         configureLaunchEnvironment(&app.launchEnvironment)
         app.launch()
+        let window = app.windows.firstMatch
 
         // Wait for app to be ready
-        let window = app.windows.firstMatch
-        XCTAssertTrue(window.waitForExistence(timeout: 5), "App window should exist")
+        XCTAssertTrue(window.existsOrWait(timeout: 5), "App window should exist")
 
         // IMPORTANT: Activate the LEFT pane before creating tab
         // This ensures we create the tab in a predictable location
-        activateLeftPane()
-        XCTAssertTrue(waitForLeftPaneReady(), "Left pane should be ready")
+        // Clicking the outline element itself makes XCUI try to scroll the entire
+        // document view into view. Tall remote listings can never satisfy that
+        // request, even though the visible center is directly clickable.
+        XCTAssertTrue(activateLeftPane(useCoordinateClick: true), "Left pane should be ready")
 
         // DETOURS_UI_TEST_ROOT launches the app into an isolated test tab, so tests that
         // assert Cmd-1/Cmd-2 tab behavior can use stable indexes.
-        navigateToTempDirectory()
+        if navigatesToLocalFixtureInSetUp {
+            navigateToTempDirectory()
+        }
     }
 
     func configureLaunchEnvironment(_ environment: inout [String: String]) {}
 
+    func runQualificationRepetitions(
+        group: String,
+        cycle: (Int) throws -> Void
+    ) throws {
+        let rawValue = ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REPETITIONS"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !rawValue.isEmpty else {
+            try cycle(1)
+            return
+        }
+        let repetitions = try XCTUnwrap(Int(rawValue), "Qualification repetition count must be an integer")
+        guard (1...100).contains(repetitions) else {
+            XCTFail("Qualification repetition count must be between 1 and 100")
+            return
+        }
+        guard group.range(of: "^[a-z-]+$", options: .regularExpression) != nil else {
+            XCTFail("Qualification group contains invalid characters")
+            return
+        }
+        defer {
+            activeQualificationGroup = nil
+            activeQualificationIteration = 0
+            activeQualificationTotal = 0
+        }
+
+        for iteration in 1...repetitions {
+            activeQualificationGroup = group
+            activeQualificationIteration = iteration
+            activeQualificationTotal = repetitions
+            try recordQualificationActivity(phase: "cycle-start", detail: "starting")
+            try XCTContext.runActivity(named: "\(group) repetition \(iteration) of \(repetitions)") { _ in
+                try cycle(iteration)
+                try recordQualificationActivity(phase: "cycle-complete", detail: "completed")
+                try recordQualificationRepetition(group: group, iteration: iteration, total: repetitions)
+            }
+        }
+    }
+
+    func recordQualificationActivity(
+        phase: String,
+        detail: String,
+        elapsedSeconds: Int = 0
+    ) throws {
+        guard let group = activeQualificationGroup else { return }
+        guard phase.range(of: "^[a-z-]+$", options: .regularExpression) != nil,
+              !detail.isEmpty,
+              !detail.contains("\n"),
+              elapsedSeconds >= 0 else {
+            throw NSError(
+                domain: "DetoursQualificationActivity",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid qualification activity"]
+            )
+        }
+        qualificationActivitySequence += 1
+        let activity = QualificationActivity(
+            sequence: qualificationActivitySequence,
+            group: group,
+            iteration: activeQualificationIteration,
+            total: activeQualificationTotal,
+            phase: phase,
+            detail: detail,
+            elapsedSeconds: elapsedSeconds
+        )
+        let markerURL = uiTestControlRootURL.appendingPathComponent(
+            ".detours-qualification-\(group)-activity.json"
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(activity).write(to: markerURL, options: .atomic)
+    }
+
+    private func recordQualificationRepetition(group: String, iteration: Int, total: Int) throws {
+        let fileName = String(
+            format: ".detours-qualification-%@-repetition-%03d.json",
+            group,
+            iteration
+        )
+        let markerURL = uiTestControlRootURL.appendingPathComponent(fileName)
+        let data = try JSONSerialization.data(
+            withJSONObject: ["iteration": iteration, "total": total],
+            options: [.sortedKeys]
+        )
+        try data.write(to: markerURL, options: .atomic)
+    }
+
     override func tearDownWithError() throws {
         // IMPORTANT: Activate LEFT pane before closing tab
         // This ensures we close the tab we created, not a tab in another pane
-        activateLeftPane(useCoordinateClick: true)
-        XCTAssertTrue(waitForLeftPaneReady(), "Left pane should be ready before closing the test tab")
+        XCTAssertTrue(
+            activateLeftPane(useCoordinateClick: true),
+            "Left pane should be ready before closing the test tab"
+        )
 
         // Close the tab we created (Cmd-W)
         pressCharKey("w", modifiers: .command)
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 2))
 
         // Don't terminate - uitest.sh handles quitting and relaunching
         // Terminating too quickly after Cmd-W causes tab state to not be saved
     }
 
     /// Activate the left pane by clicking its outline view
-    private func activateLeftPane(useCoordinateClick: Bool = false) {
+    @discardableResult
+    private func activateLeftPane(useCoordinateClick: Bool = false) -> Bool {
         let leftOutline = app.outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
-        if leftOutline.waitForExistence(timeout: 3) {
-            if useCoordinateClick {
-                leftOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
-            } else {
-                leftOutline.click()
-            }
+        guard leftOutline.existsOrWait(timeout: 3) else { return false }
+        if useCoordinateClick {
+            leftOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        } else {
+            leftOutline.click()
         }
-    }
-
-    private func waitForLeftPaneReady(timeout: TimeInterval = 3) -> Bool {
-        app.outlines.matching(identifier: "fileListOutlineView").element(boundBy: 0)
-            .waitForExistence(timeout: timeout)
+        return true
     }
 
     /// Ensures folder expansion is enabled. Call this at the start of tests that need disclosure triangles.
@@ -96,7 +225,7 @@ class BaseUITest: XCTestCase {
 
         // Click the first home button (left pane) to go to home directory
         let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
-        guard homeButton.waitForExistence(timeout: 2) else {
+        guard homeButton.existsOrWait(timeout: 2) else {
             XCTFail("Home button not found")
             return
         }
@@ -106,7 +235,7 @@ class BaseUITest: XCTestCase {
         // Look for the test folder by its name (static text content within the row)
         let testFolderRow = app.outlineRow(containing: testFolderName)
 
-        guard testFolderRow.waitForExistence(timeout: 3) else {
+        guard testFolderRow.existsOrWait(timeout: 3) else {
             // Debug: print what rows we can see
             let allRows = app.outlineRows.allElementsBoundByIndex
             print("DEBUG: Found \(allRows.count) outline rows")
@@ -121,6 +250,6 @@ class BaseUITest: XCTestCase {
         // Click on the static text inside the row (row itself has no free space)
         let folderName = testFolderRow.staticTexts[testFolderName]
         folderName.doubleClick()
-        XCTAssertTrue(waitForLeftPaneReady(), "Temp directory should load in the left pane")
+        XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "Temp directory should load in the left pane")
     }
 }

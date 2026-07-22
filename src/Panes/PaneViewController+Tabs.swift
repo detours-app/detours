@@ -84,6 +84,9 @@ extension PaneViewController {
         // Show the now-selected tab
         if let selected = selectedTab {
             selected.fileListViewController.view.isHidden = false
+            if isActive {
+                view.window?.makeFirstResponder(selected.fileListViewController.tableView)
+            }
         }
 
         syncReconnectBannerForSelectedTab()
@@ -188,11 +191,12 @@ extension PaneViewController {
             ? remoteBreadcrumbHostsByTabID[tab.id].map { "Remote: \($0.displayName)" }
             : nil
 
-        // Calculate hidden file count (only when not showing hidden files)
-        var hiddenCount = 0
-        if !isRemoteTab && !dataSource.showHiddenFiles {
-            hiddenCount = countHiddenFiles(in: tab.currentDirectory)
-        }
+        let directory = tab.currentDirectory.standardizedFileURL
+        requestStatusMetadataIfNeeded(for: directory, tabID: tab.id, isRemote: isRemoteTab)
+        let metadataMatchesDirectory = statusMetadataDirectory == directory
+        let hiddenCount = !isRemoteTab && !dataSource.showHiddenFiles && metadataMatchesDirectory
+            ? cachedHiddenFileCount
+            : 0
 
         // Calculate selection size using outline view's item(at:) to get correct items
         var selectionSize: Int64 = 0
@@ -213,7 +217,7 @@ extension PaneViewController {
         }
 
         // Get available disk space
-        let availableSpace = isRemoteTab ? 0 : getAvailableDiskSpace(for: tab.currentDirectory)
+        let availableSpace = !isRemoteTab && metadataMatchesDirectory ? cachedAvailableSpace : 0
 
         statusBar.update(
             itemCount: itemCount,
@@ -225,7 +229,51 @@ extension PaneViewController {
         )
     }
 
-    private func countHiddenFiles(in directory: URL) -> Int {
+    func invalidateStatusMetadata() {
+        statusMetadataNeedsRefresh = true
+    }
+
+    private func requestStatusMetadataIfNeeded(for directory: URL, tabID: UUID, isRemote: Bool) {
+        guard !isRemote else { return }
+
+        if statusMetadataDirectory != directory {
+            statusMetadataTask?.cancel()
+            statusMetadataTask = nil
+            statusMetadataDirectory = directory
+            cachedHiddenFileCount = 0
+            cachedAvailableSpace = 0
+            statusMetadataNeedsRefresh = true
+        }
+        guard statusMetadataNeedsRefresh, statusMetadataTask == nil else { return }
+        statusMetadataNeedsRefresh = false
+        let requestID = UUID()
+        statusMetadataRequestID = requestID
+
+        // File Provider and network calls can wait on authorization or I/O.
+        // Keep that optional status-bar scan off the main actor, and keep one
+        // request in flight per pane even if watcher updates arrive meanwhile.
+        statusMetadataTask = Task { [weak self] in
+            let metadata = await Task.detached(priority: .utility) {
+                Self.readStatusMetadata(in: directory)
+            }.value
+            guard let self, self.statusMetadataRequestID == requestID else { return }
+            self.statusMetadataTask = nil
+            guard !Task.isCancelled,
+                  self.selectedTab?.id == tabID,
+                  self.selectedTab?.currentDirectory.standardizedFileURL == directory else {
+                return
+            }
+            self.cachedHiddenFileCount = metadata.hiddenCount
+            self.cachedAvailableSpace = metadata.availableSpace
+            self.updateStatusBar()
+        }
+    }
+
+    nonisolated private static func readStatusMetadata(in directory: URL) -> (
+        hiddenCount: Int,
+        availableSpace: Int64
+    ) {
+        let hiddenCount: Int
         do {
             let allContents = try FileManager.default.contentsOfDirectory(
                 at: directory,
@@ -237,19 +285,19 @@ extension PaneViewController {
                 includingPropertiesForKeys: nil,
                 options: [.skipsHiddenFiles]
             )
-            return allContents.count - visibleContents.count
+            hiddenCount = allContents.count - visibleContents.count
         } catch {
-            return 0
+            hiddenCount = 0
         }
-    }
 
-    private func getAvailableDiskSpace(for url: URL) -> Int64 {
+        let availableSpace: Int64
         do {
-            let values = try url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-            return values.volumeAvailableCapacityForImportantUsage ?? 0
+            let values = try directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            availableSpace = values.volumeAvailableCapacityForImportantUsage ?? 0
         } catch {
-            return 0
+            availableSpace = 0
         }
+        return (hiddenCount, availableSpace)
     }
 
     // MARK: - Active State

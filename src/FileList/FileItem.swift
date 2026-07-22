@@ -13,6 +13,8 @@ enum SharedItemRole: Equatable, Sendable {
 }
 
 final class FileItem {
+    private static let networkModificationDateTolerance: TimeInterval = 0.02
+
     let name: String
     let location: Location
     var url: URL { location.url }
@@ -339,8 +341,14 @@ final class FileItem {
     /// - Returns: true when any listed metadata actually changed, so callers
     ///   can skip redrawing rows whose content is identical.
     @discardableResult
-    func updateListingMetadata(from updatedItem: FileItem) -> Bool {
+    func updateListingMetadata(from updatedItem: FileItem, isNetworkVolume: Bool = false) -> Bool {
         guard location == updatedItem.location else { return false }
+        let modificationDateChanged = if isNetworkVolume {
+            abs(dateModified.timeIntervalSince(updatedItem.dateModified))
+                >= Self.networkModificationDateTolerance
+        } else {
+            dateModified != updatedItem.dateModified
+        }
         let changed = isDirectory != updatedItem.isDirectory
             || isPackage != updatedItem.isPackage
             || isAliasFile != updatedItem.isAliasFile
@@ -348,7 +356,7 @@ final class FileItem {
             || isReadable != updatedItem.isReadable
             || isHiddenFile != updatedItem.isHiddenFile
             || size != updatedItem.size
-            || dateModified != updatedItem.dateModified
+            || modificationDateChanged
             || sharedRole != updatedItem.sharedRole
             || isVirtualSharedFolder != updatedItem.isVirtualSharedFolder
             || iCloudStatus != updatedItem.iCloudStatus

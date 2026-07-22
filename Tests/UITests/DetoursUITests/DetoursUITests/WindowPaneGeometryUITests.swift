@@ -70,6 +70,15 @@ final class WindowPaneGeometryUITests: XCTestCase {
     }
 
     func testPaneDividerDragPersistsAcrossRelaunch() throws {
+        try runQualificationRepetitions { iteration in
+            if iteration > 1 {
+                try self.resetBetweenQualificationCycles()
+            }
+            try self.runPaneDividerPersistenceCycle()
+        }
+    }
+
+    private func runPaneDividerPersistenceCycle() throws {
         launchApp()
         waitForPanes()
 
@@ -82,6 +91,44 @@ final class WindowPaneGeometryUITests: XCTestCase {
         let restoredDividerX = paneDivider().frame.midX
         XCTAssertEqual(restoredSidebarBoundaryX, persistedSidebarBoundaryX, accuracy: 16)
         XCTAssertEqual(restoredDividerX, persistedDividerX, accuracy: 16)
+    }
+
+    private func runQualificationRepetitions(cycle: (Int) throws -> Void) throws {
+        let rawValue = ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REPETITIONS"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !rawValue.isEmpty else {
+            try cycle(1)
+            return
+        }
+        let repetitions = try XCTUnwrap(Int(rawValue), "Qualification repetition count must be an integer")
+        guard (1...100).contains(repetitions) else {
+            XCTFail("Qualification repetition count must be between 1 and 100")
+            return
+        }
+
+        for iteration in 1...repetitions {
+            try XCTContext.runActivity(named: "session repetition \(iteration) of \(repetitions)") { _ in
+                try cycle(iteration)
+                try self.recordQualificationRepetition(iteration: iteration, total: repetitions)
+            }
+        }
+    }
+
+    private func resetBetweenQualificationCycles() throws {
+        app.terminate()
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 5))
+        try clearGeometryDefaults()
+        clearResizeCommand()
+    }
+
+    private func recordQualificationRepetition(iteration: Int, total: Int) throws {
+        let fileName = String(format: ".detours-qualification-session-repetition-%03d.json", iteration)
+        let markerURL = uiTestControlRootURL.appendingPathComponent(fileName)
+        let data = try JSONSerialization.data(
+            withJSONObject: ["iteration": iteration, "total": total],
+            options: [.sortedKeys]
+        )
+        try data.write(to: markerURL, options: .atomic)
     }
 
     func testPoisonedSplitDefaultsFallBackWithoutUnusablePanes() throws {
@@ -279,7 +326,15 @@ final class WindowPaneGeometryUITests: XCTestCase {
     }
 
     private var uiTestRootURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(uiTestRootName)
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_ROOT"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(uiTestRootName)
+    }
+
+    private var uiTestControlRootURL: URL {
+        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_UI_CONTROL_ROOT"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? uiTestRootURL
     }
 
     private var resizeCommandURL: URL {

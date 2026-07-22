@@ -363,7 +363,13 @@ extension MainSplitViewController {
         }
         guard let fileList = pane.selectedTab?.fileListViewController else { return }
         UITestEnvironment.writePaneStateResponse(
-            fileList.makeUITestPaneStateResponse(id: request.id, pane: paneName)
+            fileList.makeUITestPaneStateResponse(
+                id: request.id,
+                pane: paneName,
+                activePane: pane.isActive,
+                tabs: pane.tabs,
+                selectedTabIndex: pane.selectedTabIndex
+            )
         )
     }
 

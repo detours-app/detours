@@ -182,6 +182,9 @@ extension FileListViewController {
         }
         hideRemoteRefreshError(for: directory)
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
+        if applyKind != .noop {
+            recordQualificationListingMutation()
+        }
         if applyKind == .noop && policy == nil {
             // Unchanged listing with nothing requested: no redraw, no restore.
             return PaneListingApplyOutcome()
@@ -236,12 +239,15 @@ extension FileListViewController {
             $0.isNavigableFolder && reconciliation.removedLocations.contains($0.location)
         }
         for item in removedLocalFolders {
-            unwatchCollapsedDirectory(item.url)
+            unwatchCollapsedDirectory(item.location)
         }
         hideErrorOverlay()
         failedLocalRefreshDirectory = nil
 
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
+        if applyKind != .noop {
+            recordQualificationListingMutation()
+        }
         if SettingsManager.shared.settings.gitStatusEnabled,
            let gitRoot = dataSource.currentDirectoryForGit {
             dataSource.fetchGitStatus(for: gitRoot, invalidatingCache: true)
@@ -311,7 +317,7 @@ extension FileListViewController {
                (error as? DirectoryLoadError) == .notFound {
                 // A disappeared expanded branch is removed by its parent's
                 // listing refresh; it is not a failure of the pane root.
-                unwatchCollapsedDirectory(url)
+                unwatchCollapsedDirectory(.local(url))
                 return
             }
             // Steady-state local failure retains the displayed tree and shows

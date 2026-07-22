@@ -15,8 +15,17 @@ UITEST_DESTINATION="platform=macOS,arch=arm64"
 APP_PATH="/Applications/Detours.app"
 BUILD_ARGS=()
 
-# Test directory setup in home (accessible and easy to navigate)
-TEST_DIR="$HOME/DetoursUITests-Temp"
+# Seed the XCUI runner's writable container directly. Creating the fixture in the account home
+# makes XCUI fall back to a different unseeded container copy or fail with EPERM when it writes
+# control files, so one shared container root is the only truthful ordinary UI-test fixture.
+TEST_DIR="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursUITests-Temp"
+TEST_BUILD_SETTINGS=(
+    "DETOURS_QUALIFICATION_APP_PATH_SETTING=$APP_PATH"
+    "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$TEST_DIR"
+    "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$TEST_DIR"
+    "DETOURS_WINDOWS_TEST_TARGET_SETTING=${DETOURS_WINDOWS_TEST_TARGET:-detours-windows}"
+    "DETOURS_TEST_ACCOUNT_HOME_SETTING=$HOME"
+)
 
 if [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
     BUILD_ARGS+=(--screenshot-fixtures)
@@ -100,7 +109,17 @@ echo "data" > "$TEST_DIR/Projects2025/notes.txt"
 
 echo "Running UI tests..."
 
-trap 'rm -rf "$TEST_DIR"' EXIT
+# shellcheck disable=SC2329
+cleanup_test_run() {
+    local attempt
+    pkill -x Detours >/dev/null 2>&1 || true
+    for (( attempt = 1; attempt <= 50; attempt++ )); do
+        pgrep -x Detours >/dev/null 2>&1 || break
+        sleep 0.1
+    done
+    rm -rf "$TEST_DIR"
+}
+trap cleanup_test_run EXIT
 
 if [ -n "$1" ]; then
     # Run specific test
@@ -108,6 +127,7 @@ if [ -n "$1" ]; then
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
+        "${TEST_BUILD_SETTINGS[@]}" \
         -only-testing:"DetoursUITests/$1"
 elif [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
     # Screenshot capture depends on the deterministic session written by
@@ -117,19 +137,22 @@ elif [ "${DETOURS_UI_TEST_SCREENSHOT_FIXTURES:-0}" = "1" ]; then
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
+        "${TEST_BUILD_SETTINGS[@]}" \
         -only-testing:"DetoursUITests/ChromePolishScreenshotTests"
 
     DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" xcodebuild test \
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
         -destination "$UITEST_DESTINATION" \
+        "${TEST_BUILD_SETTINGS[@]}" \
         -skip-testing:"DetoursUITests/ChromePolishScreenshotTests"
 else
     # Run all tests
     DETOURS_UI_TEST_ROOT="$TEST_DIR" DETOURS_UI_TEST_APP_PATH="$APP_PATH" xcodebuild test \
         -project "$XCODEPROJ" \
         -scheme DetoursUITests \
-        -destination "$UITEST_DESTINATION"
+        -destination "$UITEST_DESTINATION" \
+        "${TEST_BUILD_SETTINGS[@]}"
 fi
 
 copy_screenshot_captures

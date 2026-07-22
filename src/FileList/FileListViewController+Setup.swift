@@ -6,8 +6,9 @@ extension FileListViewController {
     @objc func outlineViewItemDidExpand(_ notification: Notification) {
         dataSource.outlineViewItemDidExpand(notification)
         // Start watching the expanded folder
-        if let item = notification.userInfo?["NSObject"] as? FileItem, item.isLocal {
-            watchExpandedDirectory(item.url)
+        if let item = notification.userInfo?["NSObject"] as? FileItem,
+           item.isLocal || item.isRemote {
+            watchExpandedDirectory(item.location)
         }
         navigationDelegate?.fileListDidChangeSelection()
     }
@@ -15,8 +16,9 @@ extension FileListViewController {
     @objc func outlineViewItemDidCollapse(_ notification: Notification) {
         dataSource.outlineViewItemDidCollapse(notification)
         // Stop watching the collapsed folder
-        if let item = notification.userInfo?["NSObject"] as? FileItem, item.isLocal {
-            unwatchCollapsedDirectory(item.url)
+        if let item = notification.userInfo?["NSObject"] as? FileItem,
+           item.isLocal || item.isRemote {
+            unwatchCollapsedDirectory(item.location)
         }
         navigationDelegate?.fileListDidChangeSelection()
     }

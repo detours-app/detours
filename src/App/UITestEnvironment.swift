@@ -1,6 +1,7 @@
 import Foundation
 
 enum UITestEnvironment {
+    static let commandReadyNotificationName = Notification.Name("com.detours.uitest.command-ready")
     static let resizeMainWindowCommandFileName = ".detours-resize-main-window.json"
     static let renameItemCommandFileName = ".detours-rename-item.json"
     static let showNetworkShareDialogCommandFileName = ".detours-show-network-share-dialog.json"
@@ -22,6 +23,10 @@ enum UITestEnvironment {
     static let paneStateResponseFileName = ".detours-pane-state-response.json"
     static let openedItemsHistoryFileName = ".detours-opened-items-history.json"
     static let remoteMutationCommandFileName = ".detours-remote-mutation-command.json"
+    static let remoteFixtureMutationCommandFileName = ".detours-remote-fixture-mutation-command.json"
+    static let remoteFixtureMutationResultFileName = ".detours-remote-fixture-mutation-result.json"
+    static let fixtureMutationCommandFileName = ".detours-fixture-mutation-command.json"
+    static let fixtureMutationResultFileName = ".detours-fixture-mutation-result.json"
     static let keychainLifecycleResultFileName = ".detours-keychain-lifecycle-result.json"
 
     struct ResizeMainWindowCommand: Decodable {
@@ -87,6 +92,38 @@ enum UITestEnvironment {
         let newName: String
     }
 
+    struct RemoteFixtureMutationCommand: Codable, Sendable {
+        let id: String
+        let action: String
+        let homePath: String
+        let scenarioName: String
+        let relativePath: String?
+        let destinationRelativePath: String?
+        let contents: String?
+        let sentinelID: String?
+    }
+
+    struct RemoteFixtureMutationResult: Codable, Sendable {
+        let id: String
+        let success: Bool
+        let names: [String]?
+        let failure: String?
+    }
+
+    struct FixtureMutationCommand: Codable, Sendable {
+        let id: String
+        let action: String
+        let relativePath: String
+        let destinationRelativePath: String?
+        let contents: String?
+    }
+
+    struct FixtureMutationResult: Codable, Sendable {
+        let id: String
+        let success: Bool
+        let failure: String?
+    }
+
     struct KeychainLifecycleResult: Encodable {
         let success: Bool
         let failure: String?
@@ -130,9 +167,16 @@ enum UITestEnvironment {
     struct PaneStateResponse: Encodable {
         let id: String
         let pane: String
+        let activePane: Bool
+        let tabCount: Int
+        let selectedTabIndex: Int
+        let selectedTabID: String?
+        let tabIDs: [String]
+        let tabLocations: [String]
         let displayedLocation: String?
         let expandedLocations: [String]
         let selectedLocations: [String]
+        let visibleLocations: [String]
         let topVisibleLocation: String?
         let topVisibleOffset: Double
         let horizontalOffset: Double
@@ -143,8 +187,26 @@ enum UITestEnvironment {
         let sortAscending: Bool
         let activeDropTarget: String?
         let refreshInFlight: Bool
+        let navigationLoadInFlight: Bool
+        let loadingVisible: Bool
         let visibleRowCount: Int
         let firstResponderDescription: String?
+        let hiddenFilesVisible: Bool
+        let operationRunning: Bool
+        let operationPendingCount: Int
+        let currentOperation: String?
+        let operationProgress: Double?
+        let pausedRemoteHostCount: Int
+        let connectionStates: [String: String]
+        let enabledMenus: [String: Bool]
+        let mountedVolumes: [String]
+        let providerWatchCount: Int
+        let providerWatchSetupCount: Int
+        let directoryWatchActive: Bool
+        let registeredRemoteProviderCount: Int
+        let gitStatuses: [String: String]
+        let refreshRequestCount: Int
+        let listingMutationCount: Int
     }
 
     static var isEnabled: Bool {
@@ -202,6 +264,16 @@ enum UITestEnvironment {
         return target
     }
 
+    static var realRemoteContext: String? {
+        guard realRemoteTarget != nil,
+              let context = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_REAL_REMOTE_CONTEXT"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !context.isEmpty else {
+            return nil
+        }
+        return context
+    }
+
     static var realRemoteConnectionDelay: Duration? {
         guard realRemoteTarget != nil,
               let rawValue = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_REMOTE_CONNECT_DELAY_MS"],
@@ -216,9 +288,15 @@ enum UITestEnvironment {
     static let windowsRemoteHostDisplayName = "UITest Windows"
 
     static var rootDirectory: URL? {
-        guard let root = ProcessInfo.processInfo.environment["DETOURS_UI_TEST_ROOT"], !root.isEmpty else {
-            return nil
-        }
+        directory(fromEnvironmentVariable: "DETOURS_UI_TEST_ROOT")
+    }
+
+    static var controlDirectory: URL? {
+        directory(fromEnvironmentVariable: "DETOURS_UI_TEST_CONTROL_ROOT") ?? rootDirectory
+    }
+
+    private static func directory(fromEnvironmentVariable name: String) -> URL? {
+        guard let root = ProcessInfo.processInfo.environment[name], !root.isEmpty else { return nil }
 
         let url: URL
         if root.hasPrefix("/") {
@@ -237,91 +315,107 @@ enum UITestEnvironment {
     }
 
     static var resizeMainWindowCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(resizeMainWindowCommandFileName)
+        controlDirectory?.appendingPathComponent(resizeMainWindowCommandFileName)
     }
 
     static var renameItemCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(renameItemCommandFileName)
+        controlDirectory?.appendingPathComponent(renameItemCommandFileName)
     }
 
     static var showNetworkShareDialogCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(showNetworkShareDialogCommandFileName)
+        controlDirectory?.appendingPathComponent(showNetworkShareDialogCommandFileName)
     }
 
     static var showNetworkShareDialogAcknowledgementURL: URL? {
-        rootDirectory?.appendingPathComponent(showNetworkShareDialogAcknowledgementFileName)
+        controlDirectory?.appendingPathComponent(showNetworkShareDialogAcknowledgementFileName)
     }
 
     static var dismissNetworkShareDialogCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(dismissNetworkShareDialogCommandFileName)
+        controlDirectory?.appendingPathComponent(dismissNetworkShareDialogCommandFileName)
     }
 
     static var showNetworkShareDialogDismissedURL: URL? {
-        rootDirectory?.appendingPathComponent(showNetworkShareDialogDismissedFileName)
+        controlDirectory?.appendingPathComponent(showNetworkShareDialogDismissedFileName)
     }
 
     static var quickNavCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(quickNavCommandFileName)
+        controlDirectory?.appendingPathComponent(quickNavCommandFileName)
     }
 
     static var remoteFailureCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(remoteFailureCommandFileName)
+        controlDirectory?.appendingPathComponent(remoteFailureCommandFileName)
     }
 
     static var remoteFailureAcknowledgementURL: URL? {
-        rootDirectory?.appendingPathComponent(remoteFailureAcknowledgementFileName)
+        controlDirectory?.appendingPathComponent(remoteFailureAcknowledgementFileName)
     }
 
     static var undoMenuTitleRequestURL: URL? {
-        rootDirectory?.appendingPathComponent(undoMenuTitleRequestFileName)
+        controlDirectory?.appendingPathComponent(undoMenuTitleRequestFileName)
     }
 
     static var undoMenuTitleResponseURL: URL? {
-        rootDirectory?.appendingPathComponent(undoMenuTitleResponseFileName)
+        controlDirectory?.appendingPathComponent(undoMenuTitleResponseFileName)
     }
 
     static var duplicateStructureShowRequestURL: URL? {
-        rootDirectory?.appendingPathComponent(duplicateStructureShowRequestFileName)
+        controlDirectory?.appendingPathComponent(duplicateStructureShowRequestFileName)
     }
 
     static var duplicateStructurePresentedURL: URL? {
-        rootDirectory?.appendingPathComponent(duplicateStructurePresentedFileName)
+        controlDirectory?.appendingPathComponent(duplicateStructurePresentedFileName)
     }
 
     static var duplicateStructureActionURL: URL? {
-        rootDirectory?.appendingPathComponent(duplicateStructureActionFileName)
+        controlDirectory?.appendingPathComponent(duplicateStructureActionFileName)
     }
 
     static var duplicateStructureDismissedURL: URL? {
-        rootDirectory?.appendingPathComponent(duplicateStructureDismissedFileName)
+        controlDirectory?.appendingPathComponent(duplicateStructureDismissedFileName)
     }
 
     static var appearanceSettingsCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(appearanceSettingsCommandFileName)
+        controlDirectory?.appendingPathComponent(appearanceSettingsCommandFileName)
     }
 
     static var appearanceSettingsAcknowledgementURL: URL? {
-        rootDirectory?.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
+        controlDirectory?.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
     }
 
     static var paneStateRequestURL: URL? {
-        rootDirectory?.appendingPathComponent(paneStateRequestFileName)
+        controlDirectory?.appendingPathComponent(paneStateRequestFileName)
     }
 
     static var paneStateResponseURL: URL? {
-        rootDirectory?.appendingPathComponent(paneStateResponseFileName)
+        controlDirectory?.appendingPathComponent(paneStateResponseFileName)
     }
 
     static var openedItemsHistoryURL: URL? {
-        rootDirectory?.appendingPathComponent(openedItemsHistoryFileName)
+        controlDirectory?.appendingPathComponent(openedItemsHistoryFileName)
     }
 
     static var remoteMutationCommandURL: URL? {
-        rootDirectory?.appendingPathComponent(remoteMutationCommandFileName)
+        controlDirectory?.appendingPathComponent(remoteMutationCommandFileName)
+    }
+
+    static var remoteFixtureMutationCommandURL: URL? {
+        controlDirectory?.appendingPathComponent(remoteFixtureMutationCommandFileName)
+    }
+
+    static var remoteFixtureMutationResultURL: URL? {
+        controlDirectory?.appendingPathComponent(remoteFixtureMutationResultFileName)
+    }
+
+    static var fixtureMutationCommandURL: URL? {
+        controlDirectory?.appendingPathComponent(fixtureMutationCommandFileName)
+    }
+
+    static var fixtureMutationResultURL: URL? {
+        controlDirectory?.appendingPathComponent(fixtureMutationResultFileName)
     }
 
     static var keychainLifecycleResultURL: URL? {
-        rootDirectory?.appendingPathComponent(keychainLifecycleResultFileName)
+        controlDirectory?.appendingPathComponent(keychainLifecycleResultFileName)
     }
 
     static func currentResizeMainWindowCommand() -> ResizeMainWindowCommand? {
@@ -444,6 +538,24 @@ enum UITestEnvironment {
         return try? JSONDecoder().decode(RemoteMutationCommand.self, from: data)
     }
 
+    static func currentRemoteFixtureMutationCommand() -> RemoteFixtureMutationCommand? {
+        guard let url = remoteFixtureMutationCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+        return try? JSONDecoder().decode(RemoteFixtureMutationCommand.self, from: data)
+    }
+
+    static func currentFixtureMutationCommand() -> FixtureMutationCommand? {
+        guard let url = fixtureMutationCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+        return try? JSONDecoder().decode(FixtureMutationCommand.self, from: data)
+    }
+
     static func acknowledgeShowNetworkShareDialogCommand(id: String) {
         guard let url = showNetworkShareDialogAcknowledgementURL,
               let data = try? JSONEncoder().encode(ShowNetworkShareDialogAcknowledgement(id: id)) else {
@@ -527,6 +639,22 @@ enum UITestEnvironment {
             return
         }
 
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func writeFixtureMutationResult(_ result: FixtureMutationResult) {
+        guard let url = fixtureMutationResultURL,
+              let data = try? JSONEncoder().encode(result) else {
+            return
+        }
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func writeRemoteFixtureMutationResult(_ result: RemoteFixtureMutationResult) {
+        guard let url = remoteFixtureMutationResultURL,
+              let data = try? JSONEncoder().encode(result) else {
+            return
+        }
         try? data.write(to: url, options: .atomic)
     }
 

@@ -31,6 +31,9 @@ extension FileListViewController {
 
         // Preserve expansion state before clearing filter
         let previousExpanded = dataSource.expandedFolders
+        let previousSelection = tableView.selectedRowIndexes.compactMap { row in
+            (tableView.item(atRow: row) as? FileItem)?.location
+        }
 
         dataSource.filterPredicate = nil
         dataSource.applier.reloadAll()
@@ -38,8 +41,10 @@ extension FileListViewController {
         // Restore expansion state
         restoreExpansion(previousExpanded)
 
-        // Select first item if selection was lost
-        if tableView.selectedRow < 0 && tableView.numberOfRows > 0 {
+        // A filtered row index identifies a different item after the full tree
+        // returns. Restore by stable location instead of retaining that index.
+        let restoredSelection = selectLocations(previousSelection, origin: .restored)
+        if !restoredSelection && tableView.numberOfRows > 0 {
             tableView.selectRowIndexes(
                 IndexSet(integer: 0),
                 byExtendingSelection: false,

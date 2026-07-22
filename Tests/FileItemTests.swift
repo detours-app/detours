@@ -108,6 +108,45 @@ final class FileItemTests: XCTestCase {
         XCTAssertNotEqual(item.name, "Shared")
     }
 
+    func testListingMetadataIgnoresOnlySubToleranceNetworkTimestampJitter() {
+        let url = URL(fileURLWithPath: "/tmp/network-timestamp.txt")
+        let originalDate = Date(timeIntervalSince1970: 1_784_649_635.741_606_7)
+
+        func updatedItem(offset: TimeInterval) -> FileItem {
+            FileItem(
+                name: url.lastPathComponent,
+                url: url,
+                isDirectory: false,
+                size: 4,
+                dateModified: originalDate.addingTimeInterval(offset),
+                icon: NSImage()
+            )
+        }
+
+        let networkItem = updatedItem(offset: 0)
+        XCTAssertFalse(
+            networkItem.updateListingMetadata(
+                from: updatedItem(offset: 0.0085),
+                isNetworkVolume: true
+            )
+        )
+        XCTAssertEqual(networkItem.dateModified, originalDate.addingTimeInterval(0.0085))
+        XCTAssertTrue(
+            networkItem.updateListingMetadata(
+                from: updatedItem(offset: 0.05),
+                isNetworkVolume: true
+            )
+        )
+
+        let localItem = updatedItem(offset: 0)
+        XCTAssertTrue(
+            localItem.updateListingMetadata(
+                from: updatedItem(offset: 0.0085),
+                isNetworkVolume: false
+            )
+        )
+    }
+
     func testFormattedSizeBytes() {
         let url = URL(fileURLWithPath: "/tmp/bytes")
         let item = FileItem(name: "bytes", url: url, isDirectory: false, size: 512, dateModified: Date(), icon: NSImage())

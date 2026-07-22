@@ -183,4 +183,37 @@ final class StatusBarCountTests: XCTestCase {
         let visibleAfterFilter = ds.totalVisibleItemCount
         XCTAssertEqual(visibleAfterFilter, 1, "Should count only 1 filtered visible item")
     }
+
+    func testPaneStatusMetadataRefreshesAsynchronously() async throws {
+        try Data("visible".utf8).write(to: tempDir.appendingPathComponent("visible.txt"))
+        try Data("hidden".utf8).write(to: tempDir.appendingPathComponent(".hidden.txt"))
+
+        let pane = PaneViewController()
+        pane.loadViewIfNeeded()
+        let tab = pane.createTab(at: tempDir, select: true)
+        defer {
+            for tab in pane.tabs {
+                tab.fileListViewControllerIfLoaded?.shutdown()
+            }
+        }
+
+        let loadDeadline = Date().addingTimeInterval(3)
+        while tab.fileListViewController.tableView.numberOfRows != 1 && Date() < loadDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(tab.fileListViewController.tableView.numberOfRows, 1)
+
+        pane.invalidateStatusMetadata()
+        pane.updateStatusBar()
+        XCTAssertNotNil(pane.statusMetadataTask, "Metadata enumeration must leave the main actor")
+
+        let metadataDeadline = Date().addingTimeInterval(3)
+        while (pane.statusMetadataTask != nil || pane.statusMetadataNeedsRefresh) && Date() < metadataDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertNil(pane.statusMetadataTask)
+        XCTAssertFalse(pane.statusMetadataNeedsRefresh)
+        XCTAssertEqual(pane.cachedHiddenFileCount, 1)
+        XCTAssertGreaterThan(pane.cachedAvailableSpace, 0)
+    }
 }

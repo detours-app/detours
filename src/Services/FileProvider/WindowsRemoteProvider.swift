@@ -331,6 +331,33 @@ actor WindowsRemoteProvider: FileProvider {
         )
     }
 
+    /// Small app-owned control writes use the existing PowerShell channel instead of opening a
+    /// second SFTP connection. This is intentionally bounded and is used by the guarded UI-test
+    /// fixture seam while the live provider session owns the host connection.
+    func writeSmallControlFile(_ data: Data, to location: Location, hidden: Bool) async throws {
+        guard data.count <= 64 * 1024 else {
+            throw FileProviderError.unsupportedOperation("Control file exceeds 64 KiB")
+        }
+        let arguments = try WindowsSmallFileWriteArguments(
+            path: nativePath(from: windowsPath(from: location)),
+            contentsBase64: data.base64EncodedString(),
+            hidden: hidden
+        )
+        let script = try PowerShellScript(source: Self.smallFileWriteScript, arguments: arguments)
+        _ = try await channel.run(script, operation: "SmallControlWrite")
+    }
+
+    func readSmallControlFile(_ location: Location) async throws -> Data {
+        let arguments = try PathArguments(path: nativePath(from: windowsPath(from: location)))
+        let script = try PowerShellScript(source: Self.smallFileReadScript, arguments: arguments)
+        let response = try await channel.run(script, operation: "SmallControlRead")
+        let encoded = try JSONDecoder.detoursWindows.decode(String.self, from: response)
+        guard let data = Data(base64Encoded: encoded), data.count <= 64 * 1024 else {
+            throw RemoteFileProviderError.invalidResponse("SmallControlRead")
+        }
+        return data
+    }
+
     func version(of location: Location) async throws -> RemoteFileVersion {
         let windowsPath = try WindowsPath(location: location, hostID: hostID)
         guard let nativePath = windowsPath.nativePath else {
@@ -525,6 +552,12 @@ private struct WindowsFindArguments: Encodable {
     let root: String
     let query: String
     let cap: Int
+}
+
+private struct WindowsSmallFileWriteArguments: Encodable {
+    let path: String
+    let contentsBase64: String
+    let hidden: Bool
 }
 
 private struct WindowsFindReply: Decodable {

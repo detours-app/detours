@@ -7,13 +7,13 @@
 #
 # Usage:   resources/scripts/wintest.sh [filter]
 #   filter defaults to WindowsRemoteLiveTests; pass e.g. WindowsRemoteLiveTests/testFoo
-# Env:     DETOURS_WINDOWS_TEST_TARGET (default win-carriercall)
+# Env:     DETOURS_WINDOWS_TEST_TARGET (default detours-windows)
 #          WINTEST_TIMEOUT  whole-run timeout in seconds (default 420)
 #          WINTEST_LOG      log file (default /tmp/detours-wintest.log)
 set -uo pipefail
 
 cd "$(cd "$(dirname "$0")/../.." && pwd)" || exit 1
-export DETOURS_WINDOWS_TEST_TARGET="${DETOURS_WINDOWS_TEST_TARGET:-win-carriercall}"
+export DETOURS_WINDOWS_TEST_TARGET="${DETOURS_WINDOWS_TEST_TARGET:-detours-windows}"
 filter="${1:-WindowsRemoteLiveTests}"
 deadline="${WINTEST_TIMEOUT:-420}"
 log="${WINTEST_LOG:-/tmp/detours-wintest.log}"

@@ -267,6 +267,18 @@ cat > "$APP_DIR/Contents/Info.plist" << EOF
     <string>AppIcon</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Detours needs to control Finder to open Get Info windows and close them when quitting.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Detours needs access to your Desktop so you can browse and manage its files.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Detours needs access to your Documents folder so you can browse and manage its files.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Detours needs access to your Downloads folder so you can browse and manage its files.</string>
+    <key>NSFileProviderDomainUsageDescription</key>
+    <string>Detours needs access to files managed by your file providers so you can browse and manage them.</string>
+    <key>NSNetworkVolumesUsageDescription</key>
+    <string>Detours needs access to network volumes so you can browse and manage their files.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>Detours needs access to removable volumes so you can browse and manage their files.</string>
 </dict>
 </plist>
 EOF

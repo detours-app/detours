@@ -50,7 +50,11 @@ extension FileOperationQueue {
                     ledger: ledger
                 )
             }
-            registerExtractionUndo(ledger: ledger, archive: archive, undoManager: undoManager)
+            if undoManager != nil {
+                registerExtractionUndo(ledger: ledger, archive: archive, undoManager: undoManager)
+            } else {
+                try await finalizeLocalDisplacements(ledger.displacedItems)
+            }
             return result
         } catch {
             let extractionError = error

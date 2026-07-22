@@ -155,10 +155,12 @@ extension FileOperationQueueTests {
         queue.onOperationStart = { _, _ in heavyStarts += 1 }
         queue.conflictChoiceOverrideForTesting = .replace
         queue.moveReplacementCancellationProbeForTesting = { true }
+        queue.forceLocalDisplacementFallbackForTesting = true
         defer {
             queue.onOperationStart = savedStart
             queue.conflictChoiceOverrideForTesting = nil
             queue.moveReplacementCancellationProbeForTesting = nil
+            queue.forceLocalDisplacementFallbackForTesting = false
         }
 
         do {
@@ -172,6 +174,7 @@ extension FileOperationQueueTests {
         XCTAssertEqual(heavyStarts, 0, "The small-file operation must use the fast lane")
         XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "new")
         XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
+        XCTAssertTrue(try replacementFallbacks(in: destinationDirectory).isEmpty)
 
         queue.moveReplacementCancellationProbeForTesting = nil
         let undoManager = UndoManager()
@@ -183,7 +186,15 @@ extension FileOperationQueueTests {
         undoManager.undo()
         XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "new")
         XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
+        XCTAssertTrue(try replacementFallbacks(in: destinationDirectory).isEmpty)
         XCTAssertEqual(heavyStarts, 0, "Retry and undo must remain on the fast lane")
+    }
+
+    private func replacementFallbacks(in directory: URL) throws -> [URL] {
+        try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        ).filter { $0.lastPathComponent.hasPrefix(".detours-replacement-") }
     }
 
     func testHeavyMoveReplaceCancellationRollsBackAndRetryUndoRestoresBothItems() async throws {

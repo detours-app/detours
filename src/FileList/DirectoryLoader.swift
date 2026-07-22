@@ -90,6 +90,24 @@ struct LoadedFileEntry: Sendable {
     let isVirtualSharedFolder: Bool
     let displayICloudStatus: ICloudStatus?
 
+    static func stableModificationDate(resourceDate: Date?, fileAttributeDate: Date?) -> Date {
+        resourceDate ?? fileAttributeDate ?? .distantPast
+    }
+
+    private static func modificationDate(for url: URL, resourceValues: URLResourceValues?) -> Date {
+        if let resourceDate = resourceValues?.contentModificationDate {
+            return stableModificationDate(resourceDate: resourceDate, fileAttributeDate: nil)
+        }
+        let fileAttributes: [FileAttributeKey: Any]? = try? FileManager.default.attributesOfItem(
+            atPath: url.path
+        )
+        let fileAttributeDate = fileAttributes?[FileAttributeKey.modificationDate] as? Date
+        return stableModificationDate(
+            resourceDate: nil,
+            fileAttributeDate: fileAttributeDate
+        )
+    }
+
     init(url: URL, resourceValues values: URLResourceValues?) {
         let isSymbolicLink = values?.isSymbolicLink ?? false
         let isAliasFile = values?.isAliasFile ?? false
@@ -116,7 +134,7 @@ struct LoadedFileEntry: Sendable {
         self.isReadable = values?.isReadable ?? true
         self.isHidden = values?.isHidden ?? url.lastPathComponent.hasPrefix(".")
         self.fileSize = isDirectory ? nil : values?.fileSize.map { Int64($0) }
-        self.contentModificationDate = values?.contentModificationDate ?? Date()
+        self.contentModificationDate = Self.modificationDate(for: url, resourceValues: values)
         self.ubiquitousItemIsShared = values?.ubiquitousItemIsShared ?? false
         self.ubiquitousSharedItemCurrentUserRole = values?.ubiquitousSharedItemCurrentUserRole
         self.ubiquitousSharedItemOwnerNameComponents = values?.ubiquitousSharedItemOwnerNameComponents

@@ -141,6 +141,27 @@ struct DirectoryLoaderTests {
         #expect(folderEntry?.isDirectory == true)
         #expect(folderEntry?.fileSize == nil)
     }
+
+    @Test("LoadedFileEntry uses stable stat date when resource metadata omits it")
+    func testLoadedFileEntryUsesStableModificationDateFallback() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fileURL = tempDir.appendingPathComponent("fallback.txt")
+        try Data("body".utf8).write(to: fileURL)
+        let expectedDate = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes(
+            [.modificationDate: expectedDate],
+            ofItemAtPath: fileURL.path
+        )
+
+        let first = LoadedFileEntry(url: fileURL, resourceValues: nil)
+        let second = LoadedFileEntry(url: fileURL, resourceValues: nil)
+        #expect(first.contentModificationDate == expectedDate)
+        #expect(second.contentModificationDate == expectedDate)
+    }
 }
 
 // MARK: - Resource Key Selection Tests

@@ -208,6 +208,16 @@ actor PowerShellChannel: RemoteConnectionHandle {
         transition(to: .disconnected)
     }
 
+    /// Exercises the same channel teardown and failed-state publication as an unexpected
+    /// transport loss. This is reached only through the runtime-gated UI-test command seam.
+    func interruptForUITest() async {
+        isStarted = false
+        cancelIdleDisconnect()
+        await transport.stop()
+        await transport.closeControlConnection()
+        transition(to: .failed(reason: .transport("UI test connection dropped")))
+    }
+
     #if DEBUG
     func isStartedForTesting() -> Bool {
         isStarted

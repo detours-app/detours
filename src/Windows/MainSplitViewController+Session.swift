@@ -76,7 +76,10 @@ extension MainSplitViewController {
             leftPane.restoreTabs(from: [uiTestRoot], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
             rightPane.restoreTabs(from: [uiTestRoot], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
             if let target = UITestEnvironment.realRemoteTarget {
-                let host = RemoteHost(displayName: target, sshTarget: target, kind: .unix)
+                let kind: RemoteHostKind = UITestEnvironment.realRemoteContext == "WINDOWS_TARGET"
+                    ? .windows
+                    : .unix
+                let host = RemoteHost(displayName: target, sshTarget: target, kind: kind)
                 connectRemoteHost(host)
             } else if let mode = UITestEnvironment.remoteMode {
                 installUITestRemoteTab(root: uiTestRoot, mode: mode)
@@ -159,6 +162,14 @@ extension MainSplitViewController {
 
         let fm = FileManager.default
         try? fm.removeItem(at: root)
+
+        // The installed-test fixture mutator uses the same fail-closed root
+        // contract as qualification roots. Conventional UI-test roots are
+        // app-created, so seed their marker before any test requests a mutation.
+        try? fm.createDirectory(at: root, withIntermediateDirectories: true)
+        try? Data("detours-ui-test-root".utf8).write(
+            to: root.appendingPathComponent(".detours-qualification-root.json")
+        )
 
         let directories = [
             "AAA_First",

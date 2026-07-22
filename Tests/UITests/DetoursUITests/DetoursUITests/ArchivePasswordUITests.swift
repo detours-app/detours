@@ -1,38 +1,56 @@
+import AppKit
 import XCTest
 
 final class ArchivePasswordUITests: BaseUITest {
-    func testCreationControlsFollowSelectedFormat() {
+    func testCreationControlsFollowSelectedFormat() throws {
+        try runQualificationRepetitions(group: "archive") { iteration in
+            self.runCreationControlsCycle(iteration: iteration)
+        }
+    }
+
+    private func runCreationControlsCycle(iteration: Int) {
         selectRow(named: "file1.txt")
         chooseFileMenuItem("Archive...")
 
         let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 3), "Archive sheet should open")
+        XCTAssertTrue(sheet.existsOrWait(timeout: 3), "Archive sheet should open")
         let formatPicker = sheet.popUpButtons["archiveFormatPicker"]
         let passwordToggle = sheet.checkBoxes["archivePasswordToggle"]
-        XCTAssertTrue(formatPicker.waitForExistence(timeout: 2))
-        XCTAssertTrue(passwordToggle.waitForExistence(timeout: 2))
+        XCTAssertTrue(formatPicker.existsOrWait(timeout: 2))
+        XCTAssertTrue(passwordToggle.existsOrWait(timeout: 2))
 
-        chooseArchiveFormat("zip")
-        XCTAssertTrue(passwordToggle.isEnabled)
-        chooseArchiveFormat("sevenZ")
-        XCTAssertTrue(passwordToggle.isEnabled)
-        for (identifier, displayName) in [("tarGz", "TAR.GZ"), ("tarBz2", "TAR.BZ2"), ("tarXz", "TAR.XZ")] {
-            chooseArchiveFormat(identifier)
-            XCTAssertFalse(passwordToggle.isEnabled, "\(displayName) should disable password encryption")
+        if iteration.isMultiple(of: 2) {
+            chooseArchiveFormat("sevenZ")
+            XCTAssertTrue(passwordToggle.isEnabled, "7Z should enable password encryption")
         }
 
+        let passwordlessFormats = [("tarGz", "TAR.GZ"), ("tarBz2", "TAR.BZ2"), ("tarXz", "TAR.XZ")]
+        let passwordlessFormat = passwordlessFormats[(iteration - 1) % passwordlessFormats.count]
+        chooseArchiveFormat(passwordlessFormat.0)
+        XCTAssertFalse(
+            passwordToggle.isEnabled,
+            "\(passwordlessFormat.1) should disable password encryption"
+        )
+
         chooseArchiveFormat("zip")
+        XCTAssertTrue(passwordToggle.isEnabled, "ZIP should enable password encryption")
         passwordToggle.click()
         let passwordField = sheet.secureTextFields["archivePasswordField"]
-        XCTAssertTrue(passwordField.waitForExistence(timeout: 2))
+        XCTAssertTrue(passwordField.existsOrWait(timeout: 2))
         passwordField.click()
-        passwordField.typeText(String(repeating: "a", count: 81))
 
         let limitMessage = sheet.staticTexts["ZIP passwords are limited to 80 UTF-8 bytes"]
-        XCTAssertTrue(limitMessage.waitForExistence(timeout: 2))
-        XCTAssertFalse(sheet.buttons["archiveConfirmButton"].isEnabled)
+        if (iteration - 1).isMultiple(of: 10) {
+            pastePassword(String(repeating: "a", count: 81), into: passwordField)
+            XCTAssertTrue(limitMessage.existsOrWait(timeout: 2))
+            XCTAssertFalse(sheet.buttons["archiveConfirmButton"].isEnabled)
+        } else {
+            pastePassword("a", into: passwordField)
+            XCTAssertFalse(limitMessage.exists)
+            XCTAssertTrue(sheet.buttons["archiveConfirmButton"].isEnabled)
+        }
         sheet.buttons["Cancel"].click()
-        XCTAssertFalse(sheet.waitForExistence(timeout: 2))
+        XCTAssertTrue(sheet.doesNotExistOrWait(timeout: 2))
     }
 
     func testWrongPasswordShowsRetrySheet() throws {
@@ -77,8 +95,23 @@ final class ArchivePasswordUITests: BaseUITest {
         let picker = app.sheets.firstMatch.popUpButtons.firstMatch
         picker.click()
         let item = app.descendants(matching: .any)["archiveFormat-\(identifier)"]
-        XCTAssertTrue(item.waitForExistence(timeout: 2), "\(identifier) archive format should exist")
+        XCTAssertTrue(item.existsOrWait(timeout: 2), "\(identifier) archive format should exist")
         item.click()
+    }
+
+    private func pastePassword(_ password: String, into field: XCUIElement) {
+        let pasteboard = NSPasteboard.general
+        let priorString = pasteboard.string(forType: .string)
+        defer {
+            pasteboard.clearContents()
+            if let priorString {
+                _ = pasteboard.setString(priorString, forType: .string)
+            }
+        }
+
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.setString(password, forType: .string))
+        field.typeKey("v", modifierFlags: .command)
     }
 
     private func submitExtractionPassword(_ password: String) {

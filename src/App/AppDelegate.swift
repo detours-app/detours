@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var systemEventMonitor: Any?
     private var keyDownEventMonitor: Any?
     private var uiTestCommandPollingTask: Task<Void, Never>?
+    private var observesUITestCommandNotifications = false
     private var lastUITestResizeCommandID: String?
     private var lastUITestRenameCommandID: String?
     private var lastUITestShowNetworkShareDialogCommandID: String?
@@ -16,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUITestAppearanceSettingsCommandID: String?
     private var lastUITestPaneStateRequestID: String?
     private var lastUITestRemoteMutationCommandID: String?
+    private var lastUITestRemoteFixtureMutationCommandID: String?
+    private var lastUITestFixtureMutationCommandID: String?
 
     private struct UITestTextFrame {
         let label: String
@@ -101,6 +104,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         uiTestCommandPollingTask?.cancel()
         uiTestCommandPollingTask = nil
+        if observesUITestCommandNotifications {
+            DistributedNotificationCenter.default().removeObserver(
+                self,
+                name: UITestEnvironment.commandReadyNotificationName,
+                object: nil
+            )
+            observesUITestCommandNotifications = false
+        }
     }
 
     private func installUITestHooks() {
@@ -112,12 +123,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         seedUITestCommandStateFromExistingFiles()
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleUITestCommandNotification),
+            name: UITestEnvironment.commandReadyNotificationName,
+            object: nil,
+            suspensionBehavior: .deliverImmediately
+        )
+        observesUITestCommandNotifications = true
         uiTestCommandPollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 self?.pollUITestCommands()
                 try? await Task.sleep(nanoseconds: 100_000_000)
             }
         }
+    }
+
+    @objc private func handleUITestCommandNotification(_ notification: Notification) {
+        pollUITestCommands()
     }
 
     private func runKeychainLifecycleForUITest() async {
@@ -178,6 +201,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lastUITestAppearanceSettingsCommandID = UITestEnvironment.currentAppearanceSettingsCommand()?.id
         lastUITestPaneStateRequestID = UITestEnvironment.currentPaneStateRequest()?.id
         lastUITestRemoteMutationCommandID = UITestEnvironment.currentRemoteMutationCommand()?.id
+        lastUITestRemoteFixtureMutationCommandID = UITestEnvironment.currentRemoteFixtureMutationCommand()?.id
+        lastUITestFixtureMutationCommandID = UITestEnvironment.currentFixtureMutationCommand()?.id
     }
 
     private func pollUITestCommands() {
@@ -219,8 +244,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let command = UITestEnvironment.currentRemoteFailureCommand(),
            command.id != lastUITestRemoteFailureCommandID {
             lastUITestRemoteFailureCommandID = command.id
-            let handled = mainWindowController?.splitViewController.performUITestRemoteFailure() ?? false
-            UITestEnvironment.acknowledgeRemoteFailureCommand(id: command.id, handled: handled)
+            if UITestEnvironment.realRemoteTarget != nil {
+                Task { @MainActor in
+                    let handled = await RemoteConnectionRegistry.shared.interruptWindowsConnectionsForUITest()
+                    UITestEnvironment.acknowledgeRemoteFailureCommand(id: command.id, handled: handled)
+                }
+            } else {
+                let handled = mainWindowController?.splitViewController.performUITestRemoteFailure() ?? false
+                UITestEnvironment.acknowledgeRemoteFailureCommand(id: command.id, handled: handled)
+            }
         }
 
         if let request = UITestEnvironment.currentUndoMenuTitleRequest(),
@@ -251,6 +283,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            command.id != lastUITestRemoteMutationCommandID {
             lastUITestRemoteMutationCommandID = command.id
             mainWindowController?.splitViewController.performUITestRemoteMutation(command)
+        }
+
+        if let command = UITestEnvironment.currentRemoteFixtureMutationCommand(),
+           command.id != lastUITestRemoteFixtureMutationCommandID {
+            lastUITestRemoteFixtureMutationCommandID = command.id
+            Task { @MainActor [weak self] in
+                let result: UITestEnvironment.RemoteFixtureMutationResult
+                do {
+                    guard let splitViewController = self?.mainWindowController?.splitViewController else {
+                        throw UITestRemoteFixtureMutator.MutationError.unavailablePane
+                    }
+                    let names = try await UITestRemoteFixtureMutator.perform(
+                        command,
+                        splitViewController: splitViewController
+                    )
+                    result = .init(id: command.id, success: true, names: names, failure: nil)
+                } catch {
+                    result = .init(
+                        id: command.id,
+                        success: false,
+                        names: nil,
+                        failure: error.localizedDescription
+                    )
+                }
+                UITestEnvironment.writeRemoteFixtureMutationResult(result)
+            }
+        }
+
+        if let command = UITestEnvironment.currentFixtureMutationCommand(),
+           command.id != lastUITestFixtureMutationCommandID {
+            lastUITestFixtureMutationCommandID = command.id
+            Task.detached {
+                let result: UITestEnvironment.FixtureMutationResult
+                do {
+                    try UITestFixtureMutator.perform(command)
+                    result = .init(id: command.id, success: true, failure: nil)
+                } catch {
+                    result = .init(id: command.id, success: false, failure: error.localizedDescription)
+                }
+                UITestEnvironment.writeFixtureMutationResult(result)
+            }
         }
     }
 

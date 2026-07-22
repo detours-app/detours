@@ -5,11 +5,18 @@ import AppKit
 @MainActor
 final class PaneTab {
     /// Navigation history entry storing directory and selection to restore
+    private struct RemoteHistoryDestination {
+        let host: RemoteHost
+        let path: String
+        let provider: (any FileProvider)?
+    }
+
     private struct HistoryEntry {
         let directory: URL
         let iCloudListingMode: ICloudListingMode
         let sharedNavigationRootURL: URL?
         let selectionToRestore: URL?  // Item to select when returning to this directory
+        let remoteDestination: RemoteHistoryDestination?
     }
 
     let id: UUID
@@ -105,8 +112,6 @@ final class PaneTab {
 
     /// Navigate to a directory, optionally adding current to history
     func navigate(to url: URL, iCloudListingMode listingMode: ICloudListingMode = .normal, addToHistory: Bool = true, skipContainerResolution: Bool = false, selectingItem itemToSelect: URL? = nil) {
-        remoteTitle = nil
-        remoteFullPath = nil
         let previousDirectory = currentDirectory
         let previousMode = iCloudListingMode
         let previousSharedRoot = sharedNavigationRootURL
@@ -134,22 +139,44 @@ final class PaneTab {
             previousRoot: previousSharedRoot
         )
 
-        if addToHistory && (currentDirectory != normalized || iCloudListingMode != resolvedMode) {
+        let isRemote = fileListViewControllerIfLoaded?.currentRemoteLocation != nil
+        if addToHistory && (isRemote || currentDirectory != normalized || iCloudListingMode != resolvedMode) {
             // Store current directory with the folder we're navigating into as the selection to restore
-            let entry = HistoryEntry(
-                directory: currentDirectory,
-                iCloudListingMode: iCloudListingMode,
-                sharedNavigationRootURL: sharedNavigationRootURL,
-                selectionToRestore: normalized
+            backStack.append(
+                makeHistoryEntry(selectionToRestore: isRemote ? nil : normalized)
             )
-            backStack.append(entry)
             forwardStack.removeAll()
         }
 
+        remoteTitle = nil
+        remoteFullPath = nil
         currentDirectory = normalized
         iCloudListingMode = resolvedMode
         sharedNavigationRootURL = resolvedSharedRoot
         fileListViewController.loadDirectory(currentDirectory, selectingItem: itemToSelect, iCloudListingMode: resolvedMode)
+    }
+
+    func navigateRemote(
+        host: RemoteHost,
+        path: String,
+        provider: any FileProvider,
+        addToHistory: Bool = true
+    ) {
+        setRemoteDestination(
+            RemoteHistoryDestination(host: host, path: path, provider: provider),
+            addToHistory: addToHistory
+        )
+    }
+
+    func showPendingRemoteHost(
+        _ host: RemoteHost,
+        path: String,
+        addToHistory: Bool = true
+    ) {
+        setRemoteDestination(
+            RemoteHistoryDestination(host: host, path: path, provider: nil),
+            addToHistory: addToHistory
+        )
     }
 
     /// Go back in history. Returns false if can't go back.
@@ -157,17 +184,14 @@ final class PaneTab {
     func goBack() -> Bool {
         guard let previous = backStack.popLast() else { return false }
         // When going back, store current directory; when user goes forward again, select where they came from
-        let entry = HistoryEntry(
-            directory: currentDirectory,
-            iCloudListingMode: iCloudListingMode,
-            sharedNavigationRootURL: sharedNavigationRootURL,
-            selectionToRestore: previous.selectionToRestore
+        forwardStack.append(
+            makeHistoryEntry(
+                selectionToRestore: previous.remoteDestination == nil
+                    ? previous.selectionToRestore
+                    : nil
+            )
         )
-        forwardStack.append(entry)
-        currentDirectory = previous.directory
-        iCloudListingMode = previous.iCloudListingMode
-        sharedNavigationRootURL = previous.sharedNavigationRootURL
-        fileListViewController.loadDirectory(currentDirectory, selectingItem: previous.selectionToRestore, iCloudListingMode: previous.iCloudListingMode)
+        applyHistoryEntry(previous)
         return true
     }
 
@@ -176,17 +200,12 @@ final class PaneTab {
     func goForward() -> Bool {
         guard let next = forwardStack.popLast() else { return false }
         // When going forward, store current directory with the target as selection to restore on back
-        let entry = HistoryEntry(
-            directory: currentDirectory,
-            iCloudListingMode: iCloudListingMode,
-            sharedNavigationRootURL: sharedNavigationRootURL,
-            selectionToRestore: next.directory
+        backStack.append(
+            makeHistoryEntry(
+                selectionToRestore: next.remoteDestination == nil ? next.directory : nil
+            )
         )
-        backStack.append(entry)
-        currentDirectory = next.directory
-        iCloudListingMode = next.iCloudListingMode
-        sharedNavigationRootURL = next.sharedNavigationRootURL
-        fileListViewController.loadDirectory(currentDirectory, selectingItem: next.selectionToRestore, iCloudListingMode: next.iCloudListingMode)
+        applyHistoryEntry(next)
         return true
     }
 
@@ -197,6 +216,7 @@ final class PaneTab {
     /// Go to parent directory. Returns false if already at root.
     @discardableResult
     func goUp() -> Bool {
+        guard fileListViewControllerIfLoaded?.currentRemoteLocation == nil else { return false }
         if iCloudListingMode == .sharedTopLevel {
             return goUpInSharedContext()
         }
@@ -218,7 +238,8 @@ final class PaneTab {
             directory: currentDir,
             iCloudListingMode: iCloudListingMode,
             sharedNavigationRootURL: sharedNavigationRootURL,
-            selectionToRestore: currentDir
+            selectionToRestore: currentDir,
+            remoteDestination: nil
         )
         backStack.append(entry)
         forwardStack.removeAll()
@@ -235,6 +256,84 @@ final class PaneTab {
 
     var canGoForward: Bool {
         !forwardStack.isEmpty
+    }
+
+    private func makeHistoryEntry(selectionToRestore: URL?) -> HistoryEntry {
+        let remoteDestination: RemoteHistoryDestination?
+        if let controller = fileListViewControllerIfLoaded,
+           let host = controller.currentRemoteHost,
+           case .remote(_, let path)? = controller.currentRemoteLocation {
+            remoteDestination = RemoteHistoryDestination(
+                host: host,
+                path: path,
+                provider: controller.currentRemoteProvider
+            )
+        } else {
+            remoteDestination = nil
+        }
+        return HistoryEntry(
+            directory: currentDirectory,
+            iCloudListingMode: iCloudListingMode,
+            sharedNavigationRootURL: sharedNavigationRootURL,
+            selectionToRestore: selectionToRestore,
+            remoteDestination: remoteDestination
+        )
+    }
+
+    private func setRemoteDestination(
+        _ destination: RemoteHistoryDestination,
+        addToHistory: Bool
+    ) {
+        let currentRemoteLocation = fileListViewControllerIfLoaded?.currentRemoteLocation
+        let isSameRemoteDestination: Bool
+        if case .remote(let hostID, let path)? = currentRemoteLocation {
+            isSameRemoteDestination = hostID == destination.host.id && path == destination.path
+        } else {
+            isSameRemoteDestination = false
+        }
+        if addToHistory && !isSameRemoteDestination {
+            backStack.append(makeHistoryEntry(selectionToRestore: nil))
+            forwardStack.removeAll()
+        }
+        applyRemoteDestination(destination)
+    }
+
+    private func applyHistoryEntry(_ entry: HistoryEntry) {
+        currentDirectory = entry.directory
+        iCloudListingMode = entry.iCloudListingMode
+        sharedNavigationRootURL = entry.sharedNavigationRootURL
+        if let remoteDestination = entry.remoteDestination {
+            applyRemoteDestination(remoteDestination)
+            return
+        }
+        remoteTitle = nil
+        remoteFullPath = nil
+        fileListViewController.loadDirectory(
+            currentDirectory,
+            selectingItem: entry.selectionToRestore,
+            iCloudListingMode: entry.iCloudListingMode
+        )
+    }
+
+    private func applyRemoteDestination(_ destination: RemoteHistoryDestination) {
+        remoteTitle = destination.path.split(separator: "/").last.map(String.init)
+            ?? destination.host.displayName
+        let normalizedPath = destination.path.hasPrefix("/")
+            ? destination.path
+            : "/" + destination.path
+        remoteFullPath = "\(destination.host.displayName):\(normalizedPath)"
+        if let provider = destination.provider {
+            fileListViewController.loadRemoteDirectory(
+                host: destination.host,
+                path: destination.path,
+                provider: provider
+            )
+        } else {
+            fileListViewController.showPendingRemoteReconnect(
+                host: destination.host,
+                path: destination.path
+            )
+        }
     }
 
     private static func normalizeDirectoryURL(_ url: URL) -> URL {
@@ -318,7 +417,8 @@ final class PaneTab {
             directory: currentDir,
             iCloudListingMode: iCloudListingMode,
             sharedNavigationRootURL: sharedNavigationRootURL,
-            selectionToRestore: currentDir
+            selectionToRestore: currentDir,
+            remoteDestination: nil
         )
         backStack.append(entry)
         forwardStack.removeAll()

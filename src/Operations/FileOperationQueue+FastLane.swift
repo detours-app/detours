@@ -112,6 +112,8 @@ extension FileOperationQueue {
                 ? "Copy \"\(successes[0].destination.lastPathComponent)\""
                 : "Copy \(successes.count) Items"
             undoManager.setActionName(actionName)
+        } else {
+            try await finalizeLocalDisplacementsUntracked(successes.compactMap(\.displaced))
         }
 
         let copiedItems = successes.map(\.destination)
@@ -210,6 +212,8 @@ extension FileOperationQueue {
             }
             let actionName = successes.count == 1 ? "Move \"\(successes[0].destination.lastPathComponent)\"" : "Move \(successes.count) Items"
             undoManager.setActionName(actionName)
+        } else {
+            try await finalizeLocalDisplacementsUntracked(successes.compactMap(\.displaced))
         }
 
         try handleFailures(successes: successes.map { $0.destination }, failures: failures)

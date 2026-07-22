@@ -2,6 +2,18 @@ import XCTest
 @testable import Detours
 
 final class RemoteIntegrationTests: XCTestCase {
+    static var linuxTestTarget: String {
+        ProcessInfo.processInfo.environment["DETOURS_LINUX_TEST_TARGET"]
+            ?? ProcessInfo.processInfo.environment["LINUX_TARGET"]
+            ?? "devtest"
+    }
+
+    static var intelMacTestTarget: String {
+        ProcessInfo.processInfo.environment["DETOURS_INTEL_MAC_TEST_TARGET"]
+            ?? ProcessInfo.processInfo.environment["INTEL_MAC_TARGET"]
+            ?? "wraith"
+    }
+
     func testListDirectoryReturnsExpectedEntries() async throws {
         let session = try await RemoteIntegrationSession.make()
 
@@ -246,7 +258,7 @@ final class RemoteIntegrationTests: XCTestCase {
         let bundle = try createTestFile(in: localRoot, name: "detours-server", content: "deployed-helper")
         let installDirectory = remoteRoot + "/install"
         let deployer = ServerDeployer(
-            client: SSHServerDeploymentClient(sshTarget: "devtest"),
+            client: SSHServerDeploymentClient(sshTarget: Self.linuxTestTarget),
             bundledBinaryURL: bundle,
             installDirectory: installDirectory
         )
@@ -270,7 +282,7 @@ final class RemoteIntegrationTests: XCTestCase {
         defer { cleanupTempDirectory(localRoot) }
         let bundle = try createTestFile(in: localRoot, name: "detours-server", content: "retry-helper")
         let installDirectory = remoteRoot + "/install"
-        let baseClient = SSHServerDeploymentClient(sshTarget: "devtest")
+        let baseClient = SSHServerDeploymentClient(sshTarget: Self.linuxTestTarget)
         let failingDeployer = ServerDeployer(
             client: FailingFinalizationSSHDeploymentClient(base: baseClient),
             bundledBinaryURL: bundle,
@@ -316,7 +328,7 @@ final class RemoteIntegrationTests: XCTestCase {
         defer { cleanupTempDirectory(controlRoot) }
         let hostID = UUID()
         let connection = SSHConnection(
-            configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: "devtest"),
+            configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: Self.linuxTestTarget),
             controlDirectory: controlRoot.appendingPathComponent("ssh", isDirectory: true),
             hostTrust: SSHHostTrust(
                 knownHostsURL: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/known_hosts")
@@ -326,7 +338,7 @@ final class RemoteIntegrationTests: XCTestCase {
         let provider = RemoteFileProvider(
             hostID: hostID,
             rpcClient: rpcClient,
-            transferChannel: RemoteTransferChannel(sshTarget: "devtest", controlDirectory: controlRoot)
+            transferChannel: RemoteTransferChannel(sshTarget: Self.linuxTestTarget, controlDirectory: controlRoot)
         )
         let root = Location.remote(hostID: hostID, path: remoteRoot)
 
@@ -358,7 +370,7 @@ final class RemoteIntegrationTests: XCTestCase {
             .appendingPathComponent("dtssh-\(UUID().uuidString.prefix(8))", isDirectory: true)
         defer { cleanupTempDirectory(controlRoot) }
         let connection = SSHConnection(
-            configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"),
+            configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: Self.linuxTestTarget),
             controlDirectory: controlRoot.appendingPathComponent("ssh", isDirectory: true),
             hostTrust: SSHHostTrust(
                 knownHostsURL: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/known_hosts")
@@ -394,10 +406,10 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     func testUnixHostKindProbeUsesRealSSHProcessAndPowerShellFailure() async throws {
-        _ = try Self.runSSH("uname -s", target: "devtest")
+        _ = try Self.runSSH("uname -s", target: Self.linuxTestTarget)
 
         let kind = await RemoteHostKindProbe(
-            client: SSHRemoteHostKindProbeClient(sshTarget: "devtest")
+            client: SSHRemoteHostKindProbeClient(sshTarget: Self.linuxTestTarget)
         ).probe()
 
         XCTAssertEqual(kind, .unix)
@@ -552,7 +564,7 @@ final class RemoteIntegrationTests: XCTestCase {
         let userKnownHosts = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".ssh/known_hosts")
         let connection = SSHConnection(
-            configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: "devtest"),
+            configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: Self.linuxTestTarget),
             controlDirectory: controlDirectory,
             hostTrust: SSHHostTrust(knownHostsURL: userKnownHosts),
             idleTimeout: 0.05
@@ -560,7 +572,7 @@ final class RemoteIntegrationTests: XCTestCase {
         let provider = RemoteFileProvider(
             hostID: hostID,
             rpcClient: SSHRemoteRPCClient(connection: connection),
-            transferChannel: RemoteTransferChannel(sshTarget: "devtest", controlDirectory: controlDirectory)
+            transferChannel: RemoteTransferChannel(sshTarget: Self.linuxTestTarget, controlDirectory: controlDirectory)
         )
 
         try await connection.connect()
@@ -589,7 +601,7 @@ final class RemoteIntegrationTests: XCTestCase {
     func testHostKeyChangeBlocks() throws {
         let defaults = try Self.makeDefaults()
         let store = RemoteHostStore(defaults: defaults)
-        let host = store.add(displayName: "Dev VM", sshTarget: "devtest")
+        let host = store.add(displayName: "Qualification Linux", sshTarget: Self.linuxTestTarget)
         store.updateFingerprint(id: host.id, fingerprint: "SHA256:old")
 
         let evaluation = SSHHostTrust().evaluateFingerprint("SHA256:new", for: host.id, in: store)
@@ -619,7 +631,7 @@ final class RemoteIntegrationTests: XCTestCase {
 
     func testIntelMacListDirectoryReturnsExpectedEntries() async throws {
         let session = try await RemoteIntegrationSession.makeIntelMac()
-        let home = try Self.remoteHome(target: "wraith")
+        let home = try Self.remoteHome(target: Self.intelMacTestTarget)
 
         let entries = try await session.provider.list(.remote(hostID: session.hostID, path: home), showHidden: false)
 
@@ -635,10 +647,10 @@ final class RemoteIntegrationTests: XCTestCase {
         let knownHostsURL = temp.appendingPathComponent("known_hosts")
         let controlDirectory = temp.appendingPathComponent("ssh", isDirectory: true)
         let trust = SSHHostTrust(knownHostsURL: knownHostsURL)
-        let hostKey = try await trust.scanHostKey(for: "wraith")
+        let hostKey = try await trust.scanHostKey(for: Self.intelMacTestTarget)
         try trust.recordTrustedHostKey(hostKey, hostID: hostID)
         let connection = SSHConnection(
-            configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: "wraith"),
+            configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: Self.intelMacTestTarget),
             controlDirectory: controlDirectory,
             hostTrust: trust
         )
@@ -646,9 +658,9 @@ final class RemoteIntegrationTests: XCTestCase {
         let provider = RemoteFileProvider(
             hostID: hostID,
             rpcClient: rpcClient,
-            transferChannel: RemoteTransferChannel(sshTarget: "wraith", controlDirectory: controlDirectory)
+            transferChannel: RemoteTransferChannel(sshTarget: Self.intelMacTestTarget, controlDirectory: controlDirectory)
         )
-        let home = try Self.remoteHome(target: "wraith")
+        let home = try Self.remoteHome(target: Self.intelMacTestTarget)
 
         try await connection.connect()
         let response: [Data]
@@ -668,9 +680,9 @@ final class RemoteIntegrationTests: XCTestCase {
 
     func testIntelMacCopyRemoteToLocal() async throws {
         let session = try await RemoteIntegrationSession.makeIntelMac()
-        let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
-        defer { Self.cleanupRemote(remoteRoot, target: "wraith") }
-        try Self.runSSH("printf remote-body > \(Self.shellQuote(remoteRoot + "/remote.txt"))", target: "wraith")
+        let remoteRoot = try Self.makeRemoteFixtureRoot(target: Self.intelMacTestTarget)
+        defer { Self.cleanupRemote(remoteRoot, target: Self.intelMacTestTarget) }
+        try Self.runSSH("printf remote-body > \(Self.shellQuote(remoteRoot + "/remote.txt"))", target: Self.intelMacTestTarget)
         let localRoot = try createTempDirectory()
         defer { cleanupTempDirectory(localRoot) }
         let destination = localRoot.appendingPathComponent("remote.txt")
@@ -682,8 +694,8 @@ final class RemoteIntegrationTests: XCTestCase {
 
     func testIntelMacCopyLocalToRemote() async throws {
         let session = try await RemoteIntegrationSession.makeIntelMac()
-        let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
-        defer { Self.cleanupRemote(remoteRoot, target: "wraith") }
+        let remoteRoot = try Self.makeRemoteFixtureRoot(target: Self.intelMacTestTarget)
+        defer { Self.cleanupRemote(remoteRoot, target: Self.intelMacTestTarget) }
         let localRoot = try createTempDirectory()
         defer { cleanupTempDirectory(localRoot) }
         let source = try createTestFile(in: localRoot, name: "upload.txt", content: "local-body")
@@ -692,18 +704,18 @@ final class RemoteIntegrationTests: XCTestCase {
         let entry = try await session.provider.stat(.remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
 
         XCTAssertEqual(entry.fileSize, 10)
-        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(remoteRoot + "/upload.txt"))", target: "wraith"), "local-body")
+        XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(remoteRoot + "/upload.txt"))", target: Self.intelMacTestTarget), "local-body")
     }
 
     func testIntelMacLargeTransferUsesRemoteTransferChannel() async throws {
         let session = try await RemoteIntegrationSession.makeIntelMac()
-        let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
-        defer { Self.cleanupRemote(remoteRoot, target: "wraith") }
-        try Self.runSSH("dd if=/dev/zero of=\(Self.shellQuote(remoteRoot + "/large.bin")) bs=1m count=100 2>/dev/null", target: "wraith")
+        let remoteRoot = try Self.makeRemoteFixtureRoot(target: Self.intelMacTestTarget)
+        defer { Self.cleanupRemote(remoteRoot, target: Self.intelMacTestTarget) }
+        try Self.runSSH("dd if=/dev/zero of=\(Self.shellQuote(remoteRoot + "/large.bin")) bs=1m count=100 2>/dev/null", target: Self.intelMacTestTarget)
         let localRoot = try createTempDirectory()
         defer { cleanupTempDirectory(localRoot) }
         let destination = localRoot.appendingPathComponent("large.bin")
-        let home = try Self.remoteHome(target: "wraith")
+        let home = try Self.remoteHome(target: Self.intelMacTestTarget)
 
         let download = Task {
             try await session.provider.download(.remote(hostID: session.hostID, path: remoteRoot + "/large.bin"), to: destination)
@@ -720,9 +732,9 @@ final class RemoteIntegrationTests: XCTestCase {
 
     func testIntelMacWatchDirectoryReceivesDarwinEvent() async throws {
         _ = try await RemoteIntegrationSession.makeIntelMac()
-        let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
-        defer { Self.cleanupRemote(remoteRoot, target: "wraith") }
-        let session = try PersistentRemoteRPCSession.start(sshTarget: "wraith")
+        let remoteRoot = try Self.makeRemoteFixtureRoot(target: Self.intelMacTestTarget)
+        defer { Self.cleanupRemote(remoteRoot, target: Self.intelMacTestTarget) }
+        let session = try PersistentRemoteRPCSession.start(sshTarget: Self.intelMacTestTarget)
         defer { session.close() }
         let token = UUID()
 
@@ -731,7 +743,7 @@ final class RemoteIntegrationTests: XCTestCase {
             envelope.id == 1 && envelope.kind == .response
         }
 
-        try Self.runSSH("printf watched > \(Self.shellQuote(remoteRoot + "/watched.txt"))", target: "wraith")
+        try Self.runSSH("printf watched > \(Self.shellQuote(remoteRoot + "/watched.txt"))", target: Self.intelMacTestTarget)
         let envelope = try session.waitForEnvelope(timeout: 2) { envelope in
             envelope.kind == .event && envelope.messageType == "WatchEvent"
         }
@@ -746,17 +758,17 @@ final class RemoteIntegrationTests: XCTestCase {
 
     func testIntelMacTrashAndRestore() async throws {
         let session = try await RemoteIntegrationSession.makeIntelMac()
-        let remoteRoot = try Self.makeRemoteFixtureRoot(target: "wraith")
-        defer { Self.cleanupRemote(remoteRoot, target: "wraith") }
-        try Self.runSSH("printf trash > \(Self.shellQuote(remoteRoot + "/trash.txt"))", target: "wraith")
+        let remoteRoot = try Self.makeRemoteFixtureRoot(target: Self.intelMacTestTarget)
+        defer { Self.cleanupRemote(remoteRoot, target: Self.intelMacTestTarget) }
+        try Self.runSSH("printf trash > \(Self.shellQuote(remoteRoot + "/trash.txt"))", target: Self.intelMacTestTarget)
         let location = Location.remote(hostID: session.hostID, path: remoteRoot + "/trash.txt")
 
         let trashed = try await session.provider.trash([location])
-        XCTAssertFalse(try Self.remotePathExists(remoteRoot + "/trash.txt", target: "wraith"))
+        XCTAssertFalse(try Self.remotePathExists(remoteRoot + "/trash.txt", target: Self.intelMacTestTarget))
         let restored = try await session.provider.restoreFromTrash(trashed)
 
         XCTAssertEqual(restored, [location])
-        XCTAssertTrue(try Self.remotePathExists(remoteRoot + "/trash.txt", target: "wraith"))
+        XCTAssertTrue(try Self.remotePathExists(remoteRoot + "/trash.txt", target: Self.intelMacTestTarget))
     }
 
     func testIntelMacUnsupportedArmFixture() async throws {
@@ -865,7 +877,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     private static func makeRemoteFixtureRoot() throws -> String {
-        try makeRemoteFixtureRoot(target: "devtest")
+        try makeRemoteFixtureRoot(target: linuxTestTarget)
     }
 
     private static func makeRemoteFixtureRoot(target: String) throws -> String {
@@ -876,7 +888,7 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     private static func cleanupRemote(_ path: String) {
-        cleanupRemote(path, target: "devtest")
+        cleanupRemote(path, target: linuxTestTarget)
     }
 
     private static func cleanupRemote(_ path: String, target: String) {
@@ -894,7 +906,11 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTFail("Remote path was not restored within \(timeout) seconds: \(path)")
     }
 
-    private static func remotePathExists(_ path: String, target: String = "devtest") throws -> Bool {
+    private static func remotePathExists(_ path: String) throws -> Bool {
+        try remotePathExists(path, target: linuxTestTarget)
+    }
+
+    private static func remotePathExists(_ path: String, target: String) throws -> Bool {
         let process = try configuredSSHProcess(command: "test -e \(shellQuote(path))", target: target)
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -907,7 +923,12 @@ final class RemoteIntegrationTests: XCTestCase {
     }
 
     @discardableResult
-    static func runSSH(_ command: String, target: String = "devtest") throws -> String {
+    static func runSSH(_ command: String) throws -> String {
+        try runSSH(command, target: linuxTestTarget)
+    }
+
+    @discardableResult
+    static func runSSH(_ command: String, target: String) throws -> String {
         let process = try configuredSSHProcess(command: command, target: target)
         let output = Pipe()
         let error = Pipe()
@@ -926,7 +947,7 @@ final class RemoteIntegrationTests: XCTestCase {
         return stdout
     }
 
-    fileprivate static func configuredSSHProcess(command: String, target: String = "devtest") throws -> Process {
+    fileprivate static func configuredSSHProcess(command: String, target: String) throws -> Process {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
         process.arguments = [
@@ -971,7 +992,11 @@ final class RemoteIntegrationTests: XCTestCase {
 struct ProcessRemoteRPCClient: RemoteRPCClient {
     let sshTarget: String
 
-    init(sshTarget: String = "devtest") {
+    init() {
+        self.init(sshTarget: RemoteIntegrationTests.linuxTestTarget)
+    }
+
+    init(sshTarget: String) {
         self.sshTarget = sshTarget
     }
 

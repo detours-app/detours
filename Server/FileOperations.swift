@@ -132,7 +132,7 @@ struct FileOperations {
             .appendingPathComponent(destination.lastPathComponent + ".detours-partial")
         try? fileManager.removeItem(at: partial)
         try trashExistingItem(at: destination)
-        try contents.write(to: partial, options: .atomic)
+        try SafeFileWriter.write(contents, to: partial)
         try fileManager.moveItem(at: partial, to: destination)
     }
 

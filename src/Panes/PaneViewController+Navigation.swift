@@ -19,8 +19,8 @@ extension PaneViewController {
     }
 
     func goBack() {
-        selectedTab?.goBack()
-        clearRemoteBreadcrumbHostForSelectedTab()
+        guard selectedTab?.goBack() == true else { return }
+        syncRemoteBreadcrumbHostForSelectedTab()
         reloadTabBar()
         scheduleSessionSave()
     }
@@ -30,8 +30,8 @@ extension PaneViewController {
     }
 
     func goForward() {
-        selectedTab?.goForward()
-        clearRemoteBreadcrumbHostForSelectedTab()
+        guard selectedTab?.goForward() == true else { return }
+        syncRemoteBreadcrumbHostForSelectedTab()
         reloadTabBar()
         scheduleSessionSave()
     }

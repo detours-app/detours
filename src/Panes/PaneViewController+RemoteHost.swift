@@ -16,31 +16,33 @@ extension PaneViewController {
         updatePathControl()
     }
 
-    func loadRemoteHost(_ host: RemoteHost, provider: any FileProvider, path: String = "/") {
+    func loadRemoteHost(
+        _ host: RemoteHost,
+        provider: any FileProvider,
+        path: String = "/",
+        addToHistory: Bool = true
+    ) {
         setRemoteBreadcrumbHost(host)
         if let tab = selectedTab {
-            tab.remoteTitle = remoteTabTitle(host: host, path: path)
-            tab.remoteFullPath = remoteTabFullPath(host: host, path: path)
+            tab.navigateRemote(
+                host: host,
+                path: path,
+                provider: provider,
+                addToHistory: addToHistory
+            )
             reloadTabBar()
         }
         hideReconnectBanner()
-        selectedTab?.fileListViewController.loadRemoteDirectory(
-            host: host,
-            path: path,
-            provider: provider
-        )
         updateStatusBar()
     }
 
     func showConnectingRemoteHost(_ host: RemoteHost, path: String = "/") {
         setRemoteBreadcrumbHost(host)
         if let tab = selectedTab {
-            tab.remoteTitle = remoteTabTitle(host: host, path: path)
-            tab.remoteFullPath = remoteTabFullPath(host: host, path: path)
+            tab.showPendingRemoteHost(host, path: path)
             reloadTabBar()
         }
         hideReconnectBanner()
-        selectedTab?.fileListViewController.showPendingRemoteReconnect(host: host, path: path)
         updateStatusBar()
     }
 
@@ -82,6 +84,11 @@ extension PaneViewController {
         pendingRemoteTabTargetsByTabID.removeValue(forKey: tab.id)
         updateRemoteHostBadge()
         updatePathControl()
+    }
+
+    func syncRemoteBreadcrumbHostForSelectedTab() {
+        let host = selectedTab?.fileListViewControllerIfLoaded?.currentRemoteHost
+        setRemoteBreadcrumbHost(host)
     }
 
     /// On remote tabs the host is the first breadcrumb segment, so the local
