@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUITestAppearanceSettingsCommandID: String?
     private var lastUITestPaneStateRequestID: String?
     private var lastUITestRemoteMutationCommandID: String?
+    private var lastUITestRemoteFixtureMutationCommandID: String?
     private var lastUITestFixtureMutationCommandID: String?
 
     private struct UITestTextFrame {
@@ -200,6 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lastUITestAppearanceSettingsCommandID = UITestEnvironment.currentAppearanceSettingsCommand()?.id
         lastUITestPaneStateRequestID = UITestEnvironment.currentPaneStateRequest()?.id
         lastUITestRemoteMutationCommandID = UITestEnvironment.currentRemoteMutationCommand()?.id
+        lastUITestRemoteFixtureMutationCommandID = UITestEnvironment.currentRemoteFixtureMutationCommand()?.id
         lastUITestFixtureMutationCommandID = UITestEnvironment.currentFixtureMutationCommand()?.id
     }
 
@@ -281,6 +283,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            command.id != lastUITestRemoteMutationCommandID {
             lastUITestRemoteMutationCommandID = command.id
             mainWindowController?.splitViewController.performUITestRemoteMutation(command)
+        }
+
+        if let command = UITestEnvironment.currentRemoteFixtureMutationCommand(),
+           command.id != lastUITestRemoteFixtureMutationCommandID {
+            lastUITestRemoteFixtureMutationCommandID = command.id
+            Task { @MainActor [weak self] in
+                let result: UITestEnvironment.RemoteFixtureMutationResult
+                do {
+                    guard let splitViewController = self?.mainWindowController?.splitViewController else {
+                        throw UITestRemoteFixtureMutator.MutationError.unavailablePane
+                    }
+                    let names = try await UITestRemoteFixtureMutator.perform(
+                        command,
+                        splitViewController: splitViewController
+                    )
+                    result = .init(id: command.id, success: true, names: names, failure: nil)
+                } catch {
+                    result = .init(
+                        id: command.id,
+                        success: false,
+                        names: nil,
+                        failure: error.localizedDescription
+                    )
+                }
+                UITestEnvironment.writeRemoteFixtureMutationResult(result)
+            }
         }
 
         if let command = UITestEnvironment.currentFixtureMutationCommand(),

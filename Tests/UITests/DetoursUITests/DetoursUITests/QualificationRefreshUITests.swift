@@ -27,6 +27,10 @@ final class QualificationRefreshUITests: BaseUITest {
     private var remoteSentinelID: String?
     private var remoteOutsideNamesBefore: Set<String> = []
 
+    private var usesInAppWindowsFixture: Bool {
+        qualificationRemoteContext == "WINDOWS_TARGET"
+    }
+
     override var navigatesToLocalFixtureInSetUp: Bool {
         qualificationRemoteTarget == nil
     }
@@ -72,7 +76,16 @@ final class QualificationRefreshUITests: BaseUITest {
                 scenario: scenario,
                 sentinelID: sentinelID
             )
-            let outsideNamesAfter = try remoteDirectoryNames(target: target, path: home)
+            let outsideNamesAfter: Set<String>
+            if usesInAppWindowsFixture {
+                outsideNamesAfter = Set(try performRemoteFixtureMutation(
+                    action: "snapshot",
+                    homePath: home,
+                    scenarioName: URL(fileURLWithPath: scenario).lastPathComponent
+                ))
+            } else {
+                outsideNamesAfter = try remoteDirectoryNames(target: target, path: home)
+            }
             guard outsideNamesAfter == remoteOutsideNamesBefore else {
                 throw QualificationRefreshFailure.outsideRootChanged(
                     before: remoteOutsideNamesBefore,
@@ -217,7 +230,15 @@ final class QualificationRefreshUITests: BaseUITest {
         let scenarioName = "QualificationRefresh-\(UUID().uuidString.lowercased())"
         let scenarioPath = remotePath(home, appending: scenarioName)
         let sentinelID = UUID().uuidString.lowercased()
-        remoteOutsideNamesBefore = try remoteDirectoryNames(target: target, path: home)
+        if usesInAppWindowsFixture {
+            remoteOutsideNamesBefore = Set(try performRemoteFixtureMutation(
+                action: "snapshot",
+                homePath: home,
+                scenarioName: scenarioName
+            ))
+        } else {
+            remoteOutsideNamesBefore = try remoteDirectoryNames(target: target, path: home)
+        }
 
         let staging = uiTestControlRootURL.appendingPathComponent(
             "remote-refresh-\(UUID().uuidString.lowercased())",
@@ -225,20 +246,29 @@ final class QualificationRefreshUITests: BaseUITest {
         )
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: staging) }
-        let sentinel = staging.appendingPathComponent("sentinel")
-        try Data(sentinelID.utf8).write(to: sentinel)
-        do {
-            try runSFTP(
-                target: target,
-                commands: [
-                    "mkdir " + sftpQuote(scenarioPath),
-                    "put " + sftpQuote(sentinel.path) + " "
-                        + sftpQuote(remotePath(scenarioPath, appending: ".detours-qualification-root.json")),
-                ]
+        if usesInAppWindowsFixture {
+            try performRemoteFixtureMutation(
+                action: "createScenario",
+                homePath: home,
+                scenarioName: scenarioName,
+                sentinelID: sentinelID
             )
-        } catch {
-            _ = try? runSFTP(target: target, commands: ["rmdir " + sftpQuote(scenarioPath)])
-            throw error
+        } else {
+            let sentinel = staging.appendingPathComponent("sentinel")
+            try Data(sentinelID.utf8).write(to: sentinel)
+            do {
+                try runSFTP(
+                    target: target,
+                    commands: [
+                        "mkdir " + sftpQuote(scenarioPath),
+                        "put " + sftpQuote(sentinel.path) + " "
+                            + sftpQuote(remotePath(scenarioPath, appending: ".detours-qualification-root.json")),
+                    ]
+                )
+            } catch {
+                _ = try? runSFTP(target: target, commands: ["rmdir " + sftpQuote(scenarioPath)])
+                throw error
+            }
         }
 
         remoteHomePath = home
@@ -253,7 +283,6 @@ final class QualificationRefreshUITests: BaseUITest {
         let tracked = scenario.appendingPathComponent("tracked.txt")
 
         var initialFiles = [(selected, "selected")]
-        var setupCommands: [String] = []
         if fullPresentation {
             initialFiles.append(contentsOf: [
                 (nested, "nested"),
@@ -261,34 +290,99 @@ final class QualificationRefreshUITests: BaseUITest {
                 (hidden, "hidden"),
                 (tracked, "tracked"),
             ])
-            setupCommands.append("mkdir " + sftpQuote(expanded.path))
         }
-        for (url, contents) in initialFiles {
-            let local = staging.appendingPathComponent(url.lastPathComponent)
-            try Data(contents.utf8).write(to: local)
-            setupCommands.append("put " + sftpQuote(local.path) + " " + sftpQuote(url.path))
+        if usesInAppWindowsFixture {
+            if fullPresentation {
+                try performRemoteFixtureMutation(
+                    action: "createDirectory",
+                    homePath: home,
+                    scenarioName: scenarioName,
+                    relativePath: "Expanded",
+                    sentinelID: sentinelID
+                )
+            }
+            for (url, contents) in initialFiles {
+                try performRemoteFixtureMutation(
+                    action: "write",
+                    homePath: home,
+                    scenarioName: scenarioName,
+                    relativePath: try remoteScenarioRelativePath(url, scenarioPath: scenarioPath),
+                    contents: contents,
+                    sentinelID: sentinelID
+                )
+            }
+        } else {
+            var setupCommands: [String] = []
+            if fullPresentation {
+                setupCommands.append("mkdir " + sftpQuote(expanded.path))
+            }
+            for (url, contents) in initialFiles {
+                let local = staging.appendingPathComponent(url.lastPathComponent)
+                try Data(contents.utf8).write(to: local)
+                setupCommands.append("put " + sftpQuote(local.path) + " " + sftpQuote(url.path))
+            }
+            try runSFTP(target: target, commands: setupCommands)
         }
-        try runSFTP(target: target, commands: setupCommands)
 
         let verifiesGit = fullPresentation && qualificationRemoteContext != "WINDOWS_TARGET"
         if verifiesGit {
             try initializeRemoteGitRepository(target: target, scenario: scenarioPath)
         }
 
-        let actions = FixtureActions(
-            write: { url, contents in
-                try self.uploadRemote(contents, to: url.path, target: target)
-            },
-            move: { source, destination in
-                try self.runSFTP(
-                    target: target,
-                    commands: ["rename " + self.sftpQuote(source.path) + " " + self.sftpQuote(destination.path)]
-                )
-            },
-            remove: { url in
-                try self.runSFTP(target: target, commands: ["rm " + self.sftpQuote(url.path)])
-            }
-        )
+        let actions: FixtureActions
+        if usesInAppWindowsFixture {
+            actions = FixtureActions(
+                write: { url, contents in
+                    try self.performRemoteFixtureMutation(
+                        action: "write",
+                        homePath: home,
+                        scenarioName: scenarioName,
+                        relativePath: try self.remoteScenarioRelativePath(url, scenarioPath: scenarioPath),
+                        contents: contents,
+                        sentinelID: sentinelID
+                    )
+                },
+                move: { source, destination in
+                    try self.performRemoteFixtureMutation(
+                        action: "move",
+                        homePath: home,
+                        scenarioName: scenarioName,
+                        relativePath: try self.remoteScenarioRelativePath(source, scenarioPath: scenarioPath),
+                        destinationRelativePath: try self.remoteScenarioRelativePath(
+                            destination,
+                            scenarioPath: scenarioPath
+                        ),
+                        sentinelID: sentinelID
+                    )
+                },
+                remove: { url in
+                    try self.performRemoteFixtureMutation(
+                        action: "remove",
+                        homePath: home,
+                        scenarioName: scenarioName,
+                        relativePath: try self.remoteScenarioRelativePath(url, scenarioPath: scenarioPath),
+                        sentinelID: sentinelID
+                    )
+                }
+            )
+        } else {
+            actions = FixtureActions(
+                write: { url, contents in
+                    try self.uploadRemote(contents, to: url.path, target: target)
+                },
+                move: { source, destination in
+                    try self.runSFTP(
+                        target: target,
+                        commands: [
+                            "rename " + self.sftpQuote(source.path) + " " + self.sftpQuote(destination.path),
+                        ]
+                    )
+                },
+                remove: { url in
+                    try self.runSFTP(target: target, commands: ["rm " + self.sftpQuote(url.path)])
+                }
+            )
+        }
         if fullPresentation {
             try runPresentationWorkflow(scenario: scenario, verifiesGit: verifiesGit, actions: actions)
         } else {
@@ -630,6 +724,21 @@ final class QualificationRefreshUITests: BaseUITest {
         scenario: String,
         sentinelID: String
     ) throws {
+        let expectedPrefix = remotePath(home, appending: "QualificationRefresh-")
+        guard scenario.hasPrefix(expectedPrefix) else {
+            throw QualificationRefreshFailure.invalidScenarioPath(scenario)
+        }
+
+        if usesInAppWindowsFixture {
+            try performRemoteFixtureMutation(
+                action: "cleanup",
+                homePath: home,
+                scenarioName: URL(fileURLWithPath: scenario).lastPathComponent,
+                sentinelID: sentinelID
+            )
+            return
+        }
+
         let sentinelPath = remotePath(scenario, appending: ".detours-qualification-root.json")
         let localSentinel = uiTestControlRootURL.appendingPathComponent(
             "sentinel-check-" + UUID().uuidString.lowercased()
@@ -643,42 +752,10 @@ final class QualificationRefreshUITests: BaseUITest {
         guard actualSentinel == sentinelID else {
             throw QualificationRefreshFailure.remoteSentinelMismatch(scenario)
         }
-        let expectedPrefix = remotePath(home, appending: "QualificationRefresh-")
-        guard scenario.hasPrefix(expectedPrefix) else {
-            throw QualificationRefreshFailure.invalidScenarioPath(scenario)
-        }
-
-        if qualificationRemoteContext != "WINDOWS_TARGET" {
-            let command = "test -f " + shellQuote(sentinelPath)
-                + " && test \"$(cat " + shellQuote(sentinelPath) + ")\" = " + shellQuote(sentinelID)
-                + " && rm -rf -- " + shellQuote(scenario)
-            try runSSH(target: target, command: command)
-            return
-        }
-
-        let files = [
-            "alpha-selected.txt", ".hidden.txt", "tracked.txt", "alpha-watcher.txt", "zzzz-sort.txt",
-            ".detours-qualification-root.json",
-        ]
-        for file in files {
-            _ = try? runSFTP(
-                target: target,
-                commands: ["rm " + sftpQuote(remotePath(scenario, appending: file))]
-            )
-        }
-        for file in ["nested-keep.txt", "watcher-renamed.txt"] {
-            _ = try? runSFTP(
-                target: target,
-                commands: ["rm " + sftpQuote(remotePath(remotePath(scenario, appending: "Expanded"), appending: file))]
-            )
-        }
-        try runSFTP(
-            target: target,
-            commands: [
-                "rmdir " + sftpQuote(remotePath(scenario, appending: "Expanded")),
-                "rmdir " + sftpQuote(scenario),
-            ]
-        )
+        let command = "test -f " + shellQuote(sentinelPath)
+            + " && test \"$(cat " + shellQuote(sentinelPath) + ")\" = " + shellQuote(sentinelID)
+            + " && rm -rf -- " + shellQuote(scenario)
+        try runSSH(target: target, command: command)
     }
 
     private func shellQuote(_ value: String) -> String {
@@ -713,6 +790,18 @@ final class QualificationRefreshUITests: BaseUITest {
 
     private func relativePath(of url: URL) -> String {
         String(url.standardizedFileURL.path.dropFirst(uiTestRootURL.standardizedFileURL.path.count + 1))
+    }
+
+    private func remoteScenarioRelativePath(_ url: URL, scenarioPath: String) throws -> String {
+        let prefix = scenarioPath + "/"
+        guard url.path.hasPrefix(prefix) else {
+            throw QualificationRefreshFailure.invalidScenarioPath(url.path)
+        }
+        let relativePath = String(url.path.dropFirst(prefix.count))
+        guard !relativePath.isEmpty else {
+            throw QualificationRefreshFailure.invalidScenarioPath(url.path)
+        }
+        return relativePath
     }
 
 }

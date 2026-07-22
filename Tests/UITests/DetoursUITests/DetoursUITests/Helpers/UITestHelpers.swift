@@ -146,6 +146,24 @@ extension BaseUITest {
         let newName: String
     }
 
+    private struct RemoteFixtureMutationControl: Encodable {
+        let id: String
+        let action: String
+        let homePath: String
+        let scenarioName: String
+        let relativePath: String?
+        let destinationRelativePath: String?
+        let contents: String?
+        let sentinelID: String?
+    }
+
+    private struct RemoteFixtureMutationResult: Decodable {
+        let id: String
+        let success: Bool
+        let names: [String]?
+        let failure: String?
+    }
+
     private struct ListingGateNotice: Decodable {
         let sequence: UInt64
         let path: String
@@ -235,6 +253,61 @@ extension BaseUITest {
         )
         let url = uiTestControlRootURL.appendingPathComponent(".detours-remote-mutation-command.json")
         try JSONEncoder().encode(control).write(to: url, options: .atomic)
+    }
+
+    @discardableResult
+    func performRemoteFixtureMutation(
+        action: String,
+        homePath: String,
+        scenarioName: String,
+        relativePath: String? = nil,
+        destinationRelativePath: String? = nil,
+        contents: String? = nil,
+        sentinelID: String? = nil,
+        timeout: TimeInterval = 30
+    ) throws -> [String] {
+        let command = RemoteFixtureMutationControl(
+            id: UUID().uuidString,
+            action: action,
+            homePath: homePath,
+            scenarioName: scenarioName,
+            relativePath: relativePath,
+            destinationRelativePath: destinationRelativePath,
+            contents: contents,
+            sentinelID: sentinelID
+        )
+        let commandURL = uiTestControlRootURL
+            .appendingPathComponent(".detours-remote-fixture-mutation-command.json")
+        let resultURL = uiTestControlRootURL
+            .appendingPathComponent(".detours-remote-fixture-mutation-result.json")
+        try? FileManager.default.removeItem(at: resultURL)
+        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.detours.uitest.command-ready"),
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
+        let completed = waitForCondition(timeout: timeout) {
+            guard let data = try? Data(contentsOf: resultURL),
+                  let result = try? JSONDecoder().decode(RemoteFixtureMutationResult.self, from: data) else {
+                return false
+            }
+            return result.id == command.id
+        }
+        guard completed,
+              let data = try? Data(contentsOf: resultURL),
+              let result = try? JSONDecoder().decode(RemoteFixtureMutationResult.self, from: data),
+              result.id == command.id else {
+            throw UITestControlError.timedOut("remote fixture \(action)")
+        }
+        guard result.success else {
+            throw UITestControlError.remoteFixtureMutationFailed(
+                action: action,
+                detail: result.failure ?? "unknown failure"
+            )
+        }
+        return result.names ?? []
     }
 
     func remoteProviderHistory() -> [RemoteProviderCall] {
@@ -631,6 +704,7 @@ private enum UITestControlError: LocalizedError {
     case timedOut(String)
     case fixtureMutationFailed(action: String, path: String, detail: String)
     case fixtureMutationTimedOut(action: String, path: String)
+    case remoteFixtureMutationFailed(action: String, detail: String)
 
     var errorDescription: String? {
         switch self {
@@ -640,6 +714,8 @@ private enum UITestControlError: LocalizedError {
             "Fixture mutation \(action) failed for \(path): \(detail)"
         case .fixtureMutationTimedOut(let action, let path):
             "Fixture mutation \(action) timed out for \(path)"
+        case .remoteFixtureMutationFailed(let action, let detail):
+            "Remote fixture mutation \(action) failed: \(detail)"
         }
     }
 }

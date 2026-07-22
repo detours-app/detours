@@ -23,6 +23,8 @@ enum UITestEnvironment {
     static let paneStateResponseFileName = ".detours-pane-state-response.json"
     static let openedItemsHistoryFileName = ".detours-opened-items-history.json"
     static let remoteMutationCommandFileName = ".detours-remote-mutation-command.json"
+    static let remoteFixtureMutationCommandFileName = ".detours-remote-fixture-mutation-command.json"
+    static let remoteFixtureMutationResultFileName = ".detours-remote-fixture-mutation-result.json"
     static let fixtureMutationCommandFileName = ".detours-fixture-mutation-command.json"
     static let fixtureMutationResultFileName = ".detours-fixture-mutation-result.json"
     static let keychainLifecycleResultFileName = ".detours-keychain-lifecycle-result.json"
@@ -88,6 +90,24 @@ enum UITestEnvironment {
         let id: String
         let sourcePath: String
         let newName: String
+    }
+
+    struct RemoteFixtureMutationCommand: Codable, Sendable {
+        let id: String
+        let action: String
+        let homePath: String
+        let scenarioName: String
+        let relativePath: String?
+        let destinationRelativePath: String?
+        let contents: String?
+        let sentinelID: String?
+    }
+
+    struct RemoteFixtureMutationResult: Codable, Sendable {
+        let id: String
+        let success: Bool
+        let names: [String]?
+        let failure: String?
     }
 
     struct FixtureMutationCommand: Codable, Sendable {
@@ -378,6 +398,14 @@ enum UITestEnvironment {
         controlDirectory?.appendingPathComponent(remoteMutationCommandFileName)
     }
 
+    static var remoteFixtureMutationCommandURL: URL? {
+        controlDirectory?.appendingPathComponent(remoteFixtureMutationCommandFileName)
+    }
+
+    static var remoteFixtureMutationResultURL: URL? {
+        controlDirectory?.appendingPathComponent(remoteFixtureMutationResultFileName)
+    }
+
     static var fixtureMutationCommandURL: URL? {
         controlDirectory?.appendingPathComponent(fixtureMutationCommandFileName)
     }
@@ -510,6 +538,15 @@ enum UITestEnvironment {
         return try? JSONDecoder().decode(RemoteMutationCommand.self, from: data)
     }
 
+    static func currentRemoteFixtureMutationCommand() -> RemoteFixtureMutationCommand? {
+        guard let url = remoteFixtureMutationCommandURL,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty else {
+            return nil
+        }
+        return try? JSONDecoder().decode(RemoteFixtureMutationCommand.self, from: data)
+    }
+
     static func currentFixtureMutationCommand() -> FixtureMutationCommand? {
         guard let url = fixtureMutationCommandURL,
               let data = try? Data(contentsOf: url),
@@ -607,6 +644,14 @@ enum UITestEnvironment {
 
     static func writeFixtureMutationResult(_ result: FixtureMutationResult) {
         guard let url = fixtureMutationResultURL,
+              let data = try? JSONEncoder().encode(result) else {
+            return
+        }
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func writeRemoteFixtureMutationResult(_ result: RemoteFixtureMutationResult) {
+        guard let url = remoteFixtureMutationResultURL,
               let data = try? JSONEncoder().encode(result) else {
             return
         }
