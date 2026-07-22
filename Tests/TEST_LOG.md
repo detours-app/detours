@@ -2814,3 +2814,9 @@ Spotlight search has no unit test (depends on the live, async-built system index
   seven-minute in-process layer. Qualification preflight now requires the
   expected unlocked console, and GUI campaigns hold `caffeinate` display-idle
   and user-active assertions for their process lifetime.
+
+- 2026-07-22: Locked-console proof
+  `locked-console-preflight-b5a240e-1` returned status 1 with the exact
+  fail-fast message before reset, build, fixture creation, or XCUI. The evidence
+  directory contains only command and green no-op cleanup records; no Detours,
+  xctest, xcodebuild, qualification mount, or fixture root remained.
