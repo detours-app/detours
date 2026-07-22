@@ -2849,3 +2849,27 @@ Spotlight search has no unit test (depends on the live, async-built system index
   had no running QEMU process for the configured VM 707. The qualification
   evidence contains only command metadata plus green no-op reset and cleanup
   records.
+
+- 2026-07-22: Foundry's unified TCC log identified the missed network-volume
+  dialog. The signed `com.detours.app` process received user-consented access at
+  09:11:08, while the separately signed ad-hoc
+  `MAF.DetoursUITests.xctrunner` requested
+  `kTCCServiceSystemPolicyNetworkVolumes` at 09:11:10, received an unknown
+  result, and caused `tccd` to emit `display_prompt: called`. The runner was
+  blocked in direct `FileManager` access, so its XCUI interruption monitor could
+  not execute; the dialog remained until the operator response at 09:24:43.
+
+- 2026-07-22: Prompt-safety verification passed at exact commit `1c125f6` on
+  Foundry without launching Detours or running XCUI. The matrix/static audit
+  passed all 102 rows; replay of the captured TCC line returned the required
+  detection status and wrote `type=prompt_detected`; a clear-log control passed.
+  `prompt-guard-lifecycle-2b19b830-49de-4cfe-b6b8-86708a3a506f` proved the real
+  start/readiness/liveness/stop/post-audit lifecycle with zero prompt events.
+  `prompt-guard-death-c6856bd1-3a32-4edc-8d76-cd32cced7156` killed the sentry's
+  log stream and proved fail-closed `type=guard_failed`, exact-run cancellation,
+  parent termination, and no active GUI/deadline record. Spectre-side cancel
+  `prompt-cancel-routing-946396e4-a434-49d8-b044-06f124f55f1b` returned success
+  without Doppler warm-up. UI test bundle compile
+  `prompt-guard-ui-build-9886788b-e72c-49a8-aafc-3d68558062cd` completed with no
+  warning or error, no test/app launch, a green prompt audit, and no Detours,
+  xctest, or xcodebuild process afterward.
