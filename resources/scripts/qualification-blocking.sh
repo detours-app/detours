@@ -101,6 +101,7 @@ prepare_blocking_refresh_bundles() {
 run_blocking_refresh() {
     local started_epoch ended_epoch duration
     trap 'campaign_cleanup_on_exit "$?"' EXIT
+    start_console_awake_guard
     run_reset
     run_preflight
     run_build

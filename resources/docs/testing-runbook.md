@@ -214,6 +214,8 @@ Credential-bearing Foundry launches require `resources/scripts/qualification-fou
 
 Blocking GUI work receives an absolute layer deadline. The runner removes the scoped launchd job when that deadline is reached, then executes guarded campaign cleanup. A budget is a stop condition, not a measurement made after an unbounded command eventually returns.
 
+Every Foundry GUI campaign must prove that the expected user owns an unlocked console before reset, build, fixture creation, or XCUI launch. The campaign holds display-idle and user-active assertions for its process lifetime so a long in-process layer cannot leave the subsequent XCUI layer behind a lock screen. A locked console is an environment-preflight failure, never an XCUI retry.
+
 ## Failure Protocol
 
 1. Stop the first failing broad gate. Never rerun it immediately.

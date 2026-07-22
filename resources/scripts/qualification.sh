@@ -291,6 +291,7 @@ validate_group() {
 }
 
 run_soak() {
+    start_console_awake_guard
     run_twelve_hour_soak
 }
 

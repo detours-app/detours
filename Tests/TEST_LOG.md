@@ -2806,3 +2806,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   navigated and invalidated the row. The campaign stopped before the other six
   contexts and guarded cleanup passed. The scenario row now receives one
   coordinate-based double-click event.
+
+- 2026-07-22: Focused run `focused-refresh-local-13-464e31d-1` stopped in
+  `BaseUITest.setUpWithError` before repetition 1 because Detours remained
+  `Running Background`. Foundry's authoritative `IOConsoleUsers` record showed
+  `CGSSessionScreenIsLocked=Yes`; the lock occurred during the preceding
+  seven-minute in-process layer. Qualification preflight now requires the
+  expected unlocked console, and GUI campaigns hold `caffeinate` display-idle
+  and user-active assertions for their process lifetime.

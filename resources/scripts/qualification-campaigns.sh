@@ -2,6 +2,30 @@
 
 # Foundry-only qualification campaign orchestration.
 
+require_unlocked_foundry_console() {
+    local console_locked console_on_console console_user
+    console_locked="$(/usr/sbin/ioreg -n Root -d1 -a \
+        | plutil -extract IOConsoleLocked raw -o - - 2>/dev/null || true)"
+    console_on_console="$(/usr/sbin/ioreg -n Root -d1 -a \
+        | plutil -extract IOConsoleUsers.0.kCGSSessionOnConsoleKey raw -o - - 2>/dev/null || true)"
+    console_user="$(/usr/sbin/ioreg -n Root -d1 -a \
+        | plutil -extract IOConsoleUsers.0.kCGSSessionUserNameKey raw -o - - 2>/dev/null || true)"
+    [[ "$console_user" == "$(id -un)" && "$console_on_console" == "true" ]] || \
+        fail "Foundry's logged-in console session is unavailable"
+    [[ "$console_locked" == "false" ]] || \
+        fail "Foundry's console is locked; unlock it before qualification"
+}
+
+start_console_awake_guard() {
+    require_unlocked_foundry_console
+    if [[ -n "${QUALIFICATION_CAFFEINATE_PID:-}" ]] \
+        && kill -0 "$QUALIFICATION_CAFFEINATE_PID" 2>/dev/null; then
+        return
+    fi
+    caffeinate -d -i -u -w "$$" >/dev/null 2>&1 &
+    QUALIFICATION_CAFFEINATE_PID=$!
+}
+
 run_preflight() {
     local scope="${1:-full}"
     local requested_commit head_commit current_branch free_kilobytes boot_epoch
@@ -15,6 +39,7 @@ run_preflight() {
     current_branch="$(git -C "$PROJECT_DIR" branch --show-current)"
     [[ "$current_branch" == "testing/whole-app-stability-qualification" ]] || fail "Foundry is on unexpected branch: $current_branch"
     [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]] || fail "Foundry worktree is not clean"
+    require_unlocked_foundry_console
 
     audit_matrix
     free_kilobytes="$(df -Pk "$PROJECT_DIR" | awk 'NR == 2 { print $4 }')"
@@ -190,6 +215,7 @@ run_cancel() {
 run_cold() {
     [[ "$QUALIFICATION_COLD_INDEX" != "0" ]] || fail "cold-run requires --cold-index 1, 2, or 3"
     trap 'campaign_cleanup_on_exit "$?"' EXIT
+    start_console_awake_guard
     run_reset
     run_preflight
     run_build
@@ -223,6 +249,7 @@ run_workflow_campaign() {
     local group="$1"
     validate_group "$group"
     trap 'campaign_cleanup_on_exit "$?"' EXIT
+    start_console_awake_guard
     run_reset
     run_preflight
     run_build
@@ -258,6 +285,7 @@ run_in_process_campaign() {
     local group="$1"
     validate_group "$group"
     trap 'campaign_cleanup_on_exit "$?"' EXIT
+    start_console_awake_guard
     run_reset
     run_preflight STORAGE_ROOTS
     run_build
@@ -297,6 +325,7 @@ run_installed_smoke_campaign() {
     installed_contexts "$group" | grep -Fx "$context_name" >/dev/null || \
         fail "$context_name is not an applicable installed context for $group"
     trap 'campaign_cleanup_on_exit "$?"' EXIT
+    start_console_awake_guard
     run_reset
     run_preflight "$context_name"
     run_build
