@@ -176,9 +176,9 @@ struct ArchiveOperations {
 
         progress(ArchiveProgressFrame(phase: .starting, path: archiveURL.path, completedItems: 0, totalItems: 1))
 
-        try validateArchiveMembers(format: format, tools: tools, archive: archiveURL, password: password)
-
         do {
+            try validateArchiveMembers(format: format, tools: tools, archive: archiveURL, password: password)
+
             let result: ServerProcessResult
             if let password, !password.isEmpty {
                 let invocation = try encryptedExtractInvocation(
