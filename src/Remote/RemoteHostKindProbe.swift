@@ -61,14 +61,17 @@ struct RemoteConnectionRoute: Equatable, Sendable {
 
 struct SSHRemoteHostKindProbeClient: RemoteHostKindProbeClient {
     let sshTarget: String
+    var hostTrust: SSHHostTrust = SSHHostTrust()
     var processFactory: @Sendable () -> Process = { Process() }
 
-    static func sshArguments(sshTarget: String, command: String) -> [String] {
-        // ConnectTimeout bounds a hung target; BatchMode prevents an interactive
-        // password/passphrase prompt from stalling the probe indefinitely.
+    static func sshArguments(sshTarget: String, command: String, hostTrust: SSHHostTrust) -> [String] {
+        // ConnectTimeout bounds a hung target; the host trust arguments pin the
+        // known_hosts file the app records fingerprints into (failing closed on an
+        // unknown or changed key) and force BatchMode so an interactive
+        // password/passphrase prompt cannot stall the probe indefinitely.
         [
             "-o", "ConnectTimeout=5",
-            "-o", "BatchMode=yes",
+        ] + hostTrust.sshArguments + [
             sshTarget,
             command,
         ]
@@ -77,6 +80,7 @@ struct SSHRemoteHostKindProbeClient: RemoteHostKindProbeClient {
     func run(_ command: String) async throws -> String {
         let factory = processFactory
         let sshTarget = sshTarget
+        let hostTrust = hostTrust
         // The blocking process wait runs on a background queue, never on a Swift
         // concurrency executor thread, so a slow or hung target cannot stall the pool.
         return try await withCheckedThrowingContinuation { continuation in
@@ -85,11 +89,12 @@ struct SSHRemoteHostKindProbeClient: RemoteHostKindProbeClient {
                 let stdoutPipe = Pipe()
                 let stderrPipe = Pipe()
                 process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-                process.arguments = Self.sshArguments(sshTarget: sshTarget, command: command)
+                process.arguments = Self.sshArguments(sshTarget: sshTarget, command: command, hostTrust: hostTrust)
                 process.standardOutput = stdoutPipe
                 process.standardError = stderrPipe
 
                 do {
+                    try hostTrust.prepareKnownHostsFile()
                     try process.run()
                 } catch {
                     continuation.resume(throwing: error)

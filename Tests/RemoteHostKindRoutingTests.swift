@@ -28,10 +28,17 @@ final class RemoteHostKindRoutingTests: XCTestCase {
     @MainActor
     func testProbeUsesTimeoutAndCacheInvalidatesOnTargetChange() {
         // The probe runs ssh with a connect timeout and batch mode so a hung or
-        // password-prompting target cannot stall it.
-        let args = SSHRemoteHostKindProbeClient.sshArguments(sshTarget: "sans@win-host", command: "probe")
+        // password-prompting target cannot stall it, and pins the app's own
+        // known_hosts file so it fails closed on an unknown or changed host key.
+        let knownHosts = URL(fileURLWithPath: "/tmp/probe-known-hosts-test")
+        let trust = SSHHostTrust(knownHostsURL: knownHosts)
+        let args = SSHRemoteHostKindProbeClient.sshArguments(
+            sshTarget: "sans@win-host", command: "probe", hostTrust: trust
+        )
         XCTAssertTrue(args.contains("ConnectTimeout=5"))
         XCTAssertTrue(args.contains("BatchMode=yes"))
+        XCTAssertTrue(args.contains("StrictHostKeyChecking=yes"))
+        XCTAssertTrue(args.contains("UserKnownHostsFile=\(knownHosts.path)"))
         XCTAssertEqual(args.last, "probe")
 
         // Changing an existing host's ssh target clears the cached kind so the next

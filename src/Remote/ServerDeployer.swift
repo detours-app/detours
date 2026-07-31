@@ -74,6 +74,7 @@ protocol ServerDeploymentClient: Sendable {
 
 struct SSHServerDeploymentClient: ServerDeploymentClient {
     let sshTarget: String
+    var hostTrust: SSHHostTrust = SSHHostTrust()
     var processFactory: @Sendable () -> Process = { Process() }
 
     func architecture() async throws -> RemoteArchitecture {
@@ -139,7 +140,8 @@ struct SSHServerDeploymentClient: ServerDeploymentClient {
         let process = processFactory()
         let stderrPipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/scp")
-        process.arguments = [localFile.path, "\(sshTarget):\(remotePath)"]
+        try hostTrust.prepareKnownHostsFile()
+        process.arguments = hostTrust.sshArguments + [localFile.path, "\(sshTarget):\(remotePath)"]
         process.standardError = stderrPipe
 
         try process.run()
@@ -164,7 +166,8 @@ struct SSHServerDeploymentClient: ServerDeploymentClient {
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = [sshTarget, command]
+        try hostTrust.prepareKnownHostsFile()
+        process.arguments = hostTrust.sshArguments + [sshTarget, command]
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
