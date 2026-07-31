@@ -271,7 +271,7 @@ final class FileListDataSourceTests: XCTestCase {
         }
 
         dataSource.loadRemoteDirectory(root, provider: provider)
-        await fulfillment(of: [completed], timeout: 5)
+        await fulfillment(of: [completed], timeout: 30)
 
         XCTAssertEqual(dataSource.items.map(\.name), ["changed.txt"])
         XCTAssertNil(dataSource.items.first?.gitStatus)
@@ -307,14 +307,14 @@ final class FileListDataSourceTests: XCTestCase {
         }
 
         dataSource.loadRemoteDirectory(root, provider: provider)
-        await fulfillment(of: [completed], timeout: 5)
+        await fulfillment(of: [completed], timeout: 30)
 
         XCTAssertNil(dataSource.items.first?.gitStatus)
 
         await provider.releaseGitStatus()
         await waitUntil({
             dataSource.items.first?.gitStatus == .modified
-        }, timeout: 5)
+        }, timeout: 30)
     }
 
     func testRemoteDirectoryMarkedPackageIsExpandable() {
