@@ -382,10 +382,17 @@ extension FileListViewController {
 
         typeSelectBuffer += chars.lowercased()
 
-        // Find first matching item
-        if let index = dataSource.items.firstIndex(where: { $0.name.lowercased().hasPrefix(typeSelectBuffer) }) {
-            tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-            tableView.scrollRowToVisible(index)
+        // Search the rows as they are displayed. `dataSource.items` holds only the top level,
+        // so its indices stop matching table rows as soon as a folder above the match is
+        // expanded, and the old position-as-row shortcut then selected an unrelated row.
+        // Walking rows also keeps the match inside whatever the filter is showing.
+        for row in 0..<tableView.numberOfRows {
+            guard let item = tableView.item(atRow: row) as? FileItem,
+                  item.name.lowercased().hasPrefix(typeSelectBuffer) else { continue }
+
+            tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            tableView.scrollRowToVisible(row)
+            break
         }
 
         // Reset buffer after 0.5 seconds of no typing
