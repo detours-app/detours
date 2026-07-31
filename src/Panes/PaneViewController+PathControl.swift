@@ -361,9 +361,7 @@ extension PaneViewController: DroppablePathControlDelegate {
                         )
                     }
                 }
-                if let splitVC = parent as? MainSplitViewController {
-                    splitVC.refreshPanes(matching: directoriesToRefresh)
-                }
+                splitCoordinator?.refreshPanes(matching: directoriesToRefresh)
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }

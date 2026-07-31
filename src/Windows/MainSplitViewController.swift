@@ -153,6 +153,8 @@ final class MainSplitViewController: NSSplitViewController {
         super.viewDidLoad()
 
         sidebarViewController.delegate = self
+        leftPane.splitCoordinator = self
+        rightPane.splitCoordinator = self
 
         splitView.isVertical = true
         splitView.dividerStyle = .thin
@@ -247,3 +249,7 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
 }
+
+// The requirements are implemented across this type's extensions; the panes reach them
+// only through this conformance.
+extension MainSplitViewController: PaneSplitCoordinating {}

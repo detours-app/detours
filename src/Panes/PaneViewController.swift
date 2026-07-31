@@ -32,6 +32,10 @@ struct RemoteTabSessionTarget: Equatable {
 }
 
 final class PaneViewController: NSViewController {
+    /// The split-view host, injected when the host loads. All pane-to-host calls go
+    /// through this instead of downcasting `parent` to the concrete controller.
+    weak var splitCoordinator: (any PaneSplitCoordinating)?
+
     let tabBar = PaneTabBar()
     let homeButton = NSButton()
     let iCloudButton = NSButton()

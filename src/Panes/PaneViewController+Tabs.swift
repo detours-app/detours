@@ -327,7 +327,7 @@ extension PaneViewController {
 
     /// Notify that session state changed and should be saved
     func scheduleSessionSave() {
-        (parent as? MainSplitViewController)?.scheduleSaveSession()
+        splitCoordinator?.scheduleSaveSession()
     }
 
     func updateNavigationControls() {

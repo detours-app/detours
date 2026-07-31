@@ -504,7 +504,7 @@ final class PaneTabBar: NSView {
         guard let tabUUIDString = sender.draggingPasteboard.string(forType: Self.tabPasteboardType),
               let tabUUID = UUID(uuidString: tabUUIDString),
               let pane = paneViewController,
-              let splitVC = pane.parent as? MainSplitViewController else {
+              let splitVC = pane.splitCoordinator else {
             return false
         }
 

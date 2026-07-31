@@ -424,6 +424,10 @@ extension MainSplitViewController {
         refreshPanes(matching: locations, preferredResultLocations: [])
     }
 
+    func refreshPanes(matching locations: Set<Location>, preferredResultLocations: Set<Location>) {
+        refreshPanes(matching: locations, preferredResultLocations: preferredResultLocations, excluding: nil)
+    }
+
     func refreshPanes(
         matching locations: Set<Location>,
         preferredResultLocations: Set<Location>,

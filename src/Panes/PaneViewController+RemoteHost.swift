@@ -181,7 +181,7 @@ extension PaneViewController {
         // they need the full connect flow, not a registry reconnect.
         if pendingRemoteTabTargetsByTabID.values.contains(where: { $0.hostID == host.id }) {
             hideReconnectBanner()
-            (parent as? MainSplitViewController)?.retryRemoteConnection(for: host)
+            splitCoordinator?.retryRemoteConnection(for: host)
             return
         }
 

@@ -35,15 +35,11 @@ extension PaneViewController: FileListNavigationDelegate {
     }
 
     func fileListDidRequestSwitchPane() {
-        if let splitVC = parent as? MainSplitViewController {
-            splitVC.switchToOtherPane()
-        }
+        splitCoordinator?.switchToOtherPane()
     }
 
     func fileListDidBecomeActive() {
-        if let splitVC = parent as? MainSplitViewController {
-            splitVC.setActivePaneFromChild(self)
-        }
+        splitCoordinator?.setActivePaneFromChild(self)
     }
 
     func fileListDidRequestOpenInNewTab(url: URL) {
@@ -58,39 +54,29 @@ extension PaneViewController: FileListNavigationDelegate {
     }
 
     func fileListDidRequestMoveToOtherPane(items: [Location]) {
-        if let splitVC = parent as? MainSplitViewController {
-            splitVC.moveItems(items, toOtherPaneFrom: self)
-        }
+        splitCoordinator?.moveItems(items, toOtherPaneFrom: self)
     }
 
     func fileListDidRequestCopyToOtherPane(items: [Location]) {
-        if let splitVC = parent as? MainSplitViewController {
-            splitVC.copyItems(items, toOtherPaneFrom: self)
-        }
+        splitCoordinator?.copyItems(items, toOtherPaneFrom: self)
     }
 
     func fileListDidRequestRefreshSourceDirectories(_ directories: Set<URL>) {
-        if let splitVC = parent as? MainSplitViewController {
-            splitVC.refreshPanes(matching: directories)
-        }
+        splitCoordinator?.refreshPanes(matching: directories)
     }
 
     func fileListDidRequestRefreshSourceLocations(_ locations: Set<Location>) {
-        if let splitVC = parent as? MainSplitViewController {
-            splitVC.refreshPanes(matching: locations)
-        }
+        splitCoordinator?.refreshPanes(matching: locations)
     }
 
     func fileListDidRequestRefreshSourceLocations(
         _ locations: Set<Location>,
         preferredResultLocations: Set<Location>
     ) {
-        if let splitVC = parent as? MainSplitViewController {
-            splitVC.refreshPanes(
-                matching: locations,
-                preferredResultLocations: preferredResultLocations
-            )
-        }
+        splitCoordinator?.refreshPanes(
+            matching: locations,
+            preferredResultLocations: preferredResultLocations
+        )
     }
 
     func fileListDidChangeSelection() {
