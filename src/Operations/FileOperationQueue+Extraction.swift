@@ -943,14 +943,17 @@ extension FileOperationQueue {
         currentProcess = process
         defer { currentProcess = nil }
 
-        // Start progress monitoring
-        let progressTask = Task { [weak self] in
+        // Start progress monitoring. In parseStderr mode it also accumulates
+        // everything it drains: the pipe can only be read once, so this buffer is
+        // the sole source for the tool's diagnostic text (and the password-error
+        // wording isPasswordError matches) when the process fails.
+        let progressTask = Task { [weak self] () -> Data? in
             switch progressMode {
             case .none:
-                break
+                return nil
             case let .pollFileSize(expectedSize):
                 while !Task.isCancelled {
-                    try await Task.sleep(nanoseconds: 500_000_000) // 500ms
+                    guard (try? await Task.sleep(nanoseconds: 500_000_000)) != nil else { break } // 500ms
                     let currentSize = Self.directorySize(at: destination)
                     await MainActor.run { [weak self] in
                         guard let self, let operation = self.currentOperation else { return }
@@ -964,12 +967,15 @@ extension FileOperationQueue {
                         )
                     }
                 }
+                return nil
             case let .parseStderr(refSize):
-                guard let pipe = stderrProgressPipe else { break }
+                guard let pipe = stderrProgressPipe else { return nil }
                 let handle = pipe.fileHandleForReading
+                var collected = Data()
                 while !Task.isCancelled {
                     let data = handle.availableData
                     if data.isEmpty { break }
+                    collected.append(data)
                     if let str = String(data: data, encoding: .utf8) {
                         let pattern = #"(\d+)%"#
                         if let regex = try? NSRegularExpression(pattern: pattern),
@@ -992,6 +998,7 @@ extension FileOperationQueue {
                         }
                     }
                 }
+                return collected
             }
         }
 
@@ -1017,6 +1024,7 @@ extension FileOperationQueue {
         }
 
         progressTask.cancel()
+        let parsedStderrData = await progressTask.value
 
         if isCancelled {
             // SAFETY: Never delete destination here — it may be a user directory (e.g. ~/Downloads).
@@ -1026,9 +1034,12 @@ extension FileOperationQueue {
         }
 
         if terminationStatus != 0 {
+            // The progress task already drained the 7z progress pipe; its accumulated
+            // buffer carries the diagnostic text. Append any tail left unread if that
+            // task exited on cancellation before EOF.
             let errorData: Data
             if let stderrPipe = stderrProgressPipe {
-                errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                errorData = (parsedStderrData ?? Data()) + stderrPipe.fileHandleForReading.readDataToEndOfFile()
             } else {
                 errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             }
