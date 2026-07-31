@@ -110,6 +110,7 @@ extension FileOperationQueue {
         }
 
         try checkCancelled()
+        try await validateZipMemberPaths(archive: archive)
 
         if metadata?.requiresSevenZip == true {
             try await extractZipWithSevenZip(
@@ -332,15 +333,7 @@ extension FileOperationQueue {
     }
 
     nonisolated static func isZipPasswordFailure(_ message: String, status: Int32) -> Bool {
-        if status == 82 { return true }
-        guard status == 1 else { return false }
-        let lowercased = message.lowercased()
-        return lowercased.contains("incorrect password")
-            || lowercased.contains("password incorrect")
-            || lowercased.contains("wrong password")
-            || lowercased.contains("bad password")
-            || (lowercased.contains("skipping:") && lowercased.contains("password"))
-            || (lowercased.contains("skipping:") && lowercased.contains("encrypted"))
+        ArchiveToolDiagnostics.isZipPasswordFailure(message: message, status: status)
     }
 
     // MARK: - Password-protected 7Z extraction
@@ -397,6 +390,9 @@ extension FileOperationQueue {
         guard result.status == 0 else {
             throw Self.sevenZipFailure(result)
         }
+        try Self.validateMemberPaths(
+            Self.sevenZipListingMemberPaths(result.outputString, requireSeparator: true)
+        )
         return Self.parseSevenZipTopLevelEntries(result.outputString)
     }
 
@@ -516,14 +512,15 @@ extension FileOperationQueue {
 
     nonisolated private static func sevenZipFailure(_ result: PtyProcessResult) -> FileOperationError {
         let diagnostic = result.outputString.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lowercased = diagnostic.lowercased()
-        if lowercased.contains("wrong password")
-            || lowercased.contains("incorrect password")
-            || lowercased.contains("data error in encrypted file") {
+        if isSevenZipPasswordMessage(diagnostic) {
             return .archivePasswordRequired
         }
         let message = diagnostic.isEmpty ? "Process exited with code \(result.status)" : diagnostic
         return .archiveExtractionFailed(message)
+    }
+
+    nonisolated static func isSevenZipPasswordMessage(_ message: String) -> Bool {
+        ArchiveToolDiagnostics.isSevenZipPasswordMessage(message)
     }
 
     private var sevenZipPasswordEchoPolicy: PtyPasswordEchoPolicy {
@@ -859,6 +856,8 @@ extension FileOperationQueue {
     }
 
     private func extractSevenZip(archive: URL, destination: URL) async throws {
+        try await validateSevenZipMemberPaths(archive: archive)
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: CompressionTool.sevenZip.path)
         process.arguments = ["x", "-y", "-bsp2", "-o\(destination.path)", archive.path]
@@ -887,11 +886,49 @@ extension FileOperationQueue {
     }
 
     private func validateTarMemberPaths(archive: URL) async throws {
+        let listing = try await archiveMemberListing(
+            executable: CompressionTool.tar.path,
+            arguments: ["-tf", archive.path]
+        )
+        try Self.validateMemberPaths(listing.components(separatedBy: .newlines))
+    }
+
+    /// Lists zip members without extracting (the central directory is readable even for
+    /// encrypted or 7z-only zips) and rejects entries that would escape the destination.
+    private func validateZipMemberPaths(archive: URL) async throws {
+        let listing = try await archiveMemberListing(
+            executable: CompressionTool.unzip.path,
+            arguments: ["-Z1", archive.path]
+        )
+        try Self.validateMemberPaths(listing.components(separatedBy: .newlines))
+    }
+
+    /// Lists 7z members without extracting. The bare -p supplies an empty password so a
+    /// header-encrypted archive fails immediately instead of prompting on stdin; that
+    /// failure surfaces as the password prompt, and the retry with the real password goes
+    /// through the encrypted path, which validates from its own listing.
+    private func validateSevenZipMemberPaths(archive: URL) async throws {
+        let listing: String
+        do {
+            listing = try await archiveMemberListing(
+                executable: CompressionTool.sevenZip.path,
+                arguments: ["l", "-ba", "-slt", "-y", "-p", archive.path]
+            )
+        } catch FileOperationError.archiveExtractionFailed(let message) {
+            if Self.isSevenZipPasswordMessage(message) {
+                throw FileOperationError.archivePasswordRequired
+            }
+            throw FileOperationError.archiveExtractionFailed(message)
+        }
+        try Self.validateMemberPaths(Self.sevenZipListingMemberPaths(listing, requireSeparator: false))
+    }
+
+    private func archiveMemberListing(executable: String, arguments: [String]) async throws -> String {
         let process = Process()
         let outputPipe = Pipe()
         let errorPipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: CompressionTool.tar.path)
-        process.arguments = ["-tf", archive.path]
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
         process.standardOutput = outputPipe
         process.standardError = errorPipe
 
@@ -907,20 +944,30 @@ extension FileOperationQueue {
         let error = await errorTask.value
 
         guard process.terminationStatus == 0 else {
-            let message = String(data: error, encoding: .utf8) ?? "Could not inspect archive contents"
-            throw FileOperationError.archiveExtractionFailed(message)
+            let stderrText = String(data: error, encoding: .utf8) ?? String(data: error, encoding: .isoLatin1)
+            let stdoutText = String(data: output, encoding: .utf8) ?? String(data: output, encoding: .isoLatin1)
+            let combined = [stderrText, stdoutText]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            throw FileOperationError.archiveExtractionFailed(
+                combined.isEmpty ? "Could not inspect archive contents" : combined
+            )
         }
         guard let listing = String(data: output, encoding: .utf8)
                 ?? String(data: output, encoding: .isoLatin1) else {
             throw FileOperationError.archiveExtractionFailed("Could not decode archive member paths")
         }
+        return listing
+    }
 
-        for member in listing.components(separatedBy: .newlines) where !member.isEmpty {
-            let normalized = member.replacingOccurrences(of: "\\", with: "/")
-            let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
-            if normalized.hasPrefix("/") || components.contains("..") {
-                throw FileOperationError.archiveExtractionFailed("Archive contains an unsafe path: \(member)")
-            }
+    nonisolated static func sevenZipListingMemberPaths(_ output: String, requireSeparator: Bool) -> [String] {
+        ArchiveToolDiagnostics.sevenZipListingMemberPaths(output, requireSeparator: requireSeparator)
+    }
+
+    nonisolated static func validateMemberPaths(_ members: [String]) throws {
+        if let unsafe = ArchiveToolDiagnostics.firstUnsafeMemberPath(members) {
+            throw FileOperationError.archiveExtractionFailed("Archive contains an unsafe path: \(unsafe)")
         }
     }
 
@@ -1075,18 +1122,6 @@ extension FileOperationQueue {
     }
 
     private func isPasswordError(_ message: String, terminationStatus: Int32) -> Bool {
-        let lower = message.lowercased()
-        if lower.contains("password") || lower.contains("incorrect password") || lower.contains("wrong password") {
-            return true
-        }
-        // ditto: "no password was provided" for encrypted zips without password
-        if lower.contains("no password was provided") {
-            return true
-        }
-        // unzip returns exit code 82 for incorrect password, and exit code 1 for skipped encrypted entries
-        if terminationStatus == 82 || (terminationStatus == 1 && lower.contains("encrypt")) {
-            return true
-        }
-        return false
+        ArchiveToolDiagnostics.isZipPasswordFailure(message: message, status: terminationStatus)
     }
 }

@@ -65,6 +65,12 @@ struct ServerProcessResult: Equatable, Sendable {
     let stderr: String
 }
 
+struct ServerListingResult: Equatable, Sendable {
+    let status: Int32
+    let stdout: String
+    let stderr: String
+}
+
 enum ArchiveOperationsError: Error, Equatable, Sendable {
     case noItems
     case invalidArchiveName(String)
@@ -79,22 +85,26 @@ enum ArchiveOperationsError: Error, Equatable, Sendable {
 struct ArchiveOperations {
     typealias ToolResolver = @Sendable (String) -> String?
     typealias ProcessRunner = @Sendable (_ executable: String, _ arguments: [String], _ currentDirectory: URL?) throws -> ServerProcessResult
+    typealias ListingRunner = @Sendable (_ executable: String, _ arguments: [String]) throws -> ServerListingResult
     typealias PtyRunner = @Sendable (PtyProcessInvocation) throws -> PtyProcessResult
 
     private let fileManager: FileManager
     private let resolveTool: ToolResolver
     private let runProcess: ProcessRunner
+    private let runListingProcess: ListingRunner
     private let runPtyProcess: PtyRunner
 
     init(
         fileManager: FileManager = .default,
         resolveTool: @escaping ToolResolver = ArchiveOperations.resolveToolOnPath,
         runProcess: @escaping ProcessRunner = ArchiveOperations.runProcess,
+        runListingProcess: @escaping ListingRunner = ArchiveOperations.runListingProcess,
         runPtyProcess: @escaping PtyRunner = { try PtyProcessRunner().run($0) }
     ) {
         self.fileManager = fileManager
         self.resolveTool = resolveTool
         self.runProcess = runProcess
+        self.runListingProcess = runListingProcess
         self.runPtyProcess = runPtyProcess
     }
 
@@ -165,6 +175,8 @@ struct ArchiveOperations {
         try fileManager.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
 
         progress(ArchiveProgressFrame(phase: .starting, path: archiveURL.path, completedItems: 0, totalItems: 1))
+
+        try validateArchiveMembers(format: format, tools: tools, archive: archiveURL, password: password)
 
         do {
             let result: ServerProcessResult
@@ -362,6 +374,94 @@ struct ArchiveOperations {
         }
     }
 
+    /// Lists the archive's members before anything is extracted and refuses archives
+    /// whose entries would escape the extraction directory, mirroring the client-side
+    /// validation so a hostile archive cannot write outside its destination on the host.
+    private func validateArchiveMembers(
+        format: ServerArchiveFormat,
+        tools: [String: String],
+        archive: URL,
+        password: String?
+    ) throws {
+        let members: [String]
+        switch format {
+        case .zip:
+            // The zip central directory is readable without the password.
+            members = try memberListing(
+                executable: tools["unzip"]!,
+                arguments: ["-Z1", archive.path],
+                format: format
+            ).components(separatedBy: .newlines)
+        case .sevenZ:
+            if let password, !password.isEmpty {
+                // Header-encrypted archives need the password to list; feed it over the
+                // pty like extraction does so it never appears in process arguments.
+                let invocation = PtyProcessInvocation(
+                    executable: tools["7z"]!,
+                    arguments: ["l", "-slt", archive.path],
+                    password: password,
+                    responses: [.password],
+                    minimumResponses: 1
+                )
+                let result = Self.serverResult(try runPtyProcess(invocation))
+                guard result.status == 0 else {
+                    if Self.isWrongPasswordFailure(format: format, result: result) {
+                        throw ArchiveOperationsError.wrongPassword
+                    }
+                    throw ArchiveOperationsError.processFailed(Self.errorMessage(result.stderr, fallback: format.fileExtension))
+                }
+                members = ArchiveToolDiagnostics.sevenZipListingMemberPaths(result.stderr, requireSeparator: true)
+            } else {
+                // The bare -p supplies an empty password so a header-encrypted archive
+                // fails immediately (surfacing the password prompt) instead of blocking
+                // on an interactive prompt the daemon can never answer.
+                members = ArchiveToolDiagnostics.sevenZipListingMemberPaths(
+                    try memberListing(
+                        executable: tools["7z"]!,
+                        arguments: ["l", "-ba", "-slt", "-y", "-p", archive.path],
+                        format: format
+                    ),
+                    requireSeparator: false
+                )
+            }
+        case .tarGz:
+            members = try memberListing(executable: tools["tar"]!, arguments: ["-tzf", archive.path], format: format)
+                .components(separatedBy: .newlines)
+        case .tarBz2:
+            members = try memberListing(executable: tools["tar"]!, arguments: ["-tjf", archive.path], format: format)
+                .components(separatedBy: .newlines)
+        case .tarXz:
+            members = try memberListing(executable: tools["tar"]!, arguments: ["-tJf", archive.path], format: format)
+                .components(separatedBy: .newlines)
+        }
+
+        if let unsafe = ArchiveToolDiagnostics.firstUnsafeMemberPath(members) {
+            throw ArchiveOperationsError.processFailed("Archive contains an unsafe path: \(unsafe)")
+        }
+    }
+
+    private func memberListing(
+        executable: String,
+        arguments: [String],
+        format: ServerArchiveFormat
+    ) throws -> String {
+        let result = try runListingProcess(executable, arguments)
+        guard result.status == 0 else {
+            let combined = [result.stderr, result.stdout]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            if Self.isWrongPasswordFailure(
+                format: format,
+                result: ServerProcessResult(status: result.status, stderr: combined)
+            ) {
+                throw ArchiveOperationsError.wrongPassword
+            }
+            throw ArchiveOperationsError.processFailed(Self.errorMessage(combined, fallback: format.fileExtension))
+        }
+        return result.stdout
+    }
+
     private func materialiseExtractionResult(
         tempDirectory: URL,
         archive: URL,
@@ -428,23 +528,11 @@ struct ArchiveOperations {
         format: ServerArchiveFormat,
         result: ServerProcessResult
     ) -> Bool {
-        let diagnostic = result.stderr.lowercased()
         switch format {
         case .zip:
-            if diagnostic.contains("incorrect password")
-                || diagnostic.contains("password incorrect")
-                || diagnostic.contains("wrong password")
-                || diagnostic.contains("bad password") {
-                return true
-            }
-            if result.status == 82 { return true }
-            guard result.status == 1 else { return false }
-            return (diagnostic.contains("skipping:") && diagnostic.contains("password"))
-                || (diagnostic.contains("skipping:") && diagnostic.contains("encrypted"))
+            return ArchiveToolDiagnostics.isZipPasswordFailure(message: result.stderr, status: result.status)
         case .sevenZ:
-            return diagnostic.contains("wrong password")
-                || diagnostic.contains("incorrect password")
-                || diagnostic.contains("data error in encrypted file")
+            return ArchiveToolDiagnostics.isSevenZipPasswordMessage(result.stderr)
         case .tarGz, .tarBz2, .tarXz:
             return false
         }
@@ -469,6 +557,34 @@ struct ArchiveOperations {
         } catch {
             return nil
         }
+    }
+
+    private static func runListingProcess(
+        executable: String,
+        arguments: [String]
+    ) throws -> ServerListingResult {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        try process.run()
+
+        let outputDrain = PipeDrain.start(reading: outputPipe.fileHandleForReading)
+        let errorDrain = PipeDrain.start(reading: errorPipe.fileHandleForReading)
+        process.waitUntilExit()
+
+        let outputData = outputDrain.wait()
+        let errorData = errorDrain.wait()
+        return ServerListingResult(
+            status: process.terminationStatus,
+            stdout: String(data: outputData, encoding: .utf8) ?? String(data: outputData, encoding: .isoLatin1) ?? "",
+            stderr: String(data: errorData, encoding: .utf8) ?? String(data: errorData, encoding: .isoLatin1) ?? ""
+        )
     }
 
     private static func runProcess(

@@ -153,6 +153,35 @@ final class ServerArchiveOperationsTests: XCTestCase {
         XCTAssertEqual(frames.last?.phase, .completed)
     }
 
+    func testExtractRejectsArchiveWithUnsafeMemberPathsBeforeRunningExtraction() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let archive = temp.appendingPathComponent("evil.zip")
+        try Data("stub".utf8).write(to: archive)
+
+        let operations = ArchiveOperations(
+            resolveTool: { "/usr/bin/\($0)" },
+            runProcess: { _, _, _ in
+                // A run of the extraction process itself would surface as status 99.
+                ServerProcessResult(status: 99, stderr: "extraction must not run")
+            },
+            runListingProcess: { _, _ in
+                ServerListingResult(status: 0, stdout: "safe.txt\n../evil.txt\n", stderr: "")
+            }
+        )
+
+        XCTAssertThrowsError(try operations.extractArchive(archive: archive.path, password: nil)) { error in
+            guard case .processFailed(let message)? = error as? ArchiveOperationsError else {
+                return XCTFail("expected processFailed, got \(error)")
+            }
+            XCTAssertTrue(message.contains("unsafe path"), "unexpected message: \(message)")
+            XCTAssertTrue(message.contains("../evil.txt"), "unexpected message: \(message)")
+        }
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: temp.path).contains {
+            $0.hasPrefix(".detours-extract-")
+        }, "the staged extraction directory must be cleaned up")
+    }
+
     func testExtractZipArchiveMaterialisesSingleTopLevelItem() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
