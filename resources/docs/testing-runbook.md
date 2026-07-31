@@ -149,6 +149,14 @@ Purpose: own all deterministic state, edge cases, and high repetition.
 
 Blocking budget: 10 seconds.
 
+#### Tests that need the logged-in session
+
+A few tests exercise services that belong to the console user's login session rather than to the process. `NSPasteboard` is the one that matters: over SSH `NSPasteboard.general.setString` returns false and reads come back nil, so every clipboard test fails for a reason unrelated to the code under test. `ClipboardManagerTests` and `DroppablePathControlTests` are the current cases.
+
+Run exactly those classes through `resources/scripts/gui-test.sh --filter '<class>|<class>'`, which submits `swift test` into the console user's launchd domain. Everything else keeps running over SSH with `swift test`.
+
+Never widen that filter to the whole suite. The suite falls back to the real home directory when no session is saved, and enumerating it reaches TCC protected folders, so a full run in the session asks macOS for Desktop access under Xcode's identity. `gui-test.sh` carries the same sentry contract as the qualification runner: a consent prompt cancels that exact run and fails closed, and is never answered, dismissed, or waited out. Granting that access to silence the prompt is prohibited.
+
 ### Layer 2: provider contract tests
 
 Purpose: prove that each real provider translates its boundary into the same production contract.

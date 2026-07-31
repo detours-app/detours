@@ -2928,3 +2928,35 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `ef012b7`, so the failures track the session type rather than any change.
   Smallest next action: run these two classes inside a Foundry GUI session, or
   move them behind the guarded runner that already owns one.
+
+- 2026-07-31 12:40 CEST: Foundry GUI-session test proof PASS at `b58beaf`.
+  `resources/scripts/gui-test.sh --filter
+  "ClipboardManagerTests|DroppablePathControlTests"` ran 19 cases with 0
+  failures, including the 3 that fail over SSH. Cause established by probe:
+  `NSPasteboard.general.setString` returns false with a nil read-back in an SSH
+  session and true inside the console user's launchd domain.
+
+- 2026-07-31 12:34 CEST: Foundry PROMPT INCIDENT during a full-suite
+  `gui-test.sh` run. The run asked for Desktop access under Xcode's identity
+  because the suite falls back to the real home directory and enumerating it
+  reaches TCC protected folders. The prompt was neither answered nor dismissed.
+  `gui-test.sh` now carries an independent tccd sentry that cancels the exact
+  run and fails closed, and the runbook restricts it to the pasteboard classes.
+  Two earlier xctest crash reports at 12:29 and 12:34 came from the same run,
+  through the load timeouts fixed at `379d7db`.
+
+- 2026-07-31 12:31 CEST: Foundry full `swift test` (GUI session) recorded 2
+  FAIL cases that also fail identically at `ef012b7`, before this work:
+  `FileListDataSourceTests/testRemoteGitStatusAppliesAfterLoadCompletion` and
+  `RefreshRegressionProbeTests/testSelectionSurvivesWatcherReloadAfterExternalChange`.
+  Both pass in isolation and never receive their background delivery late in a
+  long single-process run, now with a 30 second budget, so this is suite
+  hygiene rather than slowness. Smallest next action: audit watcher and task
+  teardown across the suite for leaked dispatch sources.
+
+- 2026-07-31 12:12 CEST: Foundry runner defect found and fixed at `e532efc`.
+  `gui-test.sh` reported a truncated run as a clean pass because
+  `launchctl submit` restarts a job the instant it exits and the restart
+  truncated the log. The prior "unexpected signal code 5" reading of
+  `FileListResponderTests` was that artifact; the class runs 56 cases with 0
+  failures.
