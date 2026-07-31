@@ -13,11 +13,20 @@ final class TypeSelectRowTests: XCTestCase {
         controller.loadViewIfNeeded()
         controller.view.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
 
+        // The controller owns `dataSource.onLoadCompleted`, so completion is observed through
+        // the navigation delegate the way the other file list tests do it.
+        let spy = NavigationDelegateSpy()
+        controller.navigationDelegate = spy
+        let previousLoadCount = spy.directoryLoadCount
         let loaded = expectation(description: "directory loaded")
-        controller.dataSource.onLoadCompleted = { _ in loaded.fulfill() }
+        spy.onDidLoadDirectory = {
+            if spy.directoryLoadCount > previousLoadCount {
+                loaded.fulfill()
+            }
+        }
         controller.loadDirectory(directory)
         wait(for: [loaded], timeout: 30)
-        controller.dataSource.onLoadCompleted = nil
+        spy.onDidLoadDirectory = nil
         controller.tableView.layoutSubtreeIfNeeded()
         return controller
     }
