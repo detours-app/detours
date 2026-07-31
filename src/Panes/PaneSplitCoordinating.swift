@@ -15,4 +15,5 @@ protocol PaneSplitCoordinating: AnyObject {
     func scheduleSaveSession()
     func retryRemoteConnection(for host: RemoteHost)
     func otherPane(from pane: PaneViewController) -> PaneViewController
+    func moveTab(_ tab: PaneTab, fromPane: PaneViewController, toPane: PaneViewController, atIndex: Int)
 }
