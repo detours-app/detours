@@ -2901,3 +2901,30 @@ Spotlight search has no unit test (depends on the live, async-built system index
   accessibility query. The final test observes the production editor width
   through the existing guarded pane-state seam and preserves the real paste
   action.
+
+- 2026-07-31 10:24 CEST: Foundry verification PASS for
+  `8205208` (error text no longer widens the pane or the window).
+  Reproduction first: a headless layout probe measured the pane's fitting width
+  with a 260-character remote error and recorded 1590pt for the directory load
+  overlay, 1731pt for the remote refresh banner, and 303pt for the reconnect
+  banner, against a 200pt pane minimum. Those minimums reach the window through
+  `NSSplitViewController`, which is how Marco's window reached 2812pt on a
+  2056pt screen and became unresizable.
+  `swift test --filter "PaneMessageWidthTests|AppKitGeometrySanitizerTests"`
+  passed 19 cases, and the full `swift test` suite is otherwise green.
+  Guarded installed UI proof: `installed-smoke session LOCAL_ROOT` with
+  `WindowPaneGeometryUITests/testLaunchHasNoWindowFrameJump` recorded 1 pass and
+  0 failures in 7.477s, confirming the new window setup launches without a
+  crash or frame jump, and a second run with the group's canonical
+  `testPaneDividerDragPersistsAcrossRelaunch` recorded `completed=1 total=1`
+  with green guarded cleanup.
+
+- 2026-07-31 10:18 CEST: Foundry `swift test` FAIL for 3 cases in
+  `ClipboardManagerTests/testExternalPasteboardWriteInvalidatesRemoteClipboardState`
+  and `DroppablePathControlTests/testContextMenuCopyPathEscapesSpaces`.
+  Cause: an SSH session has no usable general pasteboard. A direct probe on
+  Foundry returned `NSPasteboard.general.setString(...) == false` with a nil
+  read-back, and the same cases fail identically at the parent commit
+  `ef012b7`, so the failures track the session type rather than any change.
+  Smallest next action: run these two classes inside a Foundry GUI session, or
+  move them behind the guarded runner that already owns one.
