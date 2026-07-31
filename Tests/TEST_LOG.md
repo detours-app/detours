@@ -2960,3 +2960,29 @@ Spotlight search has no unit test (depends on the live, async-built system index
   truncated the log. The prior "unexpected signal code 5" reading of
   `FileListResponderTests` was that artifact; the class runs 56 cases with 0
   failures.
+
+- 2026-07-31 13:58 CEST: Foundry verification PASS at `42f8118` for two
+  reported UX defects, then installed on Spectre.
+  New tab button: it created the tab without activating its pane, and
+  `selectTab` only moves keyboard focus into an already active pane, so the
+  other pane kept the keyboard. Type-to-select: it matched against
+  `dataSource.items`, the top level only, then used that position as a table
+  row, so with a folder expanded above the match a keystroke selected an
+  unrelated row; a restored session with saved expansions hits this on every
+  launch. Both new test classes were proved non-vacuous by reverting each
+  source file and observing the exact reported symptom, including
+  `child-0.txt` selected instead of `zulu`.
+  `swift test --filter "FileListResponderTests|FolderExpansionTests|
+  FileListDataSourceTests|TypeSelectRowTests|NewTabPaneActivationTests|
+  PaneViewControllerTests"` passed 136 cases with 0 failures.
+  Guarded installed UI proof: `installed-smoke session LOCAL_ROOT` with
+  `WindowPaneGeometryUITests/testLaunchHasNoWindowFrameJump` completed clean,
+  which also verified the `--test-filter` accounting fix: the runner printed
+  `session repetition markers not checked` and completed instead of failing on
+  markers the substituted test never writes.
+
+- 2026-07-31 13:45 CEST: Foundry batch of 6 pane classes recorded 9 FAIL cases
+  in `RefreshRegressionProbeTests`, all of which pass when that class runs
+  alone at the same commit and at its parent. This is the same full-suite
+  contention already recorded at 12:31, not a regression from the pane
+  activation change.
