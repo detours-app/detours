@@ -14,6 +14,15 @@
   `resources/scripts/wintest.sh`, and any command that creates test files,
   folders, volumes, preferences, cache entries, or Trash items. All verification
   runs on Foundry. If Foundry is unavailable, stop; Spectre is never a fallback.
+- GUI-session boundary on Foundry: NEVER run the full unit suite inside the
+  logged-in console session (`resources/scripts/gui-test.sh` or any
+  `launchctl submit` of `swift test`). The suite walks the real home directory
+  and fires a cascade of TCC consent dialogs at the operator. Only the classes
+  that need login-session services go through `gui-test.sh` with a narrow
+  `--filter` (currently `ClipboardManagerTests` and
+  `DroppablePathControlTests`); everything else runs over SSH. A consent prompt
+  is never answered or dismissed to make a run pass. Details in
+  `resources/docs/testing-runbook.md`.
 - After app code changes, run `resources/scripts/build.sh` without
   `--no-install` on Spectre before handing off so the fixed Detours app is
   installed in Spectre's `/Applications` and relaunched. Foundry builds/tests
