@@ -197,4 +197,64 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
 
         XCTAssertNil(defaults.object(forKey: key))
     }
+
+    // MARK: - Clamping an open window to its screen
+
+    private let screen = NSRect(x: 0, y: 0, width: 2056, height: 1290)
+    private let minimum = NSSize(width: 800, height: 520)
+
+    func testClampShrinksWindowWiderThanItsScreen() {
+        let clamped = AppKitGeometrySanitizer.clampedFrame(
+            NSRect(x: 428, y: 418, width: 2811, height: 732),
+            toVisibleFrame: screen,
+            minimumSize: minimum
+        )
+
+        XCTAssertEqual(clamped.width, screen.width)
+        XCTAssertLessThanOrEqual(clamped.maxX, screen.maxX)
+        XCTAssertEqual(clamped.height, 732, "Only the overshooting dimension changes")
+    }
+
+    func testClampMovesOffscreenWindowBackWithoutResizing() {
+        let clamped = AppKitGeometrySanitizer.clampedFrame(
+            NSRect(x: 1900, y: 1200, width: 900, height: 620),
+            toVisibleFrame: screen,
+            minimumSize: minimum
+        )
+
+        XCTAssertEqual(clamped.size, NSSize(width: 900, height: 620))
+        XCTAssertLessThanOrEqual(clamped.maxX, screen.maxX)
+        XCTAssertLessThanOrEqual(clamped.maxY, screen.maxY)
+        XCTAssertGreaterThanOrEqual(clamped.minX, screen.minX)
+    }
+
+    func testClampLeavesFittingWindowAlone() {
+        let frame = NSRect(x: 120, y: 80, width: 1200, height: 700)
+
+        XCTAssertEqual(
+            AppKitGeometrySanitizer.clampedFrame(frame, toVisibleFrame: screen, minimumSize: minimum),
+            frame
+        )
+    }
+
+    func testClampPinsToScreenOriginWhenScreenIsSmallerThanTheMinimum() {
+        let tinyScreen = NSRect(x: 40, y: 30, width: 600, height: 400)
+        let clamped = AppKitGeometrySanitizer.clampedFrame(
+            NSRect(x: 500, y: 500, width: 1200, height: 700),
+            toVisibleFrame: tinyScreen,
+            minimumSize: minimum
+        )
+
+        XCTAssertEqual(clamped.origin, tinyScreen.origin, "The title bar must stay reachable")
+        XCTAssertEqual(clamped.size, minimum, "The window never shrinks below its usable minimum")
+    }
+
+    func testClampIgnoresAnUnusableScreenFrame() {
+        let frame = NSRect(x: 120, y: 80, width: 1200, height: 700)
+
+        XCTAssertEqual(
+            AppKitGeometrySanitizer.clampedFrame(frame, toVisibleFrame: .zero, minimumSize: minimum),
+            frame
+        )
+    }
 }

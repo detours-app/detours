@@ -82,6 +82,18 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
             name: ThemeManager.themeDidChange,
             object: nil
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleScreenParametersChange),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+    }
+
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        clampWindowToCurrentScreen()
     }
 
     @available(*, unavailable)
@@ -106,7 +118,35 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.saveFrame(usingName: Self.frameAutosaveName)
     }
 
+    @objc private func handleScreenParametersChange() {
+        // AppKit relocates windows onto the surviving screens after this notification, so clamp
+        // once the move has landed rather than against the frame the window still has here.
+        DispatchQueue.main.async { [weak self] in
+            self?.clampWindowToCurrentScreen()
+        }
+    }
+
+    /// Shrinks the window into its screen when something has made it larger than the screen.
+    func clampWindowToCurrentScreen() {
+        guard let window,
+              let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame else { return }
+
+        let clamped = AppKitGeometrySanitizer.clampedFrame(
+            window.frame,
+            toVisibleFrame: visibleFrame,
+            minimumSize: Self.minimumContentSize
+        )
+        guard clamped != window.frame else { return }
+
+        window.setFrame(clamped, display: true)
+        window.saveFrame(usingName: Self.frameAutosaveName)
+    }
+
     // MARK: - NSWindowDelegate
+
+    func windowDidChangeScreen(_ notification: Notification) {
+        clampWindowToCurrentScreen()
+    }
 
     func windowDidBecomeKey(_ notification: Notification) {
         // Reassert exactly one active presentation after AppKit reactivates

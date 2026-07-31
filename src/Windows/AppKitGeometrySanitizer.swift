@@ -133,6 +133,54 @@ enum AppKitGeometrySanitizer {
         return true
     }
 
+    /// Fits a window frame inside one screen's visible frame, shrinking before moving.
+    ///
+    /// The launch sanitizer only accepts or rejects a saved frame, so it cannot help once the
+    /// window is open: a pane that demands more width than the screen has, or a display that
+    /// gets disconnected, both leave the window wider than the screen with its resize edge out
+    /// of reach. Clamping keeps the window recoverable by mouse whatever caused the overshoot.
+    static func clampedFrame(
+        _ frame: NSRect,
+        toVisibleFrame visibleFrame: NSRect,
+        minimumSize: NSSize
+    ) -> NSRect {
+        guard isFinite(frame),
+              isFinite(visibleFrame),
+              visibleFrame.width > 0,
+              visibleFrame.height > 0 else {
+            return frame
+        }
+
+        var clamped = frame
+        clamped.size.width = min(frame.width, max(minimumSize.width, visibleFrame.width))
+        clamped.size.height = min(frame.height, max(minimumSize.height, visibleFrame.height))
+        clamped.origin.x = clampOrigin(
+            frame.origin.x,
+            length: clamped.width,
+            lowerBound: visibleFrame.minX,
+            upperBound: visibleFrame.maxX
+        )
+        clamped.origin.y = clampOrigin(
+            frame.origin.y,
+            length: clamped.height,
+            lowerBound: visibleFrame.minY,
+            upperBound: visibleFrame.maxY
+        )
+        return clamped
+    }
+
+    private static func clampOrigin(
+        _ origin: CGFloat,
+        length: CGFloat,
+        lowerBound: CGFloat,
+        upperBound: CGFloat
+    ) -> CGFloat {
+        // A window larger than the screen still pins to the screen origin rather than drifting
+        // off it, so its title bar stays reachable.
+        let maximumOrigin = max(upperBound - length, lowerBound)
+        return min(max(origin, lowerBound), maximumOrigin)
+    }
+
     static func windowFrameKey(autosaveName: String) -> String {
         "NSWindow Frame \(autosaveName)"
     }

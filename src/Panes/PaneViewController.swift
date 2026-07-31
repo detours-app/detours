@@ -38,6 +38,8 @@ final class PaneViewController: NSViewController {
     let pathControl = DroppablePathControl()
     let pathStripView = NSView()
     private let pathStripSeparator = NSView()
+    static let reconnectBannerLabelMaximumWidth: CGFloat = 360
+
     let reconnectBanner = NSView()
     let reconnectBannerLabel = NSTextField(labelWithString: "")
     private let reconnectButton = NSButton(title: "Reconnect", target: nil, action: nil)
@@ -260,6 +262,12 @@ final class PaneViewController: NSViewController {
         reconnectBannerLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 12)
         reconnectBannerLabel.textColor = ThemeManager.shared.currentTheme.textPrimary
         reconnectBannerLabel.lineBreakMode = .byTruncatingTail
+        // A host name must not set the pane's minimum width; see the note on
+        // messageMaximumWidth in FileListViewController+LoadingState.
+        reconnectBannerLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        reconnectBannerLabel.widthAnchor.constraint(
+            lessThanOrEqualToConstant: Self.reconnectBannerLabelMaximumWidth
+        ).isActive = true
         reconnectBannerLabel.setAccessibilityIdentifier("remoteReconnectBannerLabel")
 
         reconnectButton.bezelStyle = .rounded

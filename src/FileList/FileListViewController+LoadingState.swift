@@ -4,6 +4,16 @@ import os.log
 
 // MARK: - Loading & Error States
 
+/// Caps how wide an error message may make its pane.
+///
+/// A message label reports its whole unwrapped string as its intrinsic width, and that width
+/// becomes the pane's minimum. `NSSplitViewController` turns pane minimums into the window's
+/// minimum content size, so AppKit grows the window to fit the sentence. A long remote error
+/// once pushed the window past the width of the screen, where its resize edge is unreachable,
+/// and frame autosave then restored that width on every later launch. Text must never set a
+/// lower bound on layout, so every message label is capped here and truncates or wraps instead.
+private let messageMaximumWidth: CGFloat = 360
+
 extension FileListViewController {
     func showLoadingIndicator() {
         hideErrorOverlay()
@@ -99,6 +109,13 @@ extension FileListViewController {
         label.font = theme.uiFont(size: 13)
         label.textColor = theme.textSecondary
         label.alignment = .center
+        // A centred overlay has room to wrap, so a long message reads in full instead of
+        // truncating, while the cap keeps it from widening the pane.
+        label.lineBreakMode = .byWordWrapping
+        label.maximumNumberOfLines = 0
+        label.preferredMaxLayoutWidth = messageMaximumWidth
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.widthAnchor.constraint(lessThanOrEqualToConstant: messageMaximumWidth).isActive = true
         stack.addArrangedSubview(label)
         stack.setCustomSpacing(12, after: label)
 
@@ -178,6 +195,7 @@ extension FileListViewController {
         label.textColor = ThemeManager.shared.currentTheme.textPrimary
         label.lineBreakMode = .byTruncatingMiddle
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.widthAnchor.constraint(lessThanOrEqualToConstant: messageMaximumWidth).isActive = true
         label.setAccessibilityIdentifier("remoteRefreshErrorLabel")
 
         let retryButton = NSButton(
