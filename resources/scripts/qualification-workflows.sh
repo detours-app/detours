@@ -630,7 +630,16 @@ run_installed_once() {
     if (( status == 0 )); then
         verify_quiet_xcode_command "$log_path.raw.log"
         verify_installed_result_bundle "$result_bundle"
-        verify_workflow_repetition_markers "$selected_group" "$control_root" "$repetitions"
+        # Repetition markers are written by the group's own workflow test, which owns the
+        # repetition loop. A substituted --test-filter selects a different regression that
+        # never writes them, so demanding markers there fails a run whose test passed.
+        # The result bundle still proves the selected test ran and passed.
+        if [[ "$test_filter" == "$(installed_test_filter "$selected_group")" ]]; then
+            verify_workflow_repetition_markers "$selected_group" "$control_root" "$repetitions"
+        else
+            printf 'qualification: %s repetition markers not checked; --test-filter selected %s instead of the group workflow test\n' \
+                "$selected_group" "$test_filter" | tee -a "$log_path.log"
+        fi
     fi
     record_scenario_timing \
         installed "$selected_group" "$context_name" "$repetitions" "$started_at" "$status"
