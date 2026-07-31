@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detours code audit, 2026-07-31</title>
+<style>
+:root {
+  --crit: #d13438; --imp: #c77d1f; --min: #5c7cfa;
+  --bg: #f6f7f9; --card: #ffffff; --text: #1c1e21; --muted: #6b7280;
+  --border: #d8dce2; --accent: #2563eb; --fixed: #16a34a; --progress: #d97706; --wontfix: #6b7280;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d; --card: #1f2229; --text: #e7e9ee; --muted: #9aa2af;
+    --border: #333842; --accent: #60a5fa;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+.layout { display: flex; min-height: 100vh; }
+.sidebar { width: 250px; flex-shrink: 0; padding: 20px 16px; border-right: 1px solid var(--border); position: sticky; top: 0; align-self: flex-start; max-height: 100vh; overflow-y: auto; }
+.main { flex: 1; padding: 24px 32px; max-width: 900px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+.posture { display: flex; align-items: center; gap: 12px; margin: 16px 0; }
+.grade { font-size: 28px; font-weight: 700; width: 52px; height: 52px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--imp) 18%, var(--card)); border: 1px solid var(--imp); }
+.posture p { margin: 0; font-size: 13px; }
+details.summary-block { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; }
+details.summary-block summary { cursor: pointer; font-weight: 600; }
+details.summary-block p { font-size: 13px; }
+.progress-wrap { margin: 16px 0 20px; }
+.progress-bar { height: 10px; border-radius: 5px; overflow: hidden; display: flex; background: var(--border); }
+.progress-bar div { height: 100%; }
+.pb-fixed { background: var(--fixed); } .pb-progress { background: var(--progress); }
+.pb-wontfix { background: var(--wontfix); } .pb-open { background: transparent; }
+.stats { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.filter-group { margin-bottom: 18px; }
+.filter-group h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0 0 6px; }
+.filter-btn { display: flex; justify-content: space-between; width: 100%; padding: 4px 8px; margin: 2px 0; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; text-align: left; font-variant-numeric: tabular-nums; }
+.filter-btn:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.filter-btn.active { background: color-mix(in srgb, var(--accent) 15%, transparent); border-color: var(--accent); }
+.filter-btn .count { color: var(--muted); }
+#search { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; font-size: 13px; margin-bottom: 18px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+.card.sev-Critical { border-color: color-mix(in srgb, var(--crit) 55%, var(--border)); background: color-mix(in srgb, var(--crit) 4%, var(--card)); }
+.card.sev-Important { border-color: color-mix(in srgb, var(--imp) 45%, var(--border)); background: color-mix(in srgb, var(--imp) 3%, var(--card)); }
+.card.st-fixed { opacity: 0.55; } .card.st-fixed .desc { text-decoration: line-through; }
+.card.st-wontfix { opacity: 0.65; }
+.badges { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+.b-Critical { background: color-mix(in srgb, var(--crit) 18%, transparent); color: var(--crit); }
+.b-Important { background: color-mix(in srgb, var(--imp) 20%, transparent); color: var(--imp); }
+.b-Minor { background: color-mix(in srgb, var(--min) 18%, transparent); color: var(--min); }
+.b-cat { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+.conf { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.desc { margin: 0 0 8px; }
+.fix { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.fix strong { color: var(--text); }
+.floc { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; background: color-mix(in srgb, var(--border) 40%, transparent); border-radius: 6px; padding: 4px 8px; display: inline-block; margin-bottom: 8px; }
+.cite { font-size: 12px; color: var(--muted); border-left: none; background: color-mix(in srgb, var(--border) 30%, transparent); border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; }
+.status-pill { font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 20px; display: inline-block; }
+.sp-open { background: color-mix(in srgb, var(--crit) 12%, transparent); color: var(--crit); }
+.sp-progress { background: color-mix(in srgb, var(--progress) 15%, transparent); color: var(--progress); }
+.sp-fixed { background: color-mix(in srgb, var(--fixed) 15%, transparent); color: var(--fixed); }
+.sp-wontfix { background: color-mix(in srgb, var(--wontfix) 15%, transparent); color: var(--wontfix); }
+.empty { color: var(--muted); text-align: center; padding: 40px; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.92em; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <input id="search" type="search" placeholder="Search findings" aria-label="Search findings">
+  <div class="filter-group"><h3>Status</h3><div id="f-status"></div></div>
+  <div class="filter-group"><h3>Severity</h3><div id="f-sev"></div></div>
+  <div class="filter-group"><h3>Category</h3><div id="f-cat"></div></div>
+  <div class="filter-group"><h3>Top files</h3><div id="f-file"></div></div>
+</aside>
+<main class="main">
+  <h1>Detours code audit</h1>
+  <div class="meta">2026-07-31 &middot; 5 review agents (logic, bugs, security, architecture, conventions) &middot; 30 raw findings scored, 9 cleared the 80-confidence threshold</div>
+  <div class="posture">
+    <div class="grade" id="grade">C</div>
+    <p id="grade-note">One Critical and a concentration of Important findings on the remote/SSH and archive-extraction surface; the rest of the codebase came back clean above threshold.</p>
+  </div>
+  <details class="summary-block" open>
+    <summary>Summary</summary>
+    <p>The audit's headline is the remote helper deployment path: the one SSH channel that uploads and executes the helper binary on remote hosts skips the app's own host-key pinning, as does the probe that decides which provider a host gets. Both were flagged independently by two reviewers. Alongside that sit two archive-extraction gaps (local zip/7z and everything on the remote helper accept archives without path-containment checks, though the local tar path and the Windows scripts already have them) and a Windows move-merge that can trash a file the user explicitly chose to skip.</p>
+    <p>Two error-reporting defects share one root cause: the extraction and archive-creation progress parsers drain stderr, then the failure path re-reads the empty pipe, so real tool diagnostics (including wrong-password detection) are replaced by generic exit-code messages. Two structural findings round it out: the pane layer's delegate protocol is bypassed by concrete downcasts at 13 sites, and wrong-password heuristics exist as four hand-synced copies across client and server.</p>
+    <p>What did not clear the threshold: several verified-real but lower-impact items (a file-descriptor double-close on an error path in the server's file writer, a trash rollback that can abandon items mid-batch, thread-safety gaps in the network directory poller, force-unwrap and file-length convention violations). They scored 75 or below under independent verification and are excluded per the audit's cutoff. All user-file deletion paths were traced and comply with the trash-only rules.</p>
+  </details>
+  <div class="progress-wrap">
+    <div class="progress-bar" id="pbar"></div>
+    <div class="stats" id="stats"></div>
+  </div>
+  <div id="findings"></div>
+</main>
+</div>
+<script>
+const FINDINGS = [
+  { sev: "Critical", cat: "Security", conf: 90, status: "open",
+    file: "src/Remote/ServerDeployer.swift", line: 162,
+    desc: "SSHServerDeploymentClient spawns ssh and scp with only the target as argument, never applying SSHHostTrust.sshArguments (no StrictHostKeyChecking, no pinned known_hosts, no shared ControlPath). This runs before SSHConnection.connect() applies pinning, so the one channel that uploads the helper binary and later executes it with the user's remote privileges rides an unauthenticated transport; a machine-in-the-middle can subvert the architecture, ownership, and hash checks or substitute the binary. Flagged independently by the logic and security reviewers.",
+    fix: "Give SSHServerDeploymentClient a hostTrust property and include hostTrust.sshArguments in every ssh/scp invocation, matching SSHConnection and RemoteTransferChannel.",
+    cite: "Every other SSH-invoking type (SSHConnection, RemoteSearchChannel, RemoteTransferChannel) appends hostTrust.sshArguments and fails closed on an unknown or changed host key." },
+  { sev: "Important", cat: "Security", conf: 85, status: "open",
+    file: "src/Remote/RemoteHostKindProbe.swift", line: 64,
+    desc: "SSHRemoteHostKindProbeClient builds its ssh arguments with only ConnectTimeout and BatchMode, bypassing SSHHostTrust. The probe runs first on connect and its result selects the Windows vs Unix/helper-deploy route for the whole session, so a spoofed answer over the unpinned connection steers the host onto the wrong code path before pinning ever engages.",
+    fix: "Thread an SSHHostTrust instance into the probe client and include hostTrust.sshArguments, or defer probing until the pinned connection is established.",
+    cite: "" },
+  { sev: "Important", cat: "Logic", conf: 90, status: "open",
+    file: "src/Operations/FileOperationQueue+Extraction.swift", line: 1028,
+    desc: "The .parseStderr progress task drains the stderr pipe to EOF while parsing percentages, then the failure path calls readDataToEndOfFile() on the same drained pipe and gets empty data. The actual tool output is discarded, so extraction failures surface as generic exit-code messages, and the isPasswordError branch that needs the text (exit 1 plus \"encrypt\") can never fire; only the exit-82 check still works.",
+    fix: "Accumulate stderr text as the progress parser consumes it and reuse that buffer for the failure and password-error messages.",
+    cite: "" },
+  { sev: "Important", cat: "Logic", conf: 85, status: "open",
+    file: "src/Operations/FileOperationQueue+WindowsTransfer.swift", line: 84,
+    desc: "In the Windows folder-merge branch of windowsPlaceItem, a child conflict resolved as skip returns without moving the child, leaving it inside the source folder. After the loop, a move unconditionally trashes the whole source folder, so a file the user explicitly chose to keep is swept into the trash with it.",
+    fix: "Track whether any child was skipped during the merge and only trash the source folder when it is actually empty.",
+    cite: "" },
+  { sev: "Important", cat: "Logic", conf: 85, status: "open",
+    file: "src/Operations/FileOperationQueue+Archive.swift", line: 406,
+    desc: "Same double-consumption pattern as the extraction path: the archive-creation progress task drains stderr via availableData until EOF, then the failure path re-reads the drained pipe with readDataToEndOfFile() and builds the error from empty data. The archiver's real diagnostic is replaced with a generic \"Process exited with code X\".",
+    fix: "Capture stderr text during percentage parsing and reuse it when building the failure message.",
+    cite: "" },
+  { sev: "Important", cat: "Security", conf: 80, status: "open",
+    file: "src/Operations/FileOperationQueue+Extraction.swift", line: 217,
+    desc: "Local zip and 7z extraction (ditto, unzip, 7z into a temp directory) has no check that extracted entry paths stay inside the destination. The tar path in the same file validates member paths (validateTarMemberPaths rejects dot-dot and absolute entries) and the Windows scripts assert path containment for every format, so the codebase treats this as a real risk everywhere except here.",
+    fix: "Apply the tar path's member-path validation (or an equivalent containment check) to the zip and 7z extraction paths before files are moved out of the temp directory.",
+    cite: "" },
+  { sev: "Important", cat: "Security", conf: 80, status: "open",
+    file: "Server/ArchiveOperations.swift", line: 312,
+    desc: "The remote helper's extraction commands (unzip, 7z, tar) have no path-traversal validation on any format; nothing analogous to the client's validateTarMemberPaths exists in the file. A malicious archive on the remote host extracted through Detours can write outside the destination directory on that host.",
+    fix: "Port the client's member-path validation into Server/ArchiveOperations.swift for all three extraction commands.",
+    cite: "" },
+  { sev: "Important", cat: "Architecture", conf: 80, status: "open",
+    file: "src/Panes/PaneViewController+FileListNavigationDelegate.swift", line: 38,
+    desc: "Seven of the eight FileListNavigationDelegate methods immediately downcast parent as? MainSplitViewController and act on the concrete type, with 13 such downcasts across six pane-layer files. The delegate protocol exists to decouple the file list from its host, but the real dependency is a repeated concrete parent type at every call site.",
+    fix: "Give PaneViewController a typed weak coordinator reference set by the split view controller and call through it instead of downcasting parent at each site.",
+    cite: "" },
+  { sev: "Important", cat: "Architecture", conf: 80, status: "open",
+    file: "src/Operations/FileOperationQueue+Extraction.swift", line: 335,
+    desc: "Wrong-password detection for archive tools exists as four independently maintained heuristics with non-identical substring and exit-code lists: isZipPasswordFailure, sevenZipFailure, and isPasswordError on the client, and isWrongPasswordFailure in Server/ArchiveOperations.swift. They are keyed to exact tool wording and will drift the next time one side is updated.",
+    fix: "Put the archive-tool error-classification logic in one place in Shared/ and have both client and server call it.",
+    cite: "" }
+];
+
+const state = { status: null, sev: null, cat: null, file: null, q: "" };
+
+function counts(key) {
+  const m = {};
+  FINDINGS.forEach(f => { const v = key === "file" ? f.file : f[key]; m[v] = (m[v] || 0) + 1; });
+  return Object.entries(m).sort((a, b) => b[1] - a[1]);
+}
+function renderFilters() {
+  const groups = [["status", "f-status"], ["sev", "f-sev"], ["cat", "f-cat"], ["file", "f-file"]];
+  groups.forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    el.innerHTML = "";
+    counts(key).slice(0, key === "file" ? 6 : 10).forEach(([val, n]) => {
+      const b = document.createElement("button");
+      b.className = "filter-btn" + (state[key] === val ? " active" : "");
+      const label = key === "file" ? val.split("/").pop() : val;
+      b.innerHTML = `<span>${label}</span><span class="count">${n}</span>`;
+      b.title = val;
+      b.onclick = () => { state[key] = state[key] === val ? null : val; render(); };
+      el.appendChild(b);
+    });
+  });
+}
+function renderProgress() {
+  const t = FINDINGS.length;
+  const by = s => FINDINGS.filter(f => (f.status || "open") === s).length;
+  const fixed = by("fixed"), prog = by("progress"), wontfix = by("wontfix"), open = by("open");
+  document.getElementById("pbar").innerHTML =
+    `<div class="pb-fixed" style="width:${100 * fixed / t}%"></div>` +
+    `<div class="pb-progress" style="width:${100 * prog / t}%"></div>` +
+    `<div class="pb-wontfix" style="width:${100 * wontfix / t}%"></div>`;
+  const sevBy = s => FINDINGS.filter(f => f.sev === s).length;
+  document.getElementById("stats").innerHTML =
+    `<span>${open} open</span><span>${prog} in progress</span><span>${fixed} fixed</span><span>${wontfix} wontfix</span>` +
+    `<span>&middot;</span><span>${sevBy("Critical")} Critical</span><span>${sevBy("Important")} Important</span><span>${sevBy("Minor")} Minor</span>`;
+}
+function render() {
+  renderFilters(); renderProgress();
+  const wrap = document.getElementById("findings");
+  wrap.innerHTML = "";
+  const q = state.q.toLowerCase();
+  const shown = FINDINGS.filter(f => {
+    const st = f.status || "open";
+    if (state.status && st !== state.status) return false;
+    if (state.sev && f.sev !== state.sev) return false;
+    if (state.cat && f.cat !== state.cat) return false;
+    if (state.file && f.file !== state.file) return false;
+    if (q && !(f.desc + " " + f.file + " " + f.cat + " " + (f.fix || "")).toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if (!shown.length) { wrap.innerHTML = '<div class="empty">No findings match the current filters.</div>'; return; }
+  shown.forEach(f => {
+    const st = f.status || "open";
+    const card = document.createElement("article");
+    card.className = `card sev-${f.sev} st-${st}`;
+    card.innerHTML =
+      `<div class="badges"><span class="badge b-${f.sev}">${f.sev}</span>` +
+      `<span class="badge b-cat">${f.cat}</span><span class="conf">confidence ${f.conf}</span></div>` +
+      `<p class="desc">${f.desc}</p>` +
+      (f.fix ? `<p class="fix"><strong>Fix:</strong> ${f.fix}</p>` : "") +
+      `<div class="floc">${f.file}${f.line ? ":" + f.line : ""}</div>` +
+      (f.cite ? `<div class="cite">${f.cite}</div>` : "") +
+      `<div><span class="status-pill sp-${st}">${st}</span></div>`;
+    wrap.appendChild(card);
+  });
+}
+document.getElementById("search").addEventListener("input", e => { state.q = e.target.value; render(); });
+render();
+</script>
+</body>
+</html>
