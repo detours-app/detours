@@ -24,7 +24,7 @@ body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", 
 h1 { font-size: 20px; margin: 0 0 4px; }
 .meta { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
 .posture { display: flex; align-items: center; gap: 12px; margin: 16px 0; }
-.grade { font-size: 28px; font-weight: 700; width: 52px; height: 52px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--imp) 18%, var(--card)); border: 1px solid var(--imp); }
+.grade { font-size: 28px; font-weight: 700; width: 52px; height: 52px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--fixed) 18%, var(--card)); border: 1px solid var(--fixed); }
 .posture p { margin: 0; font-size: 13px; }
 details.summary-block { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; }
 details.summary-block summary { cursor: pointer; font-weight: 600; }
@@ -81,13 +81,13 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.92em
   <h1>Detours code audit</h1>
   <div class="meta">2026-07-31 &middot; 5 review agents (logic, bugs, security, architecture, conventions) &middot; 30 raw findings scored, 9 cleared the 80-confidence threshold</div>
   <div class="posture">
-    <div class="grade" id="grade">C</div>
-    <p id="grade-note">One Critical and a concentration of Important findings on the remote/SSH and archive-extraction surface; the rest of the codebase came back clean above threshold.</p>
+    <div class="grade" id="grade">A</div>
+    <p id="grade-note">All nine findings fixed and proven on Foundry (full suite, live remote integration, guarded installed-app UI smoke); no findings above threshold remain open.</p>
   </div>
   <details class="summary-block" open>
     <summary>Summary</summary>
-    <p>The audit's headline is the remote helper deployment path: the one SSH channel that uploads and executes the helper binary on remote hosts skips the app's own host-key pinning, as does the probe that decides which provider a host gets. Both were flagged independently by two reviewers. Alongside that sit two archive-extraction gaps (local zip/7z and everything on the remote helper accept archives without path-containment checks, though the local tar path and the Windows scripts already have them) and a Windows move-merge that can trash a file the user explicitly chose to skip.</p>
-    <p>Two error-reporting defects share one root cause: the extraction and archive-creation progress parsers drain stderr, then the failure path re-reads the empty pipe, so real tool diagnostics (including wrong-password detection) are replaced by generic exit-code messages. Two structural findings round it out: the pane layer's delegate protocol is bypassed by concrete downcasts at 13 sites, and wrong-password heuristics exist as four hand-synced copies across client and server.</p>
+    <p>All nine findings are fixed. The remote helper deployment channel and the host-kind probe now apply the app's host-key pinning like every other SSH channel; archive extraction validates member paths before extracting on both the app and the remote helper, with the validation and wrong-password classification consolidated once in the shared module; the Windows move-merge keeps a source folder whenever the user skipped a child inside it; failed archive operations surface the tool's real diagnostics again; and the pane layer reaches its host through a typed coordinator protocol instead of 13 concrete downcasts.</p>
+    <p>Everything was proven on Foundry: the full suite (906 tests; the six suite-contention failures re-proven green in isolation, matching the pattern already on record), the live remote-integration tests against real hosts, a clean build/install/relaunch, and a guarded installed-app UI smoke test. One fix was itself caught by its new test during verification: a rejected archive initially left its staging directory behind.</p>
     <p>What did not clear the threshold: several verified-real but lower-impact items (a file-descriptor double-close on an error path in the server's file writer, a trash rollback that can abandon items mid-batch, thread-safety gaps in the network directory poller, force-unwrap and file-length convention violations). They scored 75 or below under independent verification and are excluded per the audit's cutoff. All user-file deletion paths were traced and comply with the trash-only rules.</p>
   </details>
   <div class="progress-wrap">
@@ -99,47 +99,47 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.92em
 </div>
 <script>
 const FINDINGS = [
-  { sev: "Critical", cat: "Security", conf: 90, status: "open",
+  { sev: "Critical", cat: "Security", conf: 90, status: "fixed",
     file: "src/Remote/ServerDeployer.swift", line: 162,
     desc: "SSHServerDeploymentClient spawns ssh and scp with only the target as argument, never applying SSHHostTrust.sshArguments (no StrictHostKeyChecking, no pinned known_hosts, no shared ControlPath). This runs before SSHConnection.connect() applies pinning, so the one channel that uploads the helper binary and later executes it with the user's remote privileges rides an unauthenticated transport; a machine-in-the-middle can subvert the architecture, ownership, and hash checks or substitute the binary. Flagged independently by the logic and security reviewers.",
     fix: "Give SSHServerDeploymentClient a hostTrust property and include hostTrust.sshArguments in every ssh/scp invocation, matching SSHConnection and RemoteTransferChannel.",
     cite: "Every other SSH-invoking type (SSHConnection, RemoteSearchChannel, RemoteTransferChannel) appends hostTrust.sshArguments and fails closed on an unknown or changed host key." },
-  { sev: "Important", cat: "Security", conf: 85, status: "open",
+  { sev: "Important", cat: "Security", conf: 85, status: "fixed",
     file: "src/Remote/RemoteHostKindProbe.swift", line: 64,
     desc: "SSHRemoteHostKindProbeClient builds its ssh arguments with only ConnectTimeout and BatchMode, bypassing SSHHostTrust. The probe runs first on connect and its result selects the Windows vs Unix/helper-deploy route for the whole session, so a spoofed answer over the unpinned connection steers the host onto the wrong code path before pinning ever engages.",
     fix: "Thread an SSHHostTrust instance into the probe client and include hostTrust.sshArguments, or defer probing until the pinned connection is established.",
     cite: "" },
-  { sev: "Important", cat: "Logic", conf: 90, status: "open",
+  { sev: "Important", cat: "Logic", conf: 90, status: "fixed",
     file: "src/Operations/FileOperationQueue+Extraction.swift", line: 1028,
     desc: "The .parseStderr progress task drains the stderr pipe to EOF while parsing percentages, then the failure path calls readDataToEndOfFile() on the same drained pipe and gets empty data. The actual tool output is discarded, so extraction failures surface as generic exit-code messages, and the isPasswordError branch that needs the text (exit 1 plus \"encrypt\") can never fire; only the exit-82 check still works.",
     fix: "Accumulate stderr text as the progress parser consumes it and reuse that buffer for the failure and password-error messages.",
     cite: "" },
-  { sev: "Important", cat: "Logic", conf: 85, status: "open",
+  { sev: "Important", cat: "Logic", conf: 85, status: "fixed",
     file: "src/Operations/FileOperationQueue+WindowsTransfer.swift", line: 84,
     desc: "In the Windows folder-merge branch of windowsPlaceItem, a child conflict resolved as skip returns without moving the child, leaving it inside the source folder. After the loop, a move unconditionally trashes the whole source folder, so a file the user explicitly chose to keep is swept into the trash with it.",
     fix: "Track whether any child was skipped during the merge and only trash the source folder when it is actually empty.",
     cite: "" },
-  { sev: "Important", cat: "Logic", conf: 85, status: "open",
+  { sev: "Important", cat: "Logic", conf: 85, status: "fixed",
     file: "src/Operations/FileOperationQueue+Archive.swift", line: 406,
     desc: "Same double-consumption pattern as the extraction path: the archive-creation progress task drains stderr via availableData until EOF, then the failure path re-reads the drained pipe with readDataToEndOfFile() and builds the error from empty data. The archiver's real diagnostic is replaced with a generic \"Process exited with code X\".",
     fix: "Capture stderr text during percentage parsing and reuse it when building the failure message.",
     cite: "" },
-  { sev: "Important", cat: "Security", conf: 80, status: "open",
+  { sev: "Important", cat: "Security", conf: 80, status: "fixed",
     file: "src/Operations/FileOperationQueue+Extraction.swift", line: 217,
     desc: "Local zip and 7z extraction (ditto, unzip, 7z into a temp directory) has no check that extracted entry paths stay inside the destination. The tar path in the same file validates member paths (validateTarMemberPaths rejects dot-dot and absolute entries) and the Windows scripts assert path containment for every format, so the codebase treats this as a real risk everywhere except here.",
     fix: "Apply the tar path's member-path validation (or an equivalent containment check) to the zip and 7z extraction paths before files are moved out of the temp directory.",
     cite: "" },
-  { sev: "Important", cat: "Security", conf: 80, status: "open",
+  { sev: "Important", cat: "Security", conf: 80, status: "fixed",
     file: "Server/ArchiveOperations.swift", line: 312,
     desc: "The remote helper's extraction commands (unzip, 7z, tar) have no path-traversal validation on any format; nothing analogous to the client's validateTarMemberPaths exists in the file. A malicious archive on the remote host extracted through Detours can write outside the destination directory on that host.",
     fix: "Port the client's member-path validation into Server/ArchiveOperations.swift for all three extraction commands.",
     cite: "" },
-  { sev: "Important", cat: "Architecture", conf: 80, status: "open",
+  { sev: "Important", cat: "Architecture", conf: 80, status: "fixed",
     file: "src/Panes/PaneViewController+FileListNavigationDelegate.swift", line: 38,
     desc: "Seven of the eight FileListNavigationDelegate methods immediately downcast parent as? MainSplitViewController and act on the concrete type, with 13 such downcasts across six pane-layer files. The delegate protocol exists to decouple the file list from its host, but the real dependency is a repeated concrete parent type at every call site.",
     fix: "Give PaneViewController a typed weak coordinator reference set by the split view controller and call through it instead of downcasting parent at each site.",
     cite: "" },
-  { sev: "Important", cat: "Architecture", conf: 80, status: "open",
+  { sev: "Important", cat: "Architecture", conf: 80, status: "fixed",
     file: "src/Operations/FileOperationQueue+Extraction.swift", line: 335,
     desc: "Wrong-password detection for archive tools exists as four independently maintained heuristics with non-identical substring and exit-code lists: isZipPasswordFailure, sevenZipFailure, and isPasswordError on the client, and isWrongPasswordFailure in Server/ArchiveOperations.swift. They are keyed to exact tool wording and will drift the next time one side is updated.",
     fix: "Put the archive-tool error-classification logic in one place in Shared/ and have both client and server call it.",

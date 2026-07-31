@@ -2986,3 +2986,24 @@ Spotlight search has no unit test (depends on the live, async-built system index
   alone at the same commit and at its parent. This is the same full-suite
   contention already recorded at 12:31, not a regression from the pane
   activation change.
+
+- 2026-07-31 15:24 CEST: Foundry verification PASS at `fb569f1` for the nine
+  audit-fix changes (host-key pinning on deployment and probe, archive stderr
+  preservation, Windows merge skip handling, extraction member-path validation
+  client and server, shared tool diagnostics, pane coordinator protocol).
+  Full suite: 906 tests, 32 skipped (7 wraith-unavailable live tests, host is
+  shut down), 6 failures all re-proven green in isolation at the same commit:
+  5 FastLane cases in `FileOperationQueueTests` (uniform ~2s timeouts) and
+  `RefreshRegressionProbeTests/testCopyToOtherPaneWithEmptyDestinationRepeated`,
+  the suite-contention pattern already recorded at 12:31 and 13:45.
+  Targeted proofs: `ServerArchiveOperationsTests` 14 (one fix found by its new
+  rejection test: staged extraction dir now cleaned on validation failure),
+  `ArchiveToolDiagnosticsTests` 4, `RemoteHostKindRoutingTests` 4,
+  archive/queue/Windows batch 121, pane suites split per contention convention
+  39+21+8, `ServerDeployerTests|RemoteIntegrationTests` 45 with 0 failures
+  proving pinned ssh/scp deployment against live fixtures.
+  `build.sh` on Foundry: clean build, install, relaunch (first run hit a
+  transient dockerhost outage for the Linux helper rebuild; retry clean).
+  Guarded installed UI proof: `installed-smoke session LOCAL_ROOT` with
+  `WindowPaneGeometryUITests/testLaunchHasNoWindowFrameJump`, completed clean
+  with the expected "repetition markers not checked" note.
