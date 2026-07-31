@@ -61,13 +61,16 @@ extension FileOperationQueue {
         return placed
     }
 
+    /// Returns true when the item (and, for a merge, its whole subtree) was placed at the
+    /// destination, false when the user skipped it anywhere in the subtree.
+    @discardableResult
     private func windowsPlaceItem(
         source: Location,
         into destination: Location,
         context: WindowsTransferContext,
         conflictChoice: inout ConflictChoice?,
         ledger: WindowsTransferLedger
-    ) async throws {
+    ) async throws -> Bool {
         let provider = context.provider
         let isMove = context.isMove
         let target = destination.appendingPathComponent(source.lastPathComponent)
@@ -77,7 +80,7 @@ extension FileOperationQueue {
                 ? try await provider.moveItem(source, to: target)
                 : try await provider.copyItem(source, to: target)
             ledger.placed.append((placed, source))
-            return
+            return true
         }
 
         let sourceEntry = try await provider.stat(source)
@@ -85,15 +88,18 @@ extension FileOperationQueue {
             // Folder onto an existing same-name folder merges (Finder-style): descend and
             // resolve each child rather than discarding the existing folder.
             let children = try await provider.list(source, showHidden: true)
+            var allChildrenPlaced = true
             for child in children {
-                try await windowsPlaceItem(source: child.location, into: target, context: context, conflictChoice: &conflictChoice, ledger: ledger)
+                let childPlaced = try await windowsPlaceItem(source: child.location, into: target, context: context, conflictChoice: &conflictChoice, ledger: ledger)
+                allChildrenPlaced = allChildrenPlaced && childPlaced
             }
-            if isMove, let token = try await provider.trash([source]).first {
-                // The source folder's children moved out; trash the now-empty source so undo
-                // can restore it and move the children back into it.
+            if isMove, allChildrenPlaced, let token = try await provider.trash([source]).first {
+                // Every child moved out; trash the now-empty source so undo can restore
+                // it and move the children back into it. A skipped child stays where the
+                // user chose to keep it, so its folder must stay in place too.
                 ledger.movedSourceFolders.append(token)
             }
-            return
+            return allChildrenPlaced
         }
 
         let resolution = await resolveConflict(
@@ -105,7 +111,7 @@ extension FileOperationQueue {
 
         switch resolution.choice {
         case .skip:
-            return
+            return false
         case .keepBoth:
             let unique = try await uniqueDestinationLocation(for: source, in: destination, provider: provider)
             let placed = isMove
@@ -117,6 +123,7 @@ extension FileOperationQueue {
             ledger.placed.append((target, source))
             ledger.displacedTokens.append(token)
         }
+        return true
     }
 
     /// Failure-safe replace: stage the new item under a temporary name, displace the

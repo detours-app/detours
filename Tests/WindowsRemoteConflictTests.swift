@@ -216,6 +216,43 @@ extension FileOperationQueueTests {
     }
 
     @MainActor
+    func testWindowsMoveMergeWithSkippedChildKeepsSourceFolder() async throws {
+        let hostID = UUID()
+        let fs = WindowsFakeFSTransport()
+        await fs.seedDirectory("C:\\src")
+        await fs.seedDirectory("C:\\src\\F")
+        await fs.seedFile("C:\\src\\F\\child.txt", content: "kept in place")
+        await fs.seedFile("C:\\src\\F\\free.txt", content: "moves")
+        await fs.seedDirectory("C:\\dst")
+        await fs.seedDirectory("C:\\dst\\F")
+        await fs.seedFile("C:\\dst\\F\\child.txt", content: "existing")
+        let provider = makeWindowsProvider(hostID: hostID, transport: fs)
+
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(provider, for: hostID)
+        defer { queue.unregisterRemoteFileProvider(for: hostID) }
+        queue.conflictChoiceOverrideForTesting = .skip
+        defer { queue.conflictChoiceOverrideForTesting = nil }
+
+        // Moving F onto an existing same-name folder merges; child.txt collides and the
+        // user skips it. The skipped file must survive in the source folder, so the
+        // source folder itself must not be swept to the trash.
+        _ = try await queue.move(
+            items: [.remote(hostID: hostID, path: "/C:/src/F")],
+            to: .remote(hostID: hostID, path: "/C:/dst")
+        )
+
+        let freeMoved = await fs.exists("C:\\dst\\F\\free.txt")
+        let skippedSurvived = await fs.contentTag("C:\\src\\F\\child.txt")
+        let sourceFolderSurvived = await fs.exists("C:\\src\\F")
+        let existingUntouched = await fs.contentTag("C:\\dst\\F\\child.txt")
+        XCTAssertTrue(freeMoved, "non-conflicting child should move out during the merge")
+        XCTAssertEqual(skippedSurvived, "kept in place", "the skipped child must stay in the source folder")
+        XCTAssertTrue(sourceFolderSurvived, "a source folder holding a skipped child must not be trashed")
+        XCTAssertEqual(existingUntouched, "existing", "the skipped destination file must be untouched")
+    }
+
+    @MainActor
     func testWindowsRemoteUploadConflictUsesSharedResolution() async throws {
         let hostID = UUID()
         let fs = WindowsFakeFSTransport()
