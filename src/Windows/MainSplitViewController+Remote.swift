@@ -77,6 +77,79 @@ extension MainSplitViewController {
         }
     }
 
+    /// Re-checks saved hosts that currently have no live session, so a host that
+    /// goes down while idle turns its sidebar dot red within a few minutes instead
+    /// of staying green until the next launch or click. A host that comes back is
+    /// cleared to its idle state so the dot recovers to green the same way.
+    func startIdleRemoteHostProbing() {
+        idleHostProbeTimer?.invalidate()
+        let timer = Timer.scheduledTimer(withTimeInterval: Self.idleHostProbeInterval, repeats: true) { _ in
+            Task { @MainActor [weak self] in
+                await self?.probeIdleRemoteHosts()
+            }
+        }
+        timer.tolerance = 10
+        idleHostProbeTimer = timer
+    }
+
+    static let idleHostProbeInterval: TimeInterval = 120
+
+    func probeIdleRemoteHosts() async {
+        for host in RemoteHostStore.shared.hosts {
+            let stateBefore = RemoteConnectionStateStore.shared.state(for: host.id)
+            guard Self.idleProbeCandidate(state: stateBefore, lastConnected: host.lastConnected) else { continue }
+            let reachable = await Self.probeRemoteHostReachability(sshTarget: host.sshTarget)
+            // The user may have started a connection while the probe ran; decide
+            // against the state as it is now, not the one sampled before.
+            let stateNow = RemoteConnectionStateStore.shared.state(for: host.id)
+            if let update = Self.idleProbeResultState(reachable: reachable, currentState: stateNow) {
+                RemoteConnectionStateStore.shared.setState(update, for: host.id)
+            }
+        }
+    }
+
+    /// A host is probed only when its dot makes a claim no live session backs:
+    /// green from the last-connected record, or red from an earlier failure.
+    nonisolated static func idleProbeCandidate(state: SSHConnectionState?, lastConnected: Date?) -> Bool {
+        switch state {
+        case nil:
+            return lastConnected != nil
+        case .failed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// The state to record after a probe, or nil to leave the store untouched.
+    /// An unreachable idle host turns failed; a reachable host clears an earlier
+    /// failure back to idle. Live states are never overwritten.
+    nonisolated static func idleProbeResultState(
+        reachable: Bool,
+        currentState: SSHConnectionState?
+    ) -> SSHConnectionState? {
+        switch (reachable, currentState) {
+        case (false, nil):
+            return .failed(reason: .transport("Host is not reachable."))
+        case (true, .failed):
+            return .disconnected
+        default:
+            return nil
+        }
+    }
+
+    /// "exit 0" succeeds in both POSIX shells and cmd.exe, so the probe works for
+    /// Unix and Windows hosts alike; any transport, key, or timeout failure counts
+    /// as unreachable, matching what a real connection attempt would hit.
+    nonisolated private static func probeRemoteHostReachability(sshTarget: String) async -> Bool {
+        do {
+            _ = try await SSHRemoteHostKindProbeClient(sshTarget: sshTarget).run("exit 0")
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Opens the SSH helper connection for a saved host without navigating a pane.
     /// This gives the sidebar an accurate launch-time status for hosts that do
     /// not currently have restored tabs.

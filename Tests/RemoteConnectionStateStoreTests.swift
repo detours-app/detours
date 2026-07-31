@@ -44,6 +44,40 @@ final class RemoteConnectionStateStoreTests: XCTestCase {
     }
 }
 
+final class IdleHostProbeTests: XCTestCase {
+    func testOnlySessionlessHostsWithHistoryOrFailureAreProbed() {
+        // Green-from-history and red-from-failure dots are unverified claims: probe.
+        XCTAssertTrue(MainSplitViewController.idleProbeCandidate(state: nil, lastConnected: Date()))
+        XCTAssertTrue(MainSplitViewController.idleProbeCandidate(
+            state: .failed(reason: .transport("down")), lastConnected: Date()
+        ))
+        // Never-connected hosts show a neutral dot; a live or in-flight session
+        // reports its own state: leave all of those alone.
+        XCTAssertFalse(MainSplitViewController.idleProbeCandidate(state: nil, lastConnected: nil))
+        XCTAssertFalse(MainSplitViewController.idleProbeCandidate(state: .connected, lastConnected: Date()))
+        XCTAssertFalse(MainSplitViewController.idleProbeCandidate(state: .connecting, lastConnected: Date()))
+    }
+
+    func testProbeResultOnlyFlipsUnverifiedStates() {
+        // Unreachable idle host goes red.
+        XCTAssertEqual(
+            MainSplitViewController.idleProbeResultState(reachable: false, currentState: nil),
+            .failed(reason: .transport("Host is not reachable."))
+        )
+        // A host that came back clears its earlier failure so the dot recovers.
+        XCTAssertEqual(
+            MainSplitViewController.idleProbeResultState(
+                reachable: true, currentState: .failed(reason: .transport("down"))
+            ),
+            .disconnected
+        )
+        // Reachable idle host stays as it is; a session started mid-probe wins.
+        XCTAssertNil(MainSplitViewController.idleProbeResultState(reachable: true, currentState: nil))
+        XCTAssertNil(MainSplitViewController.idleProbeResultState(reachable: false, currentState: .connecting))
+        XCTAssertNil(MainSplitViewController.idleProbeResultState(reachable: false, currentState: .connected))
+    }
+}
+
 private final class StateChangeRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var change: SSHConnectionStateChange?

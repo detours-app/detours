@@ -78,6 +78,7 @@ final class MainSplitViewController: NSSplitViewController {
     var sidebarSplitViewItem: NSSplitViewItem?
     var activePaneIndex: Int = 0
     var isRestoringSession = false
+    var idleHostProbeTimer: Timer?
     let defaults = UserDefaults.standard
     var lastMediaKeyCode: Int?
     var lastMediaKeyTimestamp: TimeInterval = 0
@@ -191,6 +192,7 @@ final class MainSplitViewController: NSSplitViewController {
         restoreSession()
         isRestoringSession = false
         warmRemoteHostsOnLaunch()
+        startIdleRemoteHostProbing()
 
         // Restore active pane (defaults to 0 if not saved)
         let savedActivePane = defaults.integer(forKey: SessionKeys.activePane)
