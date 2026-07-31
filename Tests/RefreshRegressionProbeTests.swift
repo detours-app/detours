@@ -8,9 +8,12 @@ import XCTest
 /// rename race in both orderings).
 @MainActor
 final class RefreshRegressionProbeTests: XCTestCase {
+    /// These waits guard end state, never latency, so the budget is generous. Filesystem
+    /// watcher delivery in particular slowed well past a few seconds under full-suite load
+    /// and failed tests that pass comfortably on their own.
     private func waitUntil(
         _ condition: @autoclosure () -> Bool,
-        timeout: TimeInterval = 3,
+        timeout: TimeInterval = 30,
         _ message: String = "Timed out waiting for condition"
     ) {
         let deadline = Date().addingTimeInterval(timeout)
@@ -65,7 +68,7 @@ final class RefreshRegressionProbeTests: XCTestCase {
                 guard row >= 0, let item = rightList.tableView.item(atRow: row) as? FileItem else { return false }
                 return URL(fileURLWithPath: item.location.path).standardizedFileURL == expectedCopy
             }(),
-            timeout: 4,
+            timeout: 30,
             "Copied file was never selected in the destination pane"
         )
         XCTAssertTrue(
@@ -130,7 +133,7 @@ final class RefreshRegressionProbeTests: XCTestCase {
                 guard row >= 0, let item = rightList.tableView.item(atRow: row) as? FileItem else { return false }
                 return URL(fileURLWithPath: item.location.path).standardizedFileURL == expectedCopy
             }(),
-            timeout: 4,
+            timeout: 30,
             "Copied file was never selected when the copy raced the destination load"
         )
         XCTAssertTrue(
@@ -175,7 +178,7 @@ final class RefreshRegressionProbeTests: XCTestCase {
                     guard row >= 0, let item = rightList.tableView.item(atRow: row) as? FileItem else { return false }
                     return URL(fileURLWithPath: item.location.path).standardizedFileURL == expectedCopy
                 }(),
-                timeout: 4,
+                timeout: 30,
                 "Iteration \(iteration): copied file never selected in empty destination"
             )
             XCTAssertTrue(
@@ -212,7 +215,7 @@ final class RefreshRegressionProbeTests: XCTestCase {
             contents: Data()
         )
 
-        waitUntil(list.tableView.numberOfRows == 3, timeout: 4, "Watcher reload never picked up the external file")
+        waitUntil(list.tableView.numberOfRows == 3, timeout: 30, "Watcher reload never picked up the external file")
         runLoop(for: 1.0)
         let row = list.tableView.selectedRow
         let item = row >= 0 ? list.tableView.item(atRow: row) as? FileItem : nil
@@ -286,11 +289,11 @@ final class RefreshRegressionProbeTests: XCTestCase {
 
         if watchFiresFirst {
             fireWatch()
-            waitUntil(provider.heldListCount == 1, timeout: 3, "Watch fetch never started")
+            waitUntil(provider.heldListCount == 1, timeout: 30, "Watch fetch never started")
             fireMutation()
         } else {
             fireMutation()
-            waitUntil(provider.heldListCount == 1, timeout: 3, "Mutation fetch never started")
+            waitUntil(provider.heldListCount == 1, timeout: 30, "Mutation fetch never started")
             fireWatch()
         }
         provider.releaseHeldLists()
@@ -298,7 +301,7 @@ final class RefreshRegressionProbeTests: XCTestCase {
         // Both the first fetch and the coalesced follow-up must complete.
         waitUntil(
             provider.listCallCount(for: root) >= baselineListCalls + 2,
-            timeout: 4,
+            timeout: 30,
             "Expected a follow-up fetch after the racing refresh request"
         )
         runLoop(for: 1.0)

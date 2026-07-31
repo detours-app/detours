@@ -24,11 +24,16 @@ final class FileListDataSourceTests: XCTestCase {
         )
     }
 
+    /// These waits guard the *result* of a load, never its latency. A 2 second budget was
+    /// tight enough that a loaded machine failed them: the whole class runs in under a second
+    /// on its own, yet in a full suite these same loads regularly crossed 2 seconds and left
+    /// tests asserting against an empty list. The budget is generous so a failure here means
+    /// the load never completed, not that the machine was busy.
     private func loadDirectoryAndWait(
         _ dataSource: FileListDataSource,
         at url: URL,
         mode: ICloudListingMode = .normal,
-        timeout: TimeInterval = 2
+        timeout: TimeInterval = 30
     ) {
         let expectation = expectation(description: "loadDirectory \(url.path)")
         dataSource.onLoadCompleted = { _ in
@@ -39,7 +44,7 @@ final class FileListDataSourceTests: XCTestCase {
         dataSource.onLoadCompleted = nil
     }
 
-    private func waitUntil(_ condition: @escaping @MainActor () -> Bool, timeout: TimeInterval = 2) async {
+    private func waitUntil(_ condition: @escaping @MainActor () -> Bool, timeout: TimeInterval = 30) async {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if condition() { return }
