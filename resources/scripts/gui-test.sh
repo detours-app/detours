@@ -8,8 +8,13 @@
 # the code under test. Submitting the run through launchd puts it in the console user's domain,
 # where those services answer normally.
 #
-# Usage: resources/scripts/gui-test.sh [swift test arguments...]
-#   resources/scripts/gui-test.sh --filter ClipboardManagerTests
+# Select the classes that need the session. The GUI session is also where consent prompts can
+# appear, and the suite reaches the real home directory, whose enumeration touches TCC
+# protected folders. Running everything here asks the operating system for Desktop access
+# under Xcode's identity; running the pasteboard classes here does not.
+#
+# Usage: resources/scripts/gui-test.sh --filter <class>[|<class>...]
+#   resources/scripts/gui-test.sh --filter 'ClipboardManagerTests|DroppablePathControlTests'
 
 set -euo pipefail
 
@@ -32,6 +37,7 @@ lock_path="$work_dir/started"
 
 cleanup() {
     launchctl remove "$label" 2>/dev/null || true
+    kill "${tcc_watcher:-}" 2>/dev/null || true
     rm -rf -- "$work_dir"
 }
 trap cleanup EXIT
@@ -76,6 +82,28 @@ launchctl submit \
     exit 70
 }
 
+# Independent consent sentry, same contract as the qualification runner: a prompt cancels this
+# exact run and fails closed. The prompt is never answered, dismissed, or waited out, and the
+# run is never retried past it.
+tcc_log="$work_dir/tcc.log"
+/usr/bin/log stream \
+    --style compact \
+    --predicate 'process == "tccd" AND composedMessage CONTAINS "display_prompt"' \
+    > "$tcc_log" 2>&1 &
+tcc_watcher=$!
+
+consent_prompt_seen() {
+    [[ -f "$tcc_log" ]] || return 1
+    # `log stream` echoes the predicate in its opening banner, and that banner therefore
+    # contains the very phrase being matched. Only lines after it are real prompts.
+    grep -v '^Filtering the log data' "$tcc_log" 2>/dev/null | grep -q 'display_prompt'
+}
+
+stop_consent_sentry() {
+    kill "$tcc_watcher" 2>/dev/null || true
+    wait "$tcc_watcher" 2>/dev/null || true
+}
+
 emitted_lines=0
 emit_new_output() {
     local total
@@ -90,6 +118,15 @@ emit_new_output() {
 started_at="$(date +%s)"
 while [[ ! -f "$status_path" ]]; do
     emit_new_output
+    if consent_prompt_seen; then
+        launchctl remove "$label" 2>/dev/null || true
+        stop_consent_sentry
+        emit_new_output
+        printf 'gui-test: a consent prompt appeared and this run was cancelled\n' >&2
+        printf 'gui-test: %s\n' "$(grep -m 1 "display_prompt" "$tcc_log")" >&2
+        printf 'gui-test: select fewer classes; the suite reaches TCC protected folders\n' >&2
+        exit 77
+    fi
     if (( $(date +%s) - started_at >= DEADLINE_SECONDS )); then
         launchctl remove "$label" 2>/dev/null || true
         emit_new_output
@@ -100,6 +137,7 @@ while [[ ! -f "$status_path" ]]; do
 done
 
 launchctl remove "$label" 2>/dev/null || true
+stop_consent_sentry
 # A final line without a trailing newline is invisible to `wc -l`, so the last read is
 # anchored to end of file instead of a counted line total.
 [[ ! -f "$log_path" ]] || sed -n "$((emitted_lines + 1)),\$p" "$log_path"
