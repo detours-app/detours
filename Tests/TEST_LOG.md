@@ -3007,3 +3007,11 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Guarded installed UI proof: `installed-smoke session LOCAL_ROOT` with
   `WindowPaneGeometryUITests/testLaunchHasNoWindowFrameJump`, completed clean
   with the expected "repetition markers not checked" note.
+
+- 2026-07-31 15:34 CEST: Foundry verification PASS at `12ff635` for the idle
+  remote host probe (sidebar dot goes red when a sessionless host stops
+  answering; recovers when it returns).
+  `RemoteConnectionStateStoreTests|IdleHostProbeTests` 6 tests, 0 failures.
+  `build.sh` on Foundry clean (build, install, relaunch). Guarded installed UI
+  proof: `installed-smoke session LOCAL_ROOT` with
+  `WindowPaneGeometryUITests/testLaunchHasNoWindowFrameJump` completed clean.
