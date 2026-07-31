@@ -16,6 +16,13 @@ extension PaneViewController: PaneTabBarDelegate {
     }
 
     func tabBarDidRequestNewTab() {
+        // Activate this pane before the tab exists. Opening a tab is a request to work in
+        // this pane, and `selectTab` only moves keyboard focus into a pane that is already
+        // active, so activating afterwards leaves the user typing into the other pane.
+        if let splitVC = parent as? MainSplitViewController {
+            splitVC.setActivePaneFromChild(self)
+        }
+
         // On a remote tab `currentDirectory` is a stale local placeholder, not a
         // real path; inheriting it opens a bogus folder and errors. Open the new
         // tab on the same remote host and path instead, reusing the existing
