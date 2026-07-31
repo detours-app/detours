@@ -7,7 +7,12 @@ import XCTest
 final class QualificationProviderRefreshTests: XCTestCase {
     func testMountedProviderRefreshContracts() async throws {
         let roots = try ["LOCAL_ROOT", "APFS_ROOT", "ICLOUD_ROOT", "SMB_ROOT"].map { key in
-            let value = try XCTUnwrap(ProcessInfo.processInfo.environment[key], "Missing \(key)")
+            // Only the qualification runner mounts these roots and exports them. A bare
+            // `swift test` has no such fixtures, so this is out of scope for that run
+            // rather than a failure of the contract under test.
+            guard let value = ProcessInfo.processInfo.environment[key] else {
+                throw XCTSkip("\(key) is exported by the qualification runner; run this through resources/scripts/qualification-foundry.sh")
+            }
             return URL(fileURLWithPath: value, isDirectory: true)
         }
 

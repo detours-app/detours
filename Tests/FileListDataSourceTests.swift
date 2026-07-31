@@ -252,8 +252,7 @@ final class FileListDataSourceTests: XCTestCase {
                     .remoteFile(hostID: hostID, path: "/repo/changed.txt", name: "changed.txt"),
                 ],
             ],
-            statuses: [file: .modified],
-            gitStatusDelay: 5_000_000_000
+            statuses: [file: .modified]
         )
         let dataSource = FileListDataSource()
         defer { dataSource.cancelCurrentLoad() }
@@ -267,10 +266,13 @@ final class FileListDataSourceTests: XCTestCase {
         }
 
         dataSource.loadRemoteDirectory(root, provider: provider)
-        await fulfillment(of: [completed], timeout: 0.5)
+        await fulfillment(of: [completed], timeout: 5)
 
         XCTAssertEqual(dataSource.items.map(\.name), ["changed.txt"])
         XCTAssertNil(dataSource.items.first?.gitStatus)
+
+        // Let the held request finish so its continuation is not abandoned.
+        await provider.releaseGitStatus()
     }
 
     func testRemoteGitStatusAppliesAfterLoadCompletion() async {
@@ -289,8 +291,7 @@ final class FileListDataSourceTests: XCTestCase {
                     .remoteFile(hostID: hostID, path: "/repo/changed.txt", name: "changed.txt"),
                 ],
             ],
-            statuses: [file: .modified],
-            gitStatusDelay: 200_000_000
+            statuses: [file: .modified]
         )
         let dataSource = FileListDataSource()
         defer { dataSource.cancelCurrentLoad() }
@@ -301,12 +302,14 @@ final class FileListDataSourceTests: XCTestCase {
         }
 
         dataSource.loadRemoteDirectory(root, provider: provider)
-        await fulfillment(of: [completed], timeout: 0.5)
+        await fulfillment(of: [completed], timeout: 5)
 
         XCTAssertNil(dataSource.items.first?.gitStatus)
+
+        await provider.releaseGitStatus()
         await waitUntil({
             dataSource.items.first?.gitStatus == .modified
-        }, timeout: 1)
+        }, timeout: 5)
     }
 
     func testRemoteDirectoryMarkedPackageIsExpandable() {
@@ -380,15 +383,30 @@ final class FileListDataSourceTests: XCTestCase {
     }
 }
 
+/// Holds git status back until the test releases it.
+///
+/// This used to sleep for a fixed interval, which made "git status has not arrived yet" a race
+/// against the clock: on a loaded machine the sleep elapsed before the assertion ran and the
+/// test failed in a full suite while passing on its own. An explicit gate makes the ordering a
+/// fact rather than a bet.
 private actor SlowGitStatusRemoteProvider: FileProvider {
     private let listings: [String: [LoadedFileEntry]]
     private let statuses: [Location: GitStatus]
-    private let gitStatusDelay: UInt64
+    private var isReleased = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
 
-    init(listings: [String: [LoadedFileEntry]], statuses: [Location: GitStatus], gitStatusDelay: UInt64) {
+    init(listings: [String: [LoadedFileEntry]], statuses: [Location: GitStatus]) {
         self.listings = listings
         self.statuses = statuses
-        self.gitStatusDelay = gitStatusDelay
+    }
+
+    func releaseGitStatus() {
+        isReleased = true
+        let pending = waiters
+        waiters.removeAll()
+        for waiter in pending {
+            waiter.resume()
+        }
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
@@ -442,7 +460,11 @@ private actor SlowGitStatusRemoteProvider: FileProvider {
     func unwatch(_ watch: FileProviderWatch) async {}
 
     func gitStatus(for directory: Location) async -> [Location: GitStatus] {
-        try? await Task.sleep(nanoseconds: gitStatusDelay)
+        if !isReleased {
+            await withCheckedContinuation { continuation in
+                waiters.append(continuation)
+            }
+        }
         return statuses
     }
 
