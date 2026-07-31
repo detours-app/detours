@@ -27,6 +27,8 @@ work_dir="$(mktemp -d "${TMPDIR:-/tmp}/detours-gui-test.XXXXXX")"
 log_path="$work_dir/test.log"
 status_path="$work_dir/status"
 runner_path="$work_dir/run.sh"
+wrapper_path="$work_dir/wrapper.sh"
+lock_path="$work_dir/started"
 
 cleanup() {
     launchctl remove "$label" 2>/dev/null || true
@@ -50,13 +52,26 @@ trap 'exit 130' INT TERM HUP
 } > "$runner_path"
 chmod +x "$runner_path"
 
-# `launchctl submit` restarts a job that exits, so the wrapper records the status and the
-# job is removed the moment that status appears.
+# `launchctl submit` restarts a job as soon as it exits, and the restart truncates the log
+# before this script can finish reading it, which reports a stale status against a half
+# written log. The directory create is atomic, so only the first run produces output.
+{
+    printf '#!/bin/bash\n'
+    printf 'set -u\n'
+    printf 'mkdir %q 2>/dev/null || exit 0\n' "$lock_path"
+    printf '%q > %q 2>&1\n' "$runner_path" "$log_path"
+    printf 'command_status=$?\n'
+    printf 'printf "%%s\\n" "$command_status" > %q.tmp\n' "$status_path"
+    printf 'mv %q.tmp %q\n' "$status_path" "$status_path"
+    printf 'exit "$command_status"\n'
+} > "$wrapper_path"
+chmod +x "$wrapper_path"
+
 launchctl submit \
     -l "$label" \
     -o "$work_dir/launch.out" \
     -e "$work_dir/launch.err" \
-    -- "$SCRIPT_DIR/qualification-gui-command.sh" "$log_path" "$status_path" "$runner_path" || {
+    -- "$wrapper_path" || {
     printf 'gui-test: the GUI job could not be submitted\n' >&2
     exit 70
 }
@@ -85,7 +100,9 @@ while [[ ! -f "$status_path" ]]; do
 done
 
 launchctl remove "$label" 2>/dev/null || true
-emit_new_output
+# A final line without a trailing newline is invisible to `wc -l`, so the last read is
+# anchored to end of file instead of a counted line total.
+[[ ! -f "$log_path" ]] || sed -n "$((emitted_lines + 1)),\$p" "$log_path"
 
 status="$(cat "$status_path")"
 [[ "$status" =~ ^[0-9]+$ ]] || {
