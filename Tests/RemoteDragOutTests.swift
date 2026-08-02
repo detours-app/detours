@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import XCTest
 @testable import Detours
 
@@ -14,16 +15,152 @@ final class RemoteDragOutTests: XCTestCase {
             dateModified: Date(),
             icon: NSImage()
         )
+        let writer = makeWriter(for: item)
+
+        XCTAssertTrue(writer is NSFilePromiseProvider)
+    }
+
+    func testRemoteFolderIsDraggable() throws {
+        let hostID = UUID()
+        let folder = FileItem(
+            name: "Projects",
+            location: .remote(hostID: hostID, path: "/home/marco/Projects"),
+            isDirectory: true,
+            size: nil,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+
+        let promise = try XCTUnwrap(makeWriter(for: folder) as? RemoteDragPromiseProvider)
+
+        XCTAssertEqual(promise.fileType, UTType.folder.identifier)
+    }
+
+    func testDraggedRemoteItemsCarryTheirLocations() throws {
+        let hostID = UUID()
+        let file = FileItem(
+            name: "remote.txt",
+            location: .remote(hostID: hostID, path: "/home/marco/remote.txt"),
+            isDirectory: false,
+            size: 11,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+        let folder = FileItem(
+            name: "Projects",
+            location: .remote(hostID: hostID, path: "/home/marco/Projects"),
+            isDirectory: true,
+            size: nil,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+        let writers = try [file, folder].map { item in
+            try XCTUnwrap(makeWriter(for: item) as? RemoteDragPromiseProvider)
+        }
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.detours.tests.remote-drag"))
+        pasteboard.clearContents()
+
+        XCTAssertTrue(pasteboard.writeObjects(writers))
+        XCTAssertEqual(
+            InternalFileDragSessionStore.shared.locations(on: pasteboard),
+            [file.location, folder.location]
+        )
+
+        // A drag token must never overwrite the per-item locations.
+        XCTAssertNil(InternalFileDragSessionStore.shared.begin(
+            locations: [file.location, folder.location],
+            on: pasteboard
+        ))
+        XCTAssertEqual(
+            InternalFileDragSessionStore.shared.locations(on: pasteboard),
+            [file.location, folder.location]
+        )
+        pasteboard.clearContents()
+    }
+
+    func testLocalDragTokenSurvivesAlongsideFileURLs() throws {
+        let url = URL(fileURLWithPath: "/Users/shared/detours-drag-token.txt")
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.detours.tests.local-drag"))
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.writeObjects([url as NSURL]))
+
+        XCTAssertNotNil(InternalFileDragSessionStore.shared.begin(
+            locations: [.local(url)],
+            on: pasteboard
+        ))
+        XCTAssertEqual(InternalFileDragSessionStore.shared.locations(on: pasteboard), [.local(url)])
+        XCTAssertEqual(
+            pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
+            [url]
+        )
+
+        InternalFileDragSessionStore.shared.end(on: pasteboard)
+        XCTAssertNil(InternalFileDragSessionStore.shared.locations(on: pasteboard))
+        pasteboard.clearContents()
+    }
+
+    func testFilePromiseWritesAtTheSuppliedURL() async throws {
+        let hostID = UUID()
+        let item = FileItem(
+            name: "remote.txt",
+            location: .remote(hostID: hostID, path: "/home/marco/remote.txt"),
+            isDirectory: false,
+            size: 11,
+            dateModified: Date(),
+            icon: NSImage()
+        )
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let destination = temp.appendingPathComponent("remote.txt")
+        let promise = try XCTUnwrap(makeWriter(for: item) as? RemoteDragPromiseProvider)
+        let delegate = try XCTUnwrap(promise.delegate)
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            delegate.filePromiseProvider(promise, writePromiseTo: destination) { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+
+        var isDirectory: ObjCBool = false
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path, isDirectory: &isDirectory))
+        XCTAssertFalse(isDirectory.boolValue)
+        XCTAssertEqual(try Data(contentsOf: destination), Data("hello".utf8))
+    }
+
+    func testDirectoryPromiseRefusesAnExistingDestinationAndLeavesNoStaging() async throws {
+        let hostID = UUID()
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let destination = temp.appendingPathComponent("Projects")
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        do {
+            try await RemoteFilePromiseProvider.materialiseDirectory(
+                location: .remote(hostID: hostID, path: "/home/marco/Projects"),
+                to: destination
+            )
+            XCTFail("Expected an existing destination to fail safely")
+        } catch {
+            let contents = try FileManager.default.contentsOfDirectory(atPath: temp.path)
+            XCTAssertEqual(contents, ["Projects"])
+        }
+    }
+
+    private func makeWriter(for item: FileItem) -> (any NSPasteboardWriting)? {
         let viewController = FileListViewController()
         viewController.loadView()
         viewController.viewDidLoad()
         viewController.currentRemoteProvider = RemoteDragOutProvider(contents: Data("hello".utf8))
         viewController.dataSource.applier.setRootItems([item])
         viewController.tableView.reloadData()
-
-        let writer = viewController.dataSource.outlineView(viewController.tableView, pasteboardWriterForItem: item)
-
-        XCTAssertTrue(writer is NSFilePromiseProvider)
+        return viewController.dataSource.outlineView(
+            viewController.tableView,
+            pasteboardWriterForItem: item
+        )
     }
 
     func testRemoteFilePromiseMaterialisesDownload() async throws {

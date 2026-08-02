@@ -80,7 +80,6 @@ extension FileListViewController: FileListDropDelegate {
 
     func pasteboardWriter(for item: FileItem) -> (any NSPasteboardWriting)? {
         guard case .remote = item.location,
-              !item.isDirectory,
               let provider = currentRemoteProvider else {
             return nil
         }
@@ -114,29 +113,77 @@ extension FileListViewController: FileListDropDelegate {
     }
 }
 
+/// File promise provider that also carries the dragged item's location, so Detours'
+/// own panes can accept the drop directly instead of going through a download.
+final class RemoteDragPromiseProvider: NSFilePromiseProvider, @unchecked Sendable {
+    var dragPayload: String?
+
+    override func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
+        var types = super.writableTypes(for: pasteboard)
+        if dragPayload != nil {
+            types.append(.detoursInternalFileDrag)
+        }
+        return types
+    }
+
+    override func writingOptions(
+        forType type: NSPasteboard.PasteboardType,
+        pasteboard: NSPasteboard
+    ) -> NSPasteboard.WritingOptions {
+        guard type == .detoursInternalFileDrag else {
+            return super.writingOptions(forType: type, pasteboard: pasteboard)
+        }
+        return []
+    }
+
+    override func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
+        guard type == .detoursInternalFileDrag else {
+            return super.pasteboardPropertyList(forType: type)
+        }
+        return dragPayload
+    }
+}
+
 final class RemoteFilePromiseProvider: NSObject, NSFilePromiseProviderDelegate {
     private let location: Location
     private let provider: any FileProvider
     private let fileName: String
     private let fileType: String
+    private let isDirectory: Bool
 
-    private init(location: Location, provider: any FileProvider, fileName: String, fileType: String) {
+    static let stagingPrefix = ".detours-drag-"
+
+    private init(
+        location: Location,
+        provider: any FileProvider,
+        fileName: String,
+        fileType: String,
+        isDirectory: Bool
+    ) {
         self.location = location
         self.provider = provider
         self.fileName = fileName
         self.fileType = fileType
+        self.isDirectory = isDirectory
         super.init()
     }
 
     static func make(item: FileItem, provider: any FileProvider) -> NSFilePromiseProvider {
-        let type = UTType(filenameExtension: item.name.pathExtension)?.identifier ?? UTType.data.identifier
+        let type: String
+        if item.isDirectory {
+            type = UTType.folder.identifier
+        } else {
+            type = UTType(filenameExtension: item.name.pathExtension)?.identifier ?? UTType.data.identifier
+        }
         let delegate = RemoteFilePromiseProvider(
             location: item.location,
             provider: provider,
             fileName: item.name,
-            fileType: type
+            fileType: type,
+            isDirectory: item.isDirectory
         )
-        let promise = NSFilePromiseProvider(fileType: type, delegate: delegate)
+        let promise = RemoteDragPromiseProvider(fileType: type, delegate: delegate)
+        promise.dragPayload = InternalFileDragPayload.encode(item.location)
         promise.userInfo = delegate
         return promise
     }
@@ -150,13 +197,13 @@ final class RemoteFilePromiseProvider: NSObject, NSFilePromiseProviderDelegate {
         writePromiseTo url: URL,
         completionHandler: @escaping (Error?) -> Void
     ) {
-        let destination = url.appendingPathComponent(fileName, isDirectory: false)
         let progress = Progress(totalUnitCount: 1)
         Progress.current()?.addChild(progress, withPendingUnitCount: 1)
         let work = RemoteFilePromiseWork(
             location: location,
             provider: provider,
-            destination: destination,
+            destination: url,
+            isDirectory: isDirectory,
             completion: RemoteFilePromiseCompletion(completionHandler),
             progress: RemoteFilePromiseProgress(progress)
         )
@@ -168,6 +215,37 @@ final class RemoteFilePromiseProvider: NSObject, NSFilePromiseProviderDelegate {
 
     func materialise(to destination: URL) async throws {
         try await Self.materialise(location: location, provider: provider, to: destination)
+    }
+
+    /// Downloads a promised remote folder by staging it beside the destination and
+    /// moving the finished copy into place, so a half-written folder never appears
+    /// at the path the receiver is watching.
+    static func materialiseDirectory(location: Location, to destination: URL) async throws {
+        guard !FileManager.default.fileExists(atPath: destination.path) else {
+            throw CocoaError(.fileWriteFileExists)
+        }
+        let staging = destination
+            .deletingLastPathComponent()
+            .appendingPathComponent(stagingPrefix + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { removeStagingDirectory(staging) }
+
+        let queue = await FileOperationQueue.shared
+        _ = try await queue.copy(items: [location], to: .local(staging))
+        let staged = try FileManager.default.contentsOfDirectory(
+            at: staging,
+            includingPropertiesForKeys: nil
+        )
+        guard let downloaded = staged.first else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        try FileManager.default.moveItem(at: downloaded, to: destination)
+    }
+
+    /// Deletes only a staging directory this class created; refuses anything else.
+    static func removeStagingDirectory(_ url: URL) {
+        guard url.lastPathComponent.hasPrefix(stagingPrefix) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
     static func materialise(location: Location, provider: any FileProvider, to destination: URL) async throws {
@@ -224,12 +302,17 @@ private struct RemoteFilePromiseWork: @unchecked Sendable {
     let location: Location
     let provider: any FileProvider
     let destination: URL
+    let isDirectory: Bool
     let completion: RemoteFilePromiseCompletion
     let progress: RemoteFilePromiseProgress
 
     func run() async {
         do {
-            try await RemoteFilePromiseProvider.materialise(location: location, provider: provider, to: destination)
+            if isDirectory {
+                try await RemoteFilePromiseProvider.materialiseDirectory(location: location, to: destination)
+            } else {
+                try await RemoteFilePromiseProvider.materialise(location: location, provider: provider, to: destination)
+            }
             progress.finish()
             completion(nil)
         } catch {
