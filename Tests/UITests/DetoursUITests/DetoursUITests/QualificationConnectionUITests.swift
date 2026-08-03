@@ -79,6 +79,14 @@ final class QualificationConnectionUITests: BaseUITest {
         leftOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
 
         guard let qualificationRemoteTarget else {
+            // Without a live remote target this class proves the mounted SMB connection,
+            // which needs the run to actually provide that root. A local-root run has
+            // neither, so it has nothing to assert here.
+            let isLocalVolume = (try? uiTestRootURL.resourceValues(forKeys: [.volumeIsLocalKey]))?
+                .volumeIsLocal ?? true
+            if isLocalVolume {
+                throw XCTSkip("Connection coverage needs a live remote target or a mounted SMB root")
+            }
             try assertMountedSMBConnection()
             return
         }
