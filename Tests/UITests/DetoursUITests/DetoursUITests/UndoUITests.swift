@@ -253,15 +253,8 @@ final class UndoUITests: BaseUITest {
         pressCharKey("t", modifiers: .command)
         usleep(1_000_000)
 
-        // Navigate Tab 2 to same test directory
-        let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
-        homeButton.click()
-        usleep(500_000)
-        let testFolder = app.outlineRows.containing(.staticText, identifier: testFolderName).firstMatch
-        if testFolder.waitForExistence(timeout: 2) {
-            testFolder.staticTexts[testFolderName].doubleClick()
-            usleep(1_000_000)
-        }
+        // Navigate Tab 2 to the fixture root, wherever the runner placed it.
+        try navigatePaneToFixtureRoot(paneIndex: 0, pane: "left")
 
         // Tab 2: Delete FolderC
         selectRow(named: "FolderC")

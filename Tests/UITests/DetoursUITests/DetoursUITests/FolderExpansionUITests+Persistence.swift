@@ -163,14 +163,8 @@ extension FolderExpansionUITests {
         pressCharKey("t", modifiers: .command)
         sleep(1)
 
-        // Navigate to test directory in new tab
-        let homeButton = app.buttons.matching(identifier: "homeButton").firstMatch
-        homeButton.click()
-        sleep(1)
-        let testFolderRow = app.leftPaneOutlineView.outlineRow(withStaticText: testFolderName)
-        XCTAssertTrue(testFolderRow.waitForExistence(timeout: 2), "Test folder should exist")
-        testFolderRow.doubleClick()
-        sleep(1)
+        // Navigate the new tab to the fixture root, wherever the runner placed it.
+        try navigatePaneToFixtureRoot(paneIndex: 0, pane: "left")
 
         // In tab 2, FolderA should be collapsed (independent state)
         let folderAInTab2 = outlineRow(named: "FolderA")
