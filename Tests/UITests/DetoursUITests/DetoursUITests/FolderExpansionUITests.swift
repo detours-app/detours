@@ -370,18 +370,24 @@ final class FolderExpansionUITests: BaseUITest {
         uiTestRootURL.appendingPathComponent(relativePath)
     }
 
-    // Fixture changes cross the control-file seam and execute inside the app: the
-    // sandboxed runner cannot write into the guarded fixture root.
     private func createUITestDirectory(relativePath: String) throws {
-        try performFixtureMutation(action: "createDirectory", relativePath: relativePath)
+        try FileManager.default.createDirectory(
+            at: uiTestURL(relativePath: relativePath),
+            withIntermediateDirectories: true
+        )
     }
 
     private func writeUITestFile(relativePath: String, contents: String) throws {
-        try performFixtureMutation(action: "write", relativePath: relativePath, contents: contents)
+        let url = uiTestURL(relativePath: relativePath)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try contents.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private func removeUITestItem(relativePath: String) {
-        try? performFixtureMutation(action: "remove", relativePath: relativePath)
+        try? FileManager.default.removeItem(at: uiTestURL(relativePath: relativePath))
     }
 
     private func waitForRowToDisappear(named name: String, timeout: TimeInterval) -> Bool {

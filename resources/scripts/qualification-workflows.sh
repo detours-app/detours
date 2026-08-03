@@ -10,13 +10,9 @@ run_gui_command() {
     shift
     local label status_path status_tmp launch_stdout launch_stderr job_state command_status
     local attempt exited_without_status_at active_job_file
-    local heartbeat_dir heartbeat_group heartbeat_context heartbeat_total
-    local heartbeat_pattern
-    local heartbeat_count current_heartbeat_count last_progress_epoch now_epoch iteration
-    local cycles_complete_reported result_bundle diagnostic_failure diagnostic_prompt
-    local activity_path activity_snapshot activity_digest previous_activity_digest activity_group activity_phase
-    local activity_detail activity_iteration activity_total activity_sequence activity_elapsed
-    local last_activity_sequence streamed_log_lines current_log_lines
+    local last_progress_epoch now_epoch supervision_started_epoch
+    local result_bundle diagnostic_failure diagnostic_prompt
+    local streamed_log_lines current_log_lines
     assert_prompt_guard_healthy
     path_is_within "$log_path" "$(run_dir)" || fail "GUI command log escapes the run directory"
     status_path="$log_path.status"
@@ -27,48 +23,20 @@ run_gui_command() {
         [[ ! -e "$path" ]] || fail "GUI command artifact already exists: $path"
     done
     label="com.detours.qualification.$(uuidgen)"
-    heartbeat_dir="${QUALIFICATION_GUI_HEARTBEAT_DIR:-}"
-    heartbeat_group="${QUALIFICATION_GUI_HEARTBEAT_GROUP:-}"
-    heartbeat_context="${QUALIFICATION_GUI_HEARTBEAT_CONTEXT:-}"
-    heartbeat_total="${QUALIFICATION_GUI_HEARTBEAT_TOTAL:-0}"
-    heartbeat_pattern=""
     result_bundle="${QUALIFICATION_GUI_RESULT_BUNDLE:-}"
-    heartbeat_count=0
-    cycles_complete_reported=0
-    activity_path=""
-    previous_activity_digest=""
-    last_activity_sequence=0
     streamed_log_lines=0
     last_progress_epoch="$(date +%s)"
-    if [[ -n "$heartbeat_dir" ]]; then
-        path_is_within "$heartbeat_dir" \
-            "$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification" || \
-            fail "installed heartbeat directory escapes the qualification container"
-        [[ "$heartbeat_group" =~ ^[a-z-]+$ ]] || fail "installed heartbeat group is invalid"
-        [[ "$heartbeat_context" =~ ^[A-Z_-]+$ ]] || fail "installed heartbeat context is invalid"
-        [[ "$heartbeat_total" =~ ^[0-9]+$ && "$heartbeat_total" -gt 0 ]] || \
-            fail "installed heartbeat total is invalid"
+    if [[ -n "$result_bundle" ]]; then
         path_is_within "$result_bundle" "$(run_dir)" || \
             fail "installed result bundle escapes the run directory"
-        heartbeat_pattern=".detours-qualification-$heartbeat_group-repetition-*.json"
-        if [[ "$heartbeat_group" == "all" ]]; then
-            heartbeat_pattern='.detours-qualification-*-repetition-*.json'
-        else
-            activity_path="$heartbeat_dir/.detours-qualification-$heartbeat_group-activity.json"
-            path_is_within "$activity_path" "$heartbeat_dir" || \
-                fail "installed activity record escapes the heartbeat directory"
-            activity_snapshot="$(run_dir)/live-activity-$heartbeat_group-$heartbeat_context.json"
-            path_is_within "$activity_snapshot" "$(run_dir)" || \
-                fail "installed activity snapshot escapes the run directory"
-        fi
     fi
     active_job_file="$(run_dir)/active-gui-job"
     [[ ! -e "$active_job_file" ]] || fail "another GUI qualification job is already recorded"
     printf '%s\n' "$label" > "$active_job_file"
     trap 'launchctl remove "$label" 2>/dev/null || true; rm -f -- "$active_job_file"; exit 130' HUP INT TERM
     exited_without_status_at=0
-    unheartbeated_started_epoch="$(date +%s)"
-    last_progress_epoch="$unheartbeated_started_epoch"
+    supervision_started_epoch="$(date +%s)"
+    last_progress_epoch="$supervision_started_epoch"
     if ! launchctl submit \
         -l "$label" \
         -o "$launch_stdout" \
@@ -81,7 +49,7 @@ run_gui_command() {
     job_state=""
     for (( attempt = 1; attempt <= 9000; attempt++ )); do
         assert_prompt_guard_healthy
-        if [[ -z "$heartbeat_dir" && -f "$log_path" ]]; then
+        if [[ -f "$log_path" ]]; then
             current_log_lines="$(wc -l < "$log_path" | tr -d '[:space:]')"
             if [[ "$current_log_lines" =~ ^[0-9]+$ ]] \
                 && (( current_log_lines > streamed_log_lines )); then
@@ -105,104 +73,24 @@ run_gui_command() {
             launchctl remove "$label" 2>/dev/null || true
             rm -f -- "$active_job_file"
             trap - HUP INT TERM
-            fail "installed $heartbeat_group $heartbeat_context reported a macOS consent prompt"
+            fail "installed run reported a macOS consent prompt"
         fi
         if [[ -n "$diagnostic_failure" ]]; then
             printf '%s\n' "$diagnostic_failure" >&2
             launchctl remove "$label" 2>/dev/null || true
             rm -f -- "$active_job_file"
             trap - HUP INT TERM
-            fail "installed $heartbeat_group $heartbeat_context reported a test failure"
-        fi
-        if [[ -n "$heartbeat_dir" ]]; then
-            if [[ -n "$activity_path" && -f "$activity_path" ]]; then
-                cp "$activity_path" "$activity_snapshot"
-                activity_digest="$(shasum -a 256 "$activity_snapshot" | awk '{print $1}')"
-                if [[ "$activity_digest" != "$previous_activity_digest" ]]; then
-                    if ! activity_group="$(plutil -extract group raw -o - "$activity_snapshot" 2>/dev/null)" \
-                        || ! activity_phase="$(plutil -extract phase raw -o - "$activity_snapshot" 2>/dev/null)" \
-                        || ! activity_detail="$(plutil -extract detail raw -o - "$activity_snapshot" 2>/dev/null)" \
-                        || ! activity_iteration="$(plutil -extract iteration raw -o - "$activity_snapshot" 2>/dev/null)" \
-                        || ! activity_total="$(plutil -extract total raw -o - "$activity_snapshot" 2>/dev/null)" \
-                        || ! activity_sequence="$(plutil -extract sequence raw -o - "$activity_snapshot" 2>/dev/null)" \
-                        || ! activity_elapsed="$(plutil -extract elapsedSeconds raw -o - "$activity_snapshot" 2>/dev/null)"; then
-                        launchctl remove "$label" 2>/dev/null || true
-                        rm -f -- "$active_job_file"
-                        trap - HUP INT TERM
-                        fail "installed activity record is malformed"
-                    fi
-                    if [[ "$activity_group" != "$heartbeat_group" \
-                        || ! "$activity_phase" =~ ^[a-z-]+$ \
-                        || -z "$activity_detail" \
-                        || ! "$activity_iteration" =~ ^[0-9]+$ \
-                        || "$activity_iteration" -lt 1 \
-                        || "$activity_iteration" -gt "$heartbeat_total" \
-                        || "$activity_total" != "$heartbeat_total" \
-                        || ! "$activity_sequence" =~ ^[0-9]+$ \
-                        || "$activity_sequence" -le "$last_activity_sequence" \
-                        || ! "$activity_elapsed" =~ ^[0-9]+$ ]]; then
-                        launchctl remove "$label" 2>/dev/null || true
-                        rm -f -- "$active_job_file"
-                        trap - HUP INT TERM
-                        fail "installed activity record is invalid"
-                    fi
-                    printf 'qualification-progress group=%s context=%s iteration=%s total=%s phase=%s elapsed=%ss detail=%s\n' \
-                        "$heartbeat_group" "$heartbeat_context" "$activity_iteration" "$activity_total" \
-                        "$activity_phase" "$activity_elapsed" "$activity_detail"
-                    previous_activity_digest="$activity_digest"
-                    last_activity_sequence="$activity_sequence"
-                    last_progress_epoch="$(date +%s)"
-                fi
-            fi
-            current_heartbeat_count="$(find "$heartbeat_dir" -maxdepth 1 -type f \
-                -name "$heartbeat_pattern" \
-                | wc -l | tr -d '[:space:]')"
-            [[ "$current_heartbeat_count" =~ ^[0-9]+$ \
-                && "$current_heartbeat_count" -ge "$heartbeat_count" \
-                && "$current_heartbeat_count" -le "$heartbeat_total" ]] || \
-                fail "installed heartbeat count is invalid"
-            if (( current_heartbeat_count > heartbeat_count )); then
-                for (( iteration = heartbeat_count + 1; iteration <= current_heartbeat_count; iteration++ )); do
-                    printf 'qualification-progress group=%s context=%s completed=%d total=%d\n' \
-                        "$heartbeat_group" "$heartbeat_context" "$iteration" "$heartbeat_total"
-                done
-                heartbeat_count="$current_heartbeat_count"
-                last_progress_epoch="$(date +%s)"
-                if (( heartbeat_count == heartbeat_total && cycles_complete_reported == 0 )); then
-                    printf 'qualification-progress group=%s context=%s phase=cycles-complete awaiting=result-bundle\n' \
-                        "$heartbeat_group" "$heartbeat_context"
-                    cycles_complete_reported=1
-                fi
-            fi
+            fail "installed run reported a test failure"
         fi
         if [[ -f "$status_path" ]]; then
             break
         fi
-        if [[ -z "$heartbeat_dir" ]]; then
-            # A whole-target run has no per-iteration heartbeats to count. Liveness comes
-            # from the job still being submitted, the failure and consent scanners still
-            # report live, and the absolute deadline below bounds the run.
-            now_epoch="$(date +%s)"
-            if (( now_epoch - last_progress_epoch >= 60 )); then
-                printf 'qualification-progress phase=running elapsed=%ss\n' \
-                    "$(( now_epoch - unheartbeated_started_epoch ))"
-                last_progress_epoch="$now_epoch"
-            fi
-        fi
-        if [[ -n "$heartbeat_dir" ]]; then
-            now_epoch="$(date +%s)"
-            if (( heartbeat_count < heartbeat_total && now_epoch - last_progress_epoch >= 30 )); then
-                launchctl remove "$label" 2>/dev/null || true
-                rm -f -- "$active_job_file"
-                trap - HUP INT TERM
-                fail "installed $heartbeat_group $heartbeat_context produced no progress for 30 seconds"
-            fi
-            if (( heartbeat_count == heartbeat_total && now_epoch - last_progress_epoch >= 60 )); then
-                launchctl remove "$label" 2>/dev/null || true
-                rm -f -- "$active_job_file"
-                trap - HUP INT TERM
-                fail "installed $heartbeat_group $heartbeat_context did not finalize its result within 60 seconds"
-            fi
+        now_epoch="$(date +%s)"
+        if (( now_epoch - last_progress_epoch >= 60 )); then
+            # xcodebuild owns per-test progress; this only proves the run is not silent.
+            printf 'qualification-progress phase=running elapsed=%ss\n' \
+                "$(( now_epoch - supervision_started_epoch ))"
+            last_progress_epoch="$now_epoch"
         fi
         if [[ -n "${QUALIFICATION_BLOCKING_DEADLINE_EPOCH:-}" ]] \
             && (( $(date +%s) >= QUALIFICATION_BLOCKING_DEADLINE_EPOCH )); then
@@ -252,11 +140,7 @@ run_gui_command() {
     if [[ -s "$launch_stderr" ]]; then
         cat "$launch_stderr" >&2
     fi
-    if [[ -z "$heartbeat_dir" ]]; then
-        tail -n "+$((streamed_log_lines + 1))" "$log_path"
-    else
-        cat "$log_path"
-    fi
+    tail -n "+$((streamed_log_lines + 1))" "$log_path"
     return "$command_status"
 }
 
@@ -626,17 +510,13 @@ run_installed_once() {
     [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
     command_output="$log_path.output.log"
     [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
-    control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/$selected_group-$context_name"
+    control_root="$LOCAL_ROOT/.control-$selected_group-$context_name"
     mkdir -p "$control_root"
     printf 'qualification: installed %s %s repetitions 1-%d\n' \
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
     started_at="$(date +%s)"
     set +e
-    QUALIFICATION_GUI_HEARTBEAT_DIR="$control_root" \
-        QUALIFICATION_GUI_HEARTBEAT_GROUP="$selected_group" \
-        QUALIFICATION_GUI_HEARTBEAT_CONTEXT="$context_name" \
-        QUALIFICATION_GUI_HEARTBEAT_TOTAL="$repetitions" \
-        QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
+    QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
         run_gui_command "$log_path.raw.log" env \
             HOME="$HOME" \
             PATH=/usr/bin:/bin:/usr/sbin:/sbin \
@@ -695,7 +575,7 @@ run_installed_all() {
     [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
     command_output="$log_path.output.log"
     [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
-    control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/installed-all"
+    control_root="$LOCAL_ROOT/.control-installed-all"
     mkdir -p "$control_root"
     stop_installed_app
     printf 'qualification: installed every UI test once\n' | tee -a "$log_path.log"
@@ -742,7 +622,7 @@ run_installed_qualification_batch() {
     [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
     command_output="$log_path.output.log"
     [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
-    control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/blocking-all"
+    control_root="$LOCAL_ROOT/.control-blocking-all"
     mkdir -p "$control_root"
     while IFS= read -r selected_group; do
         test_filter="$(installed_test_filter "$selected_group")"
@@ -756,11 +636,7 @@ run_installed_qualification_batch() {
         | tee -a "$log_path.log"
     started_at="$(date +%s)"
     set +e
-    QUALIFICATION_GUI_HEARTBEAT_DIR="$control_root" \
-        QUALIFICATION_GUI_HEARTBEAT_GROUP=all \
-        QUALIFICATION_GUI_HEARTBEAT_CONTEXT=BLOCKING_ALL \
-        QUALIFICATION_GUI_HEARTBEAT_TOTAL=8 \
-        QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
+    QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
         run_gui_command "$log_path.raw.log" env \
             HOME="$HOME" \
             PATH=/usr/bin:/bin:/usr/sbin:/sbin \

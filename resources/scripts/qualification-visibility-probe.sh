@@ -13,7 +13,7 @@ run_failure_visibility_probe() {
     run_preflight LOCAL_ROOT
     start_prompt_guard
 
-    control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/visibility-probe-LOCAL_ROOT"
+    control_root="$LOCAL_ROOT/.control-visibility-probe"
     result_bundle="$(run_dir)/results/visibility-probe.xcresult"
     probe_log="$(run_dir)/logs/visibility-probe.log"
     descendant_pid_file="$(run_dir)/state/visibility-probe-descendant.pid"
@@ -23,11 +23,7 @@ run_failure_visibility_probe() {
 
     started_epoch="$(date +%s)"
     if (
-        QUALIFICATION_GUI_HEARTBEAT_DIR="$control_root" \
-            QUALIFICATION_GUI_HEARTBEAT_GROUP="visibility-probe" \
-            QUALIFICATION_GUI_HEARTBEAT_CONTEXT="LOCAL_ROOT" \
-            QUALIFICATION_GUI_HEARTBEAT_TOTAL="2" \
-            QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
+        QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
             run_gui_command "$(run_dir)/logs/visibility-probe.raw.log" \
                 /bin/bash "$SCRIPT_DIR/qualification-visibility-probe-child.sh" \
                 "$control_root" "$result_bundle" "$descendant_pid_file" \
@@ -43,16 +39,12 @@ run_failure_visibility_probe() {
     (( probe_status != 0 )) || fail "visibility probe did not fail"
     (( ended_epoch - started_epoch <= 8 )) || \
         fail "visibility probe took longer than 8 seconds to report the deliberate assertion"
-    [[ "$(grep -Fxc 'qualification-progress group=visibility-probe context=LOCAL_ROOT completed=1 total=2' "$probe_log" || true)" == "1" ]] || \
-        fail "visibility probe did not stream its first progress heartbeat exactly once"
-    [[ "$(grep -Fc 'completed=2 total=2' "$probe_log" || true)" == "0" ]] || \
-        fail "visibility probe reported progress after the deliberate assertion"
     grep -F \
         'XCTAssertTrue failed - deliberate live failure visibility probe' \
         "$probe_log" >/dev/null || \
         fail "visibility probe did not report the live XCTest assertion"
     grep -F \
-        'qualification: installed visibility-probe LOCAL_ROOT reported a test failure' \
+        'qualification: installed run reported a test failure' \
         "$probe_log" >/dev/null || \
         fail "visibility probe did not report parent cancellation"
     [[ ! -e "$late_marker" ]] || \

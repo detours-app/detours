@@ -13,7 +13,10 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 export MATRIX_PATH="$PROJECT_DIR/resources/docs/260720-whole-app-stability-qualification-matrix.md"
 QUALIFICATION_ROOT="$PROJECT_DIR/.build/qualification"
 # shellcheck disable=SC2034 # Consumed by sourced qualification modules.
-LOCAL_PARENT="$HOME/DetoursQualification"
+# /Users/Shared, not the home directory: macOS 14 container data protection denies the
+# sandboxed XCUI runner any write inside a per-user directory, which is Apple's documented
+# reason to keep cross-process test fixtures here.
+LOCAL_PARENT="/Users/Shared/DetoursQualification"
 # shellcheck disable=SC2034 # Consumed by sourced qualification modules.
 ICLOUD_PARENT="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Detours Qualification"
 SMB_MOUNT_POINT=""
