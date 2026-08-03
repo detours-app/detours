@@ -78,6 +78,7 @@ class BaseUITest: XCTestCase {
         // DETOURS_UI_TEST_ROOT launches the app into an isolated test tab, so tests that
         // assert Cmd-1/Cmd-2 tab behavior can use stable indexes.
         if navigatesToLocalFixtureInSetUp {
+            ensureFolderExpansionEnabled(timeout: 1)
             navigateToTempDirectory()
         }
     }
@@ -198,11 +199,13 @@ class BaseUITest: XCTestCase {
         return true
     }
 
-    /// Ensures folder expansion is enabled. Call this at the start of tests that need disclosure triangles.
-    func ensureFolderExpansionEnabled() {
+    /// Ensures folder expansion is enabled. Setup calls this for every test, because the
+    /// setting is a persisted preference: a test that switches it off and fails before
+    /// switching it back leaves every later test in the run without disclosure triangles.
+    func ensureFolderExpansionEnabled(timeout: TimeInterval = 2) {
         // Check if a disclosure triangle exists on any folder
         let folderARow = outlineRow(named: "FolderA")
-        guard folderARow.waitForExistence(timeout: 2) else { return }
+        guard folderARow.waitForExistence(timeout: timeout) else { return }
 
         // If no disclosure triangle, expansion is disabled - enable it
         if !folderARow.disclosureTriangles.firstMatch.exists {
