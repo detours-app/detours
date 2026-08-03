@@ -13,6 +13,13 @@ final class ChromePolishScreenshotTests: XCTestCase {
 
     func testCaptureChromePolishScreenshots() throws {
         let environment = ProcessInfo.processInfo.environment
+        // A capture tool, not a regression: it needs the hand-staged demo tree from
+        // screenshot-setup.sh, including its mounted volumes and remote host. A guarded
+        // qualification root has none of that, so declare the precondition instead of
+        // failing a whole-target run on a missing fixture.
+        guard environment["DETOURS_SCREENSHOT_CAPTURE_DIR"] != nil else {
+            throw XCTSkip("Screenshot capture fixture is not staged; run screenshot-setup.sh first")
+        }
         let outputDirectory = URL(
             fileURLWithPath: environment["DETOURS_SCREENSHOT_CAPTURE_DIR"] ?? "resources/docs",
             isDirectory: true
