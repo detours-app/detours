@@ -191,6 +191,24 @@ Purpose: prove that production behavior is connected to visible and accessible U
 
 Blocking wall-clock budget: 140 seconds for the single eight-journey whole-app batch. A focused one-journey gate retains its 90-second ceiling.
 
+### What the XCUI runner may and may not do
+
+Xcode signs the generated `DetoursUITests-Runner.app` with the App Sandbox and a read-only file-system exception. Confirm it with `codesign -d --entitlements -` against the built runner. Three consequences follow, and they are not negotiable by choosing a different fixture location:
+
+- The test process can read any path but can write only inside its own container. Fixture files, directories and control commands it needs on disk are created either by the harness before launch or by the app across the control-file seam.
+- Control files live under the runner's container (`RUNNER_CONTROL_PARENT`). The app reads and writes them through its control directory, so a test that writes one into the fixture root works only where those two paths coincide, and fails under the qualification runner.
+- Fixture roots live under `/Users/Shared`. The app writes them, the test process only reads them, and no per-user privacy category is involved.
+
+Disabling the sandbox on the UI test target would lift the write restriction. It is rejected: re-signing the runner invalidates the Automation grant that TCC keys to its signature, and the next run raises the consent dialog that the sentry must cancel and that nobody may answer.
+
+### Every test in the target runs under the runner
+
+`qualification.sh installed-all LOCAL_ROOT` runs the whole XCUI target once under the same preflight, sentry, outside-root comparison and cleanup as the workflow campaigns.
+
+This exists because for two weeks only the eight workflow tests ever ran under the guarded runner. The rest of the target kept passing under assumptions the runner does not hold, and nobody could see it: tests wrote fixtures directly, wrote control files into the fixture root, and reached the fixture root by opening one row in the home directory. A harness that covers a subset while reading as the qualification hides that rot. Run the whole target after any change to the runner, the roots, or the control seam.
+
+Supervision of a whole-target run is deliberately thin: xcodebuild reports per-test progress, the live scanners report a failure or a consent dialog the moment it appears, an elapsed line proves the run is not silent, and one absolute deadline bounds it. Counting per-iteration heartbeats belongs to the repetition campaigns that write them; applied to a whole-target run it once failed a run in which every test passed.
+
 ### Layer 4: separately authorized reliability exercise
 
 Purpose: detect timing-dependent, resource-lifetime, and environmental failures that focused blocking tests cannot establish.
