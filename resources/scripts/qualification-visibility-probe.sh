@@ -13,7 +13,7 @@ run_failure_visibility_probe() {
     run_preflight LOCAL_ROOT
     start_prompt_guard
 
-    control_root="$LOCAL_ROOT/.control-visibility-probe"
+    control_root="$RUNNER_CONTROL_PARENT/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/visibility-probe-LOCAL_ROOT"
     result_bundle="$(run_dir)/results/visibility-probe.xcresult"
     probe_log="$(run_dir)/logs/visibility-probe.log"
     descendant_pid_file="$(run_dir)/state/visibility-probe-descendant.pid"

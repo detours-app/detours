@@ -56,20 +56,30 @@ final class ArchivePasswordUITests: BaseUITest {
     func testWrongPasswordShowsRetrySheet() throws {
         let archiveName = "ui-encrypted.zip"
         let payloadName = "ui-archive-secret.txt"
-        let archiveURL = uiTestRootURL.appendingPathComponent(archiveName)
         let payloadURL = uiTestRootURL.appendingPathComponent(payloadName)
-        addTeardownBlock {
-            try? FileManager.default.removeItem(at: archiveURL)
-            try? FileManager.default.removeItem(at: payloadURL)
+        // The runner cannot write into the guarded fixture root, so 7z builds the
+        // archive in the runner's own temporary directory and the app imports it.
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: staging) }
+        addTeardownBlock { [self] in
+            try? performFixtureMutation(action: "remove", relativePath: archiveName)
+            try? performFixtureMutation(action: "remove", relativePath: payloadName)
         }
-        try Data("UI archive secret".utf8).write(to: payloadURL)
+        let stagedArchive = staging.appendingPathComponent(archiveName)
+        try Data("UI archive secret".utf8).write(to: staging.appendingPathComponent(payloadName))
         try createEncryptedAESZip(
-            archiveURL: archiveURL,
+            archiveURL: stagedArchive,
             payloadName: payloadName,
-            workingDirectory: uiTestRootURL,
+            workingDirectory: staging,
             password: "right-password"
         )
-        try FileManager.default.removeItem(at: payloadURL)
+        try performFixtureMutation(
+            action: "importFile",
+            relativePath: archiveName,
+            contents: stagedArchive.path
+        )
         pressCharKey("r", modifiers: .command)
         XCTAssertTrue(waitForRow(named: archiveName, timeout: 3))
 

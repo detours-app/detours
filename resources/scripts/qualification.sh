@@ -17,6 +17,10 @@ QUALIFICATION_ROOT="$PROJECT_DIR/.build/qualification"
 # sandboxed XCUI runner any write inside a per-user directory, which is Apple's documented
 # reason to keep cross-process test fixtures here.
 LOCAL_PARENT="/Users/Shared/DetoursQualification"
+# The XCUI runner is App Sandboxed by Xcode's own runner template, with a read-only
+# exception for "/", so control files it writes must live inside its container.
+# shellcheck disable=SC2034 # Consumed by sourced qualification modules.
+RUNNER_CONTROL_PARENT="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification"
 # shellcheck disable=SC2034 # Consumed by sourced qualification modules.
 ICLOUD_PARENT="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Detours Qualification"
 SMB_MOUNT_POINT=""

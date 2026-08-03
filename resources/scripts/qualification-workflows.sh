@@ -510,7 +510,7 @@ run_installed_once() {
     [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
     command_output="$log_path.output.log"
     [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
-    control_root="$LOCAL_ROOT/.control-$selected_group-$context_name"
+    control_root="$RUNNER_CONTROL_PARENT/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/$selected_group-$context_name"
     mkdir -p "$control_root"
     printf 'qualification: installed %s %s repetitions 1-%d\n' \
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
@@ -575,7 +575,7 @@ run_installed_all() {
     [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
     command_output="$log_path.output.log"
     [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
-    control_root="$LOCAL_ROOT/.control-installed-all"
+    control_root="$RUNNER_CONTROL_PARENT/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/installed-all"
     mkdir -p "$control_root"
     stop_installed_app
     printf 'qualification: installed every UI test once\n' | tee -a "$log_path.log"
@@ -622,7 +622,7 @@ run_installed_qualification_batch() {
     [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
     command_output="$log_path.output.log"
     [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
-    control_root="$LOCAL_ROOT/.control-blocking-all"
+    control_root="$RUNNER_CONTROL_PARENT/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/blocking-all"
     mkdir -p "$control_root"
     while IFS= read -r selected_group; do
         test_filter="$(installed_test_filter "$selected_group")"
