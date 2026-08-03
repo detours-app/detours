@@ -29,7 +29,7 @@ final class ChromePolishUITests: BaseUITest {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: uiTestControlRootURL, withIntermediateDirectories: true)
     }
 
     override func tearDownWithError() throws {
@@ -147,6 +147,10 @@ final class ChromePolishUITests: BaseUITest {
         removeAppearanceSettingsCommand()
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
+        // This class builds its own app instance, so it has to point the control seam at
+        // the runner's control root the way BaseUITest does; otherwise the app answers
+        // control files in the fixture root, which the runner cannot write.
+        app.launchEnvironment["DETOURS_UI_TEST_CONTROL_ROOT"] = uiTestControlRootURL.path
         if let remoteMode {
             app.launchEnvironment["DETOURS_UI_TEST_REMOTE"] = remoteMode
         }
@@ -167,12 +171,12 @@ final class ChromePolishUITests: BaseUITest {
     }
 
     private func removeQuickNavCommand() {
-        try? FileManager.default.removeItem(at: uiTestRootURL.appendingPathComponent(quickNavCommandFileName))
+        try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(quickNavCommandFileName))
     }
 
     private func removeAppearanceSettingsCommand() {
-        try? FileManager.default.removeItem(at: uiTestRootURL.appendingPathComponent(appearanceSettingsCommandFileName))
-        try? FileManager.default.removeItem(at: uiTestRootURL.appendingPathComponent(appearanceSettingsAcknowledgementFileName))
+        try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(appearanceSettingsCommandFileName))
+        try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(appearanceSettingsAcknowledgementFileName))
     }
 
     private func applyAppearanceSettings(theme: String, fontSize: Int, density: String) throws {
@@ -182,8 +186,10 @@ final class ChromePolishUITests: BaseUITest {
             fontSize: fontSize,
             fileListRowDensity: density
         )
-        let commandURL = uiTestRootURL.appendingPathComponent(appearanceSettingsCommandFileName)
-        let acknowledgementURL = uiTestRootURL.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
+        // Control files live in the runner's own control root, which the app reads through
+        // its control directory. The fixture root is not writable from the sandboxed runner.
+        let commandURL = uiTestControlRootURL.appendingPathComponent(appearanceSettingsCommandFileName)
+        let acknowledgementURL = uiTestControlRootURL.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
 
         try? FileManager.default.removeItem(at: acknowledgementURL)
         try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
