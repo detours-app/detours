@@ -63,6 +63,15 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        // Live remote UI coverage belongs to the runs that declare a remote target
+        // context. A local-root run must not reach for a real host over SSH.
+        let liveContexts = ["LINUX_TARGET", "INTEL_MAC_TARGET", "WINDOWS_TARGET"]
+        if let context = ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !context.isEmpty,
+            !liveContexts.contains(context) {
+            throw XCTSkip("Live remote UI coverage does not run in the \(context) context")
+        }
         sshTarget = ProcessInfo.processInfo.environment["DETOURS_REMOTE_TEST_TARGET"] ?? "devtest"
         remoteDirectoryName = "QualificationRefresh-\(UUID().uuidString.lowercased())"
         remoteSentinelID = UUID().uuidString.lowercased()
