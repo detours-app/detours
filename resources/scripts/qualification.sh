@@ -1,4 +1,7 @@
 #!/bin/bash
+# lint-ignore: max-lines -- single entry point: usage, argument parsing and command dispatch for
+# the qualification surface belong together, and the campaign and workflow bodies already live
+# in their own sourced files.
 
 # One-time whole-app stability qualification runner.
 # Operational modes intentionally refuse to run anywhere except Foundry.
@@ -64,6 +67,7 @@ Commands:
   workflow-run <group|all>     Gate 2 only: run both repeated layers
   installed-smoke <group> <root|target>
                                Run focused installed repetitions in one audit session
+  installed-all <root>         Run every installed UI test once in one audit session
   visibility-probe             Prove live progress, failure reporting, and termination
   failure-probe <provider>     Prove one provider failure is preserved and cleaned
   cold-run                     Separately authorized reliability campaign only
@@ -419,6 +423,11 @@ case "$COMMAND" in
         SMOKE_ROOT="$2"
         shift 2
         ;;
+    installed-all)
+        [[ $# -ge 1 && "$1" != --* ]] || fail "installed-all requires a context"
+        SMOKE_ROOT="$1"
+        shift
+        ;;
     failure-probe)
         [[ $# -gt 0 && "$1" != --* ]] || fail "failure-probe requires a provider"
         FAILURE_PROVIDER="$1"
@@ -483,6 +492,7 @@ case "$COMMAND" in
     installed) require_gate2_authorization; run_installed "$GROUP" ;;
     workflow-run) require_gate2_authorization; run_workflow_campaign "$GROUP" ;;
     installed-smoke) run_installed_smoke_campaign "$GROUP" "$SMOKE_ROOT" ;;
+    installed-all) run_installed_all_campaign "$SMOKE_ROOT" ;;
     visibility-probe) run_failure_visibility_probe ;;
     failure-probe) run_provider_failure_probe "$FAILURE_PROVIDER" ;;
     cold-run) require_gate2_authorization; run_cold ;;

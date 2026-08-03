@@ -1,4 +1,7 @@
 #!/bin/bash
+# lint-ignore: max-lines -- one workflow dispatch surface: every runner here shares the same
+# run-directory, control-root, heartbeat, result-bundle and cleanup contract, and splitting it
+# would put that shared state behind a seam the halves would call across on every run.
 
 # Repeated workflow dispatch sourced only by qualification.sh.
 
@@ -525,22 +528,37 @@ verify_installed_result_bundle() {
     skipped="$(jq -r '.skippedTests // empty' "$summary_path")"
     expected="$(jq -r '.expectedFailures // empty' "$summary_path")"
     result="$(jq -r '.result // empty' "$summary_path")"
-    [[ "$total" == "$expected_count" ]] || \
-        fail "installed workflow ran $total logical tests instead of $expected_count"
-    [[ "$passed" == "$expected_count" ]] || \
-        fail "installed workflow passed $passed logical tests instead of $expected_count"
+    if [[ "$expected_count" == "any" ]]; then
+        # A whole-target run has no fixed logical count; every test still has to pass,
+        # and a skip is reported rather than hidden behind a green run.
+        (( total > 0 )) || fail "installed run executed no tests"
+        [[ "$passed" == "$total" ]] || \
+            fail "installed run passed $passed of $total logical tests"
+        [[ "$skipped" == "0" ]] || \
+            printf 'qualification: installed run skipped %s tests\n' "$skipped"
+    else
+        [[ "$total" == "$expected_count" ]] || \
+            fail "installed workflow ran $total logical tests instead of $expected_count"
+        [[ "$passed" == "$expected_count" ]] || \
+            fail "installed workflow passed $passed logical tests instead of $expected_count"
+        [[ "$skipped" == "0" ]] || fail "installed iteration recorded $skipped skipped tests"
+    fi
     [[ "$failed" == "0" ]] || fail "installed iteration recorded $failed failed tests"
-    [[ "$skipped" == "0" ]] || fail "installed iteration recorded $skipped skipped tests"
     [[ "$expected" == "0" ]] || fail "installed iteration recorded $expected expected failures"
     [[ "$result" == "Passed" ]] || fail "installed iteration result is not Passed: $result"
 
     device_passed="$(jq '[.devicesAndConfigurations[].passedTests] | add // 0' "$summary_path")"
     device_failed="$(jq '[.devicesAndConfigurations[].failedTests] | add // 0' "$summary_path")"
     device_skipped="$(jq '[.devicesAndConfigurations[].skippedTests] | add // 0' "$summary_path")"
-    [[ "$device_passed" == "$expected_count" ]] || \
-        fail "installed workflow passed $device_passed logical tests instead of $expected_count"
+    if [[ "$expected_count" == "any" ]]; then
+        [[ "$device_passed" == "$passed" ]] || \
+            fail "installed run passed $device_passed device tests against $passed logical tests"
+    else
+        [[ "$device_passed" == "$expected_count" ]] || \
+            fail "installed workflow passed $device_passed logical tests instead of $expected_count"
+        [[ "$device_skipped" == "0" ]] || fail "installed workflow recorded $device_skipped skipped repetitions"
+    fi
     [[ "$device_failed" == "0" ]] || fail "installed workflow recorded $device_failed failed repetitions"
-    [[ "$device_skipped" == "0" ]] || fail "installed workflow recorded $device_skipped skipped repetitions"
 }
 
 verify_workflow_repetition_markers() {
@@ -643,6 +661,55 @@ run_installed_once() {
     fi
     record_scenario_timing \
         installed "$selected_group" "$context_name" "$repetitions" "$started_at" "$status"
+    (( status == 0 )) || return "$status"
+}
+
+run_installed_all() {
+    local log_path="$1"
+    local result_bundle="$2"
+    local control_root command_output started_at status
+    [[ -n "${QUALIFICATION_UI_DERIVED_DATA:-}" && -d "$QUALIFICATION_UI_DERIVED_DATA" ]] || \
+        fail "installed-test derived data is unavailable"
+    [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
+    command_output="$log_path.output.log"
+    [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
+    control_root="$HOME/Library/Containers/MAF.DetoursUITests.xctrunner/Data/DetoursQualification/$QUALIFICATION_COMMIT/$QUALIFICATION_RUN_ID/installed-all"
+    mkdir -p "$control_root"
+    stop_installed_app
+    printf 'qualification: installed every UI test once\n' | tee -a "$log_path.log"
+    started_at="$(date +%s)"
+    set +e
+    QUALIFICATION_GUI_HEARTBEAT_DIR="$control_root" \
+        QUALIFICATION_GUI_HEARTBEAT_GROUP=all \
+        QUALIFICATION_GUI_HEARTBEAT_CONTEXT=INSTALLED_ALL \
+        QUALIFICATION_GUI_HEARTBEAT_TOTAL=1 \
+        QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
+        run_gui_command "$log_path.raw.log" env \
+            HOME="$HOME" \
+            PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+            DEVELOPER_DIR="$(xcode-select -p)" \
+            xcodebuild test-without-building -quiet \
+            -project "$PROJECT_DIR/Tests/UITests/DetoursUITests/DetoursUITests.xcodeproj" \
+            -scheme DetoursUITests \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$QUALIFICATION_UI_DERIVED_DATA" \
+            -only-testing:DetoursUITests \
+            "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
+            "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$LOCAL_ROOT" \
+            "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
+            "DETOURS_QUALIFICATION_REAL_REMOTE_TARGET_SETTING=$QUALIFICATION_LINUX_TARGET" \
+            "DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT_SETTING=LINUX_TARGET" \
+            "DETOURS_QUALIFICATION_REPETITIONS_SETTING=1" \
+            -resultBundlePath "$result_bundle" 2>&1 | tee "$command_output"
+    status="${PIPESTATUS[0]}"
+    set -e
+    cat "$command_output" >> "$log_path.log"
+    stop_installed_app
+    if (( status == 0 )); then
+        verify_quiet_xcode_command "$log_path.raw.log"
+        verify_installed_result_bundle "$result_bundle" any
+    fi
+    record_scenario_timing installed all INSTALLED_ALL 1 "$started_at" "$status"
     (( status == 0 )) || return "$status"
 }
 

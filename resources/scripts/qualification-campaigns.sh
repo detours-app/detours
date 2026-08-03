@@ -302,6 +302,32 @@ run_in_process_campaign() {
     trap - EXIT
 }
 
+run_installed_all_campaign() {
+    local context_name="$1"
+    [[ "$context_name" == "LOCAL_ROOT" ]] || \
+        fail "installed-all runs on LOCAL_ROOT; live remote targets stay with the workflow groups"
+    trap 'campaign_cleanup_on_exit "$?"' EXIT
+    start_console_awake_guard
+    run_reset
+    run_preflight "$context_name"
+    run_build
+    start_prompt_guard
+    run_prepare_local_fixture
+    capture_outside_root_snapshots before
+    capture_state_observation installed-all-before
+    mkdir -p "$(run_dir)/workflows/installed-all" "$(run_dir)/results/installed-all"
+    run_installed_all \
+        "$(run_dir)/workflows/installed-all/all" \
+        "$(run_dir)/results/installed-all/all-LOCAL_ROOT.xcresult"
+    capture_state_observation installed-all-after
+    capture_outside_root_snapshots after
+    compare_outside_root_snapshots
+    run_cleanup
+    verify_qualification_cleanup
+    finish_prompt_guard
+    trap - EXIT
+}
+
 run_installed_smoke_campaign() {
     local group="$1"
     local context_name="$2"

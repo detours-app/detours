@@ -83,6 +83,9 @@ else
         && "${3:-}" =~ ^(LOCAL_ROOT|LINUX_TARGET|INTEL_MAC_TARGET|WINDOWS_TARGET)$ ]]; then
         requires_smb_secret=0
     fi
+    if [[ "${1:-}" == "installed-all" && "${2:-}" == "LOCAL_ROOT" ]]; then
+        requires_smb_secret=0
+    fi
     if [[ "${1:-}" == "visibility-probe" ]]; then
         requires_smb_secret=0
     fi
