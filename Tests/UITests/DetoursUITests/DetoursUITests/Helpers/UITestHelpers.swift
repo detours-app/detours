@@ -392,6 +392,15 @@ extension BaseUITest {
               let data = try? Data(contentsOf: resultURL),
               let result = try? JSONDecoder().decode(Result.self, from: data),
               result.id == command.id else {
+            let onDisk = (try? FileManager.default.contentsOfDirectory(atPath: uiTestControlRootURL.path))?
+                .filter { $0.hasPrefix(".detours-fixture-mutation") }
+                .sorted() ?? []
+            let resultBody = (try? String(contentsOf: resultURL, encoding: .utf8)) ?? "<absent>"
+            let commandBody = (try? String(contentsOf: commandURL, encoding: .utf8)) ?? "<absent>"
+            XCTFail(
+                "Fixture mutation \(action) \(relativePath) never came back. "
+                    + "control=\(onDisk) command=\(commandBody) result=\(resultBody)"
+            )
             throw UITestControlError.fixtureMutationTimedOut(action: action, path: relativePath)
         }
         guard result.success else {
