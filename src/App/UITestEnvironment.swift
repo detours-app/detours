@@ -643,6 +643,23 @@ enum UITestEnvironment {
         try? data.write(to: url, options: .atomic)
     }
 
+    /// Appends one line to a trace beside the control files. Non-atomic on purpose: an
+    /// atomic write creates a temporary file first, which is exactly the step that can be
+    /// denied when one app writes into another app's container.
+    static func traceFixtureMutation(_ message: String, id: String) {
+        guard let directory = controlDirectory else { return }
+        let url = directory.appendingPathComponent(".detours-fixture-mutation-trace.log")
+        let line = "\(id) \(message)\n"
+        guard let data = line.data(using: .utf8) else { return }
+        if let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: data)
+        } else {
+            try? data.write(to: url)
+        }
+    }
+
     static func writeFixtureMutationResult(_ result: FixtureMutationResult) {
         guard let url = fixtureMutationResultURL,
               let data = try? JSONEncoder().encode(result) else {

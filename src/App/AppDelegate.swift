@@ -314,6 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let command = UITestEnvironment.currentFixtureMutationCommand(),
            command.id != lastUITestFixtureMutationCommandID {
             lastUITestFixtureMutationCommandID = command.id
+            UITestEnvironment.traceFixtureMutation("received \(command.action) \(command.relativePath)", id: command.id)
             Task.detached {
                 let result: UITestEnvironment.FixtureMutationResult
                 do {
@@ -322,7 +323,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 } catch {
                     result = .init(id: command.id, success: false, failure: error.localizedDescription)
                 }
+                UITestEnvironment.traceFixtureMutation("performed success=\(result.success)", id: command.id)
                 UITestEnvironment.writeFixtureMutationResult(result)
+                UITestEnvironment.traceFixtureMutation("result written", id: command.id)
             }
         }
     }
