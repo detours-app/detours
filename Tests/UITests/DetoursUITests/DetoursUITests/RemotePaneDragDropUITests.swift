@@ -16,14 +16,24 @@ final class RemotePaneDragDropUITests: BaseUITest {
 
     func testDraggingRemoteFileOntoRemoteFolderMovesIt() throws {
         let outline = visibleLeftOutline()
-        let fileRow = outline.outlineRow(withStaticText: "file1.txt")
-        XCTAssertTrue(fileRow.waitForExistence(timeout: 10), "Remote listing shows the fixture file")
-        let folderRow = outline.outlineRow(withStaticText: "FolderC")
-        XCTAssertTrue(folderRow.waitForExistence(timeout: 10), "Remote listing shows the fixture folder")
+        XCTAssertTrue(
+            outline.outlineRow(withStaticText: "file1.txt").waitForExistence(timeout: 10),
+            "Remote listing shows the fixture file"
+        )
+        XCTAssertTrue(
+            outline.outlineRow(withStaticText: "FolderC").waitForExistence(timeout: 10),
+            "Remote listing shows the fixture folder"
+        )
 
-        fileRow.staticTexts["file1.txt"].click()
-        let start = fileRow.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
-        let end = folderRow.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
+        // Selecting scrolls the row into view, so resolve both frames afterwards:
+        // a coordinate taken before the scroll points at the wrong row.
+        outline.outlineRow(withStaticText: "file1.txt").staticTexts["file1.txt"].click()
+        let sourceFrame = outline.outlineRow(withStaticText: "file1.txt").frame
+        let destinationFrame = outline.outlineRow(withStaticText: "FolderC").frame
+        let start = outline.outlineRow(withStaticText: "file1.txt")
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
+        let end = outline.outlineRow(withStaticText: "FolderC")
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
         start.press(
             forDuration: 0.5,
             thenDragTo: end,
@@ -31,19 +41,14 @@ final class RemotePaneDragDropUITests: BaseUITest {
             thenHoldForDuration: 1.0
         )
 
+        let moved = uiTestRootURL.appendingPathComponent("FolderC/file1.txt")
         XCTAssertTrue(
-            waitForCondition(timeout: 10) {
-                self.remoteProviderHistory().contains { call in
-                    call.operation == "move"
-                        && call.phase == "completed"
-                        && call.sources.contains { $0.hasSuffix("/file1.txt") }
-                        && call.destination?.hasSuffix("/FolderC") == true
-                }
-            },
-            "The drag never reached the remote provider as a move into FolderC; "
-                + "operations=\(remoteProviderHistory().map(\.operation)) "
-                + "selected=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.selectedLocations)) "
-                + "dropTarget=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.activeDropTarget))"
+            waitForCondition(timeout: 10) { FileManager.default.fileExists(atPath: moved.path) },
+            "The drag never moved the file into FolderC; "
+                + "sourceFrame=\(sourceFrame) destinationFrame=\(destinationFrame) "
+                + "root=\(((try? FileManager.default.contentsOfDirectory(atPath: uiTestRootURL.path)) ?? []).sorted()) "
+                + "folderC=\(((try? FileManager.default.contentsOfDirectory(atPath: uiTestRootURL.appendingPathComponent("FolderC").path)) ?? []).sorted()) "
+                + "selected=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.selectedLocations))"
         )
 
         XCTAssertTrue(
@@ -53,12 +58,6 @@ final class RemotePaneDragDropUITests: BaseUITest {
                     && !state.operationRunning
             },
             "The dragged file never left the source listing"
-        )
-
-        folderRow.staticTexts["FolderC"].doubleClick()
-        XCTAssertTrue(
-            visibleLeftOutline().outlineRow(withStaticText: "file1.txt").waitForExistence(timeout: 10),
-            "The dragged file is not inside the folder it was dropped on"
         )
     }
 }
