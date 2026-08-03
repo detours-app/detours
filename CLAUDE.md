@@ -135,6 +135,7 @@ rm -f temp.png temp2.png mask.png
 
 - Branch naming: `feature/stage1-foundation`, `fix/keyboard-navigation`
 - Commit messages: imperative mood ("Add file list view", not "Added")
+- Commit messages must be readable on their own. The subject line names the change; the body says what actually changed and why, in enough detail that Marco can tell what happened without opening the diff. A one-line body that restates the subject is not enough. Name the behaviour before and after, the surfaces touched, and anything removed or renamed. Business language, no file paths or symbol names as the whole story.
 - Never commit `.xcuserdata/`
 - **Push to origin only** - never push to `public` remote except during releases
 
