@@ -49,7 +49,7 @@ final class FolderExpansionUITests: BaseUITest {
         XCTAssertTrue(waitForRow(named: childName, timeout: 2), "Folder to delete should be expanded")
 
         sleep(1) // Give the expanded folder watcher time to attach.
-        try FileManager.default.removeItem(at: uiTestURL(relativePath: folderPath))
+        try performFixtureMutation(action: "remove", relativePath: folderPath)
 
         XCTAssertTrue(waitForRowToDisappear(named: folderName, timeout: 10), "Externally deleted folder should disappear")
         XCTAssertFalse(rowExists(named: childName), "Deleted folder's child should disappear")
@@ -76,9 +76,10 @@ final class FolderExpansionUITests: BaseUITest {
         XCTAssertTrue(waitForRow(named: childName, timeout: 2), "Folder should be expanded before external rename")
 
         sleep(1) // Give the expanded folder watcher time to attach.
-        try FileManager.default.moveItem(
-            at: uiTestURL(relativePath: sourceName),
-            to: uiTestURL(relativePath: renamedName)
+        try performFixtureMutation(
+            action: "move",
+            relativePath: sourceName,
+            destinationRelativePath: renamedName
         )
 
         XCTAssertTrue(waitForRowToDisappear(named: sourceName, timeout: 10), "Old folder name should disappear")
