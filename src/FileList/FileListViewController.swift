@@ -23,6 +23,8 @@ protocol FileListNavigationDelegate: AnyObject {
     func fileListDidRequestRefreshSourceLocations(_ locations: Set<Location>)
     func fileListDidChangeSelection()
     func fileListDidLoadDirectory(_ controller: FileListViewController)
+    /// Sent once an operation's results are selected in this listing.
+    func fileListDidRequestPaneActivation(_ controller: FileListViewController)
 }
 
 extension FileListNavigationDelegate {
@@ -33,7 +35,6 @@ extension FileListNavigationDelegate {
         fileListDidRequestRefreshSourceLocations(locations)
     }
 
-    /// Sent once an operation's results are selected in this listing.
     func fileListDidRequestPaneActivation(_ controller: FileListViewController) {}
 }
 
