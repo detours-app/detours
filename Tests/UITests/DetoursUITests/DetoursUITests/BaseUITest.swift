@@ -217,6 +217,40 @@ class BaseUITest: XCTestCase {
         }
     }
 
+    /// Drives a pane to the fixture root. The guarded runner nests that root under a
+    /// per-run directory, so it cannot be reached by clicking home and opening one row.
+    func navigatePaneToFixtureRoot(paneIndex: Int, pane: String) throws {
+        let target = uiTestRootURL.path
+        if (try? requestRemotePaneState(pane: pane))?.displayedLocation == target {
+            return
+        }
+        let homeButton = app.buttons.matching(identifier: "homeButton").element(boundBy: paneIndex)
+        XCTAssertTrue(homeButton.waitForExistence(timeout: 2), "\(pane) pane home button should exist")
+        homeButton.click()
+        let home = try XCTUnwrap(
+            waitForCondition(timeout: 5) { (try? self.requestRemotePaneState(pane: pane))?.displayedLocation != nil }
+                ? try requestRemotePaneState(pane: pane).displayedLocation
+                : nil,
+            "\(pane) pane never reported a displayed location"
+        )
+        guard target.hasPrefix(home) else {
+            XCTFail("Fixture root \(target) is not below the app home \(home)")
+            return
+        }
+        let outline = paneIndex == 0 ? app.leftPaneOutlineView : app.rightPaneOutlineView
+        for component in target.dropFirst(home.count).split(separator: "/").map(String.init) {
+            let row = outline.outlineRow(withStaticText: component)
+            XCTAssertTrue(row.waitForExistence(timeout: 5), "\(component) should exist in the \(pane) pane")
+            row.staticTexts[component].doubleClick()
+            XCTAssertTrue(
+                waitForCondition(timeout: 5) {
+                    (try? self.requestRemotePaneState(pane: pane))?.displayedLocation?.hasSuffix(component) == true
+                },
+                "The \(pane) pane never entered \(component)"
+            )
+        }
+    }
+
     /// Navigate to temp directory via home button and double-click
     private func navigateToTempDirectory() {
         if waitForRow(named: "FolderA", timeout: 5) {

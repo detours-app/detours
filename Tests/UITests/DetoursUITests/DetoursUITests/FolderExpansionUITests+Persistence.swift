@@ -212,16 +212,8 @@ extension FolderExpansionUITests {
         rightOutline.click()
         sleep(1)
 
-        // Navigate right pane to test directory
-        let homeButtonRight = app.buttons.matching(identifier: "homeButton").element(boundBy: 1)
-        XCTAssertTrue(homeButtonRight.waitForExistence(timeout: 2), "Right home button should exist")
-        homeButtonRight.click()
-        sleep(1)
-
-        let testFolderRight = rightOutline.outlineRow(withStaticText: testFolderName)
-        XCTAssertTrue(testFolderRight.waitForExistence(timeout: 2), "Test folder should exist in right pane")
-        testFolderRight.doubleClick()
-        sleep(1)
+        // Navigate right pane to the fixture root, wherever the runner placed it.
+        try navigatePaneToFixtureRoot(paneIndex: 1, pane: "right")
 
         // In right pane, FolderA should be collapsed (independent from left)
         // Need to find FolderA in the right pane specifically
