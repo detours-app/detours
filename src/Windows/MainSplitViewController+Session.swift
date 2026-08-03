@@ -163,8 +163,11 @@ extension MainSplitViewController {
         let fm = FileManager.default
         let sentinel = root.appendingPathComponent(".detours-qualification-root.json")
         let isAppCreatedRoot = root.lastPathComponent.hasPrefix("DetoursUITests-Temp")
-        let isGuardedRoot = fm.fileExists(atPath: sentinel.path)
-        guard isAppCreatedRoot || isGuardedRoot else {
+        // A guarded root's sentinel is the harness's own descriptor, and its cleanup
+        // refuses to remove a root whose sentinel no longer matches. Carry the exact
+        // contents across the reset rather than replacing them with the app's marker.
+        let existingSentinel = try? Data(contentsOf: sentinel)
+        guard isAppCreatedRoot || existingSentinel != nil else {
             return
         }
 
@@ -174,9 +177,7 @@ extension MainSplitViewController {
         // contract as qualification roots. Conventional UI-test roots are
         // app-created, so seed their marker before any test requests a mutation.
         try? fm.createDirectory(at: root, withIntermediateDirectories: true)
-        try? Data("detours-ui-test-root".utf8).write(
-            to: root.appendingPathComponent(".detours-qualification-root.json")
-        )
+        try? (existingSentinel ?? Data("detours-ui-test-root".utf8)).write(to: sentinel)
 
         let directories = [
             "AAA_First",
