@@ -67,6 +67,8 @@ run_gui_command() {
     printf '%s\n' "$label" > "$active_job_file"
     trap 'launchctl remove "$label" 2>/dev/null || true; rm -f -- "$active_job_file"; exit 130' HUP INT TERM
     exited_without_status_at=0
+    unheartbeated_started_epoch="$(date +%s)"
+    last_progress_epoch="$unheartbeated_started_epoch"
     if ! launchctl submit \
         -l "$label" \
         -o "$launch_stdout" \
@@ -175,6 +177,17 @@ run_gui_command() {
         fi
         if [[ -f "$status_path" ]]; then
             break
+        fi
+        if [[ -z "$heartbeat_dir" ]]; then
+            # A whole-target run has no per-iteration heartbeats to count. Liveness comes
+            # from the job still being submitted, the failure and consent scanners still
+            # report live, and the absolute deadline below bounds the run.
+            now_epoch="$(date +%s)"
+            if (( now_epoch - last_progress_epoch >= 60 )); then
+                printf 'qualification-progress phase=running elapsed=%ss\n' \
+                    "$(( now_epoch - unheartbeated_started_epoch ))"
+                last_progress_epoch="$now_epoch"
+            fi
         fi
         if [[ -n "$heartbeat_dir" ]]; then
             now_epoch="$(date +%s)"
@@ -688,11 +701,8 @@ run_installed_all() {
     printf 'qualification: installed every UI test once\n' | tee -a "$log_path.log"
     started_at="$(date +%s)"
     set +e
-    QUALIFICATION_GUI_HEARTBEAT_DIR="$control_root" \
-        QUALIFICATION_GUI_HEARTBEAT_GROUP=all \
-        QUALIFICATION_GUI_HEARTBEAT_CONTEXT=INSTALLED_ALL \
-        QUALIFICATION_GUI_HEARTBEAT_TOTAL=1 \
-        QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
+    QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
+        QUALIFICATION_BLOCKING_DEADLINE_EPOCH="${QUALIFICATION_BLOCKING_DEADLINE_EPOCH:-$(( $(date +%s) + QUALIFICATION_INSTALLED_ALL_DEADLINE ))}" \
         run_gui_command "$log_path.raw.log" env \
             HOME="$HOME" \
             PATH=/usr/bin:/bin:/usr/sbin:/sbin \

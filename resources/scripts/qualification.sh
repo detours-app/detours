@@ -395,6 +395,10 @@ fi
 QUALIFICATION_COMMIT="HEAD"
 QUALIFICATION_RUN_ID=""
 QUALIFICATION_SEED="0"
+# Absolute ceiling for the whole-target installed run, which has no per-iteration
+# heartbeat to bound it.
+# shellcheck disable=SC2034 # Consumed by sourced qualification modules.
+QUALIFICATION_INSTALLED_ALL_DEADLINE="${DETOURS_QUALIFICATION_INSTALLED_ALL_DEADLINE:-2400}"
 QUALIFICATION_IN_PROCESS_REPETITIONS="100"
 QUALIFICATION_SMOKE_REPETITIONS="1"
 QUALIFICATION_TEST_FILTER=""
