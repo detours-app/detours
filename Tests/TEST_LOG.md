@@ -3033,3 +3033,18 @@ Spotlight search has no unit test (depends on the live, async-built system index
   and `2fd36a7` because the drag coordinates were resolved before selection
   scrolled the row into view, so the press landed on the wrong row; resolving
   both frames after the scroll fixed it.
+
+- 2026-08-03 11:36 CEST: Foundry verification PASS at `bf22dc5` for the shared
+  operation result reveal (every copy and move expands the destination, selects
+  the results, and activates the destination pane, local and remote alike).
+  `FileListDragDropTests|RemoteDragOutTests|FileListResponderTests` 69 tests, 0
+  failures; the remote reveal test now drives the production entry point
+  instead of the removed direct-apply helper.
+  Guarded installed UI proof: `installed-smoke activation LOCAL_ROOT` with
+  `RemotePaneDragDropUITests/testDraggingRemoteFileOntoRemoteFolderMovesIt`
+  (drop expands FolderC, selects the moved file, leaves the pane active and
+  focused) and `installed-smoke transfer LOCAL_ROOT` with
+  `RefreshAuthorityCopyUITests/testF5CopyActivatesDestinationPaneAndSelectsCopy`.
+  The F5 test failed once at `2ace78a`: the new activation hook lived only in a
+  protocol extension, so it dispatched statically to the no-op default and
+  focus never moved. Declaring it as a protocol requirement fixed it.
