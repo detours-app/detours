@@ -3048,3 +3048,18 @@ Spotlight search has no unit test (depends on the live, async-built system index
   The F5 test failed once at `2ace78a`: the new activation hook lived only in a
   protocol extension, so it dispatched statically to the no-op default and
   focus never moved. Declaring it as a protocol requirement fixed it.
+
+- 2026-08-03 12:41 CEST: Foundry verification PASS at `2b55686` for the undo
+  and redo half of the reveal contract (the operation queue announces what a
+  reversal restored; each window reveals it like a forward operation).
+  `OperationRestoreRevealTests` 4 tests covering announcement grouping,
+  observer removal, a real move undo announcing the file back in its original
+  directory, and a copy undo announcing nothing. Regression run of
+  `FileOperationQueueTests|FileOperationQueueTests+Undo|RemoteTrashUndoTests|ArchiveOperationTests|PaneOperationTransactionTests|FileListResponderTests`
+  174 tests, 0 failures, after the per-list restore notification was removed in
+  favour of the announcement.
+  Guarded installed UI proof: `installed-smoke mutation LOCAL_ROOT` with
+  `UndoUITests/testUndoMoveRevealsTheRestoredFile` (undo selects the restored
+  file and keeps the list focused) and with `UndoUITests/testUndoDelete`, which
+  covers the restore path that previously depended on the removed
+  notification.
