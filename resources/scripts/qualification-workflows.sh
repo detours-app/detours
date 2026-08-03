@@ -667,9 +667,18 @@ run_installed_once() {
 run_installed_all() {
     local log_path="$1"
     local result_bundle="$2"
-    local control_root command_output started_at status
+    local fixture_file control_root command_output started_at status
+    assert_prompt_guard_healthy
+    fixture_file="$(run_dir)/fixtures.env"
+    [[ -f "$fixture_file" ]] || fail "fixture record is missing: $fixture_file"
+    set -a
+    # shellcheck disable=SC1090
+    source "$fixture_file"
+    set +a
+    prepare_installed_test_bundle "$(dirname "$log_path")/build-for-testing.log"
     [[ -n "${QUALIFICATION_UI_DERIVED_DATA:-}" && -d "$QUALIFICATION_UI_DERIVED_DATA" ]] || \
         fail "installed-test derived data is unavailable"
+    [[ -n "${LOCAL_ROOT:-}" ]] || fail "local fixture root is unavailable"
     [[ ! -e "$result_bundle" ]] || fail "result bundle already exists: $result_bundle"
     command_output="$log_path.output.log"
     [[ ! -e "$command_output" ]] || fail "installed-test command output already exists: $command_output"
