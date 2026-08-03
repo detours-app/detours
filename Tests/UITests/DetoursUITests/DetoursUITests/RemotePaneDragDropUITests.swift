@@ -24,7 +24,12 @@ final class RemotePaneDragDropUITests: BaseUITest {
         fileRow.staticTexts["file1.txt"].click()
         let start = fileRow.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
         let end = folderRow.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
-        start.press(forDuration: 0.6, thenDragTo: end)
+        start.press(
+            forDuration: 0.5,
+            thenDragTo: end,
+            withVelocity: .slow,
+            thenHoldForDuration: 1.0
+        )
 
         XCTAssertTrue(
             waitForCondition(timeout: 10) {
@@ -35,7 +40,10 @@ final class RemotePaneDragDropUITests: BaseUITest {
                         && call.destination?.hasSuffix("/FolderC") == true
                 }
             },
-            "The drag never reached the remote provider as a move into FolderC"
+            "The drag never reached the remote provider as a move into FolderC; "
+                + "operations=\(remoteProviderHistory().map(\.operation)) "
+                + "selected=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.selectedLocations)) "
+                + "dropTarget=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.activeDropTarget))"
         )
 
         XCTAssertTrue(
