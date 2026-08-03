@@ -108,6 +108,9 @@ final class ChromePolishUITests: BaseUITest {
     }
 
     func testSidebarMountedVolumesExposeEject() throws {
+        // Needs the mounted demo volumes staged by screenshot-setup.sh, which a guarded
+        // qualification root does not provide.
+        try skipWithoutScreenshotVolumes()
         launchChromePolishApp()
 
         assertSidebarRow(
@@ -139,6 +142,14 @@ final class ChromePolishUITests: BaseUITest {
                     try applyAppearanceSettings(theme: theme, fontSize: fontSize, density: density)
                 }
             }
+        }
+    }
+
+    private func skipWithoutScreenshotVolumes() throws {
+        let mounted = ["/Volumes/\(screenshotSparseBundleName)", "/Volumes/\(screenshotDiskImageName)"]
+        let missing = mounted.filter { !FileManager.default.fileExists(atPath: $0) }
+        guard missing.isEmpty else {
+            throw XCTSkip("Screenshot demo volumes are not mounted: " + missing.joined(separator: ", "))
         }
     }
 
