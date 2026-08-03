@@ -23,6 +23,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
         clearResizeCommand()
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
+        app.launchEnvironment["DETOURS_UI_TEST_CONTROL_ROOT"] = uiTestControlRootURL.path
     }
 
     override func tearDownWithError() throws {
@@ -338,7 +339,8 @@ final class WindowPaneGeometryUITests: XCTestCase {
     }
 
     private var resizeCommandURL: URL {
-        uiTestRootURL.appendingPathComponent(resizeCommandFileName)
+        // The app reads control files from its control directory, not the fixture root.
+        uiTestControlRootURL.appendingPathComponent(resizeCommandFileName)
     }
 
     private func setMainWindowSizeForUITest(_ size: CGSize) throws {

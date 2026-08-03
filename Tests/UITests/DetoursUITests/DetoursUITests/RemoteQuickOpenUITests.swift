@@ -203,6 +203,7 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
     private func launchRealRemote(connectionDelayMilliseconds: Int? = nil) {
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
+        app.launchEnvironment["DETOURS_UI_TEST_CONTROL_ROOT"] = uiTestControlRootURL.path
         app.launchEnvironment["DETOURS_UI_TEST_REAL_REMOTE_TARGET"] = sshTarget
         if let connectionDelayMilliseconds {
             app.launchEnvironment["DETOURS_UI_TEST_REMOTE_CONNECT_DELAY_MS"] = String(connectionDelayMilliseconds)

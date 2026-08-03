@@ -58,6 +58,7 @@ final class WindowsRemoteUITests: BaseUITest {
         try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
+        app.launchEnvironment["DETOURS_UI_TEST_CONTROL_ROOT"] = uiTestControlRootURL.path
         // Connect through the same real-remote launch route used by qualification workflows.
         app.launchEnvironment["DETOURS_UI_TEST_REAL_REMOTE_TARGET"] = target
         app.launchEnvironment["DETOURS_UI_TEST_REAL_REMOTE_CONTEXT"] = "WINDOWS_TARGET"
@@ -113,6 +114,7 @@ final class WindowsRemoteUITests: BaseUITest {
         try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
         app = DetoursUITestApp.make()
         app.launchEnvironment["DETOURS_UI_TEST_ROOT"] = uiTestRootURL.path
+        app.launchEnvironment["DETOURS_UI_TEST_CONTROL_ROOT"] = uiTestControlRootURL.path
         app.launchEnvironment["DETOURS_UI_TEST_REMOTE"] = mode
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5), "App window should exist")
@@ -129,8 +131,8 @@ final class WindowsRemoteUITests: BaseUITest {
         }
 
         let command = Command(id: UUID().uuidString)
-        let url = uiTestRootURL.appendingPathComponent(".detours-remote-failure.json")
-        let acknowledgementURL = uiTestRootURL.appendingPathComponent(".detours-remote-failure-ack.json")
+        let url = uiTestControlRootURL.appendingPathComponent(".detours-remote-failure.json")
+        let acknowledgementURL = uiTestControlRootURL.appendingPathComponent(".detours-remote-failure-ack.json")
         try? FileManager.default.removeItem(at: acknowledgementURL)
         try JSONEncoder().encode(command).write(to: url, options: .atomic)
 
