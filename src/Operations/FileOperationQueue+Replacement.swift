@@ -207,6 +207,7 @@ extension FileOperationQueue {
                     createdItems: createdItems,
                     displacedItems: displacedItems
                 )
+                target.announceRestored(displacedItems.map(\.original))
             } catch {
                 target.presentError(error)
             }

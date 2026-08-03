@@ -112,7 +112,12 @@ extension FileOperationQueue {
                             let itemsForParent = pairs
                                 .filter { $0.1.deletingLastPathComponent().path == parent.path }
                                 .map(\.0)
-                            _ = try await target.performRemoteMove(items: itemsForParent, to: parent, undoManager: nil)
+                            let restored = try await target.performRemoteMove(
+                                items: itemsForParent,
+                                to: parent,
+                                undoManager: nil
+                            )
+                            target.announceRestored(restored)
                         }
                     } catch {
                         target.presentError(error)
@@ -173,6 +178,7 @@ extension FileOperationQueue {
             Task { @MainActor in
                 do {
                     let restored = try await target.restoreRemoteTrashedItems(trashedItems)
+                    target.announceRestored(restored)
                     undoManager.registerUndo(withTarget: target) { redoTarget in
                         Task { @MainActor in
                             do {

@@ -142,6 +142,7 @@ extension FileOperationQueue {
                         createdItems: copiedFiles,
                         displacedItems: displacedItems
                     )
+                    target.announceRestored(displacedItems.map(\.original))
                 } catch {
                     target.presentError(error)
                 }
@@ -292,6 +293,7 @@ extension FileOperationQueue {
                     for item in displacedItems.reversed() {
                         try Self.restoreLocalDisplacementSync(item)
                     }
+                    target.announceRestored(movedItems.map(\.source))
                 } catch {
                     target.presentError(error)
                 }
@@ -350,14 +352,7 @@ extension FileOperationQueue {
                 // Perform restore synchronously for proper redo registration
                 do {
                     try target.restoreFromTrashSync(items: itemsToRestore)
-                    // Notify UI to select restored items
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(
-                            name: FileOperationQueue.filesRestoredNotification,
-                            object: nil,
-                            userInfo: ["urls": originalURLs]
-                        )
-                    }
+                    target.announceRestored(originalURLs)
                     // Register redo (delete again) - synchronous, no undoManager to prevent infinite chain
                     undoManager.registerUndo(withTarget: target) { target2 in
                         do {
@@ -521,12 +516,14 @@ extension FileOperationQueue {
                         for item in localRestores {
                             try Self.restoreLocalDisplacementSync(item)
                         }
+                        target.announceRestored(localRestores.map(\.original))
                         let remoteRestores = sourceRestores.compactMap { record -> TrashedItem? in
                             guard case .remote(let item) = record else { return nil }
                             return item
                         }
                         if !remoteRestores.isEmpty {
-                            _ = try await target.restoreRemoteTrashedItems(remoteRestores)
+                            let restored = try await target.restoreRemoteTrashedItems(remoteRestores)
+                            target.announceRestored(restored)
                         }
                         if !tokens.isEmpty, let windowsProvider {
                             _ = try await windowsProvider.restoreFromTrash(tokens)

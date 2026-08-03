@@ -47,12 +47,48 @@ final class CancelFlag: @unchecked Sendable {
 final class FileOperationQueue {
     static let shared = FileOperationQueue()
 
-    /// Posted when files are restored from trash via undo. userInfo contains "urls": [URL]
-    static let filesRestoredNotification = Notification.Name("FileOperationQueue.filesRestored")
-
     struct QueuedOperation {
         let hostIDs: Set<UUID>
         let work: () async -> Void
+    }
+
+    /// Items an undo or redo put back on disk, and the directory holding them.
+    struct RestoredItems {
+        let locations: [Location]
+        let destination: Location
+    }
+
+    private var restoreObservers: [UUID: (RestoredItems) -> Void] = [:]
+
+    /// Windows subscribe here to reveal what a reversal restored. Forward
+    /// operations reveal through their own caller, which knows the exact pane.
+    /// See `resources/docs/operation-result-reveal.md`.
+    func addRestoreObserver(_ observer: @escaping (RestoredItems) -> Void) -> UUID {
+        let token = UUID()
+        restoreObservers[token] = observer
+        return token
+    }
+
+    func removeRestoreObserver(_ token: UUID) {
+        restoreObservers.removeValue(forKey: token)
+    }
+
+    func announceRestored(_ locations: [Location]) {
+        guard !restoreObservers.isEmpty else { return }
+        var byDestination: [Location: [Location]] = [:]
+        for location in locations {
+            byDestination[location.deletingLastPathComponent(), default: []].append(location)
+        }
+        for (destination, restored) in byDestination {
+            let items = RestoredItems(locations: restored, destination: destination)
+            for observer in restoreObservers.values {
+                observer(items)
+            }
+        }
+    }
+
+    func announceRestored(_ urls: [URL]) {
+        announceRestored(urls.map(Location.local))
     }
 
     private init() {

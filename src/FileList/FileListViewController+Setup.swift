@@ -73,18 +73,6 @@ extension FileListViewController {
         restoreTableViewKeyboardFocusIfNeeded(shouldRestoreTableViewFocus)
     }
 
-    @objc func handleFilesRestored(_ notification: Notification) {
-        guard let urls = notification.userInfo?["urls"] as? [URL] else { return }
-        guard let currentDirectory else { return }
-
-        // Check if any restored files are in our current directory
-        let relevantURLs = urls.filter { $0.deletingLastPathComponent() == currentDirectory }
-        guard !relevantURLs.isEmpty else { return }
-
-        // Reload and select the restored items through the scheduler
-        refreshSelectingLocations(relevantURLs.map(Location.local))
-    }
-
     @objc func handleThemeChange() {
         // Apply new theme background and force table redraw
         applyThemeBackground()

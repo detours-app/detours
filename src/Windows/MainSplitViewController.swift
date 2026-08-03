@@ -77,6 +77,7 @@ final class MainSplitViewController: NSSplitViewController {
     let rightPane = PaneViewController()
     var sidebarSplitViewItem: NSSplitViewItem?
     var activePaneIndex: Int = 0
+    var restoreObserverToken: UUID?
     var isRestoringSession = false
     var idleHostProbeTimer: Timer?
     let defaults = UserDefaults.standard
@@ -150,12 +151,29 @@ final class MainSplitViewController: NSSplitViewController {
         )
     }
 
+    deinit {
+        guard let token = restoreObserverToken else { return }
+        Task { @MainActor in
+            FileOperationQueue.shared.removeRestoreObserver(token)
+        }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
         sidebarViewController.delegate = self
         leftPane.splitCoordinator = self
         rightPane.splitCoordinator = self
+
+        // Undo and redo have no calling pane, so the queue announces what a
+        // reversal put back and the window reveals it under the same contract.
+        restoreObserverToken = FileOperationQueue.shared.addRestoreObserver { [weak self] restored in
+            self?.revealOperationResults(
+                restored.locations,
+                destination: restored.destination,
+                affecting: [restored.destination]
+            )
+        }
 
         splitView.isVertical = true
         splitView.dividerStyle = .thin

@@ -249,14 +249,6 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
             name: SettingsManager.settingsDidChange,
             object: nil
         )
-
-        // Observe file restore from undo to select restored items
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleFilesRestored(_:)),
-            name: FileOperationQueue.filesRestoredNotification,
-            object: nil
-        )
     }
 
     override func viewDidAppear() {

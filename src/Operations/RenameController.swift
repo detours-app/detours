@@ -250,6 +250,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
                                         try FileManager.default.moveItem(at: newURL, to: oldURL)
                                     }
                                 }
+                                target.announceRestored([oldLocation])
                             } catch {
                                 target.presentError(error)
                             }

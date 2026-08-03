@@ -104,6 +104,7 @@ extension FileOperationQueue {
                         createdItems: copiedFiles,
                         displacedItems: displacedItems
                     )
+                    target.announceRestored(displacedItems.map(\.original))
                 } catch {
                     target.presentError(error)
                 }
@@ -206,6 +207,7 @@ extension FileOperationQueue {
                     for item in displacedItems.reversed() {
                         try Self.restoreLocalDisplacementSync(item)
                     }
+                    target.announceRestored(movedItems.map(\.source))
                 } catch {
                     target.presentError(error)
                 }
@@ -292,13 +294,7 @@ extension FileOperationQueue {
             undoManager.registerUndo(withTarget: self) { target in
                 do {
                     try target.restoreFromTrashSync(items: itemsToRestore)
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(
-                            name: FileOperationQueue.filesRestoredNotification,
-                            object: nil,
-                            userInfo: ["urls": originalURLs]
-                        )
-                    }
+                    target.announceRestored(originalURLs)
                     undoManager.registerUndo(withTarget: target) { target2 in
                         do {
                             try target2.recycleSync(items: originalURLs)
