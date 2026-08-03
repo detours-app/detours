@@ -32,8 +32,15 @@ Both are a no-op for a listing that has since navigated away from the destinatio
 - Drag and drop onto a folder row, onto a pane background, or onto the other pane
 - Drag and drop onto the path control, a tab, or a sidebar entry
 - Duplicate, archive creation, and archive extraction, whose result lands in the current directory
+- Undo and redo
 
-Undo and redo do not yet reveal what they restore: the queue holds no pane context when it reverses an operation.
+## Reversals
+
+Undo and redo run inside the operation queue with no calling pane, so they cannot name their own destination pane. Instead the queue announces the items a reversal put back and the directory holding them, and every window reveals them through `MainSplitViewController.revealOperationResults(...)`.
+
+Reversal is not symmetric, so the rule is: reveal when items appear somewhere, refresh when they only disappear. Undoing a move, a trash, a replace, a cross-host transfer, or a rename restores items and reveals them. Undoing a copy, a duplicate, or a new folder removes what was created and announces nothing, leaving the existing rule that picks a surviving neighbour after a deletion.
+
+A rollback that follows a failed operation deliberately stays silent: the user gets the error, not a selection change.
 
 ## Why it rides the refresh
 

@@ -96,6 +96,36 @@ final class UndoUITests: BaseUITest {
         XCTAssertGreaterThan(outlineRow(named: "file1.txt").frame.minY, outlineRow(named: "FolderD").frame.minY, "file1.txt should be restored at the root")
     }
 
+    func testUndoMoveRevealsTheRestoredFile() throws {
+        // Undo has no calling pane, so the reveal comes from the queue's
+        // announcement: the restored file ends up selected and focused.
+        XCTAssertTrue(waitForRow(named: "file1.txt", timeout: 2), "file1.txt should exist")
+
+        selectRow(named: "file1.txt")
+        usleep(300_000)
+        pressCharKey("x", modifiers: .command)
+        usleep(500_000)
+        selectRow(named: "FolderB")
+        usleep(300_000)
+        pressCharKey("v", modifiers: .command)
+        usleep(1_500_000)
+        XCTAssertTrue(waitForRow(named: "file1.txt", timeout: 3), "file1.txt should be visible in FolderB")
+
+        pressCharKey("z", modifiers: .command)
+
+        XCTAssertTrue(
+            waitForCondition(timeout: 10) {
+                guard let state = try? self.requestRemotePaneState(pane: "left") else { return false }
+                return state.selectedLocations.count == 1
+                    && state.selectedLocations.contains { $0.hasSuffix("/file1.txt") }
+                    && state.focus == "fileList"
+                    && !state.operationRunning
+            },
+            "Undo did not select the restored file; "
+                + "state=\(String(describing: try? requestRemotePaneState(pane: "left")))"
+        )
+    }
+
     func testUndoMenuLabel() throws {
         // Select FolderB and delete it
         selectRow(named: "FolderB")
