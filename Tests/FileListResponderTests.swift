@@ -128,7 +128,7 @@ final class FileListResponderTests: XCTestCase {
         XCTAssertFalse(viewController.tableView.isItemExpanded(folder))
 
         viewController.dataSource.markRemoteDirectoryStale(destination)
-        viewController.revealOperationResults([copied], in: destination)
+        viewController.revealOperationResults([copied], destination: destination)
 
         let selected = await waitForSelectedLocations([copied], in: viewController)
         XCTAssertTrue(selected)
