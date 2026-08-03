@@ -66,6 +66,7 @@ class BaseUITest: XCTestCase {
 
         // Wait for app to be ready
         XCTAssertTrue(window.existsOrWait(timeout: 5), "App window should exist")
+        XCTAssertTrue(waitForControlSeamReady(), "App never answered the control seam")
 
         // IMPORTANT: Activate the LEFT pane before creating tab
         // This ensures we create the tab in a predictable location
@@ -215,6 +216,20 @@ class BaseUITest: XCTestCase {
             pressCharKey("w", modifiers: .command)
             sleep(1)
         }
+    }
+
+    /// The app records the control commands already on disk when it installs its test
+    /// hooks, so a command written in the moment before that lands is treated as seen and
+    /// never executed. Round-trip one request, retrying with a fresh id, before any test
+    /// drives the seam.
+    private func waitForControlSeamReady(timeout: TimeInterval = 15) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if (try? requestRemotePaneState(pane: "left", timeout: 2)) != nil {
+                return true
+            }
+        } while Date() < deadline
+        return false
     }
 
     /// Drives a pane to the fixture root. The guarded runner nests that root under a
