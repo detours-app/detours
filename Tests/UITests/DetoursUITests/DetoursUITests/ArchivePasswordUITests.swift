@@ -56,15 +56,30 @@ final class ArchivePasswordUITests: BaseUITest {
     func testWrongPasswordShowsRetrySheet() throws {
         let archiveName = "ui-encrypted.zip"
         let payloadName = "ui-archive-secret.txt"
-        let archiveURL = uiTestRootURL.appendingPathComponent(archiveName)
         let payloadURL = uiTestRootURL.appendingPathComponent(payloadName)
-        addTeardownBlock {
-            try? FileManager.default.removeItem(at: archiveURL)
-            try? FileManager.default.removeItem(at: payloadURL)
+        // The runner cannot write into the guarded fixture root, so 7z builds the
+        // archive in the runner's own temporary directory and the app imports it.
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: staging) }
+        addTeardownBlock { [self] in
+            try? performFixtureMutation(action: "remove", relativePath: archiveName)
+            try? performFixtureMutation(action: "remove", relativePath: payloadName)
         }
-        try Data("UI archive secret".utf8).write(to: payloadURL)
-        try createEncryptedAESZip(archiveURL: archiveURL, payloadName: payloadName, password: "right-password")
-        try FileManager.default.removeItem(at: payloadURL)
+        let stagedArchive = staging.appendingPathComponent(archiveName)
+        try Data("UI archive secret".utf8).write(to: staging.appendingPathComponent(payloadName))
+        try createEncryptedAESZip(
+            archiveURL: stagedArchive,
+            payloadName: payloadName,
+            workingDirectory: staging,
+            password: "right-password"
+        )
+        try performFixtureMutation(
+            action: "importFile",
+            relativePath: archiveName,
+            contents: stagedArchive.path
+        )
         pressCharKey("r", modifiers: .command)
         XCTAssertTrue(waitForRow(named: archiveName, timeout: 3))
 
@@ -123,13 +138,18 @@ final class ArchivePasswordUITests: BaseUITest {
         app.buttons["archiveExtractionConfirmButton"].click()
     }
 
-    private func createEncryptedAESZip(archiveURL: URL, payloadName: String, password: String) throws {
+    private func createEncryptedAESZip(
+        archiveURL: URL,
+        payloadName: String,
+        workingDirectory: URL,
+        password: String
+    ) throws {
         let executable = ["/opt/homebrew/bin/7z", "/opt/homebrew/bin/7zz"]
             .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
         guard let executable else { throw XCTSkip("7z is unavailable") }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
-        process.currentDirectoryURL = uiTestRootURL
+        process.currentDirectoryURL = workingDirectory
         process.arguments = [
             "a", "-bd", "-y", "-tzip", "-mem=AES256", "-p\(password)",
             archiveURL.path, payloadName,

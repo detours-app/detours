@@ -26,6 +26,20 @@ enum UITestFixtureMutator {
             }
             let destination = try validatedURL(destinationPath, under: root, mayNotExist: true)
             try FileManager.default.moveItem(at: source, to: destination)
+        case "importFile":
+            // The XCUI runner is sandboxed and cannot write into the guarded root, so a
+            // fixture built with an external tool is produced in the runner's own temporary
+            // directory and imported here, inside the already-consented app. `contents`
+            // carries the absolute source path.
+            guard let externalPath = command.contents else { throw MutationError.missingContents }
+            let external = URL(fileURLWithPath: externalPath).standardizedFileURL
+            guard FileManager.default.fileExists(atPath: external.path) else {
+                throw MutationError.missingImportSource(external.path)
+            }
+            if FileManager.default.fileExists(atPath: source.path) {
+                try FileManager.default.removeItem(at: source)
+            }
+            try FileManager.default.copyItem(at: external, to: source)
         case "remove":
             try FileManager.default.removeItem(at: source)
         case "gitInit":
@@ -101,6 +115,7 @@ private enum MutationError: LocalizedError {
     case indirectPath(String)
     case missingContents
     case missingDestination
+    case missingImportSource(String)
     case unknownAction(String)
     case commandFailed(String, Int32, String)
 
@@ -114,6 +129,7 @@ private enum MutationError: LocalizedError {
         case .indirectPath(let path): "The fixture path contains an alias or symbolic link: " + path
         case .missingContents: "The fixture write has no contents."
         case .missingDestination: "The fixture move has no destination."
+        case .missingImportSource(let path): "The fixture import source does not exist: " + path
         case .unknownAction(let action): "Unknown fixture mutation action: " + action
         case .commandFailed(let command, let status, let detail):
             command + " exited " + String(status) + ": " + detail
