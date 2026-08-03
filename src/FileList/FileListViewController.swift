@@ -32,6 +32,9 @@ extension FileListNavigationDelegate {
     ) {
         fileListDidRequestRefreshSourceLocations(locations)
     }
+
+    /// Sent once an operation's results are selected in this listing.
+    func fileListDidRequestPaneActivation(_ controller: FileListViewController) {}
 }
 
 final class FileListViewController: NSViewController, FileListKeyHandling, QLPreviewPanelDataSource, QLPreviewPanelDelegate {

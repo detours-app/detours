@@ -167,22 +167,6 @@ extension FileListViewController {
         }
     }
 
-    /// Reveal the destination of an explicit copy or move. Unlike drag hover,
-    /// operation completion deliberately expands the chosen folder so the new
-    /// items are visible and selected.
-    func revealOperationResults(
-        _ locations: [Location],
-        in destination: Location,
-        completion: (() -> Void)? = nil
-    ) {
-        var policy = PaneRefreshResultPolicy()
-        policy.preferredResultLocations = Set(locations)
-        policy.expandTo = destination
-        policy.clearsFilterConcealingResults = true
-        policy.onApplied = completion
-        runResultReveal(policy)
-    }
-
     private func expandRemoteAncestorChain(to folderPath: String) async {
         guard case .remote(_, let currentRemotePath)? = currentRemoteLocation else { return }
         let baseURL = URL(fileURLWithPath: currentRemotePath).standardizedFileURL

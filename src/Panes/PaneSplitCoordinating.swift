@@ -12,6 +12,11 @@ protocol PaneSplitCoordinating: AnyObject {
     func refreshPanes(matching directories: Set<URL>)
     func refreshPanes(matching locations: Set<Location>)
     func refreshPanes(matching locations: Set<Location>, preferredResultLocations: Set<Location>)
+    func revealOperationResults(
+        _ results: [Location],
+        destination: Location,
+        affecting directories: Set<Location>
+    )
     func scheduleSaveSession()
     func retryRemoteConnection(for host: RemoteHost)
     func otherPane(from pane: PaneViewController) -> PaneViewController

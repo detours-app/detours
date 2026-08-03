@@ -218,23 +218,10 @@ extension MainSplitViewController {
                         destination: destination,
                         in: destinationPane
                     ) {
-                        let locationToExpand = destination == destinationList.currentDirectoryLocation
-                            ? nil
-                            : destination
-                        destinationList.refreshSelectingLocations(
+                        destinationList.revealOperationResults(
                             actualLocations,
-                            expandingTo: locationToExpand
-                        ) { [weak self] in
-                            guard let self,
-                                  self.isValidOperationTarget(
-                                    destinationList,
-                                    epoch: destinationEpoch,
-                                    destination: destination,
-                                    in: destinationPane
-                                  ) else { return }
-                            self.setActivePaneFromChild(destinationPane)
-                            self.view.window?.makeFirstResponder(destinationList.tableView)
-                        }
+                            destination: destination
+                        )
                     } else {
                         refreshPanes(matching: moveAffected)
                     }
@@ -303,23 +290,10 @@ extension MainSplitViewController {
                         destination: destination,
                         in: destinationPane
                     ) {
-                        let locationToExpand = destination == destinationList.currentDirectoryLocation
-                            ? nil
-                            : destination
-                        destinationList.refreshSelectingLocations(
+                        destinationList.revealOperationResults(
                             actualLocations,
-                            expandingTo: locationToExpand
-                        ) { [weak self] in
-                            guard let self,
-                                  self.isValidOperationTarget(
-                                    destinationList,
-                                    epoch: destinationEpoch,
-                                    destination: destination,
-                                    in: destinationPane
-                                  ) else { return }
-                            self.setActivePaneFromChild(destinationPane)
-                            self.view.window?.makeFirstResponder(destinationList.tableView)
-                        }
+                            destination: destination
+                        )
                     } else {
                         refreshPanes(matching: [destination])
                     }
@@ -426,6 +400,27 @@ extension MainSplitViewController {
 
     func refreshPanes(matching locations: Set<Location>, preferredResultLocations: Set<Location>) {
         refreshPanes(matching: locations, preferredResultLocations: preferredResultLocations, excluding: nil)
+    }
+
+    /// Reveal for operations started outside a file list (path control, tab, and
+    /// sidebar drops): the visible tab that can show the destination reveals it,
+    /// every other affected listing just refreshes.
+    func revealOperationResults(
+        _ results: [Location],
+        destination: Location,
+        affecting directories: Set<Location>
+    ) {
+        let visibleLists: [FileListViewController] = [activePane, otherPane(from: activePane)]
+            .compactMap { pane -> FileListViewController? in
+                pane.selectedTab?.fileListViewControllerIfLoaded
+            }
+        let revealingList = visibleLists.first { $0.canRevealDestination(destination) }
+        revealingList?.revealOperationResults(results, destination: destination)
+        refreshPanes(
+            matching: directories,
+            preferredResultLocations: Set(results),
+            excluding: revealingList
+        )
     }
 
     func refreshPanes(

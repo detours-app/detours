@@ -44,9 +44,6 @@ extension FileListViewController {
             if case .remote = location { return true }
             return false
         }
-        let currentLocation = currentRemoteLocation ?? currentDirectory.map(Location.local)
-        let locationToExpand = pasteDestination == currentLocation ? nil : pasteDestination
-
         Task { @MainActor in
             do {
                 let pastedLocations = try await PaneFileOperationCoordinator.shared.perform(
@@ -56,12 +53,10 @@ extension FileListViewController {
                 }
                 if currentRemoteLocation != nil {
                     requestRemoteMutationRefreshes(
-                        affectedDirectories: locationsToRefresh,
-                        preferredResultLocations: Set(pastedLocations)
+                        affectedDirectories: locationsToRefresh.subtracting([pasteDestination])
                     )
-                } else {
-                    refreshSelectingLocations(pastedLocations, expandingTo: locationToExpand)
                 }
+                revealOperationResults(pastedLocations, destination: pasteDestination)
                 // Refresh other pane if showing affected directories
                 if !localDirectoriesToRefresh.isEmpty {
                     navigationDelegate?.fileListDidRequestRefreshSourceDirectories(localDirectoriesToRefresh)

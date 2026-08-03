@@ -84,6 +84,13 @@ extension PaneViewController: FileListNavigationDelegate {
         scheduleSessionSave()
     }
 
+    func fileListDidRequestPaneActivation(_ controller: FileListViewController) {
+        // A background tab keeps its results selected but never steals focus.
+        guard selectedTab?.fileListViewControllerIfLoaded === controller else { return }
+        splitCoordinator?.setActivePaneFromChild(self)
+        view.window?.makeFirstResponder(controller.tableView)
+    }
+
     func fileListDidLoadDirectory(_ controller: FileListViewController) {
         invalidateStatusMetadata()
         // A remote tab's title comes from the remote path, which only changes

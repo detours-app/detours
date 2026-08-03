@@ -40,27 +40,14 @@ extension FileListViewController: FileListDropDelegate {
                 }
 
                 dataSource.invalidateGitStatus()
-                if currentDirectory != nil {
-                    let resultURLs = resultLocations.compactMap { location -> URL? in
-                        guard case .local(let url) = location else { return nil }
-                        return url
-                    }
-                    let locationToExpand = destination == currentDirectoryLocation
-                        ? nil
-                        : destination
-                    let folderToExpand: URL?
-                    if case .local(let url)? = locationToExpand {
-                        folderToExpand = url
-                    } else {
-                        folderToExpand = nil
-                    }
-                    refreshSelectingItems(at: resultURLs, expandingTo: folderToExpand)
-                } else {
+                if currentRemoteLocation != nil {
+                    // The destination is revealed below; the other affected
+                    // directories only need their listings brought up to date.
                     requestRemoteMutationRefreshes(
-                        affectedDirectories: affectedDirectories,
-                        preferredResultLocations: Set(resultLocations)
+                        affectedDirectories: affectedDirectories.subtracting([destination])
                     )
                 }
+                revealOperationResults(resultLocations, destination: destination)
                 navigationDelegate?.fileListDidRequestRefreshSourceLocations(
                     affectedDirectories,
                     preferredResultLocations: Set(resultLocations)

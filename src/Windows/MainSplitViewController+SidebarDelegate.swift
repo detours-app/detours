@@ -216,14 +216,17 @@ extension MainSplitViewController: SidebarDelegate {
         }
         Task { @MainActor in
             do {
-                try await PaneFileOperationCoordinator.shared.perform(affecting: affected) {
+                let results = try await PaneFileOperationCoordinator.shared.perform(affecting: affected) {
                     if isCopy {
-                        try await FileOperationQueue.shared.copy(items: urls, to: destination, undoManager: undoManager)
-                    } else {
-                        try await FileOperationQueue.shared.move(items: urls, to: destination, undoManager: undoManager)
+                        return try await FileOperationQueue.shared.copy(items: urls, to: destination, undoManager: undoManager)
                     }
+                    return try await FileOperationQueue.shared.move(items: urls, to: destination, undoManager: undoManager)
                 }
-                // Refresh affected panes
+                revealOperationResults(
+                    results.map(Location.local),
+                    destination: .local(destination.standardizedFileURL),
+                    affecting: affected
+                )
                 refreshAffectedPanes(sources: urls, destination: destination)
             } catch {
                 FileOperationQueue.shared.presentError(error)

@@ -344,24 +344,27 @@ extension PaneViewController: DroppablePathControlDelegate {
         directoriesToRefresh.insert(destination.standardizedFileURL)
         Task { @MainActor in
             do {
-                try await PaneFileOperationCoordinator.shared.perform(
+                let results = try await PaneFileOperationCoordinator.shared.perform(
                     affecting: Set(directoriesToRefresh.map(Location.local))
                 ) {
                     if isCopy {
-                        try await FileOperationQueue.shared.copy(
-                            items: urls,
-                            to: destination,
-                            undoManager: undoManager
-                        )
-                    } else {
-                        try await FileOperationQueue.shared.move(
+                        return try await FileOperationQueue.shared.copy(
                             items: urls,
                             to: destination,
                             undoManager: undoManager
                         )
                     }
+                    return try await FileOperationQueue.shared.move(
+                        items: urls,
+                        to: destination,
+                        undoManager: undoManager
+                    )
                 }
-                splitCoordinator?.refreshPanes(matching: directoriesToRefresh)
+                splitCoordinator?.revealOperationResults(
+                    results.map(Location.local),
+                    destination: .local(destination.standardizedFileURL),
+                    affecting: Set(directoriesToRefresh.map(Location.local))
+                )
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
