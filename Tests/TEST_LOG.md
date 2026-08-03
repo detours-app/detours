@@ -3049,6 +3049,30 @@ Spotlight search has no unit test (depends on the live, async-built system index
   protocol extension, so it dispatched statically to the no-op default and
   focus never moved. Declaring it as a protocol requirement fixed it.
 
+- 2026-08-03 17:00 CEST: Foundry verification PASS at `3550719` for the whole
+  suite, both halves, for the first time.
+  Full unit suite over SSH: `swift test` green, 964 tests across the XCTest and
+  swift-testing suites, exit 0.
+  Whole installed UI target: `installed-all LOCAL_ROOT` green, 96 tests, 89
+  passed, 0 failed, 7 skipped and named in the run output, followed by a clean
+  outside-root comparison, guarded cleanup and prompt sentry.
+  The seven skips are tests that declare an unmet precondition rather than
+  asserting against whatever root they are handed: the screenshot capture and
+  the mounted-volume sidebar test need the staged demo volumes, the live remote
+  and Windows classes need a remote target context, and the connection class
+  needs a live remote target or a mounted SMB root. All of them still run in
+  the contexts built for them.
+  Getting there took sixteen whole-target runs. Every failure was in the tests
+  or the harness, none in Detours: fixtures and control files written by a
+  sandboxed runner that may not write them, navigation that assumed the fixture
+  root sits in the home directory, a fixture tree that was never restored
+  between tests under a guarded root, a settings toggle left off by a failing
+  test, live-host and SMB assertions in a local run, a supervisor counting
+  heartbeats that a whole-target run never writes, a sentinel the app
+  overwrote so cleanup could not remove its own root, an undeclared variable
+  in the prompt guard, and finally a result check of mine that treated a
+  declared skip as a shortfall.
+
 - 2026-08-03 12:41 CEST: Foundry verification PASS at `2b55686` for the undo
   and redo half of the reveal contract (the operation queue announces what a
   reversal restored; each window reveals it like a forward operation).
