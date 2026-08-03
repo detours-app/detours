@@ -3015,3 +3015,21 @@ Spotlight search has no unit test (depends on the live, async-built system index
   `build.sh` on Foundry clean (build, install, relaunch). Guarded installed UI
   proof: `installed-smoke session LOCAL_ROOT` with
   `WindowPaneGeometryUITests/testLaunchHasNoWindowFrameJump` completed clean.
+
+- 2026-08-03 10:44 CEST: Foundry verification PASS at `9d1e681` for remote-pane
+  drag and drop (remote rows now start a real drag instead of extending the
+  selection; each dragged remote item carries its own location so any pane
+  accepts the drop).
+  `RemoteDragOutTests|FileListDragDropTests` 13 tests, 0 failures, covering the
+  folder drag source, per-item location payloads, the local token path, and the
+  corrected promise destination (a dragged remote file used to be written into
+  a folder of its own name).
+  Guarded installed UI proof: `installed-smoke activation LOCAL_ROOT` with
+  `SmokeTests/testAppLaunchesWithWindow` (launch clean) and with
+  `RemotePaneDragDropUITests/testDraggingRemoteFileOntoRemoteFolderMovesIt`,
+  which drags a file onto a folder in a remote pane and confirms it lands
+  there. Both completed clean with the expected "repetition markers not
+  checked" note. Two earlier iterations of the drag test failed at `26ff6b7`
+  and `2fd36a7` because the drag coordinates were resolved before selection
+  scrolled the row into view, so the press landed on the wrong row; resolving
+  both frames after the scroll fixed it.
