@@ -139,8 +139,22 @@ run_reset() {
         local parent sentinel
         for parent in "$LOCAL_PARENT" "$ICLOUD_PARENT"; do
             [[ -d "$parent" ]] || continue
+            local stale_root
             while IFS= read -r sentinel; do
-                "$guard_binary" remove --descriptor "$sentinel"
+                if "$guard_binary" remove --descriptor "$sentinel" 2>/dev/null; then
+                    continue
+                fi
+                # A root whose sentinel is the app's own marker was rebuilt by a UI test
+                # launch and can no longer be validated. It is still an exact child of the
+                # harness's own parent and still carries a Detours marker, so clear it
+                # rather than letting it block every later run.
+                stale_root="$(dirname "$sentinel")"
+                [[ "$(dirname "$stale_root")" == "$parent" ]] || \
+                    fail "run root is not an exact child of $parent: $stale_root"
+                [[ "$(head -c 64 "$sentinel")" == "detours-ui-test-root" ]] || \
+                    fail "run-root descriptor could not be decoded: $sentinel"
+                rm -rf -- "$stale_root"
+                printf 'qualification: cleared a stale UI-test root: %s\n' "$stale_root"
             done < <(find "$parent" -mindepth 2 -maxdepth 2 -type f -name '.detours-qualification-root.json' | sort)
         done
         run_cleanup
