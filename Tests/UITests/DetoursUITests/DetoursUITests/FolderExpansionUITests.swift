@@ -326,7 +326,9 @@ final class FolderExpansionUITests: BaseUITest {
     }
 
     private var renameCommandURL: URL {
-        uiTestRootURL.appendingPathComponent(renameCommandFileName)
+        // The app reads control files from its control directory, which is the runner's
+        // control root under the guarded runner and the fixture root elsewhere.
+        uiTestControlRootURL.appendingPathComponent(renameCommandFileName)
     }
 
     private func renameItemForUITest(relativePath: String, to newName: String) throws {
@@ -338,7 +340,7 @@ final class FolderExpansionUITests: BaseUITest {
         let data = try JSONEncoder().encode(command)
 
         try FileManager.default.createDirectory(
-            at: uiTestRootURL,
+            at: uiTestControlRootURL,
             withIntermediateDirectories: true
         )
         try data.write(to: renameCommandURL, options: .atomic)
@@ -368,24 +370,18 @@ final class FolderExpansionUITests: BaseUITest {
         uiTestRootURL.appendingPathComponent(relativePath)
     }
 
+    // Fixture changes cross the control-file seam and execute inside the app: the
+    // sandboxed runner cannot write into the guarded fixture root.
     private func createUITestDirectory(relativePath: String) throws {
-        try FileManager.default.createDirectory(
-            at: uiTestURL(relativePath: relativePath),
-            withIntermediateDirectories: true
-        )
+        try performFixtureMutation(action: "createDirectory", relativePath: relativePath)
     }
 
     private func writeUITestFile(relativePath: String, contents: String) throws {
-        let url = uiTestURL(relativePath: relativePath)
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try contents.write(to: url, atomically: true, encoding: .utf8)
+        try performFixtureMutation(action: "write", relativePath: relativePath, contents: contents)
     }
 
     private func removeUITestItem(relativePath: String) {
-        try? FileManager.default.removeItem(at: uiTestURL(relativePath: relativePath))
+        try? performFixtureMutation(action: "remove", relativePath: relativePath)
     }
 
     private func waitForRowToDisappear(named name: String, timeout: TimeInterval) -> Bool {

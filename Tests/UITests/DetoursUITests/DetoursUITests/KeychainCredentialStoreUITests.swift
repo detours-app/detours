@@ -11,7 +11,8 @@ final class KeychainCredentialStoreUITests: BaseUITest {
     }
 
     func testSignedAppSaveRetrieveIsolationAndDelete() throws {
-        let resultURL = uiTestRootURL.appendingPathComponent(".detours-keychain-lifecycle-result.json")
+        // The app writes this result through its control directory.
+        let resultURL = uiTestControlRootURL.appendingPathComponent(".detours-keychain-lifecycle-result.json")
         expectation(
             for: NSPredicate { _, _ in FileManager.default.fileExists(atPath: resultURL.path) },
             evaluatedWith: nil
