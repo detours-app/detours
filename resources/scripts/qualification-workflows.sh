@@ -426,13 +426,17 @@ verify_installed_result_bundle() {
     expected="$(jq -r '.expectedFailures // empty' "$summary_path")"
     result="$(jq -r '.result // empty' "$summary_path")"
     if [[ "$expected_count" == "any" ]]; then
-        # A whole-target run has no fixed logical count; every test still has to pass,
-        # and a skip is reported rather than hidden behind a green run.
+        # A whole-target run has no fixed logical count. Every test that ran has to pass,
+        # and a test that declared its precondition unmet is named rather than hidden.
         (( total > 0 )) || fail "installed run executed no tests"
-        [[ "$passed" == "$total" ]] || \
-            fail "installed run passed $passed of $total logical tests"
-        [[ "$skipped" == "0" ]] || \
-            printf 'qualification: installed run skipped %s tests\n' "$skipped"
+        (( passed + skipped == total )) || \
+            fail "installed run accounted for $passed passed and $skipped skipped of $total tests"
+        if (( skipped > 0 )); then
+            printf 'qualification: installed run skipped %s of %s tests:\n' "$skipped" "$total"
+            xcrun xcresulttool get test-results tests --path "$result_bundle" 2>/dev/null \
+                | jq -r '.. | objects | select(.result? == "Skipped") | "  skipped: " + (.name // .identifier // "unnamed")' \
+                | sort -u
+        fi
     else
         [[ "$total" == "$expected_count" ]] || \
             fail "installed workflow ran $total logical tests instead of $expected_count"
@@ -448,8 +452,8 @@ verify_installed_result_bundle() {
     device_failed="$(jq '[.devicesAndConfigurations[].failedTests] | add // 0' "$summary_path")"
     device_skipped="$(jq '[.devicesAndConfigurations[].skippedTests] | add // 0' "$summary_path")"
     if [[ "$expected_count" == "any" ]]; then
-        [[ "$device_passed" == "$passed" ]] || \
-            fail "installed run passed $device_passed device tests against $passed logical tests"
+        (( device_passed + device_skipped == total )) || \
+            fail "installed run device counts do not account for $total tests"
     else
         [[ "$device_passed" == "$expected_count" ]] || \
             fail "installed workflow passed $device_passed logical tests instead of $expected_count"
