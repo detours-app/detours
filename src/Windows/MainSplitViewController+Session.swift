@@ -156,11 +156,18 @@ extension MainSplitViewController {
     }
 
     private func resetUITestRootDirectory(_ root: URL) {
-        guard root.lastPathComponent.hasPrefix("DetoursUITests-Temp") else {
+        // Two shapes of UI-test root reach this: the app-created one, named by prefix, and
+        // a guarded qualification root, named by run id and identified by its sentinel.
+        // Both are restored to the standard tree on every launch, so one test's fixture
+        // changes cannot decide whether a later test in the same run passes.
+        let fm = FileManager.default
+        let sentinel = root.appendingPathComponent(".detours-qualification-root.json")
+        let isAppCreatedRoot = root.lastPathComponent.hasPrefix("DetoursUITests-Temp")
+        let isGuardedRoot = fm.fileExists(atPath: sentinel.path)
+        guard isAppCreatedRoot || isGuardedRoot else {
             return
         }
 
-        let fm = FileManager.default
         try? fm.removeItem(at: root)
 
         // The installed-test fixture mutator uses the same fail-closed root
