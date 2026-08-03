@@ -51,13 +51,19 @@ final class RemotePaneDragDropUITests: BaseUITest {
                 + "selected=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.selectedLocations))"
         )
 
+        // The reveal contract: the destination expands, the moved item is
+        // selected, and the destination pane is active with its list focused.
         XCTAssertTrue(
             waitForCondition(timeout: 10) {
                 guard let state = try? self.requestRemotePaneState(pane: "left") else { return false }
-                return !state.visibleLocations.contains { $0.hasSuffix("/file1.txt") }
+                return state.expandedLocations.contains { $0.hasSuffix("/FolderC") }
+                    && state.selectedLocations == ["/FolderC/file1.txt"]
+                    && state.activePane
+                    && state.focus == "fileList"
                     && !state.operationRunning
             },
-            "The dragged file never left the source listing"
+            "The drop did not expand the destination and select the moved file; "
+                + "state=\(String(describing: try? requestRemotePaneState(pane: "left")))"
         )
     }
 }
