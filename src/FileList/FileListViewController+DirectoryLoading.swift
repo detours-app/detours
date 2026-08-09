@@ -40,13 +40,17 @@ extension FileListViewController {
     /// navigation paths clear it through their existing state handling.
     private func submitManualRefreshes(root: Location) {
         showLoadingIndicator()
-        for directory in materializedListingDirectories() where directory != root {
+        let started = RemoteTimingLog.start()
+        let extraDirectories = materializedListingDirectories().filter { $0 != root }
+        RemoteTimingLog.mark("manual-refresh begin", "extra-directories=\(extraDirectories.count)")
+        for directory in extraDirectories {
             refreshScheduler.submitListingRefresh(directory: directory, cause: .manual)
         }
         refreshScheduler.submitListingRefresh(
             directory: root,
             cause: .manual,
             completion: { [weak self] in
+                RemoteTimingLog.mark("manual-refresh end", since: started)
                 self?.hideLoadingIndicator()
             }
         )

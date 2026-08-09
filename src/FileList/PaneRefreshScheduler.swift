@@ -328,13 +328,22 @@ final class PaneRefreshScheduler {
 
         Task { @MainActor [weak self] in
             guard let self else { return }
+            let started = RemoteTimingLog.start()
+            RemoteTimingLog.mark("fetch begin", "dir=\(directory.path)")
             let result: Result<[LoadedFileEntry], any Error>
             do {
                 result = .success(try await dependencies.fetch(request))
             } catch {
                 result = .failure(error)
             }
+            RemoteTimingLog.mark(
+                "fetch end",
+                since: started,
+                "dir=\(directory.path) entries=\((try? result.get().count) ?? -1)"
+            )
+            let applyStarted = RemoteTimingLog.start()
             self.finishFetch(request: request, result: result)
+            RemoteTimingLog.mark("apply end", since: applyStarted, "dir=\(directory.path)")
         }
     }
 

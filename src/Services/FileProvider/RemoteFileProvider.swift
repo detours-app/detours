@@ -54,6 +54,8 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
     }
 
     func send(_ message: RPCMessage) async throws -> [Data] {
+        let started = RemoteTimingLog.start()
+        defer { RemoteTimingLog.mark("rpc", since: started, "type=\(message.messageType)") }
         let requestID = nextRequestID
         nextRequestID += 1
 
@@ -72,7 +74,9 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
                 Task {
                     do {
                         try await connection.send(envelope)
+                        RemoteTimingLog.mark("rpc written", since: started, "type=\(message.messageType)")
                         await self.startReaderIfNeeded()
+                        RemoteTimingLog.mark("rpc reader ready", since: started, "type=\(message.messageType)")
                     } catch {
                         self.failResponse(id: requestID, error: error)
                     }
