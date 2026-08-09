@@ -74,15 +74,20 @@ extension FileListViewController {
     /// every branch that has ever been opened meant a refresh paid for
     /// directories nobody was looking at. Over a remote host that is a round
     /// trip each, so a pane with a few remembered folders spent most of a
-    /// refresh on invisible ones. Collapsed branches are marked stale instead
-    /// and re-list when they are next opened, which is what a mutation refresh
-    /// already does.
+    /// refresh on invisible ones. A collapsed remote branch is marked stale
+    /// instead and re-lists when it is next opened, which is what a mutation
+    /// refresh already does.
+    ///
+    /// Local branches keep being refreshed while collapsed. They have no
+    /// equivalent staleness mark, so skipping one would leave it showing what
+    /// it held before the refresh when it is opened again, and a local listing
+    /// costs no round trip anyway.
     func materializedListingDirectories() -> [Location] {
         guard let root = currentRemoteLocation ?? currentDirectory.map(Location.local) else { return [] }
         var directories = [PaneRefreshScheduler.normalizedDirectory(root)]
         func collect(_ items: [FileItem]) {
             for item in items where item.children != nil {
-                guard tableView.isItemExpanded(item) else {
+                if item.isRemote, !tableView.isItemExpanded(item) {
                     dataSource.markRemoteDirectoryStale(item.location)
                     continue
                 }
