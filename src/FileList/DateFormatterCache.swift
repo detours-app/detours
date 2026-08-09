@@ -26,8 +26,13 @@ final class DateFormatterCache: @unchecked Sendable {
         }
     }
 
+    /// Formatting happens while the lock is held so a shared `DateFormatter` is
+    /// never handed to two callers at once. Rows are formatted on the main
+    /// thread, so nothing contends for it in practice.
     func string(for date: Date) -> String {
-        formatter(for: date).string(from: date)
+        lock.lock()
+        defer { lock.unlock() }
+        return formatterLocked(for: date).string(from: date)
     }
 
     /// Drops the cached formatters so the next row picks up new date formats.
@@ -38,10 +43,7 @@ final class DateFormatterCache: @unchecked Sendable {
         otherYearsFormatter = nil
     }
 
-    private func formatter(for date: Date) -> DateFormatter {
-        lock.lock()
-        defer { lock.unlock() }
-
+    private func formatterLocked(for date: Date) -> DateFormatter {
         // Today's year is read each time rather than cached, so a session left
         // running across New Year keeps bucketing dates correctly. It is cheap
         // next to what this cache exists to avoid.
