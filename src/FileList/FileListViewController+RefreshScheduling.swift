@@ -173,15 +173,21 @@ extension FileListViewController {
             return PaneListingApplyOutcome()
         }
         let policy = snapshot.request.policy
+        let captureStarted = RemoteTimingLog.start()
         let paneState = capturePaneState()
+        RemoteTimingLog.mark("apply captured pane state", since: captureStarted)
+        let reconcileStarted = RemoteTimingLog.start()
         guard let reconciliation = dataSource.reconcileListingEntries(
             snapshot.entries,
             in: directory
         ) else {
             return PaneListingApplyOutcome(policyConsumed: false)
         }
+        RemoteTimingLog.mark("apply reconciled", since: reconcileStarted)
         hideRemoteRefreshError(for: directory)
+        let outlineStarted = RemoteTimingLog.start()
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
+        RemoteTimingLog.mark("apply outline", since: outlineStarted, "kind=\(applyKind)")
         if applyKind != .noop {
             recordQualificationListingMutation()
         }

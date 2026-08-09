@@ -354,10 +354,13 @@ actor RemoteFileProvider: FileProvider {
     }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
+        let started = RemoteTimingLog.start()
+        RemoteTimingLog.mark("list enter provider")
         var entries: [LoadedFileEntry] = []
         for try await chunk in listChunks(location, showHidden: showHidden) {
             entries.append(contentsOf: chunk)
         }
+        RemoteTimingLog.mark("list leave provider", since: started, "entries=\(entries.count)")
         return entries
     }
 
@@ -365,13 +368,16 @@ actor RemoteFileProvider: FileProvider {
         AsyncThrowingStream { continuation in
             Task {
                 do {
+                    let started = RemoteTimingLog.start()
                     let chunks = try await rpcClient.send(.list(path: remotePath(from: location), showHidden: showHidden))
+                    RemoteTimingLog.mark("list rpc returned", since: started)
                     for chunk in chunks {
                         let entries = try Self.decodeFileEntries(chunk).map { entry in
                             self.loadedEntry(entry)
                         }
                         continuation.yield(entries)
                     }
+                    RemoteTimingLog.mark("list decoded", since: started)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
