@@ -20,6 +20,14 @@ enum RemoteTimingLog {
         logger.debug("\(stage, privacy: .public) ms=\(start.elapsedMilliseconds, privacy: .public) \(detail, privacy: .public)")
     }
 
+    /// One line per user-initiated refresh, kept at notice level so the total is
+    /// readable afterwards without a debug stream attached. Streaming the debug
+    /// stages costs enough to distort the very timings being measured, so the
+    /// headline number has to survive on its own.
+    static func total(_ stage: String, since start: Timestamp, _ detail: String = "") {
+        logger.notice("\(stage, privacy: .public) ms=\(start.elapsedMilliseconds, privacy: .public) \(detail, privacy: .public)")
+    }
+
     static func start() -> Timestamp {
         Timestamp(nanoseconds: DispatchTime.now().uptimeNanoseconds)
     }

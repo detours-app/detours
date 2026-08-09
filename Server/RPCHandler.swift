@@ -5,7 +5,9 @@ enum ServerRPCError: Error, Equatable {
     case unsupportedCommand(String)
 }
 
-struct RPCHandler {
+/// Safe to serve from several queues at once: the file operations hold no
+/// mutable state, and the watcher guards its registries with its own lock.
+struct RPCHandler: @unchecked Sendable {
     private let fileOperations = FileOperations()
     private let watcher = Watcher()
 
@@ -35,45 +37,88 @@ struct RPCHandler {
         }
         defer { eventPump.stop() }
 
+        // Serving one request at a time made every client stall behind the
+        // slowest one: a folder size, an archive, or a git status in a large
+        // repository held up listings the user was waiting to see. Reads now run
+        // in parallel, while anything that changes the filesystem runs as a
+        // barrier so it still observes, and is observed by, the requests around
+        // it in the order the client sent them.
+        let workQueue = DispatchQueue(label: "com.detours.server.rpc", attributes: .concurrent)
+        defer { workQueue.sync(flags: .barrier) {} }
+
         while true {
             guard let frame = try Self.readFrame(from: .standardInput) else { return }
             let request = try ServerRPCEnvelope(encodedPayload: frame)
             guard request.kind == .request else { continue }
 
+            let message: ServerRPCMessage
             do {
-                let message = try ServerRPCMessage(binaryEncoded: request.payload)
-                if case .find(let query, let cap) = message {
-                    // Find streams results as they are discovered so the client can render
-                    // progressively; each batch is its own response envelope.
-                    try Self.streamFind(query: query, cap: cap, request: request, outputLock: outputLock)
-                    continue
-                }
-                let payloads = try handleChunks(message: message)
-                for (index, payload) in payloads.enumerated() {
-                    let response = ServerRPCEnvelope(
-                        id: request.id,
-                        kind: .response,
-                        messageType: request.messageType,
-                        sequence: UInt32(index),
-                        isFinal: index == payloads.count - 1,
-                        payload: payload
-                    )
-                    try Self.write(envelope: response, outputLock: outputLock)
-                }
+                message = try ServerRPCMessage(binaryEncoded: request.payload)
             } catch {
-                // A single request failing must not bring down the daemon: report it to the client
-                // as a per-request error envelope and keep serving the connection.
+                try Self.writeError(error, for: request, outputLock: outputLock)
+                continue
+            }
+
+            let work: @Sendable () -> Void = {
+                self.serve(message: message, request: request, outputLock: outputLock)
+            }
+            if Self.mutatesRemoteState(message) {
+                workQueue.async(flags: .barrier, execute: work)
+            } else {
+                workQueue.async(execute: work)
+            }
+        }
+    }
+
+    /// Whether a message changes remote state, and so must not overlap with the
+    /// requests before or after it.
+    private static func mutatesRemoteState(_ message: ServerRPCMessage) -> Bool {
+        switch message {
+        case .protocolVersion, .list, .stat, .readSymlink, .folderSize, .gitStatus, .fileVersion, .download, .find:
+            return false
+        case .copy, .move, .rename, .delete, .trash, .restoreFromTrash, .mkDir,
+             .archiveCreate, .archiveExtract, .upload, .watch, .unwatch:
+            return true
+        }
+    }
+
+    private func serve(message: ServerRPCMessage, request: ServerRPCEnvelope, outputLock: NSLock) {
+        do {
+            if case .find(let query, let cap) = message {
+                // Find streams results as they are discovered so the client can render
+                // progressively; each batch is its own response envelope.
+                try Self.streamFind(query: query, cap: cap, request: request, outputLock: outputLock)
+                return
+            }
+            let payloads = try handleChunks(message: message)
+            for (index, payload) in payloads.enumerated() {
                 let response = ServerRPCEnvelope(
                     id: request.id,
-                    kind: .error,
+                    kind: .response,
                     messageType: request.messageType,
-                    sequence: 0,
-                    isFinal: true,
-                    payload: Self.encodeError(error)
+                    sequence: UInt32(index),
+                    isFinal: index == payloads.count - 1,
+                    payload: payload
                 )
                 try Self.write(envelope: response, outputLock: outputLock)
             }
+        } catch {
+            // A single request failing must not bring down the daemon: report it to the client
+            // as a per-request error envelope and keep serving the connection.
+            try? Self.writeError(error, for: request, outputLock: outputLock)
         }
+    }
+
+    private static func writeError(_ error: Error, for request: ServerRPCEnvelope, outputLock: NSLock) throws {
+        let response = ServerRPCEnvelope(
+            id: request.id,
+            kind: .error,
+            messageType: request.messageType,
+            sequence: 0,
+            isFinal: true,
+            payload: Self.encodeError(error)
+        )
+        try Self.write(envelope: response, outputLock: outputLock)
     }
 
     func handle(command: String) throws -> String {

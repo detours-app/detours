@@ -42,8 +42,24 @@ struct GitOperations {
         }
     }
 
+    /// Answers the repository question from the filesystem instead of `git`.
+    ///
+    /// Every pane refresh asks for git status, and asking `git rev-parse` first
+    /// meant a process launch per refresh even for the common case of a
+    /// directory that is nowhere near a repository. Walking up for `.git` costs
+    /// a few `stat` calls, so a non-repository answers immediately and only a
+    /// real repository pays for `git` at all. A `.git` file (worktrees and
+    /// submodules) counts just as a directory does.
     private func isGitRepository(_ directory: String) -> Bool {
-        (try? runGit(arguments: ["rev-parse", "--is-inside-work-tree"], in: directory)) != nil
+        var candidate = URL(fileURLWithPath: directory, isDirectory: true).standardizedFileURL
+        while true {
+            if FileManager.default.fileExists(atPath: candidate.appendingPathComponent(".git").path) {
+                return true
+            }
+            let parent = candidate.deletingLastPathComponent().standardizedFileURL
+            if parent.path == candidate.path { return false }
+            candidate = parent
+        }
     }
 
     private func runGit(arguments: [String], in directory: String) throws -> String {

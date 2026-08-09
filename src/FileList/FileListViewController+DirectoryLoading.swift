@@ -50,7 +50,7 @@ extension FileListViewController {
             directory: root,
             cause: .manual,
             completion: { [weak self] in
-                RemoteTimingLog.mark("manual-refresh end", since: started)
+                RemoteTimingLog.total("manual-refresh end", since: started)
                 self?.hideLoadingIndicator()
             }
         )
