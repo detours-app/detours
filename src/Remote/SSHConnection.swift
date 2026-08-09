@@ -50,6 +50,7 @@ actor SSHConnection {
     private var activeWatchCount = 0
     private var disconnectedForIdle = false
     private var idleDisconnectTask: Task<Void, Never>?
+    private let readQueue = DispatchQueue(label: "com.detours.ssh.frame-read", qos: .userInitiated)
 
     private(set) var state: SSHConnectionState = .disconnected {
         didSet {
@@ -182,17 +183,33 @@ actor SSHConnection {
         scheduleIdleDisconnectIfNeeded()
     }
 
+    /// Waits for the next frame from the helper.
+    ///
+    /// The wait is a blocking pipe read, and it is outstanding for as long as
+    /// the connection is idle. Parked on a Swift concurrency executor it would
+    /// hold one of the pool's fixed number of threads for the life of the
+    /// connection, and enough connected hosts would leave the pool with nothing
+    /// left to run anything else. A dispatch queue grows threads when they
+    /// block, so the wait costs a thread rather than the app's ability to make
+    /// progress.
     func receive() async throws -> RPCEnvelope {
         guard let process, let stdoutPipe else {
             throw SSHConnectionError.notConnected
         }
 
         let output = stdoutPipe.fileHandleForReading
-        let frame = try await Task.detached(priority: .userInitiated) {
-            try withExtendedLifetime((process, stdoutPipe)) {
-                try Self.readFrame(from: output)
+        let queue = readQueue
+        let frame: Data = try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                withExtendedLifetime((process, stdoutPipe)) {
+                    do {
+                        continuation.resume(returning: try Self.readFrame(from: output))
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
             }
-        }.value
+        }
         return try RPCEnvelope(encodedPayload: frame)
     }
 

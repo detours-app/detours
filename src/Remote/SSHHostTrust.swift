@@ -90,20 +90,32 @@ struct SSHHostTrust: Sendable {
 
     @MainActor
     func scanHostKey(for sshTarget: String) async throws -> SSHScannedHostKey {
-        try await Task.detached(priority: .userInitiated) {
-            let endpoint = try Self.resolvedEndpoint(for: sshTarget)
-            let keyScan = try Self.run(
-                executable: "/usr/bin/ssh-keyscan",
-                arguments: ["-T", "8", "-p", endpoint.port, endpoint.hostname]
-            )
-            guard keyScan.status == 0 else {
-                throw SSHHostTrustError.keyScanFailed(keyScan.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
+        // The key scan waits up to eight seconds for an unresponsive host. That
+        // wait belongs on a dispatch queue, which grows threads when they block,
+        // rather than on a Swift concurrency executor, where several hosts
+        // scanning at once would consume the pool's fixed thread budget.
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let endpoint = try Self.resolvedEndpoint(for: sshTarget)
+                    let keyScan = try Self.run(
+                        executable: "/usr/bin/ssh-keyscan",
+                        arguments: ["-T", "8", "-p", endpoint.port, endpoint.hostname]
+                    )
+                    guard keyScan.status == 0 else {
+                        throw SSHHostTrustError.keyScanFailed(
+                            keyScan.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                        )
+                    }
+                    guard let scannedKey = Self.preferredHostKey(from: keyScan.stdout) else {
+                        throw SSHHostTrustError.noSupportedHostKey(sshTarget)
+                    }
+                    continuation.resume(returning: scannedKey)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
             }
-            guard let scannedKey = Self.preferredHostKey(from: keyScan.stdout) else {
-                throw SSHHostTrustError.noSupportedHostKey(sshTarget)
-            }
-            return scannedKey
-        }.value
+        }
     }
 
     func recordTrustedHostKey(_ hostKey: SSHScannedHostKey, hostID: UUID) throws {

@@ -303,25 +303,37 @@ extension MainSplitViewController {
         return initialPath
     }
 
+    /// Asks the host where the user's home directory is.
+    ///
+    /// Waiting on the ssh process runs on a dispatch queue rather than a Swift
+    /// concurrency executor: every saved host is warmed at launch, so several of
+    /// these waits overlap, and a slow host must not spend the concurrency
+    /// pool's fixed thread budget.
     private static func remoteHomeDirectory(sshTarget: String) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
-            let probe = RemoteHomeDirectoryProbe(sshTarget: sshTarget)
-            try probe.prepare()
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-            process.arguments = probe.arguments()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-            try process.run()
-            process.waitUntilExit()
-            return try probe.parse(
-                terminationStatus: process.terminationStatus,
-                stdout: outputPipe.fileHandleForReading.readDataToEndOfFile(),
-                stderr: errorPipe.fileHandleForReading.readDataToEndOfFile()
-            )
-        }.value
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let probe = RemoteHomeDirectoryProbe(sshTarget: sshTarget)
+                    try probe.prepare()
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+                    process.arguments = probe.arguments()
+                    let outputPipe = Pipe()
+                    let errorPipe = Pipe()
+                    process.standardOutput = outputPipe
+                    process.standardError = errorPipe
+                    try process.run()
+                    process.waitUntilExit()
+                    continuation.resume(returning: try probe.parse(
+                        terminationStatus: process.terminationStatus,
+                        stdout: outputPipe.fileHandleForReading.readDataToEndOfFile(),
+                        stderr: errorPipe.fileHandleForReading.readDataToEndOfFile()
+                    ))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     private static func detoursServerBinaryDirectoryURL() -> URL {
