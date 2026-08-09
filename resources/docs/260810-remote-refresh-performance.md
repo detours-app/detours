@@ -41,6 +41,8 @@ Three things explain the gap.
 
 **A refresh re-listed folders nobody could see.** A folder keeps its loaded contents after it is collapsed, and the refresh fanned out to every folder that had ever been opened. Over a remote host each of those is a round trip spent on something invisible.
 
+**Drawing a row rebuilt its date formatting from scratch.** The list asks every visible row for its formatted date on each redraw, and answering meant constructing a date formatter and decoding the whole settings blob out of stored preferences. A JSON parse plus one of Cocoa's most expensive constructions therefore sat on the path of drawing a single cell, paid once per visible row per redraw, and every refresh triggers a redraw. This one is not remote-specific: it slowed every listing.
+
 Separately, and not on the refresh path but affecting everything remote: the app's concurrency pool has one thread per processor and does not replace a thread that blocks. Waiting for the next frame from a helper is a blocking wait held for as long as a connection is idle, and it was parked on that pool, so every connected host permanently cost the app one of its threads. A standalone measurement on an eight-processor machine confirmed the consequence: eight such waits leave the pool unable to run anything at all, and fewer degrade it in proportion. The host key scan, which waits up to eight seconds on an unresponsive host, and the home directory probe, which every saved host runs at launch, sat on the same pool.
 
 ## What changed
@@ -49,6 +51,7 @@ Separately, and not on the refresh path but affecting everything remote: the app
 - The helper serves read-only requests in parallel, and runs anything that changes the filesystem as a barrier so mutations still observe, and are observed by, the requests around them in the order the client sent them.
 - A manual refresh re-lists the pane root and the folders actually on screen. Collapsed folders are marked stale and re-list when next opened, which is what a refresh after a file operation already did.
 - The frame wait, the host key scan, and the home directory probe wait on dispatch queues, which add threads when they block, matching what the host kind probe already did for the same reason.
+- Listing dates are formatted with reused machinery, rebuilt only when the user changes a date format.
 - Every stage of the remote listing pipeline reports its own timing, at a level that costs nothing until someone streams it, with the headline total of each user-initiated refresh recorded so it can be read back afterwards.
 
 To watch a refresh live:
@@ -63,7 +66,7 @@ Streaming the per-stage detail is itself expensive enough to distort the very ti
 
 Not yet verified end to end. The measurements above were taken before the changes; the run that would confirm them afterwards has not happened.
 
-The lab network went down partway through this work and has not returned: the Forgejo host, the whole Services VLAN including the Linux test host and the container build host, and finally Foundry itself all became unreachable. That blocks the test suite, the Linux helper rebuild, and the end-to-end re-measurement, all of which run on machines that are currently offline.
+The reason is scheduled, not a fault: the Proxmox host atticus sleeps from 00:00 to 06:00, and it carries Forgejo, the Linux test host, and the container build host. This work ran past midnight, so the git origin, the test target, and the helper build machine all went away together. They return at 06:00.
 
 What is confirmed: every target and the test target compile clean with no warnings, and the linter is clean.
 
@@ -73,6 +76,8 @@ What is outstanding, in order:
 2. Rebuild the Linux helper, which cross-builds through the container host, and redeploy it. **Until that happens the helper changes are not live on any remote host**, because hosts run the previously deployed binary.
 3. Re-measure a manual refresh against a live host and compare against the 262 to 333 ms recorded above.
 4. Build and install on Spectre, once the above is green.
+
+A one-shot job is scheduled for 06:23 to pick these up in order.
 
 ## Known remaining work
 
