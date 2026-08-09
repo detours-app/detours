@@ -67,11 +67,25 @@ extension FileListViewController {
         return dataSource.findItem(withLocation: normalized, in: dataSource.items) != nil
     }
 
+    /// The directories a manual refresh should re-list: the pane root plus the
+    /// branches the user can actually see.
+    ///
+    /// A folder keeps its loaded children after it is collapsed, so refreshing
+    /// every branch that has ever been opened meant a refresh paid for
+    /// directories nobody was looking at. Over a remote host that is a round
+    /// trip each, so a pane with a few remembered folders spent most of a
+    /// refresh on invisible ones. Collapsed branches are marked stale instead
+    /// and re-list when they are next opened, which is what a mutation refresh
+    /// already does.
     func materializedListingDirectories() -> [Location] {
         guard let root = currentRemoteLocation ?? currentDirectory.map(Location.local) else { return [] }
         var directories = [PaneRefreshScheduler.normalizedDirectory(root)]
         func collect(_ items: [FileItem]) {
             for item in items where item.children != nil {
+                guard tableView.isItemExpanded(item) else {
+                    dataSource.markRemoteDirectoryStale(item.location)
+                    continue
+                }
                 directories.append(PaneRefreshScheduler.normalizedDirectory(item.location))
                 if let children = item.children {
                     collect(children)

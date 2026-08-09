@@ -50,7 +50,7 @@ struct GitOperations {
     /// a few `stat` calls, so a non-repository answers immediately and only a
     /// real repository pays for `git` at all. A `.git` file (worktrees and
     /// submodules) counts just as a directory does.
-    private func isGitRepository(_ directory: String) -> Bool {
+    func isGitRepository(_ directory: String) -> Bool {
         var candidate = URL(fileURLWithPath: directory, isDirectory: true).standardizedFileURL
         while true {
             if FileManager.default.fileExists(atPath: candidate.appendingPathComponent(".git").path) {
