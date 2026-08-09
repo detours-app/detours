@@ -15,7 +15,9 @@ final class SettingsManager {
         }
     }
 
-    static let settingsDidChange = Notification.Name("SettingsManager.settingsDidChange")
+    /// Nonisolated so observers that are not on the main actor, such as the
+    /// listing date formatter cache, can subscribe without hopping.
+    nonisolated static let settingsDidChange = Notification.Name("SettingsManager.settingsDidChange")
 
     private let defaults = UserDefaults.standard
     private let settingsKey = "Detours.Settings"

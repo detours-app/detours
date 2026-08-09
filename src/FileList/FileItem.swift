@@ -314,26 +314,16 @@ final class FileItem {
         }
     }
 
+    /// The date as the list shows it.
+    ///
+    /// The table asks every visible row for this on every redraw, so it has to
+    /// be cheap. It used to build a `DateFormatter` and decode the entire
+    /// settings blob out of `UserDefaults` on each call, which put a JSON parse
+    /// and one of Cocoa's most expensive constructions on the path of drawing a
+    /// single cell. Both are now built once and reused until the user changes a
+    /// date format.
     var formattedDate: String {
-        let calendar = Calendar.current
-        let now = Date()
-        let formatter = DateFormatter()
-        let settings = Self.currentSettingsSnapshot()
-
-        if calendar.isDate(dateModified, equalTo: now, toGranularity: .year) {
-            formatter.dateFormat = settings.dateFormatCurrentYear
-        } else {
-            formatter.dateFormat = settings.dateFormatOtherYears
-        }
-        return formatter.string(from: dateModified)
-    }
-
-    private static func currentSettingsSnapshot() -> Settings {
-        guard let data = UserDefaults.standard.data(forKey: "Detours.Settings"),
-              let decoded = try? JSONDecoder().decode(Settings.self, from: data) else {
-            return Settings()
-        }
-        return decoded
+        DateFormatterCache.shared.string(for: dateModified)
     }
 
     // MARK: - Tree Operations
