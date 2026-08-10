@@ -26,6 +26,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Before anything opens a window: a pane holds a descriptor per watched
+        // directory, and the limit a GUI app inherits runs out sooner than a
+        // couple of expanded panes do.
+        FileDescriptorLimit.raiseSoftLimit()
+
         // Reduce tooltip delay from default ~1000ms to 200ms
         UserDefaults.standard.set(200, forKey: "NSInitialToolTipDelay")
 
