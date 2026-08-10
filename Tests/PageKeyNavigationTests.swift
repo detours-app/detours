@@ -29,6 +29,9 @@ final class PageKeyNavigationTests: XCTestCase {
             defer: false
         )
         window.contentViewController = controller
+        // Assigning a content view controller shrinks the window to the view's fitting size, which
+        // for the file list is a few points wide and zero high, so the size is restored afterwards.
+        window.setContentSize(NSSize(width: 800, height: 600))
         hostWindows.append(window)
         controller.loadViewIfNeeded()
 
@@ -44,6 +47,7 @@ final class PageKeyNavigationTests: XCTestCase {
         controller.loadDirectory(directory)
         wait(for: [loaded], timeout: 30)
         spy.onDidLoadDirectory = nil
+        window.layoutIfNeeded()
         controller.view.layoutSubtreeIfNeeded()
         controller.tableView.layoutSubtreeIfNeeded()
         return controller
