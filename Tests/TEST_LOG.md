@@ -548,6 +548,35 @@ Spotlight search has no unit test (depends on the live, async-built system index
 | RemoteWatcherPollFallbackTests (3 tests) | PASS | 0.187s | 2026-06-12 15:48:05 |
 | DarwinServerSmokeTests (2 tests, exercises rename/trash/restore decode changes) | PASS | 1.092s | 2026-06-12 15:48:22 |
 
+## Run 20260810 09:10
+
+### 2026-08-10 09:10 (Foundry, remote refresh proved four times faster)
+
+- The app now times its own refresh and publishes the figure with the counters
+  the tests read, so the measurement carries no observer cost. Earlier figures
+  were taken with a debug log stream attached because the app's log messages do
+  not persist on this machine; a like-for-like unobserved run confirmed the
+  stream was not the distortion.
+- Installed refresh workflow, `installed-smoke refresh LINUX_TARGET` against
+  `devtest`: **PASS**, manual refresh **274.2 and 306.8 ms before, 69.9 and
+  72.5 ms after**.
+- Root cause of the bulk of that: turning a remote path into a file URL without
+  declaring whether it is a directory makes the system stat the path, and for a
+  `/home` path that stat goes through the local automounter. Measured on
+  Foundry: **12.256 ms per conversion**, 0.002 ms once declared, 0.005 ms for a
+  path outside an automounted prefix. Paid once per listed entry.
+- Installed connection workflow, `installed-smoke connection LINUX_TARGET`:
+  **PASS**.
+- `swift test --filter FileOperationQueueTests` at this commit: 69 tests, 0
+  failures, three consecutive runs.
+- Full 922-test run: 9 failures, in two clusters, neither from this work.
+  Three archive tests fail identically at the starting commit `2c2402f` because
+  a guard shim at `/usr/local/bin/zip` on Foundry refuses ZipCrypto while the
+  tests expect `/usr/bin/zip`. Five fast-lane file-operation tests fail only
+  under full-suite parallel load; the class passes in isolation as above, and
+  the full suite at `2c2402f` fails eleven of its own, a different set. Both
+  clusters need their own fix and are recorded in the performance document.
+
 ## Run 20260810 06:30
 
 ### 2026-08-10 06:30 (Foundry -> devtest, remote helper performance)

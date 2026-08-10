@@ -33,13 +33,15 @@ The remote listing pipeline now reports the elapsed time of each of its stages, 
 | Asking the host for git status | 152 ms |
 | Reconciling the result into the outline | ~10 ms |
 
-Three things explain the gap.
+Four things explain the gap, and the largest was found last, after the first three had been fixed and measured without the total moving.
 
 **Asking whether a directory is a git repository launched git.** Every refresh asks the host for git status, and the check that runs first launched a `git` process purely to decide whether the directory was in a repository at all. For a directory nowhere near a repository, which is the ordinary case, that was the single most expensive call in the whole refresh, at 50 to 152 ms depending on the host.
 
 **The helper served one request at a time.** It read a request, handled it to completion, wrote the reply, and only then read the next one. So that git status did not merely cost its own time, it also held up every listing queued behind it. A refresh that touches several folders paid for them strictly one after another.
 
 **A refresh re-listed folders nobody could see.** A folder keeps its loaded contents after it is collapsed, and the refresh fanned out to every folder that had ever been opened. Over a remote host each of those is a round trip spent on something invisible.
+
+**Turning a remote path into a URL waited on the local automounter.** This was the big one. Building a file URL without saying whether the path is a directory makes the system stat the path to find out, and for a path beginning `/home`, which is where these hosts keep home directories, that stat goes through the local automounter. Measured on the test machine: **12.256 ms per conversion**, against 0.002 ms once the answer is supplied, and 0.005 ms for a path outside an automounted prefix. A listing paid it once per entry, which is exactly the ten milliseconds per entry seen between a reply arriving and its entries becoming usable. The URL was then thrown away, because a file item is built from the location rather than the URL.
 
 **Drawing a row rebuilt its date formatting from scratch.** The list asks every visible row for its formatted date on each redraw, and answering meant constructing a date formatter and decoding the whole settings blob out of stored preferences. A JSON parse plus one of Cocoa's most expensive constructions therefore sat on the path of drawing a single cell, paid once per visible row per redraw, and every refresh triggers a redraw. This one is not remote-specific: it slowed every listing.
 
@@ -52,6 +54,7 @@ Separately, and not on the refresh path but affecting everything remote: the app
 - A manual refresh re-lists the pane root and the folders actually on screen. Collapsed folders are marked stale and re-list when next opened, which is what a refresh after a file operation already did.
 - The frame wait, the host key scan, and the home directory probe wait on dispatch queues, which add threads when they block, matching what the host kind probe already did for the same reason.
 - Listing dates are formatted with reused machinery, rebuilt only when the user changes a date format.
+- Every conversion of a remote path to a URL goes through one place that declares whether the path is a directory instead of asking the filesystem, always as a non-directory so two URLs for the same remote path still compare equal.
 - Every stage of the remote listing pipeline reports its own timing, at a level that costs nothing until someone streams it, with the headline total of each user-initiated refresh recorded so it can be read back afterwards.
 
 To watch a refresh live:
@@ -64,45 +67,36 @@ Streaming the per-stage detail is itself expensive enough to distort the very ti
 
 ## Verification status
 
-The two helper-side changes are proved. The app-side ones are not.
-
-Measured from Foundry against the live Linux host `devtest`, comparing the previously deployed helper with the rebuilt one:
+Proved on Foundry against the live Linux host `devtest`, with the app timing its own refresh and publishing the figure alongside the counters the tests already read, so nothing was observing the measurement:
 
 | Measurement | Before | After |
 | --- | ---: | ---: |
+| A complete manual refresh, end to end | 274.2 and 306.8 ms | 69.9 and 72.5 ms |
 | Git status on a directory outside any repository | 51.65 ms | 0.94 ms |
+| Git status inside a repository | 152 ms | 102 ms |
 | Quick listing sent behind a slow folder size | waited for it | answered first, 4 of 4 runs |
+| Turning a remote `/home` path into a URL | 12.256 ms | 0.002 ms |
 
-That is a 55-fold reduction on the call every refresh makes, and the helper no longer serves one request at a time.
+The refresh is four times faster. Worth being precise about the order this was found in: the helper fixes are real and measured, but on their own they did not move the end-to-end figure at all, because the cost they removed sits outside the window a refresh is measured over. Only the automounter finding moved it.
 
-The app-side changes were then proved on Foundry too. The git origin never came back, so the changed sources were staged onto Foundry as a temporary copy and reconciled afterwards by restoring the tree, which is the route the project instructions allow for staging:
+Suites, all on Foundry:
 
 | Suite | Result |
 | --- | --- |
 | Server, git detection, file item | 40 tests, 0 failures |
 | Refresh scheduler, remote listing, reconcile | 46 tests, 0 failures |
 | Live remote integration against `devtest` | 37 tests, 0 failures |
+| Installed refresh workflow against `devtest` | passed |
+| Installed connection workflow against `devtest` | passed |
 | Signed build launched on Foundry | alive after 12 s, zero crash reports |
 
-The skips were the helper concurrency case, which needs Rosetta on that host and was proved directly against the Linux helper instead, and the Intel Mac cases, which Foundry has no route to.
+Two clusters fail in a full 922-test run and neither comes from this work:
 
-One thing is still missing, and it is a measurement rather than a safety check: the end-to-end Cmd-R wall-clock to set against the 262 to 333 ms recorded before. Foundry's console locked after its overnight cycle, and the qualification runner refuses to drive the installed-app UI against a locked screen. Unlocking it needs someone at the machine. The two costs that dominated that figure are measured above, so the composite number is expected to fall sharply, but it is not measured and should not be quoted until it is.
-
-Two things got in the way, in sequence. The Proxmox host atticus sleeps from 00:00 to 06:00 and carries Forgejo, the Linux test host, and the container build host, so working past midnight took the git origin, the test target, and the helper build machine away together. They came back at 06:03.
-
-Forgejo did not. The VM reboots out of that sleep window rather than resuming, and `forgejo.service` is `disabled`, with no `multi-user.target.wants` link, so it does not start with the machine. That is worth fixing on the infrastructure side: the git server is down every morning until someone starts it by hand. It could not be started from here, as there is no passwordless sudo on alcazar and Doppler needs Marco present for Touch ID.
-
-What is confirmed: every target and the test target compile clean with no warnings, and the linter is clean.
-
-The build is installed on Spectre and running, and it carries the rebuilt Linux helper, so the next time it connects to `kali-vienna` the helper fixes deploy there too.
-
-What is outstanding:
-
-1. Start `forgejo.service` on alcazar and enable it, so the git origin survives the nightly sleep window. Until then these commits cannot be pushed, and Foundry sits at the commit before them.
-2. Unlock Foundry's console and run the guarded installed-app refresh workflow to get the end-to-end figure.
+- Three archive tests fail identically on the commit this work started from. A guard shim at `/usr/local/bin/zip` on Foundry refuses Info-ZIP's ZipCrypto and the tests expect `/usr/bin/zip`. That is the machine, not the app, and it is worth resolving so the suite reads clean.
+- Five fast-lane file-operation tests fail only under full-suite parallel load. The class passes 69 of 69 three times in isolation on this commit, and the full suite on the starting commit fails eleven tests of its own, a different set. Those assertions are load-sensitive rather than wrong, and the flakiness deserves its own look.
 
 ## Known remaining work
 
-File transfers do their blocking reads directly on a concurrency pool thread, holding it for the duration of the transfer. This is the same defect as the three that were fixed and would make the whole app sluggish while copying, but it is off the refresh path and was left alone rather than adding an unverifiable change.
+Reconciling a listing into the outline costs about 10 ms regardless of how few entries it holds. It is no longer the dominant cost, but it is still more than it should be for a handful of rows, and it was not investigated.
 
-Reconciling a listing into the outline costs about 10 ms regardless of how few entries it holds, which is more than it should be and was not investigated.
+The `zip` guard shim on Foundry and the load-sensitive fast-lane assertions above both keep a full suite run from reading clean, and both deserve their own fix.
