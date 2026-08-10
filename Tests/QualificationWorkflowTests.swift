@@ -9,24 +9,49 @@ final class QualificationWorkflowTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// One pass unless a caller asks for more. The qualification runner always
+    /// states what it wants; a plain test run gets a single pass so the
+    /// workflow is still exercised without turning the suite into a campaign.
     private var repetitions: Int {
-        Int(ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REPETITIONS"] ?? "") ?? 100
+        Int(ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REPETITIONS"] ?? "") ?? 1
     }
 
     private var seed: UInt64 {
         UInt64(ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_SEED"] ?? "") ?? 0
     }
 
+    /// The volumes to exercise the workflow across.
+    ///
+    /// The qualification runner mounts an APFS volume, an iCloud folder and an
+    /// SMB share and names them, so a full run covers every kind of volume
+    /// Detours has to work on. A plain test run has none of that, and skipping
+    /// on that basis meant these workflows never ran outside the runner, which
+    /// is how a workflow stays broken between campaigns. Whatever roots are
+    /// named get used, and an ordinary temporary directory stands in when none
+    /// are, so the workflow is always exercised and merely covers more ground
+    /// under the runner.
     private func qualificationRoots() throws -> [URL] {
-        try ["LOCAL_ROOT", "APFS_ROOT", "ICLOUD_ROOT", "SMB_ROOT"].map { key in
-            // Only the qualification runner mounts these roots and exports them. A bare
-            // `swift test` has no such fixtures, so this is out of scope for that run
-            // rather than a failure of the workflow under test.
-            guard let value = ProcessInfo.processInfo.environment[key] else {
-                throw XCTSkip("\(key) is exported by the qualification runner; run this through resources/scripts/qualification-foundry.sh")
-            }
-            return URL(fileURLWithPath: value, isDirectory: true)
+        let named = ["LOCAL_ROOT", "APFS_ROOT", "ICLOUD_ROOT", "SMB_ROOT"]
+            .compactMap { ProcessInfo.processInfo.environment[$0] }
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+        guard named.isEmpty else { return named }
+        let fallback = try createTempDirectory()
+        temporaryRoots.append(fallback)
+        return [fallback]
+    }
+
+    private var temporaryRoots: [URL] {
+        get { Self.createdRoots }
+        set { Self.createdRoots = newValue }
+    }
+
+    private static var createdRoots: [URL] = []
+
+    override func tearDownWithError() throws {
+        for root in Self.createdRoots {
+            cleanupTempDirectory(root)
         }
+        Self.createdRoots.removeAll()
     }
 
     func testActivationWorkflow() throws {
