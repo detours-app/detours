@@ -309,7 +309,11 @@ final class ServerArchiveOperationsTests: XCTestCase {
         // Info-ZIP can only offer ZipCrypto, which is broken encryption.
         // Asserting the basename, not an absolute path: which copy of a tool
         // PATH resolves to is a property of the machine, not of this code.
-        XCTAssertEqual((invocation.value?.executable as NSString?)?.lastPathComponent, "7z")
+        // 7-Zip is `7zz` from its own project and `7z` from p7zip; either is fine.
+        XCTAssertTrue(
+            ["7z", "7zz"].contains((invocation.value?.executable as NSString?)?.lastPathComponent ?? ""),
+            "expected a 7-Zip binary, got \(invocation.value?.executable ?? "nil")"
+        )
         XCTAssertEqual(Array((invocation.value?.arguments ?? []).prefix(3)), ["a", "-tzip", "-mem=AES256"])
         XCTAssertEqual(invocation.value?.password, "secret")
         XCTAssertFalse(invocation.value?.arguments.contains(where: { $0.contains("secret") }) ?? true)

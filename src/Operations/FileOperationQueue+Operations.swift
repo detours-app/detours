@@ -13,19 +13,21 @@ extension FileOperationQueue {
 
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
+
+        let protectedScope = items + [destination]
+        enterProtectedPaths(protectedScope)
+        defer { leaveProtectedPaths(protectedScope) }
         #if DEBUG
-        // Held here rather than deeper in the copy so it applies whatever the
-        // sources are: a directory copy takes a different route through the
-        // file work than a single file does.
+        // Held after the protected paths are claimed and before any file work,
+        // so a test sees exactly what a copy in flight looks like: the
+        // operation announced, its paths defended, nothing copied yet. Placed
+        // here rather than deeper in the file work because a directory copy
+        // takes a different route through that than a single file does.
         if let gate = heavyOperationGateForTesting {
             heavyOperationGateForTesting = nil
             await gate()
         }
         #endif
-
-        let protectedScope = items + [destination]
-        enterProtectedPaths(protectedScope)
-        defer { leaveProtectedPaths(protectedScope) }
 
         let fileManager = FileManager.default
         var failures: [(URL, Error)] = []

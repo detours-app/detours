@@ -241,10 +241,16 @@ extension FileOperationQueueTests {
         let heavyTask = await startHeldHeavyCopy(source: heavySrc, destination: heavyDst)
         XCTAssertNotNil(queue.currentOperation)
 
-        // Rename a file inside the heavy source — overlaps protected paths
-        _ = try await queue.rename(item: innerFile, to: "renamed.txt")
+        // Renaming a file inside the copy's own tree overlaps its protected
+        // paths, so it must queue behind it rather than skip ahead on the quick
+        // lane. Started without waiting, because waiting for something that is
+        // supposed to queue behind a held operation would wait forever.
+        let renameTask = Task { try? await queue.rename(item: innerFile, to: "renamed.txt") }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(startedOps.count, 1, "Overlapping rename must not start while the copy holds the lane")
 
         _ = await heavyTask.value
+        _ = await renameTask.value
 
         XCTAssertEqual(startedOps.count, 2, "Overlapping rename must run on heavy lane (copy + rename)")
     }

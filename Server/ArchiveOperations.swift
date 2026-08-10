@@ -304,7 +304,9 @@ struct ArchiveOperations {
             // password goes over the pty, never into process arguments.
             return PtyProcessInvocation(
                 executable: tools["7z"]!,
-                arguments: ["a", "-tzip", "-mem=AES256", "-bsp2", "-p", destination.path]
+                // No progress switch here: 7-Zip redraws progress over the
+                // password prompt, and the prompt has to stay legible.
+                arguments: ["a", "-tzip", "-mem=AES256", "-p", destination.path]
                     + layout.relativePaths,
                 currentDirectory: layout.workingDirectory,
                 password: password,

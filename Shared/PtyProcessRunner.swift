@@ -374,11 +374,21 @@ public struct PtyProcessRunner: Sendable {
         return reachedEnd
     }
 
+    /// Whether the tool is currently asking for a password.
+    ///
+    /// The last non-empty line is the one to read. Tools that draw progress
+    /// emit carriage returns and blank redraws after the prompt, so insisting
+    /// on the very last segment meant a prompt that was plainly on screen went
+    /// unanswered until the run timed out.
     private func containsPasswordPrompt(_ bytes: [UInt8]) -> Bool {
         guard let text = String(bytes: bytes, encoding: .utf8) else { return false }
-        let line = text.split(omittingEmptySubsequences: false, whereSeparator: { $0 == "\n" || $0 == "\r" }).last ?? ""
-        let trimmed = String(line).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-        return trimmed.lowercased().contains("password") && trimmed.hasSuffix(":")
+        let segments = text.split(omittingEmptySubsequences: false, whereSeparator: { $0 == "\n" || $0 == "\r" })
+        for segment in segments.reversed() {
+            let trimmed = String(segment).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            return trimmed.lowercased().contains("password") && trimmed.hasSuffix(":")
+        }
+        return false
     }
 
     private func terminalEchoIsDisabled(_ descriptor: Int32) -> Bool {
