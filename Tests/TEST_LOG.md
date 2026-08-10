@@ -3259,3 +3259,22 @@ Spotlight search has no unit test (depends on the live, async-built system index
   which reports nothing until a window is on screen.
   Installed-app proof is a Foundry `build.sh` install and relaunch that came up
   and stayed up. No XCUI test was run for these changes.
+
+- 2026-08-10 16:52 CEST: Foundry verification PASS at `17bfe0f` for line
+  wrapping in previews becoming a Detours setting that survives moving to the
+  next file. `DetoursPreviewGeneratorTests` 18 tests, including wrapping on and
+  off, the retired in-preview control being absent, and the cached preview
+  identity changing with the setting so a file previewed once still picks up a
+  later change. Regression run of
+  `PreferencesTests|PageKeyNavigationTests|FileListResponderTests|ThemeTests`
+  totalling 113 tests, 0 failures, covering the saved settings the new value
+  travels with and the preview and key handling around it.
+  A test build also emitted four concurrency warnings about shared state in the
+  qualification workflow tests reached from teardown. They were not part of this
+  change, and they were fixed rather than left; the test build is now warning
+  free.
+  Installed-app proof is a Foundry `build.sh` install and relaunch that came up
+  and stayed up, which covers the menu and startup changes. Not covered by any
+  automated test: that Option-W reaches the preview while the preview window
+  has focus, and that the preview visibly redraws when it does. The preview is a
+  system window showing system-rendered content, so that pair needs a person.
