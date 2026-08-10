@@ -182,9 +182,15 @@ extension FileListViewController {
         case 119: // End
             selectLastItem()
             return true
+        case 116: // Page Up
+            moveSelectionByPage(down: false, extendSelection: modifiers.contains(.shift))
+            return true
+        case 121: // Page Down
+            moveSelectionByPage(down: true, extendSelection: modifiers.contains(.shift))
+            return true
         default:
             // Type-to-select: handle character keys
-            if let chars = event.characters, !chars.isEmpty && modifiers.isEmpty {
+            if let chars = event.characters, isTypeSelectInput(chars) && modifiers.isEmpty {
                 handleTypeSelect(chars)
                 return true
             }
@@ -260,6 +266,49 @@ extension FileListViewController {
             selectionAnchor = nil
             selectionCursor = nil
             let newRow = min(maxRow, selection.last! + 1)
+            tableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
+            tableView.scrollRowToVisible(newRow)
+        }
+    }
+
+    /// Rows that fit in the visible area, used as the paging step.
+    private var visibleRowCount: Int {
+        max(1, tableView.rows(in: tableView.visibleRect).length)
+    }
+
+    private func moveSelectionByPage(down: Bool, extendSelection: Bool) {
+        let rowCount = tableView.numberOfRows
+        guard rowCount > 0 else { return }
+        let maxRow = rowCount - 1
+
+        // Keep one row of overlap so the row you were reading stays on screen.
+        let step = max(1, visibleRowCount - 1)
+        let selection = tableView.selectedRowIndexes
+
+        guard !selection.isEmpty else {
+            let target = down ? 0 : maxRow
+            tableView.selectRowIndexes(IndexSet(integer: target), byExtendingSelection: false)
+            tableView.scrollRowToVisible(target)
+            return
+        }
+
+        if extendSelection {
+            // Set anchor and cursor on first shift-select
+            if selectionAnchor == nil {
+                selectionAnchor = tableView.selectedRow
+                selectionCursor = tableView.selectedRow
+            }
+            let anchor = selectionAnchor!
+            let newCursor = down ? min(maxRow, selectionCursor! + step) : max(0, selectionCursor! - step)
+            selectionCursor = newCursor
+            let range = min(anchor, newCursor)...max(anchor, newCursor)
+            tableView.selectRowIndexes(IndexSet(integersIn: range), byExtendingSelection: false)
+            tableView.scrollRowToVisible(newCursor)
+        } else {
+            selectionAnchor = nil
+            selectionCursor = nil
+            let base = down ? selection.last! : selection.first!
+            let newRow = down ? min(maxRow, base + step) : max(0, base - step)
             tableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
             tableView.scrollRowToVisible(newRow)
         }
@@ -376,6 +425,14 @@ extension FileListViewController {
     }
 
     // MARK: - Type-to-Select
+
+    /// Function keys (page keys, F1-F19, Help, Insert) arrive as private-use code points in
+    /// `characters`, so treating any non-empty string as typing swallowed them here and stopped
+    /// the outline view from ever seeing its own key bindings. Only real text is type-to-select.
+    private func isTypeSelectInput(_ chars: String) -> Bool {
+        guard let scalar = chars.unicodeScalars.first else { return false }
+        return !(0xF700...0xF8FF).contains(scalar.value)
+    }
 
     private func handleTypeSelect(_ chars: String) {
         typeSelectTimer?.invalidate()
