@@ -517,6 +517,17 @@ extension BaseUITest {
         postKeyEvent(keyCode: 53)
     }
 
+    /// Post Space as a real HID event without XCUITest's typeKey idle snapshot.
+    func postSpaceKeyEvent() {
+        postKeyEvent(keyCode: 49)
+    }
+
+    /// Post Down as a real HID event without XCUITest's typeKey idle snapshot, so a measurement
+    /// taken straight afterwards is not delayed until the app has finished reacting.
+    func postArrowDownKeyEvent() {
+        postKeyEvent(keyCode: 125)
+    }
+
     func chooseFileMenuItem(_ title: String, timeout: TimeInterval = 2) {
         let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
         XCTAssertTrue(fileMenu.exists, "File menu should exist")

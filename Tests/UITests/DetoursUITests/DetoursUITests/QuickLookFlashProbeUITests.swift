@@ -38,7 +38,7 @@ final class QuickLookFlashProbeUITests: BaseUITest {
         describeWindows(stage: "before-preview", label: label)
 
         // Space opens Quick Look.
-        pressKey(.space)
+        postSpaceKeyEvent()
         _ = waitForCondition(timeout: 10) { self.app.windows.count > windowsBefore }
         describeWindows(stage: "after-preview", label: label)
 
@@ -54,9 +54,11 @@ final class QuickLookFlashProbeUITests: BaseUITest {
         let baseline = sample(of: panel)
         print("PROBE \(label) baseline white=\(fmt(baseline.white)) luma=\(fmt(baseline.luma))")
 
-        // Down moves the list selection, which is what makes the panel show the next file.
+        // Down moves the list selection, which is what makes the panel show the next file. It is
+        // posted as a raw key event: the XCUITest typing call waits for the app to fall idle first,
+        // which does not return until the change being measured has already happened.
         let started = Date()
-        pressKey(.downArrow)
+        postArrowDownKeyEvent()
         var samples: [(elapsed: TimeInterval, white: Double, luma: Double)] = []
         for _ in 0..<framesAfterKey {
             let reading = sample(of: panel)
@@ -79,7 +81,7 @@ final class QuickLookFlashProbeUITests: BaseUITest {
         // Proves the panel really moved to the second file rather than sitting on the first.
         print("PROBE \(label) panelTextAfter=\(panelSummary(panel))")
 
-        pressKey(.escape)
+        postEscapeKeyEvent()
     }
 
     /// The preview panel carries its own title, while the file list window is titled after the app.
