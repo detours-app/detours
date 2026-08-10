@@ -359,8 +359,11 @@ extension FileListViewController {
     }
 
     func refreshQuickLookPanel() {
-        if detoursPreviewWindow?.isPresented == true {
+        if let previewWindow = detoursPreviewWindow, previewWindow.isPresented {
             clearRemoteQuickLookState()
+            // The wait starts here, not when the document is handed over: preparing a long file is
+            // part of what the reader is waiting through.
+            previewWindow.beginLoading()
             startLocalQuickLookGeneration(urls: selectedURLs, panel: QLPreviewPanel.shared())
             return
         }

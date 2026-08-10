@@ -20,7 +20,13 @@ final class DetoursPreviewWindowController: NSWindowController {
     weak var previewDelegate: DetoursPreviewWindowDelegate?
 
     private let webView: WKWebView
+    private let spinner = NSProgressIndicator()
     private var keyMonitor: Any?
+    private var spinnerDelay: Timer?
+
+    /// How long a preview may take before it is worth saying anything. Below this the file is on
+    /// screen almost at once, and a spinner appearing and vanishing again is just a flicker.
+    static let spinnerDelay: TimeInterval = 0.35
 
     var isPresented: Bool { window?.isVisible ?? false }
 
@@ -50,19 +56,28 @@ final class DetoursPreviewWindowController: NSWindowController {
         window.isRestorable = false
         window.tabbingMode = .disallowed
 
+        spinner.style = .spinning
+        spinner.controlSize = .large
+        spinner.isDisplayedWhenStopped = false
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+
         let container = BackgroundView(color: theme.background)
         container.addSubview(webView)
+        container.addSubview(spinner)
         webView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             webView.topAnchor.constraint(equalTo: container.topAnchor),
             webView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+            webView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            spinner.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: container.centerYAnchor)
         ])
         window.contentView = container
 
         super.init(window: window)
         window.delegate = self
+        webView.navigationDelegate = self
     }
 
     @available(*, unavailable)
@@ -73,6 +88,7 @@ final class DetoursPreviewWindowController: NSWindowController {
     func present(previewURL: URL, title: String, theme: Theme) {
         startWatchingKeys()
         applyTheme(theme)
+        beginLoading()
         window?.title = title
         load(previewURL: previewURL)
         if window?.isVisible != true {
@@ -85,6 +101,7 @@ final class DetoursPreviewWindowController: NSWindowController {
     /// file it already has until the next one has drawn, with no blank stage between them.
     func update(previewURL: URL, title: String, theme: Theme) {
         applyTheme(theme)
+        beginLoading()
         window?.title = title
         load(previewURL: previewURL)
     }
@@ -109,7 +126,34 @@ final class DetoursPreviewWindowController: NSWindowController {
         self.keyMonitor = nil
     }
 
+    /// Starts waiting on a preview. Covers both halves of the wait: preparing the file, and the
+    /// view reading it. Nothing is shown straight away, so a file that appears at once never
+    /// flashes a spinner.
+    func beginLoading() {
+        guard !isShowingSpinner else { return }
+        spinnerDelay?.invalidate()
+        spinnerDelay = Timer.scheduledTimer(withTimeInterval: Self.spinnerDelay, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.showSpinner() }
+        }
+    }
+
+    func endLoading() {
+        spinnerDelay?.invalidate()
+        spinnerDelay = nil
+        isShowingSpinner = false
+        spinner.stopAnimation(nil)
+    }
+
+    private(set) var isShowingSpinner = false
+
+    private func showSpinner() {
+        spinnerDelay = nil
+        isShowingSpinner = true
+        spinner.startAnimation(nil)
+    }
+
     func close(notifyingDelegate: Bool) {
+        endLoading()
         stopWatchingKeys()
         guard window?.isVisible == true else { return }
         if !notifyingDelegate {
@@ -125,6 +169,10 @@ final class DetoursPreviewWindowController: NSWindowController {
     }
 
     private func applyTheme(_ theme: Theme) {
+        // The spinner takes its contrast from the appearance of the view it sits in, and the theme
+        // can be dark while the system is light, so the container is told which it is.
+        let isDark = theme.background.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false
+        window?.contentView?.appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
         webView.underPageBackgroundColor = theme.background
         webView.layer?.backgroundColor = theme.background.cgColor
         window?.backgroundColor = theme.background
@@ -153,6 +201,20 @@ final class DetoursPreviewWindowController: NSWindowController {
         default:
             return false
         }
+    }
+}
+
+extension DetoursPreviewWindowController: WKNavigationDelegate {
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        endLoading()
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        endLoading()
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        endLoading()
     }
 }
 
