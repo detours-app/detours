@@ -76,8 +76,11 @@ final class QuickLookFlashProbeUITests: BaseUITest {
 
     /// The preview panel is a separate window of the same app, so it shows up alongside the main
     /// window rather than as part of it.
+    /// The preview panel carries its own title, while the file list window is titled after the app.
+    /// Picking by position instead measured the main window and produced a flat, meaningless read.
     private func previewPanel() -> XCUIElement {
-        app.windows.element(boundBy: max(0, app.windows.count - 1))
+        let panels = app.windows.allElementsBoundByIndex.filter { $0.title != "Detours" }
+        return panels.first ?? app.windows.element(boundBy: 0)
     }
 
     /// Records what windows the app actually has, so a probe that silently measured the wrong one
