@@ -14,9 +14,9 @@ final class QualificationProviderRefreshTests: XCTestCase {
         let namedRoots = ["LOCAL_ROOT", "APFS_ROOT", "ICLOUD_ROOT", "SMB_ROOT"]
             .compactMap { ProcessInfo.processInfo.environment[$0] }
             .map { URL(fileURLWithPath: $0, isDirectory: true) }
-        let fallbackRoot = namedRoots.isEmpty ? try createTempDirectory() : nil
-        defer { if let fallbackRoot { cleanupTempDirectory(fallbackRoot) } }
-        let roots = namedRoots.isEmpty ? [fallbackRoot!] : namedRoots
+        let created = namedRoots.isEmpty ? try makeTemporaryQualificationRoot() : nil
+        defer { if let created { cleanupTempDirectory(created.parent) } }
+        let roots = namedRoots.isEmpty ? [created!.root] : namedRoots
 
         for (index, root) in roots.enumerated() {
             let scenario = try makeScenario(index: index, root: root)

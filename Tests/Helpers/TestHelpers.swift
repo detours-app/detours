@@ -1,4 +1,5 @@
 import Foundation
+import QualificationSupport
 @testable import Detours
 
 func createTempDirectory() throws -> URL {
@@ -61,4 +62,17 @@ func resetSettingsForTests() {
     manager.favorites = defaultsSettings.favorites
     manager.gitStatusEnabled = defaultsSettings.gitStatusEnabled
     manager.clearAllCustomShortcuts()
+}
+
+/// Creates a qualification run root under a temporary parent.
+///
+/// The workflows operate on a run root, which carries a descriptor the
+/// machinery reads back and validates; a bare temporary directory is not one.
+/// This builds a real root so the workflows run wherever they are invoked, not
+/// only where the qualification runner has mounted its volumes.
+@MainActor
+func makeTemporaryQualificationRoot() throws -> (root: URL, parent: URL) {
+    let parent = try createTempDirectory()
+    let descriptor = try QualificationRunRootGuard().create(provider: .local, allowlistedParent: parent)
+    return (URL(fileURLWithPath: descriptor.rootPath, isDirectory: true), parent)
 }

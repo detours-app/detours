@@ -35,9 +35,9 @@ final class QualificationWorkflowTests: XCTestCase {
             .compactMap { ProcessInfo.processInfo.environment[$0] }
             .map { URL(fileURLWithPath: $0, isDirectory: true) }
         guard named.isEmpty else { return named }
-        let fallback = try createTempDirectory()
-        temporaryRoots.append(fallback)
-        return [fallback]
+        let created = try makeTemporaryQualificationRoot()
+        temporaryRoots.append(created.parent)
+        return [created.root]
     }
 
     private var temporaryRoots: [URL] {
