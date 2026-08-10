@@ -3290,3 +3290,19 @@ Spotlight search has no unit test (depends on the live, async-built system index
   the eye. The blanking was read directly from the code and is removed, but the
   preview is a system window and the remaining question of whether anything else
   paints between documents needs a person looking at it.
+
+- 2026-08-10 21:26 CEST: Foundry verification PASS at `7b29682` for previews of
+  files Detours renders appearing in a window Detours owns, and for the keys in
+  it. Guarded installed UI proof: `installed-smoke opening LOCAL_ROOT` with
+  `PreviewWindowUITests/testPreviewWindowOpensAndArrowKeysMoveThroughFiles`,
+  covering the window being Detours' own rather than the system panel, the arrow
+  keys moving to the next file and back, and escape closing it.
+  Two earlier runs of that test failed and both failures were real: the arrow
+  keys scrolled the file instead of moving through the list, because the web
+  view receives keys before the window does and consumes them. The test recorded
+  the list selection either side of the keypress, which showed the selection had
+  not moved at all and separated a key that never arrived from a preview that
+  failed to follow. Keys are now taken ahead of any window dispatch.
+  Not covered by any automated test: that no white is drawn to the eye. The
+  system panel's blank page is no longer in the path for these files, but the
+  visible result needs a person.
