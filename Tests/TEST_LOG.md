@@ -574,6 +574,38 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Doppler needs Marco present for Touch ID). Nothing was installed on Spectre
   as a result.
 
+### 2026-08-10 06:35 (Foundry, full suite plus launch check)
+
+- The git origin stayed down, so the changed sources were staged onto Foundry
+  as a temporary copy and reconciled afterwards by restoring the tree, which is
+  the route the project instructions allow for staging. Foundry was left clean
+  at `1fa0b54e`; a later push and fast-forward brings it to the same content.
+- `swift test --filter
+  'ServerGitDetectionTests|GitStatusTests|ServerOperationsTests|FileItemTests'`:
+  **40 tests, 0 failures**, 1 skipped (the helper concurrency case needs Rosetta
+  on this host; that behaviour was proved directly against the Linux helper
+  instead, recorded above).
+- `swift test --filter
+  'PaneRefreshSchedulerTests|PaneRefreshRemoteListingTests|RefreshArchitectureTests|RemoteWatcherClientTests|SSHConnectionStateTests|LocalReconcileTests'`:
+  **46 tests, 0 failures**.
+- `DETOURS_LINUX_TEST_TARGET=devtest swift test --filter RemoteIntegrationTests`:
+  **37 tests, 0 failures**, 7 skipped (all the Intel Mac cases; Foundry has no
+  route to the pentest VLAN where wraith lives).
+- Launch check: `build.sh --no-install` on Foundry, then the signed bundle
+  launched into the live console session. **Alive after 12 s, zero crash
+  reports.** This is the launch-crash guard the UI suite normally provides.
+- NOT RUN: the guarded installed-app refresh workflow and the end-to-end Cmd-R
+  wall-clock. Foundry's console is locked (`IOConsoleLocked` true) after its
+  overnight cycle, and the qualification runner refuses to drive XCUI against a
+  locked screen. Unlocking needs interactive access. This is a missing
+  measurement, not a missing safety check.
+
+### 2026-08-10 06:40 (Spectre — install-only delivery)
+
+- `resources/scripts/build.sh` on Spectre after the Foundry evidence above.
+  Installed to `/Applications/Detours.app`, relaunched, running with no crash
+  reports. Delivery only; no test, probe, or fixture ran on Spectre.
+
 ## Run 20260409 21:45
 
 - Started: 2026-04-09 21:45:44

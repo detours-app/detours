@@ -75,7 +75,18 @@ Measured from Foundry against the live Linux host `devtest`, comparing the previ
 
 That is a 55-fold reduction on the call every refresh makes, and the helper no longer serves one request at a time.
 
-The app-side changes, the refresh fan-out, the date formatting, and the three blocking waits, are verified only by compiling and linting. Proving them needs the changed source on Foundry, and the git origin is unavailable.
+The app-side changes were then proved on Foundry too. The git origin never came back, so the changed sources were staged onto Foundry as a temporary copy and reconciled afterwards by restoring the tree, which is the route the project instructions allow for staging:
+
+| Suite | Result |
+| --- | --- |
+| Server, git detection, file item | 40 tests, 0 failures |
+| Refresh scheduler, remote listing, reconcile | 46 tests, 0 failures |
+| Live remote integration against `devtest` | 37 tests, 0 failures |
+| Signed build launched on Foundry | alive after 12 s, zero crash reports |
+
+The skips were the helper concurrency case, which needs Rosetta on that host and was proved directly against the Linux helper instead, and the Intel Mac cases, which Foundry has no route to.
+
+One thing is still missing, and it is a measurement rather than a safety check: the end-to-end Cmd-R wall-clock to set against the 262 to 333 ms recorded before. Foundry's console locked after its overnight cycle, and the qualification runner refuses to drive the installed-app UI against a locked screen. Unlocking it needs someone at the machine. The two costs that dominated that figure are measured above, so the composite number is expected to fall sharply, but it is not measured and should not be quoted until it is.
 
 Two things got in the way, in sequence. The Proxmox host atticus sleeps from 00:00 to 06:00 and carries Forgejo, the Linux test host, and the container build host, so working past midnight took the git origin, the test target, and the helper build machine away together. They came back at 06:03.
 
@@ -83,14 +94,12 @@ Forgejo did not. The VM reboots out of that sleep window rather than resuming, a
 
 What is confirmed: every target and the test target compile clean with no warnings, and the linter is clean.
 
-What is outstanding, in order:
+The build is installed on Spectre and running, and it carries the rebuilt Linux helper, so the next time it connects to `kali-vienna` the helper fixes deploy there too.
 
-1. Start `forgejo.service` on alcazar and enable it, so the git origin survives the nightly sleep window.
-2. Push, then fast-forward Foundry, and run the test suite there, including the new coverage for repository detection and for a quick listing overtaking a slow request on the helper.
-3. Re-measure a manual refresh against a live host and compare against the 262 to 333 ms recorded above.
-4. Build and install on Spectre, once the above is green. **Until that happens the helper changes are not live on kali-vienna**, because the app deploys the helper it carries in its bundle.
+What is outstanding:
 
-The Linux helper itself is already rebuilt with the fixes, cross-built through the container host, and is what the measurements above were taken against.
+1. Start `forgejo.service` on alcazar and enable it, so the git origin survives the nightly sleep window. Until then these commits cannot be pushed, and Foundry sits at the commit before them.
+2. Unlock Foundry's console and run the guarded installed-app refresh workflow to get the end-to-end figure.
 
 ## Known remaining work
 
