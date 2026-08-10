@@ -139,6 +139,11 @@ final class SettingsManager {
         set { settings.foldersOnTop = newValue }
     }
 
+    var previewWrapLines: Bool {
+        get { settings.previewWrapLines }
+        set { settings.previewWrapLines = newValue }
+    }
+
     // MARK: - Git Settings
 
     var gitStatusEnabled: Bool {

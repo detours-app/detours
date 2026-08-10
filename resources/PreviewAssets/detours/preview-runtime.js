@@ -55,17 +55,6 @@
   }
 
   function bindToggles() {
-    var wrapToggle = document.getElementById("wrap-toggle");
-    if (wrapToggle) {
-      wrapToggle.addEventListener("click", function () {
-        document.body.classList.toggle("wrap-lines");
-        wrapToggle.setAttribute(
-          "aria-pressed",
-          document.body.classList.contains("wrap-lines") ? "true" : "false"
-        );
-      });
-    }
-
     var renderedToggle = document.getElementById("markdown-rendered-toggle");
     var sourceToggle = document.getElementById("markdown-source-toggle");
     var rendered = document.getElementById("rendered-markdown");

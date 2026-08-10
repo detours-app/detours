@@ -24,6 +24,12 @@ extension MainSplitViewController {
         activePane.toggleHiddenFiles()
     }
 
+    @objc func togglePreviewWrapLines(_ sender: Any?) {
+        // A preview already on screen was built with the previous setting baked into it, so it has
+        // to be regenerated for the change to show on the file being looked at.
+        activePane.selectedTab?.fileListViewController.refreshQuickLookPanel()
+    }
+
     @objc func quickOpen(_ sender: Any?) {
         showQuickNav()
     }

@@ -19,15 +19,13 @@ extension DetoursPreviewGenerator {
 
         return htmlDocument(
             title: request.displayName,
-            // Wrap starts on: long lines running off the right edge is the usual reason a preview
-            // is unreadable, and the panel gives no horizontal scrollbar worth using.
-            bodyClass: "source-preview wrap-lines",
-            controls: """
-            <input class="view-toggle-input" id="source-wrap-toggle" type="checkbox" checked>
-            """,
+            // Wrapping is owned by the app, not by a control inside the preview: the preview is
+            // drawn by the system and cannot report a click back, so an in-page toggle could never
+            // outlive the file being shown.
+            bodyClass: request.wrapLines ? "source-preview wrap-lines" : "source-preview",
             toolbar: """
             <span class="preview-title">\(Self.escapeHTML(request.displayName))</span>
-            <label class="view-toggle" id="wrap-toggle" for="source-wrap-toggle" aria-pressed="true">Wrap</label>
+            <span class="preview-hint">\(request.wrapLines ? "Wrapped" : "Not wrapped") &middot; \u{2325}W</span>
             """,
             body: """
             \(fallbackReason.map { "<div class=\"fallback-banner\">\(Self.escapeHTML($0))</div>" } ?? "")

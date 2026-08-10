@@ -29,6 +29,7 @@ extension FileListViewController {
         let generator = quickLookPreviewGenerator
         let theme = ThemeManager.shared.currentTheme
         let fontSize = ThemeManager.shared.fontSize
+        let wrapLines = SettingsManager.shared.previewWrapLines
         quickLookGenerationTask = Task { @MainActor in
             do {
                 var previews: [DetoursQuickLookItem] = []
@@ -40,7 +41,8 @@ extension FileListViewController {
                         displayName: url.lastPathComponent,
                         theme: theme,
                         fontSize: fontSize,
-                        context: .local
+                        context: .local,
+                        wrapLines: wrapLines
                     ))
                     previews.append(DetoursQuickLookItem(url: preview, title: url.lastPathComponent))
                 }
@@ -119,7 +121,8 @@ extension FileListViewController {
                     displayName: item.name,
                     theme: ThemeManager.shared.currentTheme,
                     fontSize: ThemeManager.shared.fontSize,
-                    context: .remote
+                    context: .remote,
+                    wrapLines: SettingsManager.shared.previewWrapLines
                 ))
                 try Task.checkCancellation()
                 guard remoteQuickLookRequestLocation == item.location else { return }
@@ -273,6 +276,16 @@ extension FileListViewController {
         // Handle arrow keys to navigate the file list while Quick Look is open
         if event.type == .keyDown {
             let keyCode = event.keyCode
+            // Option-W while previewing: the panel is in front, so the key is claimed here rather
+            // than left to the menu, and the preview is rebuilt with the new setting.
+            let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
+            if modifiers == .option, event.charactersIgnoringModifiers?.lowercased() == "w" {
+                MainActor.assumeIsolated {
+                    SettingsManager.shared.previewWrapLines.toggle()
+                    refreshQuickLookPanel()
+                }
+                return true
+            }
             // Up (126), Down (125) arrow keys - navigate selection
             if keyCode == 126 || keyCode == 125 {
                 MainActor.assumeIsolated {
@@ -316,7 +329,8 @@ extension FileListViewController {
             displayName: displayName,
             theme: ThemeManager.shared.currentTheme,
             fontSize: ThemeManager.shared.fontSize,
-            context: .remote
+            context: .remote,
+            wrapLines: SettingsManager.shared.previewWrapLines
         ))
         quickLookPreviewItems = [DetoursQuickLookItem(url: generated, title: displayName)]
     }

@@ -13,6 +13,7 @@ struct DetoursPreviewRequest {
     var theme: Theme
     var fontSize: CGFloat
     var context: DetoursPreviewContext
+    var wrapLines: Bool = true
 }
 
 struct DetoursPreviewLimits {
@@ -88,6 +89,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             kind.cacheComponent,
             themeIdentity(request.theme),
             "\(Int(request.fontSize.rounded()))",
+            request.wrapLines ? "wrap" : "nowrap",
             manifestVersion,
             request.context.rawValue
         ].joined(separator: "|")

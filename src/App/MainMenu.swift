@@ -240,6 +240,16 @@ func setupMainMenu(target: AppDelegate) {
     showStatusBarItem.image = NSImage(systemSymbolName: "menubar.rectangle", accessibilityDescription: nil)
     viewMenu.addItem(showStatusBarItem)
 
+    let wrapPreviewItem = NSMenuItem(
+        title: "Wrap Lines in Preview",
+        action: #selector(AppDelegate.togglePreviewWrapLines(_:)),
+        keyEquivalent: "w"
+    )
+    wrapPreviewItem.keyEquivalentModifierMask = [.option]
+    wrapPreviewItem.target = target
+    wrapPreviewItem.image = NSImage(systemSymbolName: "text.alignleft", accessibilityDescription: nil)
+    viewMenu.addItem(wrapPreviewItem)
+
     viewMenu.addItem(NSMenuItem.separator())
 
     let toggleSidebarItem = createDynamicMenuItem(

@@ -669,6 +669,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsManager.shared.showStatusBar.toggle()
     }
 
+    @objc func togglePreviewWrapLines(_ sender: Any?) {
+        SettingsManager.shared.previewWrapLines.toggle()
+        mainWindowController?.splitViewController.togglePreviewWrapLines(sender)
+    }
+
     @objc func toggleSidebar(_ sender: Any?) {
         mainWindowController?.splitViewController.toggleSidebar()
     }
@@ -725,6 +730,9 @@ extension AppDelegate: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleStatusBar(_:)) {
             menuItem.title = SettingsManager.shared.settings.showStatusBar ? "Hide Status Bar" : "Show Status Bar"
+        }
+        if menuItem.action == #selector(togglePreviewWrapLines(_:)) {
+            menuItem.state = SettingsManager.shared.previewWrapLines ? .on : .off
         }
         return true
     }

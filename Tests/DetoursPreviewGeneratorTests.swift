@@ -25,21 +25,41 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertFalse(html.contains("<script>alert(1)</script>"))
         XCTAssertTrue(html.contains("line-number\">1</td>"))
         XCTAssertTrue(html.contains("line-number\">2</td>"))
-        XCTAssertTrue(html.contains("id=\"source-wrap-toggle\" type=\"checkbox\""))
-        XCTAssertTrue(html.contains("id=\"wrap-toggle\" for=\"source-wrap-toggle\""))
     }
 
-    func testCodePreviewStartsWrapped() async throws {
+    func testCodePreviewWrapsWhenTheSettingIsOn() async throws {
         let source = try write("main.swift", "let value = \"hello\"\n")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "main.swift"))
         let html = try String(contentsOf: previewURL, encoding: .utf8)
 
-        // Both wrap mechanisms must start switched on together. The checkbox drives the styling on
-        // its own, and the runtime toggles the body class, so a disagreement here means the first
-        // click on Wrap cancels itself out and appears to do nothing.
-        XCTAssertTrue(html.contains("id=\"source-wrap-toggle\" type=\"checkbox\" checked"))
         XCTAssertTrue(html.contains("<body class=\"source-preview wrap-lines\">"))
-        XCTAssertTrue(html.contains("for=\"source-wrap-toggle\" aria-pressed=\"true\""))
+        XCTAssertTrue(html.contains("Wrapped"))
+        // Wrapping is owned by the app now, so nothing in the preview may offer to change it.
+        XCTAssertFalse(html.contains("source-wrap-toggle"))
+    }
+
+    func testCodePreviewDoesNotWrapWhenTheSettingIsOff() async throws {
+        let source = try write("main.swift", "let value = \"hello\"\n")
+        let previewURL = try await generator()
+            .previewURL(for: request(source, displayName: "main.swift", wrapLines: false))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("<body class=\"source-preview\">"))
+        XCTAssertTrue(html.contains("Not wrapped"))
+    }
+
+    func testWrapSettingChangesTheCachedPreviewIdentity() async throws {
+        let source = try write("main.swift", "let value = \"hello\"\n")
+        let generator = generator()
+        let wrapped = try generator.cacheKey(for: request(source, displayName: "main.swift"), kind: .sourceCode(language: "swift"))
+        let unwrapped = try generator.cacheKey(
+            for: request(source, displayName: "main.swift", wrapLines: false),
+            kind: .sourceCode(language: "swift")
+        )
+
+        // Without this the first preview of a file would be served back from the cache after the
+        // setting changed, and switching wrapping would appear to do nothing until the file changed.
+        XCTAssertNotEqual(wrapped, unwrapped)
     }
 
     func testCodePreviewIncludesStaticSyntaxHighlighting() async throws {
@@ -337,14 +357,16 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         _ sourceURL: URL,
         displayName: String,
         theme: Theme = .light,
-        fontSize: CGFloat = 13
+        fontSize: CGFloat = 13,
+        wrapLines: Bool = true
     ) -> DetoursPreviewRequest {
         DetoursPreviewRequest(
             sourceURL: sourceURL,
             displayName: displayName,
             theme: theme,
             fontSize: fontSize,
-            context: .local
+            context: .local,
+            wrapLines: wrapLines
         )
     }
 

@@ -6,6 +6,7 @@ struct GeneralSettingsView: View {
     @State private var searchIncludesHidden: Bool
     @State private var folderExpansionEnabled: Bool
     @State private var foldersOnTop: Bool
+    @State private var previewWrapLines: Bool
 
     init() {
         let settings = SettingsManager.shared
@@ -14,6 +15,7 @@ struct GeneralSettingsView: View {
         _searchIncludesHidden = State(initialValue: settings.searchIncludesHidden)
         _folderExpansionEnabled = State(initialValue: settings.folderExpansionEnabled)
         _foldersOnTop = State(initialValue: settings.foldersOnTop)
+        _previewWrapLines = State(initialValue: settings.previewWrapLines)
     }
 
     var body: some View {
@@ -55,6 +57,16 @@ struct GeneralSettingsView: View {
                     }
             } header: {
                 Text("View")
+            }
+
+            Section {
+                Toggle("Wrap long lines", isOn: $previewWrapLines)
+                    .accessibilityIdentifier("previewWrapLinesToggle")
+                    .onChange(of: previewWrapLines) { _, newValue in
+                        SettingsManager.shared.previewWrapLines = newValue
+                    }
+            } header: {
+                Text("Preview")
             }
         }
         .formStyle(.grouped)
