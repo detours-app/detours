@@ -118,6 +118,9 @@ extension BaseUITest {
         let registeredRemoteProviderCount: Int
         let gitStatuses: [String: String]
         let refreshRequestCount: Int
+        /// End-to-end duration of the last user-initiated refresh, read from the
+        /// app rather than from a log stream, so taking it costs nothing.
+        let lastRefreshMilliseconds: Double?
         let listingMutationCount: Int
     }
 

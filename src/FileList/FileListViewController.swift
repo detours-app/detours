@@ -96,6 +96,17 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var isShutDown = false
     private(set) var qualificationRefreshRequestCount = 0
     private(set) var qualificationListingMutationCount = 0
+    /// How long the last user-initiated refresh took, end to end.
+    ///
+    /// The timing trace is only observable with a debug stream attached, and
+    /// streaming costs enough to distort what it measures. This carries the
+    /// total through the state surface the tests already read, so the figure
+    /// can be taken with nothing observing it.
+    private(set) var qualificationLastRefreshMilliseconds: Double?
+
+    func recordQualificationRefreshDuration(_ milliseconds: Double) {
+        qualificationLastRefreshMilliseconds = milliseconds
+    }
 
     func recordQualificationRefreshRequest() {
         qualificationRefreshRequestCount += 1

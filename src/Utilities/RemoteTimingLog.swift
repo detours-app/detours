@@ -35,9 +35,12 @@ enum RemoteTimingLog {
     struct Timestamp {
         let nanoseconds: UInt64
 
+        var elapsed: Double {
+            Double(DispatchTime.now().uptimeNanoseconds &- nanoseconds) / 1_000_000
+        }
+
         var elapsedMilliseconds: String {
-            let elapsed = DispatchTime.now().uptimeNanoseconds &- nanoseconds
-            return String(format: "%.1f", Double(elapsed) / 1_000_000)
+            String(format: "%.1f", elapsed)
         }
     }
 }

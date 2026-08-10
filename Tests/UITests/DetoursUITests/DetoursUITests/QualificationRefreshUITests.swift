@@ -524,9 +524,16 @@ final class QualificationRefreshUITests: BaseUITest {
 
     private func performManualRefresh(after before: RemotePaneState) throws -> RemotePaneState {
         pressCharKey("r", modifiers: .command)
-        return try waitForState("manual refresh completion") {
+        let state = try waitForState("manual refresh completion") {
             $0.refreshRequestCount > before.refreshRequestCount && self.isQuiescent($0)
         }
+        // The app times its own refresh, so this figure carries none of the
+        // cost of observing it. Reported rather than asserted: it is a
+        // measurement, and the machine it runs on decides what is reasonable.
+        if let milliseconds = state.lastRefreshMilliseconds {
+            print("MEASURED manual-refresh \(String(format: "%.1f", milliseconds)) ms")
+        }
+        return state
     }
 
     private func waitForState(

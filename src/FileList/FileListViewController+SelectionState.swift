@@ -124,7 +124,8 @@ extension FileListViewController {
             registeredRemoteProviderCount: operationQueue.remoteFileProviders.count,
             gitStatuses: gitStatuses,
             refreshRequestCount: qualificationRefreshRequestCount,
-            listingMutationCount: qualificationListingMutationCount
+            listingMutationCount: qualificationListingMutationCount,
+            lastRefreshMilliseconds: qualificationLastRefreshMilliseconds
         )
     }
 

@@ -208,6 +208,7 @@ enum UITestEnvironment {
         let gitStatuses: [String: String]
         let refreshRequestCount: Int
         let listingMutationCount: Int
+        let lastRefreshMilliseconds: Double?
     }
 
     static var isEnabled: Bool {

@@ -51,6 +51,7 @@ extension FileListViewController {
             cause: .manual,
             completion: { [weak self] in
                 RemoteTimingLog.total("manual-refresh end", since: started)
+                self?.recordQualificationRefreshDuration(started.elapsed)
                 self?.hideLoadingIndicator()
             }
         )
