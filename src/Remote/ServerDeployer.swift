@@ -136,7 +136,34 @@ struct SSHServerDeploymentClient: ServerDeploymentClient {
         _ = try await run("rm -f \(path)")
     }
 
+    /// Copies the helper up. Waits off the concurrency pool for the same reason
+    /// `run` does: the transfer lasts as long as it lasts.
     func uploadBinary(localFile: URL, remotePath: String) async throws {
+        let processFactory = self.processFactory
+        let hostTrust = self.hostTrust
+        let sshTarget = self.sshTarget
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            Self.commandQueue.async {
+                do {
+                    try Self.uploadBlocking(
+                        localFile: localFile, remotePath: remotePath,
+                        processFactory: processFactory, hostTrust: hostTrust, sshTarget: sshTarget
+                    )
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private static func uploadBlocking(
+        localFile: URL,
+        remotePath: String,
+        processFactory: () -> Process,
+        hostTrust: SSHHostTrust,
+        sshTarget: String
+    ) throws {
         let process = processFactory()
         let stderrPipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/scp")
@@ -161,7 +188,43 @@ struct SSHServerDeploymentClient: ServerDeploymentClient {
         _ = try await run("chmod 700 \(tempPath) && mv -f \(tempPath) \(finalPath) && chmod 700 \(finalPath)")
     }
 
+    /// Runs one command on the host and returns its output.
+    ///
+    /// Waiting for ssh blocks for as long as the host takes to answer, and an
+    /// unreachable one takes the connect timeout. On a Swift concurrency
+    /// executor that holds one of the pool's fixed number of threads, and every
+    /// saved host is checked at launch, so a few slow hosts were enough to
+    /// leave the pool with nothing free to run anything else with. A dispatch
+    /// queue adds threads when they block.
     private func run(_ command: String) async throws -> String {
+        let processFactory = self.processFactory
+        let hostTrust = self.hostTrust
+        let sshTarget = self.sshTarget
+        return try await withCheckedThrowingContinuation { continuation in
+            Self.commandQueue.async {
+                do {
+                    continuation.resume(returning: try Self.runBlocking(
+                        command, processFactory: processFactory, hostTrust: hostTrust, sshTarget: sshTarget
+                    ))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private static let commandQueue = DispatchQueue(
+        label: "com.detours.server-deploy",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
+
+    private static func runBlocking(
+        _ command: String,
+        processFactory: () -> Process,
+        hostTrust: SSHHostTrust,
+        sshTarget: String
+    ) throws -> String {
         let process = processFactory()
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
