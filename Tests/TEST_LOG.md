@@ -548,6 +548,35 @@ Spotlight search has no unit test (depends on the live, async-built system index
 | RemoteWatcherPollFallbackTests (3 tests) | PASS | 0.187s | 2026-06-12 15:48:05 |
 | DarwinServerSmokeTests (2 tests, exercises rename/trash/restore decode changes) | PASS | 1.092s | 2026-06-12 15:48:22 |
 
+## Run 20260810 14:00
+
+### 2026-08-10 14:00 (Foundry, no failures and no skips)
+
+- `swift test` with the live Linux target: **922 tests, 0 failures, 0 skipped**,
+  in 442 s, down from 562 s.
+- Every skip was removed rather than tolerated, and each one was hiding
+  something:
+  - 14 Windows live tests ran only if someone set a variable naming the host.
+    They now name the dedicated qualification host by default.
+  - 8 qualification workflows and the mounted-provider refresh contract
+    demanded volume roots only the runner mounts. They now create a real run
+    root when none are named, so they run everywhere and merely cover more
+    kinds of volume under the runner.
+  - 3 helper tests needed Rosetta because the macOS helper was built for Intel
+    only. It is now a universal binary.
+  - 1 archive round trip checked for 7-Zip differently, and more narrowly, than
+    the code it exercises.
+- One failure remained after that and was a real defect, not a flaky test:
+  checking and deploying the helper waited on ssh and scp **on the Swift
+  concurrency pool**. Every saved host is checked at launch, so a few slow ones
+  left no thread free and a directory watcher's change never reached the pane.
+  Proven by sampling the test process mid-failure: several cooperative-pool
+  threads parked in `waitUntilExit` inside `ServerDeployer`. Moving both waits
+  to a dispatch queue fixed it and cut two minutes off the suite.
+- Installed workflows: `refresh`, `connection`, `mutation` and `archive` on
+  LOCAL_ROOT all **PASS**; `refresh` against the live Linux host **PASS**, with
+  the manual refresh at **69.9 and 72.5 ms**.
+
 ## Run 20260810 11:00
 
 ### 2026-08-10 11:00 (Foundry, whole suite green)

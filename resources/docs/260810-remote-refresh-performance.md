@@ -90,11 +90,14 @@ Suites, all on Foundry:
 | Installed connection workflow against `devtest` | passed |
 | Signed build launched on Foundry | alive after 12 s, zero crash reports |
 
-The whole suite is green: **922 tests, 33 skipped, 0 failures**, plus the `refresh`, `mutation` and `archive` installed workflows.
+The whole suite is green with nothing skipped: **922 tests, 0 failures, 0 skipped**, plus the `refresh`, `connection`, `mutation` and `archive` installed workflows.
+
+Removing the skips mattered more than it sounds. Each one was hiding something: the Windows live tests only ran if someone set a variable, the qualification workflows only ran where the runner had mounted volumes, three helper tests needed Rosetta because the macOS helper was built for Intel alone, and an archive round trip looked for 7-Zip differently from the code it exercises. Turning them on then exposed a real defect, described below, which no amount of reading would have found.
 
 Two clusters were failing and both turned out to be real, not environmental:
 
 - **Password-protected zips used broken encryption.** They were written with Info-ZIP's ZipCrypto, which is recoverable from a known plaintext fragment, and the test machine carries a root-installed guard that refuses it outright. They now use 7-Zip with AES-256, and are read and listed the same way since Info-ZIP cannot read AES at all. Three further faults were hiding behind that one: 7-Zip ships as `7zz` from its own project as well as `7z` from p7zip and was not being found under either name, which is why the tests that would have caught the rest were being skipped; a helper started over a non-login session inherits a PATH that hides it even when installed; and 7-Zip never turns terminal echo off, so the pty runner, which waits for a tool to do that before sending a password so a secret never lands on a visible line, sat at every prompt until it timed out.
+- **Deploying the helper blocked the concurrency pool.** Checking and deploying the remote helper waits on ssh and scp, and both waits sat on the Swift concurrency pool. Every saved host is checked at launch, so a few slow or unreachable ones left the pool with no thread free and unrelated work simply stopped: a directory watcher's change never reached the pane. This was proved by sampling the test process during the failure, which showed several cooperative-pool threads parked in `waitUntilExit`. It is the same defect as the frame wait, the host key scan, the home directory probe, transfers and pty commands, and it had been missed here. Fixing it also cut two minutes off the suite.
 - **Fast-lane tests raced a copy they could not catch.** Five tests proved a quick operation can run during a bulk one by starting a large copy and racing it. On a cloning filesystem the copy finishes immediately, so under load the bulk operation was over before the assertion looked. The queue can now hold a copy open, after it has claimed its protected paths and before any file work, until the test releases it.
 
 ## Known remaining work
