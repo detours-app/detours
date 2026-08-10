@@ -122,11 +122,11 @@ extension DetoursPreviewGenerator {
         let usesRichTextAssets = chrome.usesRichTextAssets
         let criticalStyle = criticalBackgroundStyle(for: theme)
         let styleHash = Self.styleFingerprint(criticalStyle)
+        // No third-party stylesheet is linked at all. Everything is coloured before it is written,
+        // using the theme, and the one that used to be linked here paints code blocks solid white,
+        // which is a glaring white rectangle in a dark preview whenever the system is set to light.
         let richTextAssets = usesRichTextAssets ? """
-        <link rel="stylesheet" href="support/highlight-github.min.css" media="(prefers-color-scheme: light)">
-        <link rel="stylesheet" href="support/highlight-github-dark.min.css" media="(prefers-color-scheme: dark)">
         <script src="support/markdown-it.min.js" defer></script>
-        <script src="support/highlight.min.js" defer></script>
         """ : ""
 
         return """

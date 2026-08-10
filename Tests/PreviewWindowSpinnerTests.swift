@@ -121,3 +121,42 @@ final class SpinnerPlateTests: XCTestCase {
         XCTAssertNil(controller.loadingSpinnerPlate?.superview, "The plate must leave with the spinner")
     }
 }
+
+/// Nothing part-drawn ever reaches the screen. A view is shown only once the file in it has
+/// finished loading, so there is no moment where an empty page can be seen.
+@MainActor
+final class PreviewWindowContentTests: XCTestCase {
+    func testNothingIsShownBeforeAFileHasFinishedLoading() {
+        let controller = DetoursPreviewWindowController(theme: .dark)
+
+        XCTAssertFalse(
+            controller.showsLoadedContent,
+            "A brand new preview window must show nothing but its own background"
+        )
+    }
+
+    func testTheFileAppearsOnlyWhenItHasFinishedLoading() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("preview-window-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let page = root.appendingPathComponent("page.html")
+        try "<!doctype html><html><body>hello</body></html>".write(to: page, atomically: true, encoding: .utf8)
+
+        let controller = DetoursPreviewWindowController(theme: .dark)
+        controller.present(previewURL: page, title: "page.html", theme: .dark)
+        XCTAssertFalse(controller.showsLoadedContent, "The file must not be on screen before it has loaded")
+
+        let shown = expectation(description: "file appears")
+        Task { @MainActor in
+            for _ in 0..<100 where !controller.showsLoadedContent {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            shown.fulfill()
+        }
+        await fulfillment(of: [shown], timeout: 15)
+
+        XCTAssertTrue(controller.showsLoadedContent, "The file should be on screen once it has loaded")
+        controller.close(notifyingDelegate: false)
+    }
+}

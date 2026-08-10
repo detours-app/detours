@@ -87,6 +87,10 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
 
         XCTAssertTrue(html.contains("id=\"source-payload\""))
         XCTAssertTrue(html.contains("src=\"support/markdown-it.min.js\""))
+        // No third-party stylesheet: the one that used to be linked here paints code blocks solid
+        // white, which is a glaring rectangle in a dark preview when the system is set to light.
+        XCTAssertFalse(html.contains("highlight-github"))
+        XCTAssertFalse(html.contains("src=\"support/highlight.min.js\""))
     }
 
     func testCodePreviewWrapsWhenTheSettingIsOn() async throws {

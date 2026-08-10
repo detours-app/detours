@@ -19,7 +19,13 @@ protocol DetoursPreviewWindowDelegate: AnyObject {
 final class DetoursPreviewWindowController: NSWindowController {
     weak var previewDelegate: DetoursPreviewWindowDelegate?
 
-    private let webView: WKWebView
+    /// Two views, one shown and one loading. Nothing part-drawn is ever on screen: the loading view
+    /// is hidden until its file has finished, then the two swap. Relying on the view being
+    /// transparent while it loads is what left a white rectangle on screen; this cannot, because a
+    /// view is only ever shown once it has a finished file in it.
+    private var visibleWebView: WKWebView
+    private var loadingWebView: WKWebView
+    private var hasShownAnything = false
     private let spinner = NSProgressIndicator()
     private let spinnerPlate: SpinnerPlate
     private var keyMonitor: Any?
@@ -32,14 +38,8 @@ final class DetoursPreviewWindowController: NSWindowController {
     var isPresented: Bool { window?.isVisible ?? false }
 
     init(theme: Theme) {
-        let configuration = WKWebViewConfiguration()
-        configuration.suppressesIncrementalRendering = false
-        webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 900, height: 700), configuration: configuration)
-        webView.underPageBackgroundColor = theme.background
-        webView.setValue(false, forKey: "drawsBackground")
-        webView.allowsBackForwardNavigationGestures = false
-        webView.wantsLayer = true
-        webView.layer?.backgroundColor = theme.background.cgColor
+        visibleWebView = Self.makePreviewWebView(theme: theme)
+        loadingWebView = Self.makePreviewWebView(theme: theme)
 
         let window = PreviewWindow(
             contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
@@ -68,14 +68,22 @@ final class DetoursPreviewWindowController: NSWindowController {
         spinnerPlate.isHidden = true
 
         let container = BackgroundView(color: theme.background)
-        container.addSubview(webView)
+        for web in [visibleWebView, loadingWebView] {
+            container.addSubview(web)
+            NSLayoutConstraint.activate([
+                web.topAnchor.constraint(equalTo: container.topAnchor),
+                web.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                web.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                web.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+            ])
+        }
+        // Neither is shown until one has a finished file in it, so the first thing on screen is the
+        // theme colour behind them, never a part-drawn page.
+        visibleWebView.isHidden = true
+        loadingWebView.isHidden = true
+
         container.addSubview(spinnerPlate)
-        webView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: container.topAnchor),
-            webView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             spinnerPlate.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             spinnerPlate.centerYAnchor.constraint(equalTo: container.centerYAnchor)
         ])
@@ -83,7 +91,8 @@ final class DetoursPreviewWindowController: NSWindowController {
 
         super.init(window: window)
         window.delegate = self
-        webView.navigationDelegate = self
+        visibleWebView.navigationDelegate = self
+        loadingWebView.navigationDelegate = self
     }
 
     @available(*, unavailable)
@@ -171,9 +180,42 @@ final class DetoursPreviewWindowController: NSWindowController {
         window?.delegate = self
     }
 
+    private static func makePreviewWebView(theme: Theme) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.suppressesIncrementalRendering = true
+        let web = WKWebView(frame: NSRect(x: 0, y: 0, width: 900, height: 700), configuration: configuration)
+        web.underPageBackgroundColor = theme.background
+        web.allowsBackForwardNavigationGestures = false
+        web.translatesAutoresizingMaskIntoConstraints = false
+        web.wantsLayer = true
+        web.layer?.backgroundColor = theme.background.cgColor
+        return web
+    }
+
     private func load(previewURL: URL) {
         // Read access covers the preview's own folder so its stylesheets and scripts resolve.
-        webView.loadFileURL(previewURL, allowingReadAccessTo: previewURL.deletingLastPathComponent())
+        loadingWebView.loadFileURL(previewURL, allowingReadAccessTo: previewURL.deletingLastPathComponent())
+    }
+
+    /// Brings the freshly loaded file forward and retires the one it replaces.
+    private func swapInLoadedView() {
+        loadingWebView.isHidden = false
+        if hasShownAnything {
+            visibleWebView.isHidden = true
+        }
+        let retired = visibleWebView
+        visibleWebView = loadingWebView
+        loadingWebView = retired
+        loadingWebView.isHidden = true
+        hasShownAnything = true
+    }
+
+    /// What is on screen, for tests: nothing until a file has finished loading.
+    var showsLoadedContent: Bool { !visibleWebView.isHidden }
+
+    fileprivate func finishLoad(in web: WKWebView) {
+        guard web === loadingWebView else { return }
+        swapInLoadedView()
     }
 
     private func applyTheme(_ theme: Theme) {
@@ -182,8 +224,10 @@ final class DetoursPreviewWindowController: NSWindowController {
         let isDark = theme.background.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false
         window?.contentView?.appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
         spinnerPlate.apply(theme: theme)
-        webView.underPageBackgroundColor = theme.background
-        webView.layer?.backgroundColor = theme.background.cgColor
+        for web in [visibleWebView, loadingWebView] {
+            web.underPageBackgroundColor = theme.background
+            web.layer?.backgroundColor = theme.background.cgColor
+        }
         window?.backgroundColor = theme.background
         (window?.contentView as? BackgroundView)?.color = theme.background
     }
@@ -215,14 +259,17 @@ final class DetoursPreviewWindowController: NSWindowController {
 
 extension DetoursPreviewWindowController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        finishLoad(in: webView)
         endLoading()
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        finishLoad(in: webView)
         endLoading()
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        finishLoad(in: webView)
         endLoading()
     }
 }
