@@ -3306,3 +3306,17 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Not covered by any automated test: that no white is drawn to the eye. The
   system panel's blank page is no longer in the path for these files, but the
   visible result needs a person.
+
+- 2026-08-10 21:44 CEST: Foundry verification PASS at `60e80ca` for the preview
+  window showing a spinner while a long file is prepared and read.
+  `PreviewWindowSpinnerTests` 5 tests covering nothing being shown immediately,
+  the spinner appearing once the wait passes the threshold, a preview that
+  finishes inside the threshold never raising one, the spinner stopping when the
+  file is on screen, and closing the preview not leaving one running.
+  Regression run of `DetoursPreviewGeneratorTests|FileListResponderTests` 80
+  tests, 0 failures. Guarded installed UI proof: `installed-smoke opening
+  LOCAL_ROOT` with the preview window key test, confirming the spinner did not
+  disturb moving between files or closing.
+  The first run of the spinner tests died before any case ran: they asked for the
+  current theme, which resolves the system appearance through the running
+  application, and there is none in a test process. They use a fixed theme now.
