@@ -29,6 +29,19 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("id=\"wrap-toggle\" for=\"source-wrap-toggle\""))
     }
 
+    func testCodePreviewStartsWrapped() async throws {
+        let source = try write("main.swift", "let value = \"hello\"\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "main.swift"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        // Both wrap mechanisms must start switched on together. The checkbox drives the styling on
+        // its own, and the runtime toggles the body class, so a disagreement here means the first
+        // click on Wrap cancels itself out and appears to do nothing.
+        XCTAssertTrue(html.contains("id=\"source-wrap-toggle\" type=\"checkbox\" checked"))
+        XCTAssertTrue(html.contains("<body class=\"source-preview wrap-lines\">"))
+        XCTAssertTrue(html.contains("for=\"source-wrap-toggle\" aria-pressed=\"true\""))
+    }
+
     func testCodePreviewIncludesStaticSyntaxHighlighting() async throws {
         let source = try write("main.swift", "let value = \"hello\"\nif value.isEmpty { return }\n")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "main.swift"))
