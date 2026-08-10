@@ -271,9 +271,11 @@ extension FileListViewController {
         }
     }
 
-    /// Rows that fit in the visible area, used as the paging step.
+    /// Rows that fit in the visible area, used as the paging step. This reads the scroll view's
+    /// own geometry rather than `visibleRect`, which reports nothing until the window is on screen.
     private var visibleRowCount: Int {
-        max(1, tableView.rows(in: tableView.visibleRect).length)
+        let visible = tableView.enclosingScrollView?.documentVisibleRect ?? tableView.visibleRect
+        return max(1, tableView.rows(in: visible).length)
     }
 
     private func moveSelectionByPage(down: Bool, extendSelection: Bool) {

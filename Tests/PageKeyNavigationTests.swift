@@ -83,7 +83,9 @@ final class PageKeyNavigationTests: XCTestCase {
     }
 
     private func visibleRows(in controller: FileListViewController) -> Int {
-        max(1, controller.tableView.rows(in: controller.tableView.visibleRect).length)
+        let scrollView = controller.tableView.enclosingScrollView
+        let visible = scrollView?.documentVisibleRect ?? controller.tableView.visibleRect
+        return max(1, controller.tableView.rows(in: visible).length)
     }
 
     func testPageDownMovesSelectionByAPage() throws {
