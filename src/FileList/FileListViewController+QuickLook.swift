@@ -23,8 +23,9 @@ extension FileListViewController {
         let requestID = UUID()
         quickLookRequestID = requestID
         quickLookGenerationTask?.cancel()
-        quickLookPreviewItems = []
-        panel?.reloadData()
+        // Whatever is on screen stays there until the next preview is ready. Emptying the panel
+        // first left it blank for as long as generation took, which reads as a white flash between
+        // files.
 
         let generator = quickLookPreviewGenerator
         let theme = ThemeManager.shared.currentTheme
@@ -261,7 +262,10 @@ extension FileListViewController {
             return remotePreviewReady ? 1 : 0
         }
         if generationActive {
-            return 0
+            // Report the previews already on screen so the panel keeps showing the previous file
+            // while the next one is built. Falling through to the selected URLs instead would hand
+            // the panel raw files and flash a system-drawn preview before the Detours one.
+            return generatedPreviewCount
         }
         if generatedPreviewCount > 0 {
             return generatedPreviewCount

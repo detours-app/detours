@@ -60,6 +60,36 @@ extension FileListResponderTests {
         )
     }
 
+    func testQuickLookKeepsTheCurrentPreviewWhileTheNextOneIsBuilt() {
+        // Reporting nothing here empties the panel for as long as generation takes, which is seen
+        // as a white flash when moving from file to file.
+        XCTAssertEqual(
+            FileListViewController.quickLookPreviewItemCount(
+                remoteRequestActive: false,
+                remotePreviewReady: false,
+                selectedURLCount: 1,
+                generatedPreviewCount: 1,
+                generationActive: true
+            ),
+            1
+        )
+    }
+
+    func testQuickLookShowsNothingWhileTheFirstPreviewIsBuilt() {
+        // With nothing generated yet there is nothing to hold on to, and the selected file must not
+        // be handed over raw, or the panel draws a system preview before the Detours one arrives.
+        XCTAssertEqual(
+            FileListViewController.quickLookPreviewItemCount(
+                remoteRequestActive: false,
+                remotePreviewReady: false,
+                selectedURLCount: 1,
+                generatedPreviewCount: 0,
+                generationActive: true
+            ),
+            0
+        )
+    }
+
     func testLocalQuickLookTitleUsesOriginalFileNameNotGeneratedPreview() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
