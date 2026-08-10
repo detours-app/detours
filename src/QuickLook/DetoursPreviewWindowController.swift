@@ -164,8 +164,12 @@ private final class PreviewWindow: NSWindow {
 
     override var canBecomeKey: Bool { true }
 
-    override func keyDown(with event: NSEvent) {
-        if keyHandler?.handleKeyDown(event) == true { return }
-        super.keyDown(with: event)
+    /// Keys are claimed here, before the content gets them. The web view treats the arrow keys as
+    /// scrolling and space as paging, so a handler further down the chain never saw them and the
+    /// window could not be moved through or closed. Page Up and Page Down are deliberately left
+    /// alone so they still scroll the file being read.
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, keyHandler?.handleKeyDown(event) == true { return }
+        super.sendEvent(event)
     }
 }
