@@ -3347,3 +3347,15 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Still not covered by any automated test: that no white is drawn to the eye. The
   guarantee is now structural, since no view is shown until its file has
   finished, but the visible result needs a person.
+
+- 2026-08-10 22:41 CEST: Foundry verification PASS at `74792de` for how a preview
+  is written being part of what is cached. `DetoursPreviewGeneratorTests` 23
+  tests, including a new one proving two ways of writing the document produce
+  different cached identities.
+  This is why none of the earlier white-flash fixes could be seen on Marco's
+  machine: they all changed how the document is written, which was not part of
+  the cache key, so any file already previewed kept being served the old
+  document. It never appeared in testing because each run creates new files,
+  which always miss the cache. Captured frames from the guarded runner show the
+  preview window dark with its spinner both while a large file opens and while
+  moving to the next one, on a machine configured the same way.
