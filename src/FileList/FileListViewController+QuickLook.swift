@@ -6,6 +6,11 @@ import os.log
 
 extension FileListViewController {
     func toggleQuickLook() {
+        if detoursPreviewWindow?.isPresented == true {
+            closeDetoursPreviewWindow()
+            return
+        }
+
         guard let panel = QLPreviewPanel.shared() else { return }
 
         if panel.isVisible {
@@ -50,6 +55,22 @@ extension FileListViewController {
                 guard self.quickLookRequestID == requestID else { return }
                 self.quickLookPreviewItems = previews
                 self.quickLookGenerationTask = nil
+
+                // A preview Detours generated is shown in a window Detours owns. Anything handed
+                // back unchanged, such as an image, is left to the system panel, which shows those
+                // without the blank white stage its document viewer has.
+                if let generated = previews.first,
+                   let previewURL = generated.previewItemURL,
+                   previewURL.standardizedFileURL != urls.first?.standardizedFileURL {
+                    if panel?.isVisible == true {
+                        self.clearQuickLookPreviewState(cancelTasks: false)
+                        panel?.orderOut(nil)
+                    }
+                    self.showDetoursPreview(url: previewURL, title: generated.previewItemTitle ?? "")
+                    return
+                }
+
+                self.closeDetoursPreviewWindow()
                 // Only bring the panel up when it is not already showing. Ordering a visible panel
                 // to the front again on every keystroke disturbs it for no reason.
                 if let panel, !panel.isVisible {
@@ -315,7 +336,34 @@ extension FileListViewController {
         return false
     }
 
+    // MARK: - Detours-owned preview window
+
+    private func showDetoursPreview(url: URL, title: String) {
+        let theme = ThemeManager.shared.currentTheme
+        if let existing = detoursPreviewWindow, existing.isPresented {
+            existing.update(previewURL: url, title: title, theme: theme)
+            return
+        }
+        let controller = detoursPreviewWindow ?? DetoursPreviewWindowController(theme: theme)
+        controller.previewDelegate = self
+        detoursPreviewWindow = controller
+        controller.present(previewURL: url, title: title, theme: theme)
+    }
+
+    func closeDetoursPreviewWindow() {
+        guard let controller = detoursPreviewWindow, controller.isPresented else { return }
+        controller.close(notifyingDelegate: false)
+        quickLookGenerationTask?.cancel()
+        quickLookGenerationTask = nil
+        quickLookPreviewItems = []
+    }
+
     func refreshQuickLookPanel() {
+        if detoursPreviewWindow?.isPresented == true {
+            clearRemoteQuickLookState()
+            startLocalQuickLookGeneration(urls: selectedURLs, panel: QLPreviewPanel.shared())
+            return
+        }
         guard let panel = QLPreviewPanel.shared(), panel.isVisible else { return }
         if let remoteItem = selectedRemoteQuickLookItem() {
             startRemoteQuickLook(for: remoteItem, panel: panel)
@@ -353,5 +401,32 @@ extension FileListViewController {
 
     var quickLookGenerationTaskIsActiveForTesting: Bool {
         quickLookGenerationTask != nil
+    }
+}
+
+// MARK: - DetoursPreviewWindowDelegate
+
+extension FileListViewController: DetoursPreviewWindowDelegate {
+    func previewWindowDidRequestClose() {
+        detoursPreviewWindow?.close(notifyingDelegate: false)
+        quickLookGenerationTask?.cancel()
+        quickLookGenerationTask = nil
+        quickLookPreviewItems = []
+        view.window?.makeKeyAndOrderFront(nil)
+        view.window?.makeFirstResponder(tableView)
+    }
+
+    func previewWindowDidRequestMoveSelection(down: Bool) {
+        let current = tableView.selectedRow
+        let rowCount = tableView.numberOfRows
+        let target = down ? current + 1 : current - 1
+        guard target >= 0, target < rowCount else { return }
+        tableView.selectRowIndexes(IndexSet(integer: target), byExtendingSelection: false)
+        tableView.scrollRowToVisible(target)
+    }
+
+    func previewWindowDidRequestWrapToggle() {
+        SettingsManager.shared.previewWrapLines.toggle()
+        refreshQuickLookPanel()
     }
 }

@@ -128,6 +128,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var failedRemoteRefreshDirectory: Location?
     var failedLocalRefreshDirectory: Location?
     var quickLookPreviewItems: [DetoursQuickLookItem] = []
+    /// Previews Detours renders itself are shown in this window rather than the system panel, which
+    /// paints a blank white page before any document appears.
+    var detoursPreviewWindow: DetoursPreviewWindowController?
     var quickLookGenerationTask: Task<Void, Never>?
     var quickLookRequestID = UUID()
     var quickLookPreviewGenerator: any DetoursPreviewGenerating = DetoursPreviewGenerator.shared
