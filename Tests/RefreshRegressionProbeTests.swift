@@ -209,6 +209,14 @@ final class RefreshRegressionProbeTests: XCTestCase {
         waitUntil(list.tableView.numberOfRows == 2)
         XCTAssertTrue(list.selectItem(at: selectedURL))
 
+        // The watch is armed asynchronously, and a change made before it is
+        // armed is never reported, however long the test then waits. Under
+        // full-suite load that window stretches, which is what made this fail
+        // only in a full run. The provider registers the watch only once it is
+        // live, so waiting for that removes the race rather than lengthening
+        // the wait for its consequences.
+        waitUntil(!list.providerWatches.isEmpty, timeout: 30, "Directory watch was never established")
+
         // External mutation: something else writes into the watched directory.
         FileManager.default.createFile(
             atPath: dir.appendingPathComponent("zz_external.txt").path,
