@@ -3241,7 +3241,7 @@ Spotlight search has no unit test (depends on the live, async-built system index
   covers the restore path that previously depended on the removed
   notification.
 
-- 2026-08-10 16:21 CEST: Foundry verification PASS at `8a1e0a4` for Page Up and
+- 2026-08-10 16:21 CEST: Foundry verification PASS at `1c389e0` for Page Up and
   Page Down in the file list and for text previews starting wrapped.
   `PageKeyNavigationTests` 7 tests covering the paging step, clamping at both
   ends of the list, Shift extending the selection by a page, paging with nothing
