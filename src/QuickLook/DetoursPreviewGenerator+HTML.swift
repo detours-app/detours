@@ -10,10 +10,14 @@ extension DetoursPreviewGenerator {
         lossyDecode: Bool,
         fallbackReason: String?
     ) -> String {
+        // Every line is highlighted here, so none of them carry the attributes that ask the page's
+        // own highlighter to look at them. On a long log those attributes were repeating roughly a
+        // hundred bytes per line for nothing, and the panel has to read all of it before it can
+        // draw anything.
         let rows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: kind.highlightLanguage)
             return """
-            <tr><td class="line-number">\(index + 1)</td><td class="line-code"><code class="language-\(kind.highlightLanguage)" data-highlight-language="\(kind.highlightLanguage)" data-static-highlight="true">\(highlightedLine)</code></td></tr>
+            <div class="source-line"><span class="line-number">\(index + 1)</span><span class="line-code"><code>\(highlightedLine)</code></span></div>
             """
         }.joined(separator: "\n")
 
@@ -27,14 +31,20 @@ extension DetoursPreviewGenerator {
             <span class="preview-title">\(Self.escapeHTML(request.displayName))</span>
             <span class="preview-hint">\(request.wrapLines ? "Wrapped" : "Not wrapped") &middot; \u{2325}W</span>
             """,
+            // No hidden second copy of the file here. It exists for Markdown, which renders from
+            // it; a source preview never reads it, and carrying it doubled the size of the document
+            // the panel has to read before the first line appears.
             body: """
             \(fallbackReason.map { "<div class=\"fallback-banner\">\(Self.escapeHTML($0))</div>" } ?? "")
             \(lossyWarning(lossyDecode))
-            <template id="source-payload">\(Self.escapeHTML(source))</template>
-            <table id="source-preview" class="source-table"><tbody>
+            <div id="source-preview" class="source-lines">
             \(rows)
-            </tbody></table>
-            """
+            </div>
+            """,
+            // A source preview is highlighted before it is written, so it needs neither the Markdown
+            // renderer nor the page highlighter, and it needs neither of their stylesheets. One of
+            // those stylesheets has to be read before anything can be drawn.
+            usesRichTextAssets: false
         )
     }
 
@@ -48,7 +58,7 @@ extension DetoursPreviewGenerator {
         let sourceRows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: "markdown")
             return """
-            <tr><td class="line-number">\(index + 1)</td><td class="line-code"><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></td></tr>
+            <div class="source-line"><span class="line-number">\(index + 1)</span><span class="line-code"><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></span></div>
             """
         }.joined(separator: "\n")
 
@@ -68,15 +78,30 @@ extension DetoursPreviewGenerator {
             \(lossyWarning(lossyDecode))
             <template id="source-payload">\(Self.escapeHTML(source))</template>
             <main id="rendered-markdown" class="markdown-body">\(renderedMarkdown)</main>
-            <table id="source-preview" class="source-table"><tbody>
+            <div id="source-preview" class="source-lines">
             \(sourceRows)
-            </tbody></table>
-            """
+            </div>
+            """,
+            usesRichTextAssets: true
         )
     }
 
-    private func htmlDocument(title: String, bodyClass: String, controls: String = "", toolbar: String, body: String) -> String {
-        """
+    private func htmlDocument(
+        title: String,
+        bodyClass: String,
+        controls: String = "",
+        toolbar: String,
+        body: String,
+        usesRichTextAssets: Bool
+    ) -> String {
+        let richTextAssets = usesRichTextAssets ? """
+        <link rel="stylesheet" href="support/highlight-github.min.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="support/highlight-github-dark.min.css" media="(prefers-color-scheme: dark)">
+        <script src="support/markdown-it.min.js" defer></script>
+        <script src="support/highlight.min.js" defer></script>
+        """ : ""
+
+        return """
         <!doctype html>
         <html>
         <head>
@@ -86,10 +111,7 @@ extension DetoursPreviewGenerator {
         <title>\(Self.escapeHTML(title))</title>
         <link rel="stylesheet" href="support/theme.css">
         <link rel="stylesheet" href="support/preview.css">
-        <link rel="stylesheet" href="support/highlight-github.min.css" media="(prefers-color-scheme: light)">
-        <link rel="stylesheet" href="support/highlight-github-dark.min.css" media="(prefers-color-scheme: dark)">
-        <script src="support/markdown-it.min.js" defer></script>
-        <script src="support/highlight.min.js" defer></script>
+        \(richTextAssets)
         <script src="support/preview-runtime.js" defer></script>
         </head>
         <body class="\(bodyClass)">

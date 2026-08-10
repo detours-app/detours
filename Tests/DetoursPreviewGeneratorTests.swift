@@ -23,8 +23,52 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
 
         XCTAssertTrue(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"))
         XCTAssertFalse(html.contains("<script>alert(1)</script>"))
-        XCTAssertTrue(html.contains("line-number\">1</td>"))
-        XCTAssertTrue(html.contains("line-number\">2</td>"))
+        XCTAssertTrue(html.contains("line-number\">1</span>"))
+        XCTAssertTrue(html.contains("line-number\">2</span>"))
+    }
+
+    func testSourceLinesCanBeSkippedWhenOffScreen() async throws {
+        let source = try write("main.swift", "let a = 1\nlet b = 2\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "main.swift"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+        let css = try String(
+            contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"),
+            encoding: .utf8
+        )
+
+        // Lines must not be table rows: the rule that lets off-screen content be skipped does not
+        // apply inside a table, so every line of a long file would have to be measured before the
+        // first one could be drawn.
+        XCTAssertTrue(html.contains("class=\"source-line\""))
+        XCTAssertFalse(html.contains("<tr>"))
+        XCTAssertFalse(html.contains("<td "))
+        XCTAssertTrue(css.contains("content-visibility: auto"))
+    }
+
+    func testSourcePreviewDoesNotCarryASecondCopyOfTheFile() async throws {
+        let body = (0..<200).map { "line \($0) with a reasonable amount of text on it" }.joined(separator: "\n")
+        let source = try write("big.log", body)
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "big.log"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        // The hidden payload exists so Markdown can be rendered from it. A source preview never
+        // reads it, and carrying it made the document the panel must read twice the size.
+        XCTAssertFalse(html.contains("id=\"source-payload\""))
+        XCTAssertTrue(html.contains("line 199 with a reasonable amount of text on it"))
+        XCTAssertEqual(
+            html.components(separatedBy: "line 100 with a reasonable amount of text on it").count - 1,
+            1,
+            "Each line should appear once in a source preview"
+        )
+    }
+
+    func testMarkdownPreviewKeepsThePayloadItRendersFrom() async throws {
+        let source = try write("NOTES.md", "# Title\n\nSome body text")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "NOTES.md"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("id=\"source-payload\""))
+        XCTAssertTrue(html.contains("src=\"support/markdown-it.min.js\""))
     }
 
     func testCodePreviewWrapsWhenTheSettingIsOn() async throws {
@@ -67,7 +111,6 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         let previewURL = try await generator().previewURL(for: request(source, displayName: "main.swift"))
         let html = try String(contentsOf: previewURL, encoding: .utf8)
 
-        XCTAssertTrue(html.contains("data-static-highlight=\"true\""))
         XCTAssertTrue(html.contains("<span class=\"tok-keyword\">let</span> value = <span class=\"tok-string\">&quot;hello&quot;</span>"))
         XCTAssertTrue(html.contains("<span class=\"tok-keyword\">if</span> value.isEmpty"))
         XCTAssertTrue(html.contains("<span class=\"tok-keyword\">return</span>"))
@@ -79,7 +122,6 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         let html = try String(contentsOf: previewURL, encoding: .utf8)
         let themeCSS = try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/theme.css"), encoding: .utf8)
 
-        XCTAssertTrue(html.contains("class=\"language-json\""))
         XCTAssertTrue(html.contains("<span class=\"tok-property\">&quot;enabled&quot;</span><span class=\"tok-punctuation\">:</span> <span class=\"tok-boolean\">true</span>"))
         XCTAssertTrue(html.contains("<span class=\"tok-property\">&quot;threshold&quot;</span><span class=\"tok-punctuation\">:</span> <span class=\"tok-number\">12</span>"))
         XCTAssertTrue(html.contains("<span class=\"tok-string\">&quot;detours&quot;</span>"))
@@ -136,7 +178,7 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("id=\"markdown-rendered-toggle\" for=\"markdown-view-rendered\""))
         XCTAssertTrue(html.contains("id=\"markdown-source-toggle\" for=\"markdown-view-source\""))
         XCTAssertTrue(html.contains("id=\"source-payload\""))
-        XCTAssertFalse(html.contains("id=\"source-preview\" class=\"source-table\" hidden"))
+        XCTAssertFalse(html.contains("id=\"source-preview\" class=\"source-lines\" hidden"))
         XCTAssertTrue(html.contains("# Title"))
 
         if let exportPath = ProcessInfo.processInfo.environment["DETOURS_EXPORT_MARKDOWN_PREVIEW"] {
@@ -314,7 +356,12 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
 
         XCTAssertTrue(html.contains("href=\"support/preview.css\""))
         XCTAssertTrue(html.contains("src=\"support/preview-runtime.js\""))
-        XCTAssertTrue(html.contains("src=\"support/highlight.min.js\""))
+        // A source preview is highlighted before it is written, so it must not pull in the Markdown
+        // renderer, the page highlighter, or their stylesheets. One of those stylesheets has to be
+        // read before the panel can draw anything, which is time spent staring at an empty preview.
+        XCTAssertFalse(html.contains("src=\"support/highlight.min.js\""))
+        XCTAssertFalse(html.contains("src=\"support/markdown-it.min.js\""))
+        XCTAssertFalse(html.contains("highlight-github"))
         XCTAssertTrue(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"), encoding: .utf8)
             .contains("#markdown-view-source:checked ~ #rendered-markdown"))
         XCTAssertTrue(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"), encoding: .utf8)
