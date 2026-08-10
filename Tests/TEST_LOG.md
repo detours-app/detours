@@ -3320,3 +3320,14 @@ Spotlight search has no unit test (depends on the live, async-built system index
   The first run of the spinner tests died before any case ran: they asked for the
   current theme, which resolves the system appearance through the running
   application, and there is none in a test process. They use a fixed theme now.
+
+- 2026-08-10 21:58 CEST: Foundry verification PASS at `c6c0b2b` for spinners that
+  hover over content sitting on a plate so they stay legible.
+  `SpinnerPlateTests` 2 tests covering the plate carrying its spinner with the
+  theme's colours, rounding and shadow, and the file list's loading spinner
+  being inside a plate that leaves with it. `PreviewWindowSpinnerTests` 5 tests
+  and `FileListResponderTests` 58 tests re-run, 0 failures, covering the loading
+  feedback the plate now wraps.
+  Spinners that sit inline in a row are deliberately unchanged and untested here:
+  a folder being expanded and a sidebar item connecting occupy their own space,
+  where a plate would read as a defect.
