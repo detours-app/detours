@@ -72,14 +72,14 @@ func resetSettingsForTests() {
 /// only where the qualification runner has mounted its volumes.
 @MainActor
 func makeTemporaryQualificationRoot() throws -> (root: URL, parent: URL) {
-    // Canonicalised first: the temporary directory sits under /var, which is a
-    // symlink to /private/var on macOS, and the run-root guard refuses a parent
-    // with a symlinked component. `resolvingSymlinksInPath` leaves that one
-    // alone, so this asks the filesystem directly.
-    let created = try createTempDirectory()
-    var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
-    let canonicalPath = realpath(created.path, &buffer).map { String(cString: $0) } ?? created.path
-    let parent = URL(fileURLWithPath: canonicalPath, isDirectory: true)
+    // Not under the temporary directory: that lives below /var, which macOS
+    // presents as both /var and /private/var, and the run-root guard wants the
+    // real one while the app standardises paths back to the short one. A root
+    // in the caches directory has no such double identity.
+    let base = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Caches/DetoursQualificationTests", isDirectory: true)
+    let parent = base.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
     let descriptor = try QualificationRunRootGuard().create(provider: .local, allowlistedParent: parent)
     return (URL(fileURLWithPath: descriptor.rootPath, isDirectory: true), parent)
 }
