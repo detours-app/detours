@@ -34,11 +34,20 @@ final class QuickLookFlashProbeUITests: BaseUITest {
         XCTAssertTrue(firstRow.existsOrWait(timeout: 10), "\(first) should be listed")
         firstRow.staticTexts[first].click()
 
+        let windowsBefore = app.windows.count
+        describeWindows(stage: "before-preview", label: label)
+
         // Space opens Quick Look.
         pressKey(.space)
+        _ = waitForCondition(timeout: 10) { self.app.windows.count > windowsBefore }
+        describeWindows(stage: "after-preview", label: label)
 
         let panel = previewPanel()
-        XCTAssertTrue(panel.existsOrWait(timeout: 10), "Preview panel should open")
+        XCTAssertTrue(
+            app.windows.count > windowsBefore,
+            "Preview panel should open as an extra window (before=\(windowsBefore) after=\(app.windows.count))"
+        )
+        XCTAssertTrue(panel.exists, "Preview panel element should resolve")
         // Let the first preview settle so the baseline is the panel actually showing content.
         Thread.sleep(forTimeInterval: 2.0)
 
@@ -68,7 +77,21 @@ final class QuickLookFlashProbeUITests: BaseUITest {
     /// The preview panel is a separate window of the same app, so it shows up alongside the main
     /// window rather than as part of it.
     private func previewPanel() -> XCUIElement {
-        app.windows.element(boundBy: app.windows.count - 1)
+        app.windows.element(boundBy: max(0, app.windows.count - 1))
+    }
+
+    /// Records what windows the app actually has, so a probe that silently measured the wrong one
+    /// is visible in the output rather than looking like a clean result.
+    private func describeWindows(stage: String, label: String) {
+        let windows = app.windows.allElementsBoundByIndex
+        print("PROBE \(label) \(stage) windowCount=\(windows.count)")
+        for (index, window) in windows.enumerated() {
+            print(
+                "PROBE \(label) \(stage) window[\(index)]"
+                    + " id=\(window.identifier) title=\(window.title)"
+                    + " frame=\(window.frame) hittable=\(window.isHittable)"
+            )
+        }
     }
 
     private func body(marker: String) -> String {
