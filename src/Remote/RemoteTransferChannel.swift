@@ -104,19 +104,56 @@ actor RemoteTransferChannel {
         return process
     }
 
+    /// Copies a file down from the host.
+    ///
+    /// The body is a blocking read loop plus a wait for the transfer process,
+    /// so it lasts as long as the transfer does. Run on a Swift concurrency
+    /// executor it would hold one of the pool's fixed number of threads for
+    /// minutes on a large file, which is subtracted from everything else the
+    /// app could be doing. A dispatch queue adds threads when they block.
     func download(source: RemotePath, expectedByteCount: Int64, to destination: URL) async throws {
-        let stdin = Pipe()
-        let stdout = Pipe()
-        let stderr = Pipe()
-        let process = try configuredTransferProcess(stdin: stdin, stdout: stdout, stderr: stderr)
-        try process.run()
-
+        let setup = TransferProcessSetup(
+            arguments: sshArguments(),
+            hostTrust: hostTrust,
+            processFactory: processFactory
+        )
         let handshake = makeHandshake(
             direction: .download,
             source: source,
             destination: RemotePath(destination.path),
             byteCount: expectedByteCount
         )
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            Self.transferQueue.async {
+                do {
+                    try Self.performDownload(
+                        handshake: handshake,
+                        expectedByteCount: expectedByteCount,
+                        destination: destination,
+                        setup: setup
+                    )
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private static func performDownload(
+        handshake: RemoteTransferHandshake,
+        expectedByteCount: Int64,
+        destination: URL,
+        setup: TransferProcessSetup
+    ) throws {
+        let stdin = Pipe()
+        let stdout = Pipe()
+        let stderr = Pipe()
+        let process = try Self.configuredTransferProcess(
+            stdin: stdin, stdout: stdout, stderr: stderr, setup: setup
+        )
+        try process.run()
+
         stdin.fileHandleForWriting.write(try RPCStreamHandler.encodeFrame(handshake.binaryEncoded()))
         try stdin.fileHandleForWriting.close()
 
@@ -154,19 +191,49 @@ actor RemoteTransferChannel {
         }
     }
 
+    /// Copies a file up to the host. Runs off the concurrency pool for the same
+    /// reason `download` does: the write loop lasts as long as the transfer.
     func upload(source localURL: URL, destination: RemotePath, byteCount: Int64) async throws {
-        let stdin = Pipe()
-        let stdout = Pipe()
-        let stderr = Pipe()
-        let process = try configuredTransferProcess(stdin: stdin, stdout: stdout, stderr: stderr)
-        try process.run()
-
+        let setup = TransferProcessSetup(
+            arguments: sshArguments(),
+            hostTrust: hostTrust,
+            processFactory: processFactory
+        )
         let handshake = makeHandshake(
             direction: .upload,
             source: RemotePath(localURL.path),
             destination: destination,
             byteCount: byteCount
         )
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            Self.transferQueue.async {
+                do {
+                    try Self.performUpload(
+                        handshake: handshake,
+                        source: localURL,
+                        setup: setup
+                    )
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private static func performUpload(
+        handshake: RemoteTransferHandshake,
+        source localURL: URL,
+        setup: TransferProcessSetup
+    ) throws {
+        let stdin = Pipe()
+        let stdout = Pipe()
+        let stderr = Pipe()
+        let process = try Self.configuredTransferProcess(
+            stdin: stdin, stdout: stdout, stderr: stderr, setup: setup
+        )
+        try process.run()
+
         let input = stdin.fileHandleForWriting
         input.write(try RPCStreamHandler.encodeFrame(handshake.binaryEncoded()))
 
@@ -243,11 +310,33 @@ actor RemoteTransferChannel {
     }
     #endif
 
-    private func configuredTransferProcess(stdin: Pipe, stdout: Pipe, stderr: Pipe) throws -> Process {
-        let process = processFactory()
+    /// Transfers run here, not on a concurrency executor: their read and write
+    /// loops block for the whole length of a copy. Concurrent so two transfers
+    /// do not queue behind each other.
+    private static let transferQueue = DispatchQueue(
+        label: "com.detours.remote.transfer",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
+
+    /// Everything the blocking transfer body needs to start its own ssh
+    /// process, gathered on the actor and handed across as one value.
+    struct TransferProcessSetup: Sendable {
+        let arguments: [String]
+        let hostTrust: SSHHostTrust
+        let processFactory: @Sendable () -> Process
+    }
+
+    private static func configuredTransferProcess(
+        stdin: Pipe,
+        stdout: Pipe,
+        stderr: Pipe,
+        setup: TransferProcessSetup
+    ) throws -> Process {
+        let process = setup.processFactory()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        try hostTrust.prepareKnownHostsFile()
-        process.arguments = sshArguments()
+        try setup.hostTrust.prepareKnownHostsFile()
+        process.arguments = setup.arguments
         process.standardInput = stdin
         process.standardOutput = stdout
         process.standardError = stderr

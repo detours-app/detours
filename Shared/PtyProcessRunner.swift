@@ -88,14 +88,30 @@ public struct PtyProcessRunner: Sendable {
         onOutput: (@Sendable (Data) -> Void)? = nil
     ) async throws -> PtyProcessResult {
         let controller = PtyProcessController()
+        // The run loop blocks on the pseudo-terminal until the process exits.
+        // On a Swift concurrency executor that holds one of the pool's fixed
+        // number of threads for the whole command; a dispatch queue adds
+        // threads when they block instead.
         return try await withTaskCancellationHandler {
-            try await Task.detached {
-                try run(invocation, controller: controller, onOutput: onOutput)
-            }.value
+            try await withCheckedThrowingContinuation { continuation in
+                Self.runQueue.async {
+                    do {
+                        continuation.resume(returning: try run(invocation, controller: controller, onOutput: onOutput))
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
         } onCancel: {
             controller.cancel()
         }
     }
+
+    private static let runQueue = DispatchQueue(
+        label: "com.detours.pty.run",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
 
     private func run(
         _ invocation: PtyProcessInvocation,
