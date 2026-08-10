@@ -19,13 +19,15 @@ extension DetoursPreviewGenerator {
 
         return htmlDocument(
             title: request.displayName,
-            bodyClass: "source-preview",
+            // Wrap starts on: long lines running off the right edge is the usual reason a preview
+            // is unreadable, and the panel gives no horizontal scrollbar worth using.
+            bodyClass: "source-preview wrap-lines",
             controls: """
-            <input class="view-toggle-input" id="source-wrap-toggle" type="checkbox">
+            <input class="view-toggle-input" id="source-wrap-toggle" type="checkbox" checked>
             """,
             toolbar: """
             <span class="preview-title">\(Self.escapeHTML(request.displayName))</span>
-            <label class="view-toggle" id="wrap-toggle" for="source-wrap-toggle">Wrap</label>
+            <label class="view-toggle" id="wrap-toggle" for="source-wrap-toggle" aria-pressed="true">Wrap</label>
             """,
             body: """
             \(fallbackReason.map { "<div class=\"fallback-banner\">\(Self.escapeHTML($0))</div>" } ?? "")
