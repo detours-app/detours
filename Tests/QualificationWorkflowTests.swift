@@ -45,7 +45,9 @@ final class QualificationWorkflowTests: XCTestCase {
         set { Self.createdRoots = newValue }
     }
 
-    private static var createdRoots: [URL] = []
+    // Teardown is not main-actor isolated, so this cannot be either. Every access happens on the
+    // main thread: the tests are main-actor isolated and teardown runs after the test that filled it.
+    nonisolated(unsafe) private static var createdRoots: [URL] = []
 
     override func tearDownWithError() throws {
         for root in Self.createdRoots {
