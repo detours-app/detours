@@ -20,6 +20,7 @@ final class DetoursPreviewWindowController: NSWindowController {
     weak var previewDelegate: DetoursPreviewWindowDelegate?
 
     private let webView: WKWebView
+    private var keyMonitor: Any?
 
     var isPresented: Bool { window?.isVisible ?? false }
 
@@ -61,7 +62,6 @@ final class DetoursPreviewWindowController: NSWindowController {
         window.contentView = container
 
         super.init(window: window)
-        window.keyHandler = self
         window.delegate = self
     }
 
@@ -71,6 +71,7 @@ final class DetoursPreviewWindowController: NSWindowController {
     }
 
     func present(previewURL: URL, title: String, theme: Theme) {
+        startWatchingKeys()
         applyTheme(theme)
         window?.title = title
         load(previewURL: previewURL)
@@ -88,7 +89,28 @@ final class DetoursPreviewWindowController: NSWindowController {
         load(previewURL: previewURL)
     }
 
+    /// Keys are taken before they are handed to any window.
+    ///
+    /// Claiming them on the window itself is too late: the web view treats the arrow keys as
+    /// scrolling and space as paging, and it consumed them before the window's own handling ran, so
+    /// the preview could be neither moved through nor closed. Page Up and Page Down are deliberately
+    /// left alone so they still scroll the file being read.
+    private func startWatchingKeys() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.window?.isKeyWindow == true else { return event }
+            return self.handleKeyDown(event) ? nil : event
+        }
+    }
+
+    private func stopWatchingKeys() {
+        guard let keyMonitor else { return }
+        NSEvent.removeMonitor(keyMonitor)
+        self.keyMonitor = nil
+    }
+
     func close(notifyingDelegate: Bool) {
+        stopWatchingKeys()
         guard window?.isVisible == true else { return }
         if !notifyingDelegate {
             window?.delegate = nil
@@ -109,7 +131,7 @@ final class DetoursPreviewWindowController: NSWindowController {
         (window?.contentView as? BackgroundView)?.color = theme.background
     }
 
-    fileprivate func handleKeyDown(_ event: NSEvent) -> Bool {
+    private func handleKeyDown(_ event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
         switch event.keyCode {
         case 53, 49: // Escape, Space
@@ -160,16 +182,5 @@ private final class BackgroundView: NSView {
 }
 
 private final class PreviewWindow: NSWindow {
-    weak var keyHandler: DetoursPreviewWindowController?
-
     override var canBecomeKey: Bool { true }
-
-    /// Keys are claimed here, before the content gets them. The web view treats the arrow keys as
-    /// scrolling and space as paging, so a handler further down the chain never saw them and the
-    /// window could not be moved through or closed. Page Up and Page Down are deliberately left
-    /// alone so they still scroll the file being read.
-    override func sendEvent(_ event: NSEvent) {
-        if event.type == .keyDown, keyHandler?.handleKeyDown(event) == true { return }
-        super.sendEvent(event)
-    }
 }
