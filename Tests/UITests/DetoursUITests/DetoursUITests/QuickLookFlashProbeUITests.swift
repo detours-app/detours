@@ -37,8 +37,9 @@ final class QuickLookFlashProbeUITests: BaseUITest {
         let windowsBefore = app.windows.count
         describeWindows(stage: "before-preview", label: label)
 
-        // Space opens Quick Look.
-        postSpaceKeyEvent()
+        // Space opens Quick Look. Opening goes through the normal typing call, whose wait for the
+        // app to settle is welcome here; only the measured keypress needs to skip it.
+        pressKey(.space)
         _ = waitForCondition(timeout: 10) { self.app.windows.count > windowsBefore }
         describeWindows(stage: "after-preview", label: label)
 
