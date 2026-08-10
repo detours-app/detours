@@ -50,7 +50,11 @@ extension FileListViewController {
                 guard self.quickLookRequestID == requestID else { return }
                 self.quickLookPreviewItems = previews
                 self.quickLookGenerationTask = nil
-                panel?.makeKeyAndOrderFront(nil)
+                // Only bring the panel up when it is not already showing. Ordering a visible panel
+                // to the front again on every keystroke disturbs it for no reason.
+                if let panel, !panel.isVisible {
+                    panel.makeKeyAndOrderFront(nil)
+                }
                 panel?.reloadData()
             } catch is CancellationError {
                 if self.quickLookRequestID == requestID {
