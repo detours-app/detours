@@ -548,6 +548,19 @@ Spotlight search has no unit test (depends on the live, async-built system index
 | RemoteWatcherPollFallbackTests (3 tests) | PASS | 0.187s | 2026-06-12 15:48:05 |
 | DarwinServerSmokeTests (2 tests, exercises rename/trash/restore decode changes) | PASS | 1.092s | 2026-06-12 15:48:22 |
 
+## Run 20260810 15:30
+
+### 2026-08-10 15:30 (Foundry, open-file limit)
+
+- `swift test` with the live Linux target: **925 tests, 0 failures, 0 skipped**.
+  Installed `refresh` and `connection` workflows both **PASS**.
+- The app now raises its own open-file limit at launch. Proved on the launched
+  bundle rather than argued: it logged raising the limit from **2560 to 8192**.
+  A window inherits 2560 from launchd, not the 256 a shell gets, so the earlier
+  note about 256 applied only to shell-run processes.
+- Foundry's shell limit was also raised from 256 to 8192 in `~/.zshenv`, which
+  covers `swift test` and the build scripts.
+
 ## Run 20260810 14:00
 
 ### 2026-08-10 14:00 (Foundry, no failures and no skips)
