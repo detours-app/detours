@@ -114,6 +114,20 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("Not wrapped"))
     }
 
+    func testChangingHowPreviewsAreWrittenChangesTheCachedPreviewIdentity() async throws {
+        let source = try write("main.swift", "let value = \"hello\"\n")
+        let request = request(source, displayName: "main.swift")
+        let kind = DetoursPreviewKind.sourceCode(language: "swift")
+
+        let before = try generator(documentFormatVersion: "1").cacheKey(for: request, kind: kind)
+        let after = try generator(documentFormatVersion: "2").cacheKey(for: request, kind: kind)
+
+        // Without this, changing how a preview is written leaves every file already previewed
+        // showing the old document forever: nothing else about the file or the theme has changed,
+        // so the old one is served straight back out of the cache.
+        XCTAssertNotEqual(before, after)
+    }
+
     func testWrapSettingChangesTheCachedPreviewIdentity() async throws {
         let source = try write("main.swift", "let value = \"hello\"\n")
         let generator = generator()
@@ -412,13 +426,17 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertFalse(previewURL.lastPathComponent.contains("secret-source-name"))
     }
 
-    private func generator(limits: DetoursPreviewLimits = .standard) -> DetoursPreviewGenerator {
+    private func generator(
+        limits: DetoursPreviewLimits = .standard,
+        documentFormatVersion: String = DetoursPreviewGenerator.currentDocumentFormatVersion
+    ) -> DetoursPreviewGenerator {
         DetoursPreviewGenerator(
             cacheRoot: tempRoot.appendingPathComponent("cache", isDirectory: true),
             assetRoot: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("resources", isDirectory: true)
                 .appendingPathComponent("PreviewAssets", isDirectory: true),
-            limits: limits
+            limits: limits,
+            documentFormatVersion: documentFormatVersion
         )
     }
 

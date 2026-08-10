@@ -45,17 +45,26 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
     private let cacheRoot: URL
     private let assetRoot: URL
     private let limits: DetoursPreviewLimits
+    let documentFormatVersion: String
+
+    /// How the preview document itself is written. It belongs in the cache key alongside the file
+    /// and the theme: without it, changing how previews are built leaves every file already
+    /// previewed showing the old document forever, because nothing else about it has changed. Raise
+    /// this whenever the generated document changes.
+    static let currentDocumentFormatVersion = "2"
 
     init(
         cacheRoot: URL? = nil,
         assetRoot: URL? = nil,
         limits: DetoursPreviewLimits = .standard,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        documentFormatVersion: String = DetoursPreviewGenerator.currentDocumentFormatVersion
     ) {
         self.fileManager = fileManager
         self.cacheRoot = cacheRoot ?? Self.defaultCacheRoot(fileManager: fileManager)
         self.assetRoot = assetRoot ?? Self.defaultAssetRoot()
         self.limits = limits
+        self.documentFormatVersion = documentFormatVersion
         try? Self.cleanStalePreviews(at: self.cacheRoot, fileManager: fileManager)
     }
 
@@ -83,6 +92,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         let metadata = try sourceMetadata(for: request.sourceURL)
         let manifestVersion = try previewAssetManifestVersion()
         let raw = [
+            documentFormatVersion,
             request.sourceURL.path,
             "\(metadata.size)",
             "\(metadata.modified.timeIntervalSince1970)",
