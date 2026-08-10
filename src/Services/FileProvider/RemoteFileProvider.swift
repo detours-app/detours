@@ -222,7 +222,14 @@ struct RemoteFileEntry: Equatable, Sendable {
         let pathString = path.lossyDisplayString
         return LoadedFileEntry(
             location: .remote(hostID: hostID, path: pathString),
-            url: URL(fileURLWithPath: pathString),
+            // `isDirectory` matters far more than it looks: without it, building
+            // a file URL stats the path to find out, and a remote path such as
+            // /home/... sends that stat through the local automounter, which
+            // costs about twelve milliseconds every time. Supplying it keeps the
+            // conversion in memory, where a path that exists on another machine
+            // belongs. Always false, so every URL built from a remote path
+            // compares equal to every other built the same way.
+            url: URL(fileURLWithPath: pathString, isDirectory: false),
             // Remote names are byte-exact on the wire; decoding for display is intentionally lossy.
             // swiftlint:disable:next optional_data_string_conversion
             name: String(decoding: name, as: UTF8.self),

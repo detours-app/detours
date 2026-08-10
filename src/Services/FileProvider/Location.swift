@@ -13,12 +13,24 @@ enum Location: Hashable, Codable, Sendable {
         }
     }
 
+    /// Builds a file URL for a path that lives on another machine.
+    ///
+    /// `URL(fileURLWithPath:)` stats the path to decide whether it is a
+    /// directory, and for a remote path such as /home/... that stat goes
+    /// through the local automounter and costs about twelve milliseconds. A
+    /// remote path never exists locally, so the answer is worthless as well as
+    /// expensive. Declaring it keeps the conversion in memory. Always false, so
+    /// two URLs for the same remote path always compare equal.
+    static func remoteFileURL(_ path: String) -> URL {
+        URL(fileURLWithPath: path, isDirectory: false)
+    }
+
     var lastPathComponent: String {
         switch self {
         case .local(let url):
             return url.lastPathComponent
         case .remote(_, let path):
-            return URL(fileURLWithPath: path).lastPathComponent
+            return Self.remoteFileURL(path).lastPathComponent
         }
     }
 

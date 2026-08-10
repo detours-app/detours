@@ -58,15 +58,15 @@ struct FileDropValidator {
         case .remote(let hostID, let path):
             return .remote(
                 hostID: hostID,
-                path: URL(fileURLWithPath: path).standardizedFileURL.path
+                path: Location.remoteFileURL(path).standardizedFileURL.path
             )
         }
     }
 
     private static func path(_ path: String, isDescendantOf ancestorPath: String) -> Bool {
         guard path != ancestorPath else { return false }
-        let ancestorComponents = URL(fileURLWithPath: ancestorPath).standardizedFileURL.pathComponents
-        let pathComponents = URL(fileURLWithPath: path).standardizedFileURL.pathComponents
+        let ancestorComponents = Location.remoteFileURL(ancestorPath).standardizedFileURL.pathComponents
+        let pathComponents = Location.remoteFileURL(path).standardizedFileURL.pathComponents
         guard pathComponents.count > ancestorComponents.count else { return false }
         return pathComponents.prefix(ancestorComponents.count).elementsEqual(ancestorComponents)
     }

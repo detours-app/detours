@@ -416,7 +416,7 @@ final class PaneRefreshScheduler {
         case .remote(let hostID, let path):
             return .remote(
                 hostID: hostID,
-                path: URL(fileURLWithPath: path).standardizedFileURL.path
+                path: Location.remoteFileURL(path).standardizedFileURL.path
             )
         }
     }

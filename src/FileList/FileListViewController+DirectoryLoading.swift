@@ -140,7 +140,7 @@ extension FileListViewController {
                     if row >= 0 { indexes.insert(row) }
                 }
             case .remote(_, let path):
-                let target = URL(fileURLWithPath: path).standardizedFileURL
+                let target = Location.remoteFileURL(path).standardizedFileURL
                 if let item = dataSource.findItem(withLocation: location, in: dataSource.items),
                    item.isRemote,
                    item.expansionURL == target {
@@ -174,8 +174,8 @@ extension FileListViewController {
 
     private func expandRemoteAncestorChain(to folderPath: String) async {
         guard case .remote(_, let currentRemotePath)? = currentRemoteLocation else { return }
-        let baseURL = URL(fileURLWithPath: currentRemotePath).standardizedFileURL
-        let targetURL = URL(fileURLWithPath: folderPath).standardizedFileURL
+        let baseURL = Location.remoteFileURL(currentRemotePath).standardizedFileURL
+        let targetURL = Location.remoteFileURL(folderPath).standardizedFileURL
         let basePath = baseURL.path
         let targetPath = targetURL.path
         guard targetPath.hasPrefix(basePath) else { return }
@@ -191,7 +191,7 @@ extension FileListViewController {
 
         var current = baseURL
         for component in components {
-            current = current.appendingPathComponent(component).standardizedFileURL
+            current = current.appendingPathComponent(component, isDirectory: false).standardizedFileURL
             if let item = urlToItem[current], item.isNavigableFolder {
                 if item.isRemote {
                     await dataSource.loadRemoteChildrenForExpansionRestore(item)
@@ -452,7 +452,7 @@ extension FileListViewController {
         atPath path: String,
         origin: FileListSelectionOrigin = .operationResult
     ) -> Bool {
-        let target = URL(fileURLWithPath: path).standardizedFileURL
+        let target = Location.remoteFileURL(path).standardizedFileURL
         guard let item = dataSource.findItem(withURL: target, in: dataSource.items),
               item.isRemote else {
             return false

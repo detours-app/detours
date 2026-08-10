@@ -23,7 +23,7 @@ final class FileItem {
         case .local(let url):
             return url.standardizedFileURL
         case .remote(_, let path):
-            return URL(fileURLWithPath: path).standardizedFileURL
+            return Location.remoteFileURL(path).standardizedFileURL
         }
     }
     var isLocal: Bool {
