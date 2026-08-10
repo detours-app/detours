@@ -51,31 +51,37 @@ final class QuickLookFlashProbeUITests: BaseUITest {
         // Let the first preview settle so the baseline is the panel actually showing content.
         Thread.sleep(forTimeInterval: 2.0)
 
-        var samples: [Double] = []
-        samples.append(whiteFraction(of: panel))
+        let baseline = sample(of: panel)
+        print("PROBE \(label) baseline white=\(fmt(baseline.white)) luma=\(fmt(baseline.luma))")
 
         // Down moves the list selection, which is what makes the panel show the next file.
+        let started = Date()
         pressKey(.downArrow)
+        var samples: [(elapsed: TimeInterval, white: Double, luma: Double)] = []
         for _ in 0..<framesAfterKey {
-            samples.append(whiteFraction(of: panel))
+            let reading = sample(of: panel)
+            samples.append((Date().timeIntervalSince(started), reading.white, reading.luma))
         }
 
-        let rendered = samples
-            .map { $0 < 0 ? "n/a" : String(format: "%.3f", $0) }
-            .joined(separator: " ")
-        print("PROBE \(label) baseline-then-\(framesAfterKey)-frames: \(rendered)")
-
-        let measured = samples.filter { $0 >= 0 }
-        XCTAssertFalse(measured.isEmpty, "No frame could be measured for \(label)")
-        let peak = measured.max() ?? 0
-        let baseline = samples.first ?? -1
-        print("PROBE \(label) baseline=\(String(format: "%.3f", baseline)) peak=\(String(format: "%.3f", peak))")
+        for (index, reading) in samples.enumerated() {
+            print(
+                "PROBE \(label) frame=\(index)"
+                    + " atMs=\(Int(reading.elapsed * 1000))"
+                    + " white=\(fmt(reading.white)) luma=\(fmt(reading.luma))"
+            )
+        }
+        let peakWhite = samples.map(\.white).max() ?? -1
+        let peakLuma = samples.map(\.luma).max() ?? -1
+        print(
+            "PROBE \(label) coveredMs=\(Int((samples.last?.elapsed ?? 0) * 1000))"
+                + " peakWhite=\(fmt(peakWhite)) peakLuma=\(fmt(peakLuma))"
+        )
+        // Proves the panel really moved to the second file rather than sitting on the first.
+        print("PROBE \(label) panelTextAfter=\(panelSummary(panel))")
 
         pressKey(.escape)
     }
 
-    /// The preview panel is a separate window of the same app, so it shows up alongside the main
-    /// window rather than as part of it.
     /// The preview panel carries its own title, while the file list window is titled after the app.
     /// Picking by position instead measured the main window and produced a flat, meaningless read.
     private func previewPanel() -> XCUIElement {
@@ -97,34 +103,50 @@ final class QuickLookFlashProbeUITests: BaseUITest {
         }
     }
 
+    /// Big enough to be like a real log file. A small fixture is prepared almost instantly, which
+    /// hides any gap that only shows up when a preview takes real work to build.
     private func body(marker: String) -> String {
         let line = String(repeating: "\(marker) a log line carrying enough text to run past the edge ", count: 6)
-        return (0..<400).map { "\($0) \(line)" }.joined(separator: "\n")
+        return (0..<12_000).map { "\($0) \(line)" }.joined(separator: "\n")
     }
 
-    /// Fraction of sampled pixels that are near-white. A panel showing text sits well below this;
-    /// a blank white panel sits near 1.
-    private func whiteFraction(of element: XCUIElement) -> Double {
+    private func fmt(_ value: Double) -> String {
+        value < 0 ? "n/a" : String(format: "%.3f", value)
+    }
+
+    /// A short description of what the panel is showing, used to confirm it actually moved on.
+    private func panelSummary(_ panel: XCUIElement) -> String {
+        let texts = panel.staticTexts.allElementsBoundByIndex.prefix(3).map { $0.label }
+        return texts.isEmpty ? "<no text>" : texts.joined(separator: " | ")
+    }
+
+    /// Fraction of sampled pixels that are near-white, plus mean brightness. A panel showing text
+    /// sits well below both; a blank white panel sits near 1. Brightness is recorded as well so a
+    /// pale grey blank, which the near-white test would miss, still shows up.
+    private func sample(of element: XCUIElement) -> (white: Double, luma: Double) {
         let shot = element.screenshot()
         guard let source = NSBitmapImageRep(data: shot.pngRepresentation),
-              let rep = source.converting(to: .sRGB, renderingIntent: .default) else { return -1 }
+              let rep = source.converting(to: .sRGB, renderingIntent: .default) else { return (-1, -1) }
         let width = rep.pixelsWide
         let height = rep.pixelsHigh
-        guard width > 0, height > 0 else { return -1 }
+        guard width > 0, height > 0 else { return (-1, -1) }
 
-        let strideX = max(1, width / 50)
-        let strideY = max(1, height / 50)
+        let strideX = max(1, width / 40)
+        let strideY = max(1, height / 40)
         var white = 0
         var total = 0
+        var brightness = 0.0
         for y in stride(from: 0, to: height, by: strideY) {
             for x in stride(from: 0, to: width, by: strideX) {
                 guard let color = rep.colorAt(x: x, y: y) else { continue }
                 total += 1
+                brightness += color.brightnessComponent
                 if color.redComponent > 0.92, color.greenComponent > 0.92, color.blueComponent > 0.92 {
                     white += 1
                 }
             }
         }
-        return total == 0 ? -1 : Double(white) / Double(total)
+        guard total > 0 else { return (-1, -1) }
+        return (Double(white) / Double(total), brightness / Double(total))
     }
 }
