@@ -72,7 +72,10 @@ func resetSettingsForTests() {
 /// only where the qualification runner has mounted its volumes.
 @MainActor
 func makeTemporaryQualificationRoot() throws -> (root: URL, parent: URL) {
-    let parent = try createTempDirectory()
+    // Resolved first: the temporary directory sits under /var, which is a
+    // symlink to /private/var on macOS, and the run-root guard refuses a parent
+    // with a symlinked component.
+    let parent = try createTempDirectory().resolvingSymlinksInPath()
     let descriptor = try QualificationRunRootGuard().create(provider: .local, allowlistedParent: parent)
     return (URL(fileURLWithPath: descriptor.rootPath, isDirectory: true), parent)
 }
