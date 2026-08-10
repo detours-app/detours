@@ -30,6 +30,11 @@ extension FileOperationQueueTests {
             await withCheckedContinuation { enteredWaiters.append($0) }
         }
 
+        /// True once the copy is parked. Polled rather than awaited so a change
+        /// to the copy path can never hang the suite waiting for a gate that is
+        /// no longer reached.
+        var isHeld: Bool { entered }
+
         func release() {
             released = true
             for waiter in releaseWaiters { waiter.resume() }
@@ -57,7 +62,11 @@ extension FileOperationQueueTests {
         let gate = HeavyGate()
         queue.heavyOperationGateForTesting = { await gate.hold() }
         let task = Task { try? await queue.copy(items: [source], to: destination) }
-        await gate.waitUntilHeld()
+        let deadline = Date().addingTimeInterval(2)
+        while await !gate.isHeld, Date() < deadline {
+            await Task.yield()
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
         return HeldHeavyCopy(task: task, gate: gate)
     }
 

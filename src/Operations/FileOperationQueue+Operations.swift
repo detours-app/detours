@@ -13,6 +13,15 @@ extension FileOperationQueue {
 
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
+        #if DEBUG
+        // Held here rather than deeper in the copy so it applies whatever the
+        // sources are: a directory copy takes a different route through the
+        // file work than a single file does.
+        if let gate = heavyOperationGateForTesting {
+            heavyOperationGateForTesting = nil
+            await gate()
+        }
+        #endif
 
         let protectedScope = items + [destination]
         enterProtectedPaths(protectedScope)
@@ -84,12 +93,6 @@ extension FileOperationQueue {
                         let cancelFlag = CancelFlag()
                         self.currentCancelFlag = cancelFlag
                         let cancellationProbe = self.copyProgressCancellationProbeForTesting
-                        #if DEBUG
-                        if let gate = self.heavyOperationGateForTesting {
-                            self.heavyOperationGateForTesting = nil
-                            await gate()
-                        }
-                        #endif
                         try await runFileIO {
                             try CopyfileHelper.copy(from: source, to: destinationURL) { copiedBytes in
                                 if cancellationProbe?(previousBytes + copiedBytes) == true {
