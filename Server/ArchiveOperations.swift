@@ -18,18 +18,26 @@ enum ServerArchiveFormat: String, Equatable, Sendable {
         }
     }
 
-    var requiredTools: [String] {
+    /// Tools needed to create this format.
+    ///
+    /// A password changes which tool a zip needs. Info-ZIP can only encrypt
+    /// with ZipCrypto, which is broken and trivially recoverable, so a
+    /// password-protected zip is written by 7-Zip with AES-256 instead. Without
+    /// a password the ordinary zip tool is fine.
+    func requiredTools(encrypted: Bool) -> [String] {
         switch self {
-        case .zip: ["zip"]
+        case .zip: encrypted ? ["7z"] : ["zip"]
         case .sevenZ: ["7z"]
         case .tarGz, .tarBz2: ["tar"]
         case .tarXz: ["tar", "xz"]
         }
     }
 
-    var extractionTools: [String] {
+    /// Tools needed to extract. An encrypted zip is AES-256, which Info-ZIP's
+    /// unzip cannot read, so it goes back through 7-Zip.
+    func extractionTools(encrypted: Bool) -> [String] {
         switch self {
-        case .zip: ["unzip"]
+        case .zip: encrypted ? ["7z"] : ["unzip"]
         case .sevenZ: ["7z"]
         case .tarGz, .tarBz2: ["tar"]
         case .tarXz: ["tar", "xz"]
@@ -119,7 +127,8 @@ struct ArchiveOperations {
         let format = try archiveFormat(rawFormat)
         try validatePassword(password, format: format)
         try validateArchiveName(archiveName)
-        let tools = try resolvedTools(format.requiredTools)
+        let isEncrypted = !(password ?? "").isEmpty
+        let tools = try resolvedTools(format.requiredTools(encrypted: isEncrypted))
 
         let itemURLs = items.map { URL(fileURLWithPath: $0).standardizedFileURL }
         let parentDirectory = itemURLs[0].deletingLastPathComponent()
@@ -169,7 +178,8 @@ struct ArchiveOperations {
             throw ArchiveOperationsError.unsupportedFormat(archiveURL.lastPathComponent)
         }
         try validatePassword(password, format: format)
-        let tools = try resolvedTools(format.extractionTools)
+        let isEncrypted = !(password ?? "").isEmpty
+        let tools = try resolvedTools(format.extractionTools(encrypted: isEncrypted))
         let parentDirectory = archiveURL.deletingLastPathComponent()
         let tempDirectory = parentDirectory.appendingPathComponent(".detours-extract-\(UUID().uuidString)")
         try fileManager.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
@@ -289,12 +299,17 @@ struct ArchiveOperations {
         let layout = ArchiveSourceLayout(items: items)
         switch format {
         case .zip:
+            // AES-256 rather than Info-ZIP's ZipCrypto, which is broken
+            // encryption and recoverable from a known plaintext fragment. The
+            // password goes over the pty, never into process arguments.
             return PtyProcessInvocation(
-                executable: tools["zip"]!,
-                arguments: ["-er", "-q", "-nw", destination.path, "--"] + layout.relativePaths,
+                executable: tools["7z"]!,
+                arguments: ["a", "-tzip", "-mem=AES256", "-bsp2", "-p", destination.path]
+                    + layout.relativePaths,
                 currentDirectory: layout.workingDirectory,
                 password: password,
-                responses: [.password, .password]
+                responses: [.password, .password],
+                minimumResponses: 1
             )
         case .sevenZ:
             return PtyProcessInvocation(
@@ -355,10 +370,10 @@ struct ArchiveOperations {
         switch format {
         case .zip:
             return PtyProcessInvocation(
-                executable: tools["unzip"]!,
-                arguments: ["-o", "-q", archive.path, "-d", destination.path],
+                executable: tools["7z"]!,
+                arguments: ["x", "-y", "-bsp2", "-o\(destination.path)", archive.path],
                 password: password,
-                responses: [.password, .empty],
+                responses: [.password],
                 minimumResponses: 1
             )
         case .sevenZ:
@@ -385,6 +400,27 @@ struct ArchiveOperations {
     ) throws {
         let members: [String]
         switch format {
+        case .zip where !(password ?? "").isEmpty:
+            // An encrypted zip is AES-256, which Info-ZIP cannot read at all, so
+            // it is listed through 7-Zip. AES leaves entry names in the clear,
+            // but the password still goes over the pty rather than into
+            // arguments, and supplying it also surfaces a wrong password here
+            // rather than part way through extracting.
+            let invocation = PtyProcessInvocation(
+                executable: tools["7z"]!,
+                arguments: ["l", "-slt", archive.path],
+                password: password,
+                responses: [.password],
+                minimumResponses: 1
+            )
+            let result = Self.serverResult(try runPtyProcess(invocation))
+            guard result.status == 0 else {
+                if Self.isWrongPasswordFailure(format: format, result: result) {
+                    throw ArchiveOperationsError.wrongPassword
+                }
+                throw ArchiveOperationsError.processFailed(Self.errorMessage(result.stderr, fallback: format.fileExtension))
+            }
+            members = ArchiveToolDiagnostics.sevenZipListingMemberPaths(result.stderr, requireSeparator: true)
         case .zip:
             // The zip central directory is readable without the password.
             members = try memberListing(
@@ -530,7 +566,13 @@ struct ArchiveOperations {
     ) -> Bool {
         switch format {
         case .zip:
+            // An encrypted zip is now written and read by 7-Zip, so a wrong
+            // password can be reported in either tool's words: 7-Zip's for an
+            // AES archive, Info-ZIP's for one made before that change or
+            // somewhere else. Both mean the same thing to the user, who should
+            // be asked again rather than shown a process failure.
             return ArchiveToolDiagnostics.isZipPasswordFailure(message: result.stderr, status: result.status)
+                || ArchiveToolDiagnostics.isSevenZipPasswordMessage(result.stderr)
         case .sevenZ:
             return ArchiveToolDiagnostics.isSevenZipPasswordMessage(result.stderr)
         case .tarGz, .tarBz2, .tarXz:
@@ -538,7 +580,44 @@ struct ArchiveOperations {
         }
     }
 
+    /// Names a tool may go by, most preferred first.
+    ///
+    /// 7-Zip ships as `7zz` from its own project, which is what macOS installs,
+    /// and as `7z` from p7zip, which is what most Linux distributions carry.
+    /// Either can do the work, so both are accepted rather than making the
+    /// archive features depend on which packaging a host happens to have.
+    private static func toolCandidates(_ tool: String) -> [String] {
+        tool == "7z" ? ["7z", "7zz"] : [tool]
+    }
+
+    /// Directories checked when PATH does not name the tool.
+    ///
+    /// A helper started over a non-login SSH session, or an app launched by the
+    /// window server, inherits a thin PATH that often omits where package
+    /// managers install things. Refusing to build an archive because of that
+    /// would be a poor answer when the tool is sitting in an obvious place.
+    private static let wellKnownToolDirectories = [
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/opt/local/bin",
+    ]
+
     private static func resolveToolOnPath(_ tool: String) -> String? {
+        for candidate in toolCandidates(tool) {
+            if let path = lookUpOnPath(candidate) { return path }
+        }
+        for candidate in toolCandidates(tool) {
+            for directory in wellKnownToolDirectories {
+                let path = directory + "/" + candidate
+                if FileManager.default.isExecutableFile(atPath: path) { return path }
+            }
+        }
+        return nil
+    }
+
+    private static func lookUpOnPath(_ tool: String) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["which", tool]

@@ -84,6 +84,12 @@ extension FileOperationQueue {
                         let cancelFlag = CancelFlag()
                         self.currentCancelFlag = cancelFlag
                         let cancellationProbe = self.copyProgressCancellationProbeForTesting
+                        #if DEBUG
+                        if let gate = self.heavyOperationGateForTesting {
+                            self.heavyOperationGateForTesting = nil
+                            await gate()
+                        }
+                        #endif
                         try await runFileIO {
                             try CopyfileHelper.copy(from: source, to: destinationURL) { copiedBytes in
                                 if cancellationProbe?(previousBytes + copiedBytes) == true {

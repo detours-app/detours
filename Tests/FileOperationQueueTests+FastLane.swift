@@ -5,12 +5,60 @@ extension FileOperationQueueTests {
     // MARK: - Fast-Lane Tests
 
     /// Blocks until `currentOperation` becomes non-nil or the deadline elapses.
-    private func waitForHeavyOperationActive(deadline: TimeInterval = 2.0) async {
-        let end = Date().addingTimeInterval(deadline)
-        while FileOperationQueue.shared.currentOperation == nil, Date() < end {
-            await Task.yield()
-            try? await Task.sleep(nanoseconds: 1_000_000)
+    /// Holds a bulk copy open so "a bulk operation is in flight" is a fact.
+    ///
+    /// Copying a large file and racing it is not a race a test can win: on a
+    /// cloning filesystem the copy finishes immediately, so under load the
+    /// operation was already over by the time the assertion ran. The queue's
+    /// gate parks the copy until the test releases it.
+    private actor HeavyGate {
+        private var entered = false
+        private var released = false
+        private var enteredWaiters: [CheckedContinuation<Void, Never>] = []
+        private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+        func hold() async {
+            entered = true
+            for waiter in enteredWaiters { waiter.resume() }
+            enteredWaiters.removeAll()
+            guard !released else { return }
+            await withCheckedContinuation { releaseWaiters.append($0) }
         }
+
+        func waitUntilHeld() async {
+            guard !entered else { return }
+            await withCheckedContinuation { enteredWaiters.append($0) }
+        }
+
+        func release() {
+            released = true
+            for waiter in releaseWaiters { waiter.resume() }
+            releaseWaiters.removeAll()
+        }
+    }
+
+    private struct HeldHeavyCopy {
+        let task: Task<[URL]?, Never>
+        let gate: HeavyGate
+
+        /// Releases the held copy and waits for it, so existing call sites that
+        /// awaited the copy task read the same way.
+        var value: Void {
+            get async {
+                await gate.release()
+                _ = await task.value
+            }
+        }
+    }
+
+    @MainActor
+    private func startHeldHeavyCopy(source: URL, destination: URL) async -> HeldHeavyCopy {
+        let queue = FileOperationQueue.shared
+        let gate = HeavyGate()
+        queue.heavyOperationGateForTesting = { await gate.hold() }
+        let task = Task { try? await queue.copy(items: [source], to: destination) }
+        await gate.waitUntilHeld()
+        return HeldHeavyCopy(task: task, gate: gate)
     }
 
     private func makeHeavySource(in temp: URL, name: String = "HeavySrc", fileSize: Int = 15_000_000) throws -> URL {
@@ -51,8 +99,7 @@ extension FileOperationQueueTests {
         queue.onOperationStart = { op, _ in startedOps.append(op) }
         defer { queue.onOperationStart = savedStart }
 
-        let heavyTask = Task { try? await queue.copy(items: [heavySrc], to: heavyDst) }
-        await waitForHeavyOperationActive()
+        let heavyTask = await startHeldHeavyCopy(source: heavySrc, destination: heavyDst)
         XCTAssertNotNil(queue.currentOperation, "Heavy copy should be active")
 
         let renamed = try await queue.rename(item: unrelatedFile, to: "b.txt")
@@ -78,8 +125,7 @@ extension FileOperationQueueTests {
         queue.onOperationStart = { op, _ in startedOps.append(op) }
         defer { queue.onOperationStart = savedStart }
 
-        let heavyTask = Task { try? await queue.copy(items: [heavySrc], to: heavyDst) }
-        await waitForHeavyOperationActive()
+        let heavyTask = await startHeldHeavyCopy(source: heavySrc, destination: heavyDst)
         XCTAssertNotNil(queue.currentOperation)
 
         let created = try await queue.createFolder(in: unrelatedDir, name: "Notes")
@@ -102,8 +148,7 @@ extension FileOperationQueueTests {
         queue.onOperationStart = { op, _ in startedOps.append(op) }
         defer { queue.onOperationStart = savedStart }
 
-        let heavyTask = Task { try? await queue.copy(items: [heavySrc], to: heavyDst) }
-        await waitForHeavyOperationActive()
+        let heavyTask = await startHeldHeavyCopy(source: heavySrc, destination: heavyDst)
         XCTAssertNotNil(queue.currentOperation)
 
         let created = try await queue.createFolder(in: temp, name: "SiblingFolder")
@@ -129,8 +174,7 @@ extension FileOperationQueueTests {
         queue.onOperationStart = { op, _ in startedOps.append(op) }
         defer { queue.onOperationStart = savedStart }
 
-        let heavyTask = Task { try? await queue.copy(items: [heavySrc], to: heavyDst) }
-        await waitForHeavyOperationActive()
+        let heavyTask = await startHeldHeavyCopy(source: heavySrc, destination: heavyDst)
 
         let undoManager = UndoManager()
         try await queue.delete(items: [victim], undoManager: undoManager)
@@ -159,8 +203,7 @@ extension FileOperationQueueTests {
         queue.onOperationStart = { op, _ in startedOps.append(op) }
         defer { queue.onOperationStart = savedStart }
 
-        let heavyTask = Task { try? await queue.copy(items: [heavySrc], to: heavyDst) }
-        await waitForHeavyOperationActive()
+        let heavyTask = await startHeldHeavyCopy(source: heavySrc, destination: heavyDst)
 
         let copied = try await queue.copy(items: [smallFile], to: smallDstDir)
         XCTAssertEqual(copied.count, 1)
@@ -186,8 +229,7 @@ extension FileOperationQueueTests {
         queue.onOperationStart = { op, _ in startedOps.append(op) }
         defer { queue.onOperationStart = savedStart }
 
-        let heavyTask = Task { try? await queue.copy(items: [heavySrc], to: heavyDst) }
-        await waitForHeavyOperationActive()
+        let heavyTask = await startHeldHeavyCopy(source: heavySrc, destination: heavyDst)
         XCTAssertNotNil(queue.currentOperation)
 
         // Rename a file inside the heavy source — overlaps protected paths
@@ -395,8 +437,7 @@ extension FileOperationQueueTests {
 
         let queue = FileOperationQueue.shared
 
-        let heavyTask = Task { try? await queue.copy(items: [heavySrc], to: heavyDst) }
-        await waitForHeavyOperationActive()
+        let heavyTask = await startHeldHeavyCopy(source: heavySrc, destination: heavyDst)
         XCTAssertNotNil(queue.currentOperation)
 
         let renameTask = Task { try await queue.rename(item: file, to: "b.txt") }
@@ -431,8 +472,7 @@ extension FileOperationQueueTests {
             queue.onOperationFinish = savedFinish
         }
 
-        let heavyTask = Task { try? await queue.copy(items: [heavySrc], to: heavyDst) }
-        await waitForHeavyOperationActive()
+        let heavyTask = await startHeldHeavyCopy(source: heavySrc, destination: heavyDst)
 
         _ = try await queue.rename(item: u1file, to: "b.txt")
         _ = try await queue.createFolder(in: unrelated2, name: "newFolder")

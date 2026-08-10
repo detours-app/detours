@@ -111,6 +111,17 @@ final class FileOperationQueue {
     var onOperationPaused: ((String) -> Void)?
     var copyProgressCancellationProbeForTesting: (@Sendable (Int64) -> Bool)?
     #if DEBUG
+    /// Test seam: holds the next copy open until the test lets it go.
+    ///
+    /// Tests that prove a quick operation can run while a bulk one is in
+    /// flight used to copy a large file and race it, which is not a race they
+    /// can win: on a cloning filesystem the copy finishes instantly, so under
+    /// load the bulk operation was over before the test could look. Holding it
+    /// open makes "still running" a fact rather than a hope. Fires once, so the
+    /// quick operation the test then performs is not held as well.
+    var heavyOperationGateForTesting: (@Sendable () async -> Void)?
+    #endif
+    #if DEBUG
     /// Test seam: forces every conflict resolution to this choice instead of the
     /// keep-both default, so Replace/Skip paths can be exercised without a dialog.
     var conflictChoiceOverrideForTesting: ConflictChoice?

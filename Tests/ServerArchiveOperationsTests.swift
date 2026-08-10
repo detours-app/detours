@@ -305,7 +305,12 @@ final class ServerArchiveOperationsTests: XCTestCase {
             XCTAssertEqual(error as? ArchiveOperationsError, .processFailed("expected failure"))
         }
         XCTAssertFalse(didRunProcess.value)
-        XCTAssertEqual(invocation.value?.executable, "/usr/bin/zip")
+        // A password-protected zip is written by 7-Zip with AES-256, because
+        // Info-ZIP can only offer ZipCrypto, which is broken encryption.
+        // Asserting the basename, not an absolute path: which copy of a tool
+        // PATH resolves to is a property of the machine, not of this code.
+        XCTAssertEqual((invocation.value?.executable as NSString?)?.lastPathComponent, "7z")
+        XCTAssertEqual(Array((invocation.value?.arguments ?? []).prefix(3)), ["a", "-tzip", "-mem=AES256"])
         XCTAssertEqual(invocation.value?.password, "secret")
         XCTAssertFalse(invocation.value?.arguments.contains(where: { $0.contains("secret") }) ?? true)
     }
