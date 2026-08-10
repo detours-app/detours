@@ -36,7 +36,13 @@ final class PreviewWindowUITests: BaseUITest {
         // panel that paints a blank white page first, which is the whole reason this window exists.
         XCTAssertFalse(windowTitles().contains("Quick Look"), "The system preview panel must not be used here")
 
+        let selectionBefore = (try? requestRemotePaneState(pane: "left"))?.selectedLocations ?? []
         pressKey(.downArrow)
+        let selectionAfter = (try? requestRemotePaneState(pane: "left"))?.selectedLocations ?? []
+        // Separates the two ways this can fail: the key never reaching the list, or the list moving
+        // while the preview stays behind.
+        print("PREVIEWKEY selectionBefore=\(selectionBefore) selectionAfter=\(selectionAfter)")
+        print("PREVIEWKEY windowsAfterDown=\(windowTitles())")
 
         let secondPreview = app.windows[secondName]
         XCTAssertTrue(
