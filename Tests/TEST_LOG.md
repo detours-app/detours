@@ -3240,3 +3240,22 @@ Spotlight search has no unit test (depends on the live, async-built system index
   file and keeps the list focused) and with `UndoUITests/testUndoDelete`, which
   covers the restore path that previously depended on the removed
   notification.
+
+- 2026-08-10 16:21 CEST: Foundry verification PASS at `8a1e0a4` for Page Up and
+  Page Down in the file list and for text previews starting wrapped.
+  `PageKeyNavigationTests` 7 tests covering the paging step, clamping at both
+  ends of the list, Shift extending the selection by a page, paging with nothing
+  selected, and a page key no longer poisoning the type-to-select buffer.
+  `DetoursPreviewGeneratorTests` 16 tests including a new check that a text
+  preview starts wrapped with both wrap mechanisms in agreement. Regression run
+  of `TypeSelectRowTests|SystemKeyHandlerTests` 7 tests, 0 failures, covering
+  the key handling the paging change sits next to.
+  Three of the paging tests failed on the first two Foundry runs and both
+  failures were in the test harness, not in Detours: hosting the file list in a
+  window shrinks that window to the view's fitting size, so the list had no
+  visible area and every page measured as one row. Diagnosed by dumping the
+  real geometry on Foundry rather than by further guessing. The paging step now
+  reads the scrolling area's measured size instead of the visible rectangle,
+  which reports nothing until a window is on screen.
+  Installed-app proof is a Foundry `build.sh` install and relaunch that came up
+  and stayed up. No XCUI test was run for these changes.
