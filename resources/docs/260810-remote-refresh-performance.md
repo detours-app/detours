@@ -90,10 +90,12 @@ Suites, all on Foundry:
 | Installed connection workflow against `devtest` | passed |
 | Signed build launched on Foundry | alive after 12 s, zero crash reports |
 
-Two clusters fail in a full 922-test run and neither comes from this work:
+The whole suite is green: **922 tests, 33 skipped, 0 failures**, plus the `refresh`, `mutation` and `archive` installed workflows.
 
-- Three archive tests fail identically on the commit this work started from. A guard shim at `/usr/local/bin/zip` on Foundry refuses Info-ZIP's ZipCrypto and the tests expect `/usr/bin/zip`. That is the machine, not the app, and it is worth resolving so the suite reads clean.
-- Five fast-lane file-operation tests fail only under full-suite parallel load. The class passes 69 of 69 three times in isolation on this commit, and the full suite on the starting commit fails eleven tests of its own, a different set. Those assertions are load-sensitive rather than wrong, and the flakiness deserves its own look.
+Two clusters were failing and both turned out to be real, not environmental:
+
+- **Password-protected zips used broken encryption.** They were written with Info-ZIP's ZipCrypto, which is recoverable from a known plaintext fragment, and the test machine carries a root-installed guard that refuses it outright. They now use 7-Zip with AES-256, and are read and listed the same way since Info-ZIP cannot read AES at all. Three further faults were hiding behind that one: 7-Zip ships as `7zz` from its own project as well as `7z` from p7zip and was not being found under either name, which is why the tests that would have caught the rest were being skipped; a helper started over a non-login session inherits a PATH that hides it even when installed; and 7-Zip never turns terminal echo off, so the pty runner, which waits for a tool to do that before sending a password so a secret never lands on a visible line, sat at every prompt until it timed out.
+- **Fast-lane tests raced a copy they could not catch.** Five tests proved a quick operation can run during a bulk one by starting a large copy and racing it. On a cloning filesystem the copy finishes immediately, so under load the bulk operation was over before the assertion looked. The queue can now hold a copy open, after it has claimed its protected paths and before any file work, until the test releases it.
 
 ## Known remaining work
 

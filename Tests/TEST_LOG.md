@@ -548,6 +548,30 @@ Spotlight search has no unit test (depends on the live, async-built system index
 | RemoteWatcherPollFallbackTests (3 tests) | PASS | 0.187s | 2026-06-12 15:48:05 |
 | DarwinServerSmokeTests (2 tests, exercises rename/trash/restore decode changes) | PASS | 1.092s | 2026-06-12 15:48:22 |
 
+## Run 20260810 11:00
+
+### 2026-08-10 11:00 (Foundry, whole suite green)
+
+- `swift test` with the live Linux target: **922 tests, 33 skipped, 0
+  failures**. The two clusters that failed earlier are fixed rather than
+  explained away.
+- Archive cluster: password-protected zips were written with Info-ZIP's
+  ZipCrypto, which the test machine's root-installed guard refuses as broken.
+  They now use 7-Zip with AES-256. Three further problems surfaced behind that
+  one and were fixed: 7-Zip ships as `7zz` as well as `7z` and was not being
+  found at all, which is why the tests that would have caught the rest were
+  skipped; a thin PATH on a non-login session hid it even when installed; and
+  7-Zip never disables terminal echo, so the pty runner, which waits for a tool
+  to do that before sending a password, sat at every prompt until it timed out.
+- Fast-lane cluster: five tests proved a quick operation can run during a bulk
+  one by starting a large copy and racing it, which is unwinnable on a cloning
+  filesystem. The queue can now hold a copy open until the test releases it.
+  `FileOperationQueueTests`: 69 tests, 0 failures.
+- Installed workflows: `refresh`, `mutation` and `archive` on LOCAL_ROOT all
+  **PASS**; `refresh` against the live Linux host **PASS** with the manual
+  refresh measured at **69.9 and 72.5 ms**, against 274.2 and 306.8 ms before
+  this work.
+
 ## Run 20260810 09:10
 
 ### 2026-08-10 09:10 (Foundry, remote refresh proved four times faster)
