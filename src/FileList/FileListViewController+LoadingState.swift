@@ -24,20 +24,24 @@ extension FileListViewController {
         spinner.style = .spinning
         spinner.controlSize = .regular
         spinner.sizeToFit()
-        spinner.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(spinner, positioned: .above, relativeTo: scrollView)
+        // The spinner hovers over the file list, where a long listing swallows it. It sits on a
+        // plate so it stays legible over whatever is behind it.
+        let plate = SpinnerPlate.wrapping(spinner, theme: ThemeManager.shared.currentTheme)
+        view.addSubview(plate, positioned: .above, relativeTo: scrollView)
         NSLayoutConstraint.activate([
-            spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            plate.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            plate.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
         spinner.startAnimation(nil)
         loadingSpinner = spinner
+        loadingSpinnerPlate = plate
     }
 
     func hideLoadingIndicator() {
         loadingSpinner?.stopAnimation(nil)
-        loadingSpinner?.removeFromSuperview()
+        loadingSpinnerPlate?.removeFromSuperview()
         loadingSpinner = nil
+        loadingSpinnerPlate = nil
     }
 
     func showErrorOverlay(for error: DirectoryLoadError) {

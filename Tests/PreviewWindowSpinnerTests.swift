@@ -83,3 +83,41 @@ final class PreviewWindowSpinnerTests: XCTestCase {
         XCTAssertFalse(controller.isShowingSpinner, "Closing the preview must not leave a spinner running")
     }
 }
+
+/// Spinners that hover over other content sit on a plate. A spinner drawn straight onto a dense
+/// listing or a wordy file all but disappears.
+@MainActor
+final class SpinnerPlateTests: XCTestCase {
+    func testPlateCarriesTheSpinnerAndTakesItsColoursFromTheTheme() {
+        let spinner = NSProgressIndicator()
+
+        let plate = SpinnerPlate.wrapping(spinner, theme: .dark)
+        plate.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(spinner.isDescendant(of: plate), "The plate must carry the spinner it backs")
+        XCTAssertEqual(plate.layer?.backgroundColor, Theme.dark.surface.cgColor)
+        XCTAssertEqual(plate.layer?.borderColor, Theme.dark.border.cgColor)
+        XCTAssertGreaterThan(plate.layer?.cornerRadius ?? 0, 0, "The plate should be rounded, not a bare square")
+        XCTAssertNotNil(plate.shadow, "The plate should lift off what is behind it")
+    }
+
+    func testFileListLoadingSpinnerSitsOnAPlate() {
+        let controller = FileListViewController()
+        controller.loadViewIfNeeded()
+
+        controller.showLoadingIndicator()
+
+        let spinner = controller.loadingSpinner
+        XCTAssertNotNil(spinner, "A loading spinner should be shown")
+        XCTAssertNotNil(controller.loadingSpinnerPlate, "The loading spinner should sit on a plate")
+        XCTAssertEqual(
+            spinner?.superview,
+            controller.loadingSpinnerPlate,
+            "The spinner must be inside the plate, not floating over the listing on its own"
+        )
+
+        controller.hideLoadingIndicator()
+
+        XCTAssertNil(controller.loadingSpinnerPlate?.superview, "The plate must leave with the spinner")
+    }
+}

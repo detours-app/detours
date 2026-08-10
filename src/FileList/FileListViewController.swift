@@ -123,6 +123,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
 
     // Loading state
     var loadingSpinner: NSProgressIndicator?
+    var loadingSpinnerPlate: SpinnerPlate?
     var errorOverlay: NSView?
     var remoteRefreshErrorBanner: NSView?
     var failedRemoteRefreshDirectory: Location?

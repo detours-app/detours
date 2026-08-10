@@ -21,6 +21,7 @@ final class DetoursPreviewWindowController: NSWindowController {
 
     private let webView: WKWebView
     private let spinner = NSProgressIndicator()
+    private let spinnerPlate: SpinnerPlate
     private var keyMonitor: Any?
     private var spinnerDelay: Timer?
 
@@ -61,17 +62,22 @@ final class DetoursPreviewWindowController: NSWindowController {
         spinner.isDisplayedWhenStopped = false
         spinner.translatesAutoresizingMaskIntoConstraints = false
 
+        // The spinner sits over the file it is waiting on, and over a dense page of text it simply
+        // disappears. It gets a plate of its own so it reads against anything behind it.
+        spinnerPlate = SpinnerPlate.wrapping(spinner, theme: theme)
+        spinnerPlate.isHidden = true
+
         let container = BackgroundView(color: theme.background)
         container.addSubview(webView)
-        container.addSubview(spinner)
+        container.addSubview(spinnerPlate)
         webView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             webView.topAnchor.constraint(equalTo: container.topAnchor),
             webView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             webView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            spinner.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            spinner.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+            spinnerPlate.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            spinnerPlate.centerYAnchor.constraint(equalTo: container.centerYAnchor)
         ])
         window.contentView = container
 
@@ -141,6 +147,7 @@ final class DetoursPreviewWindowController: NSWindowController {
         spinnerDelay?.invalidate()
         spinnerDelay = nil
         isShowingSpinner = false
+        spinnerPlate.isHidden = true
         spinner.stopAnimation(nil)
     }
 
@@ -149,6 +156,7 @@ final class DetoursPreviewWindowController: NSWindowController {
     private func showSpinner() {
         spinnerDelay = nil
         isShowingSpinner = true
+        spinnerPlate.isHidden = false
         spinner.startAnimation(nil)
     }
 
@@ -173,6 +181,7 @@ final class DetoursPreviewWindowController: NSWindowController {
         // can be dark while the system is light, so the container is told which it is.
         let isDark = theme.background.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false
         window?.contentView?.appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
+        spinnerPlate.apply(theme: theme)
         webView.underPageBackgroundColor = theme.background
         webView.layer?.backgroundColor = theme.background.cgColor
         window?.backgroundColor = theme.background
