@@ -311,7 +311,8 @@ struct ArchiveOperations {
                 currentDirectory: layout.workingDirectory,
                 password: password,
                 responses: [.password, .password],
-                minimumResponses: 1
+                minimumResponses: 1,
+                passwordEchoPolicy: .disableBeforeResponse
             )
         case .sevenZ:
             return PtyProcessInvocation(
@@ -319,7 +320,8 @@ struct ArchiveOperations {
                 arguments: ["a", "-t7z", "-bsp2", "-mhe=on", "-p", destination.path] + items.map(\.path),
                 password: password,
                 responses: [.password, .password],
-                minimumResponses: 1
+                minimumResponses: 1,
+                passwordEchoPolicy: .disableBeforeResponse
             )
         case .tarGz, .tarBz2, .tarXz:
             throw ArchiveOperationsError.invalidPassword("\(format.fileExtension) does not support passwords")
@@ -376,7 +378,8 @@ struct ArchiveOperations {
                 arguments: ["x", "-y", "-bsp2", "-o\(destination.path)", archive.path],
                 password: password,
                 responses: [.password],
-                minimumResponses: 1
+                minimumResponses: 1,
+                passwordEchoPolicy: .disableBeforeResponse
             )
         case .sevenZ:
             return PtyProcessInvocation(
@@ -384,7 +387,8 @@ struct ArchiveOperations {
                 arguments: ["x", "-y", "-bsp2", "-o\(destination.path)", archive.path],
                 password: password,
                 responses: [.password],
-                minimumResponses: 1
+                minimumResponses: 1,
+                passwordEchoPolicy: .disableBeforeResponse
             )
         case .tarGz, .tarBz2, .tarXz:
             throw ArchiveOperationsError.invalidPassword("\(format.fileExtension) does not support passwords")
@@ -413,7 +417,8 @@ struct ArchiveOperations {
                 arguments: ["l", "-slt", archive.path],
                 password: password,
                 responses: [.password],
-                minimumResponses: 1
+                minimumResponses: 1,
+                passwordEchoPolicy: .disableBeforeResponse
             )
             let result = Self.serverResult(try runPtyProcess(invocation))
             guard result.status == 0 else {
@@ -439,7 +444,8 @@ struct ArchiveOperations {
                     arguments: ["l", "-slt", archive.path],
                     password: password,
                     responses: [.password],
-                    minimumResponses: 1
+                    minimumResponses: 1,
+                    passwordEchoPolicy: .disableBeforeResponse
                 )
                 let result = Self.serverResult(try runPtyProcess(invocation))
                 guard result.status == 0 else {
