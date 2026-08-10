@@ -64,20 +64,33 @@ Streaming the per-stage detail is itself expensive enough to distort the very ti
 
 ## Verification status
 
-Not yet verified end to end. The measurements above were taken before the changes; the run that would confirm them afterwards has not happened.
+The two helper-side changes are proved. The app-side ones are not.
 
-The reason is scheduled, not a fault: the Proxmox host atticus sleeps from 00:00 to 06:00, and it carries Forgejo, the Linux test host, and the container build host. This work ran past midnight, so the git origin, the test target, and the helper build machine all went away together. They return at 06:00.
+Measured from Foundry against the live Linux host `devtest`, comparing the previously deployed helper with the rebuilt one:
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Git status on a directory outside any repository | 51.65 ms | 0.94 ms |
+| Quick listing sent behind a slow folder size | waited for it | answered first, 4 of 4 runs |
+
+That is a 55-fold reduction on the call every refresh makes, and the helper no longer serves one request at a time.
+
+The app-side changes, the refresh fan-out, the date formatting, and the three blocking waits, are verified only by compiling and linting. Proving them needs the changed source on Foundry, and the git origin is unavailable.
+
+Two things got in the way, in sequence. The Proxmox host atticus sleeps from 00:00 to 06:00 and carries Forgejo, the Linux test host, and the container build host, so working past midnight took the git origin, the test target, and the helper build machine away together. They came back at 06:03.
+
+Forgejo did not. The VM reboots out of that sleep window rather than resuming, and `forgejo.service` is `disabled`, with no `multi-user.target.wants` link, so it does not start with the machine. That is worth fixing on the infrastructure side: the git server is down every morning until someone starts it by hand. It could not be started from here, as there is no passwordless sudo on alcazar and Doppler needs Marco present for Touch ID.
 
 What is confirmed: every target and the test target compile clean with no warnings, and the linter is clean.
 
 What is outstanding, in order:
 
-1. Run the test suite on Foundry, including the new coverage for repository detection and for a quick listing overtaking a slow request on the helper.
-2. Rebuild the Linux helper, which cross-builds through the container host, and redeploy it. **Until that happens the helper changes are not live on any remote host**, because hosts run the previously deployed binary.
+1. Start `forgejo.service` on alcazar and enable it, so the git origin survives the nightly sleep window.
+2. Push, then fast-forward Foundry, and run the test suite there, including the new coverage for repository detection and for a quick listing overtaking a slow request on the helper.
 3. Re-measure a manual refresh against a live host and compare against the 262 to 333 ms recorded above.
-4. Build and install on Spectre, once the above is green.
+4. Build and install on Spectre, once the above is green. **Until that happens the helper changes are not live on kali-vienna**, because the app deploys the helper it carries in its bundle.
 
-A one-shot job is scheduled for 06:23 to pick these up in order.
+The Linux helper itself is already rebuilt with the fixes, cross-built through the container host, and is what the measurements above were taken against.
 
 ## Known remaining work
 

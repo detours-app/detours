@@ -548,6 +548,32 @@ Spotlight search has no unit test (depends on the live, async-built system index
 | RemoteWatcherPollFallbackTests (3 tests) | PASS | 0.187s | 2026-06-12 15:48:05 |
 | DarwinServerSmokeTests (2 tests, exercises rename/trash/restore decode changes) | PASS | 1.092s | 2026-06-12 15:48:22 |
 
+## Run 20260810 06:30
+
+### 2026-08-10 06:30 (Foundry -> devtest, remote helper performance)
+
+- Command: wire-level protocol probes run **from Foundry** against the live
+  Linux host `devtest`, comparing the previously deployed helper with the
+  rebuilt one. No Detours test, probe, or fixture ran on Spectre; the helper
+  binary was cross-built on Spectre through `dockerhost`, which is the only
+  machine that can build it, and staged to Foundry as a gitignored artifact.
+- Status: PASS (server-side changes). App-side changes remain UNVERIFIED.
+- Quick read overtakes slow read: a `FolderSize` over a 1,500-file tree
+  followed by a `List`. Old helper answered in request order `[1, 2]` (the
+  listing waited); new helper answered `[2, 1]` on 4 of 4 runs. The helper no
+  longer serves one request at a time.
+- Git status on a directory outside any repository, measured as 20 calls in one
+  session against a bare session: **51.65 ms -> 0.94 ms per call**, a 55x
+  reduction, because deciding whether a directory belongs to a repository no
+  longer launches git.
+- NOT RUN, and why: the XCTest suite, the installed-app refresh workflow, and
+  the end-to-end Cmd-R re-measurement all need the changed source on Foundry.
+  The git origin (Forgejo on alcazar) is unreachable: after the atticus sleep
+  window the VM rebooted and `forgejo.service` is `disabled`, so it did not
+  start. It cannot be started from here (no passwordless sudo on alcazar, and
+  Doppler needs Marco present for Touch ID). Nothing was installed on Spectre
+  as a result.
+
 ## Run 20260409 21:45
 
 - Started: 2026-04-09 21:45:44
