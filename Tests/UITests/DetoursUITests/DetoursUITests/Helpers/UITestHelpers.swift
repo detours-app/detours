@@ -517,7 +517,6 @@ extension BaseUITest {
         postKeyEvent(keyCode: 53)
     }
 
-
     func chooseFileMenuItem(_ title: String, timeout: TimeInterval = 2) {
         let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
         XCTAssertTrue(fileMenu.exists, "File menu should exist")
