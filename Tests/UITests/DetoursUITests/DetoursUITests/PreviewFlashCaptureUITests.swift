@@ -29,6 +29,19 @@ final class PreviewFlashCaptureUITests: BaseUITest {
             attach(preview.screenshot(), named: String(format: "%02d-opening", index + 1))
         }
 
+        // The original report was moving from one file to the next, which the frames above do not
+        // cover: they only show the file opening.
+        let second = "zzz-huge-2.log"
+        try performFixtureMutation(action: "write", relativePath: second, contents: body, timeout: 60)
+        Thread.sleep(forTimeInterval: 3)
+
+        postArrowDownKeyEvent()
+        for index in 0..<6 {
+            let preview = app.windows.allElementsBoundByIndex.first { $0.title != "Detours" }
+            guard let preview else { continue }
+            attach(preview.screenshot(), named: String(format: "%02d-moving", index + 1))
+        }
+
         postEscapeKeyEvent()
     }
 
