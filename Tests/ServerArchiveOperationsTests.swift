@@ -26,7 +26,6 @@ final class ServerArchiveOperationsTests: XCTestCase {
     }
 
     func testEncryptedSevenZRoundTripsThroughPtyRunner() throws {
-        guard executableOnPath("7z") != nil else { throw XCTSkip("7z is unavailable") }
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
         let source = try createTestFile(in: temp, name: "secret.txt", content: "helper seven secret")

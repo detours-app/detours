@@ -2,7 +2,12 @@ import XCTest
 @testable import Detours
 
 final class WindowsRemoteLiveTests: XCTestCase {
-    private let target = ProcessInfo.processInfo.environment["DETOURS_WINDOWS_TEST_TARGET"]
+    /// The dedicated Windows qualification host, named by default the same way
+    /// the Linux live tests name theirs. Waiting to be told meant these never
+    /// ran unless someone remembered to set a variable, which is indistinguishable
+    /// from not having them.
+    private let target: String? = ProcessInfo.processInfo.environment["DETOURS_WINDOWS_TEST_TARGET"]
+        ?? "detours-windows"
 
     func testConnectListsProfileAndDrives() async throws {
         try await withFixture { fixture in

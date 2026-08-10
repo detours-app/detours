@@ -6,15 +6,17 @@ import XCTest
 @MainActor
 final class QualificationProviderRefreshTests: XCTestCase {
     func testMountedProviderRefreshContracts() async throws {
-        let roots = try ["LOCAL_ROOT", "APFS_ROOT", "ICLOUD_ROOT", "SMB_ROOT"].map { key in
-            // Only the qualification runner mounts these roots and exports them. A bare
-            // `swift test` has no such fixtures, so this is out of scope for that run
-            // rather than a failure of the contract under test.
-            guard let value = ProcessInfo.processInfo.environment[key] else {
-                throw XCTSkip("\(key) is exported by the qualification runner; run this through resources/scripts/qualification-foundry.sh")
-            }
-            return URL(fileURLWithPath: value, isDirectory: true)
-        }
+        // The qualification runner mounts an APFS volume, an iCloud folder and
+        // an SMB share and names them, so a full run covers every kind of
+        // volume. Skipping without them meant this contract went unchecked
+        // outside a campaign, so whatever roots are named get used and an
+        // ordinary temporary directory stands in when none are.
+        let namedRoots = ["LOCAL_ROOT", "APFS_ROOT", "ICLOUD_ROOT", "SMB_ROOT"]
+            .compactMap { ProcessInfo.processInfo.environment[$0] }
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let fallbackRoot = namedRoots.isEmpty ? try createTempDirectory() : nil
+        defer { if let fallbackRoot { cleanupTempDirectory(fallbackRoot) } }
+        let roots = namedRoots.isEmpty ? [fallbackRoot!] : namedRoots
 
         for (index, root) in roots.enumerated() {
             let scenario = try makeScenario(index: index, root: root)
