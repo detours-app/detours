@@ -6,8 +6,10 @@ import XCTest
 /// once never flashes one, and a long file does not sit there looking broken.
 @MainActor
 final class PreviewWindowSpinnerTests: XCTestCase {
+    // A fixed theme, not the current one: resolving that asks the running application for its
+    // appearance, and there is no running application here.
     private func makeController() -> DetoursPreviewWindowController {
-        DetoursPreviewWindowController(theme: ThemeManager.shared.currentTheme)
+        DetoursPreviewWindowController(theme: .dark)
     }
 
     func testNothingIsShownImmediately() {
