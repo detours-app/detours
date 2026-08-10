@@ -3331,3 +3331,19 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Spinners that sit inline in a row are deliberately unchanged and untested here:
   a folder being expanded and a sidebar item connecting occupy their own space,
   where a plate would read as a defect.
+
+- 2026-08-10 22:19 CEST: Foundry verification PASS at `b754605` for a preview
+  never appearing on screen part-drawn, which is what was still throwing a white
+  rectangle on Markdown, HTML and logs alike.
+  `PreviewWindowContentTests` 2 tests covering a new preview window showing
+  nothing but its own background, and a file appearing only once it has finished
+  loading. `PreviewWindowSpinnerTests` 5, `SpinnerPlateTests` 2 and
+  `DetoursPreviewGeneratorTests` 22 re-run, 0 failures, the last including a
+  check that no third-party stylesheet is linked, since the one removed paints
+  code blocks solid white under a light system.
+  Guarded installed UI proof: `installed-smoke opening LOCAL_ROOT` with both
+  preview window tests, confirming moving between files and Markdown routing
+  still work now that the window keeps two views and swaps them.
+  Still not covered by any automated test: that no white is drawn to the eye. The
+  guarantee is now structural, since no view is shown until its file has
+  finished, but the visible result needs a person.
