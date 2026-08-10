@@ -6,18 +6,18 @@ import XCTest
 ///
 /// The file is deliberately large so the loading stage lasts long enough to be caught.
 final class PreviewFlashCaptureUITests: BaseUITest {
-    private let name = "zzz-huge.log"
+    private let fixtureName = "zzz-huge.log"
 
     func testCaptureWhatIsShownWhileALargeFileOpens() throws {
         let line = "2026-08-10 17:04:11.882 detours[4412:88213] request handled for session 8f21ac with a good deal of text"
         let body = (0..<20_000).map { "\($0) \(line)" }.joined(separator: "\n")
-        try performFixtureMutation(action: "write", relativePath: name, contents: body, timeout: 60)
+        try performFixtureMutation(action: "write", relativePath: fixtureName, contents: body, timeout: 60)
 
         let outline = app.fileListOutlineView
         XCTAssertTrue(outline.existsOrWait(timeout: 5), "File list should be present")
-        let row = outline.outlineRow(withStaticText: name)
-        XCTAssertTrue(row.existsOrWait(timeout: 20), "\(name) should be listed")
-        row.staticTexts[name].click()
+        let row = outline.outlineRow(withStaticText: fixtureName)
+        XCTAssertTrue(row.existsOrWait(timeout: 20), "\(fixtureName) should be listed")
+        row.staticTexts[fixtureName].click()
 
         attach(app.windows.firstMatch.screenshot(), named: "00-before-opening")
 
