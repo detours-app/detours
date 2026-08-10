@@ -27,6 +27,24 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("line-number\">2</span>"))
     }
 
+    func testPreviewCarriesItsBackgroundInTheDocumentItself() async throws {
+        let source = try write("main.swift", "let a = 1\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "main.swift", theme: .dark))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        // The panel draws nothing until it has read the stylesheet, and the area is white until
+        // then. The background travels in the document so the first thing drawn is already right.
+        let head = String(html.prefix(while: { $0 != ">" || true }).prefix(1200))
+        XCTAssertTrue(head.contains("<style>html,body{margin:0;background:"), "Background must be in the document head")
+        XCTAssertTrue(
+            head.range(of: "<style>")!.lowerBound < head.range(of: "href=\"support/theme.css\"")!.lowerBound,
+            "The background must come before the stylesheet it would otherwise wait for"
+        )
+        // It is permitted by its exact fingerprint, so no other inline styling is allowed in.
+        XCTAssertTrue(html.contains("style-src 'self' 'sha256-"))
+        XCTAssertFalse(html.contains("unsafe-inline"))
+    }
+
     func testSourceLinesCanBeSkippedWhenOffScreen() async throws {
         let source = try write("main.swift", "let a = 1\nlet b = 2\n")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "main.swift"))

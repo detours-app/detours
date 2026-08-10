@@ -96,7 +96,7 @@ extension DetoursPreviewGenerator {
         ].joined(separator: "-")
     }
 
-    private func cssHex(_ color: NSColor) -> String {
+    func cssHex(_ color: NSColor) -> String {
         let rgb = color.usingColorSpace(.sRGB) ?? color
         let red = max(0, min(255, Int(round(rgb.redComponent * 255))))
         let green = max(0, min(255, Int(round(rgb.greenComponent * 255))))

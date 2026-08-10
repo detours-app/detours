@@ -22,11 +22,18 @@ extension DetoursPreviewGenerator {
         }.joined(separator: "\n")
 
         return htmlDocument(
-            title: request.displayName,
-            // Wrapping is owned by the app, not by a control inside the preview: the preview is
-            // drawn by the system and cannot report a click back, so an in-page toggle could never
-            // outlive the file being shown.
-            bodyClass: request.wrapLines ? "source-preview wrap-lines" : "source-preview",
+            chrome: PreviewChrome(
+                theme: request.theme,
+                title: request.displayName,
+                // Wrapping is owned by the app, not by a control inside the preview: the preview is
+                // drawn by the system and cannot report a click back, so an in-page toggle could
+                // never outlive the file being shown.
+                bodyClass: request.wrapLines ? "source-preview wrap-lines" : "source-preview",
+                // A source preview is highlighted before it is written, so it needs neither the
+                // Markdown renderer nor the page highlighter, and neither of their stylesheets. One
+                // of those stylesheets has to be read before anything can be drawn.
+                usesRichTextAssets: false
+            ),
             toolbar: """
             <span class="preview-title">\(Self.escapeHTML(request.displayName))</span>
             <span class="preview-hint">\(request.wrapLines ? "Wrapped" : "Not wrapped") &middot; \u{2325}W</span>
@@ -40,11 +47,7 @@ extension DetoursPreviewGenerator {
             <div id="source-preview" class="source-lines">
             \(rows)
             </div>
-            """,
-            // A source preview is highlighted before it is written, so it needs neither the Markdown
-            // renderer nor the page highlighter, and it needs neither of their stylesheets. One of
-            // those stylesheets has to be read before anything can be drawn.
-            usesRichTextAssets: false
+            """
         )
     }
 
@@ -63,12 +66,16 @@ extension DetoursPreviewGenerator {
         }.joined(separator: "\n")
 
         return htmlDocument(
-            title: request.displayName,
-            bodyClass: "markdown-preview",
-            controls: """
-            <input class="view-toggle-input" id="markdown-view-rendered" type="radio" name="markdown-view" checked>
-            <input class="view-toggle-input" id="markdown-view-source" type="radio" name="markdown-view">
-            """,
+            chrome: PreviewChrome(
+                theme: request.theme,
+                title: request.displayName,
+                bodyClass: "markdown-preview",
+                controls: """
+                <input class="view-toggle-input" id="markdown-view-rendered" type="radio" name="markdown-view" checked>
+                <input class="view-toggle-input" id="markdown-view-source" type="radio" name="markdown-view">
+                """,
+                usesRichTextAssets: true
+            ),
             toolbar: """
             <span class="preview-title">\(Self.escapeHTML(request.displayName))</span>
             <label class="view-toggle" id="markdown-rendered-toggle" for="markdown-view-rendered">Rendered</label>
@@ -81,19 +88,40 @@ extension DetoursPreviewGenerator {
             <div id="source-preview" class="source-lines">
             \(sourceRows)
             </div>
-            """,
-            usesRichTextAssets: true
+            """
         )
     }
 
-    private func htmlDocument(
-        title: String,
-        bodyClass: String,
-        controls: String = "",
-        toolbar: String,
-        body: String,
-        usesRichTextAssets: Bool
-    ) -> String {
+    /// The page background, written straight into the document rather than fetched.
+    ///
+    /// The panel draws nothing until it has read the stylesheet, and until then the area is white.
+    /// Carrying the background in the document itself means the first thing drawn is already the
+    /// right colour, so there is no white rectangle while the rest is read. It is allowed past the
+    /// document's own security policy by its exact fingerprint, so no other inline styling is.
+    func criticalBackgroundStyle(for theme: Theme) -> String {
+        "html,body{margin:0;background:\(cssHex(theme.background));color:\(cssHex(theme.textPrimary))}"
+    }
+
+    static func styleFingerprint(_ style: String) -> String {
+        "sha256-" + Data(SHA256.hash(data: Data(style.utf8))).base64EncodedString()
+    }
+
+    struct PreviewChrome {
+        var theme: Theme
+        var title: String
+        var bodyClass: String
+        var controls: String = ""
+        var usesRichTextAssets: Bool
+    }
+
+    private func htmlDocument(chrome: PreviewChrome, toolbar: String, body: String) -> String {
+        let theme = chrome.theme
+        let title = chrome.title
+        let bodyClass = chrome.bodyClass
+        let controls = chrome.controls
+        let usesRichTextAssets = chrome.usesRichTextAssets
+        let criticalStyle = criticalBackgroundStyle(for: theme)
+        let styleHash = Self.styleFingerprint(criticalStyle)
         let richTextAssets = usesRichTextAssets ? """
         <link rel="stylesheet" href="support/highlight-github.min.css" media="(prefers-color-scheme: light)">
         <link rel="stylesheet" href="support/highlight-github-dark.min.css" media="(prefers-color-scheme: dark)">
@@ -106,9 +134,10 @@ extension DetoursPreviewGenerator {
         <html>
         <head>
         <meta charset="utf-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' '\(styleHash)'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>\(Self.escapeHTML(title))</title>
+        <style>\(criticalStyle)</style>
         <link rel="stylesheet" href="support/theme.css">
         <link rel="stylesheet" href="support/preview.css">
         \(richTextAssets)
