@@ -15,6 +15,33 @@ final class PreviewWindowUITests: BaseUITest {
         app.windows.allElementsBoundByIndex.map { $0.title }
     }
 
+    /// Markdown is rendered by Detours too, so it must land in the same window. If it reaches the
+    /// system panel instead, it gets that panel's blank white page first.
+    func testMarkdownPreviewAlsoOpensInTheDetoursWindow() throws {
+        let name = "zzz-notes.md"
+        let markdown = "# Notes\n\n" + (0..<200).map { "- point \($0) about something" }.joined(separator: "\n")
+        try performFixtureMutation(action: "write", relativePath: name, contents: markdown)
+
+        let outline = app.fileListOutlineView
+        XCTAssertTrue(outline.existsOrWait(timeout: 5), "File list should be present")
+        let row = outline.outlineRow(withStaticText: name)
+        XCTAssertTrue(row.existsOrWait(timeout: 10), "\(name) should be listed")
+        row.staticTexts[name].click()
+
+        pressKey(.space)
+
+        XCTAssertTrue(
+            app.windows[name].existsOrWait(timeout: 15),
+            "Markdown should open in the Detours preview window; windows were \(windowTitles())"
+        )
+        XCTAssertFalse(
+            windowTitles().contains("Quick Look"),
+            "Markdown must not go to the system panel; windows were \(windowTitles())"
+        )
+
+        pressKey(.escape)
+    }
+
     func testPreviewWindowOpensAndArrowKeysMoveThroughFiles() throws {
         try performFixtureMutation(action: "write", relativePath: firstName, contents: body("ALPHA"))
         try performFixtureMutation(action: "write", relativePath: secondName, contents: body("BRAVO"))
