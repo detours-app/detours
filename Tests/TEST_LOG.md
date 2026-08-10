@@ -3278,3 +3278,15 @@ Spotlight search has no unit test (depends on the live, async-built system index
   automated test: that Option-W reaches the preview while the preview window
   has focus, and that the preview visibly redraws when it does. The preview is a
   system window showing system-rendered content, so that pair needs a person.
+
+- 2026-08-10 17:08 CEST: Foundry verification PASS at `9a31154` for the preview
+  panel keeping the file it is showing while the next preview is built.
+  `FileListResponderTests` 58 tests, 0 failures, including two new cases: the
+  panel reports the preview already on screen while the next one is generating,
+  and reports nothing when there is no earlier preview to hold, so the selected
+  file is never handed over raw and drawn by the system first.
+  Installed-app proof is a Foundry `build.sh` install and relaunch that came up
+  and stayed up. Not covered by any automated test: whether the flash is gone to
+  the eye. The blanking was read directly from the code and is removed, but the
+  preview is a system window and the remaining question of whether anything else
+  paints between documents needs a person looking at it.
