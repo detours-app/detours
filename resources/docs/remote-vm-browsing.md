@@ -57,6 +57,10 @@ Current remote exceptions:
 
 Command-P follows the active tab and never falls back to searching the Mac from a remote tab. On macOS and Linux hosts, Quick Open searches the remote home folder and `/opt` through the helper and streams results as they arrive. On Windows hosts, it searches from the active folder through PowerShell. Recent places remain scoped to the active host, and a disconnected remote tab shows a Reconnect action.
 
+## Remote Quick Look
+
+Quick Look opens its themed Detours preview window before downloading a remote file, with a delayed spinner for transfers that are not immediate. Supported text, image, and PDF previews stay in that window and support normal preview navigation. Unsupported types fall back to the system Quick Look panel after download. Files over 100 MB are rejected before transfer.
+
 ## Unix Helper and Windows Backend
 
 On first connect to supported macOS and Linux hosts, Detours installs the helper binary here:
@@ -80,7 +84,7 @@ Windows hosts do not receive a helper binary. Detours detects Windows automatica
 
 Supported macOS and Linux helper hosts can create and extract password-protected ZIP and 7Z archives. ZIP passwords are limited to 80 UTF-8 bytes; the app and helper reject longer input before starting an archive tool. Detours does not impose that limit on 7Z passwords.
 
-The helper starts `zip`, `unzip`, or `7z` with a controlling terminal and sends the password only after the tool disables terminal echo. The password is absent from command-line arguments, environment values, progress frames, and error text. Incorrect passwords return to the Detours password sheet, and failed extraction removes the helper-created temporary output before retrying. This command-line secrecy does not change ZIP or 7Z encryption algorithms and does not claim protection from privileged memory inspection.
+Password-bearing ZIP and 7Z operations use `7z` or `7zz` through a controlling terminal. Encrypted ZIP archives use AES-256, and encrypted 7Z archives encrypt their headers so filenames are hidden. The password is absent from command-line arguments, environment values, progress frames, and error text. Incorrect passwords return to the Detours password sheet, and failed extraction removes the helper-created temporary output before retrying. This command-line secrecy does not claim protection from privileged memory inspection.
 
 Windows remote hosts do not use the helper and do not support password-protected archive creation or extraction. Their unencrypted ZIP and tool-backed archive behavior is unchanged.
 

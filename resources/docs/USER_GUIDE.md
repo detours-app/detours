@@ -84,6 +84,8 @@ The sidebar shows remote hosts, mounted volumes, network shares, and favorite fo
 | Action | Shortcut |
 | ------ | -------- |
 | Move selection | Arrow keys |
+| Move one page | Page Up/Page Down |
+| Extend selection one page | Shift-Page Up/Shift-Page Down |
 | Open selected items or focused folder | Enter, Cmd-O, or Cmd-Down |
 | Go to parent folder | Cmd-Up |
 | Go back | Cmd-Left |
@@ -180,6 +182,8 @@ Small independent operations such as rename, new file, new folder, move to Trash
 
 On remote selections, Get Info opens a Detours info window with host, path, kind, size, modified date, hidden/readable state, and symlink target when applicable. Reveal in Finder and Share are local-only because Finder and macOS sharing services require local files.
 
+Quick Look opens supported text, image, and PDF files in a themed Detours preview window. Long lines wrap by default; use View > Wrap Lines in Preview (`Option-W`) to change the current preview. Unsupported files use the system Quick Look panel. Remote previews download into the same Detours window and are limited to 100 MB.
+
 ### Archives
 
 Create and extract archives directly from the file list.
@@ -207,7 +211,7 @@ Create and extract archives directly from the file list.
 
 Archive and Extract Here work locally and on supported remote hosts. Password-protected ZIP and 7Z work locally and through the bundled helper on supported macOS and Linux hosts. Windows remote hosts support unencrypted archives only and can always create and extract unencrypted ZIP archives through the built-in PowerShell backend. Available formats otherwise depend on the tools installed on the Mac or remote host.
 
-Detours sends archive passwords only through an echo-disabled terminal prompt. It never puts them in the archive tool's command-line arguments, progress text, or error text. This protects the password from ordinary process-list inspection; it does not change the archive format's encryption algorithm or protect caller-owned memory from privileged inspection.
+Encrypted ZIP archives use AES-256. Encrypted 7Z archives also encrypt the archive headers so filenames are hidden. Detours sends archive passwords only through a terminal prompt and never puts them in the archive tool's command-line arguments, progress text, or error text. This protects the password from ordinary process-list inspection but does not protect caller-owned memory from privileged inspection.
 
 ### Share
 
@@ -424,6 +428,7 @@ Open with **Cmd-,** (or Detours menu → Preferences)
 - **Show hidden files by default**: New tabs show hidden files
 - **Include hidden files in Quick Open**: Search includes hidden files
 - **Enable folder expansion**: Show disclosure triangles
+- **Wrap long lines**: Wrap long lines in Detours text previews
 
 ### Appearance
 
@@ -516,6 +521,8 @@ With "Restore session" enabled:
 | ------ | -------- |
 | Quick Open | Cmd-P |
 | Filter in place | / or Cmd-F |
+| Move one page | Page Up/Page Down |
+| Extend selection one page | Shift-Page Up/Shift-Page Down |
 | Go back | Cmd-Left |
 | Go forward | Cmd-Right |
 | Go to parent | Cmd-Up |
@@ -579,6 +586,7 @@ With "Restore session" enabled:
 | Toggle hidden files | Cmd-Shift-. |
 | Toggle sidebar | Cmd-0 |
 | Toggle status bar | (View menu) |
+| Wrap lines in preview | Option-W |
 | New tab | Cmd-T |
 | Close tab | Cmd-W |
 | Close window | Cmd-Shift-W |

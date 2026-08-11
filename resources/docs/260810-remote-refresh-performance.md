@@ -103,5 +103,3 @@ Two clusters were failing and both turned out to be real, not environmental:
 ## Known remaining work
 
 Reconciling a listing into the outline costs about 10 ms regardless of how few entries it holds. It is no longer the dominant cost, but it is still more than it should be for a handful of rows, and it was not investigated.
-
-The `zip` guard shim on Foundry and the load-sensitive fast-lane assertions above both keep a full suite run from reading clean, and both deserve their own fix.

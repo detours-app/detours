@@ -17,13 +17,15 @@ Markdown previews render with raw HTML disabled. User-authored links are made in
 
 ## Remote Files
 
-Remote Quick Look keeps the existing size behavior:
+Remote Quick Look opens the same themed Detours preview window used for local files, then downloads the selected file into the local cache. A delayed spinner appears in that window when the transfer is not immediate. Files over 100 MB are rejected before download.
 
-- Under 1 MB: download silently.
-- 1 MB through 100 MB: show download progress.
-- Over 100 MB: show the existing too-large error before any download starts.
+After download, supported text, image, and PDF files remain in the Detours preview window. Unsupported types fall back to the system Quick Look panel.
 
-After a remote file is downloaded into the local cache, Detours runs it through the same native text-preview generator used for local files.
+## Presentation
+
+Long lines wrap by default. Change this globally with **Wrap long lines** in Preferences > General, or for the current preview with View > Wrap Lines in Preview (`Option-W`).
+
+Source and plain-text previews initially render the first 900 lines. As the preview approaches the end of the rendered content, Detours appends the next 1,200-line chunk. This keeps large files responsive without truncating them.
 
 ## Cache
 
@@ -33,7 +35,7 @@ Generated previews live in the user caches directory:
 ~/Library/Caches/Detours/previews/
 ```
 
-Cache entries are keyed by source metadata, preview kind, active theme, font size, and preview asset manifest version. Directory permissions are user-only. Stale previews are cleaned opportunistically on preview-generator startup.
+Cache entries are keyed by document format version, source path, size and modification time, preview kind, local or remote context, active theme, font size, wrapping preference, and preview asset manifest version. Directory permissions are user-only. Stale previews are cleaned opportunistically on preview-generator startup.
 
 ## Updating Vendored Assets
 

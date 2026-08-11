@@ -81,7 +81,7 @@ The script will prompt to push `main`, push the tag, and upload the DMG. Press `
 Build:
 
 ```bash
-resources/scripts/build.sh
+resources/scripts/build.sh --no-install
 ```
 
 Create DMG:
