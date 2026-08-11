@@ -423,7 +423,7 @@ final class FileListResponderTests: XCTestCase {
     }
 }
 
-private actor FileListRemoteProvider: FileProvider {
+actor FileListRemoteProvider: FileProvider {
     private let hostID: UUID
     private var listings: [String: [LoadedFileEntry]]
     private var trashCalls: [[Location]] = []
