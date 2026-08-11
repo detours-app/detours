@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Data files preview as tables** - Pressing Space on a `.csv`, `.tsv` or
+  `.tab` file shows it as a table with aligned columns in the Detours theme.
+  The separator is detected from the file's own content, so European exports
+  that use semicolons line up as columns instead of reading as one run-on
+  line, and files written in the Windows European encoding show their accented
+  characters correctly. Column names stay in place while scrolling down and row
+  numbers while scrolling sideways. Values appear exactly as stored, so long
+  identifiers and leading zeros are never reformatted or rounded, and a large
+  export fills in further rows as you scroll.
+- **Word documents preview in the Detours theme** - A `.docx` file shows its
+  headings, paragraphs, bulleted and numbered lists, tables and emphasised
+  words. Pictures and embedded objects appear as a labelled placeholder,
+  nothing from inside the file is loaded or run, and links read as plain text.
+- **Excel workbooks preview as a grid** - An `.xlsx` file shows its first
+  visible sheet with the sheet's own column letters and row numbers. Dates show
+  as dates rather than serial numbers, matching what Excel shows for that file,
+  calculations show their last result, and empty trailing rows and columns are
+  left out.
+
+### Changes
+
+- **PDFs open in the system preview** - Pressing Space on a PDF now opens the
+  macOS preview panel, which offers page thumbnails and page-by-page
+  navigation. Images and every generated text preview still open in the Detours
+  window.
+
 ## 1.11.3 - 2026-07-22
 
 ### Bug Fixes
