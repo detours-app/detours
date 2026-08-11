@@ -200,3 +200,29 @@ final class PreviewWindowFirstUseTests: XCTestCase {
         controller.close(notifyingDelegate: false)
     }
 }
+
+/// A web view is white until it has drawn, whatever the page says, so its own drawing is turned off
+/// and the theme colour behind it shows through. This was lost once in a rewrite and brought the
+/// white back on every file, so it is held here.
+@MainActor
+final class PreviewWebViewBackgroundTests: XCTestCase {
+    func testPreviewViewsDoNotDrawTheirOwnBackground() throws {
+        let controller = DetoursPreviewWindowController(theme: .dark)
+
+        for view in controller.previewWebViewsForTesting {
+            let drawsBackground = view.value(forKey: "drawsBackground") as? Bool
+            XCTAssertEqual(drawsBackground, false, "A preview view must not paint its own background")
+            XCTAssertEqual(view.underPageBackgroundColor, Theme.dark.background)
+        }
+    }
+
+    func testTheViewsSitOnTheThemeColour() throws {
+        let controller = DetoursPreviewWindowController(theme: .dark)
+        let content = try XCTUnwrap(controller.window?.contentView)
+
+        // With the views see-through, whatever is behind them is what is seen, so it must be the
+        // theme colour and never an unpainted view.
+        XCTAssertNotNil(content.layer?.backgroundColor)
+        XCTAssertEqual(content.layer?.backgroundColor, Theme.dark.background.cgColor)
+    }
+}

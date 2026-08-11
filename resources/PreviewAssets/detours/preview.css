@@ -103,14 +103,6 @@ button[aria-pressed="true"],
 
 .source-lines {
   width: 100%;
-  /* The gutter is one strip painted down the whole listing rather than a cell on every line, so a
-     wrapped line still sits against it and there is one less element per line to build. */
-  background-image: linear-gradient(
-    to right,
-    var(--detours-gutter) 0 80px,
-    var(--detours-border) 80px 81px,
-    transparent 81px 100%
-  );
 }
 
 /* Lines are laid out as rows of their own rather than as a table, so that lines scrolled out of
@@ -123,21 +115,10 @@ button[aria-pressed="true"],
    and both were slower again: counting across the file took 3.57s, a positioned pseudo-element on
    every line 2.40s. */
 .source-line {
-  padding: 0 16px 0 0;
+  padding: 0 16px;
   white-space: pre;
   overflow-wrap: normal;
   tab-size: 4;
-}
-
-.line-number {
-  display: inline-block;
-  box-sizing: border-box;
-  width: 81px;
-  padding: 0 24px 0 12px;
-  margin-right: 16px;
-  user-select: none;
-  text-align: right;
-  color: var(--detours-line-number);
 }
 
 .wrap-lines .source-line {

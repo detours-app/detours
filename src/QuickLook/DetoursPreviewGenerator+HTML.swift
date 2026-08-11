@@ -16,13 +16,11 @@ extension DetoursPreviewGenerator {
         lossyDecode: Bool,
         fallbackReason: String?
     ) -> GeneratedDocument {
-        // Two elements per line, down from four. Both attempts to have the stylesheet draw the
-        // number instead measured slower to display, not faster: counting across the file was worst,
-        // and a positioned pseudo-element on every line was still worse than simply writing it.
-        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
+        // One element per line, and no line numbers: they are not wanted in a preview.
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map { line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: kind.highlightLanguage)
             return """
-            <div class="source-line"><span class="line-number">\(index + 1)</span>\(highlightedLine)</div>
+            <div class="source-line">\(highlightedLine)</div>
             """
         }
         // A long file keeps only its first lines in the document. The rest is written beside it in
@@ -79,10 +77,10 @@ extension DetoursPreviewGenerator {
         lossyDecode: Bool
     ) -> String {
         let renderedMarkdown = Self.renderStaticMarkdown(source)
-        let sourceRows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
+        let sourceRows = source.split(separator: "\n", omittingEmptySubsequences: false).map { line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: "markdown")
             return """
-            <div class="source-line"><span class="line-number">\(index + 1)</span><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></div>
+            <div class="source-line"><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></div>
             """
         }.joined(separator: "\n")
 
@@ -145,6 +143,7 @@ extension DetoursPreviewGenerator {
         let usesRichTextAssets = chrome.usesRichTextAssets
         let criticalStyle = criticalBackgroundStyle(for: theme)
         let styleHash = Self.styleFingerprint(criticalStyle)
+        let isDarkTheme = theme.background.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false
         let connectSource = chrome.allowsChunkRequests ? "\(DetoursPreviewChunkHandler.scheme):" : "'none'"
         // No third-party stylesheet is linked at all. Everything is coloured before it is written,
         // using the theme, and the one that used to be linked here paints code blocks solid white,
@@ -164,6 +163,7 @@ extension DetoursPreviewGenerator {
         <meta charset="utf-8">
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' '\(styleHash)'; connect-src \(connectSource); img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="\(isDarkTheme ? "dark" : "light")">
         <title>\(Self.escapeHTML(title))</title>
         <style>\(criticalStyle)</style>
         <link rel="stylesheet" href="support/theme.css">

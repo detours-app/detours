@@ -229,6 +229,12 @@ final class DetoursPreviewWindowController: NSWindowController {
         configuration.setURLSchemeHandler(chunkHandler, forURLScheme: DetoursPreviewChunkHandler.scheme)
         configuration.suppressesIncrementalRendering = true
         let web = WKWebView(frame: NSRect(x: 0, y: 0, width: 900, height: 700), configuration: configuration)
+        // A web view is white before it has drawn anything, whatever the page says, and setting a
+        // colour on it afterwards does not help. Turning its own drawing off lets the theme colour
+        // painted behind it show through instead. This is the accepted way to do it on this
+        // platform and it was lost in an earlier rewrite of this file, which is what brought the
+        // white back on every file.
+        web.setValue(false, forKey: "drawsBackground")
         web.underPageBackgroundColor = theme.background
         web.allowsBackForwardNavigationGestures = false
         web.translatesAutoresizingMaskIntoConstraints = false
@@ -281,13 +287,38 @@ final class DetoursPreviewWindowController: NSWindowController {
     /// What is on screen, for tests: nothing until a file has finished loading.
     var showsLoadedContent: Bool { !visibleWebView.isHidden }
 
+    var previewWebViewsForTesting: [WKWebView] { [visibleWebView, loadingWebView] }
+
     fileprivate func finishLoad(in web: WKWebView, navigation: WKNavigation?) -> Bool {
         guard web === loadingWebView, navigation === previewNavigation, previewNavigation != nil else {
             return false
         }
         previewNavigation = nil
-        swapInLoadedView()
+        Task { @MainActor [weak self] in
+            // Finishing the load is not the same as having drawn. Waiting for the page to put up a
+            // frame before showing it is what stops an empty page, or the file it replaces,
+            // appearing for an instant.
+            _ = try? await web.callAsyncJavaScript(
+                "await new Promise(function (done) {"
+                    + " requestAnimationFrame(function () { requestAnimationFrame(done); }); });",
+                arguments: [:],
+                in: nil,
+                contentWorld: .page
+            )
+            guard let self, web === self.loadingWebView else { return }
+            self.swapInLoadedView()
+            self.endLoading()
+        }
         return true
+    }
+
+    fileprivate func failLoad(in web: WKWebView, navigation: WKNavigation?) {
+        guard web === loadingWebView, navigation === previewNavigation, previewNavigation != nil else {
+            return
+        }
+        previewNavigation = nil
+        swapInLoadedView()
+        endLoading()
     }
 
     /// True while the views hold nothing but the theme colour, for tests.
@@ -335,18 +366,15 @@ final class DetoursPreviewWindowController: NSWindowController {
 
 extension DetoursPreviewWindowController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard finishLoad(in: webView, navigation: navigation) else { return }
-        endLoading()
+        _ = finishLoad(in: webView, navigation: navigation)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        guard finishLoad(in: webView, navigation: navigation) else { return }
-        endLoading()
+        failLoad(in: webView, navigation: navigation)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        guard finishLoad(in: webView, navigation: navigation) else { return }
-        endLoading()
+        failLoad(in: webView, navigation: navigation)
     }
 }
 

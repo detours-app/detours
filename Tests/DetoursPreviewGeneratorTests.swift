@@ -23,8 +23,8 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
 
         XCTAssertTrue(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"))
         XCTAssertFalse(html.contains("<script>alert(1)</script>"))
-        XCTAssertTrue(html.contains("line-number\">1</span>"))
-        XCTAssertTrue(html.contains("line-number\">2</span>"))
+        // No line numbers in a preview.
+        XCTAssertFalse(html.contains("line-number"))
         XCTAssertEqual(html.components(separatedBy: "class=\"source-line\"").count - 1, 3)
     }
 
@@ -61,8 +61,8 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         // Skipping off-screen lines reads like the obvious way to make a long file appear sooner and
         // measured the opposite: 1.42s to display a 12,000 line log with it, 0.30s without.
         XCTAssertFalse(css.contains("content-visibility"))
-        // Two elements per line, not four: the line and its number.
-        XCTAssertTrue(html.contains("<div class=\"source-line\"><span class=\"line-number\">1</span>"))
+        // One element per line, and no line numbers.
+        XCTAssertFalse(html.contains("line-number"))
     }
 
     func testSourcePreviewDoesNotCarryASecondCopyOfTheFile() async throws {
