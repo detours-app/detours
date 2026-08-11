@@ -1,6 +1,7 @@
 import AppKit
 import os.log
 @preconcurrency import Quartz
+import UniformTypeIdentifiers
 
 // MARK: - Quick Look
 
@@ -56,12 +57,14 @@ extension FileListViewController {
                 self.quickLookPreviewItems = previews
                 self.quickLookGenerationTask = nil
 
-                // A preview Detours generated is shown in a window Detours owns. Anything handed
-                // back unchanged, such as an image, is left to the system panel, which shows those
-                // without the blank white stage its document viewer has.
+                // Everything Detours can show goes in the window Detours owns, including images,
+                // which it hands back unchanged. Sending those to the system panel instead meant
+                // moving from a file to an image made the whole preview vanish and a different
+                // window appear in its place.
                 if let generated = previews.first,
                    let previewURL = generated.previewItemURL,
-                   previewURL.standardizedFileURL != urls.first?.standardizedFileURL {
+                   previewURL.standardizedFileURL != urls.first?.standardizedFileURL
+                    || Self.isDisplayableWithoutGeneration(previewURL) {
                     if panel?.isVisible == true {
                         self.clearQuickLookPreviewState(cancelTasks: false)
                         panel?.orderOut(nil)
@@ -87,6 +90,13 @@ extension FileListViewController {
                 FileOperationQueue.shared.presentError(error)
             }
         }
+    }
+
+    /// Images and PDFs are handed back unchanged and still display in the preview window, so they
+    /// need not be sent to the system panel.
+    static func isDisplayableWithoutGeneration(_ url: URL) -> Bool {
+        guard let type = UTType(filenameExtension: url.pathExtension.lowercased()) else { return false }
+        return type.conforms(to: .image) || type.conforms(to: .pdf)
     }
 
     private func selectedRemoteQuickLookItem() -> FileItem? {

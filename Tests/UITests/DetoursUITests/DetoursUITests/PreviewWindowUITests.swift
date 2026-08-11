@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 /// Proves the preview Detours shows for files it renders itself is its own window, and that the
@@ -40,6 +41,53 @@ final class PreviewWindowUITests: BaseUITest {
         )
 
         pressKey(.escape)
+    }
+
+    /// Moving from a file Detours renders to an image must stay in the same window. Sending images
+    /// to the system panel made the whole preview vanish and a different window appear in its place.
+    func testMovingToAnImageStaysInTheSamePreviewWindow() throws {
+        let logName = "zzz-p.log"
+        let imageName = "zzz-q.png"
+        try performFixtureMutation(action: "write", relativePath: logName, contents: body("ALPHA"))
+        try writePNG(named: imageName)
+
+        let outline = app.fileListOutlineView
+        XCTAssertTrue(outline.existsOrWait(timeout: 5), "File list should be present")
+        let row = outline.outlineRow(withStaticText: logName)
+        XCTAssertTrue(row.existsOrWait(timeout: 10), "\(logName) should be listed")
+        row.staticTexts[logName].click()
+
+        pressKey(.space)
+        XCTAssertTrue(app.windows[logName].existsOrWait(timeout: 15), "Preview should open for \(logName)")
+
+        pressKey(.downArrow)
+
+        XCTAssertTrue(
+            app.windows[imageName].existsOrWait(timeout: 15),
+            "The image should appear in the same preview window; windows were \(windowTitles())"
+        )
+        XCTAssertFalse(
+            windowTitles().contains("Quick Look"),
+            "An image must not hand over to the system panel; windows were \(windowTitles())"
+        )
+
+        pressKey(.escape)
+    }
+
+    /// A real image. The runner cannot write into the guarded root, so the file is made in the
+    /// runner's own temporary directory and imported by the app.
+    private func writePNG(named name: String) throws {
+        let staged = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        let image = NSImage(size: NSSize(width: 400, height: 300))
+        image.lockFocus()
+        NSColor.systemTeal.setFill()
+        NSRect(x: 0, y: 0, width: 400, height: 300).fill()
+        image.unlockFocus()
+        let tiff = try XCTUnwrap(image.tiffRepresentation)
+        let rep = try XCTUnwrap(NSBitmapImageRep(data: tiff))
+        let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+        try png.write(to: staged)
+        try performFixtureMutation(action: "importFile", relativePath: name, contents: staged.path)
     }
 
     func testPreviewWindowOpensAndArrowKeysMoveThroughFiles() throws {
