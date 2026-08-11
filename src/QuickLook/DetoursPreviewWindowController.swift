@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import WebKit
 
 @MainActor
@@ -20,8 +21,8 @@ final class DetoursPreviewWindowController: NSWindowController {
     weak var previewDelegate: DetoursPreviewWindowDelegate?
 
     /// Two views, one shown and one loading. The loading view stays attached at zero opacity, then
-    /// WebKit is asked to produce an image of its finished page. Once that render-forcing operation
-    /// completes, the two views swap atomically and only the rendered view becomes visible.
+    /// WebKit is asked to produce an image of its finished page. That image covers the swap while
+    /// the live WebKit layer crosses real display refreshes, so its remote surface cannot flash.
     private var visibleWebView: WKWebView
     private var loadingWebView: WKWebView
     private var hasShownAnything = false
@@ -35,6 +36,11 @@ final class DetoursPreviewWindowController: NSWindowController {
     /// file; the generation keeps that stale readiness callback from revealing the newer load early.
     private var previewGeneration = 0
     private var readinessTask: Task<Void, Never>?
+    private let snapshotCover = PreviewSnapshotView()
+    private var snapshotCoverDisplayLink: CADisplayLink?
+    private var snapshotCoverFramesRemaining = 0
+    private(set) var hasUsedSnapshotCover = false
+    private(set) var completedSnapshotHandoffFrames = 0
     private let chunkHandler = DetoursPreviewChunkHandler()
     /// Set while a preview has been asked for but the window is not on screen yet.
     private var waitingToAppear = false
@@ -99,6 +105,18 @@ final class DetoursPreviewWindowController: NSWindowController {
         }
         visibleWebView.alphaValue = 0
         loadingWebView.alphaValue = 0
+
+        snapshotCover.translatesAutoresizingMaskIntoConstraints = false
+        snapshotCover.imageScaling = .scaleAxesIndependently
+        snapshotCover.isHidden = true
+        snapshotCover.backgroundColor = theme.background
+        container.addSubview(snapshotCover)
+        NSLayoutConstraint.activate([
+            snapshotCover.topAnchor.constraint(equalTo: container.topAnchor),
+            snapshotCover.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            snapshotCover.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            snapshotCover.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
 
         container.addSubview(spinnerPlate)
         NSLayoutConstraint.activate([
@@ -225,6 +243,7 @@ final class DetoursPreviewWindowController: NSWindowController {
         waitingToAppear = false
         readinessTask?.cancel()
         readinessTask = nil
+        dismissSnapshotCover()
         previewGeneration &+= 1
         endLoading()
         stopWatchingKeys()
@@ -270,26 +289,69 @@ final class DetoursPreviewWindowController: NSWindowController {
     }
 
     /// Brings the freshly loaded file forward and retires the one it replaces.
-    private func swapInLoadedView() {
+    private func swapInLoadedView(snapshot: NSImage) {
         let retired = visibleWebView
-        // The ready view has already rendered below the current one. Raise it and change both
-        // opacities in the same AppKit transaction, so there is no intermediate composited frame in
-        // which WebKit's blank surface or the retired file can become visible.
+        // takeSnapshot proves that WebKit can render the document, but the remote layer shown by the
+        // window can still trail that render. Put the known-good image on top before changing either
+        // web view. It is an ordinary AppKit image, so it does not depend on WebKit's compositor.
+        snapshotCover.image = snapshot
+        snapshotCover.isHidden = false
+        hasUsedSnapshotCover = true
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0
             loadingWebView.alphaValue = 1
             loadingWebView.superview?.addSubview(loadingWebView, positioned: .above, relativeTo: retired)
             retired.alphaValue = 0
+            snapshotCover.superview?.addSubview(snapshotCover, positioned: .above, relativeTo: loadingWebView)
+            spinnerPlate.superview?.addSubview(spinnerPlate, positioned: .above, relativeTo: snapshotCover)
         }
         visibleWebView = loadingWebView
         loadingWebView = retired
         hasShownAnything = true
+        window?.contentView?.layoutSubtreeIfNeeded()
+        window?.contentView?.displayIfNeeded()
         appearIfWaiting()
+        beginSnapshotHandoff()
         // The retired view still holds the file it was showing. It is emptied to the theme colour
         // straight away, because the next file goes into this same view, and a view is finished
         // loading a moment before it has drawn: whatever it still held was appearing for an instant
         // as the previous file flashing back.
         loadingWebView.loadHTMLString(Self.blankDocument(for: currentTheme), baseURL: nil)
+    }
+
+    /// Keeps the rendered image over the live page until the live WebKit layer has been present for
+    /// several actual refreshes of this window's display. Counting refreshes instead of dispatching
+    /// after a guessed duration works at the display's real cadence and includes the high-resolution
+    /// external display where the remote-layer race is observable.
+    private func beginSnapshotHandoff() {
+        snapshotCoverDisplayLink?.invalidate()
+        snapshotCoverFramesRemaining = 6
+        completedSnapshotHandoffFrames = 0
+        let displayLink = snapshotCover.displayLink(
+            target: self,
+            selector: #selector(snapshotCoverDisplayLinkDidFire(_:))
+        )
+        snapshotCoverDisplayLink = displayLink
+        displayLink.add(to: .main, forMode: .common)
+    }
+
+    @objc private func snapshotCoverDisplayLinkDidFire(_ displayLink: CADisplayLink) {
+        guard displayLink === snapshotCoverDisplayLink else {
+            displayLink.invalidate()
+            return
+        }
+        snapshotCoverFramesRemaining -= 1
+        completedSnapshotHandoffFrames += 1
+        guard snapshotCoverFramesRemaining <= 0 else { return }
+        dismissSnapshotCover()
+    }
+
+    private func dismissSnapshotCover() {
+        snapshotCoverDisplayLink?.invalidate()
+        snapshotCoverDisplayLink = nil
+        snapshotCoverFramesRemaining = 0
+        snapshotCover.isHidden = true
+        snapshotCover.image = nil
     }
 
     private static func blankDocument(for theme: Theme) -> String {
@@ -310,6 +372,7 @@ final class DetoursPreviewWindowController: NSWindowController {
     var previewWebViewsForTesting: [WKWebView] { [visibleWebView, loadingWebView] }
     var visiblePreviewWebViewForTesting: WKWebView { visibleWebView }
     var loadingPreviewWebViewForTesting: WKWebView { loadingWebView }
+    var isShowingSnapshotCoverForTesting: Bool { !snapshotCover.isHidden && snapshotCover.image != nil }
 
     fileprivate func finishLoad(in web: WKWebView, navigation: WKNavigation?) -> Bool {
         guard web === loadingWebView, navigation === previewNavigation, previewNavigation != nil else {
@@ -324,8 +387,9 @@ final class DetoursPreviewWindowController: NSWindowController {
             // resulting page. Asking for a snapshot forces WebKit to produce a native image of its
             // current contents, and unlike requestAnimationFrame it also completes when an
             // opacity-zero view is being throttled by the compositor.
+            let snapshot: NSImage
             do {
-                _ = try await web.takeSnapshot(configuration: nil)
+                snapshot = try await web.takeSnapshot(configuration: nil)
             } catch {
                 guard
                     let self,
@@ -345,7 +409,7 @@ final class DetoursPreviewWindowController: NSWindowController {
                 web === self.loadingWebView
             else { return }
             self.readinessTask = nil
-            self.swapInLoadedView()
+            self.swapInLoadedView(snapshot: snapshot)
             self.endLoading()
         }
         return true
@@ -358,7 +422,8 @@ final class DetoursPreviewWindowController: NSWindowController {
         previewNavigation = nil
         readinessTask?.cancel()
         readinessTask = nil
-        swapInLoadedView()
+        // A navigation failure has no rendered page to hand off. Keep the current page, or the
+        // themed loading state on first use, rather than exposing WebKit's failed blank surface.
         endLoading()
     }
 
@@ -372,6 +437,7 @@ final class DetoursPreviewWindowController: NSWindowController {
         let isDark = theme.background.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false
         window?.contentView?.appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
         spinnerPlate.apply(theme: theme)
+        snapshotCover.backgroundColor = theme.background
         for web in [visibleWebView, loadingWebView] {
             web.underPageBackgroundColor = theme.background
             web.layer?.backgroundColor = theme.background.cgColor
@@ -437,6 +503,28 @@ private final class BackgroundView: NSView {
         wantsLayer = true
         layer?.backgroundColor = color.cgColor
     }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+/// A local AppKit surface that carries WebKit's rendered snapshot across the remote-layer swap.
+/// It never accepts a hit, so scrolling and keyboard interaction continue in the live web view.
+private final class PreviewSnapshotView: NSImageView {
+    var backgroundColor: NSColor {
+        didSet { layer?.backgroundColor = backgroundColor.cgColor }
+    }
+
+    init() {
+        backgroundColor = .clear
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.backgroundColor = backgroundColor.cgColor
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {

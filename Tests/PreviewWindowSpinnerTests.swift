@@ -159,6 +159,23 @@ final class PreviewWindowContentTests: XCTestCase {
         await fulfillment(of: [shown], timeout: 15)
 
         XCTAssertTrue(controller.showsLoadedContent, "The file should be on screen once it has loaded")
+        XCTAssertTrue(
+            controller.hasUsedSnapshotCover,
+            "The native rendered image must cover the live WebKit layer during its compositor handoff"
+        )
+
+        for _ in 0..<200 where controller.completedSnapshotHandoffFrames < 6 {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(
+            controller.completedSnapshotHandoffFrames,
+            6,
+            "The live WebKit layer must cross six refresh callbacks before the rendered image leaves"
+        )
+        XCTAssertFalse(
+            controller.isShowingSnapshotCoverForTesting,
+            "The snapshot must leave once the live layer has crossed the guarded display refreshes"
+        )
         controller.close(notifyingDelegate: false)
     }
 
