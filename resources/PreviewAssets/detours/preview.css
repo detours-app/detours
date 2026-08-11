@@ -103,7 +103,6 @@ button[aria-pressed="true"],
 
 .source-lines {
   width: 100%;
-  counter-reset: source-line;
   /* The gutter is one strip painted down the whole listing rather than a cell on every line, so a
      wrapped line still sits against it and there is one less element per line to build. */
   background-image: linear-gradient(
@@ -128,11 +127,11 @@ button[aria-pressed="true"],
   tab-size: 4;
 }
 
-/* The number is drawn by the stylesheet, so it is neither an element to build nor text that gets
-   copied along with the line. */
+/* The number is drawn by the stylesheet from a value on the line, so it is neither an element to
+   build nor text that gets copied along with the line. It is deliberately not counted here:
+   counting across a long file measured slower than writing the numbers out. */
 .source-line::before {
-  counter-increment: source-line;
-  content: counter(source-line);
+  content: attr(data-line);
   position: absolute;
   left: 0;
   top: 0;

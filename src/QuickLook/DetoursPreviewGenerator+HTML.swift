@@ -10,13 +10,14 @@ extension DetoursPreviewGenerator {
         lossyDecode: Bool,
         fallbackReason: String?
     ) -> String {
-        // One element per line, and the line number comes from the stylesheet rather than being
-        // written into every line. A long log was carrying four elements and about a hundred extra
-        // bytes per line, and all of that has to be read and measured before anything is drawn.
-        let rows = source.split(separator: "\n", omittingEmptySubsequences: false).map { line in
+        // One element per line. The line number rides along as a value on that element and is drawn
+        // by the stylesheet, so it is neither an element to build nor text that gets copied with the
+        // line. It is not counted by the stylesheet either: counting across twelve thousand lines
+        // measured slower than the markup it saved.
+        let rows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: kind.highlightLanguage)
             return """
-            <div class="source-line">\(highlightedLine)</div>
+            <div class="source-line" data-line="\(index + 1)">\(highlightedLine)</div>
             """
         }.joined(separator: "\n")
 
@@ -57,10 +58,10 @@ extension DetoursPreviewGenerator {
         lossyDecode: Bool
     ) -> String {
         let renderedMarkdown = Self.renderStaticMarkdown(source)
-        let sourceRows = source.split(separator: "\n", omittingEmptySubsequences: false).map { line in
+        let sourceRows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: "markdown")
             return """
-            <div class="source-line"><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></div>
+            <div class="source-line" data-line="\(index + 1)"><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></div>
             """
         }.joined(separator: "\n")
 
