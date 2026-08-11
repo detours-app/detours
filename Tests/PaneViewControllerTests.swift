@@ -339,8 +339,7 @@ final class PaneViewControllerTests: XCTestCase {
             pane.selectedTab?.fileListViewController.currentRemoteLocation,
             .remote(hostID: host.id, path: "/Users/marco")
         )
-        let hasSpinner = pane.selectedTab?.fileListViewController.view.subviews.contains { $0 is NSProgressIndicator }
-        XCTAssertEqual(hasSpinner, true)
+        XCTAssertNotNil(pane.selectedTab?.fileListViewController.loadingSpinner)
     }
 
     func testRestoredRemoteRootTabRendersRemoteTitleBeforeReconnect() throws {
@@ -399,8 +398,7 @@ final class PaneViewControllerTests: XCTestCase {
             .remote(hostID: host.id, path: "/")
         )
         XCTAssertNil(pane.selectedTab?.fileListViewController.currentDirectory)
-        let hasSpinner = pane.selectedTab?.fileListViewController.view.subviews.contains { $0 is NSProgressIndicator }
-        XCTAssertEqual(hasSpinner, true)
+        XCTAssertNotNil(pane.selectedTab?.fileListViewController.loadingSpinner)
     }
 
     // MARK: - Bug Fix Verification Tests
