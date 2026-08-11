@@ -3426,3 +3426,19 @@ Spotlight search has no unit test (depends on the live, async-built system index
   Two failures on the way were in the tests, not the app: the test's web view had
   nobody to answer the page's requests, and a size comparison was one byte out
   because the document records how many chunks there are.
+
+- 2026-08-11 11:34 CEST: Foundry verification PASS at `b9a62e5` for the preview
+  views no longer painting their own white background, for documents declaring
+  whether they are dark, and for line numbers being removed from previews.
+  `PreviewWebViewBackgroundTests` 2 tests holding that neither view paints its
+  own background and that the theme colour sits behind them, which is the thing
+  that was lost in an earlier rewrite of that file and brought the white back on
+  every file rather than just the first. Regression run of the preview, window,
+  lazy loading, build cache and file list classes totalling 104 tests, 0
+  failures. Guarded installed UI proof: all three `PreviewWindowUITests`.
+  Attempted and reverted: waiting for the page to report a drawn frame before
+  showing it. A view that is not on screen is not animating, so nothing ever came
+  back and the preview never appeared; two tests caught it immediately. It is not
+  needed once the views stop painting their own background.
+  This was found by looking up the known behaviour rather than by reasoning about
+  it further, after several rounds of my own guesses failed.
