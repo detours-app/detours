@@ -68,10 +68,12 @@ check_preview_assets() {
     local required=(
         "$PREVIEW_ASSETS_DIR/manifest.json"
         "$PREVIEW_ASSETS_DIR/vendor/markdown-it.min.js"
+        "$PREVIEW_ASSETS_DIR/vendor/dompurify.min.js"
         "$PREVIEW_ASSETS_DIR/vendor/highlight.min.js"
         "$PREVIEW_ASSETS_DIR/vendor/highlight-github.min.css"
         "$PREVIEW_ASSETS_DIR/vendor/highlight-github-dark.min.css"
         "$PREVIEW_ASSETS_DIR/vendor/LICENSE.markdown-it.txt"
+        "$PREVIEW_ASSETS_DIR/vendor/LICENSE.dompurify.txt"
         "$PREVIEW_ASSETS_DIR/vendor/LICENSE.highlight.js.txt"
         "$PREVIEW_ASSETS_DIR/detours/preview-runtime.js"
         "$PREVIEW_ASSETS_DIR/detours/preview-lazy.js"

@@ -12,6 +12,15 @@ final class DetoursPreviewKindTests: XCTestCase {
         }
     }
 
+    func testHTMLExtensionsClassifyAsRenderedDocuments() {
+        for name in ["index.html", "legacy.htm"] {
+            XCTAssertEqual(
+                DetoursPreviewKind.classify(url: URL(fileURLWithPath: name), sampleData: Data("<h1>Title</h1>".utf8)),
+                .htmlDocument(language: "xml")
+            )
+        }
+    }
+
     func testCommonDeveloperExtensionsClassifyAsSourceOrConfig() {
         let samples: [(String, DetoursPreviewKind)] = [
             ("main.swift", .sourceCode(language: "swift")),
@@ -24,7 +33,6 @@ final class DetoursPreviewKindTests: XCTestCase {
             ("view.xml", .sourceCode(language: "xml")),
             ("script.sh", .sourceCode(language: "bash")),
             ("style.css", .sourceCode(language: "css")),
-            ("index.html", .sourceCode(language: "xml")),
             ("query.sql", .sourceCode(language: "sql")),
             (".env", .configuration(language: "ini")),
             (".gitignore", .configuration(language: "plaintext"))

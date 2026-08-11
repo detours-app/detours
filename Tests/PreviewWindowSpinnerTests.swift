@@ -217,6 +217,73 @@ final class PreviewWindowContentTests: XCTestCase {
         XCTAssertEqual(settledBody?.trimmingCharacters(in: .whitespacesAndNewlines), "second")
         controller.close(notifyingDelegate: false)
     }
+
+    func testHTMLIsSanitizedBeforeTheSandboxedFrameLoads() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("html-preview-security-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("unsafe.html")
+        let document = """
+        <!doctype html>
+        <style>h1 { color: rgb(12, 34, 56); }</style>
+        <h1 onclick="window.detoursPwned = true">Safe heading</h1>
+        <script>window.detoursPwned = true</script>
+        <img src="https://example.com/tracker.png" onerror="window.detoursPwned = true">
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=">
+        <a href="https://example.com">leave</a>
+        <form action="https://example.com/collect"><input autofocus></form>
+        """
+        try document.write(to: source, atomically: true, encoding: .utf8)
+        let generator = DetoursPreviewGenerator(
+            cacheRoot: root.appendingPathComponent("cache", isDirectory: true),
+            assetRoot: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("resources", isDirectory: true)
+                .appendingPathComponent("PreviewAssets", isDirectory: true)
+        )
+        let previewURL = try await generator.previewURL(for: DetoursPreviewRequest(
+            sourceURL: source,
+            displayName: "unsafe.html",
+            theme: .dark,
+            fontSize: 13,
+            context: .local,
+            wrapLines: true
+        ))
+
+        let controller = DetoursPreviewWindowController(theme: .dark)
+        controller.present(previewURL: previewURL, title: "unsafe.html", theme: .dark)
+        let web = controller.loadingPreviewWebViewForTesting
+        for _ in 0..<200 {
+            let ready = try? await web.evaluateJavaScript("document.documentElement.dataset.htmlPreviewReady") as? String
+            if ready == "true" { break }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        let sanitized = try XCTUnwrap(
+            try await web.evaluateJavaScript("window.__detoursHTMLPreviewSanitized") as? String
+        )
+        XCTAssertTrue(sanitized.contains("Safe heading"))
+        XCTAssertTrue(sanitized.contains("rgb(12, 34, 56)"), "Inline presentation should survive sanitization")
+        XCTAssertTrue(sanitized.contains("data:image/png;base64,"), "Self-contained images should remain renderable")
+        XCTAssertFalse(sanitized.contains("<script"))
+        XCTAssertFalse(sanitized.contains("onclick"))
+        XCTAssertFalse(sanitized.contains("onerror"))
+        XCTAssertFalse(sanitized.contains("https://"))
+        XCTAssertFalse(sanitized.contains("autofocus"))
+        XCTAssertEqual(
+            try await web.evaluateJavaScript("document.getElementById('rendered-html-frame').getAttribute('sandbox')") as? String,
+            ""
+        )
+        XCTAssertEqual(
+            try await web.evaluateJavaScript("typeof window.detoursPwned") as? String,
+            "undefined"
+        )
+        XCTAssertEqual(
+            try await web.evaluateJavaScript("document.documentElement.dataset.htmlPreviewReady") as? String,
+            "true"
+        )
+        controller.close(notifyingDelegate: false)
+    }
 }
 
 /// The first preview is the one that pays for the window being made and its views being started.

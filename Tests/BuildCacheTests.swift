@@ -48,6 +48,7 @@ final class BuildCacheTests: XCTestCase {
         XCTAssertTrue(script.contains("Contents/Resources/PreviewAssets"))
         XCTAssertTrue(script.contains("manifest.json"))
         XCTAssertTrue(script.contains("markdown-it.min.js"))
+        XCTAssertTrue(script.contains("dompurify.min.js"))
         XCTAssertTrue(script.contains("highlight.min.js"))
         XCTAssertTrue(script.contains("preview-runtime.js"))
         XCTAssertTrue(script.contains("preview-lazy.js"))

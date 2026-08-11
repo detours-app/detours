@@ -1,5 +1,5 @@
 {
-  "assetManifestVersion": "2026-06-17.9",
+  "assetManifestVersion": "2026-08-11.10",
   "packages": [
     {
       "name": "markdown-it",
@@ -37,10 +37,20 @@
         "diff",
         "plaintext"
       ]
+    },
+    {
+      "name": "DOMPurify",
+      "version": "3.4.13",
+      "asset": "vendor/dompurify.min.js",
+      "sha256": "9ab3d44d73c3e3947f9ab72e0f0bc15c7f1931d60b365ba261fc85fe59013c56",
+      "sourceURL": "https://www.npmjs.com/package/dompurify/v/3.4.13",
+      "license": "MPL-2.0 OR Apache-2.0",
+      "licenseFile": "vendor/LICENSE.dompurify.txt"
     }
   ],
   "detoursAssets": [
     "detours/preview-runtime.js",
+    "detours/preview-lazy.js",
     "detours/preview.css"
   ]
 }

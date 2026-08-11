@@ -2,6 +2,7 @@ import Foundation
 
 enum DetoursPreviewKind: Equatable {
     case markdown(language: String)
+    case htmlDocument(language: String)
     case sourceCode(language: String)
     case configuration(language: String)
     case plainText(language: String)
@@ -14,6 +15,7 @@ enum DetoursPreviewKind: Equatable {
     var highlightLanguage: String {
         switch self {
         case .markdown(let language),
+             .htmlDocument(let language),
              .sourceCode(let language),
              .configuration(let language),
              .plainText(let language):
@@ -26,6 +28,7 @@ enum DetoursPreviewKind: Equatable {
     var cacheComponent: String {
         switch self {
         case .markdown(let language): return "markdown-\(language)"
+        case .htmlDocument(let language): return "html-\(language)"
         case .sourceCode(let language): return "source-\(language)"
         case .configuration(let language): return "config-\(language)"
         case .plainText(let language): return "text-\(language)"
@@ -84,6 +87,9 @@ enum DetoursPreviewKind: Equatable {
         if markdownExtensions.contains(ext) {
             return .markdown(language: "markdown")
         }
+        if htmlExtensions.contains(ext) {
+            return .htmlDocument(language: "xml")
+        }
         if let language = sourceExtensions[ext] {
             return .sourceCode(language: language)
         }
@@ -103,6 +109,7 @@ enum DetoursPreviewKind: Equatable {
     }
 
     private static let markdownExtensions: Set<String> = ["md", "markdown", "mdown"]
+    private static let htmlExtensions: Set<String> = ["html", "htm"]
     private static let plainTextExtensions: Set<String> = ["txt", "text", "log"]
 
     private static let sourceExtensions: [String: String] = [
@@ -118,8 +125,6 @@ enum DetoursPreviewKind: Equatable {
         "bash": "bash",
         "zsh": "bash",
         "css": "css",
-        "html": "xml",
-        "htm": "xml",
         "xml": "xml",
         "sql": "sql",
         "diff": "diff",

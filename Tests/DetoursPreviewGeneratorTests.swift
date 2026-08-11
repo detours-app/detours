@@ -230,6 +230,52 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         }
     }
 
+    func testHTMLPreviewIncludesRenderedAndSourceViews() async throws {
+        let source = try write(
+            "index.html",
+            "<!doctype html><html><head><style>h1 { color: red; }</style></head><body><h1>Rendered title</h1></body></html>"
+        )
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "index.html"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        XCTAssertNotEqual(previewURL.standardizedFileURL, source.standardizedFileURL)
+        XCTAssertTrue(html.contains("id=\"html-view-rendered\" type=\"radio\" name=\"html-view\" checked"))
+        XCTAssertTrue(html.contains("id=\"html-view-source\" type=\"radio\" name=\"html-view\""))
+        XCTAssertTrue(html.contains("id=\"rendered-html-frame\""))
+        XCTAssertTrue(html.contains("id=\"html-source-preview\""))
+        XCTAssertTrue(html.contains("id=\"html-source-payload\""))
+        XCTAssertTrue(html.contains("Rendered title"))
+        XCTAssertTrue(html.contains("src=\"support/dompurify.min.js\""))
+        XCTAssertTrue(html.contains("src=\"support/preview-runtime.js\""))
+        XCTAssertLessThan(
+            try XCTUnwrap(html.range(of: "src=\"support/dompurify.min.js\"")?.lowerBound),
+            try XCTUnwrap(html.range(of: "src=\"support/preview-runtime.js\"")?.lowerBound)
+        )
+    }
+
+    func testHTMLPreviewKeepsUntrustedMarkupInertUntilSanitization() async throws {
+        let source = try write(
+            "unsafe.html",
+            "<script>window.detoursPwned = true</script><img src=\"https://example.com/tracker.png\" onerror=\"window.detoursPwned = true\"><a href=\"https://example.com\">leave</a>"
+        )
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "unsafe.html"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+        let runtime = try String(
+            contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview-runtime.js"),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(html.contains("<script>window.detoursPwned = true</script>"))
+        XCTAssertTrue(html.contains("&lt;script&gt;window.detoursPwned = true&lt;/script&gt;"))
+        XCTAssertTrue(html.contains("sandbox referrerpolicy=\"no-referrer\""))
+        XCTAssertFalse(html.contains("allow-scripts"))
+        XCTAssertTrue(html.contains("frame-src blob:"))
+        XCTAssertTrue(runtime.contains("USE_PROFILES: { html: true }"))
+        XCTAssertTrue(runtime.contains("script-src 'none'"))
+        XCTAssertTrue(runtime.contains("connect-src 'none'"))
+        XCTAssertTrue(runtime.contains("form-action 'none'"))
+    }
+
     func testMarkdownRawHTMLAndExternalURLsAreInert() async throws {
         let markdown = """
         # Safe

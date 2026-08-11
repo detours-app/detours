@@ -54,7 +54,9 @@ button {
 
 button[aria-pressed="true"],
 #markdown-view-rendered:checked ~ .preview-toolbar label[for="markdown-view-rendered"],
-#markdown-view-source:checked ~ .preview-toolbar label[for="markdown-view-source"] {
+#markdown-view-source:checked ~ .preview-toolbar label[for="markdown-view-source"],
+#html-view-rendered:checked ~ .preview-toolbar label[for="html-view-rendered"],
+#html-view-source:checked ~ .preview-toolbar label[for="html-view-source"] {
   border-color: var(--detours-accent);
   color: var(--detours-accent);
 }
@@ -86,8 +88,23 @@ button[aria-pressed="true"],
 }
 
 #markdown-view-source:checked ~ #rendered-markdown,
-#markdown-view-rendered:checked ~ #source-preview {
+#markdown-view-rendered:checked ~ #source-preview,
+#html-view-source:checked ~ #rendered-html,
+#html-view-rendered:checked ~ #html-source-preview {
   display: none;
+}
+
+.html-rendered {
+  height: calc(100vh - 43px);
+  background: #fff;
+}
+
+.html-render-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
 }
 
 .warning,
