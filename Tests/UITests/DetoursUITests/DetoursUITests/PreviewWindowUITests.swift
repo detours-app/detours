@@ -43,6 +43,35 @@ final class PreviewWindowUITests: BaseUITest {
         pressKey(.escape)
     }
 
+    func testHTMLPreviewOpensRenderedInTheDetoursWindow() throws {
+        let name = "zzz-rendered.html"
+        let marker = "Rendered HTML preview"
+        let html = "<!doctype html><style>h1 { color: rgb(12, 34, 56); }</style><h1>\(marker)</h1><script>document.body.textContent = 'unsafe script ran'</script>"
+        try performFixtureMutation(action: "write", relativePath: name, contents: html)
+
+        let outline = app.fileListOutlineView
+        XCTAssertTrue(outline.existsOrWait(timeout: 5), "File list should be present")
+        let row = outline.outlineRow(withStaticText: name)
+        XCTAssertTrue(row.existsOrWait(timeout: 10), "\(name) should be listed")
+        row.staticTexts[name].click()
+
+        pressKey(.space)
+
+        let preview = app.windows[name]
+        XCTAssertTrue(
+            preview.existsOrWait(timeout: 15),
+            "HTML should open in the Detours preview window; windows were \(windowTitles())"
+        )
+        XCTAssertFalse(windowTitles().contains("Quick Look"), "HTML must not go to the system preview panel")
+        XCTAssertTrue(
+            preview.staticTexts[marker].existsOrWait(timeout: 15),
+            "The sanitized rendered document should be visible by default"
+        )
+        XCTAssertFalse(preview.staticTexts["unsafe script ran"].exists, "HTML scripts must not execute")
+
+        pressKey(.escape)
+    }
+
     /// Moving from a file Detours renders to an image must stay in the same window. Sending images
     /// to the system panel made the whole preview vanish and a different window appear in its place.
     func testMovingToAnImageStaysInTheSamePreviewWindow() throws {
