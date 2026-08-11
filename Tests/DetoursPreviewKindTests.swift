@@ -145,4 +145,39 @@ final class DetoursPreviewKindTests: XCTestCase {
             .plainText(language: "plaintext")
         )
     }
+
+    func testDelimitedExtensionsClassifyAsTable() {
+        let samples: [(String, Character)] = [("export.csv", ","), ("data.tsv", "\t"), ("data.tab", "\t")]
+        for (name, delimiter) in samples {
+            XCTAssertEqual(
+                DetoursPreviewKind.classify(
+                    url: URL(fileURLWithPath: name),
+                    sampleData: Data("a,b\n1,2\n".utf8)
+                ),
+                .delimitedTable(delimiter: delimiter)
+            )
+        }
+    }
+
+    func testOfficeExtensionsClassifyAsDocumentAndSpreadsheet() {
+        // A container of compressed parts always sniffs as binary, and these two must survive it.
+        let container = Data([0x50, 0x4B, 0x03, 0x04, 0x00, 0xFF, 0xD8])
+
+        XCTAssertEqual(
+            DetoursPreviewKind.classify(url: URL(fileURLWithPath: "report.docx"), sampleData: container),
+            .wordDocument
+        )
+        XCTAssertEqual(
+            DetoursPreviewKind.classify(url: URL(fileURLWithPath: "budget.xlsx"), sampleData: container),
+            .spreadsheet
+        )
+    }
+
+    func testBinaryDataWithACSVExtensionIsRejected() {
+        let binary = Data([0x23, 0x21, 0x00, 0xFF, 0xD8])
+        XCTAssertEqual(
+            DetoursPreviewKind.classify(url: URL(fileURLWithPath: "maybe.csv"), sampleData: binary),
+            .unsupported
+        )
+    }
 }

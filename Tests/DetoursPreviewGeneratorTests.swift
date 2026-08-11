@@ -553,6 +553,312 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertFalse(previewURL.lastPathComponent.contains("secret-source-name"))
     }
 
+    // MARK: - Data tables and documents
+
+    func testDelimitedPreviewRendersAHeaderAndRowNumbers() async throws {
+        let source = try write("people.csv", "name,city\nAda,London\nGrace,\"New York\"\n")
+        let html = try await previewHTML(source, displayName: "people.csv")
+
+        XCTAssertTrue(html.contains(">name</th>"))
+        XCTAssertTrue(html.contains(">city</th>"))
+        // Row numbers count rows, not lines of the file.
+        XCTAssertTrue(html.contains("<th class=\"grid-gutter\">1</th>"))
+        XCTAssertTrue(html.contains("<th class=\"grid-gutter\">2</th>"))
+        XCTAssertTrue(html.contains(">New York</td>"))
+    }
+
+    func testDelimitedPreviewEscapesCellContent() async throws {
+        let source = try write("nasty.csv", "name,note\nAda,<script>alert(1)</script>\n")
+        let html = try await previewHTML(source, displayName: "nasty.csv")
+
+        XCTAssertTrue(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"))
+        XCTAssertFalse(html.contains("<script>alert(1)</script>"))
+    }
+
+    func testGridPreviewKeepsValuesVerbatim() async throws {
+        let source = try write("orders.csv", "id,ref\n1,007412\n2,123456789012345678\n")
+        let html = try await previewHTML(source, displayName: "orders.csv")
+
+        XCTAssertTrue(html.contains(">007412</td>"), "Leading zeros must survive")
+        XCTAssertTrue(html.contains(">123456789012345678</td>"), "A long digit string must not be rounded")
+        XCTAssertFalse(html.contains("1.23457e"))
+    }
+
+    func testNumericColumnsAreAlignedRight() async throws {
+        let source = try write("mixed.csv", "count,label\n1,alpha\n22,beta\n")
+        let html = try await previewHTML(source, displayName: "mixed.csv")
+
+        XCTAssertTrue(html.contains("grid-col-0 grid-number"))
+        XCTAssertFalse(html.contains("grid-col-1 grid-number"))
+    }
+
+    func testLongDelimitedFileChunksItsRows() async throws {
+        let rows = (0..<3_000).map { "\($0),row \($0)" }.joined(separator: "\n")
+        let source = try write("long.csv", "id,label\n\(rows)\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "long.csv"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("<tbody id=\"source-preview\" data-chunks=\""))
+        XCTAssertFalse(html.contains("data-chunks=\"0\""))
+        XCTAssertTrue(html.contains("src=\"support/preview-lazy.js\""))
+        XCTAssertTrue(html.contains("connect-src detours-preview-chunk:"))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: previewURL.deletingLastPathComponent().appendingPathComponent("chunk-1.html").path
+        ))
+    }
+
+    func testGeneratedGridStylesheetCarriesColumnWidths() async throws {
+        let source = try write("widths.csv", "id,description\n1,short\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "widths.csv"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+        let css = try String(
+            contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/grid.css"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(html.contains("href=\"support/grid.css\""))
+        XCTAssertTrue(css.contains(".data-grid{table-layout:fixed;width:"))
+        XCTAssertTrue(css.contains(".data-grid .grid-col-0{width:"))
+        XCTAssertTrue(css.contains(".data-grid .grid-col-1{width:"))
+        XCTAssertTrue(css.contains(".data-grid .grid-gutter{width:"))
+        // Widths cannot travel in the page: only one inline style is admitted, by fingerprint.
+        XCTAssertFalse(html.contains("<td style="))
+    }
+
+    func testWrapSettingChangesTheTableBodyClass() async throws {
+        let source = try write("wrap.csv", "a,b\n1,2\n")
+        let wrapped = try await previewHTML(source, displayName: "wrap.csv", wrapLines: true)
+        let unwrapped = try await previewHTML(source, displayName: "wrap.csv", wrapLines: false)
+
+        XCTAssertTrue(wrapped.contains("class=\"grid-preview wrap-lines\""))
+        XCTAssertTrue(unwrapped.contains("class=\"grid-preview\""))
+    }
+
+    func testGridPreviewCarriesTheStickyStyling() async throws {
+        let source = try write("sticky.csv", "a,b\n1,2\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "sticky.csv"))
+        let css = try String(
+            contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"),
+            encoding: .utf8
+        )
+
+        // WebKit will not stick a header cell inside a table using collapsed borders.
+        XCTAssertTrue(css.contains("border-collapse: separate"))
+        XCTAssertTrue(css.contains("table-layout: fixed"))
+        // The toolbar is itself sticky at the top over a 1px border, so the header sits below it.
+        XCTAssertTrue(css.contains("top: 43px"))
+        XCTAssertTrue(css.contains(".data-grid .grid-gutter"))
+        XCTAssertTrue(css.contains("left: 0"))
+    }
+
+    func testWordPreviewRendersStructure() async throws {
+        let source = try writeData("report.docx", OfficeFixtureBuilder.wordDocument(
+            body: """
+            <w:p><w:pPr><w:pStyle w:val="H1"/></w:pPr><w:r><w:t>Findings</w:t></w:r></w:p>
+            <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>
+            <w:r><w:t>First point</w:t></w:r></w:p>
+            <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Cell text</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+            """,
+            styles: "<w:style w:styleId=\"H1\"><w:name w:val=\"heading 1\"/></w:style>",
+            numbering: """
+            <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/></w:lvl>
+            </w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="1"/></w:num>
+            """
+        ))
+        let html = try await previewHTML(source, displayName: "report.docx")
+
+        XCTAssertTrue(html.contains("<h1>Findings</h1>"))
+        XCTAssertTrue(html.contains("<li>First point</li>"))
+        XCTAssertTrue(html.contains("<table class=\"document-table\">"))
+        XCTAssertTrue(html.contains(">Cell text</td>"))
+    }
+
+    func testWordPreviewEscapesDocumentText() async throws {
+        let source = try writeData("nasty.docx", OfficeFixtureBuilder.wordDocument(
+            body: "<w:p><w:r><w:t>&lt;script&gt;alert(1)&lt;/script&gt;</w:t></w:r></w:p>"
+        ))
+        let html = try await previewHTML(source, displayName: "nasty.docx")
+
+        XCTAssertTrue(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"))
+        XCTAssertFalse(html.contains("<script>alert(1)</script>"))
+    }
+
+    func testWordPreviewRendersLinksAsInertText() async throws {
+        let source = try writeData("links.docx", OfficeFixtureBuilder.wordDocument(
+            body: """
+            <w:p><w:hyperlink r:id="rId3"><w:r><w:t>Visit the site</w:t></w:r></w:hyperlink></w:p>
+            """
+        ))
+        let html = try await previewHTML(source, displayName: "links.docx")
+
+        XCTAssertTrue(html.contains("Visit the site"), "The words the author wrote are kept")
+        XCTAssertFalse(html.contains("<a "), "A link must not be navigable")
+        XCTAssertFalse(html.contains("href=\"http"))
+    }
+
+    func testOfficePreviewCarriesNoEmbeddedContent() async throws {
+        let source = try writeData("images.docx", OfficeFixtureBuilder.wordDocument(
+            body: """
+            <w:p><w:r><w:drawing><wp:inline><a:blip r:embed="rId7"/></wp:inline></w:drawing></w:r></w:p>
+            """
+        ))
+        let html = try await previewHTML(source, displayName: "images.docx")
+
+        XCTAssertTrue(html.contains("class=\"blocked-image\">Image</span>"))
+        XCTAssertFalse(html.contains("<img"))
+        XCTAssertFalse(html.contains("<object"))
+        XCTAssertFalse(html.contains("<script>"))
+        XCTAssertFalse(html.contains("rId7"))
+    }
+
+    func testOfficePreviewCarriesNoLossyDecodeNotice() async throws {
+        let source = try writeData("plain.docx", OfficeFixtureBuilder.wordDocument(
+            body: "<w:p><w:r><w:t>Readable</w:t></w:r></w:p>"
+        ))
+        let html = try await previewHTML(source, displayName: "plain.docx")
+
+        // The container's own bytes are not text, and putting them through the text decode would
+        // raise this notice over a perfectly readable document.
+        XCTAssertFalse(html.contains("decoded lossily"))
+    }
+
+    func testWorkbookPreviewRendersGridWithHeaders() async throws {
+        let source = try writeData("budget.xlsx", OfficeFixtureBuilder.workbook(
+            sheets: [("Sheet1", """
+            <row r="4"><c r="A4" t="inlineStr"><is><t>Rent</t></is></c><c r="B4"><v>1200</v></c></row>
+            """, false)]
+        ))
+        let html = try await previewHTML(source, displayName: "budget.xlsx")
+
+        XCTAssertTrue(html.contains(">A</th>"))
+        XCTAssertTrue(html.contains(">B</th>"))
+        // The sheet's own row number, not a count of the rows that were read.
+        XCTAssertTrue(html.contains("<th class=\"grid-gutter\">4</th>"))
+        XCTAssertTrue(html.contains(">Rent</td>"))
+        XCTAssertTrue(html.contains(">1200</td>"))
+    }
+
+    func testWorkbookPreviewShowsTheFirstSheetOnly() async throws {
+        let source = try writeData("two-sheets.xlsx", OfficeFixtureBuilder.workbook(sheets: [
+            ("First", "<row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>From first</t></is></c></row>", false),
+            ("Second", "<row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>From second</t></is></c></row>", false)
+        ]))
+        let html = try await previewHTML(source, displayName: "two-sheets.xlsx")
+
+        XCTAssertTrue(html.contains("From first"))
+        XCTAssertFalse(html.contains("From second"))
+    }
+
+    func testLongWorkbookSheetChunksItsRows() async throws {
+        let rows = (1...3_000).map { number in
+            "<row r=\"\(number)\"><c r=\"A\(number)\"><v>\(number)</v></c></row>"
+        }.joined()
+        let source = try writeData("long.xlsx", OfficeFixtureBuilder.workbook(
+            sheets: [("Sheet1", rows, false)]
+        ))
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "long.xlsx"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("<tbody id=\"source-preview\" data-chunks=\""))
+        XCTAssertFalse(html.contains("data-chunks=\"0\""))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: previewURL.deletingLastPathComponent().appendingPathComponent("chunk-1.html").path
+        ))
+    }
+
+    func testSingleColumnFileFallsBackToTheSystemPreview() async throws {
+        let source = try write("single.csv", "name\nAda\nGrace\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "single.csv"))
+
+        XCTAssertEqual(previewURL, source, "One column means the separator was never found")
+    }
+
+    func testFileBeyondTheColumnLimitFallsBackToTheSystemPreview() async throws {
+        let columns = DetoursPreviewGrid.maximumColumnCount + 1
+        let header = (0..<columns).map { "c\($0)" }.joined(separator: ",")
+        let values = (0..<columns).map { "\($0)" }.joined(separator: ",")
+        let source = try write("wide.csv", "\(header)\n\(values)\n")
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "wide.csv"))
+
+        XCTAssertEqual(previewURL, source)
+    }
+
+    func testEncryptedDocumentFallsBackToTheSystemPreview() async throws {
+        var builder = OfficeFixtureBuilder()
+        builder.isEncrypted = true
+        builder.add("word/document.xml", "<w:document/>")
+        let source = try writeData("locked.docx", builder.archiveData())
+
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "locked.docx"))
+
+        XCTAssertEqual(previewURL, source)
+    }
+
+    func testUnsupportedOfficeFormatsFallBackToTheSystemPreview() async throws {
+        let deck = try writeData("slides.pptx", OfficeFixtureBuilder.wordDocument(body: "<w:p/>"))
+        let strict = try writeData("strict.xlsx", OfficeFixtureBuilder.workbook(strictFormat: true))
+        let legacy = try writeData("legacy.doc", Data([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]))
+
+        for source in [deck, strict, legacy] {
+            let previewURL = try await generator().previewURL(
+                for: request(source, displayName: source.lastPathComponent)
+            )
+            XCTAssertEqual(previewURL, source, "\(source.lastPathComponent) must keep the system preview")
+        }
+    }
+
+    func testOversizedDelimitedFileUsesThePlainTextFallback() async throws {
+        let source = try write("huge.csv", "a,b\n1,2\n3,4\n")
+        let limits = DetoursPreviewLimits(
+            richRenderInputBytes: 4,
+            generatedOutputBytes: 200 * 1_024 * 1_024,
+            fallbackEdgeBytes: 2 * 1_024 * 1_024,
+            timeoutSeconds: 5
+        )
+        let previewURL = try await generator(limits: limits)
+            .previewURL(for: request(source, displayName: "huge.csv"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        XCTAssertNotEqual(previewURL, source)
+        XCTAssertTrue(html.contains("fallback-banner"))
+        XCTAssertTrue(html.contains("too large for a rich Detours preview"))
+    }
+
+    func testOversizedOfficeFileFallsBackToTheSystemPreview() async throws {
+        let source = try writeData("big.docx", OfficeFixtureBuilder.wordDocument(
+            body: "<w:p><w:r><w:t>Readable</w:t></w:r></w:p>"
+        ))
+        let limits = DetoursPreviewLimits(
+            richRenderInputBytes: 4,
+            generatedOutputBytes: 200 * 1_024 * 1_024,
+            fallbackEdgeBytes: 2 * 1_024 * 1_024,
+            timeoutSeconds: 5
+        )
+        let previewURL = try await generator(limits: limits)
+            .previewURL(for: request(source, displayName: "big.docx"))
+
+        // Reading a container as text shows compressed bytes, so the file goes to the system
+        // preview rather than into a banner over noise.
+        XCTAssertEqual(previewURL, source)
+    }
+
+    private func previewHTML(
+        _ source: URL,
+        displayName: String,
+        wrapLines: Bool = true
+    ) async throws -> String {
+        let previewURL = try await generator()
+            .previewURL(for: request(source, displayName: displayName, wrapLines: wrapLines))
+        XCTAssertNotEqual(previewURL, source, "\(displayName) must generate a Detours preview")
+        return try String(contentsOf: previewURL, encoding: .utf8)
+    }
+
+    private func writeData(_ name: String, _ data: Data) throws -> URL {
+        let url = tempRoot.appendingPathComponent(name)
+        try data.write(to: url)
+        return url
+    }
+
     private func generator(
         limits: DetoursPreviewLimits = .standard,
         documentFormatVersion: String = DetoursPreviewGenerator.currentDocumentFormatVersion

@@ -37,10 +37,18 @@ final class DetoursOfficeArchive {
 
     private let data: Data
     private let entries: [String: Entry]
+    private let partLimit: Int
+    private let documentLimit: Int
     private var inflatedTotal = 0
 
-    init(data: Data) throws {
+    init(
+        data: Data,
+        partByteLimit: Int = DetoursOfficeArchive.partByteLimit,
+        documentByteLimit: Int = DetoursOfficeArchive.documentByteLimit
+    ) throws {
         self.data = data
+        self.partLimit = partByteLimit
+        self.documentLimit = documentByteLimit
         self.entries = try Self.readCentralDirectory(data)
     }
 
@@ -63,8 +71,8 @@ final class DetoursOfficeArchive {
         guard entry.compressionMethod == 0 || entry.compressionMethod == 8 else {
             throw DetoursOfficeArchiveError.unsupportedCompression(entry.compressionMethod)
         }
-        guard entry.uncompressedSize <= Self.partByteLimit,
-              inflatedTotal + entry.uncompressedSize <= Self.documentByteLimit else {
+        guard entry.uncompressedSize <= partLimit,
+              inflatedTotal + entry.uncompressedSize <= documentLimit else {
             throw DetoursOfficeArchiveError.expansionLimitExceeded
         }
 
@@ -76,7 +84,7 @@ final class DetoursOfficeArchive {
             inflated = try Self.inflate(data.subdata(in: payload), expectedSize: entry.uncompressedSize)
         }
         inflatedTotal += inflated.count
-        guard inflatedTotal <= Self.documentByteLimit else {
+        guard inflatedTotal <= documentLimit else {
             throw DetoursOfficeArchiveError.expansionLimitExceeded
         }
         return inflated
