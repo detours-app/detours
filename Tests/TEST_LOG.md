@@ -3409,3 +3409,20 @@ Spotlight search has no unit test (depends on the live, async-built system index
   body, so the first attempt watched something that never moves; and the script
   that adds the rest of the file was written into the preview but never shipped
   alongside it, so it was missing wherever the preview was shown.
+
+- 2026-08-11 11:06 CEST: Foundry verification PASS at `4cd09f9` for a long preview
+  asking Detours for the rest of the file rather than carrying it.
+  Measured on a 50,000 line, 6.4 MB log: the document is now 174 KB instead of
+  9.8 MB and takes 0.20s to display instead of 0.34s, with 900 lines built. The
+  document is the same size whether the file has five thousand lines or fifty
+  thousand.
+  `PreviewLazyLoadingTests` 6 tests covering only the first lines being in the
+  document, the document not growing with the file, a short file carrying
+  nothing extra, scrolling reaching every line through a real web view,
+  only a document with chunks being allowed to ask for anything, and the names a
+  request may carry. Regression run of the preview, window and file list classes
+  totalling 102 tests, 0 failures. Guarded installed UI proof: all three
+  `PreviewWindowUITests`.
+  Two failures on the way were in the tests, not the app: the test's web view had
+  nobody to answer the page's requests, and a size comparison was one byte out
+  because the document records how many chunks there are.
