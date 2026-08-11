@@ -15,9 +15,9 @@ final class PageKeyNavigationTests: XCTestCase {
     /// inside a real window, so each controller is hosted for the lifetime of its test.
     private var hostWindows: [NSWindow] = []
 
-    override func tearDown() {
+    override func tearDown() async throws {
         hostWindows.removeAll()
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func makeLoadedController(in directory: URL) -> FileListViewController {
