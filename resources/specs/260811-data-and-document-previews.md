@@ -39,21 +39,21 @@ Detours reads comma, semicolon and tab separated data files, Word documents and 
 
 ### Acceptance Criteria
 
-- [ ] **A1** Pressing Space on a comma separated file shows a table with aligned columns, a header row taken from the first line, and row numbers.
-- [ ] **A2** Scrolling down keeps the column names visible below the toolbar, and scrolling sideways keeps the row numbers visible, in both data tables and workbook grids.
-- [ ] **A3** A semicolon separated export and a tab separated file both show as correctly split columns.
-- [ ] **A4** A file containing a quoted value with a comma, a line break and a doubled quotation mark inside it shows that value in one cell, on the row it belongs to.
-- [ ] **A5** A long identifier with leading zeros appears exactly as written, in both data files and workbooks.
-- [ ] **A6** Switching the wrap setting changes tables between full-height cells showing the whole value and single-line rows that trim an over-long value with an ellipsis.
-- [ ] **A7** A file of a hundred thousand rows opens without a visible delay, shows further rows as the reader scrolls to them, and its columns stay in the same place from the first row to the last.
-- [ ] **A8** Pressing Space on a Word document shows its text in the active theme, with headings, lists and tables recognisable.
-- [ ] **A9** Bold, italic and underlined words in a Word document appear with that emphasis in the preview.
-- [ ] **A10** Pressing Space on an Excel workbook shows the first sheet as a grid carrying that sheet's column letters and row numbers.
-- [ ] **A11** A date cell shows a readable date, a cell containing a calculation shows its last calculated result, and a workbook created on the older Mac date system shows the same dates Excel shows for it.
-- [ ] **A12** A document containing a picture shows a labelled placeholder, and no picture, script or address from inside the file is loaded.
-- [ ] **A13** A single-column data file, an empty data file, a data file past the column limit, a password-protected Word file, a PowerPoint file, a strict-format workbook, and an older-format Word file all keep their existing preview behavior.
-- [ ] **A14** A data file beyond the size limit shows the existing plain-language fallback message, and a Word or Excel file beyond the size limit or beyond the safe expansion limit opens in the macOS preview instead.
-- [ ] **A15** A semicolon separated export written in the Windows European encoding shows its accented characters correctly and without a decoding notice.
+- [x] **A1** Pressing Space on a comma separated file shows a table with aligned columns, a header row taken from the first line, and row numbers.
+- [x] **A2** Scrolling down keeps the column names visible below the toolbar, and scrolling sideways keeps the row numbers visible, in both data tables and workbook grids.
+- [x] **A3** A semicolon separated export and a tab separated file both show as correctly split columns.
+- [x] **A4** A file containing a quoted value with a comma, a line break and a doubled quotation mark inside it shows that value in one cell, on the row it belongs to.
+- [x] **A5** A long identifier with leading zeros appears exactly as written, in both data files and workbooks.
+- [x] **A6** Switching the wrap setting changes tables between full-height cells showing the whole value and single-line rows that trim an over-long value with an ellipsis.
+- [x] **A7** A file of a hundred thousand rows opens without a visible delay, shows further rows as the reader scrolls to them, and its columns stay in the same place from the first row to the last.
+- [x] **A8** Pressing Space on a Word document shows its text in the active theme, with headings, lists and tables recognisable.
+- [x] **A9** Bold, italic and underlined words in a Word document appear with that emphasis in the preview.
+- [x] **A10** Pressing Space on an Excel workbook shows the first sheet as a grid carrying that sheet's column letters and row numbers.
+- [x] **A11** A date cell shows a readable date, a cell containing a calculation shows its last calculated result, and a workbook created on the older Mac date system shows the same dates Excel shows for it.
+- [x] **A12** A document containing a picture shows a labelled placeholder, and no picture, script or address from inside the file is loaded.
+- [x] **A13** A single-column data file, an empty data file, a data file past the column limit, a password-protected Word file, a PowerPoint file, a strict-format workbook, and an older-format Word file all keep their existing preview behavior.
+- [x] **A14** A data file beyond the size limit shows the existing plain-language fallback message, and a Word or Excel file beyond the size limit or beyond the safe expansion limit opens in the macOS preview instead.
+- [x] **A15** A semicolon separated export written in the Windows European encoding shows its accented characters correctly and without a decoding notice.
 
 ### Out of scope
 
@@ -162,90 +162,90 @@ The failure modes worth designing against are size-related rather than format-re
 
 ### Unit Tests (`Tests/DetoursDelimitedTableTests.swift`)
 
-- [ ] **T1** `testPlainRowsSplitOnTheDelimiter` - Unquoted rows split into fields.
-- [ ] **T2** `testQuotedFieldKeepsItsDelimiter` - A separator inside a quoted field stays in one cell.
-- [ ] **T3** `testQuotedFieldKeepsItsNewline` - A line break inside a quoted field stays on one row.
-- [ ] **T4** `testDoubledQuotesBecomeOneQuote` - Escaped quotes decode to a single quotation mark.
-- [ ] **T5** `testCarriageReturnLineEndingsParse` - CRLF files produce the same rows as LF files.
-- [ ] **T6** `testByteOrderMarkIsStrippedFromTheFirstHeader` - The first column name has no leading mark.
-- [ ] **T7** `testRaggedRowsArePaddedNotShifted` - A short row yields trailing empty cells with earlier values in place.
-- [ ] **T8** `testSemicolonExportIsDetected` - A semicolon file scores semicolon over comma.
-- [ ] **T9** `testTabFileIsDetected` - A tab separated file scores tab over comma.
-- [ ] **T10** `testAmbiguousFilePrefersTheExtensionDelimiter` - A tie resolves to the separator implied by the extension.
-- [ ] **T53** `testWindowsEuropeanBytesDecodeWithoutLoss` - Latin-1 accented bytes decode to their characters with no replacement marks.
-- [ ] **T54** `testColumnWidthsAreMeasuredAndCapped` - Widths match the widest value per column, never below the header width and never above sixty.
+- [x] **T1** `testPlainRowsSplitOnTheDelimiter` - Unquoted rows split into fields.
+- [x] **T2** `testQuotedFieldKeepsItsDelimiter` - A separator inside a quoted field stays in one cell.
+- [x] **T3** `testQuotedFieldKeepsItsNewline` - A line break inside a quoted field stays on one row.
+- [x] **T4** `testDoubledQuotesBecomeOneQuote` - Escaped quotes decode to a single quotation mark.
+- [x] **T5** `testCarriageReturnLineEndingsParse` - CRLF files produce the same rows as LF files.
+- [x] **T6** `testByteOrderMarkIsStrippedFromTheFirstHeader` - The first column name has no leading mark.
+- [x] **T7** `testRaggedRowsArePaddedNotShifted` - A short row yields trailing empty cells with earlier values in place.
+- [x] **T8** `testSemicolonExportIsDetected` - A semicolon file scores semicolon over comma.
+- [x] **T9** `testTabFileIsDetected` - A tab separated file scores tab over comma.
+- [x] **T10** `testAmbiguousFilePrefersTheExtensionDelimiter` - A tie resolves to the separator implied by the extension.
+- [x] **T53** `testWindowsEuropeanBytesDecodeWithoutLoss` - Latin-1 accented bytes decode to their characters with no replacement marks.
+- [x] **T54** `testColumnWidthsAreMeasuredAndCapped` - Widths match the widest value per column, never below the header width and never above sixty.
 
 ### Unit Tests (`Tests/DetoursOfficeArchiveTests.swift`)
 
-- [ ] **T11** `testStoredEntryIsReadVerbatim` - An uncompressed entry returns its exact bytes.
-- [ ] **T12** `testDeflatedEntryInflates` - A compressed entry returns the original content.
-- [ ] **T13** `testMissingEntryReportsNotFound` - Asking for an absent part fails with a distinct error.
-- [ ] **T14** `testEncryptedEntryIsRefused` - An encrypted entry fails rather than returning bytes.
-- [ ] **T15** `testPartBeyondTheCeilingStopsReading` - A part inflating past the per-part ceiling fails with the expansion error.
-- [ ] **T16** `testDocumentBeyondTheTotalCeilingStopsReading` - Several parts crossing the document ceiling fail with the expansion error.
-- [ ] **T17** `testTruncatedContainerFailsCleanly` - A cut-off file reports a read error without crashing.
+- [x] **T11** `testStoredEntryIsReadVerbatim` - An uncompressed entry returns its exact bytes.
+- [x] **T12** `testDeflatedEntryInflates` - A compressed entry returns the original content.
+- [x] **T13** `testMissingEntryReportsNotFound` - Asking for an absent part fails with a distinct error.
+- [x] **T14** `testEncryptedEntryIsRefused` - An encrypted entry fails rather than returning bytes.
+- [x] **T15** `testPartBeyondTheCeilingStopsReading` - A part inflating past the per-part ceiling fails with the expansion error.
+- [x] **T16** `testDocumentBeyondTheTotalCeilingStopsReading` - Several parts crossing the document ceiling fail with the expansion error.
+- [x] **T17** `testTruncatedContainerFailsCleanly` - A cut-off file reports a read error without crashing.
 
 ### Unit Tests (`Tests/DetoursWordDocumentTests.swift`)
 
-- [ ] **T18** `testParagraphsAndRunsParse` - Plain paragraphs and their text parse in order, with preserved spacing, tabs and line breaks intact.
-- [ ] **T19** `testHeadingStylesResolveToLevels` - A style whose identifier is not English resolves to its heading level through its name and outline level.
-- [ ] **T20** `testNumberingResolvesToOrderedAndUnorderedLists` - Numbered and bulleted paragraphs group into the right list type at the right nesting level.
-- [ ] **T21** `testRunEmphasisIsCarried` - Bold, italic and underline survive into the model, and an underline value of none does not.
-- [ ] **T22** `testTablesParseIntoRowsAndCells` - A table parses with its rows and cells intact, and a horizontally spanned cell keeps its span.
-- [ ] **T23** `testDrawingsBecomePlaceholders` - A drawing yields a placeholder rather than being dropped.
-- [ ] **T24** `testUnknownElementsAreIgnored` - Unexpected elements parse without failing the document.
+- [x] **T18** `testParagraphsAndRunsParse` - Plain paragraphs and their text parse in order, with preserved spacing, tabs and line breaks intact.
+- [x] **T19** `testHeadingStylesResolveToLevels` - A style whose identifier is not English resolves to its heading level through its name and outline level.
+- [x] **T20** `testNumberingResolvesToOrderedAndUnorderedLists` - Numbered and bulleted paragraphs group into the right list type at the right nesting level.
+- [x] **T21** `testRunEmphasisIsCarried` - Bold, italic and underline survive into the model, and an underline value of none does not.
+- [x] **T22** `testTablesParseIntoRowsAndCells` - A table parses with its rows and cells intact, and a horizontally spanned cell keeps its span.
+- [x] **T23** `testDrawingsBecomePlaceholders` - A drawing yields a placeholder rather than being dropped.
+- [x] **T24** `testUnknownElementsAreIgnored` - Unexpected elements parse without failing the document.
 
 ### Unit Tests (`Tests/DetoursExcelWorkbookTests.swift`)
 
-- [ ] **T25** `testSheetOrderAndFirstSheetPartResolve` - Sheets come back in workbook order and the first sheet's part path resolves through the relationships part.
-- [ ] **T26** `testSharedStringsResolve` - A shared-string cell returns its text.
-- [ ] **T55** `testRichTextSharedStringJoinsItsParts` - An entry split into runs returns its joined text and leaves later indices correct.
-- [ ] **T56** `testInlineStringCellResolves` - A cell carrying its string inline returns that text.
-- [ ] **T27** `testFormulaCellUsesItsCachedValue` - A formula cell returns the stored result.
-- [ ] **T57** `testBooleanAndErrorCellsRender` - A boolean cell returns TRUE or FALSE and an error cell returns its error text.
-- [ ] **T28** `testDateFormattedNumberBecomesAReadableDate` - A date-formatted serial number converts to a date, from a built-in identifier and from a custom format code.
-- [ ] **T58** `testMacDateSystemShiftsSerials` - The same serial in a 1904-system workbook yields the date Excel shows, and an early 1900-system serial clears the phantom leap day.
-- [ ] **T29** `testNonDateNumbersStayVerbatim` - Long identifiers and leading zeros survive unchanged.
-- [ ] **T59** `testSparseRowPlacesCellsByAddress` - A row skipping columns places its values under the right column letters.
-- [ ] **T30** `testTrailingEmptyRowsAndColumnsAreTrimmed` - A sparse sheet trims to its used range.
-- [ ] **T31** `testNeededPartMissingFailsCleanlyAndUnusedPartMissingDoesNot` - A workbook referencing shared strings without the part reports failure, while one that never references it parses.
-- [ ] **T60** `testStrictFormatWorkbookIsUnsupported` - A strict-namespace workbook reports unsupported rather than parsing as empty.
-- [ ] **T65** `testHiddenFirstSheetIsSkipped` - A workbook whose first sheet is hidden parses the first visible one instead.
+- [x] **T25** `testSheetOrderAndFirstSheetPartResolve` - Sheets come back in workbook order and the first sheet's part path resolves through the relationships part.
+- [x] **T26** `testSharedStringsResolve` - A shared-string cell returns its text.
+- [x] **T55** `testRichTextSharedStringJoinsItsParts` - An entry split into runs returns its joined text and leaves later indices correct.
+- [x] **T56** `testInlineStringCellResolves` - A cell carrying its string inline returns that text.
+- [x] **T27** `testFormulaCellUsesItsCachedValue` - A formula cell returns the stored result.
+- [x] **T57** `testBooleanAndErrorCellsRender` - A boolean cell returns TRUE or FALSE and an error cell returns its error text.
+- [x] **T28** `testDateFormattedNumberBecomesAReadableDate` - A date-formatted serial number converts to a date, from a built-in identifier and from a custom format code.
+- [x] **T58** `testMacDateSystemShiftsSerials` - The same serial in a 1904-system workbook yields the date Excel shows, and an early 1900-system serial clears the phantom leap day.
+- [x] **T29** `testNonDateNumbersStayVerbatim` - Long identifiers and leading zeros survive unchanged.
+- [x] **T59** `testSparseRowPlacesCellsByAddress` - A row skipping columns places its values under the right column letters.
+- [x] **T30** `testTrailingEmptyRowsAndColumnsAreTrimmed` - A sparse sheet trims to its used range.
+- [x] **T31** `testNeededPartMissingFailsCleanlyAndUnusedPartMissingDoesNot` - A workbook referencing shared strings without the part reports failure, while one that never references it parses.
+- [x] **T60** `testStrictFormatWorkbookIsUnsupported` - A strict-namespace workbook reports unsupported rather than parsing as empty.
+- [x] **T65** `testHiddenFirstSheetIsSkipped` - A workbook whose first sheet is hidden parses the first visible one instead.
 
 ### Unit Tests (`Tests/DetoursPreviewKindTests.swift`)
 
-- [ ] **T32** `testDelimitedExtensionsClassifyAsTable` - `.csv`, `.tsv` and `.tab` classify as the delimited table kind.
-- [ ] **T33** `testOfficeExtensionsClassifyAsDocumentAndSpreadsheet` - `.docx` and `.xlsx` classify as their own kinds despite their container bytes.
-- [ ] **T34** `testBinaryDataWithACSVExtensionIsRejected` - A binary file named `.csv` stays unsupported.
+- [x] **T32** `testDelimitedExtensionsClassifyAsTable` - `.csv`, `.tsv` and `.tab` classify as the delimited table kind.
+- [x] **T33** `testOfficeExtensionsClassifyAsDocumentAndSpreadsheet` - `.docx` and `.xlsx` classify as their own kinds despite their container bytes.
+- [x] **T34** `testBinaryDataWithACSVExtensionIsRejected` - A binary file named `.csv` stays unsupported.
 
 ### Integration Tests (`Tests/DetoursPreviewGeneratorTests.swift`)
 
-- [ ] **T35** `testDelimitedPreviewRendersAHeaderAndRowNumbers` - Generated markup contains header cells from the first line and rows numbered from one.
-- [ ] **T36** `testDelimitedPreviewEscapesCellContent` - Markup-shaped cell values appear escaped, not live.
-- [ ] **T37** `testGridPreviewKeepsValuesVerbatim` - Leading zeros and long digit strings survive into the markup unchanged.
-- [ ] **T38** `testNumericColumnsAreAlignedRight` - A digits-only column carries the alignment class and a mixed column does not.
-- [ ] **T39** `testLongDelimitedFileChunksItsRows` - A file beyond the eager row limit emits chunks and a body carrying the chunk attributes.
-- [ ] **T61** `testGeneratedGridStylesheetCarriesColumnWidths` - The preview folder holds a generated grid stylesheet whose rules cover every column and the table width, and the document links it.
-- [ ] **T40** `testWrapSettingChangesTheTableBodyClass` - Wrapped and unwrapped requests differ in the generated body class.
-- [ ] **T41** `testGridPreviewCarriesTheStickyStyling` - The generated stylesheet contains the separated-border, fixed-layout and sticky rules the grid depends on, with the header offset below the toolbar.
-- [ ] **T42** `testWordPreviewRendersStructure` - Generated markup contains headings, list items and a table from a Word fixture.
-- [ ] **T43** `testWordPreviewEscapesDocumentText` - Markup-shaped document text appears escaped, not live.
-- [ ] **T44** `testWordPreviewRendersLinksAsInertText` - A hyperlink appears as text with no navigable address.
-- [ ] **T45** `testOfficePreviewCarriesNoEmbeddedContent` - Generated markup contains no image, object or script element.
-- [ ] **T62** `testOfficePreviewCarriesNoLossyDecodeNotice` - A Word preview's markup contains no lossy decoding warning.
-- [ ] **T46** `testWorkbookPreviewRendersGridWithHeaders` - Generated markup contains column letters, the sheet's own row numbers and cell values.
-- [ ] **T47** `testWorkbookPreviewShowsTheFirstSheetOnly` - A two-sheet fixture renders the first sheet's values and none from the second.
-- [ ] **T63** `testLongWorkbookSheetChunksItsRows` - A sheet beyond the eager row limit emits chunks and a body carrying the chunk attributes.
-- [ ] **T48** `testSingleColumnFileFallsBackToTheSystemPreview` - A one-column data file returns the original source URL.
-- [ ] **T66** `testFileBeyondTheColumnLimitFallsBackToTheSystemPreview` - A data file with more than 512 columns returns the original source URL.
-- [ ] **T49** `testEncryptedDocumentFallsBackToTheSystemPreview` - An encrypted fixture returns the original source URL.
-- [ ] **T50** `testUnsupportedOfficeFormatsFallBackToTheSystemPreview` - PowerPoint, strict-format and older-format fixtures return the original source URL.
-- [ ] **T51** `testOversizedDelimitedFileUsesThePlainTextFallback` - A data file beyond the input guard generates the existing fallback banner.
-- [ ] **T64** `testOversizedOfficeFileFallsBackToTheSystemPreview` - An Office file beyond the input guard returns the original source URL rather than a banner.
+- [x] **T35** `testDelimitedPreviewRendersAHeaderAndRowNumbers` - Generated markup contains header cells from the first line and rows numbered from one.
+- [x] **T36** `testDelimitedPreviewEscapesCellContent` - Markup-shaped cell values appear escaped, not live.
+- [x] **T37** `testGridPreviewKeepsValuesVerbatim` - Leading zeros and long digit strings survive into the markup unchanged.
+- [x] **T38** `testNumericColumnsAreAlignedRight` - A digits-only column carries the alignment class and a mixed column does not.
+- [x] **T39** `testLongDelimitedFileChunksItsRows` - A file beyond the eager row limit emits chunks and a body carrying the chunk attributes.
+- [x] **T61** `testGeneratedGridStylesheetCarriesColumnWidths` - The preview folder holds a generated grid stylesheet whose rules cover every column and the table width, and the document links it.
+- [x] **T40** `testWrapSettingChangesTheTableBodyClass` - Wrapped and unwrapped requests differ in the generated body class.
+- [x] **T41** `testGridPreviewCarriesTheStickyStyling` - The generated stylesheet contains the separated-border, fixed-layout and sticky rules the grid depends on, with the header offset below the toolbar.
+- [x] **T42** `testWordPreviewRendersStructure` - Generated markup contains headings, list items and a table from a Word fixture.
+- [x] **T43** `testWordPreviewEscapesDocumentText` - Markup-shaped document text appears escaped, not live.
+- [x] **T44** `testWordPreviewRendersLinksAsInertText` - A hyperlink appears as text with no navigable address.
+- [x] **T45** `testOfficePreviewCarriesNoEmbeddedContent` - Generated markup contains no image, object or script element.
+- [x] **T62** `testOfficePreviewCarriesNoLossyDecodeNotice` - A Word preview's markup contains no lossy decoding warning.
+- [x] **T46** `testWorkbookPreviewRendersGridWithHeaders` - Generated markup contains column letters, the sheet's own row numbers and cell values.
+- [x] **T47** `testWorkbookPreviewShowsTheFirstSheetOnly` - A two-sheet fixture renders the first sheet's values and none from the second.
+- [x] **T63** `testLongWorkbookSheetChunksItsRows` - A sheet beyond the eager row limit emits chunks and a body carrying the chunk attributes.
+- [x] **T48** `testSingleColumnFileFallsBackToTheSystemPreview` - A one-column data file returns the original source URL.
+- [x] **T66** `testFileBeyondTheColumnLimitFallsBackToTheSystemPreview` - A data file with more than 512 columns returns the original source URL.
+- [x] **T49** `testEncryptedDocumentFallsBackToTheSystemPreview` - An encrypted fixture returns the original source URL.
+- [x] **T50** `testUnsupportedOfficeFormatsFallBackToTheSystemPreview` - PowerPoint, strict-format and older-format fixtures return the original source URL.
+- [x] **T51** `testOversizedDelimitedFileUsesThePlainTextFallback` - A data file beyond the input guard generates the existing fallback banner.
+- [x] **T64** `testOversizedOfficeFileFallsBackToTheSystemPreview` - An Office file beyond the input guard returns the original source URL rather than a banner.
 
 ### Test Fixtures (`Tests/Fixtures/Office/`)
 
-- [ ] **T52** `OfficeFixtureBuilder` - A helper writing Office Open XML parts and packing them into a container, so every Office fixture is built in the test rather than committed as an opaque binary.
+- [x] **T52** `OfficeFixtureBuilder` - A helper writing Office Open XML parts and packing them into a container, so every Office fixture is built in the test rather than committed as an opaque binary.
 
 ---
 
@@ -279,3 +279,11 @@ The failure modes worth designing against are size-related rather than format-re
 - **C22** Every failure returns the original URL: one column or more than 512, an encrypted, strict, damaged or incomplete container, a tripped expansion cap, and for Office kinds the input-size, output-size and timeout guards too. Oversized data files keep the fallback banner.
 - **C28** The document format version and the asset manifest version were raised so previews already cached are rebuilt.
 - **C23** `resources/docs/text-previews.md` documents the supported types, the separator, encoding and row-numbering conventions, the measured column widths and trimming, the placeholder and inert-link behavior, the date and formula conventions, the first-sheet rule, and everything that keeps its system preview.
+- **T1-T10, T53, T54** `Tests/DetoursDelimitedTableTests.swift`, 12 cases. `swift test --filter DetoursDelimitedTableTests` on Foundry. Quoted separators, quoted line breaks, doubled quotes, CRLF, byte-order marks, ragged rows, separator detection and its tie-break, Windows-1252 decoding, and the measured column widths.
+- **T11-T17** `Tests/DetoursOfficeArchiveTests.swift`, 7 cases. Stored and deflated parts, a missing part, an encrypted part, both expansion ceilings, and a truncated container.
+- **T18-T24** `Tests/DetoursWordDocumentTests.swift`, 7 cases. Paragraphs with preserved spacing, tabs and breaks, a heading resolved through a non-English style, nested ordered and unordered lists, emphasis including an underline of `none`, a table with a spanned cell, drawings as placeholders, and unknown elements ignored.
+- **T25-T31, T55-T60, T65** `Tests/DetoursExcelWorkbookTests.swift`, 14 cases. Sheet order and part resolution, a hidden first sheet, shared and rich-text strings, inline strings, cached formula values, booleans and errors, both date systems and the phantom leap day, verbatim identifiers, sparse rows, trimming, a required part missing, and the strict format.
+- **T32-T34** `Tests/DetoursPreviewKindTests.swift`. Data extensions classify with their separator, Office extensions survive the binary sniff their container bytes would fail, and a binary file named `.csv` stays unsupported.
+- **T35-T51, T61-T64, T66** `Tests/DetoursPreviewGeneratorTests.swift`, 50 cases. Header and row numbers, escaping, verbatim values, alignment, chunking for both data files and long sheets, the generated width stylesheet, the wrap class, the sticky rules, Word structure, inert links, no embedded content, no lossy notice, the workbook grid, first-sheet-only, and every fallback to the system preview.
+- **T52** `Tests/Fixtures/Office/OfficeFixtureBuilder.swift` writes Office parts and packs them into a container, so no fixture is a committed binary.
+- **A1-A15** Confirmed by the suites above. `swift test --filter "DetoursPreview|PreviewWindow|PreviewLazyLoading|FileListResponderTests|BuildCacheTests|DetoursDelimitedTable|DetoursOfficeArchive|DetoursWordDocument|DetoursExcelWorkbook"` on Foundry executed 189 tests with 0 failures.
