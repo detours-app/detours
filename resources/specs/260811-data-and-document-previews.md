@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/data-and-document-previews
 
 ---
@@ -287,3 +287,4 @@ The failure modes worth designing against are size-related rather than format-re
 - **T35-T51, T61-T64, T66** `Tests/DetoursPreviewGeneratorTests.swift`, 50 cases. Header and row numbers, escaping, verbatim values, alignment, chunking for both data files and long sheets, the generated width stylesheet, the wrap class, the sticky rules, Word structure, inert links, no embedded content, no lossy notice, the workbook grid, first-sheet-only, and every fallback to the system preview.
 - **T52** `Tests/Fixtures/Office/OfficeFixtureBuilder.swift` writes Office parts and packs them into a container, so no fixture is a committed binary.
 - **A1-A15** Confirmed by the suites above. `swift test --filter "DetoursPreview|PreviewWindow|PreviewLazyLoading|FileListResponderTests|BuildCacheTests|DetoursDelimitedTable|DetoursOfficeArchive|DetoursWordDocument|DetoursExcelWorkbook"` on Foundry executed 189 tests with 0 failures.
+- **Simplification pass** Long files and grids now share one chunking routine; column widths moved onto the table's column group so the header and rows resolve `ch` in the same font; cell padding is stated in that same unit; measuring and numeric detection fused into one pass; padding, byte-order-mark stripping and separator detection stopped doing work they discard; and `readsAsText` and `hasPlainTextFallback` moved onto the preview kind so the router carries no list of kinds. Full Foundry suite green afterwards: 1026 XCTest cases plus 47 Swift Testing cases with 0 failures, and 19 login-session cases.
