@@ -294,21 +294,12 @@ final class DetoursPreviewWindowController: NSWindowController {
             return false
         }
         previewNavigation = nil
-        Task { @MainActor [weak self] in
-            // Finishing the load is not the same as having drawn. Waiting for the page to put up a
-            // frame before showing it is what stops an empty page, or the file it replaces,
-            // appearing for an instant.
-            _ = try? await web.callAsyncJavaScript(
-                "await new Promise(function (done) {"
-                    + " requestAnimationFrame(function () { requestAnimationFrame(done); }); });",
-                arguments: [:],
-                in: nil,
-                contentWorld: .page
-            )
-            guard let self, web === self.loadingWebView else { return }
-            self.swapInLoadedView()
-            self.endLoading()
-        }
+        // Deliberately not waiting for the page to report a drawn frame first. A view that is not
+        // on screen is not animating, so nothing would ever come back and the preview would never
+        // appear. It is safe without: the views do not paint their own background, so one that has
+        // not drawn yet shows the theme colour rather than white.
+        swapInLoadedView()
+        endLoading()
         return true
     }
 
