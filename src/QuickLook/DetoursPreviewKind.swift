@@ -134,6 +134,8 @@ enum DetoursPreviewKind: Equatable {
     private static let configurationExtensions: [String: String] = [
         "json": "json",
         "jsonc": "json",
+        "jsonl": "json",
+        "ndjson": "json",
         "yaml": "yaml",
         "yml": "yaml",
         "toml": "toml",

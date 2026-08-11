@@ -28,6 +28,8 @@ final class DetoursPreviewKindTests: XCTestCase {
             ("app.ts", .sourceCode(language: "typescript")),
             ("tool.py", .sourceCode(language: "python")),
             ("package.json", .configuration(language: "json")),
+            ("events.jsonl", .configuration(language: "json")),
+            ("stream.ndjson", .configuration(language: "json")),
             ("config.yaml", .configuration(language: "yaml")),
             ("settings.toml", .configuration(language: "toml")),
             ("view.xml", .sourceCode(language: "xml")),
