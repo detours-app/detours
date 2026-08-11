@@ -169,7 +169,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
                 lossyDecode: decoded.lossy,
                 fallbackReason: nil
             )
-        case .unsupported:
+        case .delimitedTable, .unsupported:
             return request.sourceURL
         }
 

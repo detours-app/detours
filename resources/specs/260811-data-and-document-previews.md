@@ -118,11 +118,11 @@ The failure modes worth designing against are size-related rather than format-re
 
 **Phase 1: Delimited data**
 
-- [ ] **C1** Add `case delimitedTable(delimiter: Character)` to `DetoursPreviewKind` in `src/QuickLook/DetoursPreviewKind.swift`, classifying the `csv`, `tsv` and `tab` extensions, with a distinct cache component and `plaintext` as its highlight language.
-- [ ] **C2** Create `src/QuickLook/DetoursDelimitedTable.swift` with a parser turning decoded text plus a delimiter into rows of fields, handling quoted fields, doubled quotes, embedded separators and newlines, LF and CRLF endings, and a leading byte-order mark.
-- [ ] **C3** Add delimiter detection to `DetoursDelimitedTable` scoring comma, semicolon and tab over the first lines by field-count consistency, preferring the extension's separator on a tie.
-- [ ] **C4** Add row normalisation to `DetoursDelimitedTable` padding short rows to the widest row, reporting the column count, and exposing the first row as the header row with the remaining rows numbered from one.
-- [ ] **C24** Add a Windows-1252 decode to `DetoursDelimitedTable` used when the file's bytes are not valid UTF-8, so the delimited path never reaches the generator's lossy decode.
+- [x] **C1** Add `case delimitedTable(delimiter: Character)` to `DetoursPreviewKind` in `src/QuickLook/DetoursPreviewKind.swift`, classifying the `csv`, `tsv` and `tab` extensions, with a distinct cache component and `plaintext` as its highlight language.
+- [x] **C2** Create `src/QuickLook/DetoursDelimitedTable.swift` with a parser turning decoded text plus a delimiter into rows of fields, handling quoted fields, doubled quotes, embedded separators and newlines, LF and CRLF endings, and a leading byte-order mark.
+- [x] **C3** Add delimiter detection to `DetoursDelimitedTable` scoring comma, semicolon and tab over the first lines by field-count consistency, preferring the extension's separator on a tie.
+- [x] **C4** Add row normalisation to `DetoursDelimitedTable` padding short rows to the widest row, reporting the column count, and exposing the first row as the header row with the remaining rows numbered from one.
+- [x] **C24** Add a Windows-1252 decode to `DetoursDelimitedTable` used when the file's bytes are not valid UTF-8, so the delimited path never reaches the generator's lossy decode.
 
 **Phase 2: Office containers**
 
@@ -251,4 +251,8 @@ The failure modes worth designing against are size-related rather than format-re
 
 ## Build Log
 
-Populated at implement time.
+- **C1** `DetoursPreviewKind` gained `delimitedTable(delimiter:)`, classified from `csv`, `tsv` and `tab`, with a cache component keyed by the separator's scalar and `plaintext` as its highlight language.
+- **C2** `src/QuickLook/DetoursDelimitedTable.swift` parses rows with a state machine: a quotation mark only opens a field at its start, a doubled mark inside one is a literal mark, and separators and line breaks inside one are content. CRLF, LF and a trailing line break at end of file all resolve to the same rows.
+- **C3** Separator detection scores comma, semicolon and tab over the first 20 rows of a 64 KB sample by how many rows share the modal field count. A modal count of one disqualifies a candidate, and the extension's separator is scored first so a tie falls to it.
+- **C4** Rows are padded to the widest row, the first row becomes the header, and the rest become the numbered data rows.
+- **C24** The file's bytes are read as UTF-8, then as Windows-1252, so a Windows-made European export shows its accented characters without reaching the generator's lossy decode.

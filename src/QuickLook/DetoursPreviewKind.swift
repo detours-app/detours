@@ -6,6 +6,7 @@ enum DetoursPreviewKind: Equatable {
     case sourceCode(language: String)
     case configuration(language: String)
     case plainText(language: String)
+    case delimitedTable(delimiter: Character)
     case unsupported
 
     var isSupported: Bool {
@@ -20,7 +21,8 @@ enum DetoursPreviewKind: Equatable {
              .configuration(let language),
              .plainText(let language):
             return language
-        case .unsupported:
+        case .delimitedTable, .unsupported:
+            // A grid is written cell by cell and never runs through the highlighter.
             return "plaintext"
         }
     }
@@ -32,6 +34,7 @@ enum DetoursPreviewKind: Equatable {
         case .sourceCode(let language): return "source-\(language)"
         case .configuration(let language): return "config-\(language)"
         case .plainText(let language): return "text-\(language)"
+        case .delimitedTable(let delimiter): return "delimited-\(delimiter.unicodeScalars.first?.value ?? 0)"
         case .unsupported: return "unsupported"
         }
     }
@@ -95,6 +98,11 @@ enum DetoursPreviewKind: Equatable {
         }
         if let language = configurationExtensions[ext] {
             return .configuration(language: language)
+        }
+        if let delimiter = DetoursDelimitedTable.delimiterHint(forExtension: ext) {
+            // The extension only implies a separator. The one actually used is decided from the
+            // file's own content when the preview is built.
+            return .delimitedTable(delimiter: delimiter)
         }
         if plainTextExtensions.contains(ext) {
             return .plainText(language: "plaintext")
