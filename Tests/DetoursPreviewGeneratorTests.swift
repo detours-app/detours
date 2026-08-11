@@ -644,11 +644,18 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
 
         // WebKit will not stick a header cell inside a table using collapsed borders.
         XCTAssertTrue(css.contains("border-collapse: separate"))
-        XCTAssertTrue(css.contains("table-layout: fixed"))
         // The toolbar is itself sticky at the top over a 1px border, so the header sits below it.
         XCTAssertTrue(css.contains("top: 43px"))
         XCTAssertTrue(css.contains(".data-grid .grid-gutter"))
         XCTAssertTrue(css.contains("left: 0"))
+
+        // Fixed layout travels with the measured width it depends on: stated without one, a table
+        // falls back to measuring its own contents.
+        let gridCSS = try String(
+            contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/grid.css"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(gridCSS.contains("table-layout:fixed;width:"))
     }
 
     func testWordPreviewRendersStructure() async throws {
