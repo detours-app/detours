@@ -3374,3 +3374,18 @@ Spotlight search has no unit test (depends on the live, async-built system index
   blank page as content. Finishing is now tied to the load carrying the file.
   The git host's Forgejo service was stopped and disabled, which blocked all
   verification until Marco started it.
+
+- 2026-08-11 09:41 CEST: Foundry verification PASS at `74eb742` for images staying
+  in the preview window, for a new preview window not being shown until it has
+  something to show, and for source previews no longer running a script after
+  they are drawn. `DetoursPreviewGeneratorTests` 23,
+  `PreviewWindowSpinnerTests` 5, `PreviewWindowContentTests` 2 and
+  `PreviewWindowFirstUseTests` 1, 0 failures. Guarded installed UI proof: all
+  three `PreviewWindowUITests` under `installed-smoke opening LOCAL_ROOT`,
+  covering arrow navigation, Markdown routing, and moving from a log to an image
+  without the window changing.
+  Attempted and abandoned: capturing the flash itself. Screen captures through
+  the interface test framework arrive about a second apart, and posting the
+  opening keypress directly, which is the only way to start capturing sooner,
+  does not reach the preview at all. Two runs confirmed this, so the first-use
+  white was removed by construction rather than by observation.
