@@ -259,9 +259,8 @@ final class PreviewWindowContentTests: XCTestCase {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
 
-        let sanitized = try XCTUnwrap(
-            try await web.evaluateJavaScript("window.__detoursHTMLPreviewSanitized") as? String
-        )
+        let sanitizedValue = try await web.evaluateJavaScript("window.__detoursHTMLPreviewSanitized")
+        let sanitized = try XCTUnwrap(sanitizedValue as? String)
         XCTAssertTrue(sanitized.contains("Safe heading"))
         XCTAssertTrue(sanitized.contains("rgb(12, 34, 56)"), "Inline presentation should survive sanitization")
         XCTAssertTrue(sanitized.contains("data:image/png;base64,"), "Self-contained images should remain renderable")
@@ -270,18 +269,16 @@ final class PreviewWindowContentTests: XCTestCase {
         XCTAssertFalse(sanitized.contains("onerror"))
         XCTAssertFalse(sanitized.contains("https://"))
         XCTAssertFalse(sanitized.contains("autofocus"))
-        XCTAssertEqual(
-            try await web.evaluateJavaScript("document.getElementById('rendered-html-frame').getAttribute('sandbox')") as? String,
-            ""
-        )
-        XCTAssertEqual(
-            try await web.evaluateJavaScript("typeof window.detoursPwned") as? String,
-            "undefined"
-        )
-        XCTAssertEqual(
-            try await web.evaluateJavaScript("document.documentElement.dataset.htmlPreviewReady") as? String,
-            "true"
-        )
+        let sandbox = try await web.evaluateJavaScript(
+            "document.getElementById('rendered-html-frame').getAttribute('sandbox')"
+        ) as? String
+        let injectedValueType = try await web.evaluateJavaScript("typeof window.detoursPwned") as? String
+        let ready = try await web.evaluateJavaScript(
+            "document.documentElement.dataset.htmlPreviewReady"
+        ) as? String
+        XCTAssertEqual(sandbox, "")
+        XCTAssertEqual(injectedValueType, "undefined")
+        XCTAssertEqual(ready, "true")
         controller.close(notifyingDelegate: false)
     }
 }
