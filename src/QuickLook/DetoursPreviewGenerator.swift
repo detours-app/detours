@@ -51,7 +51,11 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
     /// and the theme: without it, changing how previews are built leaves every file already
     /// previewed showing the old document forever, because nothing else about it has changed. Raise
     /// this whenever the generated document changes.
-    static let currentDocumentFormatVersion = "5"
+    static let currentDocumentFormatVersion = "6"
+
+    /// How many lines of a file are built up front. Beyond this the rest is added as it is scrolled
+    /// towards, which is almost never on a file of tens of thousands of lines.
+    static let eagerLineLimit = 900
 
     init(
         cacheRoot: URL? = nil,

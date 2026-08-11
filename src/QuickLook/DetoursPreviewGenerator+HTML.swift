@@ -13,12 +13,22 @@ extension DetoursPreviewGenerator {
         // Two elements per line, down from four. Both attempts to have the stylesheet draw the
         // number instead measured slower to display, not faster: counting across the file was worst,
         // and a positioned pseudo-element on every line was still worse than simply writing it.
-        let rows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: kind.highlightLanguage)
             return """
             <div class="source-line"><span class="line-number">\(index + 1)</span>\(highlightedLine)</div>
             """
-        }.joined(separator: "\n")
+        }
+        // A long file is built a screenful at a time. The rest rides along as plain text, which the
+        // page reads without building anything for it, and is added as it is scrolled towards. On a
+        // file of tens of thousands of lines almost all of that work is never needed: the file
+        // appears at once and the rest arrives only if it is scrolled to.
+        let isLong = lines.count > Self.eagerLineLimit
+        let rows = (isLong ? Array(lines.prefix(Self.eagerLineLimit)) : lines).joined(separator: "\n")
+        let tail = isLong ? """
+        <script id="source-tail" type="text/plain">\(lines.dropFirst(Self.eagerLineLimit).joined(separator: "\n"))</script>
+        <script src="support/preview-lazy.js" defer></script>
+        """ : ""
 
         return htmlDocument(
             chrome: PreviewChrome(
@@ -46,6 +56,7 @@ extension DetoursPreviewGenerator {
             <div id="source-preview" class="source-lines">
             \(rows)
             </div>
+            \(tail)
             """
         )
     }
