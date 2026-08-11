@@ -117,6 +117,11 @@ button[aria-pressed="true"],
    sight can be skipped entirely. A table cannot do that: the rules that allow skipping do not
    apply to anything inside a table, so every line of a long log had to be measured before the
    first one could be drawn, leaving the preview blank in the meantime. */
+/* Deliberately not asking for off-screen lines to be skipped. It reads like the obvious way to make
+   a long file appear sooner, and measured the opposite: a 12,000 line log took 1.42s to display with
+   it and 0.30s without. Two ways of having the stylesheet draw the line number were measured too,
+   and both were slower again: counting across the file took 3.57s, a positioned pseudo-element on
+   every line 2.40s. */
 .source-line {
   padding: 0 16px 0 0;
   white-space: pre;
