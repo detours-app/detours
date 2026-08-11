@@ -21,7 +21,7 @@ Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macO
 - **Theming** - Four built-in themes plus custom theme editor
 - **Sidebar** - Quick access to remote hosts, mounted volumes, network shares, and favorite folders
 - **Path bar** - Click to navigate, drag to terminal, right-click to copy path
-- **Quick Look** - Preview files with spacebar, including enhanced Detours-styled code and Markdown previews
+- **Quick Look** - Preview files with spacebar, including Detours-styled code, Markdown, and safely rendered HTML previews
 - **Drag and drop** - Move within one volume or remote host, copy across local,
   remote, volume, or host boundaries, and exchange files with Finder, Mail, and
   favorites
@@ -92,7 +92,7 @@ See the [User Guide](resources/docs/USER_GUIDE.md) for complete documentation.
 
 ## Project Structure
 
-```
+```text
 detours/
 ├── src/                  # Swift app source
 │   ├── App/              # Entry point, menus

@@ -59,7 +59,7 @@ Command-P follows the active tab and never falls back to searching the Mac from 
 
 ## Remote Quick Look
 
-Quick Look opens its themed Detours preview window before downloading a remote file, with a delayed spinner for transfers that are not immediate. Supported text, image, and PDF previews stay in that window and support normal preview navigation. Unsupported types fall back to the system Quick Look panel after download. Files over 100 MB are rejected before transfer.
+Quick Look opens its themed Detours preview window before downloading a remote file, with a delayed spinner for transfers that are not immediate. Supported text, Markdown, safely rendered HTML, image, and PDF previews stay in that window and support normal preview navigation. Unsupported types fall back to the system Quick Look panel after download. Files over 100 MB are rejected before transfer.
 
 ## Unix Helper and Windows Backend
 
