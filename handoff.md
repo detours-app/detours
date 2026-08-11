@@ -1,6 +1,6 @@
 # Handoff: the white flash when previewing a file
 
-Resolved in code and automated verification at `9b6a1c6`. This is the symptom, what was ruled out, the unsuccessful approaches, and the final render gate.
+Resolved in code and automated verification at `4061aaf`. This is the symptom, what was ruled out, the unsuccessful approaches, and the final render gate.
 
 ## Resolution
 
@@ -15,10 +15,10 @@ The missing distinction was between a navigation finishing and WebKit rendering 
 
 The first implementation of this gate used two `requestAnimationFrame` callbacks. The focused test passed once, then the broader exact command reproduced the hang: opacity-zero views can still have animation frames throttled. That implementation was replaced rather than accepted. `takeSnapshot` forces WebKit to render without depending on animation scheduling.
 
-Verification on Foundry at `9b6a1c6b8365d6cc03ab25e33a08f5a48fd6049b`:
+Verification on Foundry at `4061aaf0253e50e30f0c29ecaa8755b427b1e98b`:
 
-- `swift test --filter "PreviewWindow"`: 9 tests, 0 failures in 4.29 seconds. This covers the transparent cold window, render-before-reveal, rapid replacement, background suppression, and spinner lifecycle.
-- Guarded installed-app run `preview-rendered-snapshot-ui-1`: `PreviewWindowUITests/testPreviewWindowOpensAndArrowKeysMoveThroughFiles` passed, including first open, Down, Up, and close.
+- `swift test --filter "PreviewWindow"`: 9 tests, 0 failures in 4.25 seconds. This covers the transparent cold window, render-before-reveal, rapid replacement, background suppression, and spinner lifecycle.
+- Guarded installed-app run `preview-rendered-image-ui-1`: `PreviewWindowUITests/testPreviewWindowOpensAndArrowKeysMoveThroughFiles` passed, including first open, Down, Up, and close.
 - The installed run recorded zero consent prompts and completed guarded cleanup.
 
 ## Symptom
