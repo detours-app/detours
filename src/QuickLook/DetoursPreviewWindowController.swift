@@ -324,7 +324,20 @@ final class DetoursPreviewWindowController: NSWindowController {
             // resulting page. Asking for a snapshot forces WebKit to produce a native image of its
             // current contents, and unlike requestAnimationFrame it also completes when an
             // opacity-zero view is being throttled by the compositor.
-            _ = try? await web.takeSnapshot(configuration: nil)
+            do {
+                _ = try await web.takeSnapshot(configuration: nil)
+            } catch {
+                guard
+                    let self,
+                    !Task.isCancelled,
+                    generation == self.previewGeneration,
+                    web === self.loadingWebView
+                else { return }
+                // A failed render is not readiness. Keep the current page (or the themed spinner on
+                // first use) rather than exposing a frame WebKit could not turn into an image.
+                self.readinessTask = nil
+                return
+            }
             guard
                 let self,
                 !Task.isCancelled,
