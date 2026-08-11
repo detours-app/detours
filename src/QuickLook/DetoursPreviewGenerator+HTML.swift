@@ -10,14 +10,13 @@ extension DetoursPreviewGenerator {
         lossyDecode: Bool,
         fallbackReason: String?
     ) -> String {
-        // One element per line. The line number rides along as a value on that element and is drawn
-        // by the stylesheet, so it is neither an element to build nor text that gets copied with the
-        // line. It is not counted by the stylesheet either: counting across twelve thousand lines
-        // measured slower than the markup it saved.
+        // Two elements per line, down from four. Both attempts to have the stylesheet draw the
+        // number instead measured slower to display, not faster: counting across the file was worst,
+        // and a positioned pseudo-element on every line was still worse than simply writing it.
         let rows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: kind.highlightLanguage)
             return """
-            <div class="source-line" data-line="\(index + 1)">\(highlightedLine)</div>
+            <div class="source-line"><span class="line-number">\(index + 1)</span>\(highlightedLine)</div>
             """
         }.joined(separator: "\n")
 
@@ -61,7 +60,7 @@ extension DetoursPreviewGenerator {
         let sourceRows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: "markdown")
             return """
-            <div class="source-line" data-line="\(index + 1)"><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></div>
+            <div class="source-line"><span class="line-number">\(index + 1)</span><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></div>
             """
         }.joined(separator: "\n")
 

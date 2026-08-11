@@ -118,8 +118,7 @@ button[aria-pressed="true"],
    apply to anything inside a table, so every line of a long log had to be measured before the
    first one could be drawn, leaving the preview blank in the meantime. */
 .source-line {
-  position: relative;
-  padding: 0 16px 0 97px;
+  padding: 0 16px 0 0;
   content-visibility: auto;
   contain-intrinsic-size: auto 20px;
   white-space: pre;
@@ -127,16 +126,13 @@ button[aria-pressed="true"],
   tab-size: 4;
 }
 
-/* The number is drawn by the stylesheet from a value on the line, so it is neither an element to
-   build nor text that gets copied along with the line. It is deliberately not counted here:
-   counting across a long file measured slower than writing the numbers out. */
-.source-line::before {
-  content: attr(data-line);
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 68px;
-  padding: 0 12px;
+.line-number {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 81px;
+  padding: 0 24px 0 12px;
+  margin-right: 16px;
+  user-select: none;
   text-align: right;
   color: var(--detours-line-number);
 }
