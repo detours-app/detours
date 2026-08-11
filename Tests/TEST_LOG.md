@@ -3359,3 +3359,18 @@ Spotlight search has no unit test (depends on the live, async-built system index
   which always miss the cache. Captured frames from the guarded runner show the
   preview window dark with its spinner both while a large file opens and while
   moving to the next one, on a machine configured the same way.
+
+- 2026-08-11 09:12 CEST: Foundry verification PASS at `7d8e6f4` for a retired
+  preview view no longer handing back an older file, for the file name moving
+  into the window's titlebar, and for blank pages not being mistaken for a file
+  arriving. `PreviewWindowSpinnerTests` 5, `PreviewWindowContentTests` 2,
+  `PreviewWindowFirstUseTests` 1, `SpinnerPlateTests` 2 and
+  `DetoursPreviewGeneratorTests` 23, 0 failures. Guarded installed UI proof:
+  both preview window tests under `installed-smoke opening LOCAL_ROOT`,
+  confirming navigation and Markdown routing survived the window changes.
+  Two spinner tests failed first, and the failure was real: the blank pages used
+  to warm a view and to clear a retired one were reaching the same handling as a
+  file finishing, which stopped the spinner mid-read and would have shown a
+  blank page as content. Finishing is now tied to the load carrying the file.
+  The git host's Forgejo service was stopped and disabled, which blocked all
+  verification until Marco started it.
