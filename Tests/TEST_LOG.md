@@ -3389,3 +3389,23 @@ Spotlight search has no unit test (depends on the live, async-built system index
   opening keypress directly, which is the only way to start capturing sooner,
   does not reach the preview at all. Two runs confirmed this, so the first-use
   white was removed by construction rather than by observation.
+
+- 2026-08-11 10:34 CEST: Foundry verification PASS at `ff02aa7` for preview speed
+  and for a long file being built a screenful at a time.
+  Measured on a 50,000 line, 6.4 MB log: 0.44s to prepare and 0.34s to display,
+  and the display time barely moves with file size now. A 12,000 line log went
+  from 1.04s to 0.30s to display over the course of this work.
+  Three attempts were measured and rejected because they were slower, not
+  faster: skipping off-screen lines took 1.42s against 0.30s without it,
+  counting line numbers in the stylesheet 3.57s, and a positioned pseudo-element
+  per line 2.40s. All three are recorded in the stylesheet so they are not tried
+  again.
+  `PreviewLazyLoadingTests` 3 tests, including one that drives a real web view,
+  scrolls to the end and checks every one of 5,000 lines arrives.
+  `BuildCacheTests` 5, and a regression run of the preview and file list
+  classes totalling 91 tests, 0 failures. Guarded installed UI proof: all three
+  `PreviewWindowUITests`.
+  Two failures on the way were real. The page scrolls its document, not its
+  body, so the first attempt watched something that never moves; and the script
+  that adds the rest of the file was written into the preview but never shipped
+  alongside it, so it was missing wherever the preview was shown.
