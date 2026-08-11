@@ -1,76 +1,55 @@
-# Handoff: file list paging, and the preview window
+# Handoff: the white flash when previewing a file
 
-Date: 2026-08-11. Branch: `main`. Everything described here is committed, pushed, verified on Foundry and installed on Spectre.
+Not fixed, or at least not confirmed fixed. This is the symptom, what has been ruled out, and everything that has been tried.
 
-## What this covers
+## Symptom
 
-Two unrelated pieces of work that ran together in one session:
+Opening a preview, or moving from one file to the next in one, shows a white rectangle before the content appears. Reported on log files, Markdown and HTML. Seen on Spectre; never once observed from this side.
 
-1. Page Up and Page Down in the file list, which did nothing.
-2. A long chain of work on previews, ending in Detours showing its own previews in a window it owns rather than in the system preview panel.
+Two details from Marco that matter:
 
-## 1. Paging in the file list
+- At one point it happened **only on the first preview after launching Detours**. Later it happened **on every file**. The change between those two reports lines up exactly with the commit described in attempt 11 below.
+- Moving between two **images** never flashed. Images take the same code path but are drawn by a different viewer.
 
-Page Up and Page Down had no case in the file list's key handling, so they fell through to type-to-select, which accepted them because function keys carry a character like any other key. Type-to-select then reported the key as handled, which stopped the list from applying its own paging, and quietly put an invisible character into the search buffer that spoiled the next keystroke.
+## What is ruled out, with evidence
 
-Both keys now move the selection by one visible page, keep one row of overlap so the row being read stays on screen, clamp at the ends, and extend the selection with Shift. Type-to-select no longer treats function keys as typing.
+- **Not the preview document.** A generated document was dumped and inspected: it carries its own background colour in an inline style in the head, ahead of any stylesheet, and its policy admits that style by fingerprint. It is correct.
+- **Not preparing the file.** Generating a preview for a 1.5 MB log measures 0.1s, and the panel keeps showing the previous file while it happens.
+- **Not the panel reloading per file.** Images go through the identical reload path and never flash.
+- **Not visible to the interface test framework.** Screen captures arrive about a second apart, and posting the opening keypress directly, which is the only way to start capturing sooner, does not reach the preview at all. Tried twice, abandoned. Captures taken on Foundry during both a large file opening and a move to the next file show a dark window with the spinner, no white.
 
-This is done and confirmed working.
+## What has been tried, in order
 
-## 2. Previews
+1. **The panel was emptied while the next preview was built.** Real defect, fixed: the panel now keeps the current file until the next is ready. Did not fix the flash.
+2. **The panel was re-raised to the front on every keystroke.** Real defect, fixed. Did not fix the flash.
+3. **The background colour was put inside the document**, ahead of the stylesheet, so the first frame drawn is the right colour. Verified present in the generated file. Did not fix the flash.
+4. **A third-party stylesheet that paints code blocks solid white was removed.** It only applied under a light system appearance. Did not fix the flash.
+5. **The system preview panel was abandoned for anything Detours renders**, in favour of a window Detours owns, on the reasoning that the panel's own document viewer paints a blank white page before any document exists. The image comparison above is what pointed here. Did not fix the flash.
+6. **Two views, one shown and one loading**, so a part-drawn page is never on screen. Did not fix the flash, and introduced the defect in attempt 7.
+7. **A retired view was handing back the file it last showed**, seen as previewing 05 flashing 04, and previewing 06 flashing 04 again rather than 05. Fixed by emptying a view to the theme colour the moment it is retired. A real, separate defect of my own making.
+8. **The window was being put on screen before it had drawn.** It now waits until it has either the file or the spinner. Aimed at the "first preview only" form of the report.
+9. **Previews were cached without regard to how the document is written.** Every fix above changed exactly that, so any file already previewed kept being served the old document, and none of those fixes could be seen on Marco's machine. Fixed by putting a document format version in the cache key. **Raise it whenever the generated document changes.**
+10. **Looked up the documented behaviour**, rather than reasoning further. A WKWebView is white until it has drawn something, whatever the page says, and colouring it afterwards does not help. The accepted fix on this platform is to turn off the view's own background drawing so what is painted behind it shows through.
+11. **That flag was in place and I deleted it** during attempt 6, a rewrite of the same file. It is restored, and `PreviewWebViewBackgroundTests` holds it. This is the most likely explanation for the report changing from "first preview only" to "every file", since the timing matches, but it is a candidate, not a confirmation.
+12. **Documents now declare whether they are dark or light**, so the first frame uses the right colour before any stylesheet is read.
 
-### Where it ended up
+## Tried and reverted
 
-Anything Detours can display, which is text, source, Markdown, images and PDFs, now opens in a window Detours owns rather than in the system preview panel. The panel is still used for anything Detours cannot display itself.
+**Revealing a view once the page reports a drawn frame**, rather than when the load finishes. A view that is not on screen is not animating, so the signal never arrived and the preview never appeared at all. Two tests caught it immediately.
 
-The window keeps two web views, one shown and one loading, and swaps them when a file finishes. A retired view is emptied to the theme colour immediately, so it can never hand back the file it was showing. Neither view paints its own background, so an undrawn view shows the theme colour rather than white. The window is not put on screen until it has either the file or the spinner to show.
+## What to try next
 
-Keys are claimed before the page sees them, since the web view treats the arrows as scrolling and space as paging. Arrows move through the list, space and escape close, Option-W switches wrapping, and Page Up and Page Down are deliberately left to the page so they still scroll the file.
+The part of the research not yet used: reveal on a readiness signal from the page rather than on the load finishing. Doing it properly means keeping the loading view on screen but fully transparent, so it is animating and able to report, then revealing it once it has drawn. That covers the case where a view has finished loading but has not yet put anything up.
 
-Wrapping is a Detours setting, on by default, and persists across files and restarts. It cannot live inside the preview: a preview has no way to tell the app what was clicked in it.
+If that does not do it, the remaining unobserved moment is the single frame in which the window is first composited by the system. Nothing in the app draws white there, so going further would need a screen recording of that moment, which no automated route here can produce.
 
-Long files are loaded on demand. The document holds its first 900 lines and nothing else, the rest is written beside it in chunks, and the page asks Detours for each chunk as it is scrolled towards, through a scheme handler. Only a document that has chunks may make any request, only for names shaped like a chunk, and only within the folder of the preview on screen.
+## Reading
 
-### The open question
+- [Apple Developer Forums: WKWebView always comes up with white background](https://developer.apple.com/forums/thread/121139)
+- [Making a macOS WKWebView background transparent](https://medium.com/@clyapp/transparentchange-the-default-white-background-color-of-mac-wkwebview-to-transparent-b059b7f48f8f)
+- [Hotwire: white flash when navigating pages in a dark themed app](https://discuss.hotwired.dev/t/white-flash-when-navigating-pages-in-a-dark-themed-app/6377)
+- [Apple Developer Forums: pre-rendering WKWebView to avoid flashing](https://developer.apple.com/forums/thread/757450)
 
-**It is not confirmed that the white flash is gone.** Marco reported it repeatedly and it was never observed from this side. The last change restores the one thing the documented fix depends on, which had been in place and was then deleted during a later rewrite of the same file. That matches his reports changing from "the first preview only" to "every file" at exactly that commit, but it is a good candidate, not a confirmation.
+## Checking by hand
 
-If it still flashes, the next thing to try is the part of the research that could not be used yet: reveal a view on a readiness signal from the page rather than when the load finishes. An attempt at this failed because a view that is not on screen is not animating, so the signal never arrived. Doing it properly means keeping the view on screen but fully transparent while it loads, then revealing it.
-
-Useful reading, all of which describes this exact symptom: [Apple Developer Forums](https://developer.apple.com/forums/thread/121139), [the AppKit transparency note](https://medium.com/@clyapp/transparentchange-the-default-white-background-color-of-mac-wkwebview-to-transparent-b059b7f48f8f), [Hotwire's thread on dark themed apps](https://discuss.hotwired.dev/t/white-flash-when-navigating-pages-in-a-dark-themed-app/6377).
-
-### Measured facts worth keeping
-
-Figures are for a log file, taken on Foundry, and are recorded in `Tests/TEST_LOG.md` with the runs they came from.
-
-| Change | Result |
-| --- | --- |
-| A 12,000 line log, over the course of this work | 1.04s to display, then 0.30s |
-| A 50,000 line log, once loaded on demand | 0.20s to display, document 174 KB instead of 9.8 MB |
-| Skipping off-screen lines | 1.42s with it, 0.30s without |
-| Counting line numbers in the stylesheet | 3.57s |
-| A positioned pseudo-element per line | 2.40s |
-
-The last three all read like obvious improvements and all measured slower. The reasoning is recorded in `preview.css` so they are not tried again.
-
-### Two mistakes not to repeat
-
-**Anything that changes how a preview document is written must change its cached identity.** Previews were cached against the file, theme, font size, wrap setting and preview assets, but not against the document format. Every fix to the flash changed exactly that, so files already previewed kept being served the old document, and none of the fixes could be seen on Marco's machine. It never showed up in testing because each run creates new files, which always miss the cache. There is now a document format version in the cache key: **raise it whenever the generated document changes**.
-
-**Do not remove the transparency flag on the preview web views.** A web view is white until it has drawn, whatever the page says. `PreviewWebViewBackgroundTests` holds this now.
-
-## Verification
-
-- Unit and integration: `swift test` on Foundry. The preview work is covered by `DetoursPreviewGeneratorTests`, `PreviewLazyLoadingTests`, `PreviewWindowSpinnerTests`, `PreviewWindowContentTests`, `PreviewWindowFirstUseTests`, `PreviewWebViewBackgroundTests`, `SpinnerPlateTests` and `PageKeyNavigationTests`.
-- Installed app: `resources/scripts/qualification-foundry.sh installed-smoke opening LOCAL_ROOT --smoke-repetitions 1 --test-filter PreviewWindowUITests/<test>`. Three tests cover arrow navigation, Markdown routing, and moving from a log to an image without the window changing.
-- The interface test framework cannot capture the flash. Screen captures arrive about a second apart, and posting the opening keypress directly, which is the only way to start sooner, does not reach the preview. This was attempted twice and abandoned.
-
-## For checking by hand
-
-`~/PreviewFlashCheck` on Foundry holds nine files sized like real ones: three Markdown, two HTML, two 1.9 MB logs, and two photos as the control, ordered so each pair sits next to its neighbour. Select one, press Space, then Down. Images never flashed and are the comparison.
-
-## Housekeeping
-
-- Detours is installed and current on both Spectre and Foundry.
-- Foundry is clean and at the same commit as Spectre.
-- The Forgejo service on alcazar was stopped and disabled during the session and blocked all verification until it was started. Its unit is still disabled, so it will not survive a reboot.
+`~/PreviewFlashCheck` on Foundry: three Markdown files, two HTML, two 1.9 MB logs, two photos, ordered so each pair sits beside its neighbour. Select one, press Space, then Down. The photos are the control, since they never flashed.
