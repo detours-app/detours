@@ -119,8 +119,6 @@ button[aria-pressed="true"],
    first one could be drawn, leaving the preview blank in the meantime. */
 .source-line {
   padding: 0 16px 0 0;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 20px;
   white-space: pre;
   overflow-wrap: normal;
   tab-size: 4;
