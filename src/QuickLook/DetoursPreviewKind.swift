@@ -7,6 +7,8 @@ enum DetoursPreviewKind: Equatable {
     case configuration(language: String)
     case plainText(language: String)
     case delimitedTable(delimiter: Character)
+    case wordDocument
+    case spreadsheet
     case unsupported
 
     var isSupported: Bool {
@@ -21,8 +23,9 @@ enum DetoursPreviewKind: Equatable {
              .configuration(let language),
              .plainText(let language):
             return language
-        case .delimitedTable, .unsupported:
-            // A grid is written cell by cell and never runs through the highlighter.
+        case .delimitedTable, .wordDocument, .spreadsheet, .unsupported:
+            // A grid and a document are written piece by piece and never run through the
+            // highlighter.
             return "plaintext"
         }
     }
@@ -35,6 +38,8 @@ enum DetoursPreviewKind: Equatable {
         case .configuration(let language): return "config-\(language)"
         case .plainText(let language): return "text-\(language)"
         case .delimitedTable(let delimiter): return "delimited-\(delimiter.unicodeScalars.first?.value ?? 0)"
+        case .wordDocument: return "word"
+        case .spreadsheet: return "spreadsheet"
         case .unsupported: return "unsupported"
         }
     }
@@ -46,6 +51,13 @@ enum DetoursPreviewKind: Equatable {
                 return .unsupported
             }
             return .plainText(language: "plaintext")
+        }
+
+        // An Office file is a container of compressed parts, so its own bytes always sniff as
+        // binary. Disqualifying it on that would rule out the only two formats read from a
+        // container rather than from text.
+        if baseKind == .wordDocument || baseKind == .spreadsheet {
+            return baseKind
         }
 
         if let sampleData, !isTextLike(sampleData) {
@@ -98,6 +110,12 @@ enum DetoursPreviewKind: Equatable {
         }
         if let language = configurationExtensions[ext] {
             return .configuration(language: language)
+        }
+        if ext == "docx" {
+            return .wordDocument
+        }
+        if ext == "xlsx" {
+            return .spreadsheet
         }
         if let delimiter = DetoursDelimitedTable.delimiterHint(forExtension: ext) {
             // The extension only implies a separator. The one actually used is decided from the
