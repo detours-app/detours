@@ -103,6 +103,15 @@ button[aria-pressed="true"],
 
 .source-lines {
   width: 100%;
+  counter-reset: source-line;
+  /* The gutter is one strip painted down the whole listing rather than a cell on every line, so a
+     wrapped line still sits against it and there is one less element per line to build. */
+  background-image: linear-gradient(
+    to right,
+    var(--detours-gutter) 0 80px,
+    var(--detours-border) 80px 81px,
+    transparent 81px 100%
+  );
 }
 
 /* Lines are laid out as rows of their own rather than as a table, so that lines scrolled out of
@@ -110,38 +119,30 @@ button[aria-pressed="true"],
    apply to anything inside a table, so every line of a long log had to be measured before the
    first one could be drawn, leaving the preview blank in the meantime. */
 .source-line {
-  display: flex;
-  align-items: flex-start;
+  position: relative;
+  padding: 0 16px 0 97px;
   content-visibility: auto;
   contain-intrinsic-size: auto 20px;
-}
-
-.line-number {
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  min-width: 68px;
-  padding: 0 12px;
-  user-select: none;
-  text-align: right;
-  color: var(--detours-line-number);
-  background: var(--detours-gutter);
-  border-right: 1px solid var(--detours-border);
-}
-
-.line-code {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 0 16px;
-}
-
-.line-code code {
-  display: block;
   white-space: pre;
   overflow-wrap: normal;
   tab-size: 4;
 }
 
-.wrap-lines .line-code code {
+/* The number is drawn by the stylesheet, so it is neither an element to build nor text that gets
+   copied along with the line. */
+.source-line::before {
+  counter-increment: source-line;
+  content: counter(source-line);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 68px;
+  padding: 0 12px;
+  text-align: right;
+  color: var(--detours-line-number);
+}
+
+.wrap-lines .source-line {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

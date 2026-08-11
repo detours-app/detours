@@ -10,14 +10,13 @@ extension DetoursPreviewGenerator {
         lossyDecode: Bool,
         fallbackReason: String?
     ) -> String {
-        // Every line is highlighted here, so none of them carry the attributes that ask the page's
-        // own highlighter to look at them. On a long log those attributes were repeating roughly a
-        // hundred bytes per line for nothing, and the panel has to read all of it before it can
-        // draw anything.
-        let rows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
+        // One element per line, and the line number comes from the stylesheet rather than being
+        // written into every line. A long log was carrying four elements and about a hundred extra
+        // bytes per line, and all of that has to be read and measured before anything is drawn.
+        let rows = source.split(separator: "\n", omittingEmptySubsequences: false).map { line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: kind.highlightLanguage)
             return """
-            <div class="source-line"><span class="line-number">\(index + 1)</span><span class="line-code"><code>\(highlightedLine)</code></span></div>
+            <div class="source-line">\(highlightedLine)</div>
             """
         }.joined(separator: "\n")
 
@@ -58,10 +57,10 @@ extension DetoursPreviewGenerator {
         lossyDecode: Bool
     ) -> String {
         let renderedMarkdown = Self.renderStaticMarkdown(source)
-        let sourceRows = source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, line in
+        let sourceRows = source.split(separator: "\n", omittingEmptySubsequences: false).map { line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: "markdown")
             return """
-            <div class="source-line"><span class="line-number">\(index + 1)</span><span class="line-code"><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></span></div>
+            <div class="source-line"><code class="language-markdown" data-highlight-language="markdown" data-static-highlight="true">\(highlightedLine)</code></div>
             """
         }.joined(separator: "\n")
 

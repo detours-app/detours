@@ -23,8 +23,9 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
 
         XCTAssertTrue(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"))
         XCTAssertFalse(html.contains("<script>alert(1)</script>"))
-        XCTAssertTrue(html.contains("line-number\">1</span>"))
-        XCTAssertTrue(html.contains("line-number\">2</span>"))
+        // Line numbers are drawn by the stylesheet, so they are not in the document at all.
+        XCTAssertFalse(html.contains("line-number"))
+        XCTAssertEqual(html.components(separatedBy: "class=\"source-line\"").count - 1, 3)
     }
 
     func testPreviewCarriesItsBackgroundInTheDocumentItself() async throws {
