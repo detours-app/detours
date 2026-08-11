@@ -271,6 +271,7 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertFalse(html.contains("allow-scripts"))
         XCTAssertTrue(html.contains("frame-src blob:"))
         XCTAssertTrue(runtime.contains("USE_PROFILES: { html: true }"))
+        XCTAssertTrue(runtime.contains("FORCE_BODY: true"))
         XCTAssertTrue(runtime.contains("script-src 'none'"))
         XCTAssertTrue(runtime.contains("connect-src 'none'"))
         XCTAssertTrue(runtime.contains("form-action 'none'"))

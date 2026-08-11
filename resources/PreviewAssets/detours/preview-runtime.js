@@ -64,6 +64,7 @@
     var sanitized = window.DOMPurify.sanitize(textFromTemplate("html-source-payload"), {
       USE_PROFILES: { html: true },
       WHOLE_DOCUMENT: false,
+      FORCE_BODY: true,
       FORBID_TAGS: ["base", "embed", "frame", "frameset", "iframe", "link", "meta", "noscript", "object", "script"],
       FORBID_ATTR: ["action", "autofocus", "cite", "data", "formaction", "href", "ping", "poster", "srcset"],
       ALLOWED_URI_REGEXP: /^data:image\/(?:avif|gif|jpeg|png|webp);base64,[a-z0-9+/=\s]+$/i
