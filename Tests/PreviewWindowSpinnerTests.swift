@@ -285,6 +285,56 @@ final class PreviewWindowContentTests: XCTestCase {
         controller.close(notifyingDelegate: false)
     }
 
+    func testWrappedMarkdownCodeBlockFitsInsideItsRenderedViewport() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("markdown-wrap-preview-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("commands.md")
+        let uninterruptedText = String(repeating: "command-without-a-break-", count: 80)
+        try "```text\n\(uninterruptedText)\n```\n".write(to: source, atomically: true, encoding: .utf8)
+        let generator = DetoursPreviewGenerator(
+            cacheRoot: root.appendingPathComponent("cache", isDirectory: true),
+            assetRoot: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("resources", isDirectory: true)
+                .appendingPathComponent("PreviewAssets", isDirectory: true)
+        )
+        let previewURL = try await generator.previewURL(for: DetoursPreviewRequest(
+            sourceURL: source,
+            displayName: "commands.md",
+            theme: .dark,
+            fontSize: 13,
+            context: .remote,
+            wrapLines: true
+        ))
+
+        let controller = DetoursPreviewWindowController(theme: .dark)
+        controller.present(previewURL: previewURL, title: "commands.md", theme: .dark)
+        let web = controller.loadingPreviewWebViewForTesting
+        for _ in 0..<200 {
+            let ready = try? await web.evaluateJavaScript(
+                "document.documentElement.dataset.markdownPreviewReady"
+            ) as? String
+            if ready == "true" { break }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        let whiteSpace = try await web.evaluateJavaScript(
+            "getComputedStyle(document.querySelector('#rendered-markdown pre')).whiteSpace"
+        ) as? String
+        let overflowWrap = try await web.evaluateJavaScript(
+            "getComputedStyle(document.querySelector('#rendered-markdown pre')).overflowWrap"
+        ) as? String
+        let overflows = try await web.evaluateJavaScript(
+            "document.querySelector('#rendered-markdown pre').scrollWidth > document.querySelector('#rendered-markdown pre').clientWidth + 1"
+        ) as? Bool
+
+        XCTAssertEqual(whiteSpace, "pre-wrap")
+        XCTAssertEqual(overflowWrap, "anywhere")
+        XCTAssertEqual(overflows, false, "Wrapped Markdown must not clip an uninterrupted command line")
+        controller.close(notifyingDelegate: false)
+    }
+
     func testMarkdownItSoleRendererHandlesRichMarkdownAndTrustedComponentsSafely() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("markdown-it-preview-\(UUID().uuidString)", isDirectory: true)

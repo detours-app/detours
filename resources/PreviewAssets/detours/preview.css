@@ -212,6 +212,14 @@ button[aria-pressed="true"],
 .markdown-body pre {
   padding: 12px;
   overflow-x: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+.wrap-lines .markdown-body pre {
+  overflow-x: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .markdown-body .hljs-keyword,

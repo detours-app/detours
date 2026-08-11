@@ -85,7 +85,7 @@ extension DetoursPreviewGenerator {
             chrome: PreviewChrome(
                 theme: request.theme,
                 title: request.displayName,
-                bodyClass: "markdown-preview",
+                bodyClass: request.wrapLines ? "markdown-preview wrap-lines" : "markdown-preview",
                 controls: """
                 <input class="view-toggle-input" id="markdown-view-rendered" type="radio" name="markdown-view" checked>
                 <input class="view-toggle-input" id="markdown-view-source" type="radio" name="markdown-view">
@@ -95,6 +95,7 @@ extension DetoursPreviewGenerator {
             toolbar: """
             <label class="view-toggle" id="markdown-rendered-toggle" for="markdown-view-rendered">Rendered</label>
             <label class="view-toggle" id="markdown-source-toggle" for="markdown-view-source">Source</label>
+            <span class="preview-hint">\(request.wrapLines ? "Wrapped" : "Not wrapped") &middot; \u{2325}W</span>
             """,
             body: """
             \(lossyWarning(lossyDecode))

@@ -3,6 +3,45 @@ import XCTest
 @testable import Detours
 
 extension FileListResponderTests {
+    func testSelectingRemoteFolderClosesDetoursPreviewWithoutLeavingSpinner() async throws {
+        let hostID = UUID()
+        let rootPath = "/home/marco"
+        let folderPath = "\(rootPath)/reports"
+        let provider = FileListRemoteProvider(
+            hostID: hostID,
+            listings: [
+                rootPath: [
+                    LoadedFileEntry(
+                        location: .remote(hostID: hostID, path: folderPath),
+                        url: URL(fileURLWithPath: folderPath),
+                        name: "reports",
+                        isDirectory: true
+                    ),
+                ],
+                folderPath: [],
+            ]
+        )
+        let viewController = FileListViewController()
+        viewController.loadViewIfNeeded()
+        let host = RemoteHost(id: hostID, displayName: "Dev VM", sshTarget: "dev")
+        viewController.loadRemoteDirectory(host: host, path: rootPath, provider: provider)
+        let loaded = await waitForRowCount(1, in: viewController.tableView)
+        XCTAssertTrue(loaded)
+        viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        let preview = DetoursPreviewWindowController(theme: .dark)
+        preview.prepare(title: "previous.txt", theme: .dark)
+        viewController.detoursPreviewWindow = preview
+        XCTAssertTrue(preview.isPresented)
+
+        viewController.refreshQuickLookPanel()
+
+        XCTAssertFalse(preview.isPresented, "A remote folder cannot be previewed and must close the file preview")
+        try await Task.sleep(nanoseconds: 700_000_000)
+        XCTAssertFalse(preview.isShowingSpinner, "The abandoned folder selection must not raise a delayed spinner")
+        XCTAssertFalse(viewController.quickLookGenerationTaskIsActiveForTesting)
+    }
+
     func testRemoteQuickLookReportsNoPreviewItemUntilDownloadCompletes() {
         XCTAssertEqual(
             FileListViewController.quickLookPreviewItemCount(

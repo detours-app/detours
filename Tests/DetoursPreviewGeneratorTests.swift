@@ -128,6 +128,26 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("Not wrapped"))
     }
 
+    func testMarkdownCodeBlocksHonorTheWrapSetting() async throws {
+        let source = try write("commands.md", "```text\nhttps://example.test/\(String(repeating: "segment", count: 80))\n```\n")
+        let wrappedURL = try await generator().previewURL(for: request(source, displayName: "commands.md"))
+        let wrappedHTML = try String(contentsOf: wrappedURL, encoding: .utf8)
+        let css = try String(
+            contentsOf: wrappedURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"),
+            encoding: .utf8
+        )
+        let unwrappedURL = try await generator()
+            .previewURL(for: request(source, displayName: "commands.md", wrapLines: false))
+        let unwrappedHTML = try String(contentsOf: unwrappedURL, encoding: .utf8)
+
+        XCTAssertTrue(wrappedHTML.contains("<body class=\"markdown-preview wrap-lines\">"))
+        XCTAssertTrue(wrappedHTML.contains("Wrapped"))
+        XCTAssertTrue(unwrappedHTML.contains("<body class=\"markdown-preview\">"))
+        XCTAssertTrue(unwrappedHTML.contains("Not wrapped"))
+        XCTAssertTrue(css.contains(".wrap-lines .markdown-body pre"))
+        XCTAssertTrue(css.contains("overflow-wrap: anywhere"))
+    }
+
     func testChangingHowPreviewsAreWrittenChangesTheCachedPreviewIdentity() async throws {
         let source = try write("main.swift", "let value = \"hello\"\n")
         let request = request(source, displayName: "main.swift")

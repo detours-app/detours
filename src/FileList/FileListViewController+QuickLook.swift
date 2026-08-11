@@ -395,10 +395,20 @@ extension FileListViewController {
                 return
             }
             clearRemoteQuickLookState()
+            let urls = selectedURLs
+            guard !urls.isEmpty else {
+                // A remote folder has no local URL and is deliberately not downloaded as a file.
+                // Closing here is the only valid preview state. Starting the spinner before the
+                // empty local-generation call returns would leave it running forever.
+                closeDetoursPreviewWindow()
+                view.window?.makeKeyAndOrderFront(nil)
+                view.window?.makeFirstResponder(tableView)
+                return
+            }
             // The wait starts here, not when the document is handed over: preparing a long file is
             // part of what the reader is waiting through.
             previewWindow.beginLoading()
-            startLocalQuickLookGeneration(urls: selectedURLs, panel: QLPreviewPanel.shared())
+            startLocalQuickLookGeneration(urls: urls, panel: QLPreviewPanel.shared())
             return
         }
         guard let panel = QLPreviewPanel.shared(), panel.isVisible else { return }
