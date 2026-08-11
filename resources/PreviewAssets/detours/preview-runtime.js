@@ -80,6 +80,5 @@
     renderMarkdown();
     renderSource();
     bindToggles();
-    disableNavigation(document);
   });
 })();

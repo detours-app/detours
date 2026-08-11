@@ -51,7 +51,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
     /// and the theme: without it, changing how previews are built leaves every file already
     /// previewed showing the old document forever, because nothing else about it has changed. Raise
     /// this whenever the generated document changes.
-    static let currentDocumentFormatVersion = "3"
+    static let currentDocumentFormatVersion = "4"
 
     init(
         cacheRoot: URL? = nil,

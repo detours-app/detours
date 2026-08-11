@@ -31,6 +31,8 @@ final class DetoursPreviewWindowController: NSWindowController {
     /// warm them and to clear a retired one, and those must not be mistaken for a file arriving:
     /// they would stop the spinner and put a blank page on screen as though it were content.
     private var previewNavigation: WKNavigation?
+    /// Set while a preview has been asked for but the window is not on screen yet.
+    private var waitingToAppear = false
     private let spinner = NSProgressIndicator()
     private let spinnerPlate: SpinnerPlate
     private var keyMonitor: Any?
@@ -127,13 +129,18 @@ final class DetoursPreviewWindowController: NSWindowController {
         if window?.isVisible != true {
             window?.center()
         }
-        // Draw the window before it is put on screen. A window is handed to the screen as soon as
-        // it is ordered front, whether or not its contents have been drawn yet, and an undrawn
-        // window is white. This only ever showed on the first preview, because the window is made
-        // once and reused after that.
+        // A newly made window is not put on screen until it has something to show: either the file
+        // itself, or the spinner once the wait is long enough to be worth showing. A window is
+        // handed to the screen the moment it is ordered front, drawn or not, and an undrawn window
+        // is white. That could only ever be seen on the first preview, because the window is made
+        // once and reused after that, which is exactly when it was reported.
         window?.contentView?.layoutSubtreeIfNeeded()
         window?.displayIfNeeded()
-        window?.makeKeyAndOrderFront(nil)
+        if window?.isVisible == true {
+            window?.makeKeyAndOrderFront(nil)
+        } else {
+            waitingToAppear = true
+        }
     }
 
     /// Loads the next file into the same view. Nothing is torn down, so the view keeps showing the
@@ -191,9 +198,20 @@ final class DetoursPreviewWindowController: NSWindowController {
         isShowingSpinner = true
         spinnerPlate.isHidden = false
         spinner.startAnimation(nil)
+        // Long enough a wait that the window should be seen, and by now it has had time to draw.
+        appearIfWaiting()
+    }
+
+    private func appearIfWaiting() {
+        guard waitingToAppear else { return }
+        waitingToAppear = false
+        window?.contentView?.layoutSubtreeIfNeeded()
+        window?.displayIfNeeded()
+        window?.makeKeyAndOrderFront(nil)
     }
 
     func close(notifyingDelegate: Bool) {
+        waitingToAppear = false
         endLoading()
         stopWatchingKeys()
         guard window?.isVisible == true else { return }
@@ -235,6 +253,7 @@ final class DetoursPreviewWindowController: NSWindowController {
         loadingWebView = retired
         loadingWebView.isHidden = true
         hasShownAnything = true
+        appearIfWaiting()
         // The retired view still holds the file it was showing. It is emptied to the theme colour
         // straight away, because the next file goes into this same view, and a view is finished
         // loading a moment before it has drawn: whatever it still held was appearing for an instant

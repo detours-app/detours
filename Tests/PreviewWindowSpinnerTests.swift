@@ -166,7 +166,7 @@ final class PreviewWindowContentTests: XCTestCase {
 /// has been drawn is white.
 @MainActor
 final class PreviewWindowFirstUseTests: XCTestCase {
-    func testWindowIsDrawnBeforeItIsPutOnScreen() async throws {
+    func testWindowIsNotShownUntilItHasSomethingToShow() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("preview-first-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -178,13 +178,24 @@ final class PreviewWindowFirstUseTests: XCTestCase {
         controller.present(previewURL: page, title: "page.html", theme: .dark)
 
         let window = try XCTUnwrap(controller.window)
-        XCTAssertTrue(window.isVisible, "The preview window should be on screen")
-        XCTAssertFalse(
-            window.contentView?.needsLayout ?? true,
-            "The window must be laid out before it is put on screen, or it is shown undrawn"
-        )
-        XCTAssertEqual(window.backgroundColor, Theme.dark.background, "An undrawn window must still be the theme colour")
+        // A brand new window waits: it goes on screen with the file in it, or with the spinner once
+        // the wait is long enough. A window put on screen before it has drawn is white, and that is
+        // only ever possible on the first preview, since the window is made once and reused.
+        XCTAssertFalse(window.isVisible, "A new preview window must not be shown before it has anything to show")
         XCTAssertFalse(controller.showsLoadedContent, "No file should be on screen before it has loaded")
+        XCTAssertEqual(window.backgroundColor, Theme.dark.background)
+
+        let appeared = expectation(description: "window appears with the file")
+        Task { @MainActor in
+            for _ in 0..<100 where !(controller.window?.isVisible ?? false) {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            appeared.fulfill()
+        }
+        await fulfillment(of: [appeared], timeout: 15)
+
+        XCTAssertTrue(window.isVisible, "The window should appear once it has the file")
+        XCTAssertTrue(controller.showsLoadedContent, "It should appear showing the file, not empty")
 
         controller.close(notifyingDelegate: false)
     }

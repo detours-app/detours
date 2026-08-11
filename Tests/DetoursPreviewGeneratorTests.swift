@@ -394,7 +394,9 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         let html = try String(contentsOf: previewURL, encoding: .utf8)
 
         XCTAssertTrue(html.contains("href=\"support/preview.css\""))
-        XCTAssertTrue(html.contains("src=\"support/preview-runtime.js\""))
+        // Nothing runs in a source preview: it is finished the moment it is drawn, and a script
+        // walking it afterwards made a long file visibly settle a second time.
+        XCTAssertFalse(html.contains("src=\"support/preview-runtime.js\""))
         // A source preview is highlighted before it is written, so it must not pull in the Markdown
         // renderer, the page highlighter, or their stylesheets. One of those stylesheets has to be
         // read before the panel can draw anything, which is time spent staring at an empty preview.
@@ -409,12 +411,11 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
             .contains("prefers-color-scheme: dark"))
         XCTAssertTrue(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview-runtime.js"), encoding: .utf8)
             .contains("target.innerHTML.trim().length > 0"))
-        XCTAssertTrue(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview-runtime.js"), encoding: .utf8)
-            .contains("data-static-highlight"))
+
         XCTAssertFalse(html.contains("<script>"))
         XCTAssertFalse(html.contains("http://"))
         XCTAssertFalse(html.contains("https://"))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview-runtime.js").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css").path))
     }
 
     func testPreviewCacheUsesUserOnlyPermissionsAndHashedSourceKeys() async throws {

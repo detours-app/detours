@@ -124,8 +124,12 @@ extension DetoursPreviewGenerator {
         // No third-party stylesheet is linked at all. Everything is coloured before it is written,
         // using the theme, and the one that used to be linked here paints code blocks solid white,
         // which is a glaring white rectangle in a dark preview whenever the system is set to light.
+        // Only Markdown needs anything to run in the page: it has view toggles and links to make
+        // inert. A source preview is finished the moment it is drawn, and running a script over it
+        // afterwards made it visibly settle a second time on a long file.
         let richTextAssets = usesRichTextAssets ? """
         <script src="support/markdown-it.min.js" defer></script>
+        <script src="support/preview-runtime.js" defer></script>
         """ : ""
 
         return """
@@ -140,7 +144,6 @@ extension DetoursPreviewGenerator {
         <link rel="stylesheet" href="support/theme.css">
         <link rel="stylesheet" href="support/preview.css">
         \(richTextAssets)
-        <script src="support/preview-runtime.js" defer></script>
         </head>
         <body class="\(bodyClass)">
         <div class="preview-shell">
