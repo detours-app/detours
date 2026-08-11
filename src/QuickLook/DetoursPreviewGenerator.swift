@@ -110,17 +110,10 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         return Self.sha256(raw)
     }
 
-    /// An Office file is a container of compressed parts, so reading one as text shows a screenful
-    /// of noise. When one of them cannot be drawn, the file goes to the system preview, which can
-    /// still show the reader their document.
-    static func isOfficeKind(_ kind: DetoursPreviewKind) -> Bool {
-        kind == .wordDocument || kind == .spreadsheet
-    }
-
     private func timeoutFallback(for request: DetoursPreviewRequest) throws -> URL {
         let sample = (try? readSample(from: request.sourceURL)) ?? Data()
         let kind = DetoursPreviewKind.classify(url: request.sourceURL, sampleData: sample)
-        if Self.isOfficeKind(kind) {
+        guard kind.hasPlainTextFallback else {
             return request.sourceURL
         }
         return try generateFallbackPreview(
@@ -149,7 +142,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
 
         let data = try Data(contentsOf: request.sourceURL)
         guard data.count <= limits.richRenderInputBytes else {
-            if Self.isOfficeKind(kind) {
+            guard kind.hasPlainTextFallback else {
                 return request.sourceURL
             }
             return try generateFallbackPreview(
@@ -159,15 +152,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             )
         }
 
-        // A grid and a document decide their own reading of the file: a data file falls back to the
-        // Windows European encoding, and an Office container is not text at all, so putting either
-        // through the text decode would raise a lossy notice over a perfectly readable preview.
-        let readsAsText: Bool
-        switch kind {
-        case .delimitedTable, .wordDocument, .spreadsheet, .unsupported: readsAsText = false
-        default: readsAsText = true
-        }
-        let decoded = readsAsText ? decode(data) : (text: "", lossy: false)
+        let decoded = kind.readsAsText ? decode(data) : (text: "", lossy: false)
 
         let document: GeneratedDocument
         switch kind {
@@ -219,8 +204,10 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             return request.sourceURL
         }
 
-        guard Data(document.html.utf8).count <= limits.generatedOutputBytes else {
-            if Self.isOfficeKind(kind) {
+        // Counted without copying the document: a preview near the ceiling is large enough that a
+        // second copy of it is real memory.
+        guard document.html.utf8.count <= limits.generatedOutputBytes else {
+            guard kind.hasPlainTextFallback else {
                 return request.sourceURL
             }
             return try generateFallbackPreview(

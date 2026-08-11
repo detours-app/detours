@@ -30,6 +30,33 @@ enum DetoursPreviewKind: Equatable {
         }
     }
 
+    /// Whether the file's own bytes are the text the preview draws.
+    ///
+    /// A data file decides its own encoding, and an Office container is not text at all, so putting
+    /// either through the shared text decode would raise a lossy notice over a readable preview.
+    var readsAsText: Bool {
+        switch self {
+        case .markdown, .htmlDocument, .sourceCode, .configuration, .plainText:
+            return true
+        case .delimitedTable, .wordDocument, .spreadsheet, .unsupported:
+            return false
+        }
+    }
+
+    /// Whether a file of this kind can degrade to the plain-text fallback when it is too large, too
+    /// slow, or too big once drawn.
+    ///
+    /// A container of compressed parts cannot: read as text it is a screenful of noise, so it goes
+    /// to the system preview, which can still show the reader their document.
+    var hasPlainTextFallback: Bool {
+        switch self {
+        case .markdown, .htmlDocument, .sourceCode, .configuration, .plainText, .delimitedTable, .unsupported:
+            return true
+        case .wordDocument, .spreadsheet:
+            return false
+        }
+    }
+
     var cacheComponent: String {
         switch self {
         case .markdown(let language): return "markdown-\(language)"

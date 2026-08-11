@@ -588,8 +588,9 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         let source = try write("mixed.csv", "count,label\n1,alpha\n22,beta\n")
         let html = try await previewHTML(source, displayName: "mixed.csv")
 
-        XCTAssertTrue(html.contains("grid-col-0 grid-number"))
-        XCTAssertFalse(html.contains("grid-col-1 grid-number"))
+        // Alignment is the only thing a cell carries; the widths live on the column group.
+        XCTAssertTrue(html.contains("<td class=\"grid-number\">1</td>"))
+        XCTAssertTrue(html.contains("<td>alpha</td>"))
     }
 
     func testLongDelimitedFileChunksItsRows() async throws {
@@ -618,9 +619,10 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
 
         XCTAssertTrue(html.contains("href=\"support/grid.css\""))
         XCTAssertTrue(css.contains(".data-grid{table-layout:fixed;width:"))
-        XCTAssertTrue(css.contains(".data-grid .grid-col-0{width:"))
-        XCTAssertTrue(css.contains(".data-grid .grid-col-1{width:"))
-        XCTAssertTrue(css.contains(".data-grid .grid-gutter{width:"))
+        XCTAssertTrue(html.contains("<col class=\"grid-col-0\">"))
+        XCTAssertTrue(css.contains(".data-grid col.grid-col-0{width:"))
+        XCTAssertTrue(css.contains(".data-grid col.grid-col-1{width:"))
+        XCTAssertTrue(css.contains(".data-grid col.grid-gutter-col{width:"))
         // Widths cannot travel in the page: only one inline style is admitted, by fingerprint.
         XCTAssertFalse(html.contains("<td style="))
     }

@@ -87,36 +87,37 @@ struct DetoursExcelWorkbook: Equatable {
         cells: [WorksheetReader.ParsedRow],
         sharedStrings: [String]
     ) -> DetoursExcelWorkbook {
-        var resolved: [(number: Int, values: [Int: (text: String, numeric: Bool)])] = []
+        var resolved: [(number: Int, values: [Int: String])] = []
         var widest = 0
+        var populated = Set<Int>()
+        var textColumns = Set<Int>()
 
+        // Whether a column holds numbers is settled from the cell types the file itself carries,
+        // which is better evidence than reading the text back and guessing at it.
         for row in cells {
-            var values: [Int: (text: String, numeric: Bool)] = [:]
+            var values: [Int: String] = [:]
             for (column, cell) in row.cells {
                 let text = cell.resolvedText(sharedStrings: sharedStrings)
                 guard !text.isEmpty else { continue }
-                values[column] = (text, cell.isNumeric)
+                values[column] = text
                 widest = max(widest, column + 1)
+                populated.insert(column)
+                if !cell.isNumeric {
+                    textColumns.insert(column)
+                }
             }
             if !values.isEmpty {
                 resolved.append((row.number, values))
             }
         }
 
-        var numericColumns = Set(0..<widest)
-        for row in resolved {
-            for (column, value) in row.values where !value.numeric {
-                numericColumns.remove(column)
-            }
-        }
         // A column nothing was ever written into is not a column of numbers.
-        let populated = Set(resolved.flatMap { $0.values.keys })
-        numericColumns.formIntersection(populated)
+        let numericColumns = populated.subtracting(textColumns)
 
         let dense = resolved.map { row in
             (
                 number: row.number,
-                values: (0..<widest).map { row.values[$0]?.text ?? "" }
+                values: (0..<widest).map { row.values[$0] ?? "" }
             )
         }
         return DetoursExcelWorkbook(
@@ -327,7 +328,7 @@ private final class SharedStringsReader: NSObject, XMLParserDelegate {
 // MARK: - Styles
 
 /// Which cell formats mean "this number is a date".
-struct WorkbookStyles: Equatable {
+struct WorkbookStyles {
     /// Cell format index to whether that format shows a date or a time.
     var dateFormats: [Int: Bool] = [:]
 
@@ -623,11 +624,4 @@ private final class WorksheetReader: NSObject, XMLParserDelegate {
         formatter.dateFormat = seconds > 0 ? "yyyy-MM-dd HH:mm:ss" : "yyyy-MM-dd"
         return formatter.string(from: stamp)
     }
-}
-
-/// Office XML carries prefixes, and namespace processing is left off so the parser reports the
-/// qualified name. Matching the part after the colon keeps the reader prefix-independent.
-private func officeLocalName(_ elementName: String) -> String {
-    guard let colon = elementName.lastIndex(of: ":") else { return elementName }
-    return String(elementName[elementName.index(after: colon)...])
 }

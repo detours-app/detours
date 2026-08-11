@@ -157,10 +157,12 @@ button[aria-pressed="true"],
   font-variant-numeric: tabular-nums;
 }
 
+/* Padding is stated in the same unit as the measured widths. In pixels it would stop matching them
+   the moment the reader changed the preview's font size. */
 .data-grid th,
 .data-grid td {
   box-sizing: border-box;
-  padding: 3px 8px;
+  padding: 3px 0.5ch;
   border-right: 1px solid var(--detours-border);
   border-bottom: 1px solid var(--detours-border);
   text-align: left;

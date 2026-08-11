@@ -10,11 +10,12 @@ struct DetoursDelimitedTable: Equatable {
     /// The first row of the file, taken as the column names.
     let header: [String]
 
-    /// Every row after the header, each padded to `columnCount`.
+    /// Every row after the header, each padded to the same width as the header.
     let rows: [[String]]
 
-    let columnCount: Int
     let delimiter: Character
+
+    var columnCount: Int { header.count }
 
     /// The separators worth telling apart. Comma and tab are the two conventions; semicolon is what
     /// every European export uses, because there the comma is the decimal point.
@@ -37,7 +38,10 @@ struct DetoursDelimitedTable: Equatable {
 
     /// Reads a data file, deciding its encoding and its separator from the bytes themselves.
     static func read(data: Data, fileExtension: String) -> DetoursDelimitedTable? {
-        let text = stripByteOrderMark(decode(data))
+        // The mark is left on for detection, which a single leading character cannot mislead, and
+        // taken off once inside `make`. Stripping it here would copy the whole file to drop one
+        // character from the front of it.
+        let text = decode(data)
         let hint = delimiterHint(forExtension: fileExtension)
         let delimiter = detectDelimiter(in: text, preferring: hint) ?? hint ?? ","
         return make(text: text, delimiter: delimiter)
@@ -71,6 +75,7 @@ struct DetoursDelimitedTable: Equatable {
     /// count of one disqualifies a candidate outright: it is the signature of the wrong guess.
     static func detectDelimiter(in text: String, preferring hint: Character?) -> Character? {
         let sample = String(text.prefix(detectionCharacterLimit))
+        let sampleWasCut = sample.count == detectionCharacterLimit
         // The hint is scored first so that a tie resolves in its favour without a second comparison.
         let ordered: [Character] = hint.map { preferred in
             [preferred] + candidateDelimiters.filter { $0 != preferred }
@@ -78,12 +83,13 @@ struct DetoursDelimitedTable: Equatable {
 
         var best: (delimiter: Character, consistency: Double, columns: Int)?
         for candidate in ordered {
-            var sampleRows = parseRows(sample, delimiter: candidate)
-            // The sample may cut a row in half, and a half-read row scores as ragged.
-            if sampleRows.count > 1, sample.count == detectionCharacterLimit {
+            // Only what gets scored is parsed. Reading the whole sample three times over and then
+            // scoring twenty rows of it is most of the work thrown away.
+            var sampleRows = parseRows(sample, delimiter: candidate, rowLimit: detectionRowLimit)
+            // A sample cut mid-row leaves a half-read last row, which scores as ragged.
+            if sampleWasCut, sampleRows.count > 1, sampleRows.count < detectionRowLimit {
                 sampleRows.removeLast()
             }
-            sampleRows = Array(sampleRows.prefix(detectionRowLimit))
             guard !sampleRows.isEmpty else { continue }
 
             let counts = sampleRows.map(\.count)
@@ -104,18 +110,17 @@ struct DetoursDelimitedTable: Equatable {
 
     /// Parses the text and pads every row out to the widest one.
     static func make(text: String, delimiter: Character) -> DetoursDelimitedTable? {
-        let parsed = parseRows(stripByteOrderMark(text), delimiter: delimiter)
-        guard let first = parsed.first else { return nil }
-        let width = parsed.reduce(first.count) { Swift.max($0, $1.count) }
-        let padded = parsed.map { row in
-            row + Array(repeating: "", count: width - row.count)
+        var parsed = parseRows(stripByteOrderMark(text), delimiter: delimiter)
+        guard !parsed.isEmpty else { return nil }
+        let width = parsed.lazy.map(\.count).max() ?? 0
+
+        // Only the rows that are actually short are touched. Rebuilding every row of a large export
+        // to pad the few that need it is the whole file copied for nothing.
+        for index in parsed.indices where parsed[index].count < width {
+            parsed[index].append(contentsOf: repeatElement("", count: width - parsed[index].count))
         }
-        return DetoursDelimitedTable(
-            header: padded[0],
-            rows: Array(padded.dropFirst()),
-            columnCount: width,
-            delimiter: delimiter
-        )
+        let header = parsed.removeFirst()
+        return DetoursDelimitedTable(header: header, rows: parsed, delimiter: delimiter)
     }
 
     /// Splits text into rows of fields.
@@ -123,7 +128,9 @@ struct DetoursDelimitedTable: Equatable {
     /// A quotation mark only opens a quoted field at the start of one, so a mark in the middle of an
     /// unquoted value stays the character it is. Inside a quoted field a doubled mark is one literal
     /// mark, and separators and line breaks are ordinary content.
-    static func parseRows(_ text: String, delimiter: Character) -> [[String]] {
+    /// Pass `rowLimit` to stop once that many rows exist, which is what separator detection wants:
+    /// it scores the first rows and has no use for the rest.
+    static func parseRows(_ text: String, delimiter: Character, rowLimit: Int? = nil) -> [[String]] {
         var rows: [[String]] = []
         var fields: [String] = []
         var field = ""
@@ -168,6 +175,9 @@ struct DetoursDelimitedTable: Equatable {
                 fieldWasQuoted = false
                 rows.append(fields)
                 fields = []
+                if let rowLimit, rows.count >= rowLimit {
+                    return rows
+                }
             default:
                 field.append(character)
             }

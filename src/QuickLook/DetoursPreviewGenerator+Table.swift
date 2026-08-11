@@ -27,29 +27,58 @@ struct DetoursPreviewGrid {
     static let maximumColumnWidth = 60
     static let maximumColumnCount = 512
 
-    /// Measures the columns across every row, so a value arriving in the last chunk cannot widen a
-    /// column that was drawn thousands of rows earlier.
-    static func make(headers: [String], rows: [Row], numericColumns: Set<Int>) -> DetoursPreviewGrid? {
+    /// Room reserved for each cell's own padding and border, in the same unit as the widths. The
+    /// stylesheet states that padding in `ch` for exactly this reason: stated in pixels it would
+    /// stop matching as soon as the reader changed the preview's font size.
+    static let cellPaddingWidth = 2
+
+    /// Measures the columns in one pass across every row, so a value arriving in the last chunk
+    /// cannot widen a column that was drawn thousands of rows earlier.
+    ///
+    /// Pass `numericColumns` when the source already knows which columns hold numbers, as a
+    /// workbook does from its cell types. Leave it out and the same pass works it out from the text.
+    static func make(headers: [String], rows: [Row], numericColumns: Set<Int>? = nil) -> DetoursPreviewGrid? {
         guard !headers.isEmpty, headers.count <= maximumColumnCount else { return nil }
 
         var widths = headers.map { max(1, min($0.displayWidth, maximumColumnWidth)) }
+        let derivesNumeric = numericColumns == nil
+        var nonNumeric = Set<Int>()
+        var populated = Set<Int>()
+
         for row in rows {
             for (index, value) in row.values.enumerated() where index < widths.count {
-                widths[index] = max(widths[index], min(value.displayWidth, maximumColumnWidth))
+                if widths[index] < maximumColumnWidth {
+                    widths[index] = max(widths[index], min(value.displayWidth, maximumColumnWidth))
+                }
+                guard derivesNumeric, !nonNumeric.contains(index) else { continue }
+                // The whole-value reading comes first because it is the one that allocates nothing,
+                // and it is the one every cell of a column of numbers takes.
+                if Double(value) != nil {
+                    populated.insert(index)
+                } else if !value.trimmingCharacters(in: .whitespaces).isEmpty {
+                    populated.insert(index)
+                    nonNumeric.insert(index)
+                }
             }
         }
 
+        let numeric = numericColumns ?? populated.subtracting(nonNumeric)
         let columns = headers.enumerated().map { index, header in
-            Column(header: header, width: widths[index], isNumeric: numericColumns.contains(index))
+            Column(header: header, width: widths[index], isNumeric: numeric.contains(index))
         }
         let gutter = max(2, rows.last?.label.count ?? 1)
         return DetoursPreviewGrid(columns: columns, rows: rows, gutterWidth: gutter)
+    }
+
+    /// Enough room for every column, the gutter, and the padding each cell carries.
+    var totalWidth: Int {
+        columns.reduce(gutterWidth + cellPaddingWidth) { $0 + $1.width + Self.cellPaddingWidth }
     }
 }
 
 private extension String {
     /// How wide a value reads, counted in characters rather than in bytes, and measured only as far
-    /// as a column could ever be.
+    /// as a column could ever be. Counting the whole of a very long value would be wasted work.
     var displayWidth: Int {
         var width = 0
         for _ in self {
@@ -68,26 +97,12 @@ extension DetoursPreviewGenerator {
     /// A row number counts rows, not lines: a value carrying a line break inside its quotes occupies
     /// several lines of the file and one row of the table.
     static func grid(from table: DetoursDelimitedTable) -> DetoursPreviewGrid? {
-        let rows = table.rows.enumerated().map { index, values in
-            DetoursPreviewGrid.Row(label: String(index + 1), values: values)
-        }
-
-        var numeric = Set(0..<table.columnCount)
-        var populated = Set<Int>()
-        for row in table.rows {
-            for (index, value) in row.enumerated() where index < table.columnCount {
-                let trimmed = value.trimmingCharacters(in: .whitespaces)
-                guard !trimmed.isEmpty else { continue }
-                populated.insert(index)
-                if Double(trimmed) == nil {
-                    numeric.remove(index)
-                }
+        DetoursPreviewGrid.make(
+            headers: table.header,
+            rows: table.rows.enumerated().map { index, values in
+                DetoursPreviewGrid.Row(label: String(index + 1), values: values)
             }
-        }
-        // A column holding nothing is not a column of numbers.
-        numeric.formIntersection(populated)
-
-        return DetoursPreviewGrid.make(headers: table.header, rows: rows, numericColumns: numeric)
+        )
     }
 
     /// Draws a grid, chunking its rows the way a long source file is chunked.
@@ -96,24 +111,18 @@ extension DetoursPreviewGenerator {
         grid: DetoursPreviewGrid,
         lossyDecode: Bool
     ) -> GeneratedDocument {
-        let rowMarkup = grid.rows.map { row in Self.rowHTML(row, columns: grid.columns) }
-        let isLong = rowMarkup.count > Self.eagerLineLimit
-        let eager = (isLong ? Array(rowMarkup.prefix(Self.eagerLineLimit)) : rowMarkup)
-            .joined(separator: "\n")
-        let chunks: [String] = isLong
-            ? stride(from: Self.eagerLineLimit, to: rowMarkup.count, by: Self.chunkLineCount).map { start in
-                rowMarkup[start..<min(start + Self.chunkLineCount, rowMarkup.count)].joined(separator: "\n")
-            }
-            : []
-        let tail = isLong ? """
-        <script src="support/preview-lazy.js" defer></script>
-        """ : ""
+        let body = chunked(grid.rows.map { Self.rowHTML($0, columns: grid.columns) })
 
-        let headerCells = grid.columns.enumerated().map { index, column in
-            """
-            <th class="grid-cell grid-col-\(index)\(column.isNumeric ? " grid-number" : "")">\
-            \(Self.escapeHTML(column.header))</th>
-            """
+        // Widths live on the column group rather than on the cells. A cell resolves `ch` against its
+        // own font, and the header cells are drawn in a different one, so per-cell widths would have
+        // made the header and the rows disagree about how wide a column is.
+        let columnGroup = "<colgroup><col class=\"grid-gutter-col\">"
+            + grid.columns.indices.map { "<col class=\"grid-col-\($0)\">" }.joined()
+            + "</colgroup>"
+
+        let headerCells = grid.columns.map { column in
+            let numeric = column.isNumeric ? " class=\"grid-number\"" : ""
+            return "<th\(numeric)>\(Self.escapeHTML(column.header))</th>"
         }.joined()
 
         let html = htmlDocument(
@@ -121,7 +130,7 @@ extension DetoursPreviewGenerator {
                 theme: request.theme,
                 title: request.displayName,
                 bodyClass: request.wrapLines ? "grid-preview wrap-lines" : "grid-preview",
-                allowsChunkRequests: !chunks.isEmpty,
+                allowsChunkRequests: !body.chunks.isEmpty,
                 extraStylesheet: Self.gridStylesheetName
             ),
             toolbar: """
@@ -130,29 +139,32 @@ extension DetoursPreviewGenerator {
             body: """
             \(lossyWarning(lossyDecode))
             <table class="data-grid">
+            \(columnGroup)
             <thead><tr><th class="grid-gutter"></th>\(headerCells)</tr></thead>
-            <tbody id="source-preview" data-chunks="\(chunks.count)" data-chunk-scheme="\(DetoursPreviewChunkHandler.scheme)">
-            \(eager)
+            <tbody id="source-preview" data-chunks="\(body.chunks.count)" data-chunk-scheme="\(DetoursPreviewChunkHandler.scheme)">
+            \(body.eager)
             </tbody>
             </table>
-            \(tail)
+            \(body.tail)
             """
         )
         return GeneratedDocument(
             html: html,
-            chunks: chunks,
+            chunks: body.chunks,
             supportFiles: [Self.gridStylesheetName: Self.gridStylesheet(for: grid)]
         )
     }
 
     private static func rowHTML(_ row: DetoursPreviewGrid.Row, columns: [DetoursPreviewGrid.Column]) -> String {
-        var cells = "<th class=\"grid-gutter\">\(escapeHTML(row.label))</th>"
+        var markup = "<tr><th class=\"grid-gutter\">\(escapeHTML(row.label))</th>"
         for index in columns.indices {
             let value = index < row.values.count ? row.values[index] : ""
-            let numeric = columns[index].isNumeric ? " grid-number" : ""
-            cells += "<td class=\"grid-cell grid-col-\(index)\(numeric)\">\(escapeHTML(value))</td>"
+            markup += columns[index].isNumeric
+                ? "<td class=\"grid-number\">\(escapeHTML(value))</td>"
+                : "<td>\(escapeHTML(value))</td>"
         }
-        return "<tr>\(cells)</tr>"
+        markup += "</tr>"
+        return markup
     }
 
     /// The measured widths, written as a stylesheet of this preview's own.
@@ -163,18 +175,12 @@ extension DetoursPreviewGenerator {
     static func gridStylesheet(for grid: DetoursPreviewGrid) -> String {
         var rules = [
             ".data-grid{table-layout:fixed;width:\(grid.totalWidth)ch}",
-            ".data-grid .grid-gutter{width:\(grid.gutterWidth)ch}"
+            ".data-grid col.grid-gutter-col{width:\(grid.gutterWidth + DetoursPreviewGrid.cellPaddingWidth)ch}"
         ]
         for (index, column) in grid.columns.enumerated() {
-            rules.append(".data-grid .grid-col-\(index){width:\(column.width)ch}")
+            let width = column.width + DetoursPreviewGrid.cellPaddingWidth
+            rules.append(".data-grid col.grid-col-\(index){width:\(width)ch}")
         }
         return rules.joined(separator: "\n") + "\n"
-    }
-}
-
-extension DetoursPreviewGrid {
-    /// Enough room for every column, the gutter, and the padding each cell carries.
-    var totalWidth: Int {
-        columns.reduce(gutterWidth) { $0 + $1.width + 2 } + 2
     }
 }

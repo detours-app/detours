@@ -13,6 +13,35 @@ extension DetoursPreviewGenerator {
         var supportFiles: [String: String] = [:]
     }
 
+    /// A document's pieces split into the ones written up front and the ones written beside it.
+    struct ChunkedBody {
+        var eager: String
+        var chunks: [String] = []
+        /// The script that asks for the rest, present only when there is a rest.
+        var tail: String = ""
+    }
+
+    /// A long file keeps only its first pieces in the document. The rest is written beside it in
+    /// chunks and asked for as it is scrolled towards, so a file nobody scrolls through is never
+    /// read past its first screenful.
+    ///
+    /// Lines of a source file and rows of a grid are chunked exactly alike, which is what lets the
+    /// grid ride the existing lazy loader with no change to it at all.
+    func chunked(_ pieces: [String]) -> ChunkedBody {
+        guard pieces.count > Self.eagerLineLimit else {
+            return ChunkedBody(eager: pieces.joined(separator: "\n"))
+        }
+        return ChunkedBody(
+            eager: pieces[0..<Self.eagerLineLimit].joined(separator: "\n"),
+            chunks: stride(from: Self.eagerLineLimit, to: pieces.count, by: Self.chunkLineCount).map { start in
+                pieces[start..<min(start + Self.chunkLineCount, pieces.count)].joined(separator: "\n")
+            },
+            tail: """
+            <script src="support/preview-lazy.js" defer></script>
+            """
+        )
+    }
+
     func sourceHTML(
         request: DetoursPreviewRequest,
         kind: DetoursPreviewKind,
@@ -27,19 +56,10 @@ extension DetoursPreviewGenerator {
             <div class="source-line">\(highlightedLine)</div>
             """
         }
-        // A long file keeps only its first lines in the document. The rest is written beside it in
-        // chunks and asked for as it is scrolled towards, so a file nobody scrolls through is never
-        // read past its first screenful.
-        let isLong = lines.count > Self.eagerLineLimit
-        let rows = (isLong ? Array(lines.prefix(Self.eagerLineLimit)) : lines).joined(separator: "\n")
-        let chunks: [String] = isLong
-            ? stride(from: Self.eagerLineLimit, to: lines.count, by: Self.chunkLineCount).map { start in
-                lines[start..<min(start + Self.chunkLineCount, lines.count)].joined(separator: "\n")
-            }
-            : []
-        let tail = isLong ? """
-        <script src="support/preview-lazy.js" defer></script>
-        """ : ""
+        let body = chunked(lines)
+        let rows = body.eager
+        let chunks = body.chunks
+        let tail = body.tail
 
         let html = htmlDocument(
             chrome: PreviewChrome(

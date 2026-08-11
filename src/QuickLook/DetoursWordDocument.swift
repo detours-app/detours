@@ -60,7 +60,7 @@ struct DetoursWordDocument: Equatable {
 /// Heading level is resolved from the style's own name, which Office writes as `heading 1` in every
 /// language, or from its outline level. The style identifier is not used: it is `Heading1` in an
 /// English document and something else entirely in a German or French one.
-struct WordStyles: Equatable {
+struct WordStyles {
     var headingLevels: [String: Int] = [:]
 
     static func parse(_ data: Data) -> WordStyles {
@@ -90,9 +90,9 @@ private final class WordStylesReader: NSObject, XMLParserDelegate {
         qualifiedName: String?,
         attributes: [String: String]
     ) {
-        switch localName(elementName) {
+        switch officeLocalName(elementName) {
         case "style":
-            currentStyleID = attributes.wordValue(of: "styleId")
+            currentStyleID = attributes.wordAttribute("styleId")
             currentName = nil
             currentOutlineLevel = nil
         case "name":
@@ -110,7 +110,7 @@ private final class WordStylesReader: NSObject, XMLParserDelegate {
         namespaceURI: String?,
         qualifiedName: String?
     ) {
-        guard localName(elementName) == "style", let styleID = currentStyleID else { return }
+        guard officeLocalName(elementName) == "style", let styleID = currentStyleID else { return }
         if let level = Self.headingLevel(name: currentName, outlineLevel: currentOutlineLevel) {
             headingLevels[styleID] = level
         }
@@ -138,7 +138,7 @@ private final class WordStylesReader: NSObject, XMLParserDelegate {
 /// What `word/numbering.xml` says about each numbering reference: whether a level draws bullets or
 /// numbers. A paragraph points at a `numId`, which points at an abstract definition, which is where
 /// the format for each level lives.
-struct WordNumbering: Equatable {
+struct WordNumbering {
     /// `numId` to level to whether that level is ordered.
     var orderedLevels: [String: [Int: Bool]] = [:]
 
@@ -178,9 +178,9 @@ private final class WordNumberingReader: NSObject, XMLParserDelegate {
         qualifiedName: String?,
         attributes: [String: String]
     ) {
-        switch localName(elementName) {
+        switch officeLocalName(elementName) {
         case "abstractNum":
-            currentAbstractID = attributes.wordValue(of: "abstractNumId")
+            currentAbstractID = attributes.wordAttribute("abstractNumId")
         case "lvl":
             currentLevel = attributes.wordAttribute("ilvl").flatMap(Int.init)
         case "numFmt":
@@ -188,7 +188,7 @@ private final class WordNumberingReader: NSObject, XMLParserDelegate {
             let format = attributes.wordAttribute("val") ?? "decimal"
             abstractLevels[abstractID, default: [:]][level] = format != "bullet" && format != "none"
         case "num":
-            currentNumberingID = attributes.wordValue(of: "numId")
+            currentNumberingID = attributes.wordAttribute("numId")
         case "abstractNumId":
             if let numberingID = currentNumberingID, let value = attributes.wordAttribute("val") {
                 numberingToAbstract[numberingID] = value
@@ -204,7 +204,7 @@ private final class WordNumberingReader: NSObject, XMLParserDelegate {
         namespaceURI: String?,
         qualifiedName: String?
     ) {
-        switch localName(elementName) {
+        switch officeLocalName(elementName) {
         case "abstractNum": currentAbstractID = nil
         case "lvl": currentLevel = nil
         case "num": currentNumberingID = nil
@@ -263,7 +263,7 @@ private final class WordBodyReader: NSObject, XMLParserDelegate {
         qualifiedName: String?,
         attributes: [String: String]
     ) {
-        let name = localName(elementName)
+        let name = officeLocalName(elementName)
         if skipDepth > 0 {
             skipDepth += 1
             return
@@ -340,7 +340,7 @@ private final class WordBodyReader: NSObject, XMLParserDelegate {
             skipDepth -= 1
             return
         }
-        let name = localName(elementName)
+        let name = officeLocalName(elementName)
 
         switch name {
         case "t":
@@ -433,27 +433,15 @@ private final class WordBodyReader: NSObject, XMLParserDelegate {
 
 // MARK: - XML helpers
 
-/// Office XML is written with prefixes (`w:p`, `w:tbl`), and namespace processing is left off so
-/// the parser reports those qualified names. Matching on the part after the colon keeps the reader
-/// working whichever prefix a writer happens to choose.
-private func localName(_ elementName: String) -> String {
-    guard let colon = elementName.lastIndex(of: ":") else { return elementName }
-    return String(elementName[elementName.index(after: colon)...])
-}
-
 private extension [String: String] {
     /// Reads an attribute by its local name, whatever prefix carries it.
     func wordAttribute(_ name: String) -> String? {
         if let direct = self["w:\(name)"] { return direct }
         if let plain = self[name] { return plain }
-        for (key, value) in self where localName(key) == name {
+        for (key, value) in self where officeLocalName(key) == name {
             return value
         }
         return nil
-    }
-
-    func wordValue(of name: String) -> String? {
-        wordAttribute(name)
     }
 
     /// An Office flag element is on by its presence, and off only when it says so.

@@ -1,6 +1,14 @@
 import Compression
 import Foundation
 
+/// Office XML is written with prefixes (`w:p`, `xl:sheet`), and namespace processing is left off so
+/// the parser reports those qualified names. Matching the part after the colon keeps every reader
+/// working whichever prefix a writer happens to choose.
+func officeLocalName(_ elementName: String) -> String {
+    guard let colon = elementName.lastIndex(of: ":") else { return elementName }
+    return String(elementName[elementName.index(after: colon)...])
+}
+
 enum DetoursOfficeArchiveError: Error, Equatable {
     case notAnArchive
     case corrupt
@@ -50,15 +58,6 @@ final class DetoursOfficeArchive {
         self.partLimit = partByteLimit
         self.documentLimit = documentByteLimit
         self.entries = try Self.readCentralDirectory(data)
-    }
-
-    func contains(_ name: String) -> Bool {
-        entries[name] != nil
-    }
-
-    /// The names of every part in the container, in no particular order.
-    var entryNames: [String] {
-        Array(entries.keys)
     }
 
     func data(forEntry name: String) throws -> Data {
