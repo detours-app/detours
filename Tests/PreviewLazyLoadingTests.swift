@@ -60,6 +60,30 @@ final class PreviewLazyLoadingTests: XCTestCase {
         XCTAssertEqual(html.components(separatedBy: "<div class=\"source-line\">").count - 1, 40)
     }
 
+    func testOnlyADocumentWithChunksMayAskForAnything() async throws {
+        let long = try String(contentsOf: try await generatePreviewURL(lineCount: 5_000), encoding: .utf8)
+        tempRoot = tempRoot.deletingLastPathComponent().appendingPathComponent("short-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        let short = try String(contentsOf: try await generatePreviewURL(lineCount: 40), encoding: .utf8)
+
+        // The one thing a long preview may ask for is its own chunks, by name, from Detours. A file
+        // short enough to be shown whole may ask for nothing at all.
+        XCTAssertTrue(long.contains("connect-src \(DetoursPreviewChunkHandler.scheme):"))
+        XCTAssertTrue(short.contains("connect-src 'none'"))
+        XCTAssertFalse(long.contains("connect-src 'self'"))
+        XCTAssertFalse(long.contains("http://"))
+        XCTAssertFalse(long.contains("https://"))
+    }
+
+    func testARequestForAnythingButAChunkIsRefused() {
+        XCTAssertTrue(DetoursPreviewChunkHandler.isChunkName("chunk-12.html"))
+        XCTAssertFalse(DetoursPreviewChunkHandler.isChunkName("index.html"))
+        XCTAssertFalse(DetoursPreviewChunkHandler.isChunkName("../index.html"))
+        XCTAssertFalse(DetoursPreviewChunkHandler.isChunkName("chunk-.html"))
+        XCTAssertFalse(DetoursPreviewChunkHandler.isChunkName("chunk-12.html.txt"))
+        XCTAssertFalse(DetoursPreviewChunkHandler.isChunkName("support/theme.css"))
+    }
+
     func testScrollingBringsInTheRestOfTheFile() async throws {
         let previewURL = try await generatePreviewURL(lineCount: 5_000)
 

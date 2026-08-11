@@ -243,6 +243,7 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         let html = try String(contentsOf: previewURL, encoding: .utf8)
 
         XCTAssertTrue(html.contains("Content-Security-Policy"))
+        // Markdown has nothing beside it to ask for, so it stays forbidden from making any request.
         XCTAssertTrue(html.contains("connect-src 'none'"))
         XCTAssertFalse(html.contains("<script>alert(1)</script>"))
         XCTAssertFalse(html.contains("href=\"https://example.com\""))

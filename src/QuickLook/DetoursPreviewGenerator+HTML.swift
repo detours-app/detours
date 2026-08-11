@@ -50,7 +50,8 @@ extension DetoursPreviewGenerator {
                 // A source preview is highlighted before it is written, so it needs neither the
                 // Markdown renderer nor the page highlighter, and neither of their stylesheets. One
                 // of those stylesheets has to be read before anything can be drawn.
-                usesRichTextAssets: false
+                usesRichTextAssets: false,
+                allowsChunkRequests: !chunks.isEmpty
             ),
             // No file name in the page: the window puts it in its titlebar, where a title belongs.
             toolbar: """
@@ -131,6 +132,9 @@ extension DetoursPreviewGenerator {
         var bodyClass: String
         var controls: String = ""
         var usesRichTextAssets: Bool
+        /// Only a document that actually has chunks beside it may ask for anything. Everything else
+        /// stays forbidden from making any request at all.
+        var allowsChunkRequests: Bool = false
     }
 
     private func htmlDocument(chrome: PreviewChrome, toolbar: String, body: String) -> String {
@@ -141,6 +145,7 @@ extension DetoursPreviewGenerator {
         let usesRichTextAssets = chrome.usesRichTextAssets
         let criticalStyle = criticalBackgroundStyle(for: theme)
         let styleHash = Self.styleFingerprint(criticalStyle)
+        let connectSource = chrome.allowsChunkRequests ? "\(DetoursPreviewChunkHandler.scheme):" : "'none'"
         // No third-party stylesheet is linked at all. Everything is coloured before it is written,
         // using the theme, and the one that used to be linked here paints code blocks solid white,
         // which is a glaring white rectangle in a dark preview whenever the system is set to light.
@@ -157,7 +162,7 @@ extension DetoursPreviewGenerator {
         <html>
         <head>
         <meta charset="utf-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' '\(styleHash)'; connect-src \(DetoursPreviewChunkHandler.scheme):; img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' '\(styleHash)'; connect-src \(connectSource); img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>\(Self.escapeHTML(title))</title>
         <style>\(criticalStyle)</style>
