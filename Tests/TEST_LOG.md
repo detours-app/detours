@@ -3472,3 +3472,5 @@ Spotlight search has no unit test (depends on the live, async-built system index
 - 2026-08-11 12:23 CEST: Foundry focused regression PASS at `92280b8`: `swift test --filter PaneViewControllerTests` executed 39 tests with 0 failures in 1.822 seconds. The two remote-transition tests now assert the controller's loading-spinner state instead of assuming the spinner remains a direct child after the spinner was moved inside its contrast plate.
 
 - 2026-08-11 12:23 CEST: Foundry repository regression PASS at `8dd42f3`: the exact rerun `swift test --skip "ClipboardManagerTests|DroppablePathControlTests"` executed 949 XCTest tests with 14 expected unreachable-Windows skips and 0 failures in 334.341 seconds, followed by 47 Swift Testing tests passing in 2.719 seconds.
+
+- 2026-08-11 12:29 CEST: Foundry narrow login-session regression PASS at `d268f63`: `resources/scripts/gui-test.sh --filter "ClipboardManagerTests|DroppablePathControlTests"` executed 19 tests with 0 failures in 0.047 seconds.
