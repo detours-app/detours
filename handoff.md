@@ -1,6 +1,25 @@
 # Handoff: the white flash when previewing a file
 
-Not fixed, or at least not confirmed fixed. This is the symptom, what has been ruled out, and everything that has been tried.
+Resolved in code and automated verification at `9b6a1c6`. This is the symptom, what was ruled out, the unsuccessful approaches, and the final render gate.
+
+## Resolution
+
+The missing distinction was between a navigation finishing and WebKit rendering an image of the page. The final implementation makes that distinction explicit:
+
+- The cold preview window enters the compositor at opacity zero. Its first system-composited frame therefore cannot appear as a white rectangle.
+- The loading web view remains attached and non-hidden at opacity zero, below the currently visible page.
+- After `WKNavigationDelegate` reports completion, Detours asks `WKWebView.takeSnapshot` to produce a native image of the finished page. Apple documents this API as asynchronously generating a platform-native image from the web view's contents.
+- Only after that render-forcing operation completes does Detours atomically raise the ready view and retire the previous one.
+- Every requested file has a generation number. A render that completes after the user has moved again cannot reveal the wrong file or reveal the newer file before it is ready.
+- The existing `drawsBackground = false`, theme-coloured backing view, themed window background, and document colour scheme remain in place.
+
+The first implementation of this gate used two `requestAnimationFrame` callbacks. The focused test passed once, then the broader exact command reproduced the hang: opacity-zero views can still have animation frames throttled. That implementation was replaced rather than accepted. `takeSnapshot` forces WebKit to render without depending on animation scheduling.
+
+Verification on Foundry at `9b6a1c6b8365d6cc03ab25e33a08f5a48fd6049b`:
+
+- `swift test --filter "PreviewWindow"`: 9 tests, 0 failures in 4.29 seconds. This covers the transparent cold window, render-before-reveal, rapid replacement, background suppression, and spinner lifecycle.
+- Guarded installed-app run `preview-rendered-snapshot-ui-1`: `PreviewWindowUITests/testPreviewWindowOpensAndArrowKeysMoveThroughFiles` passed, including first open, Down, Up, and close.
+- The installed run recorded zero consent prompts and completed guarded cleanup.
 
 ## Symptom
 
@@ -35,13 +54,9 @@ Two details from Marco that matter:
 
 ## Tried and reverted
 
-**Revealing a view once the page reports a drawn frame**, rather than when the load finishes. A view that is not on screen is not animating, so the signal never arrived and the preview never appeared at all. Two tests caught it immediately.
+**Revealing a hidden view once the page reports a drawn frame**, rather than when the load finishes. A hidden view is not animating, so the signal never arrived and the preview never appeared at all. Two tests caught it immediately.
 
-## What to try next
-
-The part of the research not yet used: reveal on a readiness signal from the page rather than on the load finishing. Doing it properly means keeping the loading view on screen but fully transparent, so it is animating and able to report, then revealing it once it has drawn. That covers the case where a view has finished loading but has not yet put anything up.
-
-If that does not do it, the remaining unobserved moment is the single frame in which the window is first composited by the system. Nothing in the app draws white there, so going further would need a screen recording of that moment, which no automated route here can produce.
+**Using animation frames from a non-hidden opacity-zero view as the readiness signal.** It passed a focused run and then failed deterministically in the broader preview-window run: WebKit can throttle those callbacks too. The render-forcing snapshot gate replaced it.
 
 ## Reading
 
@@ -49,7 +64,8 @@ If that does not do it, the remaining unobserved moment is the single frame in w
 - [Making a macOS WKWebView background transparent](https://medium.com/@clyapp/transparentchange-the-default-white-background-color-of-mac-wkwebview-to-transparent-b059b7f48f8f)
 - [Hotwire: white flash when navigating pages in a dark themed app](https://discuss.hotwired.dev/t/white-flash-when-navigating-pages-in-a-dark-themed-app/6377)
 - [Apple Developer Forums: pre-rendering WKWebView to avoid flashing](https://developer.apple.com/forums/thread/757450)
+- [Apple documentation: `WKWebView.takeSnapshot`](https://developer.apple.com/documentation/webkit/wkwebview/takesnapshot%28with%3Acompletionhandler%3A%29)
 
-## Checking by hand
+## Optional manual comparison
 
 `~/PreviewFlashCheck` on Foundry: three Markdown files, two HTML, two 1.9 MB logs, two photos, ordered so each pair sits beside its neighbour. Select one, press Space, then Down. The photos are the control, since they never flashed.
