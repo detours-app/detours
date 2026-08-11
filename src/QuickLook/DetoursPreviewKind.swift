@@ -102,8 +102,8 @@ enum DetoursPreviewKind: Equatable {
         if let language = exactNames[lowerName] {
             return .configuration(language: language)
         }
-        if lowerName.hasPrefix(".env") {
-            return .configuration(language: "ini")
+        for (prefix, language) in namePrefixes where lowerName.hasPrefix(prefix) {
+            return .configuration(language: language)
         }
         return .unsupported
     }
@@ -121,14 +121,58 @@ enum DetoursPreviewKind: Equatable {
         "ts": "typescript",
         "tsx": "typescript",
         "py": "python",
+        "pyi": "python",
         "sh": "bash",
         "bash": "bash",
         "zsh": "bash",
+        "fish": "bash",
+        "ps1": "powershell",
         "css": "css",
+        "scss": "css",
+        "sass": "css",
+        "less": "css",
         "xml": "xml",
+        "vue": "xml",
+        "svelte": "xml",
+        "astro": "xml",
         "sql": "sql",
         "diff": "diff",
-        "patch": "diff"
+        "patch": "diff",
+        "go": "go",
+        "rs": "rust",
+        "kt": "kotlin",
+        "kts": "kotlin",
+        "java": "java",
+        "cs": "csharp",
+        "c": "c",
+        "h": "c",
+        "cpp": "cpp",
+        "cc": "cpp",
+        "cxx": "cpp",
+        "hpp": "cpp",
+        "hh": "cpp",
+        "hxx": "cpp",
+        "m": "objectivec",
+        "mm": "objectivec",
+        "php": "php",
+        "rb": "ruby",
+        "pl": "perl",
+        "pm": "perl",
+        "lua": "lua",
+        "r": "r",
+        "dart": "dart",
+        "scala": "scala",
+        "groovy": "groovy",
+        "gradle": "groovy",
+        "tf": "hcl",
+        "tfvars": "hcl",
+        "hcl": "hcl",
+        "proto": "protobuf",
+        "graphql": "graphql",
+        "gql": "graphql",
+        "ex": "elixir",
+        "exs": "elixir",
+        "hs": "haskell"
     ]
 
     private static let configurationExtensions: [String: String] = [
@@ -142,17 +186,48 @@ enum DetoursPreviewKind: Equatable {
         "ini": "ini",
         "conf": "ini",
         "cfg": "ini",
-        "plist": "xml"
+        "properties": "ini",
+        "xcconfig": "ini",
+        "env": "ini",
+        "plist": "xml",
+        "entitlements": "xml",
+        "storyboard": "xml",
+        "xib": "xml",
+        "resolved": "json",
+        "webmanifest": "json"
     ]
 
     private static let exactNames: [String: String] = [
         ".gitignore": "plaintext",
         ".gitattributes": "plaintext",
+        ".dockerignore": "plaintext",
         ".editorconfig": "ini",
         ".npmrc": "ini",
+        ".gitconfig": "ini",
+        ".gitmodules": "ini",
         ".zshrc": "bash",
+        ".zprofile": "bash",
+        ".zshenv": "bash",
         ".bashrc": "bash",
+        ".bash_profile": "bash",
+        ".profile": "bash",
+        ".prettierrc": "json",
+        ".eslintrc": "json",
+        ".babelrc": "json",
+        "gemfile": "ruby",
+        "rakefile": "ruby",
+        "podfile": "ruby",
+        "brewfile": "ruby",
+        "justfile": "plaintext"
+    ]
+
+    /// Build files travel with suffixes (`Dockerfile.dev`, `Makefile.local`, `CMakeLists.txt`),
+    /// so match the family rather than one exact spelling.
+    private static let namePrefixes: [String: String] = [
         "makefile": "plaintext",
-        "dockerfile": "plaintext"
+        "gnumakefile": "plaintext",
+        "dockerfile": "plaintext",
+        "cmakelists": "plaintext",
+        ".env": "ini"
     ]
 }

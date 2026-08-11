@@ -7,42 +7,6 @@ extension DetoursPreviewGenerator {
         switch language {
         case "json":
             return highlightJSONLine(raw)
-        case "swift":
-            return highlightProgrammingLine(
-                raw,
-                commentMarker: "//",
-                keywords: swiftKeywords,
-                literals: commonLiterals
-            )
-        case "javascript", "typescript":
-            return highlightProgrammingLine(
-                raw,
-                commentMarker: "//",
-                keywords: javascriptKeywords,
-                literals: commonLiterals
-            )
-        case "python":
-            return highlightProgrammingLine(
-                raw,
-                commentMarker: "#",
-                keywords: pythonKeywords,
-                literals: pythonLiterals
-            )
-        case "bash":
-            return highlightProgrammingLine(
-                raw,
-                commentMarker: "#",
-                keywords: bashKeywords,
-                literals: commonLiterals
-            )
-        case "sql":
-            return highlightProgrammingLine(
-                raw,
-                commentMarker: "--",
-                keywords: sqlKeywords,
-                literals: commonLiterals,
-                caseInsensitiveKeywords: true
-            )
         case "yaml", "toml", "ini":
             return highlightConfigLine(raw)
         case "xml":
@@ -54,7 +18,16 @@ extension DetoursPreviewGenerator {
         case "markdown":
             return highlightMarkdownSourceLine(raw)
         default:
-            return escapeHTML(raw)
+            guard let profile = languageProfiles[language] else {
+                return escapeHTML(raw)
+            }
+            return highlightProgrammingLine(
+                raw,
+                commentMarker: profile.commentMarker,
+                keywords: profile.keywords,
+                literals: profile.literals,
+                caseInsensitiveKeywords: profile.caseInsensitiveKeywords
+            )
         }
     }
 
@@ -326,37 +299,6 @@ extension DetoursPreviewGenerator {
         isIdentifierStart(character) || character.isNumber
     }
 
-    private static let commonLiterals: Set<String> = ["true", "false", "null", "nil"]
-    private static let swiftKeywords: Set<String> = [
-        "actor", "as", "associatedtype", "await", "break", "case", "catch", "class", "continue",
-        "default", "defer", "do", "else", "enum", "extension", "fallthrough", "false", "fileprivate",
-        "for", "func", "guard", "if", "import", "in", "init", "inout", "internal", "is", "let",
-        "nil", "open", "operator", "private", "protocol", "public", "repeat", "return", "self",
-        "static", "struct", "subscript", "super", "switch", "throw", "throws", "true", "try",
-        "typealias", "var", "where", "while"
-    ]
-    private static let javascriptKeywords: Set<String> = [
-        "async", "await", "break", "case", "catch", "class", "const", "continue", "default",
-        "delete", "do", "else", "export", "extends", "finally", "for", "from", "function", "if",
-        "import", "in", "instanceof", "interface", "let", "new", "of", "return", "switch", "throw",
-        "try", "type", "typeof", "var", "void", "while", "with", "yield"
-    ]
-    private static let pythonKeywords: Set<String> = [
-        "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif",
-        "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda",
-        "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"
-    ]
-    private static let pythonLiterals: Set<String> = ["True", "False", "None"]
-    private static let bashKeywords: Set<String> = [
-        "case", "do", "done", "elif", "else", "esac", "fi", "for", "function", "if", "in", "select",
-        "then", "until", "while"
-    ]
-    private static let sqlKeywords: Set<String> = [
-        "ALTER", "AND", "AS", "ASC", "BETWEEN", "BY", "CASE", "CREATE", "DELETE", "DESC", "DISTINCT",
-        "DROP", "ELSE", "END", "FROM", "GROUP", "HAVING", "IN", "INSERT", "INTO", "IS", "JOIN",
-        "LEFT", "LIKE", "LIMIT", "NOT", "NULL", "ON", "OR", "ORDER", "RIGHT", "SELECT", "SET",
-        "TABLE", "THEN", "UNION", "UPDATE", "VALUES", "WHEN", "WHERE"
-    ]
     private static let cssKeywords: Set<String> = [
         "display", "grid", "flex", "block", "none", "relative", "absolute", "fixed", "sticky",
         "var", "calc", "repeat", "minmax"

@@ -219,6 +219,34 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("<span class=\"tok-property\">&quot;ok&quot;</span><span class=\"tok-punctuation\">:</span> <span class=\"tok-boolean\">false</span>"))
     }
 
+    func testNewlySupportedLanguagesAreColoured() async throws {
+        let cases: [(String, String, [String])] = [
+            ("main.go", "func main() {\n\treturn nil // done\n}\n", [
+                "<span class=\"tok-keyword\">func</span>",
+                "<span class=\"tok-null\">nil</span>",
+                "<span class=\"tok-comment\">// done</span>"
+            ]),
+            ("lib.rs", "pub fn run() -> bool {\n    true\n}\n", [
+                "<span class=\"tok-keyword\">pub</span>",
+                "<span class=\"tok-keyword\">fn</span>",
+                "<span class=\"tok-boolean\">true</span>"
+            ]),
+            ("init.lua", "local value = 1 -- comment\n", [
+                "<span class=\"tok-keyword\">local</span>",
+                "<span class=\"tok-comment\">-- comment</span>"
+            ])
+        ]
+
+        for (name, source, expectations) in cases {
+            let url = try write(name, source)
+            let previewURL = try await generator().previewURL(for: request(url, displayName: name))
+            let html = try String(contentsOf: previewURL, encoding: .utf8)
+            for expectation in expectations {
+                XCTAssertTrue(html.contains(expectation), "\(name): \(expectation)")
+            }
+        }
+    }
+
     func testDarkThemeUsesVSCodeDarkSyntaxPalette() async throws {
         let source = try write("dark-config.json", "{\n  \"enabled\": true,\n  \"name\": \"detours\"\n}\n")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "dark-config.json", theme: .dark))

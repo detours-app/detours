@@ -49,6 +49,88 @@ final class DetoursPreviewKindTests: XCTestCase {
         }
     }
 
+    func testLanguagesMacOSCannotTypeStillClassifyAsSource() {
+        let samples: [(String, DetoursPreviewKind)] = [
+            ("server.go", .sourceCode(language: "go")),
+            ("lib.rs", .sourceCode(language: "rust")),
+            ("Main.kt", .sourceCode(language: "kotlin")),
+            ("Program.cs", .sourceCode(language: "csharp")),
+            ("widget.dart", .sourceCode(language: "dart")),
+            ("init.lua", .sourceCode(language: "lua")),
+            ("main.tf", .sourceCode(language: "hcl")),
+            ("schema.graphql", .sourceCode(language: "graphql")),
+            ("App.vue", .sourceCode(language: "xml")),
+            ("App.svelte", .sourceCode(language: "xml")),
+            ("theme.scss", .sourceCode(language: "css")),
+            ("theme.less", .sourceCode(language: "css"))
+        ]
+
+        for (name, expected) in samples {
+            XCTAssertEqual(
+                DetoursPreviewKind.classify(url: URL(fileURLWithPath: name), sampleData: Data("text".utf8)),
+                expected,
+                name
+            )
+        }
+    }
+
+    func testRemainingCommonLanguagesClassifyAsSource() {
+        let samples: [(String, DetoursPreviewKind)] = [
+            ("engine.c", .sourceCode(language: "c")),
+            ("engine.cpp", .sourceCode(language: "cpp")),
+            ("AppDelegate.m", .sourceCode(language: "objectivec")),
+            ("Service.java", .sourceCode(language: "java")),
+            ("index.php", .sourceCode(language: "php")),
+            ("model.rb", .sourceCode(language: "ruby")),
+            ("report.pl", .sourceCode(language: "perl")),
+            ("analysis.r", .sourceCode(language: "r")),
+            ("api.proto", .sourceCode(language: "protobuf")),
+            ("build.gradle", .sourceCode(language: "groovy")),
+            ("Deploy.ps1", .sourceCode(language: "powershell")),
+            ("app.ex", .sourceCode(language: "elixir")),
+            ("Main.hs", .sourceCode(language: "haskell"))
+        ]
+
+        for (name, expected) in samples {
+            XCTAssertEqual(
+                DetoursPreviewKind.classify(url: URL(fileURLWithPath: name), sampleData: Data("text".utf8)),
+                expected,
+                name
+            )
+        }
+    }
+
+    func testBuildFilesMatchTheirFamilyRatherThanOneSpelling() {
+        let samples: [(String, DetoursPreviewKind)] = [
+            ("Dockerfile", .configuration(language: "plaintext")),
+            ("Dockerfile.dev", .configuration(language: "plaintext")),
+            ("Makefile.local", .configuration(language: "plaintext")),
+            (".env.production", .configuration(language: "ini")),
+            ("Gemfile", .configuration(language: "ruby")),
+            (".gitconfig", .configuration(language: "ini")),
+            ("Package.resolved", .configuration(language: "json")),
+            ("Detours.entitlements", .configuration(language: "xml"))
+        ]
+
+        for (name, expected) in samples {
+            XCTAssertEqual(
+                DetoursPreviewKind.classify(url: URL(fileURLWithPath: name), sampleData: Data("text".utf8)),
+                expected,
+                name
+            )
+        }
+    }
+
+    func testVectorImagesStayWithTheImagePreviewInsteadOfBecomingMarkup() {
+        XCTAssertEqual(
+            DetoursPreviewKind.classify(
+                url: URL(fileURLWithPath: "logo.svg"),
+                sampleData: Data("<svg></svg>".utf8)
+            ),
+            .unsupported
+        )
+    }
+
     func testBinarySniffingRejectsBinaryData() {
         let binary = Data([0x23, 0x21, 0x00, 0xFF, 0xD8])
         XCTAssertEqual(
