@@ -47,9 +47,9 @@ final class PreviewLazyLoadingTests: XCTestCase {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         let larger = try Data(contentsOf: try await generatePreviewURL(lineCount: 50_000)).count
 
-        // Ten times the file, the same document. This is the difference between the page reading
-        // the whole file and the page reading a screenful.
-        XCTAssertEqual(smaller, larger, "The document must not grow with the file")
+        // Ten times the file, the same document but for the count of chunks written into it. This
+        // is the difference between the page reading the whole file and reading a screenful.
+        XCTAssertLessThan(abs(smaller - larger), 200, "The document must not grow with the file")
     }
 
     func testShortFilesAreBuiltWholeWithNothingExtra() async throws {
@@ -63,7 +63,13 @@ final class PreviewLazyLoadingTests: XCTestCase {
     func testScrollingBringsInTheRestOfTheFile() async throws {
         let previewURL = try await generatePreviewURL(lineCount: 5_000)
 
-        let web = WKWebView(frame: NSRect(x: 0, y: 0, width: 1000, height: 800))
+        // The page asks Detours for the rest of the file, so the view must be able to answer, the
+        // same way the preview window's own view does.
+        let handler = DetoursPreviewChunkHandler()
+        handler.directory = previewURL.deletingLastPathComponent()
+        let configuration = WKWebViewConfiguration()
+        configuration.setURLSchemeHandler(handler, forURLScheme: DetoursPreviewChunkHandler.scheme)
+        let web = WKWebView(frame: NSRect(x: 0, y: 0, width: 1000, height: 800), configuration: configuration)
         let loaded = LoadWaiter()
         web.navigationDelegate = loaded
         let window = NSWindow(
