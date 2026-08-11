@@ -3476,3 +3476,5 @@ Spotlight search has no unit test (depends on the live, async-built system index
 - 2026-08-11 12:29 CEST: Foundry narrow login-session regression PASS at `d268f63`: `resources/scripts/gui-test.sh --filter "ClipboardManagerTests|DroppablePathControlTests"` executed 19 tests with 0 failures in 0.047 seconds.
 
 - 2026-08-11 12:32 CEST: Foundry final release build PASS at `07df459`: `resources/scripts/build.sh --no-install` verified preview assets and remote helper cache, completed the production Swift build, created the app bundle, and codesigned the app and Darwin remote helper.
+
+- 2026-08-11 12:46 CEST: Foundry markdown-it consolidation release build PASS at `61bc3fc`: `resources/scripts/build.sh --no-install` verified the expanded preview asset set, compiled without the deleted Swift Markdown renderer, created the release app bundle, and codesigned the app and Darwin remote helper.
