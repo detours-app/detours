@@ -7,6 +7,10 @@ extension DetoursPreviewGenerator {
     struct GeneratedDocument {
         var html: String
         var chunks: [String] = []
+        /// Stylesheets built for this one preview, written beside it and linked by name. Column
+        /// widths land here: the document's security policy admits a stylesheet from the preview's
+        /// own folder but no styling written into the page.
+        var supportFiles: [String: String] = [:]
     }
 
     func sourceHTML(
@@ -182,9 +186,12 @@ extension DetoursPreviewGenerator {
         /// Only a document that actually has chunks beside it may ask for anything. Everything else
         /// stays forbidden from making any request at all.
         var allowsChunkRequests: Bool = false
+        /// A stylesheet built for this preview alone, linked after the shared one so it can settle
+        /// what the shared rules leave open.
+        var extraStylesheet: String?
     }
 
-    private func htmlDocument(chrome: PreviewChrome, toolbar: String, body: String) -> String {
+    func htmlDocument(chrome: PreviewChrome, toolbar: String, body: String) -> String {
         let theme = chrome.theme
         let title = chrome.title
         let bodyClass = chrome.bodyClass
@@ -230,6 +237,7 @@ extension DetoursPreviewGenerator {
         <style>\(criticalStyle)</style>
         <link rel="stylesheet" href="support/theme.css">
         <link rel="stylesheet" href="support/preview.css">
+        \(chrome.extraStylesheet.map { "<link rel=\"stylesheet\" href=\"support/\($0)\">" } ?? "")
         \(runtimeScripts)
         </head>
         <body class="\(bodyClass)">
@@ -243,7 +251,7 @@ extension DetoursPreviewGenerator {
         """
     }
 
-    private func lossyWarning(_ lossyDecode: Bool) -> String {
+    func lossyWarning(_ lossyDecode: Bool) -> String {
         guard lossyDecode else { return "" }
         return "<div class=\"warning\">This file was decoded lossily. Some invalid text bytes were replaced.</div>"
     }
