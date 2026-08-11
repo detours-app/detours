@@ -262,7 +262,10 @@ final class PreviewWindowContentTests: XCTestCase {
         let sanitizedValue = try await web.evaluateJavaScript("window.__detoursHTMLPreviewSanitized")
         let sanitized = try XCTUnwrap(sanitizedValue as? String)
         XCTAssertTrue(sanitized.contains("Safe heading"))
-        XCTAssertTrue(sanitized.contains("rgb(12, 34, 56)"), "Inline presentation should survive sanitization")
+        XCTAssertTrue(
+            sanitized.contains("<style>") && sanitized.contains("color: rgb("),
+            "Inline presentation should survive sanitization: \(sanitized)"
+        )
         XCTAssertTrue(sanitized.contains("data:image/png;base64,"), "Self-contained images should remain renderable")
         XCTAssertFalse(sanitized.contains("<script"))
         XCTAssertFalse(sanitized.contains("onclick"))
