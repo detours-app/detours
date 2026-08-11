@@ -18,6 +18,8 @@ protocol DetoursPreviewWindowDelegate: AnyObject {
 /// same view, which keeps showing the previous file until the next one has drawn.
 @MainActor
 final class DetoursPreviewWindowController: NSWindowController {
+    static let frameAutosaveName = "DetoursPreviewWindow"
+
     weak var previewDelegate: DetoursPreviewWindowDelegate?
 
     /// Two views, one shown and one loading. The loading view stays attached at zero opacity, then
@@ -55,7 +57,7 @@ final class DetoursPreviewWindowController: NSWindowController {
 
     var isPresented: Bool { window?.isVisible ?? false }
 
-    init(theme: Theme) {
+    init(theme: Theme, frameAutosaveName: String = DetoursPreviewWindowController.frameAutosaveName) {
         visibleWebView = Self.makePreviewWebView(theme: theme, chunkHandler: chunkHandler)
         loadingWebView = Self.makePreviewWebView(theme: theme, chunkHandler: chunkHandler)
         currentTheme = theme
@@ -130,6 +132,14 @@ final class DetoursPreviewWindowController: NSWindowController {
         visibleWebView.navigationDelegate = self
         loadingWebView.navigationDelegate = self
 
+        // The preview is shown directly rather than through showWindow(_:), so engage frame
+        // autosave on the adopted window and restore it explicitly. Center only the initial default;
+        // subsequent controllers preserve the size and position the reader chose.
+        window.setFrameAutosaveName(frameAutosaveName)
+        if !window.setFrameUsingName(frameAutosaveName) {
+            window.center()
+        }
+
         // Both views are cold until something is put through them, and the first file pays for
         // starting them up. They are warmed here, while nothing is on screen, so the first preview
         // is not the one that waits. They are warmed with the theme colour, never a blank white
@@ -156,9 +166,6 @@ final class DetoursPreviewWindowController: NSWindowController {
         applyTheme(theme)
         beginLoading()
         window?.title = title
-        if window?.isVisible != true {
-            window?.center()
-        }
         // A newly made window is not put on screen until it has something to show: either the file
         // itself, or the spinner once the wait is long enough to be worth showing. A window is
         // handed to the screen the moment it is ordered front, drawn or not, and an undrawn window

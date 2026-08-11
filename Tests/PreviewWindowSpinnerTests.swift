@@ -84,6 +84,37 @@ final class PreviewWindowSpinnerTests: XCTestCase {
     }
 }
 
+@MainActor
+final class PreviewWindowFramePersistenceTests: XCTestCase {
+    func testPreviewWindowRestoresTheUserSizedFrameAcrossControllerInstances() throws {
+        let autosaveName = "DetoursPreviewWindowTests.\(UUID().uuidString)"
+        let defaultsKey = AppKitGeometrySanitizer.windowFrameKey(autosaveName: autosaveName)
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
+        defer { UserDefaults.standard.removeObject(forKey: defaultsKey) }
+
+        let expectedFrame = NSRect(x: 180, y: 160, width: 1175, height: 825)
+        var firstController: DetoursPreviewWindowController? = DetoursPreviewWindowController(
+            theme: .dark,
+            frameAutosaveName: autosaveName
+        )
+        let firstWindow = try XCTUnwrap(firstController?.window)
+        firstWindow.setFrame(expectedFrame, display: false)
+        firstWindow.saveFrame(usingName: autosaveName)
+        firstController = nil
+
+        let restoredController = DetoursPreviewWindowController(
+            theme: .dark,
+            frameAutosaveName: autosaveName
+        )
+        let restoredFrame = try XCTUnwrap(restoredController.window?.frame)
+
+        XCTAssertEqual(restoredFrame.width, expectedFrame.width, accuracy: 1)
+        XCTAssertEqual(restoredFrame.height, expectedFrame.height, accuracy: 1)
+        XCTAssertEqual(restoredFrame.minX, expectedFrame.minX, accuracy: 1)
+        XCTAssertEqual(restoredFrame.minY, expectedFrame.minY, accuracy: 1)
+    }
+}
+
 /// Spinners that hover over other content sit on a plate. A spinner drawn straight onto a dense
 /// listing or a wordy file all but disappears.
 @MainActor
