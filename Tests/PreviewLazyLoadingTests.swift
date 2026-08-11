@@ -50,6 +50,10 @@ final class PreviewLazyLoadingTests: XCTestCase {
             defer: false
         )
         window.contentView = web
+        // The page has no size until the window is on screen, and with everything measuring zero
+        // nothing can be scrolled or added.
+        window.orderFrontRegardless()
+        defer { window.orderOut(nil) }
 
         let finished = expectation(description: "preview loaded")
         loaded.onFinish = { finished.fulfill() }
