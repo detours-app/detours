@@ -92,11 +92,15 @@ extension FileListViewController {
         }
     }
 
-    /// Images and PDFs are handed back unchanged and still display in the preview window, so they
-    /// need not be sent to the system panel.
+    /// Images are handed back unchanged and still display in the preview window, so they need not be
+    /// sent to the system panel.
+    ///
+    /// PDFs deliberately are. The preview window draws them through WebKit, which offers no page
+    /// thumbnails and no way to tab through pages; the system panel does both, and reading a PDF is
+    /// page navigation more than it is looking at one page.
     static func isDisplayableWithoutGeneration(_ url: URL) -> Bool {
         guard let type = UTType(filenameExtension: url.pathExtension.lowercased()) else { return false }
-        return type.conforms(to: .image) || type.conforms(to: .pdf)
+        return type.conforms(to: .image)
     }
 
     static func usesDetoursPreview(previewURL: URL, sourceURL: URL) -> Bool {

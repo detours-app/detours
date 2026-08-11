@@ -77,6 +77,12 @@ extension FileListResponderTests {
         XCTAssertTrue(FileListViewController.usesDetoursPreview(previewURL: image, sourceURL: image))
     }
 
+    func testPDFKeepsTheSystemViewerForItsPageThumbnails() {
+        let document = URL(fileURLWithPath: "/tmp/report.pdf")
+
+        XCTAssertFalse(FileListViewController.usesDetoursPreview(previewURL: document, sourceURL: document))
+    }
+
     func testUnsupportedRemoteFileKeepsTheSystemViewerFallback() {
         let archive = URL(fileURLWithPath: "/tmp/remote-archive.zip")
 
