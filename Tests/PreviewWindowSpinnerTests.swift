@@ -123,7 +123,7 @@ final class SpinnerPlateTests: XCTestCase {
 }
 
 /// Nothing part-drawn ever reaches the screen. A view becomes opaque only after the file has
-/// finished loading and WebKit has produced a frame, so there is no empty-page interval.
+/// finished loading and WebKit has rendered an image, so there is no empty-page interval.
 @MainActor
 final class PreviewWindowContentTests: XCTestCase {
     func testNothingIsShownBeforeAFileHasFinishedLoading() {
@@ -162,20 +162,16 @@ final class PreviewWindowContentTests: XCTestCase {
         controller.close(notifyingDelegate: false)
     }
 
-    func testAStaleDrawnFrameCannotReplaceANewerPreview() async throws {
+    func testAStaleRenderCannotReplaceANewerPreview() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("preview-race-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let first = root.appendingPathComponent("first.html")
-        try """
-        <!doctype html><html><body>first<script>
-        window.requestAnimationFrame = function (callback) {
-          setTimeout(function () { callback(performance.now()); }, 1000);
-        };
-        </script></body></html>
-        """.write(to: first, atomically: true, encoding: .utf8)
+        let firstBody = "first " + String(repeating: "render work ", count: 100_000)
+        try "<!doctype html><html><body>\(firstBody)</body></html>"
+            .write(to: first, atomically: true, encoding: .utf8)
         let second = root.appendingPathComponent("second.html")
         try "<!doctype html><html><body>second</body></html>"
             .write(to: second, atomically: true, encoding: .utf8)
@@ -197,8 +193,8 @@ final class PreviewWindowContentTests: XCTestCase {
         let body = try await controller.visiblePreviewWebViewForTesting.evaluateJavaScript("document.body.innerText") as? String
         XCTAssertEqual(body?.trimmingCharacters(in: .whitespacesAndNewlines), "second")
 
-        // The first page's delayed callbacks now finish. They must not swap either view afterward.
-        try await Task.sleep(nanoseconds: 2_200_000_000)
+        // Any first-page render work still in flight must not swap either view afterward.
+        try await Task.sleep(nanoseconds: 500_000_000)
         let settledBody = try await controller.visiblePreviewWebViewForTesting
             .evaluateJavaScript("document.body.innerText") as? String
         XCTAssertEqual(settledBody?.trimmingCharacters(in: .whitespacesAndNewlines), "second")
@@ -211,7 +207,7 @@ final class PreviewWindowContentTests: XCTestCase {
 /// has been drawn is white.
 @MainActor
 final class PreviewWindowFirstUseTests: XCTestCase {
-    func testWindowIsNotShownUntilItHasSomethingToShow() async throws {
+    func testWindowIsTransparentUntilItHasSomethingToShow() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("preview-first-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

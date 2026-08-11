@@ -19,9 +19,9 @@ protocol DetoursPreviewWindowDelegate: AnyObject {
 final class DetoursPreviewWindowController: NSWindowController {
     weak var previewDelegate: DetoursPreviewWindowDelegate?
 
-    /// Two views, one shown and one loading. The loading view stays attached to the visible window
-    /// at zero opacity so WebKit continues producing animation frames, but none of those frames can
-    /// be seen. Once the page has crossed a drawn-frame boundary, the two views swap atomically.
+    /// Two views, one shown and one loading. The loading view stays attached at zero opacity, then
+    /// WebKit is asked to produce an image of its finished page. Once that render-forcing operation
+    /// completes, the two views swap atomically and only the rendered view becomes visible.
     private var visibleWebView: WKWebView
     private var loadingWebView: WKWebView
     private var hasShownAnything = false
@@ -86,8 +86,8 @@ final class DetoursPreviewWindowController: NSWindowController {
 
         let container = BackgroundView(color: theme.background)
         // The loading view begins below the visible one. It remains a real, non-hidden member of the
-        // window throughout loading so requestAnimationFrame keeps advancing, while alpha zero
-        // prevents a cold or partially drawn WebKit frame from reaching the screen.
+        // window throughout loading, while alpha zero prevents a cold or partially drawn WebKit
+        // frame from reaching the screen.
         for web in [loadingWebView, visibleWebView] {
             container.addSubview(web)
             NSLayoutConstraint.activate([
@@ -145,9 +145,9 @@ final class DetoursPreviewWindowController: NSWindowController {
         if window?.isVisible == true {
             window?.makeKeyAndOrderFront(nil)
         } else {
-            // A non-visible window does not advance its web views' animation frames. Put the window
-            // into the compositor at zero opacity first, then reveal the complete window only after
-            // the page or spinner is ready. This also hides the system's cold first window frame.
+            // Put the window into the compositor at zero opacity first, then reveal the complete
+            // window only after the page or spinner is ready. This hides the system's cold first
+            // window frame while still giving WebKit a real window to render into.
             waitingToAppear = true
             window?.alphaValue = 0
             window?.makeKeyAndOrderFront(nil)
@@ -320,16 +320,11 @@ final class DetoursPreviewWindowController: NSWindowController {
         readinessTask?.cancel()
         readinessTask = Task { @MainActor [weak self, weak web] in
             guard let web else { return }
-            // didFinish means the resource load ended; it does not mean WebKit has presented the
-            // resulting page. Crossing two requestAnimationFrame callbacks guarantees at least one
-            // page frame has been produced before this view is allowed to become visible.
-            _ = try? await web.callAsyncJavaScript(
-                "await new Promise(function (ready) {"
-                    + " requestAnimationFrame(function () { requestAnimationFrame(ready); }); });",
-                arguments: [:],
-                in: nil,
-                contentWorld: .page
-            )
+            // didFinish means the resource load ended; it does not mean WebKit has rendered the
+            // resulting page. Asking for a snapshot forces WebKit to produce a native image of its
+            // current contents, and unlike requestAnimationFrame it also completes when an
+            // opacity-zero view is being throttled by the compositor.
+            _ = try? await web.takeSnapshot(configuration: nil)
             guard
                 let self,
                 !Task.isCancelled,
