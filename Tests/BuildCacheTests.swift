@@ -50,6 +50,7 @@ final class BuildCacheTests: XCTestCase {
         XCTAssertTrue(script.contains("markdown-it.min.js"))
         XCTAssertTrue(script.contains("highlight.min.js"))
         XCTAssertTrue(script.contains("preview-runtime.js"))
+        XCTAssertTrue(script.contains("preview-lazy.js"))
         XCTAssertTrue(script.contains("preview.css"))
     }
 

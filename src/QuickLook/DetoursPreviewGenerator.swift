@@ -214,6 +214,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             "vendor/highlight-github.min.css",
             "vendor/highlight-github-dark.min.css",
             "detours/preview-runtime.js",
+            "detours/preview-lazy.js",
             "detours/preview.css"
         ]
 
