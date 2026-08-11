@@ -149,6 +149,55 @@ final class RealRemoteFileOperationsUITests: BaseUITest {
         XCTAssertFalse(rightOutline.outlineRow(withStaticText: remoteDirectoryName).exists)
     }
 
+    func testRealRemoteTextPreviewsStayInTheDetoursWindow() throws {
+        launchRealRemote()
+        try createRemoteScenario()
+
+        let home = try XCTUnwrap(remoteHomePath)
+        let firstName = "preview-a.txt"
+        let secondName = "preview-b.txt"
+        for (name, marker) in [(firstName, "ALPHA"), (secondName, "BRAVO")] {
+            let body = (0..<400)
+                .map { "\($0) \(marker) remote preview line" }
+                .joined(separator: "\n")
+            try performRemoteFixtureMutation(
+                action: "write",
+                homePath: home,
+                scenarioName: remoteDirectoryName,
+                relativePath: name,
+                contents: body,
+                sentinelID: remoteSentinelID
+            )
+        }
+
+        let outline = app.leftPaneOutlineView
+        let remoteRoot = outline.outlineRow(withStaticText: remoteDirectoryName)
+        XCTAssertTrue(remoteRoot.waitForExistence(timeout: 30), "Real remote fixture should be listed")
+        remoteRoot.staticTexts[remoteDirectoryName].doubleClick()
+
+        let first = outline.outlineRow(withStaticText: firstName)
+        XCTAssertTrue(first.waitForExistence(timeout: 15), "Real remote fixture should list \(firstName)")
+        first.staticTexts[firstName].click()
+
+        pressKey(.space)
+
+        XCTAssertTrue(
+            app.windows[firstName].existsOrWait(timeout: 20),
+            "A file downloaded over SSH should open in the Detours preview window"
+        )
+        XCTAssertFalse(app.windows["Quick Look"].exists, "Real remote text must not use QLPreviewPanel")
+
+        pressKey(.downArrow)
+
+        XCTAssertTrue(
+            app.windows[secondName].existsOrWait(timeout: 20),
+            "Moving between real remote files should update the Detours preview window"
+        )
+        XCTAssertFalse(app.windows["Quick Look"].exists, "Real remote navigation must not raise QLPreviewPanel")
+
+        pressKey(.escape)
+    }
+
     private func createRemoteScenario() throws {
         let ready = try waitForRemoteState("real remote fixture home", timeout: 45) {
             $0.registeredRemoteProviderCount == 1
