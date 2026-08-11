@@ -72,7 +72,7 @@ struct DetoursPreviewGrid {
 
     /// Enough room for every column, the gutter, and the padding each cell carries.
     var totalWidth: Int {
-        columns.reduce(gutterWidth + cellPaddingWidth) { $0 + $1.width + Self.cellPaddingWidth }
+        columns.reduce(gutterWidth + Self.cellPaddingWidth) { $0 + $1.width + Self.cellPaddingWidth }
     }
 }
 
