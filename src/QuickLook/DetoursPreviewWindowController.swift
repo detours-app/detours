@@ -26,6 +26,7 @@ final class DetoursPreviewWindowController: NSWindowController {
     private var visibleWebView: WKWebView
     private var loadingWebView: WKWebView
     private var hasShownAnything = false
+    private var currentTheme: Theme
     private let spinner = NSProgressIndicator()
     private let spinnerPlate: SpinnerPlate
     private var keyMonitor: Any?
@@ -40,15 +41,20 @@ final class DetoursPreviewWindowController: NSWindowController {
     init(theme: Theme) {
         visibleWebView = Self.makePreviewWebView(theme: theme)
         loadingWebView = Self.makePreviewWebView(theme: theme)
+        currentTheme = theme
 
         let window = PreviewWindow(
             contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            // Not a full-size content view: the file's own heading sits at the top of the page, and
+            // with content running under the titlebar it collided with the window buttons.
+            styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
+        // The file name belongs in the titlebar, where a window title goes, rather than being drawn
+        // into the page as well.
+        window.titleVisibility = .visible
         window.isMovableByWindowBackground = true
         window.backgroundColor = theme.background
         window.isOpaque = true
@@ -96,8 +102,11 @@ final class DetoursPreviewWindowController: NSWindowController {
 
         // Both views are cold until something is put through them, and the first file pays for
         // starting them up. They are warmed here, while nothing is on screen, so the first preview
-        // is not the one that waits.
-        visibleWebView.loadHTMLString("<html><body></body></html>", baseURL: nil)
+        // is not the one that waits. They are warmed with the theme colour, never a blank white
+        // page, so nothing white exists in either of them at any point.
+        let blank = Self.blankDocument(for: theme)
+        visibleWebView.loadHTMLString(blank, baseURL: nil)
+        loadingWebView.loadHTMLString(blank, baseURL: nil)
     }
 
     @available(*, unavailable)
@@ -219,6 +228,23 @@ final class DetoursPreviewWindowController: NSWindowController {
         loadingWebView = retired
         loadingWebView.isHidden = true
         hasShownAnything = true
+        // The retired view still holds the file it was showing. It is emptied to the theme colour
+        // straight away, because the next file goes into this same view, and a view is finished
+        // loading a moment before it has drawn: whatever it still held was appearing for an instant
+        // as the previous file flashing back.
+        loadingWebView.loadHTMLString(Self.blankDocument(for: currentTheme), baseURL: nil)
+    }
+
+    private static func blankDocument(for theme: Theme) -> String {
+        let hex = theme.background.usingColorSpace(.deviceRGB).map {
+            String(
+                format: "#%02X%02X%02X",
+                Int(($0.redComponent * 255).rounded()),
+                Int(($0.greenComponent * 255).rounded()),
+                Int(($0.blueComponent * 255).rounded())
+            )
+        } ?? "#000000"
+        return "<html><body style=\"margin:0;background:\(hex)\"></body></html>"
     }
 
     /// What is on screen, for tests: nothing until a file has finished loading.
@@ -229,7 +255,11 @@ final class DetoursPreviewWindowController: NSWindowController {
         swapInLoadedView()
     }
 
+    /// True while the views hold nothing but the theme colour, for tests.
+    var holdsOnlyBlankDocuments: Bool { !hasShownAnything }
+
     private func applyTheme(_ theme: Theme) {
+        currentTheme = theme
         // The spinner takes its contrast from the appearance of the view it sits in, and the theme
         // can be dark while the system is light, so the container is told which it is.
         let isDark = theme.background.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false

@@ -100,6 +100,9 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
 
         XCTAssertTrue(html.contains("<body class=\"source-preview wrap-lines\">"))
         XCTAssertTrue(html.contains("Wrapped"))
+        // The file name belongs in the window's titlebar, not drawn into the page as well, where it
+        // collided with the window buttons.
+        XCTAssertFalse(html.contains("preview-title"))
         // Wrapping is owned by the app now, so nothing in the preview may offer to change it.
         XCTAssertFalse(html.contains("source-wrap-toggle"))
     }

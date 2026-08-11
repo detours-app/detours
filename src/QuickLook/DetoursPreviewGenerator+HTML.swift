@@ -34,8 +34,8 @@ extension DetoursPreviewGenerator {
                 // of those stylesheets has to be read before anything can be drawn.
                 usesRichTextAssets: false
             ),
+            // No file name in the page: the window puts it in its titlebar, where a title belongs.
             toolbar: """
-            <span class="preview-title">\(Self.escapeHTML(request.displayName))</span>
             <span class="preview-hint">\(request.wrapLines ? "Wrapped" : "Not wrapped") &middot; \u{2325}W</span>
             """,
             // No hidden second copy of the file here. It exists for Markdown, which renders from
@@ -77,7 +77,6 @@ extension DetoursPreviewGenerator {
                 usesRichTextAssets: true
             ),
             toolbar: """
-            <span class="preview-title">\(Self.escapeHTML(request.displayName))</span>
             <label class="view-toggle" id="markdown-rendered-toggle" for="markdown-view-rendered">Rendered</label>
             <label class="view-toggle" id="markdown-source-toggle" for="markdown-view-source">Source</label>
             """,
