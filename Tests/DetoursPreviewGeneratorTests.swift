@@ -206,6 +206,19 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         }
     }
 
+    func testJSONLinesPreviewHighlightsEveryRecord() async throws {
+        let source = try write(
+            "events.jsonl",
+            "{\"event\": \"open\", \"count\": 1}\n{\"event\": \"close\", \"ok\": false}\n"
+        )
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "events.jsonl"))
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("<span class=\"tok-property\">&quot;event&quot;</span><span class=\"tok-punctuation\">:</span> <span class=\"tok-string\">&quot;open&quot;</span>"))
+        XCTAssertTrue(html.contains("<span class=\"tok-property\">&quot;count&quot;</span><span class=\"tok-punctuation\">:</span> <span class=\"tok-number\">1</span>"))
+        XCTAssertTrue(html.contains("<span class=\"tok-property\">&quot;ok&quot;</span><span class=\"tok-punctuation\">:</span> <span class=\"tok-boolean\">false</span>"))
+    }
+
     func testDarkThemeUsesVSCodeDarkSyntaxPalette() async throws {
         let source = try write("dark-config.json", "{\n  \"enabled\": true,\n  \"name\": \"detours\"\n}\n")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "dark-config.json", theme: .dark))
