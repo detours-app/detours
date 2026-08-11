@@ -10,7 +10,7 @@ final class DetoursOfficeArchiveTests: XCTestCase {
 
         let bytes = try archive.data(forEntry: "word/document.xml")
 
-        XCTAssertEqual(String(bytes: bytes, encoding: .utf8),"<w:document/>")
+        XCTAssertEqual(String(bytes: bytes, encoding: .utf8), "<w:document/>")
     }
 
     func testDeflatedEntryInflates() throws {
@@ -21,7 +21,7 @@ final class DetoursOfficeArchiveTests: XCTestCase {
 
         let bytes = try archive.data(forEntry: "word/document.xml")
 
-        XCTAssertEqual(String(bytes: bytes, encoding: .utf8),body)
+        XCTAssertEqual(String(bytes: bytes, encoding: .utf8), body)
     }
 
     func testMissingEntryReportsNotFound() throws {
