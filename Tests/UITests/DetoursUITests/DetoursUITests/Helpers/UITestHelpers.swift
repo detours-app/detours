@@ -512,6 +512,12 @@ extension BaseUITest {
         app.typeKey(XCUIKeyboardKey.F7, modifierFlags: [])
     }
 
+    /// Post Space as a real HID event without XCUITest's typeKey idle snapshot, so a capture taken
+    /// straight afterwards is not delayed until the app has finished reacting.
+    func postSpaceKeyEvent() {
+        postKeyEvent(keyCode: 49)
+    }
+
     /// Post Down as a real HID event without XCUITest's typeKey idle snapshot, so a capture taken
     /// straight afterwards is not delayed until the app has finished reacting.
     func postArrowDownKeyEvent() {
