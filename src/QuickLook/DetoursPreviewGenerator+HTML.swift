@@ -3,13 +3,19 @@ import CryptoKit
 import Foundation
 
 extension DetoursPreviewGenerator {
+    /// A generated document, together with the chunks of the file that were kept out of it.
+    struct GeneratedDocument {
+        var html: String
+        var chunks: [String] = []
+    }
+
     func sourceHTML(
         request: DetoursPreviewRequest,
         kind: DetoursPreviewKind,
         source: String,
         lossyDecode: Bool,
         fallbackReason: String?
-    ) -> String {
+    ) -> GeneratedDocument {
         // Two elements per line, down from four. Both attempts to have the stylesheet draw the
         // number instead measured slower to display, not faster: counting across the file was worst,
         // and a positioned pseudo-element on every line was still worse than simply writing it.
@@ -19,18 +25,21 @@ extension DetoursPreviewGenerator {
             <div class="source-line"><span class="line-number">\(index + 1)</span>\(highlightedLine)</div>
             """
         }
-        // A long file is built a screenful at a time. The rest rides along as plain text, which the
-        // page reads without building anything for it, and is added as it is scrolled towards. On a
-        // file of tens of thousands of lines almost all of that work is never needed: the file
-        // appears at once and the rest arrives only if it is scrolled to.
+        // A long file keeps only its first lines in the document. The rest is written beside it in
+        // chunks and asked for as it is scrolled towards, so a file nobody scrolls through is never
+        // read past its first screenful.
         let isLong = lines.count > Self.eagerLineLimit
         let rows = (isLong ? Array(lines.prefix(Self.eagerLineLimit)) : lines).joined(separator: "\n")
+        let chunks: [String] = isLong
+            ? stride(from: Self.eagerLineLimit, to: lines.count, by: Self.chunkLineCount).map { start in
+                lines[start..<min(start + Self.chunkLineCount, lines.count)].joined(separator: "\n")
+            }
+            : []
         let tail = isLong ? """
-        <script id="source-tail" type="text/plain">\(lines.dropFirst(Self.eagerLineLimit).joined(separator: "\n"))</script>
         <script src="support/preview-lazy.js" defer></script>
         """ : ""
 
-        return htmlDocument(
+        let html = htmlDocument(
             chrome: PreviewChrome(
                 theme: request.theme,
                 title: request.displayName,
@@ -53,12 +62,13 @@ extension DetoursPreviewGenerator {
             body: """
             \(fallbackReason.map { "<div class=\"fallback-banner\">\(Self.escapeHTML($0))</div>" } ?? "")
             \(lossyWarning(lossyDecode))
-            <div id="source-preview" class="source-lines">
+            <div id="source-preview" class="source-lines" data-chunks="\(chunks.count)" data-chunk-scheme="\(DetoursPreviewChunkHandler.scheme)">
             \(rows)
             </div>
             \(tail)
             """
         )
+        return GeneratedDocument(html: html, chunks: chunks)
     }
 
     func markdownHTML(
@@ -147,7 +157,7 @@ extension DetoursPreviewGenerator {
         <html>
         <head>
         <meta charset="utf-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' '\(styleHash)'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' '\(styleHash)'; connect-src \(DetoursPreviewChunkHandler.scheme):; img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>\(Self.escapeHTML(title))</title>
         <style>\(criticalStyle)</style>

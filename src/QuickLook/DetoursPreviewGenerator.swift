@@ -51,11 +51,14 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
     /// and the theme: without it, changing how previews are built leaves every file already
     /// previewed showing the old document forever, because nothing else about it has changed. Raise
     /// this whenever the generated document changes.
-    static let currentDocumentFormatVersion = "6"
+    static let currentDocumentFormatVersion = "7"
 
     /// How many lines of a file are built up front. Beyond this the rest is added as it is scrolled
     /// towards, which is almost never on a file of tens of thousands of lines.
     static let eagerLineLimit = 900
+
+    /// How many lines each further chunk carries when it is asked for.
+    static let chunkLineCount = 1200
 
     init(
         cacheRoot: URL? = nil,
@@ -143,17 +146,17 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         let themeCSS = themeVariablesCSS(for: request.theme, fontSize: request.fontSize)
         try write(themeCSS, to: entry.supportDirectory.appendingPathComponent("theme.css"))
 
-        let html: String
+        let document: GeneratedDocument
         switch kind {
         case .markdown:
-            html = markdownHTML(
+            document = GeneratedDocument(html: markdownHTML(
                 request: request,
                 kind: kind,
                 source: decoded.text,
                 lossyDecode: decoded.lossy
-            )
+            ))
         case .sourceCode, .configuration, .plainText:
-            html = sourceHTML(
+            document = sourceHTML(
                 request: request,
                 kind: kind,
                 source: decoded.text,
@@ -164,7 +167,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             return request.sourceURL
         }
 
-        guard Data(html.utf8).count <= limits.generatedOutputBytes else {
+        guard Data(document.html.utf8).count <= limits.generatedOutputBytes else {
             return try generateFallbackPreview(
                 for: request,
                 kind: kind,
@@ -172,7 +175,16 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             )
         }
 
-        try write(html, to: entry.htmlURL)
+        // The rest of a long file lives beside the document rather than inside it, so the page reads
+        // only what it shows and asks for the remainder if it is scrolled towards.
+        for (index, chunk) in document.chunks.enumerated() {
+            try write(
+                chunk,
+                to: entry.htmlURL.deletingLastPathComponent()
+                    .appendingPathComponent(DetoursPreviewChunkHandler.chunkName(index + 1))
+            )
+        }
+        try write(document.html, to: entry.htmlURL)
         return entry.htmlURL
     }
 
@@ -186,14 +198,14 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         try write(themeVariablesCSS(for: request.theme, fontSize: request.fontSize), to: entry.supportDirectory.appendingPathComponent("theme.css"))
         let excerpt = try fallbackExcerpt(from: request.sourceURL)
         let decoded = decode(excerpt)
-        let html = sourceHTML(
+        let document = sourceHTML(
             request: request,
             kind: .plainText(language: "plaintext"),
             source: decoded.text,
             lossyDecode: decoded.lossy,
             fallbackReason: reason
         )
-        try write(html, to: entry.htmlURL)
+        try write(document.html, to: entry.htmlURL)
         return entry.htmlURL
     }
 

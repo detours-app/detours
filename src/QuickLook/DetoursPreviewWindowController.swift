@@ -31,6 +31,7 @@ final class DetoursPreviewWindowController: NSWindowController {
     /// warm them and to clear a retired one, and those must not be mistaken for a file arriving:
     /// they would stop the spinner and put a blank page on screen as though it were content.
     private var previewNavigation: WKNavigation?
+    private let chunkHandler = DetoursPreviewChunkHandler()
     /// Set while a preview has been asked for but the window is not on screen yet.
     private var waitingToAppear = false
     private let spinner = NSProgressIndicator()
@@ -45,8 +46,8 @@ final class DetoursPreviewWindowController: NSWindowController {
     var isPresented: Bool { window?.isVisible ?? false }
 
     init(theme: Theme) {
-        visibleWebView = Self.makePreviewWebView(theme: theme)
-        loadingWebView = Self.makePreviewWebView(theme: theme)
+        visibleWebView = Self.makePreviewWebView(theme: theme, chunkHandler: chunkHandler)
+        loadingWebView = Self.makePreviewWebView(theme: theme, chunkHandler: chunkHandler)
         currentTheme = theme
 
         let window = PreviewWindow(
@@ -222,8 +223,10 @@ final class DetoursPreviewWindowController: NSWindowController {
         window?.delegate = self
     }
 
-    private static func makePreviewWebView(theme: Theme) -> WKWebView {
+    private static func makePreviewWebView(theme: Theme, chunkHandler: DetoursPreviewChunkHandler) -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        // The rest of a long file is served to the page on request rather than carried inside it.
+        configuration.setURLSchemeHandler(chunkHandler, forURLScheme: DetoursPreviewChunkHandler.scheme)
         configuration.suppressesIncrementalRendering = true
         let web = WKWebView(frame: NSRect(x: 0, y: 0, width: 900, height: 700), configuration: configuration)
         web.underPageBackgroundColor = theme.background
@@ -235,6 +238,8 @@ final class DetoursPreviewWindowController: NSWindowController {
     }
 
     private func load(previewURL: URL) {
+        // Only this preview's own folder may be served to the page.
+        chunkHandler.directory = previewURL.deletingLastPathComponent()
         // Read access covers the preview's own folder so its stylesheets and scripts resolve.
         previewNavigation = loadingWebView.loadFileURL(
             previewURL,

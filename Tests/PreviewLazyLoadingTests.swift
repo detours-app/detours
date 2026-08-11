@@ -20,19 +20,42 @@ final class PreviewLazyLoadingTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempRoot)
     }
 
-    func testOnlyTheFirstLinesAreBuiltAndTheRestIsCarriedAsText() async throws {
-        let html = try await generatePreview(lineCount: 5_000)
+    func testOnlyTheFirstLinesAreInTheDocumentAndTheRestIsBesideIt() async throws {
+        let previewURL = try await generatePreviewURL(lineCount: 5_000)
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
 
+        // The document holds its first lines and nothing else. The rest is beside it, so the page
+        // reads only what it shows.
         let built = html.components(separatedBy: "<div class=\"source-line\">").count - 1
-        XCTAssertGreaterThan(built, 0)
-        XCTAssertTrue(html.contains("id=\"source-tail\" type=\"text/plain\""), "The rest must ride along as text")
-        XCTAssertTrue(html.contains("src=\"support/preview-lazy.js\""), "Something must add the rest on scroll")
+        XCTAssertEqual(built, DetoursPreviewGenerator.eagerLineLimit)
+        XCTAssertFalse(html.contains("source-tail"), "The rest must not be inside the document")
+        XCTAssertTrue(html.contains("src=\"support/preview-lazy.js\""), "Something must ask for the rest")
+
+        let directory = previewURL.deletingLastPathComponent()
+        let chunks = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            .filter { DetoursPreviewChunkHandler.isChunkName($0) }
+        XCTAssertFalse(chunks.isEmpty, "The rest of the file should be written beside the document")
+        let bodyBytes = try Data(contentsOf: previewURL).count
+        let sourceBytes = try Data(contentsOf: directory.appendingPathComponent(chunks[0])).count
+        XCTAssertGreaterThan(sourceBytes, 0)
+        XCTAssertLessThan(bodyBytes, 400_000, "The document itself should stay small however long the file is")
+    }
+
+    func testTheDocumentStaysTheSameSizeAsTheFileGrows() async throws {
+        let smaller = try Data(contentsOf: try await generatePreviewURL(lineCount: 5_000)).count
+        tempRoot = tempRoot.deletingLastPathComponent().appendingPathComponent("grow-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        let larger = try Data(contentsOf: try await generatePreviewURL(lineCount: 50_000)).count
+
+        // Ten times the file, the same document. This is the difference between the page reading
+        // the whole file and the page reading a screenful.
+        XCTAssertEqual(smaller, larger, "The document must not grow with the file")
     }
 
     func testShortFilesAreBuiltWholeWithNothingExtra() async throws {
         let html = try await generatePreview(lineCount: 40)
 
-        XCTAssertFalse(html.contains("id=\"source-tail\""), "A short file needs nothing carried")
+        XCTAssertFalse(html.contains("source-tail"), "A short file needs nothing carried")
         XCTAssertFalse(html.contains("preview-lazy.js"), "A short file needs nothing added on scroll")
         XCTAssertEqual(html.components(separatedBy: "<div class=\"source-line\">").count - 1, 40)
     }
