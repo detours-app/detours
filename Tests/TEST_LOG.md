@@ -3427,6 +3427,22 @@ Spotlight search has no unit test (depends on the live, async-built system index
   nobody to answer the page's requests, and a size comparison was one byte out
   because the document records how many chunks there are.
 
+- 2026-08-11 11:25 CEST: remote-preview verification PASS at `248d8b9`
+  (product fix `921ec79`). Marco's clarification that the affected files were
+  remote exposed the root cause: `startRemoteQuickLook` still presented
+  downloaded files through Apple's `QLPreviewPanel`, bypassing every change to
+  the Detours-owned local preview window. Supported remote text, generated
+  previews, images and PDFs now open a themed Detours shell before download and
+  remain in that window; unsupported formats retain the system fallback.
+  Foundry `FileListResponderTests|PreviewWindow`: 70 tests, 0 failures in 21.010
+  seconds. Guarded fake-provider UI: 1 pass, 0 failures. Guarded real SSH/SFTP UI
+  against `devtest`: 1 pass, 0 failures, covering first open and Down between two
+  remote text files with no system Quick Look window. Both guarded runs completed
+  cleanup without a consent prompt. Under Marco's explicit Spectre exception,
+  the fake-provider remote test also passed during one 60 Hz recording: 112
+  analyzed preview-region frames, average luma 45.5196–49.5506, and zero frames
+  above 100, with no white frame in the contact sheet.
+
 - 2026-08-11 11:34 CEST: Foundry verification PASS at `b9a62e5` for the preview
   views no longer painting their own white background, for documents declaring
   whether they are dark, and for line numbers being removed from previews.

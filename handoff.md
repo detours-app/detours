@@ -1,10 +1,25 @@
-# Handoff: the white flash when previewing a file
+# Handoff: the white flash when previewing a remote file
 
-Resolved in code and automated verification at `00ff601`. This is the symptom, what was ruled out, the unsuccessful approaches, and the final compositor-safe handoff.
+Resolved in the actual reported path at product commit `921ec79`, with real-remote regression coverage completed at `248d8b9`. The decisive fact was that Marco previews files on a remote host. All earlier work exercised the local preview pipeline; remote previews still explicitly opened Apple's `QLPreviewPanel`, whose white surface was the reported flash.
 
-## Resolution
+## Actual root cause and resolution
 
-The render gate at `4061aaf` was not sufficient: Marco confirmed that it still flashed on Spectre while remaining clean on Foundry. `takeSnapshot` proved that WebKit could render a native image, but it did not prove that WebKit's separate onscreen layer had reached Spectre's compositor. The final implementation removes that timing assumption:
+The local and remote preview paths diverged before presentation:
+
+- Local supported files used `DetoursPreviewWindowController`, including its themed backing surface and compositor-safe WebKit handoff.
+- `startRemoteQuickLook` instead opened `QLPreviewPanel` while downloading and kept using the system panel afterward. None of the local-window fixes could affect that path.
+- `refreshQuickLookPanel` also sent a selected remote item into local preview generation when the Detours window happened to be visible.
+
+At `921ec79`, supported remote previews now remain in the Detours-owned window from the first visible frame through file-to-file navigation:
+
+- `DetoursPreviewWindowController.prepare(title:theme:)` presents the correctly themed shell immediately while the remote file downloads, with the existing delayed spinner and cold-window opacity behavior.
+- Generated text, Markdown, HTML, and log previews, plus directly previewable images and PDFs, load into that same window.
+- Any visible system Quick Look panel is ordered out before the remote operation begins.
+- Unsupported remote formats retain an intentional system Quick Look fallback after download.
+- Refreshing while a remote preview is visible restarts the remote operation instead of entering local generation.
+- Generation IDs still prevent an older download or render from replacing a newer selection.
+
+The earlier compositor-safe local implementation remains in place:
 
 - The cold preview window enters the compositor at opacity zero. Its first system-composited frame therefore cannot appear as a white rectangle.
 - The loading web view remains attached and non-hidden at opacity zero, below the currently visible page.
@@ -14,36 +29,34 @@ The render gate at `4061aaf` was not sufficient: Marco confirmed that it still f
 - Every requested file has a generation number. A render that completes after the user has moved again cannot reveal the wrong file or reveal the newer file before it is ready.
 - The existing `drawsBackground = false`, theme-coloured backing view, themed window background, and document colour scheme remain in place.
 
-The first implementation of the render gate used two `requestAnimationFrame` callbacks. The focused test passed once, then the broader exact command reproduced the hang: opacity-zero views can still have animation frames throttled. That implementation was replaced. The later snapshot-only implementation forced WebKit to render, but Marco's Spectre result showed that rendering and onscreen remote-layer presentation are separate boundaries.
+Those defenses are useful once a file reaches the Detours window, but they were not the cause of the remote-only symptom. The local Spectre recording was clean; the user then identified the missing dimension by explaining that the affected files live on a remote host.
 
-Machine comparison on 2026-08-11:
+The earlier hardware comparison was a dead end. Spectre and Foundry both run macOS 26.6.1 build 25G76 and have different display paths, but the preview scenarios had not been held constant: the Foundry fixtures were local while Marco's affected files were remote. The provider route, not the display hardware, explained why the symptom survived every local-window change.
 
-- Spectre and Foundry both run macOS 26.6.1 build 25G76.
-- Spectre drives a Dell U4025QW at a 7680×3240 physical framebuffer (3840×1620 points at 60 Hz) on an M1 Pro GPU. Foundry drives a 3840×2160 virtual display (1920×1080 points at 60 Hz) on an M1 GPU.
-- With the software build held constant, the remaining difference is the real, substantially larger display-compositor path on Spectre. The native-image cover makes correctness independent of how quickly that path publishes WebKit's remote surface.
+Verification:
 
-Verification on Foundry at `00ff60155599c6f734156469bdc630432563878a`:
-
-- `resources/scripts/build.sh --no-install`: passed.
-- `swift test --filter "PreviewWindow"`: 9 tests, 0 failures in 4.29 seconds, with a new assertion that the native snapshot cover is used and remains until all six display-refresh callbacks complete.
-- Guarded installed-app run `preview-compositor-cover-ui-1`: `PreviewWindowUITests/testPreviewWindowOpensAndArrowKeysMoveThroughFiles` passed, including first open, Down, Up, and close.
-- The installed run recorded zero consent prompts and completed guarded cleanup.
+- Foundry `resources/scripts/build.sh --no-install` passed at `921ec798a3bc72b2dcf023909ec2e74e6d417afe`.
+- Foundry `swift test --filter "FileListResponderTests|PreviewWindow"`: 70 tests, 0 failures in 21.010 seconds. Coverage includes supported generated remote content and remote images using Detours, with unsupported archives using the system fallback.
+- Foundry guarded fake-provider UI run `remote-preview-window-ui-1`: `RemotePreviewWindowUITests/testRemoteTextPreviewsStayInTheDetoursWindow` passed 1/1, including Space to open, Down to change files, stable Detours window identity, and absence of a system “Quick Look” window. Prompt guard and cleanup passed.
+- Under Marco's explicitly approved Spectre exception, the same fake-provider remote UI test passed while one 60 Hz recording captured first open and Down. Across 112 analyzed frames in the preview region, average luma stayed between 45.5196 and 49.5506; zero frames exceeded 100. The contact sheet showed only the dark themed shell, spinner, and content—no white frame.
+- Foundry guarded real-host run `real-remote-preview-window-ui-2` at `248d8b94124f34d64a3a5dbb9f3c614b91c91fd3`: `RealRemoteFileOperationsUITests/testRealRemoteTextPreviewsStayInTheDetoursWindow` created two files on `devtest`, opened the first, navigated Down to the second, verified the Detours window remained in use, and verified no system “Quick Look” window appeared. XCResult: 1 passed, 0 failed, 0 skipped. Prompt guard: 0 TCC prompts, 0 XCU interruptions, 0 visible prompt windows. Guarded cleanup passed.
 
 ## Symptom
 
-Opening a preview, or moving from one file to the next in one, shows a white rectangle before the content appears. Reported on log files, Markdown and HTML. Seen on Spectre; never once observed from this side.
+Opening a preview, or moving from one file to the next in one, showed a white rectangle before the content appeared. Reported on remote log files, Markdown, and HTML on Spectre. Foundry did not visibly reproduce it.
 
-Two details from Marco that matter:
+Three details from Marco that matter:
 
 - At one point it happened **only on the first preview after launching Detours**. Later it happened **on every file**. The change between those two reports lines up exactly with the commit described in attempt 11 below.
 - Moving between two **images** never flashed. Images take the same code path but are drawn by a different viewer.
+- The affected files were being previewed on a **remote host**. This exposed the actual routing defect: remote items were still presented by `QLPreviewPanel`, unlike the local fixtures and tests used during attempts 1–13.
 
 ## What is ruled out, with evidence
 
 - **Not the preview document.** A generated document was dumped and inspected: it carries its own background colour in an inline style in the head, ahead of any stylesheet, and its policy admits that style by fingerprint. It is correct.
 - **Not preparing the file.** Generating a preview for a 1.5 MB log measures 0.1s, and the panel keeps showing the previous file while it happens.
-- **Not the panel reloading per file.** Images go through the identical reload path and never flash.
-- **Not visible to the interface test framework.** Screen captures arrive about a second apart, and posting the opening keypress directly, which is the only way to start capturing sooner, does not reach the preview at all. Tried twice, abandoned. Captures taken on Foundry during both a large file opening and a move to the next file show a dark window with the spinner, no white.
+- **Not the Detours-owned local preview window.** An approved Spectre recording of the local path showed no flash. The remote path did not use that window.
+- **Not reproduced by coarse XCTest screenshots.** The transient needed a continuous recording. The approved 60 Hz Spectre remote-path recording provided frame-level evidence after the routing fix.
 
 ## What has been tried, in order
 
@@ -57,9 +70,10 @@ Two details from Marco that matter:
 8. **The window was being put on screen before it had drawn.** It now waits until it has either the file or the spinner. Aimed at the "first preview only" form of the report.
 9. **Previews were cached without regard to how the document is written.** Every fix above changed exactly that, so any file already previewed kept being served the old document, and none of those fixes could be seen on Marco's machine. Fixed by putting a document format version in the cache key. **Raise it whenever the generated document changes.**
 10. **Looked up the documented behaviour**, rather than reasoning further. A WKWebView is white until it has drawn something, whatever the page says, and colouring it afterwards does not help. The accepted fix on this platform is to turn off the view's own background drawing so what is painted behind it shows through.
-11. **That flag was in place and I deleted it** during attempt 6, a rewrite of the same file. It is restored, and `PreviewWebViewBackgroundTests` holds it. This is the most likely explanation for the report changing from "first preview only" to "every file", since the timing matches, but it is a candidate, not a confirmation.
+11. **That flag was in place and I deleted it** during attempt 6, a rewrite of the same file. It is restored, and `PreviewWebViewBackgroundTests` holds it. It explained a regression in the local renderer, but not the reported remote flash.
 12. **Documents now declare whether they are dark or light**, so the first frame uses the right colour before any stylesheet is read.
-13. **The rendered snapshot now covers the live-layer handoff.** The snapshot-only gate still flashed on Spectre because it checked WebKit's ability to render without covering its lagging onscreen remote layer. Detours now displays the snapshot itself above the swap and removes it only after six refreshes from the view's display-synchronized clock.
+13. **The rendered snapshot now covers the live-layer handoff.** This hardened Detours' local WebKit presentation, but the reported remote path was still bypassing the entire window.
+14. **The affected files were remote.** `startRemoteQuickLook` explicitly opened Apple's system `QLPreviewPanel`, so attempts 1–13 were never on the user's path. Supported remote content now opens a themed Detours shell before download and stays in that window through rendering and navigation. A Spectre 60 Hz capture found no white frame, and the guarded real-remote test passed against `devtest`.
 
 ## Tried and reverted
 
@@ -77,6 +91,8 @@ Two details from Marco that matter:
 - [Apple documentation: `NSView.displayLink(target:selector:)`](https://developer.apple.com/documentation/appkit/nsview/displaylink(target:selector:))
 - [Apple documentation: `CADisplayLink`](https://developer.apple.com/documentation/quartzcore/cadisplaylink)
 
-## Optional manual comparison
+## Regression ownership
 
-`~/PreviewFlashCheck` on Foundry: three Markdown files, two HTML, two 1.9 MB logs, two photos, ordered so each pair sits beside its neighbour. Select one, press Space, then Down. The photos are the control, since they never flashed.
+- `FileListResponderTests+QuickLook.swift` owns routing decisions for generated remote content, directly previewable remote files, and unsupported system fallback.
+- `PreviewWindowUITests.swift` owns fast deterministic remote-window UI wiring through the fake connected provider.
+- `RemoteQuickOpenUITests.swift` owns the real SSH/SFTP boundary against `devtest`, including remote fixture creation and guarded cleanup.
