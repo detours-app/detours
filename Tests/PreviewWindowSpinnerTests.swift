@@ -122,8 +122,8 @@ final class SpinnerPlateTests: XCTestCase {
     }
 }
 
-/// Nothing part-drawn ever reaches the screen. A view is shown only once the file in it has
-/// finished loading, so there is no moment where an empty page can be seen.
+/// Nothing part-drawn ever reaches the screen. A view becomes opaque only after the file has
+/// finished loading and WebKit has produced a frame, so there is no empty-page interval.
 @MainActor
 final class PreviewWindowContentTests: XCTestCase {
     func testNothingIsShownBeforeAFileHasFinishedLoading() {
@@ -133,6 +133,8 @@ final class PreviewWindowContentTests: XCTestCase {
             controller.showsLoadedContent,
             "A brand new preview window must show nothing but its own background"
         )
+        XCTAssertFalse(controller.loadingPreviewWebViewForTesting.isHidden)
+        XCTAssertEqual(controller.loadingPreviewWebViewForTesting.alphaValue, 0)
     }
 
     func testTheFileAppearsOnlyWhenItHasFinishedLoading() async throws {
@@ -159,6 +161,49 @@ final class PreviewWindowContentTests: XCTestCase {
         XCTAssertTrue(controller.showsLoadedContent, "The file should be on screen once it has loaded")
         controller.close(notifyingDelegate: false)
     }
+
+    func testAStaleDrawnFrameCannotReplaceANewerPreview() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("preview-race-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let first = root.appendingPathComponent("first.html")
+        try """
+        <!doctype html><html><body>first<script>
+        window.requestAnimationFrame = function (callback) {
+          setTimeout(function () { callback(performance.now()); }, 1000);
+        };
+        </script></body></html>
+        """.write(to: first, atomically: true, encoding: .utf8)
+        let second = root.appendingPathComponent("second.html")
+        try "<!doctype html><html><body>second</body></html>"
+            .write(to: second, atomically: true, encoding: .utf8)
+
+        let controller = DetoursPreviewWindowController(theme: .dark)
+        controller.present(previewURL: first, title: "first.html", theme: .dark)
+
+        for _ in 0..<100 {
+            let state = try? await controller.loadingPreviewWebViewForTesting.evaluateJavaScript("document.readyState") as? String
+            if state == "complete" { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        controller.update(previewURL: second, title: "second.html", theme: .dark)
+
+        for _ in 0..<200 where !controller.showsLoadedContent {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(controller.showsLoadedContent)
+        let body = try await controller.visiblePreviewWebViewForTesting.evaluateJavaScript("document.body.innerText") as? String
+        XCTAssertEqual(body?.trimmingCharacters(in: .whitespacesAndNewlines), "second")
+
+        // The first page's delayed callbacks now finish. They must not swap either view afterward.
+        try await Task.sleep(nanoseconds: 2_200_000_000)
+        let settledBody = try await controller.visiblePreviewWebViewForTesting
+            .evaluateJavaScript("document.body.innerText") as? String
+        XCTAssertEqual(settledBody?.trimmingCharacters(in: .whitespacesAndNewlines), "second")
+        controller.close(notifyingDelegate: false)
+    }
 }
 
 /// The first preview is the one that pays for the window being made and its views being started.
@@ -178,16 +223,16 @@ final class PreviewWindowFirstUseTests: XCTestCase {
         controller.present(previewURL: page, title: "page.html", theme: .dark)
 
         let window = try XCTUnwrap(controller.window)
-        // A brand new window waits: it goes on screen with the file in it, or with the spinner once
-        // the wait is long enough. A window put on screen before it has drawn is white, and that is
-        // only ever possible on the first preview, since the window is made once and reused.
-        XCTAssertFalse(window.isVisible, "A new preview window must not be shown before it has anything to show")
+        // A brand new window enters the compositor invisibly so its web views can produce frames.
+        // It becomes opaque only with the file, or with the spinner once the wait is long enough.
+        XCTAssertTrue(window.isVisible, "The cold window must be composited so WebKit can draw")
+        XCTAssertEqual(window.alphaValue, 0, "The cold window must enter the compositor invisibly")
         XCTAssertFalse(controller.showsLoadedContent, "No file should be on screen before it has loaded")
         XCTAssertEqual(window.backgroundColor, Theme.dark.background)
 
         let appeared = expectation(description: "window appears with the file")
         Task { @MainActor in
-            for _ in 0..<100 where !(controller.window?.isVisible ?? false) {
+            for _ in 0..<100 where !controller.showsLoadedContent {
                 try? await Task.sleep(nanoseconds: 100_000_000)
             }
             appeared.fulfill()
@@ -195,6 +240,7 @@ final class PreviewWindowFirstUseTests: XCTestCase {
         await fulfillment(of: [appeared], timeout: 15)
 
         XCTAssertTrue(window.isVisible, "The window should appear once it has the file")
+        XCTAssertEqual(window.alphaValue, 1)
         XCTAssertTrue(controller.showsLoadedContent, "It should appear showing the file, not empty")
 
         controller.close(notifyingDelegate: false)

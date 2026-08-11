@@ -19,10 +19,9 @@ protocol DetoursPreviewWindowDelegate: AnyObject {
 final class DetoursPreviewWindowController: NSWindowController {
     weak var previewDelegate: DetoursPreviewWindowDelegate?
 
-    /// Two views, one shown and one loading. Nothing part-drawn is ever on screen: the loading view
-    /// is hidden until its file has finished, then the two swap. Relying on the view being
-    /// transparent while it loads is what left a white rectangle on screen; this cannot, because a
-    /// view is only ever shown once it has a finished file in it.
+    /// Two views, one shown and one loading. The loading view stays attached to the visible window
+    /// at zero opacity so WebKit continues producing animation frames, but none of those frames can
+    /// be seen. Once the page has crossed a drawn-frame boundary, the two views swap atomically.
     private var visibleWebView: WKWebView
     private var loadingWebView: WKWebView
     private var hasShownAnything = false
@@ -31,6 +30,11 @@ final class DetoursPreviewWindowController: NSWindowController {
     /// warm them and to clear a retired one, and those must not be mistaken for a file arriving:
     /// they would stop the spinner and put a blank page on screen as though it were content.
     private var previewNavigation: WKNavigation?
+    /// Identifies the current requested file independently of WKNavigation. A navigation can finish
+    /// and start its drawn-frame wait just before an arrow key asks the same view to load another
+    /// file; the generation keeps that stale readiness callback from revealing the newer load early.
+    private var previewGeneration = 0
+    private var readinessTask: Task<Void, Never>?
     private let chunkHandler = DetoursPreviewChunkHandler()
     /// Set while a preview has been asked for but the window is not on screen yet.
     private var waitingToAppear = false
@@ -81,7 +85,10 @@ final class DetoursPreviewWindowController: NSWindowController {
         spinnerPlate.isHidden = true
 
         let container = BackgroundView(color: theme.background)
-        for web in [visibleWebView, loadingWebView] {
+        // The loading view begins below the visible one. It remains a real, non-hidden member of the
+        // window throughout loading so requestAnimationFrame keeps advancing, while alpha zero
+        // prevents a cold or partially drawn WebKit frame from reaching the screen.
+        for web in [loadingWebView, visibleWebView] {
             container.addSubview(web)
             NSLayoutConstraint.activate([
                 web.topAnchor.constraint(equalTo: container.topAnchor),
@@ -90,10 +97,8 @@ final class DetoursPreviewWindowController: NSWindowController {
                 web.bottomAnchor.constraint(equalTo: container.bottomAnchor)
             ])
         }
-        // Neither is shown until one has a finished file in it, so the first thing on screen is the
-        // theme colour behind them, never a part-drawn page.
-        visibleWebView.isHidden = true
-        loadingWebView.isHidden = true
+        visibleWebView.alphaValue = 0
+        loadingWebView.alphaValue = 0
 
         container.addSubview(spinnerPlate)
         NSLayoutConstraint.activate([
@@ -140,7 +145,12 @@ final class DetoursPreviewWindowController: NSWindowController {
         if window?.isVisible == true {
             window?.makeKeyAndOrderFront(nil)
         } else {
+            // A non-visible window does not advance its web views' animation frames. Put the window
+            // into the compositor at zero opacity first, then reveal the complete window only after
+            // the page or spinner is ready. This also hides the system's cold first window frame.
             waitingToAppear = true
+            window?.alphaValue = 0
+            window?.makeKeyAndOrderFront(nil)
         }
     }
 
@@ -208,11 +218,14 @@ final class DetoursPreviewWindowController: NSWindowController {
         waitingToAppear = false
         window?.contentView?.layoutSubtreeIfNeeded()
         window?.displayIfNeeded()
-        window?.makeKeyAndOrderFront(nil)
+        window?.alphaValue = 1
     }
 
     func close(notifyingDelegate: Bool) {
         waitingToAppear = false
+        readinessTask?.cancel()
+        readinessTask = nil
+        previewGeneration &+= 1
         endLoading()
         stopWatchingKeys()
         guard window?.isVisible == true else { return }
@@ -244,6 +257,9 @@ final class DetoursPreviewWindowController: NSWindowController {
     }
 
     private func load(previewURL: URL) {
+        readinessTask?.cancel()
+        readinessTask = nil
+        previewGeneration &+= 1
         // Only this preview's own folder may be served to the page.
         chunkHandler.directory = previewURL.deletingLastPathComponent()
         // Read access covers the preview's own folder so its stylesheets and scripts resolve.
@@ -255,14 +271,18 @@ final class DetoursPreviewWindowController: NSWindowController {
 
     /// Brings the freshly loaded file forward and retires the one it replaces.
     private func swapInLoadedView() {
-        loadingWebView.isHidden = false
-        if hasShownAnything {
-            visibleWebView.isHidden = true
-        }
         let retired = visibleWebView
+        // The ready view has already rendered below the current one. Raise it and change both
+        // opacities in the same AppKit transaction, so there is no intermediate composited frame in
+        // which WebKit's blank surface or the retired file can become visible.
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            loadingWebView.alphaValue = 1
+            loadingWebView.superview?.addSubview(loadingWebView, positioned: .above, relativeTo: retired)
+            retired.alphaValue = 0
+        }
         visibleWebView = loadingWebView
         loadingWebView = retired
-        loadingWebView.isHidden = true
         hasShownAnything = true
         appearIfWaiting()
         // The retired view still holds the file it was showing. It is emptied to the theme colour
@@ -284,22 +304,42 @@ final class DetoursPreviewWindowController: NSWindowController {
         return "<html><body style=\"margin:0;background:\(hex)\"></body></html>"
     }
 
-    /// What is on screen, for tests: nothing until a file has finished loading.
-    var showsLoadedContent: Bool { !visibleWebView.isHidden }
+    /// What is on screen, for tests: nothing until a file has crossed a drawn-frame boundary.
+    var showsLoadedContent: Bool { hasShownAnything && visibleWebView.alphaValue == 1 }
 
     var previewWebViewsForTesting: [WKWebView] { [visibleWebView, loadingWebView] }
+    var visiblePreviewWebViewForTesting: WKWebView { visibleWebView }
+    var loadingPreviewWebViewForTesting: WKWebView { loadingWebView }
 
     fileprivate func finishLoad(in web: WKWebView, navigation: WKNavigation?) -> Bool {
         guard web === loadingWebView, navigation === previewNavigation, previewNavigation != nil else {
             return false
         }
         previewNavigation = nil
-        // Deliberately not waiting for the page to report a drawn frame first. A view that is not
-        // on screen is not animating, so nothing would ever come back and the preview would never
-        // appear. It is safe without: the views do not paint their own background, so one that has
-        // not drawn yet shows the theme colour rather than white.
-        swapInLoadedView()
-        endLoading()
+        let generation = previewGeneration
+        readinessTask?.cancel()
+        readinessTask = Task { @MainActor [weak self, weak web] in
+            guard let web else { return }
+            // didFinish means the resource load ended; it does not mean WebKit has presented the
+            // resulting page. Crossing two requestAnimationFrame callbacks guarantees at least one
+            // page frame has been produced before this view is allowed to become visible.
+            _ = try? await web.callAsyncJavaScript(
+                "await new Promise(function (ready) {"
+                    + " requestAnimationFrame(function () { requestAnimationFrame(ready); }); });",
+                arguments: [:],
+                in: nil,
+                contentWorld: .page
+            )
+            guard
+                let self,
+                !Task.isCancelled,
+                generation == self.previewGeneration,
+                web === self.loadingWebView
+            else { return }
+            self.readinessTask = nil
+            self.swapInLoadedView()
+            self.endLoading()
+        }
         return true
     }
 
@@ -308,6 +348,8 @@ final class DetoursPreviewWindowController: NSWindowController {
             return
         }
         previewNavigation = nil
+        readinessTask?.cancel()
+        readinessTask = nil
         swapInLoadedView()
         endLoading()
     }
