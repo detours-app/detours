@@ -63,8 +63,8 @@ extension FileListViewController {
                 // window appear in its place.
                 if let generated = previews.first,
                    let previewURL = generated.previewItemURL,
-                   previewURL.standardizedFileURL != urls.first?.standardizedFileURL
-                    || Self.isDisplayableWithoutGeneration(previewURL) {
+                   let sourceURL = urls.first,
+                   Self.usesDetoursPreview(previewURL: previewURL, sourceURL: sourceURL) {
                     if panel?.isVisible == true {
                         self.clearQuickLookPreviewState(cancelTasks: false)
                         panel?.orderOut(nil)
@@ -99,6 +99,11 @@ extension FileListViewController {
         return type.conforms(to: .image) || type.conforms(to: .pdf)
     }
 
+    static func usesDetoursPreview(previewURL: URL, sourceURL: URL) -> Bool {
+        previewURL.standardizedFileURL != sourceURL.standardizedFileURL
+            || isDisplayableWithoutGeneration(previewURL)
+    }
+
     private func selectedRemoteQuickLookItem() -> FileItem? {
         guard selectedItems.count == 1,
               let item = selectedItems.first,
@@ -127,6 +132,10 @@ extension FileListViewController {
         quickLookRequestID = UUID()
         remoteQuickLookRequestLocation = item.location
         hideRemoteQuickLookProgressOverlay()
+        showDetoursPreviewPreparing(title: item.name)
+        if panel.isVisible {
+            panel.orderOut(nil)
+        }
 
         remoteQuickLookTask = Task { @MainActor in
             do {
@@ -142,12 +151,6 @@ extension FileListViewController {
                 }
 
                 let previewURL = try RemoteFileCache.makeSessionFile(hostID: hostID, remotePath: item.location.path)
-                if byteCount >= RemoteFileCache.progressMinimumBytes {
-                    panel.makeKeyAndOrderFront(nil)
-                    panel.reloadData()
-                    showRemoteQuickLookProgressOverlay(in: panel, byteCount: byteCount)
-                }
-
                 try await provider.download(item.location, to: previewURL)
                 try Task.checkCancellation()
                 guard remoteQuickLookRequestLocation == item.location else { return }
@@ -166,6 +169,14 @@ extension FileListViewController {
                 quickLookPreviewItems = [DetoursQuickLookItem(url: generatedPreviewURL, title: item.name)]
                 remoteQuickLookTask = nil
                 hideRemoteQuickLookProgressOverlay()
+                if Self.usesDetoursPreview(previewURL: generatedPreviewURL, sourceURL: previewURL) {
+                    self.showDetoursPreview(url: generatedPreviewURL, title: item.name)
+                    return
+                }
+
+                // Unsupported formats still need the system viewer. Retire the themed loading
+                // shell only once the downloaded file is ready for that viewer.
+                self.detoursPreviewWindow?.close(notifyingDelegate: false)
                 panel.makeKeyAndOrderFront(nil)
                 panel.reloadData()
             } catch is CancellationError {
@@ -360,6 +371,14 @@ extension FileListViewController {
         controller.present(previewURL: url, title: title, theme: theme)
     }
 
+    private func showDetoursPreviewPreparing(title: String) {
+        let theme = ThemeManager.shared.currentTheme
+        let controller = detoursPreviewWindow ?? DetoursPreviewWindowController(theme: theme)
+        controller.previewDelegate = self
+        detoursPreviewWindow = controller
+        controller.prepare(title: title, theme: theme)
+    }
+
     func closeDetoursPreviewWindow() {
         guard let controller = detoursPreviewWindow, controller.isPresented else { return }
         controller.close(notifyingDelegate: false)
@@ -370,6 +389,11 @@ extension FileListViewController {
 
     func refreshQuickLookPanel() {
         if let previewWindow = detoursPreviewWindow, previewWindow.isPresented {
+            if let remoteItem = selectedRemoteQuickLookItem(),
+               let panel = QLPreviewPanel.shared() {
+                startRemoteQuickLook(for: remoteItem, panel: panel)
+                return
+            }
             clearRemoteQuickLookState()
             // The wait starts here, not when the document is handed over: preparing a long file is
             // part of what the reader is waiting through.

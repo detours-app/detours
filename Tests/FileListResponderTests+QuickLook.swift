@@ -25,6 +25,25 @@ extension FileListResponderTests {
         )
     }
 
+    func testGeneratedRemotePreviewUsesTheDetoursWindow() {
+        let source = URL(fileURLWithPath: "/tmp/remote-note.md")
+        let generated = URL(fileURLWithPath: "/tmp/generated/preview.html")
+
+        XCTAssertTrue(FileListViewController.usesDetoursPreview(previewURL: generated, sourceURL: source))
+    }
+
+    func testRemoteImageUsesTheDetoursWindowWithoutGeneration() {
+        let image = URL(fileURLWithPath: "/tmp/remote-image.png")
+
+        XCTAssertTrue(FileListViewController.usesDetoursPreview(previewURL: image, sourceURL: image))
+    }
+
+    func testUnsupportedRemoteFileKeepsTheSystemViewerFallback() {
+        let archive = URL(fileURLWithPath: "/tmp/remote-archive.zip")
+
+        XCTAssertFalse(FileListViewController.usesDetoursPreview(previewURL: archive, sourceURL: archive))
+    }
+
     func testLocalQuickLookUsesSelectedURLsWhenNoRemoteRequestIsActive() {
         XCTAssertEqual(
             FileListViewController.quickLookPreviewItemCount(

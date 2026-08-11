@@ -145,11 +145,17 @@ final class DetoursPreviewWindowController: NSWindowController {
     }
 
     func present(previewURL: URL, title: String, theme: Theme) {
+        prepare(title: title, theme: theme)
+        load(previewURL: previewURL)
+    }
+
+    /// Opens the themed shell while a remote file is still being downloaded. The delayed spinner
+    /// supplies progress without ever borrowing the system Quick Look panel and its white page.
+    func prepare(title: String, theme: Theme) {
         startWatchingKeys()
         applyTheme(theme)
         beginLoading()
         window?.title = title
-        load(previewURL: previewURL)
         if window?.isVisible != true {
             window?.center()
         }

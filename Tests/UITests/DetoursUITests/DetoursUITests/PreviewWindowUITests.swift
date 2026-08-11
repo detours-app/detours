@@ -138,3 +138,37 @@ final class PreviewWindowUITests: BaseUITest {
         )
     }
 }
+
+/// Remote files are downloaded before they can be previewed. They must still use the same
+/// Detours-owned window as local generated previews; routing the downloaded file back through
+/// QLPreviewPanel reintroduced that panel's blank white page on every remote selection.
+final class RemotePreviewWindowUITests: BaseUITest {
+    override func configureLaunchEnvironment(_ environment: inout [String: String]) {
+        environment["DETOURS_UI_TEST_REMOTE"] = "connected"
+    }
+
+    func testRemoteTextPreviewsStayInTheDetoursWindow() throws {
+        let outline = app.leftPaneOutlineView
+        let first = outline.outlineRow(withStaticText: "file1.txt")
+        XCTAssertTrue(first.waitForExistence(timeout: 10), "Remote fixture should list file1.txt")
+        first.staticTexts["file1.txt"].click()
+
+        pressKey(.space)
+
+        XCTAssertTrue(
+            app.windows["file1.txt"].existsOrWait(timeout: 15),
+            "The downloaded remote text file should open in the Detours preview window"
+        )
+        XCTAssertFalse(app.windows["Quick Look"].exists, "Remote text must not use QLPreviewPanel")
+
+        pressKey(.downArrow)
+
+        XCTAssertTrue(
+            app.windows["file2.txt"].existsOrWait(timeout: 15),
+            "Moving between remote files should update the same Detours preview window"
+        )
+        XCTAssertFalse(app.windows["Quick Look"].exists, "Remote navigation must not raise QLPreviewPanel")
+
+        pressKey(.escape)
+    }
+}
