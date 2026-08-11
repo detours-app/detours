@@ -160,13 +160,9 @@ struct DetoursDelimitedTable: Equatable {
                 fields.append(field)
                 field = ""
                 fieldWasQuoted = false
-            case "\r", "\n":
-                if character == "\r" {
-                    let next = text.index(after: index)
-                    if next < end, text[next] == "\n" {
-                        index = next
-                    }
-                }
+            // A carriage return and the line feed after it are one Character in Swift, so the pair
+            // has to be matched as itself rather than looked for one character at a time.
+            case "\n", "\r", "\r\n":
                 fields.append(field)
                 field = ""
                 fieldWasQuoted = false
