@@ -27,6 +27,10 @@ final class DetoursPreviewWindowController: NSWindowController {
     private var loadingWebView: WKWebView
     private var hasShownAnything = false
     private var currentTheme: Theme
+    /// The load that is actually a file being previewed. The views are also given blank pages, to
+    /// warm them and to clear a retired one, and those must not be mistaken for a file arriving:
+    /// they would stop the spinner and put a blank page on screen as though it were content.
+    private var previewNavigation: WKNavigation?
     private let spinner = NSProgressIndicator()
     private let spinnerPlate: SpinnerPlate
     private var keyMonitor: Any?
@@ -214,7 +218,10 @@ final class DetoursPreviewWindowController: NSWindowController {
 
     private func load(previewURL: URL) {
         // Read access covers the preview's own folder so its stylesheets and scripts resolve.
-        loadingWebView.loadFileURL(previewURL, allowingReadAccessTo: previewURL.deletingLastPathComponent())
+        previewNavigation = loadingWebView.loadFileURL(
+            previewURL,
+            allowingReadAccessTo: previewURL.deletingLastPathComponent()
+        )
     }
 
     /// Brings the freshly loaded file forward and retires the one it replaces.
@@ -250,9 +257,13 @@ final class DetoursPreviewWindowController: NSWindowController {
     /// What is on screen, for tests: nothing until a file has finished loading.
     var showsLoadedContent: Bool { !visibleWebView.isHidden }
 
-    fileprivate func finishLoad(in web: WKWebView) {
-        guard web === loadingWebView else { return }
+    fileprivate func finishLoad(in web: WKWebView, navigation: WKNavigation?) -> Bool {
+        guard web === loadingWebView, navigation === previewNavigation, previewNavigation != nil else {
+            return false
+        }
+        previewNavigation = nil
         swapInLoadedView()
+        return true
     }
 
     /// True while the views hold nothing but the theme colour, for tests.
@@ -300,17 +311,17 @@ final class DetoursPreviewWindowController: NSWindowController {
 
 extension DetoursPreviewWindowController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        finishLoad(in: webView)
+        guard finishLoad(in: webView, navigation: navigation) else { return }
         endLoading()
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        finishLoad(in: webView)
+        guard finishLoad(in: webView, navigation: navigation) else { return }
         endLoading()
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        finishLoad(in: webView)
+        guard finishLoad(in: webView, navigation: navigation) else { return }
         endLoading()
     }
 }
