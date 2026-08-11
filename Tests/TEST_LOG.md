@@ -3474,3 +3474,5 @@ Spotlight search has no unit test (depends on the live, async-built system index
 - 2026-08-11 12:23 CEST: Foundry repository regression PASS at `8dd42f3`: the exact rerun `swift test --skip "ClipboardManagerTests|DroppablePathControlTests"` executed 949 XCTest tests with 14 expected unreachable-Windows skips and 0 failures in 334.341 seconds, followed by 47 Swift Testing tests passing in 2.719 seconds.
 
 - 2026-08-11 12:29 CEST: Foundry narrow login-session regression PASS at `d268f63`: `resources/scripts/gui-test.sh --filter "ClipboardManagerTests|DroppablePathControlTests"` executed 19 tests with 0 failures in 0.047 seconds.
+
+- 2026-08-11 12:32 CEST: Foundry final release build PASS at `07df459`: `resources/scripts/build.sh --no-install` verified preview assets and remote helper cache, completed the production Swift build, created the app bundle, and codesigned the app and Darwin remote helper.
