@@ -39,6 +39,10 @@ final class PreviewWindowUITests: BaseUITest {
             windowTitles().contains("Quick Look"),
             "Markdown must not go to the system panel; windows were \(windowTitles())"
         )
+        XCTAssertTrue(
+            app.windows[name].staticTexts["Notes"].existsOrWait(timeout: 15),
+            "The installed preview must expose the heading rendered by markdown-it"
+        )
 
         pressKey(.escape)
     }

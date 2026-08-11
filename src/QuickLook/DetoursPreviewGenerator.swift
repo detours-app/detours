@@ -51,7 +51,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
     /// and the theme: without it, changing how previews are built leaves every file already
     /// previewed showing the old document forever, because nothing else about it has changed. Raise
     /// this whenever the generated document changes.
-    static let currentDocumentFormatVersion = "10"
+    static let currentDocumentFormatVersion = "11"
 
     /// How many lines of a file are built up front. Beyond this the rest is added as it is scrolled
     /// towards, which is almost never on a file of tens of thousands of lines.
@@ -151,7 +151,6 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         case .markdown:
             document = GeneratedDocument(html: markdownHTML(
                 request: request,
-                kind: kind,
                 source: decoded.text,
                 lossyDecode: decoded.lossy
             ))
@@ -233,6 +232,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             "vendor/highlight.min.js",
             "vendor/highlight-github.min.css",
             "vendor/highlight-github-dark.min.css",
+            "detours/markdown-renderer.js",
             "detours/preview-runtime.js",
             "detours/preview-lazy.js",
             "detours/preview.css"

@@ -75,6 +75,7 @@ check_preview_assets() {
         "$PREVIEW_ASSETS_DIR/vendor/LICENSE.markdown-it.txt"
         "$PREVIEW_ASSETS_DIR/vendor/LICENSE.dompurify.txt"
         "$PREVIEW_ASSETS_DIR/vendor/LICENSE.highlight.js.txt"
+        "$PREVIEW_ASSETS_DIR/detours/markdown-renderer.js"
         "$PREVIEW_ASSETS_DIR/detours/preview-runtime.js"
         "$PREVIEW_ASSETS_DIR/detours/preview-lazy.js"
         "$PREVIEW_ASSETS_DIR/detours/preview.css"

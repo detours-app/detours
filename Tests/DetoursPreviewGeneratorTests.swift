@@ -82,17 +82,26 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         )
     }
 
-    func testMarkdownPreviewKeepsThePayloadItRendersFrom() async throws {
+    func testMarkdownPreviewLoadsItsOnlyRendererFromBundledAssets() async throws {
         let source = try write("NOTES.md", "# Title\n\nSome body text")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "NOTES.md"))
         let html = try String(contentsOf: previewURL, encoding: .utf8)
 
         XCTAssertTrue(html.contains("id=\"source-payload\""))
         XCTAssertTrue(html.contains("src=\"support/markdown-it.min.js\""))
-        // No third-party stylesheet: the one that used to be linked here paints code blocks solid
-        // white, which is a glaring rectangle in a dark preview when the system is set to light.
+        XCTAssertTrue(html.contains("src=\"support/highlight.min.js\""))
+        XCTAssertTrue(html.contains("src=\"support/markdown-renderer.js\""))
+        XCTAssertTrue(html.contains("src=\"support/preview-runtime.js\""))
+        XCTAssertTrue(html.contains("<main id=\"rendered-markdown\" class=\"markdown-body\" data-renderer=\"markdown-it\"></main>"))
+        XCTAssertFalse(html.contains("<h1>Title</h1>"), "Swift must not leave a second Markdown rendering in the document")
         XCTAssertFalse(html.contains("highlight-github"))
-        XCTAssertFalse(html.contains("src=\"support/highlight.min.js\""))
+        let markdownIt = try XCTUnwrap(html.range(of: "src=\"support/markdown-it.min.js\"")?.lowerBound)
+        let highlighter = try XCTUnwrap(html.range(of: "src=\"support/highlight.min.js\"")?.lowerBound)
+        let renderer = try XCTUnwrap(html.range(of: "src=\"support/markdown-renderer.js\"")?.lowerBound)
+        let runtime = try XCTUnwrap(html.range(of: "src=\"support/preview-runtime.js\"")?.lowerBound)
+        XCTAssertLessThan(markdownIt, highlighter)
+        XCTAssertLessThan(highlighter, renderer)
+        XCTAssertLessThan(renderer, runtime)
     }
 
     func testCodePreviewWrapsWhenTheSettingIsOn() async throws {
@@ -206,14 +215,15 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertEqual(previewURL.standardizedFileURL, directory.standardizedFileURL)
     }
 
-    func testMarkdownPreviewRendersAndIncludesSourceToggle() async throws {
+    func testMarkdownPreviewStartsEmptyForMarkdownItAndIncludesSourceToggle() async throws {
         let source = try write("README.md", "# Title\n\nBody with **bold** and *italic* text")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "README.md"))
         let html = try String(contentsOf: previewURL, encoding: .utf8)
 
         XCTAssertTrue(html.contains("id=\"rendered-markdown\""))
-        XCTAssertTrue(html.contains("<h1>Title</h1>"))
-        XCTAssertTrue(html.contains("<p>Body with <strong>bold</strong> and <em>italic</em> text</p>"))
+        XCTAssertTrue(html.contains("<main id=\"rendered-markdown\" class=\"markdown-body\" data-renderer=\"markdown-it\"></main>"))
+        XCTAssertFalse(html.contains("<h1>Title</h1>"))
+        XCTAssertFalse(html.contains("<strong>bold</strong>"))
         XCTAssertTrue(html.contains("id=\"markdown-view-rendered\" type=\"radio\" name=\"markdown-view\" checked"))
         XCTAssertTrue(html.contains("id=\"markdown-view-source\" type=\"radio\" name=\"markdown-view\""))
         XCTAssertTrue(html.contains("id=\"markdown-rendered-toggle\" for=\"markdown-view-rendered\""))
@@ -295,9 +305,10 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertFalse(html.contains("<script>alert(1)</script>"))
         XCTAssertFalse(html.contains("href=\"https://example.com\""))
         XCTAssertFalse(html.contains("src=\"https://example.com"))
-        XCTAssertTrue(html.contains("<span class=\"inert-link\">leave</span>"))
-        XCTAssertTrue(html.contains("<span class=\"blocked-image\">Image blocked: remote</span>"))
         XCTAssertTrue(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"))
+        XCTAssertTrue(html.contains("[leave](https://example.com)"))
+        XCTAssertTrue(html.contains("![remote](https://example.com/image.png)"))
+        XCTAssertTrue(html.contains("<main id=\"rendered-markdown\" class=\"markdown-body\" data-renderer=\"markdown-it\"></main>"))
     }
 
     func testMarkdownSeverityBarRendersTrustedComponent() async throws {
@@ -319,9 +330,9 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(html.contains("<div class=\"sevbar\">"))
-        XCTAssertTrue(html.contains("<div class=\"cell c-critical\"><span class=\"n\">2</span><span class=\"l\">Critical</span></div>"))
-        XCTAssertTrue(html.contains("<div class=\"cell c-high\"><span class=\"n\">10</span><span class=\"l\">High</span></div>"))
+        XCTAssertFalse(html.contains("<div class=\"sevbar\">"))
+        XCTAssertTrue(html.contains("&lt;div class=&quot;sevbar&quot;&gt;"))
+        XCTAssertTrue(html.contains("&lt;div class=&quot;cell c-critical&quot;&gt;"))
         XCTAssertTrue(css.contains(".markdown-body .sevbar"))
         XCTAssertTrue(css.contains(".markdown-body .sevbar .c-critical"))
 
@@ -350,9 +361,9 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         let previewURL = try await generator().previewURL(for: request(source, displayName: "pandoc-report.md"))
         let html = try String(contentsOf: previewURL, encoding: .utf8)
 
-        XCTAssertTrue(html.contains("<div class=\"sevbar\">"))
-        XCTAssertTrue(html.contains("<div class=\"cell c-critical\"><span class=\"n\">2</span><span class=\"l\">Critical</span></div>"))
-        XCTAssertFalse(html.contains("<pre><code class=\"language-{=html}\""))
+        XCTAssertFalse(html.contains("<div class=\"sevbar\">"))
+        XCTAssertTrue(html.contains("```{=html}"))
+        XCTAssertTrue(html.contains("&lt;div class=&quot;cell c-critical&quot;&gt;"))
 
         if let exportPath = ProcessInfo.processInfo.environment["DETOURS_EXPORT_PANDOC_SEVBAR_PREVIEW"] {
             let exportURL = URL(fileURLWithPath: exportPath)
@@ -459,8 +470,9 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
             .contains("color: var(--detours-token-keyword);"))
         XCTAssertFalse(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview.css"), encoding: .utf8)
             .contains("prefers-color-scheme: dark"))
-        XCTAssertTrue(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview-runtime.js"), encoding: .utf8)
+        XCTAssertFalse(try String(contentsOf: previewURL.deletingLastPathComponent().appendingPathComponent("support/preview-runtime.js"), encoding: .utf8)
             .contains("target.innerHTML.trim().length > 0"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: previewURL.deletingLastPathComponent().appendingPathComponent("support/markdown-renderer.js").path))
 
         XCTAssertFalse(html.contains("<script>"))
         XCTAssertFalse(html.contains("http://"))

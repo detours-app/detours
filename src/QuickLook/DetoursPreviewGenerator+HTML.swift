@@ -71,11 +71,9 @@ extension DetoursPreviewGenerator {
 
     func markdownHTML(
         request: DetoursPreviewRequest,
-        kind: DetoursPreviewKind,
         source: String,
         lossyDecode: Bool
     ) -> String {
-        let renderedMarkdown = Self.renderStaticMarkdown(source)
         let sourceRows = source.split(separator: "\n", omittingEmptySubsequences: false).map { line in
             let highlightedLine = Self.highlightSourceLine(String(line), language: "markdown")
             return """
@@ -101,7 +99,7 @@ extension DetoursPreviewGenerator {
             body: """
             \(lossyWarning(lossyDecode))
             <template id="source-payload">\(Self.escapeHTML(source))</template>
-            <main id="rendered-markdown" class="markdown-body">\(renderedMarkdown)</main>
+            <main id="rendered-markdown" class="markdown-body" data-renderer="markdown-it"></main>
             <div id="source-preview" class="source-lines">
             \(sourceRows)
             </div>
@@ -205,6 +203,8 @@ extension DetoursPreviewGenerator {
         case .markdown:
             runtimeScripts = """
             <script src="support/markdown-it.min.js" defer></script>
+            <script src="support/highlight.min.js" defer></script>
+            <script src="support/markdown-renderer.js" defer></script>
             <script src="support/preview-runtime.js" defer></script>
             """
         case .html:

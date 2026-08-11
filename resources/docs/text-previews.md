@@ -16,7 +16,7 @@ Files that sniff as binary are left on the system Quick Look path.
 
 Markdown previews render with raw HTML disabled. User-authored links are made inert, user-authored images are replaced with text placeholders, and the generated preview uses a restrictive content security policy. Preview files reference only Detours-owned local support files copied beside the generated HTML; they do not load external network resources.
 
-The normal Markdown path is currently rendered in Swift. The bundled markdown-it 14.2.0 library is a fallback used only when a generated preview has no rendered Markdown content; it is not the primary renderer. Consolidating Markdown onto the library is a separate behavior change because the Swift renderer also owns Detours-specific trusted components.
+Markdown previews are rendered exclusively by the bundled markdown-it 14.2.0 library. Detours configures it with raw HTML, linkification, navigation, and remote images disabled; fenced code uses the bundled highlight.js library with Detours theme colors. The severity summary bar remains available through a strict markdown-it block plugin that accepts only the documented structure and fixed severity classes, escapes its text, and leaves malformed variants as inert source text.
 
 ## HTML Safety
 

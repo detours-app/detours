@@ -1,5 +1,5 @@
 {
-  "assetManifestVersion": "2026-08-11.10",
+  "assetManifestVersion": "2026-08-11.11",
   "packages": [
     {
       "name": "markdown-it",
@@ -49,6 +49,7 @@
     }
   ],
   "detoursAssets": [
+    "detours/markdown-renderer.js",
     "detours/preview-runtime.js",
     "detours/preview-lazy.js",
     "detours/preview.css"

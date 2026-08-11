@@ -284,6 +284,110 @@ final class PreviewWindowContentTests: XCTestCase {
         XCTAssertEqual(ready, "true")
         controller.close(notifyingDelegate: false)
     }
+
+    func testMarkdownItSoleRendererHandlesRichMarkdownAndTrustedComponentsSafely() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("markdown-it-preview-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("remote-report.md")
+        let markdown = """
+        # Report
+
+        Body with **bold** and *italic* text.
+
+        | Name | Value |
+        | --- | ---: |
+        | Result | 42 |
+
+        - outer
+          - inner
+
+        ```swift
+        let answer = 42
+        ```
+
+        [leave](https://example.com)
+        ![remote](https://example.com/image.png)
+        <script>window.detoursPwned = true</script>
+
+        <div class="sevbar">
+          <div class="cell c-critical"><span class="n">2</span><span class="l">Critical</span></div>
+          <div class="cell c-high"><span class="n">10</span><span class="l">High</span></div>
+        </div>
+
+        ```{=html}
+        <div class="sevbar">
+          <div class="cell c-medium"><span class="n">12</span><span class="l">Medium</span></div>
+          <div class="cell c-low"><span class="n">10</span><span class="l">Low</span></div>
+        </div>
+        ```
+
+        <div class="sevbar">
+          <div class="cell c-unknown" onclick="window.detoursPwned = true"><span class="n">1</span><span class="l">Unknown</span></div>
+        </div>
+        """
+        try markdown.write(to: source, atomically: true, encoding: .utf8)
+        let generator = DetoursPreviewGenerator(
+            cacheRoot: root.appendingPathComponent("cache", isDirectory: true),
+            assetRoot: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("resources", isDirectory: true)
+                .appendingPathComponent("PreviewAssets", isDirectory: true)
+        )
+        let previewURL = try await generator.previewURL(for: DetoursPreviewRequest(
+            sourceURL: source,
+            displayName: "remote-report.md",
+            theme: .dark,
+            fontSize: 13,
+            context: .remote,
+            wrapLines: true
+        ))
+
+        let generated = try String(contentsOf: previewURL, encoding: .utf8)
+        XCTAssertFalse(generated.contains("<h1>Report</h1>"), "Swift must not pre-render Markdown")
+
+        let controller = DetoursPreviewWindowController(theme: .dark)
+        controller.present(previewURL: previewURL, title: "remote-report.md", theme: .dark)
+        let web = controller.loadingPreviewWebViewForTesting
+        for _ in 0..<200 {
+            let ready = try? await web.evaluateJavaScript("document.documentElement.dataset.markdownPreviewReady") as? String
+            if ready == "true" { break }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        let renderer = try await web.evaluateJavaScript("document.getElementById('rendered-markdown').dataset.renderer") as? String
+        let heading = try await web.evaluateJavaScript("document.querySelector('#rendered-markdown h1')?.textContent") as? String
+        let tableCount = try await web.evaluateJavaScript("document.querySelectorAll('#rendered-markdown table').length") as? NSNumber
+        let nestedListCount = try await web.evaluateJavaScript("document.querySelectorAll('#rendered-markdown ul ul').length") as? NSNumber
+        let highlightedKeywordCount = try await web.evaluateJavaScript("document.querySelectorAll('#rendered-markdown .hljs-keyword').length") as? NSNumber
+        let anchorCount = try await web.evaluateJavaScript("document.querySelectorAll('#rendered-markdown a').length") as? NSNumber
+        let imageCount = try await web.evaluateJavaScript("document.querySelectorAll('#rendered-markdown img').length") as? NSNumber
+        let scriptCount = try await web.evaluateJavaScript("document.querySelectorAll('#rendered-markdown script').length") as? NSNumber
+        let severityBarCount = try await web.evaluateJavaScript("document.querySelectorAll('#rendered-markdown .sevbar').length") as? NSNumber
+        let activeAttributeCount = try await web.evaluateJavaScript("document.querySelectorAll('#rendered-markdown [onclick]').length") as? NSNumber
+        let inertLinkText = try await web.evaluateJavaScript("document.querySelector('#rendered-markdown .inert-link')?.textContent") as? String
+        let blockedImageText = try await web.evaluateJavaScript("document.querySelector('#rendered-markdown .blocked-image')?.textContent") as? String
+        let injectedValueType = try await web.evaluateJavaScript("typeof window.detoursPwned") as? String
+        let renderedText = try await web.evaluateJavaScript("document.getElementById('rendered-markdown').innerText") as? String
+        let ready = try await web.evaluateJavaScript("document.documentElement.dataset.markdownPreviewReady") as? String
+
+        XCTAssertEqual(renderer, "markdown-it")
+        XCTAssertEqual(heading, "Report")
+        XCTAssertEqual(tableCount?.intValue, 1)
+        XCTAssertEqual(nestedListCount?.intValue, 1)
+        XCTAssertGreaterThan(highlightedKeywordCount?.intValue ?? 0, 0)
+        XCTAssertEqual(anchorCount?.intValue, 0)
+        XCTAssertEqual(imageCount?.intValue, 0)
+        XCTAssertEqual(scriptCount?.intValue, 0)
+        XCTAssertEqual(severityBarCount?.intValue, 2)
+        XCTAssertEqual(activeAttributeCount?.intValue, 0)
+        XCTAssertEqual(inertLinkText, "leave")
+        XCTAssertEqual(blockedImageText, "Image blocked: remote")
+        XCTAssertEqual(injectedValueType, "undefined")
+        XCTAssertTrue(renderedText?.contains("c-unknown") == true, "An invalid trusted component must remain escaped text")
+        XCTAssertEqual(ready, "true")
+        controller.close(notifyingDelegate: false)
+    }
 }
 
 /// The first preview is the one that pays for the window being made and its views being started.

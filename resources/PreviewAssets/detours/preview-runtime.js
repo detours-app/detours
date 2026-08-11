@@ -23,27 +23,26 @@
 
   function renderMarkdown() {
     var target = document.getElementById("rendered-markdown");
-    if (!target || typeof window.markdownit !== "function") {
+    if (!target) {
       return;
     }
 
-    if (target.innerHTML.trim().length > 0) {
+    if (!window.DetoursMarkdownRenderer || typeof window.DetoursMarkdownRenderer.render !== "function") {
+      target.innerHTML = '<div class="warning">Detours could not load the Markdown renderer. The source view remains available.</div>';
+      document.documentElement.dataset.markdownPreviewReady = "failed";
+      return;
+    }
+
+    try {
+      target.innerHTML = window.DetoursMarkdownRenderer.render(textFromTemplate("source-payload"));
       disableNavigation(target);
-      return;
+      target.dataset.renderer = "markdown-it";
+      window.__detoursMarkdownPreviewHTML = target.innerHTML;
+      document.documentElement.dataset.markdownPreviewReady = "true";
+    } catch (_) {
+      target.innerHTML = '<div class="warning">Detours could not render this Markdown document. The source view remains available.</div>';
+      document.documentElement.dataset.markdownPreviewReady = "failed";
     }
-
-    var md = window.markdownit({ html: false, linkify: false, typographer: false });
-    md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
-      tokens[idx].attrs = [["class", "inert-link"], ["role", "text"]];
-      return self.renderToken(tokens, idx, options);
-    };
-    md.renderer.rules.image = function (tokens, idx) {
-      var alt = tokens[idx].content || "image";
-      return '<span class="blocked-image">Image blocked: ' + md.utils.escapeHtml(alt) + "</span>";
-    };
-
-    target.innerHTML = md.render(textFromTemplate("source-payload"));
-    disableNavigation(target);
   }
 
   function renderHTML() {
