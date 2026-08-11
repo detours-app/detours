@@ -46,7 +46,7 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertFalse(html.contains("unsafe-inline"))
     }
 
-    func testSourceLinesCanBeSkippedWhenOffScreen() async throws {
+    func testSourceLinesAreCheapToBuildAndNotSkippedOffScreen() async throws {
         let source = try write("main.swift", "let a = 1\nlet b = 2\n")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "main.swift"))
         let html = try String(contentsOf: previewURL, encoding: .utf8)
@@ -55,13 +55,14 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
             encoding: .utf8
         )
 
-        // Lines must not be table rows: the rule that lets off-screen content be skipped does not
-        // apply inside a table, so every line of a long file would have to be measured before the
-        // first one could be drawn.
         XCTAssertTrue(html.contains("class=\"source-line\""))
         XCTAssertFalse(html.contains("<tr>"))
         XCTAssertFalse(html.contains("<td "))
-        XCTAssertTrue(css.contains("content-visibility: auto"))
+        // Skipping off-screen lines reads like the obvious way to make a long file appear sooner and
+        // measured the opposite: 1.42s to display a 12,000 line log with it, 0.30s without.
+        XCTAssertFalse(css.contains("content-visibility"))
+        // Two elements per line, not four: the line and its number.
+        XCTAssertTrue(html.contains("<div class=\"source-line\"><span class=\"line-number\">1</span>"))
     }
 
     func testSourcePreviewDoesNotCarryASecondCopyOfTheFile() async throws {
