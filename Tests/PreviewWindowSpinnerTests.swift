@@ -160,3 +160,32 @@ final class PreviewWindowContentTests: XCTestCase {
         controller.close(notifyingDelegate: false)
     }
 }
+
+/// The first preview is the one that pays for the window being made and its views being started.
+/// Both are done before anything reaches the screen, since a window that is put on screen before it
+/// has been drawn is white.
+@MainActor
+final class PreviewWindowFirstUseTests: XCTestCase {
+    func testWindowIsDrawnBeforeItIsPutOnScreen() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("preview-first-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let page = root.appendingPathComponent("page.html")
+        try "<!doctype html><html><body>hi</body></html>".write(to: page, atomically: true, encoding: .utf8)
+
+        let controller = DetoursPreviewWindowController(theme: .dark)
+        controller.present(previewURL: page, title: "page.html", theme: .dark)
+
+        let window = try XCTUnwrap(controller.window)
+        XCTAssertTrue(window.isVisible, "The preview window should be on screen")
+        XCTAssertFalse(
+            window.contentView?.needsLayout ?? true,
+            "The window must be laid out before it is put on screen, or it is shown undrawn"
+        )
+        XCTAssertEqual(window.backgroundColor, Theme.dark.background, "An undrawn window must still be the theme colour")
+        XCTAssertFalse(controller.showsLoadedContent, "No file should be on screen before it has loaded")
+
+        controller.close(notifyingDelegate: false)
+    }
+}

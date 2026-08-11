@@ -93,6 +93,11 @@ final class DetoursPreviewWindowController: NSWindowController {
         window.delegate = self
         visibleWebView.navigationDelegate = self
         loadingWebView.navigationDelegate = self
+
+        // Both views are cold until something is put through them, and the first file pays for
+        // starting them up. They are warmed here, while nothing is on screen, so the first preview
+        // is not the one that waits.
+        visibleWebView.loadHTMLString("<html><body></body></html>", baseURL: nil)
     }
 
     @available(*, unavailable)
@@ -109,6 +114,12 @@ final class DetoursPreviewWindowController: NSWindowController {
         if window?.isVisible != true {
             window?.center()
         }
+        // Draw the window before it is put on screen. A window is handed to the screen as soon as
+        // it is ordered front, whether or not its contents have been drawn yet, and an undrawn
+        // window is white. This only ever showed on the first preview, because the window is made
+        // once and reused after that.
+        window?.contentView?.layoutSubtreeIfNeeded()
+        window?.displayIfNeeded()
         window?.makeKeyAndOrderFront(nil)
     }
 
