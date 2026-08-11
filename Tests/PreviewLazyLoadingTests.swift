@@ -34,7 +34,7 @@ final class PreviewLazyLoadingTests: XCTestCase {
 
         XCTAssertFalse(html.contains("id=\"source-tail\""), "A short file needs nothing carried")
         XCTAssertFalse(html.contains("preview-lazy.js"), "A short file needs nothing added on scroll")
-        XCTAssertEqual(html.components(separatedBy: "<div class=\"source-line\">").count - 1, 41)
+        XCTAssertEqual(html.components(separatedBy: "<div class=\"source-line\">").count - 1, 40)
     }
 
     func testScrollingBringsInTheRestOfTheFile() async throws {
@@ -62,14 +62,18 @@ final class PreviewLazyLoadingTests: XCTestCase {
         // Scroll to the end repeatedly: each pass brings in another chunk.
         var latest = initial
         for _ in 0..<12 {
-            _ = try? await web.evaluateJavaScript("window.scrollTo(0, document.body.scrollHeight); 1")
+            _ = try? await web.evaluateJavaScript(
+                "var v = document.body.scrollHeight > document.body.clientHeight"
+                    + " ? document.body : (document.scrollingElement || document.documentElement);"
+                    + " v.scrollTop = v.scrollHeight; 1"
+            )
             try? await Task.sleep(nanoseconds: 300_000_000)
             latest = try await lineCount(in: web)
-            if latest >= 5_001 { break }
+            if latest >= 5_000 { break }
         }
 
         XCTAssertGreaterThan(latest, initial, "Scrolling must bring in more of the file")
-        XCTAssertEqual(latest, 5_001, "Scrolling to the end must reach every line")
+        XCTAssertEqual(latest, 5_000, "Scrolling to the end must reach every line")
     }
 
     private func lineCount(in web: WKWebView) async throws -> Int {

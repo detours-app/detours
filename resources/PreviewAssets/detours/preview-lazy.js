@@ -6,6 +6,15 @@
   var CHUNK_LINES = 1200;
   var DISTANCE_FROM_END = 3000;
 
+  // The page scrolls its body, not the window, so the body is what has to be watched and measured.
+  function scroller() {
+    var body = document.body;
+    if (body && body.scrollHeight > body.clientHeight) {
+      return body;
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+
   function start() {
     var list = document.getElementById("source-preview");
     var tail = document.getElementById("source-tail");
@@ -37,12 +46,12 @@
 
     function appendIfNeeded() {
       if (cursor >= rest.length) {
+        scroller().removeEventListener("scroll", onScroll);
         window.removeEventListener("scroll", onScroll);
         return;
       }
-      var remaining = document.documentElement.scrollHeight
-        - window.scrollY
-        - window.innerHeight;
+      var view = scroller();
+      var remaining = view.scrollHeight - view.scrollTop - view.clientHeight;
       if (remaining > DISTANCE_FROM_END) {
         return;
       }
@@ -58,6 +67,7 @@
       appendIfNeeded();
     }
 
+    scroller().addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
     appendIfNeeded();
   }
