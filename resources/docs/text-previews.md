@@ -33,7 +33,7 @@ Data tables and workbook grids share one renderer. Column names stick below the 
 
 Column widths are measured across every parsed row before any markup is written, capped at 60 characters and never narrower than the column's own name, and written into a `grid.css` generated beside the preview. The table then uses fixed layout, so appending further rows never re-measures the rows already drawn. Widths cannot be written into the page itself: the preview's content security policy admits a stylesheet from the preview folder and no inline styling.
 
-With wrapping off, a value wider than its column is trimmed with an ellipsis; with wrapping on the cell grows tall enough to show it whole. Columns whose non-empty values are all numbers align right. Every value is drawn exactly as stored, escaped and never passed through the highlighter or a number formatter, so leading zeros and long identifiers survive.
+With wrapping off, a value wider than its column is trimmed with an ellipsis; with wrapping on the cell grows tall enough to show it whole. The toolbar names the outcome rather than the setting, so a table reads `Full values` or `One line per row` where a text preview reads `Wrapped` or `Not wrapped`. Columns whose non-empty values are all numbers align right. Every value is drawn exactly as stored, escaped and never passed through the highlighter or a number formatter, so leading zeros and long identifiers survive.
 
 ## Office Files
 
@@ -70,6 +70,8 @@ Long lines wrap by default. Change this globally with **Wrap long lines** in Pre
 Source and plain-text previews initially render the first 900 lines, and data tables and workbook grids the first 900 rows. As the preview approaches the end of the rendered content, Detours appends the next 1,200-line chunk. This keeps large files responsive without truncating them.
 
 Markdown and HTML previews provide Rendered and Source controls inside the preview. The global wrapping preference applies to source views, not to rendered document layout.
+
+View > Open in System Preview (`Option-P`) closes the Detours preview and hands the file it was showing to the macOS Quick Look panel. It is offered only while a Detours preview is on screen, and it applies to that one file: changing selection previews the next file the usual way.
 
 ## Cache
 

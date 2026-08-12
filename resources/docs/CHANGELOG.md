@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Send the file you are previewing to the macOS preview** - View > Open in
+  System Preview (`Option-P`) hands whatever is in the Detours preview window
+  to the macOS panel, for the times its viewer suits the file better. It is a
+  choice about that one file, not a mode: moving to another file previews it in
+  the Detours window as usual.
+
+### Changes
+
+- **The preview toolbar says what the setting does to a table** - A table
+  showed "Wrapped", which is text-preview wording for folding a long line and
+  describes nothing you can see in a table. It now reads "Full values" or "One
+  line per row", which is what the setting decides there. Text previews keep
+  the old wording.
+
 ## 1.12.0 - 2026-08-12
 
 ### Security
