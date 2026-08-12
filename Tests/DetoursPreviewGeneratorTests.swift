@@ -636,6 +636,21 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(unwrapped.contains("class=\"grid-preview\""))
     }
 
+    func testTableToolbarNamesWhatTheSettingDoesToATable() async throws {
+        let source = try write("labels.csv", "a,b\n1,2\n")
+        let wrapped = try await previewHTML(source, displayName: "labels.csv", wrapLines: true)
+        let unwrapped = try await previewHTML(source, displayName: "labels.csv", wrapLines: false)
+        let text = try await previewHTML(try write("labels.txt", "hello\n"), displayName: "labels.txt")
+
+        // "Wrapped" describes folding a long line, which is meaningless against a table.
+        XCTAssertTrue(wrapped.contains("Full values"))
+        XCTAssertFalse(wrapped.contains("Wrapped"))
+        XCTAssertTrue(unwrapped.contains("One line per row"))
+        XCTAssertFalse(unwrapped.contains("Not wrapped"))
+        // A text preview keeps the wording that is right for it.
+        XCTAssertTrue(text.contains("Wrapped"))
+    }
+
     func testGridPreviewCarriesTheStickyStyling() async throws {
         let source = try write("sticky.csv", "a,b\n1,2\n")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "sticky.csv"))

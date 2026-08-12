@@ -30,6 +30,14 @@ extension MainSplitViewController {
         activePane.selectedTab?.fileListViewController.refreshQuickLookPanel()
     }
 
+    @objc func openInSystemPreview(_ sender: Any?) {
+        activePane.selectedTab?.fileListViewController.openInSystemPreview()
+    }
+
+    var canOpenInSystemPreview: Bool {
+        activePane.selectedTab?.fileListViewController.canOpenInSystemPreview ?? false
+    }
+
     @objc func quickOpen(_ sender: Any?) {
         showQuickNav()
     }

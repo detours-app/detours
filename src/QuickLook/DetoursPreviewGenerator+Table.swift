@@ -133,8 +133,11 @@ extension DetoursPreviewGenerator {
                 allowsChunkRequests: !body.chunks.isEmpty,
                 extraStylesheet: Self.gridStylesheetName
             ),
+            // "Wrapped" is what the setting is called for a text file, where it means long lines
+            // fold instead of running off the edge. On a table it decides whether a value too wide
+            // for its column is shown whole or trimmed, so the toolbar names that instead.
             toolbar: """
-            <span class="preview-hint">\(request.wrapLines ? "Wrapped" : "Not wrapped") &middot; \u{2325}W</span>
+            <span class="preview-hint">\(request.wrapLines ? "Full values" : "One line per row") &middot; \u{2325}W</span>
             """,
             body: """
             \(lossyWarning(lossyDecode))

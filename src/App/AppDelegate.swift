@@ -674,6 +674,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindowController?.splitViewController.togglePreviewWrapLines(sender)
     }
 
+    @objc func openInSystemPreview(_ sender: Any?) {
+        mainWindowController?.splitViewController.openInSystemPreview(sender)
+    }
+
     @objc func toggleSidebar(_ sender: Any?) {
         mainWindowController?.splitViewController.toggleSidebar()
     }
@@ -733,6 +737,11 @@ extension AppDelegate: NSMenuItemValidation {
         }
         if menuItem.action == #selector(togglePreviewWrapLines(_:)) {
             menuItem.state = SettingsManager.shared.previewWrapLines ? .on : .off
+        }
+        // Only offered while a Detours preview is on screen: there is nothing to hand over
+        // otherwise, and the system panel already has whatever it was showing.
+        if menuItem.action == #selector(openInSystemPreview(_:)) {
+            return mainWindowController?.splitViewController.canOpenInSystemPreview ?? false
         }
         return true
     }

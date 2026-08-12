@@ -250,6 +250,16 @@ func setupMainMenu(target: AppDelegate) {
     wrapPreviewItem.image = NSImage(systemSymbolName: "text.alignleft", accessibilityDescription: nil)
     viewMenu.addItem(wrapPreviewItem)
 
+    let systemPreviewItem = NSMenuItem(
+        title: "Open in System Preview",
+        action: #selector(AppDelegate.openInSystemPreview(_:)),
+        keyEquivalent: "p"
+    )
+    systemPreviewItem.keyEquivalentModifierMask = [.option]
+    systemPreviewItem.target = target
+    systemPreviewItem.image = NSImage(systemSymbolName: "rectangle.on.rectangle", accessibilityDescription: nil)
+    viewMenu.addItem(systemPreviewItem)
+
     viewMenu.addItem(NSMenuItem.separator())
 
     let toggleSidebarItem = createDynamicMenuItem(

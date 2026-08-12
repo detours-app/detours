@@ -77,6 +77,28 @@ extension FileListResponderTests {
         XCTAssertTrue(FileListViewController.usesDetoursPreview(previewURL: image, sourceURL: image))
     }
 
+    func testSystemPreviewIsOfferedOnlyWhileADetoursPreviewIsShowing() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let source = try createTestFile(in: temp, name: "note.txt")
+        let generated = temp.appendingPathComponent("generated-preview.html")
+        let viewController = FileListViewController()
+        viewController.quickLookPreviewGenerator = FakeQuickLookPreviewGenerator(results: [source: generated])
+
+        XCTAssertFalse(viewController.canOpenInSystemPreview, "Nothing to hand over before a preview opens")
+
+        viewController.startLocalQuickLookGenerationForTesting(urls: [source])
+        let completed = await waitForQuickLookGeneration(in: viewController)
+        XCTAssertTrue(completed)
+
+        XCTAssertTrue(viewController.canOpenInSystemPreview)
+        XCTAssertEqual(viewController.detoursPreviewSourceURL, source, "The file itself, not the document drawn from it")
+
+        viewController.closeDetoursPreviewWindow()
+        XCTAssertFalse(viewController.canOpenInSystemPreview)
+        XCTAssertNil(viewController.detoursPreviewSourceURL)
+    }
+
     func testPDFKeepsTheSystemViewerForItsPageThumbnails() {
         let document = URL(fileURLWithPath: "/tmp/report.pdf")
 

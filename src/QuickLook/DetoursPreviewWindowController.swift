@@ -7,6 +7,7 @@ protocol DetoursPreviewWindowDelegate: AnyObject {
     func previewWindowDidRequestClose()
     func previewWindowDidRequestMoveSelection(down: Bool)
     func previewWindowDidRequestWrapToggle()
+    func previewWindowDidRequestSystemPreview()
 }
 
 /// Shows previews Detours generates itself, instead of handing them to the system preview panel.
@@ -477,6 +478,10 @@ final class DetoursPreviewWindowController: NSWindowController {
         case 13: // W
             guard modifiers == .option else { return false }
             previewDelegate?.previewWindowDidRequestWrapToggle()
+            return true
+        case 35: // P
+            guard modifiers == .option else { return false }
+            previewDelegate?.previewWindowDidRequestSystemPreview()
             return true
         default:
             return false

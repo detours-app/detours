@@ -69,7 +69,7 @@ extension FileListViewController {
                         self.clearQuickLookPreviewState(cancelTasks: false)
                         panel?.orderOut(nil)
                     }
-                    self.showDetoursPreview(url: previewURL, title: generated.previewItemTitle ?? "")
+                    self.showDetoursPreview(url: previewURL, title: generated.previewItemTitle ?? "", sourceURL: sourceURL)
                     return
                 }
 
@@ -174,7 +174,7 @@ extension FileListViewController {
                 remoteQuickLookTask = nil
                 hideRemoteQuickLookProgressOverlay()
                 if Self.usesDetoursPreview(previewURL: generatedPreviewURL, sourceURL: previewURL) {
-                    self.showDetoursPreview(url: generatedPreviewURL, title: item.name)
+                    self.showDetoursPreview(url: generatedPreviewURL, title: item.name, sourceURL: previewURL)
                     return
                 }
 
@@ -363,7 +363,8 @@ extension FileListViewController {
 
     // MARK: - Detours-owned preview window
 
-    private func showDetoursPreview(url: URL, title: String) {
+    private func showDetoursPreview(url: URL, title: String, sourceURL: URL?) {
+        detoursPreviewSourceURL = sourceURL
         let theme = ThemeManager.shared.currentTheme
         if let existing = detoursPreviewWindow, existing.isPresented {
             existing.update(previewURL: url, title: title, theme: theme)
@@ -389,6 +390,27 @@ extension FileListViewController {
         quickLookGenerationTask?.cancel()
         quickLookGenerationTask = nil
         quickLookPreviewItems = []
+        detoursPreviewSourceURL = nil
+    }
+
+    /// Hands the file being previewed to the macOS panel, for the times its viewer is the better
+    /// one: page thumbnails for a document, or a format Detours draws more plainly than macOS does.
+    ///
+    /// This is a choice about the file in front of you, not a mode. Moving to another file previews
+    /// it the usual way again.
+    func openInSystemPreview() {
+        guard let sourceURL = detoursPreviewSourceURL,
+              let panel = QLPreviewPanel.shared() else { return }
+        let title = sourceURL.lastPathComponent
+        closeDetoursPreviewWindow()
+        quickLookRequestID = UUID()
+        quickLookPreviewItems = [DetoursQuickLookItem(url: sourceURL, title: title)]
+        panel.makeKeyAndOrderFront(nil)
+        panel.reloadData()
+    }
+
+    var canOpenInSystemPreview: Bool {
+        detoursPreviewSourceURL != nil && detoursPreviewWindow?.isPresented == true
     }
 
     func refreshQuickLookPanel() {
@@ -458,6 +480,10 @@ extension FileListViewController {
 // MARK: - DetoursPreviewWindowDelegate
 
 extension FileListViewController: DetoursPreviewWindowDelegate {
+    func previewWindowDidRequestSystemPreview() {
+        openInSystemPreview()
+    }
+
     func previewWindowDidRequestClose() {
         detoursPreviewWindow?.close(notifyingDelegate: false)
         quickLookGenerationTask?.cancel()

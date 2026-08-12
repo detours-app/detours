@@ -132,6 +132,9 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     /// Previews Detours renders itself are shown in this window rather than the system panel, which
     /// paints a blank white page before any document appears.
     var detoursPreviewWindow: DetoursPreviewWindowController?
+    /// The file the Detours preview window is currently showing, as opposed to the generated
+    /// document it draws. Handing that file to macOS is what View > Open in System Preview does.
+    var detoursPreviewSourceURL: URL?
     var quickLookGenerationTask: Task<Void, Never>?
     var quickLookRequestID = UUID()
     var quickLookPreviewGenerator: any DetoursPreviewGenerating = DetoursPreviewGenerator.shared
