@@ -219,6 +219,34 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertTrue(html.contains("<span class=\"tok-property\">&quot;ok&quot;</span><span class=\"tok-punctuation\">:</span> <span class=\"tok-boolean\">false</span>"))
     }
 
+    func testScanOutputWithAnUnknownExtensionStillGetsADetoursPreview() async throws {
+        let source = try write(
+            "internal.nmap",
+            "Nmap scan report for 10.0.0.1\nPORT   STATE SERVICE\n22/tcp open  ssh\n"
+        )
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "internal.nmap"))
+        XCTAssertNotEqual(previewURL, source)
+
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+        XCTAssertTrue(html.contains("Nmap scan report for 10.0.0.1"))
+        XCTAssertTrue(html.contains("22/tcp open  ssh"))
+    }
+
+    func testUTF16RegistryExportReadsAsTextRatherThanReplacementMarks() async throws {
+        let contents = "Windows Registry Editor Version 5.00\n\n[HKEY_LOCAL_MACHINE\\SOFTWARE\\Detours]\n\"Enabled\"=dword:00000001\n"
+        var data = Data([0xFF, 0xFE])
+        data.append(contentsOf: Array(contents.utf16).flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] })
+        let source = try writeData("export.reg", data)
+
+        let previewURL = try await generator().previewURL(for: request(source, displayName: "export.reg"))
+        XCTAssertNotEqual(previewURL, source)
+
+        let html = try String(contentsOf: previewURL, encoding: .utf8)
+        XCTAssertTrue(html.contains("Windows Registry Editor Version 5.00"))
+        XCTAssertTrue(html.contains("<span class=\"tok-section\">[HKEY_LOCAL_MACHINE\\SOFTWARE\\Detours]</span>"))
+        XCTAssertFalse(html.contains("\u{FFFD}"))
+    }
+
     func testNewlySupportedLanguagesAreColoured() async throws {
         let cases: [(String, String, [String])] = [
             ("main.go", "func main() {\n\treturn nil // done\n}\n", [
