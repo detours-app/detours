@@ -6,6 +6,9 @@ enum DetoursPreviewKind: Equatable {
     case sourceCode(language: String)
     case configuration(language: String)
     case plainText(language: String)
+    case delimitedTable(delimiter: Character)
+    case wordDocument
+    case spreadsheet
     case unsupported
 
     var isSupported: Bool {
@@ -20,8 +23,37 @@ enum DetoursPreviewKind: Equatable {
              .configuration(let language),
              .plainText(let language):
             return language
-        case .unsupported:
+        case .delimitedTable, .wordDocument, .spreadsheet, .unsupported:
+            // A grid and a document are written piece by piece and never run through the
+            // highlighter.
             return "plaintext"
+        }
+    }
+
+    /// Whether the file's own bytes are the text the preview draws.
+    ///
+    /// A data file decides its own encoding, and an Office container is not text at all, so putting
+    /// either through the shared text decode would raise a lossy notice over a readable preview.
+    var readsAsText: Bool {
+        switch self {
+        case .markdown, .htmlDocument, .sourceCode, .configuration, .plainText:
+            return true
+        case .delimitedTable, .wordDocument, .spreadsheet, .unsupported:
+            return false
+        }
+    }
+
+    /// Whether a file of this kind can degrade to the plain-text fallback when it is too large, too
+    /// slow, or too big once drawn.
+    ///
+    /// A container of compressed parts cannot: read as text it is a screenful of noise, so it goes
+    /// to the system preview, which can still show the reader their document.
+    var hasPlainTextFallback: Bool {
+        switch self {
+        case .markdown, .htmlDocument, .sourceCode, .configuration, .plainText, .delimitedTable, .unsupported:
+            return true
+        case .wordDocument, .spreadsheet:
+            return false
         }
     }
 
@@ -32,6 +64,9 @@ enum DetoursPreviewKind: Equatable {
         case .sourceCode(let language): return "source-\(language)"
         case .configuration(let language): return "config-\(language)"
         case .plainText(let language): return "text-\(language)"
+        case .delimitedTable(let delimiter): return "delimited-\(delimiter.unicodeScalars.first?.value ?? 0)"
+        case .wordDocument: return "word"
+        case .spreadsheet: return "spreadsheet"
         case .unsupported: return "unsupported"
         }
     }
@@ -43,6 +78,13 @@ enum DetoursPreviewKind: Equatable {
                 return .unsupported
             }
             return .plainText(language: "plaintext")
+        }
+
+        // An Office file is a container of compressed parts, so its own bytes always sniff as
+        // binary. Disqualifying it on that would rule out the only two formats read from a
+        // container rather than from text.
+        if baseKind == .wordDocument || baseKind == .spreadsheet {
+            return baseKind
         }
 
         if let sampleData, !isTextLike(sampleData) {
@@ -95,6 +137,17 @@ enum DetoursPreviewKind: Equatable {
         }
         if let language = configurationExtensions[ext] {
             return .configuration(language: language)
+        }
+        if ext == "docx" {
+            return .wordDocument
+        }
+        if ext == "xlsx" {
+            return .spreadsheet
+        }
+        if let delimiter = DetoursDelimitedTable.delimiterHint(forExtension: ext) {
+            // The extension only implies a separator. The one actually used is decided from the
+            // file's own content when the preview is built.
+            return .delimitedTable(delimiter: delimiter)
         }
         if plainTextExtensions.contains(ext) {
             return .plainText(language: "plaintext")

@@ -9,8 +9,41 @@ Detours generates its own Quick Look HTML previews for common developer text fil
 - Source: Swift, JavaScript, TypeScript, Python, shell, CSS, XML, SQL, diff/patch
 - Configuration: JSON, YAML, TOML, INI, plist, `.env` files, `.gitignore`-style files
 - Plain text: `.txt`, `.text`, `.log`, and extensionless UTF-8-like text
+- Data: `.csv`, `.tsv`, `.tab`, shown as a table
+- Documents: `.docx`, shown as themed document text
+- Workbooks: `.xlsx`, shown as a grid of the first visible sheet
 
-Files that sniff as binary are left on the system Quick Look path.
+Files that sniff as binary are left on the system Quick Look path. Office files are exempt from that check, because a container of compressed parts always sniffs as binary.
+
+## Data Files
+
+The separator is detected from the file's content, not its name: comma, semicolon and tab are scored over the first 20 rows of a 64 KB sample by how many rows share the same field count, and a modal count of one disqualifies a candidate. The extension's own separator is scored first, so a tie falls to it.
+
+Field parsing follows RFC 4180 with two relaxations: a lone line feed ends a row as readily as a carriage return pair, and a row carrying fewer fields than the widest one is padded rather than shifted. A quotation mark only opens a quoted field at the start of one, a doubled mark inside one is a literal mark, and separators and line breaks inside one are content.
+
+Bytes are read as UTF-8 and then as Windows-1252, which is what Excel on Windows writes for the semicolon exports the detection exists to serve.
+
+The first row becomes the column names. Row numbers count rows, not file lines, so a value carrying a line break inside its quotes stays one numbered row.
+
+A data file that yields one column, or more than 512, keeps its system Quick Look preview: one column means the separator was never found.
+
+## Grids
+
+Data tables and workbook grids share one renderer. Column names stick below the toolbar while scrolling down and row numbers stick at the left while scrolling sideways.
+
+Column widths are measured across every parsed row before any markup is written, capped at 60 characters and never narrower than the column's own name, and written into a `grid.css` generated beside the preview. The table then uses fixed layout, so appending further rows never re-measures the rows already drawn. Widths cannot be written into the page itself: the preview's content security policy admits a stylesheet from the preview folder and no inline styling.
+
+With wrapping off, a value wider than its column is trimmed with an ellipsis; with wrapping on the cell grows tall enough to show it whole. Columns whose non-empty values are all numbers align right. Every value is drawn exactly as stored, escaped and never passed through the highlighter or a number formatter, so leading zeros and long identifiers survive.
+
+## Office Files
+
+Office files are ZIP containers of XML parts, read one part at a time. Encrypted entries are refused, and expansion is capped at 64 MB per part and 256 MB per document so a container cannot claim a small size and unpack into an enormous one.
+
+Word previews carry headings, paragraphs, bulleted and numbered lists, tables and bold, italic and underlined runs. Heading level is resolved from the style's own name or outline level rather than an English style identifier, so a document written in another language keeps its structure. Pictures, drawings and embedded objects become labelled placeholders and their contents are never read. Hyperlink text is kept and its destination dropped, so a link reads as plain text.
+
+Workbook previews show the first sheet that is not hidden. Cell text resolves from the shared string table, an inline string, a formula's cached result, a boolean shown as `TRUE` or `FALSE`, or an error's own text. A date is a number whose style says to show it as a date: built-in format identifiers 14 to 22 and 45 to 47 count as dates, custom format codes are sniffed for date and time tokens, and the serial is converted against the workbook's own date system with Excel's phantom 29 February 1900 corrected. Everything else is left exactly as stored.
+
+Password-protected files, damaged files, PowerPoint files, strict-format workbooks and the older binary Word and Excel formats keep their system Quick Look preview. So does an Office file that is too large, too slow to read, or that trips an expansion cap, because reading a container as text shows a screenful of compressed bytes.
 
 ## Markdown Safety
 
@@ -28,13 +61,13 @@ The Source view always shows the original HTML. The Rendered view shows only the
 
 Remote Quick Look opens the same themed Detours preview window used for local files, then downloads the selected file into the local cache. A delayed spinner appears in that window when the transfer is not immediate. Files over 100 MB are rejected before download.
 
-After download, supported text, Markdown, HTML, image, and PDF files remain in the Detours preview window. Unsupported types fall back to the system Quick Look panel.
+After download, supported text, Markdown, HTML, and image files remain in the Detours preview window. PDFs and unsupported types fall back to the system Quick Look panel.
 
 ## Presentation
 
 Long lines wrap by default. Change this globally with **Wrap long lines** in Preferences > General, or for the current preview with View > Wrap Lines in Preview (`Option-W`).
 
-Source and plain-text previews initially render the first 900 lines. As the preview approaches the end of the rendered content, Detours appends the next 1,200-line chunk. This keeps large files responsive without truncating them.
+Source and plain-text previews initially render the first 900 lines, and data tables and workbook grids the first 900 rows. As the preview approaches the end of the rendered content, Detours appends the next 1,200-line chunk. This keeps large files responsive without truncating them.
 
 Markdown and HTML previews provide Rendered and Source controls inside the preview. The global wrapping preference applies to source views, not to rendered document layout.
 

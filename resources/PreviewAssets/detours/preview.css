@@ -143,6 +143,122 @@ button[aria-pressed="true"],
   overflow-wrap: anywhere;
 }
 
+/* Grids: data files and workbook sheets.
+
+   Separated borders are not a style choice. WebKit will not stick a header cell inside a table
+   using collapsed borders, and the header staying put while the rows scroll is the whole point.
+
+   Column widths arrive in a stylesheet generated beside this one, measured while the file was read,
+   which is what lets the layout be fixed. A table left to size itself re-measures every row already
+   drawn each time more arrive, so a long file would get slower the further it was read. */
+.data-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Padding is stated in the same unit as the measured widths. In pixels it would stop matching them
+   the moment the reader changed the preview's font size. */
+.data-grid th,
+.data-grid td {
+  box-sizing: border-box;
+  padding: 3px 0.5ch;
+  border-right: 1px solid var(--detours-border);
+  border-bottom: 1px solid var(--detours-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+/* Sticks below the toolbar rather than under it: the toolbar is itself sticky at the top, 42px tall
+   over a 1px border, and paints above everything at z-index 2. */
+.data-grid thead th {
+  position: sticky;
+  top: 43px;
+  z-index: 1;
+  background: var(--detours-toolbar);
+  color: var(--detours-text-secondary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.data-grid .grid-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--detours-surface);
+  color: var(--detours-text-secondary);
+  font-weight: 400;
+  text-align: right;
+  user-select: none;
+}
+
+/* The corner belongs to both, so it outranks each of them. */
+.data-grid thead .grid-gutter {
+  z-index: 3;
+  background: var(--detours-toolbar);
+}
+
+.data-grid .grid-number {
+  text-align: right;
+}
+
+/* Unwrapped keeps one line per row and trims what will not fit, which is what holds the columns
+   still. Wrapped lets the cell grow tall enough to show the value whole. */
+.data-grid td,
+.data-grid thead th {
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: ellipsis;
+}
+
+.wrap-lines .data-grid td {
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+/* Word documents. */
+.document-body {
+  max-width: 920px;
+  padding: 22px 34px 60px;
+  line-height: 1.55;
+}
+
+.document-body h1,
+.document-body h2,
+.document-body h3,
+.document-body h4,
+.document-body h5,
+.document-body h6 {
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+}
+
+.document-body p {
+  margin: 0.7em 0;
+}
+
+.document-body ul,
+.document-body ol {
+  margin: 0.7em 0;
+  padding-left: 1.6em;
+}
+
+.document-table {
+  margin: 1em 0;
+  border-collapse: collapse;
+}
+
+.document-table td {
+  padding: 4px 9px;
+  border: 1px solid var(--detours-border);
+  vertical-align: top;
+}
+
 .tok-keyword {
   color: var(--detours-token-keyword);
   font-weight: 600;

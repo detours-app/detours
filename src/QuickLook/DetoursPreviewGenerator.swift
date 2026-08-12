@@ -51,7 +51,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
     /// and the theme: without it, changing how previews are built leaves every file already
     /// previewed showing the old document forever, because nothing else about it has changed. Raise
     /// this whenever the generated document changes.
-    static let currentDocumentFormatVersion = "12"
+    static let currentDocumentFormatVersion = "13"
 
     /// How many lines of a file are built up front. Beyond this the rest is added as it is scrolled
     /// towards, which is almost never on a file of tens of thousands of lines.
@@ -82,11 +82,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: self.limits.timeoutSeconds * 1_000_000_000)
-                return try self.generateFallbackPreview(
-                    for: request,
-                    kind: .plainText(language: "plaintext"),
-                    reason: "Rich preview generation timed out."
-                )
+                return try self.timeoutFallback(for: request)
             }
 
             let result = try await group.next()!
@@ -114,6 +110,19 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         return Self.sha256(raw)
     }
 
+    private func timeoutFallback(for request: DetoursPreviewRequest) throws -> URL {
+        let sample = (try? readSample(from: request.sourceURL)) ?? Data()
+        let kind = DetoursPreviewKind.classify(url: request.sourceURL, sampleData: sample)
+        guard kind.hasPlainTextFallback else {
+            return request.sourceURL
+        }
+        return try generateFallbackPreview(
+            for: request,
+            kind: .plainText(language: "plaintext"),
+            reason: "Rich preview generation timed out."
+        )
+    }
+
     private func generatePreview(for request: DetoursPreviewRequest) async throws -> URL {
         // Directories must never be rendered as a rich preview: reading their
         // contents yields an empty/erroring sample that misclassifies as text and
@@ -133,6 +142,9 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
 
         let data = try Data(contentsOf: request.sourceURL)
         guard data.count <= limits.richRenderInputBytes else {
+            guard kind.hasPlainTextFallback else {
+                return request.sourceURL
+            }
             return try generateFallbackPreview(
                 for: request,
                 kind: kind,
@@ -140,11 +152,7 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
             )
         }
 
-        let decoded = decode(data)
-        let key = try cacheKey(for: request, kind: kind)
-        let entry = try prepareCacheEntry(for: key)
-        let themeCSS = themeVariablesCSS(for: request.theme, fontSize: request.fontSize)
-        try write(themeCSS, to: entry.supportDirectory.appendingPathComponent("theme.css"))
+        let decoded = kind.readsAsText ? decode(data) : (text: "", lossy: false)
 
         let document: GeneratedDocument
         switch kind {
@@ -169,16 +177,52 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
                 lossyDecode: decoded.lossy,
                 fallbackReason: nil
             )
+        case .delimitedTable:
+            // One column means the separator was never found, which is a file this preview has
+            // nothing to add to.
+            guard let table = DetoursDelimitedTable.read(
+                data: data,
+                fileExtension: request.sourceURL.pathExtension
+            ), table.columnCount > 1, let grid = Self.grid(from: table) else {
+                return request.sourceURL
+            }
+            document = gridHTML(request: request, grid: grid, lossyDecode: false)
+        case .wordDocument:
+            guard let archive = try? DetoursOfficeArchive(data: data),
+                  let parsed = try? DetoursWordDocument.read(archive: archive) else {
+                return request.sourceURL
+            }
+            document = wordHTML(request: request, document: parsed)
+        case .spreadsheet:
+            guard let archive = try? DetoursOfficeArchive(data: data),
+                  let workbook = try? DetoursExcelWorkbook.read(archive: archive),
+                  let generated = workbookHTML(request: request, workbook: workbook) else {
+                return request.sourceURL
+            }
+            document = generated
         case .unsupported:
             return request.sourceURL
         }
 
-        guard Data(document.html.utf8).count <= limits.generatedOutputBytes else {
+        // Counted without copying the document: a preview near the ceiling is large enough that a
+        // second copy of it is real memory.
+        guard document.html.utf8.count <= limits.generatedOutputBytes else {
+            guard kind.hasPlainTextFallback else {
+                return request.sourceURL
+            }
             return try generateFallbackPreview(
                 for: request,
                 kind: kind,
                 reason: "The generated rich preview was too large, so Detours created a plain-text fallback."
             )
+        }
+
+        let key = try cacheKey(for: request, kind: kind)
+        let entry = try prepareCacheEntry(for: key)
+        let themeCSS = themeVariablesCSS(for: request.theme, fontSize: request.fontSize)
+        try write(themeCSS, to: entry.supportDirectory.appendingPathComponent("theme.css"))
+        for (name, contents) in document.supportFiles {
+            try write(contents, to: entry.supportDirectory.appendingPathComponent(name))
         }
 
         // The rest of a long file lives beside the document rather than inside it, so the page reads
