@@ -1,9 +1,39 @@
 # Changelog
 
-## Unreleased
+## 1.12.0 - 2026-08-12
+
+### Security
+
+- **Archives can no longer write outside where you put them** - Local ZIP and
+  7Z extraction now lists an archive's contents up front and refuses any entry
+  with an absolute path or a dot-dot segment, the protection TAR extraction
+  already had. The remote helper applies the same check for every format, so a
+  hostile archive on a server cannot write outside its destination either.
+- **Helper deployment verifies the server it is talking to** - Uploading and
+  running the remote helper, and the probe that decides which kind of host a
+  server is, now pin the same known-hosts file every other connection uses, so
+  both fail closed on an unknown or changed host key instead of proceeding.
 
 ### Features
 
+- **Files preview in a Detours window of their own** - Quick Look now opens
+  supported files in a themed Detours window rather than handing them to the
+  system panel. Markdown renders with its headings, tables, lists and
+  highlighted code; HTML renders sanitized offline, with scripts, forms,
+  navigation, external resources and other active content removed, and a Source
+  view alongside it. Long lines wrap by default, and long files build a
+  screenful at a time and fill in the rest as you scroll rather than being read
+  whole. The window remembers the size and position you gave it.
+- **Around forty more file types preview** - Go, Rust, Kotlin, C#, Dart, Lua,
+  Terraform, GraphQL, Vue, Svelte, SCSS, LESS, the C family, Java, PHP, Ruby,
+  Perl, R, Protobuf, Gradle, PowerShell, Elixir and Haskell previewed as
+  nothing at all, because neither Detours nor macOS recognised them. They now
+  open as source. JSON Lines files, `.jsonl` and `.ndjson`, preview with the
+  same JSON colouring as ordinary JSON.
+- **Remote files preview in the same window** - A remote file downloads into
+  the Detours preview window, with a spinner for transfers that are not
+  immediate. Selecting a remote folder closes the preview instead of leaving a
+  spinner behind.
 - **Data files preview as tables** - Pressing Space on a `.csv`, `.tsv` or
   `.tab` file shows it as a table with aligned columns in the Detours theme.
   The separator is detected from the file's own content, so European exports
@@ -23,12 +53,38 @@
   calculations show their last result, and empty trailing rows and columns are
   left out.
 
+- **Drag and drop works in remote panes** - Remote folders and files can start
+  a drag, other Detours panes accept the drop directly, and a remote folder
+  dragged out of the app downloads on the way.
+- **Undo and redo show you what came back** - Reversing an operation now
+  expands, selects and activates the restored items the same way a forward
+  operation does, instead of restoring them silently out of sight.
+- **A server that stops answering turns red** - A host with no open tabs used
+  to keep a green dot forever, because it had dropped its idle session. Idle
+  hosts are now re-checked every two minutes; one that stops answering turns
+  red, and recovers on its own when it comes back.
+
 ### Changes
 
 - **PDFs open in the system preview** - Pressing Space on a PDF now opens the
   macOS preview panel, which offers page thumbnails and page-by-page
   navigation. Images and every generated text preview still open in the Detours
   window.
+
+### Bug Fixes
+
+- **A long error message no longer stretches the window off screen** - A remote
+  error reported its full unwrapped width as the pane's minimum, which AppKit
+  applied to the whole window, pushing the resize edge beyond the screen and
+  restoring that width on every later launch.
+- **Skipping a file during a merge no longer trashes the folder it is in** -
+  Moving a folder onto another on a Windows server trashed the source folder
+  even when you chose Skip for a child still inside it, sweeping the kept file
+  into the trash with it. The folder is now removed only once every child has
+  moved out.
+- **Archive failures explain themselves again** - Progress reading consumed the
+  error output, so a failed archive collapsed to a bare exit code and a wrong
+  password went undetected. Both now report what actually happened.
 
 ## 1.11.3 - 2026-07-22
 
