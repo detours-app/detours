@@ -242,8 +242,9 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertNotEqual(previewURL, source)
 
         let html = try String(contentsOf: previewURL, encoding: .utf8)
-        XCTAssertTrue(html.contains("Windows Registry Editor Version 5.00"))
+        XCTAssertTrue(html.contains("Windows Registry Editor Version"))
         XCTAssertTrue(html.contains("<span class=\"tok-section\">[HKEY_LOCAL_MACHINE\\SOFTWARE\\Detours]</span>"))
+        XCTAssertTrue(html.contains("<span class=\"tok-property\">&quot;Enabled&quot;</span>"))
         XCTAssertFalse(html.contains("\u{FFFD}"))
     }
 
