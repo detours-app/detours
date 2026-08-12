@@ -74,7 +74,7 @@ Each row has these fields:
 | VIEW-007 | Column headers | Name, size, kind, and modified sorting toggles direction, respects folders-on-top, and preserves state through refresh. | L,A,I,S,D,M,W | P,U,X | `FileListDataSourceTests`; `Q.refreshAndView` | L1,L2,L3 | Passed | - |
 | VIEW-008 | Resizable columns | Column widths remain usable, persist where intended, and do not obscure rename or accessory state. | - | P,U,R | `FileListCellTests`; `Q.sessionAppearance` | L1,L3 | Passed | - |
 | VIEW-009 | Quick Look / Space | Local and remote selections preview without stealing pane ownership; toggling and selection changes update or dismiss correctly. | L,A,I,S,D,M,W | P,U | `FileListResponderTests+QuickLook`; `DetoursPreviewGeneratorTests`; `Q.openAndInspect` | L1,L3 | Passed | - |
-| VIEW-010 | Detours text preview | Markdown, sanitized HTML, source, structured text, plain text, unsupported, binary, large, and unsafe inputs render or fall back safely in the active theme. | L,A,I,S,D,M,W | P,U | `DetoursPreviewKindTests`; `DetoursPreviewGeneratorTests`; `PreviewWindowContentTests`; `Q.openAndInspect` | L1,L3 | Passed | - |
+| VIEW-010 | Detours text, data, and document preview | Markdown, sanitized HTML, source, structured text, plain text, delimited data, Word documents, Excel workbooks, unsupported, binary, large, and unsafe inputs render or fall back safely in the active theme. | L,A,I,S,D,M,W | P,U | `DetoursPreviewKindTests`; `DetoursPreviewGeneratorTests`; `PreviewWindowContentTests`; `DetoursDelimitedTableTests`; `DetoursOfficeArchiveTests`; `DetoursWordDocumentTests`; `DetoursExcelWorkbookTests`; `Q.openAndInspect` | L1,L3 | Passed | - |
 | VIEW-011 | F4 / Open With | Local items open in an application; remote items expose supported editors and transfer/open without duplicate launch. | L,A,I,S,D,M,W | P,U,X | `OpenWithConflictTests`; `FileOpenHelperTests`; `Q.openAndInspect` | L1,L2,L3 | Passed | - |
 | DRAG-001 | Drag within/between panes | Drop operation, insertion target, copy/move semantics, conflict result, and destination selection are correct. | L,A,I,S,D,M,W | P,U,X | `FileListDragDropTests`; `CopyMoveMatrixTests`; `Q.crossPaneTransfer` | L1,L2,L3 | Passed | - |
 | DRAG-002 | Drag to/from Finder or another app | Local export uses file URLs; remote export stages safely and retires temporary processes/files. | L,A,I,S,D,M,W | P,U,X | `RemoteDragOutTests`; `ProcessTerminationTests`; `Q.crossPaneTransfer` | L1,L2,L3 | Passed | - |
@@ -181,6 +181,7 @@ The census is mechanically audited by `qualification.sh audit-matrix`: main-menu
 | `260707-chrome-polish` | PREF-009, SIDEBAR-001..002, CHROME-001..002, ACCESS-001 |
 | `260715-file-opening-and-remote-operations` | NAV-008..009, VIEW-011, FILE-011, REMOTE-001..005 |
 | `260717-pane-refresh-authority` | FILE-017, NAV-005, REFRESH-001..004, XFER-001..002 |
+| `260811-data-and-document-previews` | VIEW-009..010 |
 
 ## Final Run Records
 
