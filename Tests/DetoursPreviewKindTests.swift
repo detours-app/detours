@@ -173,6 +173,74 @@ final class DetoursPreviewKindTests: XCTestCase {
         )
     }
 
+    func testUnknownExtensionsFallBackToPlainTextWhenTheBytesAreText() {
+        for name in ["scan.nmap", "scan.gnmap", "loot.unknown-tool-format"] {
+            XCTAssertEqual(
+                DetoursPreviewKind.classify(
+                    url: URL(fileURLWithPath: name),
+                    sampleData: Data("Nmap scan report for 10.0.0.1\n22/tcp open ssh\n".utf8)
+                ),
+                .plainText(language: "plaintext"),
+                name
+            )
+        }
+    }
+
+    func testRenderedFormatsStayWithTheSystemPreviewDespiteReadingAsText() {
+        for name in ["report.pdf", "logo.svg", "notes.rtf", "meeting.ics", "contact.vcf"] {
+            XCTAssertEqual(
+                DetoursPreviewKind.classify(
+                    url: URL(fileURLWithPath: name),
+                    sampleData: Data("%PDF-1.4 plain looking header".utf8)
+                ),
+                .unsupported,
+                name
+            )
+        }
+    }
+
+    func testSecurityToolingExtensionsClassifyByTheirRealSyntax() {
+        let samples: [(String, DetoursPreviewKind)] = [
+            ("http-title.nse", .sourceCode(language: "lua")),
+            ("internal.nessus", .sourceCode(language: "xml")),
+            ("shell.jsp", .sourceCode(language: "xml")),
+            ("upload.aspx", .sourceCode(language: "xml")),
+            ("malware.yar", .sourceCode(language: "c")),
+            ("Invoke-Recon.psm1", .sourceCode(language: "powershell")),
+            ("session.har", .configuration(language: "json")),
+            ("client.ovpn", .configuration(language: "ini")),
+            ("dump.ldif", .configuration(language: "ini")),
+            ("suricata.rules", .plainText(language: "plaintext")),
+            ("rockyou.lst", .plainText(language: "plaintext")),
+            ("ntlm.hash", .plainText(language: "plaintext")),
+            ("server.pem", .plainText(language: "plaintext")),
+            ("id_rsa.pub", .plainText(language: "plaintext")),
+            ("sshd_config", .configuration(language: "ini")),
+            ("authorized_keys", .configuration(language: "plaintext")),
+            ("hosts", .configuration(language: "ini"))
+        ]
+
+        for (name, expected) in samples {
+            XCTAssertEqual(
+                DetoursPreviewKind.classify(url: URL(fileURLWithPath: name), sampleData: Data("text".utf8)),
+                expected,
+                name
+            )
+        }
+    }
+
+    func testUTF16RegistryExportsAreTreatedAsTextRatherThanBinary() {
+        var data = Data([0xFF, 0xFE])
+        data.append(contentsOf: Array("Windows Registry Editor Version 5.00".utf16).flatMap {
+            [UInt8($0 & 0xFF), UInt8($0 >> 8)]
+        })
+
+        XCTAssertEqual(
+            DetoursPreviewKind.classify(url: URL(fileURLWithPath: "export.reg"), sampleData: data),
+            .configuration(language: "ini")
+        )
+    }
+
     func testBinaryDataWithACSVExtensionIsRejected() {
         let binary = Data([0x23, 0x21, 0x00, 0xFF, 0xD8])
         XCTAssertEqual(

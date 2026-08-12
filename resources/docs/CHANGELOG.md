@@ -4,6 +4,9 @@
 
 ### Features
 
+- **An unfamiliar file ending no longer blocks a preview** - A file whose contents are text now previews as text whatever its name ends in, so output from a tool Detours has never heard of is readable straight away instead of waiting for its extension to be added. Rendered formats that happen to be text underneath, such as PDF, SVG and RTF, still go to the macOS preview, and anything that reads as binary is untouched.
+- **Security assessment files preview with the right colouring** - nmap output and scripts, Nessus reports, captured web sessions, registry exports, VPN profiles, directory dumps, detection rules, wordlists, hash lists, certificates and keys are now recognised by name and coloured as what they are.
+- **Windows text files are readable** - Files written in the UTF-16 encoding Windows uses for registry exports and much tool output are now read correctly, where before they were mistaken for binary and refused.
 - **Send the file you are previewing to the macOS preview** - View > Open in
   System Preview (`Option-P`) hands whatever is in the Detours preview window
   to the macOS panel, for the times its viewer suits the file better. It is a

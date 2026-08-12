@@ -300,14 +300,32 @@ final class DetoursPreviewGenerator: DetoursPreviewGenerating, @unchecked Sendab
         guard data.count > limits.fallbackEdgeBytes * 2 else {
             return data
         }
+
+        // A UTF-16 file has to be cut as text, not as bytes: slicing it at a byte offset and
+        // splicing a plain notice into the middle would leave neither half decodable.
+        if DetoursPreviewKind.hasUTF16ByteOrderMark(data), let text = String(data: data, encoding: .utf16) {
+            let edge = limits.fallbackEdgeBytes / 2
+            let head = String(text.prefix(edge))
+            let tail = String(text.suffix(edge))
+            return Data("\(head)\n\n\(Self.excerptNotice)\n\n\(tail)".utf8)
+        }
+
         var excerpt = Data()
         excerpt.append(data.prefix(limits.fallbackEdgeBytes))
-        excerpt.append(Data("\n\n[... middle omitted by Detours preview guard ...]\n\n".utf8))
+        excerpt.append(Data("\n\n\(Self.excerptNotice)\n\n".utf8))
         excerpt.append(data.suffix(limits.fallbackEdgeBytes))
         return excerpt
     }
 
+    private static let excerptNotice = "[... middle omitted by Detours preview guard ...]"
+
     private func decode(_ data: Data) -> (text: String, lossy: Bool) {
+        // A byte order mark names the encoding outright, and reading a UTF-16 file as UTF-8 would
+        // fill the preview with replacement marks over perfectly readable text.
+        if DetoursPreviewKind.hasUTF16ByteOrderMark(data),
+           let text = String(data: data, encoding: .utf16) {
+            return (text, false)
+        }
         if let text = String(data: data, encoding: .utf8) {
             return (text, false)
         }

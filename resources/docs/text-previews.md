@@ -8,12 +8,17 @@ Detours generates its own Quick Look HTML previews for common developer text fil
 - HTML: `.html`, `.htm`, with Rendered and Source views
 - Source: Swift, JavaScript, TypeScript, Python, shell, CSS, XML, SQL, diff/patch
 - Configuration: JSON, YAML, TOML, INI, plist, `.env` files, `.gitignore`-style files
-- Plain text: `.txt`, `.text`, `.log`, and extensionless UTF-8-like text
+- Plain text: `.txt`, `.text`, `.log`, and any file whose bytes read as text
+- Security tooling: nmap output and scripts, Nessus reports, captured web sessions, registry exports, VPN profiles, directory dumps, detection rules, wordlists, hash lists, certificates and keys
 - Data: `.csv`, `.tsv`, `.tab`, shown as a table
 - Documents: `.docx`, shown as themed document text
 - Workbooks: `.xlsx`, shown as a grid of the first visible sheet
 
-Files that sniff as binary are left on the system Quick Look path. Office files are exempt from that check, because a container of compressed parts always sniffs as binary.
+An unrecognised extension is not a refusal. A file whose bytes read as text gets the plain-text preview whatever its name ends in, so output from a tool Detours has never heard of is readable without waiting for the extension to be added. A recognised extension only decides which colouring the file gets.
+
+Files that sniff as binary are left on the system Quick Look path, as are the formats macOS draws better than any text preview could: PDF, SVG, PostScript, RTF, calendar entries and contact cards are all text underneath, and previewing their markup instead of the page would be a loss. Office files are exempt from the binary check, because a container of compressed parts always sniffs as binary.
+
+Text is read as UTF-8. A file that opens with a UTF-16 byte order mark is read as UTF-16 instead, which is what Windows writes registry exports and much tool output as; without that they would be turned away as binary on the NUL beside every Latin character.
 
 ## Data Files
 

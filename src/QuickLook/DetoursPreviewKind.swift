@@ -74,7 +74,11 @@ enum DetoursPreviewKind: Equatable {
     static func classify(url: URL, sampleData: Data? = nil) -> DetoursPreviewKind {
         let baseKind = classifyByName(url.lastPathComponent)
         if baseKind == .unsupported {
-            guard let sampleData, isTextLike(sampleData), url.pathExtension.isEmpty else {
+            // An unfamiliar suffix is not a reason to refuse a file whose bytes are plainly text.
+            // Tools invent their own endings constantly, so the bytes decide, and the short list of
+            // formats macOS draws better than any text preview could is the only thing held back.
+            let ext = url.pathExtension.lowercased()
+            guard let sampleData, isTextLike(sampleData), !systemPreviewExtensions.contains(ext) else {
                 return .unsupported
             }
             return .plainText(language: "plaintext")
@@ -93,8 +97,20 @@ enum DetoursPreviewKind: Equatable {
         return baseKind
     }
 
+    /// Whether the bytes open with a UTF-16 byte order mark.
+    ///
+    /// Windows writes registry exports and a good deal of tool output as UTF-16, which carries a NUL
+    /// beside every Latin character and would otherwise be turned away as binary.
+    static func hasUTF16ByteOrderMark(_ data: Data) -> Bool {
+        let prefix = Array(data.prefix(2))
+        return prefix == [0xFF, 0xFE] || prefix == [0xFE, 0xFF]
+    }
+
     static func isTextLike(_ data: Data) -> Bool {
         if data.isEmpty {
+            return true
+        }
+        if hasUTF16ByteOrderMark(data) {
             return true
         }
         if data.contains(0) {
@@ -163,7 +179,25 @@ enum DetoursPreviewKind: Equatable {
 
     private static let markdownExtensions: Set<String> = ["md", "markdown", "mdown"]
     private static let htmlExtensions: Set<String> = ["html", "htm"]
-    private static let plainTextExtensions: Set<String> = ["txt", "text", "log"]
+
+    /// Formats macOS draws better than any text preview could, held back from the sniffed fallback.
+    ///
+    /// Each one is text underneath, so the byte check alone would take them and replace a rendered
+    /// page or drawing with its markup.
+    private static let systemPreviewExtensions: Set<String> = [
+        "svg", "pdf", "ps", "eps", "ai", "rtf", "rtfd", "dxf", "webloc", "url", "ics", "vcf"
+    ]
+
+    private static let plainTextExtensions: Set<String> = [
+        "txt", "text", "log",
+        // Scan and tooling output: nmap's own two text formats, intrusion rules, and the wordlists,
+        // hash lists and cracking artefacts a security assessment fills a folder with.
+        "nmap", "gnmap", "rules", "lst", "dic", "wordlist", "hash", "hashes", "pot", "rule",
+        "hcmask", "zone", "rc",
+        // Armoured keys, certificates and signatures. All text; anything binary that borrows one of
+        // these endings is turned away by the byte check.
+        "pem", "crt", "cer", "csr", "key", "pub", "asc", "sig"
+    ]
 
     private static let sourceExtensions: [String: String] = [
         "swift": "swift",
@@ -225,7 +259,24 @@ enum DetoursPreviewKind: Equatable {
         "gql": "graphql",
         "ex": "elixir",
         "exs": "elixir",
-        "hs": "haskell"
+        "hs": "haskell",
+        // Security tooling: nmap's scripting engine is Lua, a Nessus report and the classic server
+        // page payloads are markup, and detection rules read as braces and strings.
+        "nse": "lua",
+        "nessus": "xml",
+        "jsp": "xml",
+        "jspx": "xml",
+        "asp": "xml",
+        "aspx": "xml",
+        "yar": "c",
+        "yara": "c",
+        "psm1": "powershell",
+        "psd1": "powershell",
+        // Windows scripting has no colouring rules of its own here, so it is shown plainly rather
+        // than coloured by the wrong language's keywords.
+        "bat": "plaintext",
+        "cmd": "plaintext",
+        "vbs": "plaintext"
     ]
 
     private static let configurationExtensions: [String: String] = [
@@ -247,7 +298,14 @@ enum DetoursPreviewKind: Equatable {
         "storyboard": "xml",
         "xib": "xml",
         "resolved": "json",
-        "webmanifest": "json"
+        "webmanifest": "json",
+        // A captured web session is JSON; registry exports, VPN profiles and directory dumps all
+        // read as sections and key/value pairs.
+        "har": "json",
+        "reg": "ini",
+        "ovpn": "ini",
+        "ldif": "ini",
+        "eml": "ini"
     ]
 
     private static let exactNames: [String: String] = [
@@ -271,7 +329,19 @@ enum DetoursPreviewKind: Equatable {
         "rakefile": "ruby",
         "podfile": "ruby",
         "brewfile": "ruby",
-        "justfile": "plaintext"
+        "justfile": "plaintext",
+        "sshd_config": "ini",
+        "ssh_config": "ini",
+        "known_hosts": "plaintext",
+        "authorized_keys": "plaintext",
+        "id_rsa": "plaintext",
+        "id_dsa": "plaintext",
+        "id_ecdsa": "plaintext",
+        "id_ed25519": "plaintext",
+        ".netrc": "ini",
+        ".htpasswd": "ini",
+        ".htaccess": "ini",
+        "hosts": "ini"
     ]
 
     /// Build files travel with suffixes (`Dockerfile.dev`, `Makefile.local`, `CMakeLists.txt`),
