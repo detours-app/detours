@@ -303,6 +303,62 @@ final class PaneRefreshRemoteListingTests: XCTestCase {
         XCTAssertEqual(after.topVisibleOffset, before.topVisibleOffset, accuracy: 0.5)
     }
 
+    func testRefreshKeepsUserFolderSelectionAsOperationDestination() {
+        let hostID = UUID()
+        let root = Location.remote(hostID: hostID, path: "/")
+        let folder = item(hostID: hostID, path: "/Folder", name: "Folder", isDirectory: true)
+        let file = item(hostID: hostID, path: "/note.txt", name: "note.txt")
+        let controller = configuredController(root: root, items: [folder, file])
+        controller.view.frame = NSRect(x: 0, y: 0, width: 420, height: 180)
+        controller.view.layoutSubtreeIfNeeded()
+
+        let folderRow = controller.tableView.row(forItem: folder)
+        controller.tableView.selectRowIndexes(
+            IndexSet(integer: folderRow),
+            byExtendingSelection: false,
+            origin: .user
+        )
+        XCTAssertEqual(controller.effectivePasteDestinationLocation, folder.location)
+
+        // A background refresh that changes the listing re-asserts the same
+        // selection; the folder must remain the pane's copy/move destination.
+        _ = controller.applyScheduledListingSnapshot(PaneListingSnapshot(
+            request: request(directory: root, generation: 1),
+            entries: [
+                entry(from: folder),
+                entry(from: file),
+                entry(hostID: hostID, path: "/arrived.txt", name: "arrived.txt"),
+            ]
+        ))
+
+        XCTAssertEqual(controller.selectedLocations, [folder.location])
+        XCTAssertEqual(controller.effectivePasteDestinationLocation, folder.location)
+    }
+
+    func testRefreshOnDeletedSelectionDropsExplicitDestination() {
+        let hostID = UUID()
+        let root = Location.remote(hostID: hostID, path: "/")
+        let folder = item(hostID: hostID, path: "/Folder", name: "Folder", isDirectory: true)
+        let survivor = item(hostID: hostID, path: "/Survivor", name: "Survivor", isDirectory: true)
+        let controller = configuredController(root: root, items: [folder, survivor])
+        controller.view.frame = NSRect(x: 0, y: 0, width: 420, height: 180)
+        controller.view.layoutSubtreeIfNeeded()
+
+        controller.tableView.selectRowIndexes(
+            IndexSet(integer: controller.tableView.row(forItem: folder)),
+            byExtendingSelection: false,
+            origin: .user
+        )
+
+        _ = controller.applyScheduledListingSnapshot(PaneListingSnapshot(
+            request: request(directory: root, generation: 1),
+            entries: [entry(from: survivor)]
+        ))
+
+        XCTAssertEqual(controller.selectedLocations, [survivor.location])
+        XCTAssertEqual(controller.effectivePasteDestinationLocation, root)
+    }
+
     private func configuredController(root: Location, items: [FileItem]) -> FileListViewController {
         let controller = FileListViewController()
         controller.loadViewIfNeeded()

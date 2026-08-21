@@ -13,6 +13,10 @@
   choice about that one file, not a mode: moving to another file previews it in
   the Detours window as usual.
 
+### Fixes
+
+- **Copy and move land in the folder you picked** - Selecting a folder in the other pane and pressing F5 or F6 sometimes dropped the files at the top of that pane instead of inside the folder. A background listing refresh of that pane, from a change on disk or an earlier operation, quietly stopped the still-highlighted folder from counting as an explicit choice. The highlighted folder now stays the destination for as long as it is highlighted.
+
 ### Changes
 
 - **The preview toolbar says what the setting does to a table** - A table

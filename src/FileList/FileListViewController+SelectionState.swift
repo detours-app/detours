@@ -8,6 +8,9 @@ extension FileListViewController {
     /// choose the forward survivor without guessing from a changed row number.
     struct PaneStateCapture {
         let selectedLocations: [Location]
+        /// Origin the captured selection was made with, so a restore that
+        /// re-selects the same locations keeps an explicit user pick explicit.
+        let selectionOrigin: FileListSelectionOrigin
         /// Displayed-order locations after the first selected row (nearest first).
         let forwardNeighborLocations: [Location]
         /// Displayed-order locations before the first selected row (nearest first).
@@ -198,6 +201,7 @@ extension FileListViewController {
 
         return PaneStateCapture(
             selectedLocations: selectedLocations,
+            selectionOrigin: selectionOrigin,
             forwardNeighborLocations: forwardNeighbors,
             previousNeighborLocations: previousNeighbors,
             expandedLocations: expandedLocations(in: dataSource.items),
@@ -244,10 +248,14 @@ extension FileListViewController {
             }
         }
         if !survivingRows.isEmpty {
+            // Re-selecting exactly what was selected before is not a new
+            // selection, so an explicit user pick stays the pane's operation
+            // destination across background refreshes.
+            let selectionSurvivedIntact = survivingRows.count == capture.selectedLocations.count
             tableView.selectRowIndexes(
                 survivingRows,
                 byExtendingSelection: false,
-                origin: .restored
+                origin: selectionSurvivedIntact ? capture.selectionOrigin : .restored
             )
             return false
         }
