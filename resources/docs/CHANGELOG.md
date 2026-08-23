@@ -15,6 +15,8 @@
 
 ### Fixes
 
+- **Connecting to a network share no longer freezes the window** - Asking to connect to an SMB or NFS server locked the whole interface until the server answered or the attempt timed out. Against a server that was reachable by name but whose file sharing was blocked, that was a wait of over a minute with nothing responding, and twice that once Detours retried for credentials. The connection attempt now happens out of the way of the interface, so the window stays usable and can be worked in while it runs.
+- **One error when a share cannot be connected, not two** - A failed connection raised a macOS dialog and a Detours dialog for the same attempt, because the system was only told to stay out of the way once a username was known, and the first attempt never has one. Detours now presents the only message.
 - **Copy and move land in the folder you picked** - Selecting a folder in the other pane and pressing F5 or F6 sometimes dropped the files at the top of that pane instead of inside the folder. A background listing refresh of that pane, from a change on disk or an earlier operation, quietly stopped the still-highlighted folder from counting as an explicit choice. The highlighted folder now stays the destination for as long as it is highlighted.
 
 ### Changes
