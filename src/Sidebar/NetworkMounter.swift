@@ -4,6 +4,13 @@ import os.log
 
 private let logger = Logger(subsystem: "com.detours", category: "network-mounter")
 
+/// NetFSMountURLSync blocks until the server answers or the connect times out.
+/// It must never run on the main actor, or the whole UI freezes for the wait.
+private let mountQueue = DispatchQueue(
+    label: "com.detours.network-mounter",
+    qos: .userInitiated
+)
+
 // MARK: - Network Mount Error
 
 enum NetworkMountError: LocalizedError {
@@ -65,65 +72,75 @@ final class NetworkMounter {
         // Snapshot volumes before mount to detect new mount point
         let volumesBefore = Set(self.currentVolumes())
 
-        return try await withCheckedThrowingContinuation { continuation in
-            var mountPoints: Unmanaged<CFArray>?
+        let outcome = await Self.performMount(url: url, username: username, password: password)
 
-            // Set up options as mutable dictionaries (required by NetFS)
-            let openOptions = NSMutableDictionary()
-            let mountOptions = NSMutableDictionary()
+        guard outcome.result == 0 else {
+            let error = mapNetFSError(outcome.result)
+            logger.error("Mount failed: \(error.localizedDescription)")
+            throw error
+        }
 
-            // Set up authentication if provided
-            if username != nil {
-                openOptions[kNetFSUseAuthenticationInfoKey] = true
+        if let mountPoint = outcome.mountPoints.first {
+            logger.info("Mounted at \(mountPoint.path)")
+            return mountPoint
+        }
+
+        // No mount point returned but success - find the new volume
+        let volumesAfter = Set(currentVolumes())
+        if let mountPoint = volumesAfter.subtracting(volumesBefore).first {
+            logger.info("Mounted at \(mountPoint.path) (detected by diff)")
+            return mountPoint
+        }
+
+        // Volume was already mounted - find it by URL match
+        if let mountPoint = findMountPoint(for: url) {
+            logger.info("Already mounted at \(mountPoint.path)")
+            return mountPoint
+        }
+
+        throw NetworkMountError.unknown("Mount succeeded but mount point not found")
+    }
+
+    private nonisolated static func performMount(
+        url: URL,
+        username: String?,
+        password: String?
+    ) async -> (result: Int32, mountPoints: [URL]) {
+        await withCheckedContinuation { continuation in
+            mountQueue.async {
+                var mountPoints: Unmanaged<CFArray>?
+
+                // Set up options as mutable dictionaries (required by NetFS)
+                let openOptions = NSMutableDictionary()
+                let mountOptions = NSMutableDictionary()
+
+                // Detours owns every mount dialog. Without this NetFS puts up its
+                // own authentication and error UI alongside ours.
                 openOptions[kNAUIOptionKey] = kNAUIOptionNoUI
-            }
 
-            // Allow soft mounts for better behavior on network issues
-            mountOptions[kNetFSSoftMountKey] = true
-
-            // Prepare mount directory (NetFS will create a subdirectory in /Volumes)
-            let mountDir = URL(fileURLWithPath: "/Volumes")
-
-            // Build the NetFS call on the main queue
-            let result = NetFSMountURLSync(
-                url as CFURL,
-                mountDir as CFURL,
-                username as CFString?,
-                password as CFString?,
-                openOptions as CFMutableDictionary,
-                mountOptions as CFMutableDictionary,
-                &mountPoints
-            )
-
-            if result == 0 {
-                // Success - extract mount point
-                if let points = mountPoints?.takeRetainedValue() as? [URL],
-                   let mountPoint = points.first {
-                    logger.info("Mounted at \(mountPoint.path)")
-                    continuation.resume(returning: mountPoint)
-                } else {
-                    // No mount point returned but success - find the new volume
-                    let volumesAfter = Set(self.currentVolumes())
-                    let newVolumes = volumesAfter.subtracting(volumesBefore)
-
-                    if let mountPoint = newVolumes.first {
-                        logger.info("Mounted at \(mountPoint.path) (detected by diff)")
-                        continuation.resume(returning: mountPoint)
-                    } else {
-                        // Volume was already mounted - find it by URL match
-                        if let mountPoint = self.findMountPoint(for: url) {
-                            logger.info("Already mounted at \(mountPoint.path)")
-                            continuation.resume(returning: mountPoint)
-                        } else {
-                            continuation.resume(throwing: NetworkMountError.unknown("Mount succeeded but mount point not found"))
-                        }
-                    }
+                // Set up authentication if provided
+                if username != nil {
+                    openOptions[kNetFSUseAuthenticationInfoKey] = true
                 }
-            } else {
-                // Map error codes to our error types
-                let error = self.mapNetFSError(result)
-                logger.error("Mount failed: \(error.localizedDescription)")
-                continuation.resume(throwing: error)
+
+                // Allow soft mounts for better behavior on network issues
+                mountOptions[kNetFSSoftMountKey] = true
+
+                // Prepare mount directory (NetFS will create a subdirectory in /Volumes)
+                let mountDir = URL(fileURLWithPath: "/Volumes")
+
+                let result = NetFSMountURLSync(
+                    url as CFURL,
+                    mountDir as CFURL,
+                    username as CFString?,
+                    password as CFString?,
+                    openOptions as CFMutableDictionary,
+                    mountOptions as CFMutableDictionary,
+                    &mountPoints
+                )
+
+                let points = (mountPoints?.takeRetainedValue() as? [URL]) ?? []
+                continuation.resume(returning: (result, points))
             }
         }
     }
