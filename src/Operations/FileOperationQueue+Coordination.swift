@@ -38,6 +38,16 @@ extension FileOperationQueue {
         reservedDestinations.contains(url.standardizedFileURL)
     }
 
+    /// True when `url` is, or lives inside, a destination an in-flight operation
+    /// is still writing. Moving such an item out from under the copy engine
+    /// strands the copy and can corrupt the destination tree.
+    func touchesReservedDestination(_ url: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        return reservedDestinations.contains { reserved in
+            path == reserved.path || path.hasPrefix(reserved.path + "/")
+        }
+    }
+
     // MARK: - Protected-path scoping
 
     func enterProtectedPaths(_ urls: [URL]) {

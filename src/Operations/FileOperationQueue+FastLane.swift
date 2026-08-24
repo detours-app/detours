@@ -14,6 +14,10 @@ extension FileOperationQueue {
             throw FileOperationError.unknown(NSError(domain: "Detours", code: 1, userInfo: [NSLocalizedDescriptionKey: "Name contains invalid characters."]))
         }
 
+        if touchesReservedDestination(item) {
+            throw FileOperationError.itemBusy(item)
+        }
+
         let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
         if FileManager.default.fileExists(atPath: destination.path) || isReserved(destination) {
             throw FileOperationError.destinationExists(destination)
@@ -236,6 +240,7 @@ extension FileOperationQueue {
                     try await runUntrackedFileIO {
                         try CopyfileHelper.copy(from: sourceForTask, to: destForTask, progress: nil)
                     }
+                    clearStrayHiddenFlagAfterCopy(from: source, to: destinationURL)
                     releaseDestination(destinationURL)
                     successes.append(destinationURL)
                 } catch {

@@ -15,6 +15,7 @@ enum FileOperationError: Error {
     case archivePasswordRequired
     case archivePasswordInvalid(String)
     case invalidName
+    case itemBusy(URL)
 }
 
 extension FileOperationError: LocalizedError {
@@ -48,6 +49,8 @@ extension FileOperationError: LocalizedError {
             return message
         case .invalidName:
             return "The name must be a single file or folder name."
+        case let .itemBusy(url):
+            return "\"\(url.lastPathComponent)\" is still being copied. Wait for the copy to finish."
         }
     }
 }

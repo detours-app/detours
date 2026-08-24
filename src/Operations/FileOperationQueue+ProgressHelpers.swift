@@ -422,6 +422,27 @@ extension FileOperationQueue {
         }
     }
 
+    /// iCloud's file provider can leave UF_HIDDEN set on an item created or renamed
+    /// while its upload is still in flight, making it vanish from every file browser.
+    /// Clears the stray flag on items Detours just produced inside a synced directory.
+    /// Dot-named items keep their state.
+    func clearStrayHiddenFlag(on url: URL) {
+        guard !url.lastPathComponent.hasPrefix(".") else { return }
+        let parent = url.deletingLastPathComponent()
+        guard getxattr(parent.path, "com.apple.fileprovider.dir", nil, 0, 0, XATTR_NOFOLLOW) >= 0 else { return }
+        var info = stat()
+        guard lstat(url.path, &info) == 0, info.st_flags & UInt32(UF_HIDDEN) != 0 else { return }
+        chflags(url.path, info.st_flags & ~UInt32(UF_HIDDEN))
+    }
+
+    /// A duplicate of a deliberately flag-hidden source stays hidden; anything else
+    /// gets the stray-flag cleanup.
+    func clearStrayHiddenFlagAfterCopy(from source: URL, to destination: URL) {
+        var info = stat()
+        if lstat(source.path, &info) == 0, info.st_flags & UInt32(UF_HIDDEN) != 0 { return }
+        clearStrayHiddenFlag(on: destination)
+    }
+
     func uniqueFolderDestination(in directory: URL, baseName: String) -> URL {
         let fileManager = FileManager.default
         var attempt = 1

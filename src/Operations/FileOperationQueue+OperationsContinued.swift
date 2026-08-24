@@ -315,6 +315,10 @@ extension FileOperationQueue {
             throw FileOperationError.unknown(NSError(domain: "Detours", code: 1, userInfo: [NSLocalizedDescriptionKey: "Name contains invalid characters."]))
         }
 
+        if touchesReservedDestination(item) {
+            throw FileOperationError.itemBusy(item)
+        }
+
         let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
         if FileManager.default.fileExists(atPath: destination.path) || isReserved(destination) {
             throw FileOperationError.destinationExists(destination)
@@ -328,6 +332,7 @@ extension FileOperationQueue {
 
         do {
             try await runFileIO { try FileManager.default.moveItem(at: item, to: destination) }
+            clearStrayHiddenFlag(on: destination)
             updateProgress(operation: operation, currentItem: item, completed: 1, total: 1)
             return destination
         } catch {
@@ -387,6 +392,7 @@ extension FileOperationQueue {
                             return !cancelFlag.isCancelled
                         }
                     }
+                    clearStrayHiddenFlagAfterCopy(from: source, to: destination)
                     releaseDestination(destination)
                     successes.append(destination)
                 } catch {
