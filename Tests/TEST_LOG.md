@@ -4,6 +4,12 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-08-24 15:44 (Foundry)
+
+- `swift test --filter "RenameGuardTests|StrayHiddenFlagTests|FileOperationQueueTests"` on Foundry at 83e0266: RenameGuardTests 4/4 PASS, StrayHiddenFlagTests 6/6 PASS, FileOperationQueueTests 71/71 PASS.
+- First run at cd7916b failed to build (new `itemBusy` case missing from `errorPresentation`); second run had 1 FAIL in `testRenameClearsStrayFlag` because the stray-flag cleanup only ran on the queued rename lane - fixed by clearing on the fast lane too, then all green.
+- Covers the new guard refusing renames of in-flight copy destinations and the stray UF_HIDDEN cleanup after duplicate and rename in file-provider-synced folders.
+
 ## Invalid historical incident record
 
 ### 2026-07-14 (Spectre — INVALID: prohibited test execution)
