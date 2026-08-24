@@ -28,6 +28,7 @@ extension FileOperationQueue {
 
         do {
             try await runUntrackedFileIO { try FileManager.default.moveItem(at: item, to: destination) }
+            clearStrayHiddenFlag(on: destination)
             return destination
         } catch {
             throw mapError(error, url: item)
