@@ -25,6 +25,10 @@ Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macO
 - **Drag and drop** - Move within one volume or remote host, copy across local,
   remote, volume, or host boundaries, and exchange files with Finder, Mail, and
   favorites
+- **Archives** - Create and extract ZIP, 7Z, and TAR archives, with optional password protection
+- **Share** - AirDrop and other system sharing services from the context menu
+- **Undo** - Per-tab undo for copy, move, rename, duplicate, delete, and new folder/file
+- **Filter-in-place** - Filter the current file list as you type without leaving the directory
 - **Duplicate folder structure** - Copy folder hierarchy without files (great for year-based templates)
 - **Delete Immediately** - Permanent deletion option bypassing Trash (Cmd-Option-Delete)
 - **Truncation tooltips** - Hover to see full filename when truncated
@@ -105,7 +109,7 @@ detours/
 │   ├── Services/         # File providers, git status
 │   ├── Sidebar/          # Favorites, volumes, network shares, remote hosts
 │   ├── Preferences/      # Settings UI
-│   ├── QuickLook/        # Detours-native text preview generation
+│   ├── QuickLook/        # Detours-native preview generation
 │   └── Utilities/        # Helpers
 ├── Server/               # Remote helper source
 ├── Shared/               # Shared process and PTY support

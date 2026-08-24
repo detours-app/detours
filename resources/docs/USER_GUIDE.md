@@ -169,6 +169,8 @@ Longer file operations show progress directly in both pane status bars. Progress
 
 Small independent operations such as rename, new file, new folder, move to Trash, and small copies can run while unrelated large operations continue in the background.
 
+An item a running copy is still writing cannot be renamed; Detours refuses with a message to wait for the copy to finish, so a half-written folder is never moved out from under the copy.
+
 ### Other Actions
 
 | Action | Shortcut |
