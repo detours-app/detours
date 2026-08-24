@@ -565,6 +565,11 @@ final class FileOperationQueue {
                     "The name isn't valid.",
                     "Enter one file or folder name without slashes, colons, or parent-directory components."
                 )
+            case let .itemBusy(url):
+                return (
+                    "\"\(url.lastPathComponent)\" is still being copied.",
+                    "Wait for the copy to finish, then try again."
+                )
             case .cancelled, .archivePasswordRequired, .partialFailure:
                 // Handled before reaching here; provide a safe fallback.
                 return ("The operation couldn't be completed.", "")
