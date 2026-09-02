@@ -66,7 +66,7 @@ The Source view always shows the original HTML. The Rendered view shows only the
 
 Remote Quick Look opens the same themed Detours preview window used for local files, then downloads the selected file into the local cache. A delayed spinner appears in that window when the transfer is not immediate. Files over 100 MB are rejected before download.
 
-After download, supported text, Markdown, HTML, and image files remain in the Detours preview window. PDFs and unsupported types fall back to the system Quick Look panel.
+After download, supported text, Markdown, HTML, and image files remain in the Detours preview window. PDFs and unsupported types fall back to the system Quick Look panel. A symbolic link previews the file it points at, under that file's name; a link to a folder closes the preview, as selecting a folder does.
 
 ## Presentation
 

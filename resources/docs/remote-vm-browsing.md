@@ -59,7 +59,7 @@ Command-P follows the active tab and never falls back to searching the Mac from 
 
 ## Remote Quick Look
 
-Quick Look opens its themed Detours preview window before downloading a remote file, with a delayed spinner for transfers that are not immediate. Supported text, Markdown, safely rendered HTML, and image previews stay in that window and support normal preview navigation. PDFs and unsupported types fall back to the system Quick Look panel after download. Files over 100 MB are rejected before transfer.
+Quick Look opens its themed Detours preview window before downloading a remote file, with a delayed spinner for transfers that are not immediate. Supported text, Markdown, safely rendered HTML, and image previews stay in that window and support normal preview navigation. PDFs and unsupported types fall back to the system Quick Look panel after download. Files over 100 MB are rejected before transfer. A symbolic link previews the file it points at, under that file's name; a link to a folder closes the preview, as selecting a folder does.
 
 ## Unix Helper and Windows Backend
 
@@ -132,7 +132,7 @@ Run that command only when you are sure you no longer need anything in the remot
 
 Unix helper deployment supports x86_64 Linux and x86_64 macOS. Windows OpenSSH hosts are supported separately when their default shell is Windows PowerShell; Detours detects them before Unix helper deployment. Unsupported Unix architectures and Windows hosts with a Unix-style default shell are refused.
 
-Large transfers use a second SSH channel so directory listings, git status, and watch events can continue on the metadata channel. Temporary paths keep incomplete files away from final destinations, and interrupted multi-item remote copies resume with the items that did not arrive.
+Large transfers use a second SSH channel so directory listings, git status, and watch events can continue on the metadata channel. Temporary paths keep incomplete files away from final destinations, and interrupted multi-item remote copies resume with the items that did not arrive. A transfer the host refuses fails with the host's own message, leaves nothing at the destination, and is not counted as copied.
 
 Remote mutation refreshes reconcile the affected folder in place. Expanded branches, selection, scrolling, keyboard focus, sorting, and active filters stay stable, while a completed transfer into a selected closed folder expands it and reveals the result.
 
