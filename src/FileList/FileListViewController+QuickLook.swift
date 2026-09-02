@@ -111,12 +111,27 @@ extension FileListViewController {
     private func selectedRemoteQuickLookItem() -> FileItem? {
         guard selectedItems.count == 1,
               let item = selectedItems.first,
-              !item.isNavigableFolder,
-              !item.isSymbolicLink else {
+              !item.isNavigableFolder else {
             return nil
         }
         guard case .remote = item.location else { return nil }
         return item
+    }
+
+    /// A symlink previews the file it points at. The target's name drives the preview, since the
+    /// link's own name may carry no extension at all.
+    func resolveRemoteQuickLookSource(
+        for item: FileItem,
+        provider: any FileProvider
+    ) async throws -> (location: Location, name: String, entry: LoadedFileEntry) {
+        var location = item.location
+        var name = item.name
+        if item.isSymbolicLink {
+            location = try await provider.readSymlink(item.location)
+            name = location.lastPathComponent
+        }
+        let entry = try await provider.stat(location)
+        return (location, name, entry)
     }
 
     private func startRemoteQuickLook(for item: FileItem, panel: QLPreviewPanel) {
@@ -143,25 +158,32 @@ extension FileListViewController {
 
         remoteQuickLookTask = Task { @MainActor in
             do {
-                let entry = try await provider.stat(item.location)
+                let source = try await resolveRemoteQuickLookSource(for: item, provider: provider)
                 try Task.checkCancellation()
                 guard remoteQuickLookRequestLocation == item.location else { return }
 
-                let byteCount = entry.fileSize ?? 0
+                // A link to a folder has nothing to draw, like a folder selected directly.
+                guard !source.entry.isDirectory, let byteCount = source.entry.fileSize else {
+                    clearRemoteQuickLookState(cancelTask: false)
+                    closeDetoursPreviewWindow()
+                    view.window?.makeKeyAndOrderFront(nil)
+                    view.window?.makeFirstResponder(tableView)
+                    return
+                }
                 guard byteCount <= RemoteFileCache.quickLookMaximumBytes else {
                     clearRemoteQuickLookState(cancelTask: false)
-                    presentRemoteQuickLookTooLarge(fileName: item.name, byteCount: byteCount)
+                    presentRemoteQuickLookTooLarge(fileName: source.name, byteCount: byteCount)
                     return
                 }
 
-                let previewURL = try RemoteFileCache.makeSessionFile(hostID: hostID, remotePath: item.location.path)
-                try await provider.download(item.location, to: previewURL)
+                let previewURL = try RemoteFileCache.makeSessionFile(hostID: hostID, remotePath: source.location.path)
+                try await provider.download(source.location, to: previewURL)
                 try Task.checkCancellation()
                 guard remoteQuickLookRequestLocation == item.location else { return }
 
                 let generatedPreviewURL = try await quickLookPreviewGenerator.previewURL(for: DetoursPreviewRequest(
                     sourceURL: previewURL,
-                    displayName: item.name,
+                    displayName: source.name,
                     theme: ThemeManager.shared.currentTheme,
                     fontSize: ThemeManager.shared.fontSize,
                     context: .remote,
@@ -170,11 +192,11 @@ extension FileListViewController {
                 try Task.checkCancellation()
                 guard remoteQuickLookRequestLocation == item.location else { return }
 
-                quickLookPreviewItems = [DetoursQuickLookItem(url: generatedPreviewURL, title: item.name)]
+                quickLookPreviewItems = [DetoursQuickLookItem(url: generatedPreviewURL, title: source.name)]
                 remoteQuickLookTask = nil
                 hideRemoteQuickLookProgressOverlay()
                 if Self.usesDetoursPreview(previewURL: generatedPreviewURL, sourceURL: previewURL) {
-                    self.showDetoursPreview(url: generatedPreviewURL, title: item.name, sourceURL: previewURL)
+                    self.showDetoursPreview(url: generatedPreviewURL, title: source.name, sourceURL: previewURL)
                     return
                 }
 

@@ -426,12 +426,14 @@ final class FileListResponderTests: XCTestCase {
 actor FileListRemoteProvider: FileProvider {
     private let hostID: UUID
     private var listings: [String: [LoadedFileEntry]]
+    private let symlinks: [String: String]
     private var trashCalls: [[Location]] = []
     private var deleteCalls: [[Location]] = []
 
-    init(hostID: UUID, listings: [String: [LoadedFileEntry]]) {
+    init(hostID: UUID, listings: [String: [LoadedFileEntry]], symlinks: [String: String] = [:]) {
         self.hostID = hostID
         self.listings = listings
+        self.symlinks = symlinks
     }
 
     func recordedTrashCalls() -> [[Location]] {
@@ -507,7 +509,12 @@ actor FileListRemoteProvider: FileProvider {
     func unwatch(_ watch: FileProviderWatch) async {}
     func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
     func folderSize(for location: Location) async throws -> Int64 { 0 }
-    func readSymlink(_ location: Location) async throws -> Location { location }
+    func readSymlink(_ location: Location) async throws -> Location {
+        guard let target = symlinks[location.path] else {
+            throw FileProviderError.unsupportedOperation("readSymlink")
+        }
+        return .remote(hostID: hostID, path: target)
+    }
     func openForQuickLook(_ location: Location) async throws -> URL { URL(fileURLWithPath: "/tmp/unused") }
 }
 

@@ -42,6 +42,118 @@ extension FileListResponderTests {
         XCTAssertFalse(viewController.quickLookGenerationTaskIsActiveForTesting)
     }
 
+    func testRemoteSymlinkQuickLookPreviewsTheLinkedFile() async throws {
+        let hostID = UUID()
+        let linkPath = "/home/marco/current"
+        let targetPath = "/home/marco/releases/config-2026.yaml"
+        let provider = FileListRemoteProvider(
+            hostID: hostID,
+            listings: [
+                "/home/marco": [
+                    LoadedFileEntry(
+                        location: .remote(hostID: hostID, path: linkPath),
+                        url: URL(fileURLWithPath: linkPath),
+                        name: "current",
+                        isDirectory: false,
+                        isSymbolicLink: true,
+                        fileSize: 512
+                    ),
+                ],
+                "/home/marco/releases": [
+                    LoadedFileEntry(
+                        location: .remote(hostID: hostID, path: targetPath),
+                        url: URL(fileURLWithPath: targetPath),
+                        name: "config-2026.yaml",
+                        isDirectory: false,
+                        fileSize: 512
+                    ),
+                ],
+            ],
+            symlinks: [linkPath: targetPath]
+        )
+        let link = FileItem(
+            entry: LoadedFileEntry(
+                location: .remote(hostID: hostID, path: linkPath),
+                url: URL(fileURLWithPath: linkPath),
+                name: "current",
+                isDirectory: false,
+                isSymbolicLink: true,
+                fileSize: 512
+            ),
+            icon: NSImage()
+        )
+        let viewController = FileListViewController()
+
+        let source = try await viewController.resolveRemoteQuickLookSource(for: link, provider: provider)
+
+        XCTAssertEqual(source.location, .remote(hostID: hostID, path: targetPath), "Download the file the link points at")
+        XCTAssertEqual(source.name, "config-2026.yaml", "The target's name carries the extension the preview needs")
+        XCTAssertFalse(source.entry.isDirectory)
+        XCTAssertEqual(source.entry.fileSize, 512)
+    }
+
+    func testRemoteSymlinkToFolderReportsTheFolderSoQuickLookCanDecline() async throws {
+        let hostID = UUID()
+        let linkPath = "/home/marco/latest"
+        let targetPath = "/home/marco/builds/2026-09"
+        let provider = FileListRemoteProvider(
+            hostID: hostID,
+            listings: ["/home/marco": [], targetPath: []],
+            symlinks: [linkPath: targetPath]
+        )
+        let link = FileItem(
+            entry: LoadedFileEntry(
+                location: .remote(hostID: hostID, path: linkPath),
+                url: URL(fileURLWithPath: linkPath),
+                name: "latest",
+                isDirectory: false,
+                isSymbolicLink: true
+            ),
+            icon: NSImage()
+        )
+        let viewController = FileListViewController()
+
+        let source = try await viewController.resolveRemoteQuickLookSource(for: link, provider: provider)
+
+        XCTAssertEqual(source.location, .remote(hostID: hostID, path: targetPath))
+        XCTAssertTrue(source.entry.isDirectory, "A link to a folder must surface as a folder, not a zero-byte file")
+    }
+
+    func testPlainRemoteFileQuickLookKeepsItsOwnLocation() async throws {
+        let hostID = UUID()
+        let filePath = "/home/marco/notes.txt"
+        let provider = FileListRemoteProvider(
+            hostID: hostID,
+            listings: [
+                "/home/marco": [
+                    LoadedFileEntry(
+                        location: .remote(hostID: hostID, path: filePath),
+                        url: URL(fileURLWithPath: filePath),
+                        name: "notes.txt",
+                        isDirectory: false,
+                        fileSize: 10
+                    ),
+                ],
+            ]
+        )
+        let file = FileItem(
+            entry: LoadedFileEntry(
+                location: .remote(hostID: hostID, path: filePath),
+                url: URL(fileURLWithPath: filePath),
+                name: "notes.txt",
+                isDirectory: false,
+                fileSize: 10
+            ),
+            icon: NSImage()
+        )
+        let viewController = FileListViewController()
+
+        let source = try await viewController.resolveRemoteQuickLookSource(for: file, provider: provider)
+
+        XCTAssertEqual(source.location, .remote(hostID: hostID, path: filePath))
+        XCTAssertEqual(source.name, "notes.txt")
+    }
+
     func testRemoteQuickLookReportsNoPreviewItemUntilDownloadCompletes() {
         XCTAssertEqual(
             FileListViewController.quickLookPreviewItemCount(
