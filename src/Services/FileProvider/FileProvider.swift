@@ -38,6 +38,9 @@ protocol FileProvider: Sendable {
     func gitStatus(for directory: Location) async -> [Location: GitStatus]
     func folderSize(for location: Location) async throws -> Int64
     func readSymlink(_ location: Location) async throws -> Location
+    /// Creates a symbolic link at `location` whose target is the raw `targetPath` text.
+    /// The text is written as given, absolute or relative, and never resolved.
+    func createSymbolicLink(at location: Location, targetPath: String) async throws
     func openForQuickLook(_ location: Location) async throws -> URL
     func download(_ location: Location, to localURL: URL) async throws
     func upload(_ localURL: URL, to location: Location) async throws
@@ -77,6 +80,10 @@ extension FileProviderError: LocalizedError {
 extension FileProvider {
     func createDirectory(at location: Location, withIntermediateDirectories: Bool = false) async throws {
         throw FileProviderError.unsupportedOperation("createDirectory")
+    }
+
+    func createSymbolicLink(at location: Location, targetPath: String) async throws {
+        throw FileProviderError.unsupportedOperation("createSymbolicLink")
     }
 
     func download(_ location: Location, to localURL: URL) async throws {

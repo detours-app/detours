@@ -28,6 +28,8 @@ final class MessagesTests: XCTestCase {
             .watch(path: destination, token: token),
             .unwatch(token: token),
             .watchEvent(watch: token, kind: .modified, path: invalidUTF8Path),
+            .find(query: invalidUTF8Name, cap: 200),
+            .symlink(path: destination, targetPath: RemotePath("../relative/target")),
         ]
 
         for message in messages {

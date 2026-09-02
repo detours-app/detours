@@ -570,6 +570,16 @@ final class FileOperationQueue {
                     "\"\(url.lastPathComponent)\" is still being copied.",
                     "Wait for the copy to finish, then try again."
                 )
+            case let .linkTargetMissing(name):
+                return (
+                    "The link \(name) points to an item that does not exist.",
+                    "Fix or remove the link, then try again. Within one host a dangling link copies as a link."
+                )
+            case let .linkLoops(name):
+                return (
+                    "The link \(name) leads in a loop.",
+                    "The link points back at a folder already being copied, or at itself. Remove it from the selection, then try again."
+                )
             case .cancelled, .archivePasswordRequired, .partialFailure:
                 // Handled before reaching here; provide a safe fallback.
                 return ("The operation couldn't be completed.", "")

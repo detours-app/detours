@@ -433,6 +433,38 @@ actor UITestRemoteProvider: FileProvider {
         return remoteLocation(for: resolved.resolvingSymlinksInPath())
     }
 
+    func createSymbolicLink(at location: Location, targetPath: String) async throws {
+        let path = try remotePath(from: location)
+        let sequence = beginCall(operation: "createSymbolicLink", sources: [targetPath], destination: path)
+        do {
+            try failIfRequested(operation: "createSymbolicLink")
+            let link = try confinedURL(for: location, mustExist: false)
+            var info = stat()
+            guard lstat(link.path, &info) != 0 else {
+                throw CocoaError(.fileWriteFileExists)
+            }
+            try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: targetPath)
+            let changedParents: Set<Location> = [location.deletingLastPathComponent()]
+            notifyChangedParents(changedParents)
+            completeCall(
+                sequence: sequence,
+                operation: "createSymbolicLink",
+                sources: [targetPath],
+                destination: path,
+                changedParents: changedParents
+            )
+        } catch {
+            failCall(
+                sequence: sequence,
+                operation: "createSymbolicLink",
+                sources: [targetPath],
+                destination: path,
+                error: error
+            )
+            throw error
+        }
+    }
+
     func openForQuickLook(_ location: Location) async throws -> URL {
         try confinedURL(for: location, mustExist: true)
     }

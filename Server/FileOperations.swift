@@ -111,6 +111,21 @@ struct FileOperations {
         return encodePathList([path])
     }
 
+    /// Creates a link at `path` with the raw `targetPath` text. A regular file, a link, or a
+    /// dangling link already at `path` refuses, so the check never follows the destination.
+    func symlink(path: ServerRemotePath, targetPath: ServerRemotePath) throws -> Data {
+        guard !Self.existsWithoutFollowing(path.string) else {
+            throw CocoaError(.fileWriteFileExists)
+        }
+        try fileManager.createSymbolicLink(atPath: path.string, withDestinationPath: targetPath.string)
+        return encodePathList([path])
+    }
+
+    static func existsWithoutFollowing(_ path: String) -> Bool {
+        var info = stat()
+        return lstat(path, &info) == 0
+    }
+
     func download(path: ServerRemotePath, maximumRPCBytes: Int64) throws -> Data {
         let url = URL(fileURLWithPath: path.string)
         let values = try url.resourceValues(forKeys: [.fileSizeKey])

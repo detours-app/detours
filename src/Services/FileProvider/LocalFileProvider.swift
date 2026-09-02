@@ -101,6 +101,16 @@ actor LocalFileProvider: FileProvider {
         return .local(url.deletingLastPathComponent().appendingPathComponent(destination))
     }
 
+    func createSymbolicLink(at location: Location, targetPath: String) async throws {
+        let url = try localURL(from: location)
+        // lstat: a regular file, a link, or a dangling link at the destination all refuse.
+        var info = stat()
+        guard lstat(url.path, &info) != 0 else {
+            throw FileOperationError.destinationExists(url)
+        }
+        try FileManager.default.createSymbolicLink(atPath: url.path, withDestinationPath: targetPath)
+    }
+
     func openForQuickLook(_ location: Location) async throws -> URL {
         try localURL(from: location)
     }
