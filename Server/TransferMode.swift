@@ -97,10 +97,7 @@ struct TransferMode {
 
         var received: Int64 = 0
         do {
-            guard fileManager.createFile(atPath: partial.path, contents: nil) else {
-                throw CocoaError(.fileWriteUnknown)
-            }
-            let handle = try FileHandle(forWritingTo: partial)
+            let handle = try SafeFileWriter.createHandle(at: partial)
             defer { try? handle.close() }
 
             while received < handshake.byteCount {
