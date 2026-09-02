@@ -76,7 +76,7 @@ struct SymlinkTransferWalker {
                 throw FileOperationError.linkTargetMissing(name: name)
             }
             if !entry.isSymbolicLink {
-                return (next, entry)
+                return (Self.canonicalLocation(next), entry)
             }
             current = next
         }
@@ -175,6 +175,16 @@ struct SymlinkTransferWalker {
 
     static func canonicalPath(_ components: [String]) -> String {
         "/" + components.joined(separator: "/")
+    }
+
+    static func canonicalLocation(_ location: Location) -> Location {
+        let path = canonicalPath(canonicalComponents(of: location.path))
+        switch location {
+        case .local:
+            return .local(URL(fileURLWithPath: path))
+        case .remote(let hostID, _):
+            return .remote(hostID: hostID, path: path)
+        }
     }
 }
 

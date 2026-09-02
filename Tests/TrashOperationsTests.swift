@@ -88,6 +88,48 @@ final class TrashOperationsTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: infoPaths[0]))
     }
 
+    func testTrashingLinkMovesLinkNotTarget() throws {
+        let home = try createTempDirectory()
+        defer { cleanupTempDirectory(home) }
+        let target = try createTestFile(in: home, name: "target.txt", content: "stay")
+        let valid = home.appendingPathComponent("valid")
+        let dangling = home.appendingPathComponent("dangling")
+        try FileManager.default.createSymbolicLink(atPath: valid.path, withDestinationPath: "target.txt")
+        try FileManager.default.createSymbolicLink(atPath: dangling.path, withDestinationPath: "missing.txt")
+        let operations = TrashOperations(homeDirectory: home)
+
+        let infoPaths = try operations.trash(paths: [valid.path, dangling.path])
+
+        XCTAssertEqual(infoPaths.count, 2)
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "stay")
+        XCTAssertFalse(PathProbe.existsWithoutFollowing(valid.path))
+        XCTAssertFalse(PathProbe.existsWithoutFollowing(dangling.path))
+        let trashed = infoPaths.map { info in
+            home.appendingPathComponent(".local/share/Trash/files")
+                .appendingPathComponent(URL(fileURLWithPath: info).deletingPathExtension().lastPathComponent)
+        }
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: trashed[0].path), "target.txt")
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: trashed[1].path), "missing.txt")
+    }
+
+    func testRestorePathsPreserveLink() throws {
+        let home = try createTempDirectory()
+        defer { cleanupTempDirectory(home) }
+        _ = try createTestFile(in: home, name: "target.txt", content: "stay")
+        let link = home.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "target.txt")
+        let operations = TrashOperations(homeDirectory: home)
+
+        let infoPaths = try operations.trash(paths: [link.path])
+        XCTAssertFalse(PathProbe.existsWithoutFollowing(link.path))
+        XCTAssertEqual(try operations.restore(trashInfoPaths: infoPaths), [link.path])
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), "target.txt")
+
+        // Batch rollback: the second item is missing, so the first goes back as the link it was.
+        XCTAssertThrowsError(try operations.trash(paths: [link.path, home.appendingPathComponent("absent").path]))
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), "target.txt")
+    }
+
     func testRestoreRefusesDestinationOutsideHome() throws {
         let home = try createTempDirectory()
         let outside = try createTempDirectory()
