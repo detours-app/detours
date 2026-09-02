@@ -21,6 +21,7 @@ actor RemoteSearchChannel {
         self.remoteCommand = remoteCommand
         self.controlDirectory = controlDirectory
         self.hostTrust = hostTrust
+        _ = BrokenPipe.ignored
     }
 
     nonisolated func search(query: Data, cap: Int64) -> AsyncThrowingStream<[RemoteFindMatch], Error> {
@@ -56,7 +57,7 @@ actor RemoteSearchChannel {
                         isFinal: true,
                         payload: try RPCMessage.find(query: query, cap: cap).binaryEncoded()
                     )
-                    stdin.fileHandleForWriting.write(try RPCStreamHandler.encodeFrame(request.encodedPayload()))
+                    try stdin.fileHandleForWriting.write(contentsOf: RPCStreamHandler.encodeFrame(request.encodedPayload()))
                     try? stdin.fileHandleForWriting.close()
 
                     var handler = RPCStreamHandler()

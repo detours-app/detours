@@ -75,6 +75,7 @@ actor RemoteTransferChannel {
         self.controlDirectory = controlDirectory
         self.hostTrust = hostTrust
         self.processFactory = processFactory
+        _ = BrokenPipe.ignored
     }
 
     static func route(forByteCount byteCount: Int64) -> RemoteTransferRoute {
@@ -154,7 +155,10 @@ actor RemoteTransferChannel {
         )
         try process.run()
 
-        stdin.fileHandleForWriting.write(try RPCStreamHandler.encodeFrame(handshake.binaryEncoded()))
+        try Self.write(
+            RPCStreamHandler.encodeFrame(handshake.binaryEncoded()),
+            to: stdin.fileHandleForWriting, process: process, stderr: stderr
+        )
         try stdin.fileHandleForWriting.close()
 
         let partial = Self.partialURL(for: destination)
@@ -235,14 +239,17 @@ actor RemoteTransferChannel {
         try process.run()
 
         let input = stdin.fileHandleForWriting
-        input.write(try RPCStreamHandler.encodeFrame(handshake.binaryEncoded()))
+        try Self.write(
+            RPCStreamHandler.encodeFrame(handshake.binaryEncoded()),
+            to: input, process: process, stderr: stderr
+        )
 
         let handle = try FileHandle(forReadingFrom: localURL)
         defer { try? handle.close() }
         while true {
             let chunk = handle.readData(ofLength: 64 * 1024)
             guard !chunk.isEmpty else { break }
-            input.write(chunk)
+            try Self.write(chunk, to: input, process: process, stderr: stderr)
         }
         try input.close()
 
@@ -359,6 +366,18 @@ actor RemoteTransferChannel {
             throw CocoaError(.fileWriteFileExists)
         }
         try FileManager.default.moveItem(at: partial, to: destination)
+    }
+
+    /// A write that fails because ssh has already gone means the helper refused or lost the
+    /// transfer. Its stderr says why, so that is the error, not the broken pipe.
+    private static func write(_ data: Data, to input: FileHandle, process: Process, stderr: Pipe) throws {
+        do {
+            try input.write(contentsOf: data)
+        } catch {
+            try? input.close()
+            process.waitUntilExit()
+            throw RemoteTransferError.processFailed(stderrText(from: stderr))
+        }
     }
 
     private static func stderrText(from pipe: Pipe) -> String {

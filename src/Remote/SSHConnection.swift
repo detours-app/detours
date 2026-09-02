@@ -73,6 +73,7 @@ actor SSHConnection {
         self.askPassBridge = askPassBridge
         self.idleTimeout = idleTimeout
         self.processFactory = processFactory
+        _ = BrokenPipe.ignored
     }
 
     deinit {
@@ -155,7 +156,7 @@ actor SSHConnection {
         }
 
         let frame = try RPCStreamHandler.encodeFrame(envelope.encodedPayload())
-        stdinPipe.fileHandleForWriting.write(frame)
+        try stdinPipe.fileHandleForWriting.write(contentsOf: frame)
     }
 
     func setActivePaneCount(_ count: Int) {
