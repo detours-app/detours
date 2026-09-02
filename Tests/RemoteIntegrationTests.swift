@@ -517,6 +517,24 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(names, [], "The failed upload must leave nothing behind")
     }
 
+    func testLargeUploadWithSpacesInTheNameIntoANestedFolderSucceeds() async throws {
+        let session = try await RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH("mkdir -p \(Self.shellQuote(remoteRoot + "/2026-09-01T1028/report"))")
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let name = "OSAI-OS-549575-Exam-Report Best Practice.pdf"
+        let source = localRoot.appendingPathComponent(name)
+        try Data(count: 3 * 1_024 * 1_024).write(to: source)
+        let destination = Location.remote(hostID: session.hostID, path: remoteRoot + "/2026-09-01T1028/report/" + name)
+
+        try await session.provider.upload(source, to: destination)
+
+        let entry = try await session.provider.stat(destination)
+        XCTAssertEqual(entry.fileSize, 3 * 1_024 * 1_024)
+    }
+
     func testLargeTransferUsesRemoteTransferChannel() async throws {
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
