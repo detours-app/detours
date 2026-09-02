@@ -4,6 +4,10 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-02 19:38 (Spectre install-only delivery)
+
+- `resources/scripts/build.sh` on Spectre at e1dcc96 after all Foundry verification: Linux helper rebuilt on dockerhost (18 + 14 in-container tests green), Intel helper rebuilt, app built, signed, installed and relaunched. No tests or probes run on Spectre.
+
 ### 2026-09-02 19:35 (Foundry installed app against devtest, symbolic link F5 copy)
 
 - Merged to main at 1b9e4d2 on Marco's approval because the qualification runner requires Foundry on main. `resources/scripts/qualification-foundry.sh installed-smoke refresh LINUX_TARGET --commit 1b9e4d20ce809e86c4023d32ef663cfdeecc2894 --run-id symlink-copy-20260902-3 --smoke-repetitions 1 --test-filter RemoteSymlinkCopyUITests/testF5OnLocalLinkLandsTargetOnRemoteHost`: **PASS**. The xcresult reports 1 passed, 0 failed, 0 skipped; the prompt guard recorded 0 TCC prompts, 0 XCUI interruptions and 0 visible prompt windows; guarded cleanup passed; devtest's home holds no leftover scenario folder.
