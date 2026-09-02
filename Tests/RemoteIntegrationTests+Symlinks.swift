@@ -27,6 +27,12 @@ extension RemoteIntegrationTests {
         try runSSH("test -d \(shellQuote(path)) && ! test -L \(shellQuote(path)) && printf yes || printf no") == "yes"
     }
 
+    /// The Mac spells temporary folders as /var and /private/var; compare with the parent
+    /// resolved and the link itself left as it is.
+    private static func parentResolvedPath(_ url: URL) -> String {
+        url.deletingLastPathComponent().resolvingSymlinksInPath().appendingPathComponent(url.lastPathComponent).path
+    }
+
     private static func localIsLink(_ url: URL) -> Bool {
         (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
     }
@@ -201,7 +207,10 @@ extension RemoteIntegrationTests {
             XCTFail("Expected the looping link to be reported")
         } catch FileOperationError.partialFailure(let succeeded, let failed) {
             XCTAssertEqual(succeeded.map(\.path), [root + "/dest/folder"])
-            XCTAssertEqual(failed.map(\.0.path), [folder.appendingPathComponent("self").path])
+            XCTAssertEqual(
+                failed.map { Self.parentResolvedPath($0.0) },
+                [folder.resolvingSymlinksInPath().appendingPathComponent("self").path]
+            )
             let remote = try XCTUnwrap(failed.first?.1 as? RemoteOperationError)
             XCTAssertEqual(remote.underlying.localizedDescription, "The link self leads in a loop.")
         }

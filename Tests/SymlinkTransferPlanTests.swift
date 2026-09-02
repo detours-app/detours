@@ -18,7 +18,7 @@ final class SymlinkTransferPlanTests: XCTestCase {
         ])
         let staged = try createTempDirectory()
         defer { cleanupTempDirectory(staged) }
-        let context = SymlinkWalkContext(rootPath: "/root", rootStagedURL: staged)
+        let context = SymlinkWalkContext(root: location("/root"), rootStagedURL: staged)
 
         let outcome = try await SymlinkTransferWalker(provider: provider).classify(
             link: location("/root/a/link"),
@@ -53,7 +53,7 @@ final class SymlinkTransferPlanTests: XCTestCase {
         let staged = try createTempDirectory()
         defer { cleanupTempDirectory(staged) }
         let walker = SymlinkTransferWalker(provider: provider)
-        let context = SymlinkWalkContext(rootPath: "/root", rootStagedURL: staged)
+        let context = SymlinkWalkContext(root: location("/root"), rootStagedURL: staged)
 
         for name in ["first", "second"] {
             let outcome = try await walker.classify(
@@ -90,7 +90,7 @@ final class SymlinkTransferPlanTests: XCTestCase {
             link: location("/root/abs"),
             name: "abs",
             stagedLink: staged.appendingPathComponent("abs"),
-            context: SymlinkWalkContext(rootPath: "/root", rootStagedURL: staged)
+            context: SymlinkWalkContext(root: location("/root"), rootStagedURL: staged)
         )
 
         XCTAssertEqual(outcome, .recreate(relativeTarget: "data/file.txt"))
@@ -108,7 +108,7 @@ final class SymlinkTransferPlanTests: XCTestCase {
         let staged = try createTempDirectory()
         defer { cleanupTempDirectory(staged) }
         let walker = SymlinkTransferWalker(provider: provider)
-        var context = SymlinkWalkContext(rootPath: "/root", rootStagedURL: staged)
+        var context = SymlinkWalkContext(root: location("/root"), rootStagedURL: staged)
         context.activeDirectories = ["/root", "/root/sub"]
 
         await assertLinkError(
