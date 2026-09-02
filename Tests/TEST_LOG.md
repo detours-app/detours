@@ -4,6 +4,12 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-02 11:20 (Foundry installed app against devtest)
+
+- `resources/scripts/qualification-foundry.sh installed-smoke refresh LINUX_TARGET --commit 66e57ece4c34a364f627302284176162471421b3 --run-id remote-symlink-preview-20260902-2 --smoke-repetitions 1 --test-filter RemoteSymlinkPreviewUITests/testSpaceOnRemoteSymlinkPreviewsTheLinkedFile`: **PASS**. The xcresult reports 1 passed, 0 failed, 0 skipped; the prompt guard recorded 0 TCC prompts, 0 XCUI interruptions and 0 visible prompt windows; guarded cleanup passed and devtest's home holds no leftover scenario folder.
+- The test staged, through the app's fixture seam on the live host, a Markdown file, a symlink to it and a symlink to a folder. Space on the file link opened the Detours preview window titled with the target's name and showing its rendered heading, with no system panel. Escape closed it. Space on the folder link opened no window and raised no dialog.
+- A first attempt at 312bcbb failed the test build: the new test used a string helper that is private to another test file. Fixed at 66e57ec.
+
 ### 2026-09-02 11:09 (Foundry)
 
 - `swift test --filter FileListResponderTests` on Foundry at 43cd06f: 67/67 PASS, including the three new remote symlink Quick Look cases (link to file resolves to the target's location and name, link to folder surfaces as a folder, plain file keeps its own location).
