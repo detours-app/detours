@@ -4,6 +4,12 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-02 11:09 (Foundry)
+
+- `swift test --filter FileListResponderTests` on Foundry at 43cd06f: 67/67 PASS, including the three new remote symlink Quick Look cases (link to file resolves to the target's location and name, link to folder surfaces as a folder, plain file keeps its own location).
+- `swift test --filter RemoteIntegrationTests/testSymlinkQuickLookResolvesAndDownloadsTheLinkedFileThroughTheRealHelper` on Foundry at 36c274d and again at 1547f86 against the live Linux test host: PASS both times. The first build carried a strict-concurrency warning on the test's controller handoff; the second run is warning-free.
+- `resources/scripts/build.sh` on Foundry at 1547f86: build, sign, install OK, Detours running afterwards.
+
 ### 2026-08-24 15:44 (Foundry)
 
 - `swift test --filter "RenameGuardTests|StrayHiddenFlagTests|FileOperationQueueTests"` on Foundry at 83e0266: RenameGuardTests 4/4 PASS, StrayHiddenFlagTests 6/6 PASS, FileOperationQueueTests 71/71 PASS.
