@@ -5,15 +5,17 @@ import XCTest
 /// the file the link points at, and that a link to a folder opens nothing.
 final class RemoteSymlinkPreviewUITests: BaseUITest {
     private var qualificationRemoteTarget: String? {
-        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REAL_REMOTE_TARGET"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty
+        environmentValue("DETOURS_QUALIFICATION_REAL_REMOTE_TARGET")
     }
 
     private var qualificationRemoteContext: String? {
-        ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty
+        environmentValue("DETOURS_QUALIFICATION_REAL_REMOTE_CONTEXT")
+    }
+
+    private func environmentValue(_ name: String) -> String? {
+        let value = ProcessInfo.processInfo.environment[name]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? nil : value
     }
 
     private var remoteHomePath: String?
