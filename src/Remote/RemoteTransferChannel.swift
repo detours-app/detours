@@ -1,9 +1,23 @@
 import Foundation
 
-enum RemoteTransferError: Error, Equatable {
+enum RemoteTransferError: LocalizedError, Equatable {
     case byteCountMismatch(expected: Int64, actual: Int64)
     case invalidHandshake
     case processFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .byteCountMismatch(let expected, let actual):
+            return "The transfer stopped after \(actual) of \(expected) bytes."
+        case .invalidHandshake:
+            return "The remote host did not accept the transfer request."
+        case .processFailed(let detail):
+            let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty
+                ? "The remote host closed the transfer connection."
+                : "The remote host refused the transfer: \(trimmed)"
+        }
+    }
 }
 
 enum RemoteTransferDirection: UInt8, Equatable, Sendable {
