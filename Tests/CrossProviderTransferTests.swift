@@ -76,6 +76,41 @@ final class CrossProviderTransferTests: XCTestCase {
         XCTAssertEqual(destinationRollbackTrashCount, 1, "The uploaded destination must be rolled back")
     }
 
+    func testFailedUploadReportsTheHostErrorAloneAndCountsNothingAsCopied() async throws {
+        let sourceHost = UUID()
+        let destinationHost = UUID()
+        let source = Location.remote(hostID: sourceHost, path: "/source/report.pdf")
+        let destinationDirectory = Location.remote(hostID: destinationHost, path: "/destination")
+        let sourceProvider = TransferTestProvider(hostID: sourceHost, initialItem: source)
+        let destinationProvider = TransferTestProvider(hostID: destinationHost, failUpload: true)
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(sourceProvider, for: sourceHost)
+        queue.registerRemoteFileProvider(destinationProvider, for: destinationHost)
+        defer {
+            queue.unregisterRemoteFileProvider(for: sourceHost)
+            queue.unregisterRemoteFileProvider(for: destinationHost)
+        }
+
+        do {
+            _ = try await queue.copy(items: [source], to: destinationDirectory)
+            XCTFail("Expected the upload failure")
+        } catch let error as FileOperationError {
+            guard case let .unknown(underlying) = error,
+                  let remoteError = underlying as? RemoteOperationError else {
+                return XCTFail("Expected the wrapped upload failure, got \(error)")
+            }
+            XCTAssertEqual(
+                remoteError.underlying as? TransferTestError, .uploadFailed,
+                "The host's own error must be reported, not a rollback failure: \(remoteError)"
+            )
+        }
+
+        let destinationTrashCount = await destinationProvider.trashCount
+        let destinationExists = await destinationProvider.contains(destinationDirectory.appendingPathComponent("report.pdf"))
+        XCTAssertEqual(destinationTrashCount, 0, "Nothing was written, so nothing is rolled back")
+        XCTAssertFalse(destinationExists)
+    }
+
     private func waitFor(
         timeout: TimeInterval = 2,
         condition: @escaping () async -> Bool
@@ -93,19 +128,22 @@ final class CrossProviderTransferTests: XCTestCase {
 private enum TransferTestError: Error, Equatable {
     case missing
     case trashFailed
+    case uploadFailed
     case timedOut
 }
 
 private actor TransferTestProvider: FileProvider {
     let hostID: UUID
     let failTrash: Bool
+    let failUpload: Bool
     private var items: Set<Location>
     private(set) var uploadCount = 0
     private(set) var trashCount = 0
 
-    init(hostID: UUID, initialItem: Location? = nil, failTrash: Bool = false) {
+    init(hostID: UUID, initialItem: Location? = nil, failTrash: Bool = false, failUpload: Bool = false) {
         self.hostID = hostID
         self.failTrash = failTrash
+        self.failUpload = failUpload
         self.items = Set(initialItem.map { [$0] } ?? [])
     }
 
@@ -167,6 +205,7 @@ private actor TransferTestProvider: FileProvider {
     func upload(_ localURL: URL, to location: Location) async throws {
         _ = try Data(contentsOf: localURL)
         uploadCount += 1
+        if failUpload { throw TransferTestError.uploadFailed }
         items.insert(location)
     }
 }

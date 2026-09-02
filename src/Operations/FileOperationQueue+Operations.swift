@@ -460,8 +460,11 @@ extension FileOperationQueue {
                 try FileManager.default.createDirectory(at: itemStagingDirectory, withIntermediateDirectories: true)
 
                 try await stageLocation(item, provider: sourceProvider, to: stagedURL)
-                finalLocationForRollback = finalLocation
                 try await uploadStagedItem(stagedURL, to: finalLocation, provider: destinationProvider)
+                // A failed upload leaves nothing at the destination, so there is nothing to roll
+                // back until the upload has landed. Rolling back earlier trashed a file that was
+                // never written and reported that as a failed restore.
+                finalLocationForRollback = finalLocation
 
                 if isMove {
                     sourceRestoreRecords.append(
