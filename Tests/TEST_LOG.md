@@ -4,6 +4,12 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-02 18:57 (Foundry against devtest, symbolic links in copy and move, live)
+
+- `resources/scripts/build.sh` on Foundry at ee6ea3c: Linux helper rebuilt on dockerhost with its in-container tests green (18 + 14), Intel helper rebuilt, app built, signed, installed and relaunched on Foundry.
+- Ten live tests in `RemoteIntegrationTests+Symlinks.swift` at 9297ea8: 9/10 PASS; `testLoopingLinkFailsItemAndCompletesFolder` FAIL. The failed path came back as `/private/var/...` for a folder handed in as `/var/...`, and the folder's link back to itself landed on devtest as an extra folder because the walker did not recognise the folder as active under its other spelling.
+- Fix at 6a870bd (local paths canonicalised on disk for every component but the last). `swift test --filter "SymlinkTransferPlanTests|CrossProviderTransferTests|RemoteIntegrationTests/(the ten link tests)"`: 23/23 PASS in 26 s, all ten live tests green against devtest through the redeployed helper.
+
 ### 2026-09-02 18:50 (Foundry, symbolic links in copy and move, unit level)
 
 - Spec 260902-symlinks-in-copy-and-move, Phases 1-3. `swift test --filter "MessagesTests|ServerOperationsTests|TrashOperationsTests|CopyfileHelperTests"` on Foundry at c9a975f: 8 + 14 + 5 + 8 PASS, including the tag-23 Symlink round-trip.

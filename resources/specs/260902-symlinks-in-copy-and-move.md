@@ -34,18 +34,18 @@ Detours preserves links copied within one host. Across hosts it copies a selecte
 
 ### Acceptance Criteria
 
-- [ ] **A1** Copying a link from one local folder to another local folder gives a link at the destination, and the original file is unchanged.
-- [ ] **A2** Copying a link within a remote host gives a link at the destination on that host.
-- [ ] **A3** Moving a link within a remote host renames the link, and the file it pointed at is still in place.
-- [ ] **A4** Copying a link to a file from the Mac to a remote host lands a regular file with the link's name and the target's contents on the host.
-- [ ] **A5** Copying a link to a folder from a remote host to the Mac lands a real folder with the link's name containing the target folder's files.
-- [ ] **A6** Copying a folder from the Mac to a remote host recreates a link that pointed inside that folder as a working link on the host, and turns a link that pointed outside it into a copy of the file it pointed at.
-- [ ] **A7** Moving a link to a file from the Mac to a remote host lands the file on the host, moves the link to the Mac's Trash, and leaves the original file on the Mac untouched.
-- [ ] **A8** Copying a link whose target is missing across hosts fails that item with a message naming the link, and the other selected items still copy; copying it within one host preserves the dangling link.
-- [ ] **A9** Copying a folder containing a link back to itself to a remote host fails that link with a message naming it and completes the rest of the folder.
-- [ ] **A10** Trashing a link on a remote host removes the link, and the file it pointed at is still in place.
-- [ ] **A11** The user guide describes the rule for links in copy and move.
-- [ ] **A12** A folder moved across hosts with a failed nested link leaves the whole source folder in place and reports the partial destination copy.
+- [x] **A1** Copying a link from one local folder to another local folder gives a link at the destination, and the original file is unchanged.
+- [x] **A2** Copying a link within a remote host gives a link at the destination on that host.
+- [x] **A3** Moving a link within a remote host renames the link, and the file it pointed at is still in place.
+- [x] **A4** Copying a link to a file from the Mac to a remote host lands a regular file with the link's name and the target's contents on the host.
+- [x] **A5** Copying a link to a folder from a remote host to the Mac lands a real folder with the link's name containing the target folder's files.
+- [x] **A6** Copying a folder from the Mac to a remote host recreates a link that pointed inside that folder as a working link on the host, and turns a link that pointed outside it into a copy of the file it pointed at.
+- [x] **A7** Moving a link to a file from the Mac to a remote host lands the file on the host, moves the link to the Mac's Trash, and leaves the original file on the Mac untouched.
+- [x] **A8** Copying a link whose target is missing across hosts fails that item with a message naming the link, and the other selected items still copy; copying it within one host preserves the dangling link.
+- [x] **A9** Copying a folder containing a link back to itself to a remote host fails that link with a message naming it and completes the rest of the folder.
+- [x] **A10** Trashing a link on a remote host removes the link, and the file it pointed at is still in place.
+- [x] **A11** The user guide describes the rule for links in copy and move.
+- [x] **A12** A folder moved across hosts with a failed nested link leaves the whole source folder in place and reports the partial destination copy.
 
 ### Out of scope
 
@@ -156,16 +156,16 @@ All tests run on Foundry. Unit and integration tests run over SSH; the single in
 
 Add the tests as an extension of `RemoteIntegrationTests`, exposing only the existing fixture, SSH quoting and path-check helpers that the new file reuses.
 
-- [ ] **T16** `testSameHostCopyOfLinksKeepsLinks` - Copying selected valid, dangling and looping links, plus a folder containing them, within devtest preserves each target text.
-- [ ] **T17** `testSameHostMoveOfLinkRenamesLink` - Moving a link within devtest renames it and leaves the target in place.
-- [ ] **T18** `testTrashingRemoteLinkLeavesTarget` - Trashing valid and dangling links on devtest removes both links and leaves the valid link's target in place; restoring brings both links back.
-- [ ] **T19** `testFileLinkUploadsTargetUnderLinkName` - Copying a local link to a file to devtest lands a regular file with the link's name and the target's bytes.
-- [ ] **T20** `testFolderLinkDownloadsFolderUnderLinkName` - Copying a devtest link to a folder containing an internal link lands a real folder with the selected link's name and recreates the internal link on the Mac.
-- [ ] **T21** `testFolderWithInsideAndOutsideLinksUploadsPerRule` - Copying a local folder holding one link inside it and one outside it to devtest recreates the first as a working relative link and the second as a regular file.
-- [ ] **T22** `testLoopingLinkFailsItemAndCompletesFolder` - A folder holding a link to itself copies its other files to devtest and fails the link with `linkLoops`.
-- [ ] **T23** `testDanglingLinkFailsItemOnly` - A dangling link and a plain file selected together across hosts copy the file and fail the link with the named `linkTargetMissing` message.
-- [ ] **T24** `testCrossHostMoveOfLinkTrashesLinkOnly` - Moving a local link to devtest lands the file on the host, puts the link in the Mac's Trash, and leaves the local target in place.
-- [ ] **T25** Add the tag-23 binary round-trip to `Tests/MessagesTests.swift`; `testSymlinkMessageRoundTripsThroughRealHelper` creates a link on devtest and refuses both regular and dangling-link destinations.
+- [x] **T16** `testSameHostCopyOfLinksKeepsLinks` - Copying selected valid, dangling and looping links, plus a folder containing them, within devtest preserves each target text.
+- [x] **T17** `testSameHostMoveOfLinkRenamesLink` - Moving a link within devtest renames it and leaves the target in place.
+- [x] **T18** `testTrashingRemoteLinkLeavesTarget` - Trashing valid and dangling links on devtest removes both links and leaves the valid link's target in place; restoring brings both links back.
+- [x] **T19** `testFileLinkUploadsTargetUnderLinkName` - Copying a local link to a file to devtest lands a regular file with the link's name and the target's bytes.
+- [x] **T20** `testFolderLinkDownloadsFolderUnderLinkName` - Copying a devtest link to a folder containing an internal link lands a real folder with the selected link's name and recreates the internal link on the Mac.
+- [x] **T21** `testFolderWithInsideAndOutsideLinksUploadsPerRule` - Copying a local folder holding one link inside it and one outside it to devtest recreates the first as a working relative link and the second as a regular file.
+- [x] **T22** `testLoopingLinkFailsItemAndCompletesFolder` - A folder holding a link to itself copies its other files to devtest and fails the link with `linkLoops`.
+- [x] **T23** `testDanglingLinkFailsItemOnly` - A dangling link and a plain file selected together across hosts copy the file and fail the link with the named `linkTargetMissing` message.
+- [x] **T24** `testCrossHostMoveOfLinkTrashesLinkOnly` - Moving a local link to devtest lands the file on the host, puts the link in the Mac's Trash, and leaves the local target in place.
+- [x] **T25** Add the tag-23 binary round-trip to `Tests/MessagesTests.swift`; `testSymlinkMessageRoundTripsThroughRealHelper` creates a link on devtest and refuses both regular and dangling-link destinations.
 
 ### E2E Tests (`Tests/UITests/DetoursUITests/DetoursUITests/RemoteSymlinkCopyUITests.swift`, guarded installed-smoke on Foundry against devtest)
 
@@ -191,4 +191,6 @@ Add the tests as an extension of `RemoteIntegrationTests`, exposing only the exi
 - **T11-T12** Added to `Tests/TrashOperationsTests.swift`. `swift test --filter TrashOperationsTests` on Foundry at 5d0bd70: 7/7 PASS.
 - **T13-T15** Added to `Tests/FileOperationQueueTests.swift`. `swift test --filter FileOperationQueueTests/testLocal` on Foundry at 5d0bd70: 3/3 PASS; the copy of a dangling and a self-looping link through `copyfile` with `COPYFILE_NOFOLLOW_SRC` lands as links.
 - **C13** `USER_GUIDE.md` gains a symbolic-link paragraph under Cross-Pane Operations and a line under Remote File Workflows; `remote-vm-browsing.md` gains a line under Remote Workflows; `CHANGELOG.md` gains an Unreleased feature entry (1.13.0 was already released today, so the entry sits above it for the next release to retitle).
+- **T16-T25** `Tests/RemoteIntegrationTests+Symlinks.swift`, an extension of `RemoteIntegrationTests` reusing its fixture root, SSH quoting and path-check helpers (made internal). First live run at 9297ea8 against devtest: 9/10, `testLoopingLinkFailsItemAndCompletesFolder` FAIL because the Mac lists the temporary folder as `/private/var/...` while the test handed it in as `/var/...`, so the folder's link back to itself was not seen as active and the folder was walked once more before failing. Fixed at 6a870bd by resolving every component but the last of a local path on disk. Rerun at 6a870bd: `SymlinkTransferPlanTests` 5, `CrossProviderTransferTests` 8, the ten live tests 10: 23/23 PASS in 26 s.
+- **A1** T13 on Foundry. **A2** T16. **A3** T17. **A4** T19 (and T26 in the installed app). **A5** T20. **A6** T21. **A7** T24, the link found in Foundry's Trash pointing at the untouched local target. **A8** T23 across hosts, T13 and T16 within one host. **A9** T22. **A10** T18. **A11** C13. **A12** T10 with the fake hosts: the partial destination is reported as succeeded and the source folder keeps every item.
 - **C5** `FileOperationError.linkTargetMissing(name:)` and `linkLoops(name:)` added with the spec's messages in `LocalizedError` and a title/body pair in `FileOperationQueue.errorPresentation`.
