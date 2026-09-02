@@ -23,8 +23,9 @@ struct TrashOperations {
         var trashedItems: [(original: URL, trashed: URL, info: URL)] = []
         do {
             for path in paths {
-                let sourceURL = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
-                guard fileManager.fileExists(atPath: sourceURL.path) else {
+                // Only the parent is resolved: a link is trashed as the link, never as its target.
+                let sourceURL = Self.resolvingParent(of: path)
+                guard PathProbe.existsWithoutFollowing(sourceURL.path) else {
                     throw TrashOperationsError.missingItem(path)
                 }
 
@@ -73,13 +74,13 @@ struct TrashOperations {
 
             let originalPath = try originalPath(fromTrashInfo: trashInfoURL)
             let destinationURL = try canonicalRestoreDestination(for: originalPath)
-            guard !fileManager.fileExists(atPath: destinationURL.path) else {
+            guard !PathProbe.existsWithoutFollowing(destinationURL.path) else {
                 throw TrashOperationsError.restoreDestinationExists(destinationURL.path)
             }
 
             let trashName = trashInfoURL.deletingPathExtension().lastPathComponent
             let trashedFileURL = filesDirectory.appendingPathComponent(trashName)
-            guard fileManager.fileExists(atPath: trashedFileURL.path) else {
+            guard PathProbe.existsWithoutFollowing(trashedFileURL.path) else {
                 throw TrashOperationsError.missingItem(trashedFileURL.path)
             }
 
@@ -145,15 +146,21 @@ struct TrashOperations {
     }
 
     private func canonicalRestoreDestination(for originalPath: String) throws -> URL {
-        let requestedURL = URL(fileURLWithPath: originalPath).standardizedFileURL
-        let parentURL = requestedURL.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath()
-        let destinationURL = parentURL.appendingPathComponent(requestedURL.lastPathComponent)
+        let destinationURL = Self.resolvingParent(of: originalPath)
 
         guard isDescendantOrSame(destinationURL, of: homeDirectory) else {
             throw TrashOperationsError.restoreDestinationOutsideHome(destinationURL.path)
         }
 
         return destinationURL
+    }
+
+    /// Resolves links in every component but the last, so the item itself is addressed as
+    /// it is on disk: a link stays a link, a dangling link stays addressable.
+    static func resolvingParent(of path: String) -> URL {
+        let requestedURL = URL(fileURLWithPath: path).standardizedFileURL
+        let parentURL = requestedURL.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath()
+        return parentURL.appendingPathComponent(requestedURL.lastPathComponent)
     }
 
     private func isDescendantOrSame(_ child: URL, of parent: URL) -> Bool {

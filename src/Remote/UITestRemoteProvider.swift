@@ -439,7 +439,7 @@ actor UITestRemoteProvider: FileProvider {
         do {
             try failIfRequested(operation: "createSymbolicLink")
             let link = try confinedURL(for: location, mustExist: false)
-            var info = stat()
+            var info = Darwin.stat()
             guard lstat(link.path, &info) != 0 else {
                 throw CocoaError(.fileWriteFileExists)
             }

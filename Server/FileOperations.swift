@@ -54,7 +54,13 @@ struct FileOperations {
         let copied = try sources.map { source in
             let sourceURL = URL(fileURLWithPath: source.string)
             let finalURL = try copyDestination(for: sourceURL, in: destinationURL)
-            try fileManager.copyItem(at: sourceURL, to: finalURL)
+            if PathProbe.isSymbolicLink(sourceURL.path) {
+                // A link copies as a link with its original target text, dangling or not.
+                let target = try fileManager.destinationOfSymbolicLink(atPath: sourceURL.path)
+                try fileManager.createSymbolicLink(atPath: finalURL.path, withDestinationPath: target)
+            } else {
+                try fileManager.copyItem(at: sourceURL, to: finalURL)
+            }
             return ServerRemotePath(finalURL.path)
         }
         return encodePathList(copied)
@@ -114,16 +120,11 @@ struct FileOperations {
     /// Creates a link at `path` with the raw `targetPath` text. A regular file, a link, or a
     /// dangling link already at `path` refuses, so the check never follows the destination.
     func symlink(path: ServerRemotePath, targetPath: ServerRemotePath) throws -> Data {
-        guard !Self.existsWithoutFollowing(path.string) else {
+        guard !PathProbe.existsWithoutFollowing(path.string) else {
             throw CocoaError(.fileWriteFileExists)
         }
         try fileManager.createSymbolicLink(atPath: path.string, withDestinationPath: targetPath.string)
         return encodePathList([path])
-    }
-
-    static func existsWithoutFollowing(_ path: String) -> Bool {
-        var info = stat()
-        return lstat(path, &info) == 0
     }
 
     func download(path: ServerRemotePath, maximumRPCBytes: Int64) throws -> Data {
@@ -340,8 +341,11 @@ struct FileOperations {
     }
 
     private func destinationNameParts(for sourceURL: URL) throws -> (baseName: String, ext: String) {
-        let values = try sourceURL.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
-        if values.isDirectory == true, values.isPackage != true {
+        // A link is named like a file whatever it points at; a dangling one has no values to read.
+        let values = PathProbe.isSymbolicLink(sourceURL.path)
+            ? nil
+            : try sourceURL.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+        if values?.isDirectory == true, values?.isPackage != true {
             return (sourceURL.lastPathComponent, "")
         }
         let ext = sourceURL.pathExtension

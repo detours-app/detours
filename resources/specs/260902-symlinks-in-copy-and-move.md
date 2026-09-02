@@ -104,9 +104,9 @@ Two failure modes shape the design. Links that loop, such as a folder containing
 
 **Phase 2: Same host**
 
-- [ ] **C6** In `src/Operations/CopyfileHelper.swift`, detect a source link without following it, set `COPYFILE_NOFOLLOW_SRC`, and add `COPYFILE_RECURSIVE` only for a non-link directory.
-- [ ] **C7** In `Server/FileOperations.swift` `copy`, test for a source link before directory handling and recreate it with its original target text, including when that target is missing, instead of calling `copyItem`.
-- [ ] **C8** In `Server/TrashOperations.swift`, resolve only the parent of every trashed, restored or rolled-back path, retain its final component, and use non-following existence checks for source, trash and restore destinations so valid and dangling links move as links.
+- [x] **C6** In `src/Operations/CopyfileHelper.swift`, detect a source link without following it, set `COPYFILE_NOFOLLOW_SRC`, and add `COPYFILE_RECURSIVE` only for a non-link directory.
+- [x] **C7** In `Server/FileOperations.swift` `copy`, test for a source link before directory handling and recreate it with its original target text, including when that target is missing, instead of calling `copyItem`.
+- [x] **C8** In `Server/TrashOperations.swift`, resolve only the parent of every trashed, restored or rolled-back path, retain its final component, and use non-following existence checks for source, trash and restore destinations so valid and dangling links move as links.
 
 **Phase 3: Across hosts**
 
@@ -179,4 +179,7 @@ Add the tests as an extension of `RemoteIntegrationTests`, exposing only the exi
 - **C2** `LocalFileProvider.createSymbolicLink` refuses any destination that `lstat` can see (regular file, link, dangling link) with `destinationExists`, then calls `FileManager.createSymbolicLink(atPath:withDestinationPath:)` with the raw target text.
 - **C3** Tag 18 was already `watchEvent` on the client side, so the spec's tag collided with a live message; the new `symlink` message uses tag 23, the next free tag, in `RPCMessage` and `ServerRPCMessage`. Named `Symlink` in the message-type table, listed as state-changing in `RPCHandler`, served by `FileOperations.symlink(path:targetPath:)` with an `lstat` destination check. `MessagesTests` round-trips it.
 - **C4** `RemoteFileProvider.createSymbolicLink` sends the raw target bytes as a `RemotePath`; `UITestRemoteProvider` confines the link path to its root, refuses an existing destination without following it, and records the call in the provider history like `createDirectory`.
+- **C6** `CopyfileHelper` sets `COPYFILE_NOFOLLOW_SRC` on every copy and adds `COPYFILE_RECURSIVE` only when `lstat` reports a real directory, so a selected link copies as a link on the Mac.
+- **C7** The helper's `copy` recreates a link source with its original target text through `createSymbolicLink`, dangling or not, and names it like a file when picking a " copy" suffix, since a dangling link has no resource values to read.
+- **C8** `TrashOperations` addresses trash, restore and rollback paths through `resolvingParent(of:)`, which resolves every component but the last, and checks source, trash and restore destinations with `lstat` through the new `Server/PathProbe.swift`, so a valid or dangling link moves as a link and restores as a link.
 - **C5** `FileOperationError.linkTargetMissing(name:)` and `linkLoops(name:)` added with the spec's messages in `LocalizedError` and a title/body pair in `FileOperationQueue.errorPresentation`.

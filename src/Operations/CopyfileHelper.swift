@@ -32,10 +32,11 @@ enum CopyfileHelper {
             copyfile_state_set(state, UInt32(COPYFILE_STATE_STATUS_CTX), context)
         }
 
-        var flags = copyfile_flags_t(COPYFILE_ALL)
-        var isDirectory: ObjCBool = false
-        FileManager.default.fileExists(atPath: source.path, isDirectory: &isDirectory)
-        if isDirectory.boolValue {
+        // A link copies as a link, never as the item it points at, so the source is
+        // never followed; only a real directory recurses.
+        var flags = copyfile_flags_t(COPYFILE_ALL) | copyfile_flags_t(COPYFILE_NOFOLLOW_SRC)
+        var info = Darwin.stat()
+        if lstat(source.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFDIR {
             flags |= copyfile_flags_t(COPYFILE_RECURSIVE)
         }
 

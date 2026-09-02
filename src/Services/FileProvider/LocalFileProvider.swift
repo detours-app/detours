@@ -104,7 +104,7 @@ actor LocalFileProvider: FileProvider {
     func createSymbolicLink(at location: Location, targetPath: String) async throws {
         let url = try localURL(from: location)
         // lstat: a regular file, a link, or a dangling link at the destination all refuse.
-        var info = stat()
+        var info = Darwin.stat()
         guard lstat(url.path, &info) != 0 else {
             throw FileOperationError.destinationExists(url)
         }
