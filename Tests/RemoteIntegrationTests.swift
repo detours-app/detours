@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Detours
 
@@ -58,6 +59,50 @@ final class RemoteIntegrationTests: XCTestCase {
         } catch FileProviderError.unsupportedOperation(let message) {
             XCTAssertTrue(message.contains("100 MB"))
         }
+    }
+
+    func testSymlinkQuickLookResolvesAndDownloadsTheLinkedFileThroughTheRealHelper() async throws {
+        let session = try await RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        try Self.runSSH(
+            "mkdir \(Self.shellQuote(remoteRoot + "/releases")) \(Self.shellQuote(remoteRoot + "/builds")); "
+                + "printf linked-body > \(Self.shellQuote(remoteRoot + "/releases/config.yaml")); "
+                + "ln -s releases/config.yaml \(Self.shellQuote(remoteRoot + "/current")); "
+                + "ln -s builds \(Self.shellQuote(remoteRoot + "/latest"))"
+        )
+        let root = Location.remote(hostID: session.hostID, path: remoteRoot)
+        let entries = try await session.provider.list(root, showHidden: true)
+        guard let fileLink = entries.first(where: { $0.name == "current" }),
+              let folderLink = entries.first(where: { $0.name == "latest" }) else {
+            XCTFail("Expected both symlinks in the listing: \(entries.map(\.name))")
+            return
+        }
+        XCTAssertTrue(fileLink.isSymbolicLink)
+        XCTAssertFalse(fileLink.isDirectory, "A link to a file must enter the remote Quick Look path")
+
+        let viewController = await FileListViewController()
+        let fileSource = try await viewController.resolveRemoteQuickLookSource(
+            for: FileItem(entry: fileLink, icon: NSImage()),
+            provider: session.provider
+        )
+        XCTAssertEqual(fileSource.location.path, remoteRoot + "/releases/config.yaml")
+        XCTAssertEqual(fileSource.name, "config.yaml")
+        XCTAssertEqual(fileSource.entry.fileSize, 11)
+
+        let downloaded = FileManager.default.temporaryDirectory
+            .appendingPathComponent("detours-symlink-quicklook-\(UUID().uuidString)")
+            .appendingPathComponent("config.yaml")
+        defer { try? FileManager.default.removeItem(at: downloaded.deletingLastPathComponent()) }
+        try await session.provider.download(fileSource.location, to: downloaded)
+        XCTAssertEqual(try String(contentsOf: downloaded, encoding: .utf8), "linked-body")
+
+        let folderSource = try await viewController.resolveRemoteQuickLookSource(
+            for: FileItem(entry: folderLink, icon: NSImage()),
+            provider: session.provider
+        )
+        XCTAssertEqual(folderSource.location.path, remoteRoot + "/builds")
+        XCTAssertTrue(folderSource.entry.isDirectory || folderSource.entry.fileSize == nil, "A link to a folder must be declined, not previewed as an empty file")
     }
 
     func testArchiveWrongPasswordMapsRealHelperErrorToRetry() async throws {
