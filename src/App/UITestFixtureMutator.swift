@@ -42,6 +42,12 @@ enum UITestFixtureMutator {
             try FileManager.default.copyItem(at: external, to: source)
         case "remove":
             try FileManager.default.removeItem(at: source)
+        case "symlink":
+            // `destinationRelativePath` is the raw link text, relative to the link itself.
+            guard let target = command.destinationRelativePath else {
+                throw MutationError.missingDestination
+            }
+            try FileManager.default.createSymbolicLink(atPath: source.path, withDestinationPath: target)
         case "gitInit":
             try runGit(["init", "-q"], in: source)
             try runGit(["add", "tracked.txt"], in: source)

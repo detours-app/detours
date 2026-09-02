@@ -76,7 +76,7 @@ struct RPCHandler: @unchecked Sendable {
         switch message {
         case .protocolVersion, .list, .stat, .readSymlink, .folderSize, .gitStatus, .fileVersion, .download, .find:
             return false
-        case .copy, .move, .rename, .delete, .trash, .restoreFromTrash, .mkDir,
+        case .copy, .move, .rename, .delete, .trash, .restoreFromTrash, .mkDir, .symlink,
              .archiveCreate, .archiveExtract, .upload, .watch, .unwatch:
             return true
         }
@@ -160,6 +160,8 @@ struct RPCHandler: @unchecked Sendable {
             return [try fileOperations.restoreFromTrash(items: items)]
         case .mkDir(let path):
             return [try fileOperations.mkDir(path: path)]
+        case .symlink(let path, let targetPath):
+            return [try fileOperations.symlink(path: path, targetPath: targetPath)]
         case .archiveCreate(let items, let format, let archiveName, let password):
             return [try fileOperations.archiveCreate(
                 items: items,

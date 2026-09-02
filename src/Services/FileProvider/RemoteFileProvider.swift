@@ -543,6 +543,12 @@ actor RemoteFileProvider: FileProvider {
         return .remote(hostID: hostID, path: path.lossyDisplayString)
     }
 
+    func createSymbolicLink(at location: Location, targetPath: String) async throws {
+        _ = try await rpcClient.send(
+            .symlink(path: remotePath(from: location), targetPath: RemotePath(targetPath))
+        )
+    }
+
     func openForQuickLook(_ location: Location) async throws -> URL {
         let entry = try await stat(location)
         guard let size = entry.fileSize else {
@@ -645,6 +651,7 @@ extension RPCMessage {
         case .trash: return "Trash"
         case .restoreFromTrash: return "RestoreFromTrash"
         case .mkDir: return "MkDir"
+        case .symlink: return "Symlink"
         case .readSymlink: return "ReadSymlink"
         case .folderSize: return "FolderSize"
         case .gitStatus: return "GitStatus"

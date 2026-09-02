@@ -31,6 +31,7 @@ Remote panes are normal Detours panes for the commands that have been routed thr
 
 - Browse folders, tabs, breadcrumbs, sorting, hidden-file toggling, and folder expansion
 - Copy, cut, paste, F5 copy-to-other-pane, and F6 move-to-other-pane between the Mac and remote hosts
+- Symbolic links on macOS and Linux hosts: a copy within one host keeps the link with its target text, a move within one host renames the link, and a transfer to another host carries the file or folder the link points at under the link's name. Inside a transferred folder, a link pointing within the folder is recreated relative to its copied counterpart; a link pointing outside becomes a copy of its target. A missing target or a link back into a folder already being copied fails that one item by name and the rest of the transfer continues. Windows hosts keep their existing behaviour.
 - Drag files and folders within one remote host, across remote hosts, and in both
   directions between local and remote panes; valid targets highlight without
   opening folders during hover

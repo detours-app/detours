@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 /// Wraps `copyfile(3)` with a 1 MB buffer for better throughput on fast storage.
@@ -32,10 +33,10 @@ enum CopyfileHelper {
             copyfile_state_set(state, UInt32(COPYFILE_STATE_STATUS_CTX), context)
         }
 
-        var flags = copyfile_flags_t(COPYFILE_ALL)
-        var isDirectory: ObjCBool = false
-        FileManager.default.fileExists(atPath: source.path, isDirectory: &isDirectory)
-        if isDirectory.boolValue {
+        // A link copies as a link, never as the item it points at, so the source is
+        // never followed; only a real directory recurses.
+        var flags = copyfile_flags_t(COPYFILE_ALL) | copyfile_flags_t(COPYFILE_NOFOLLOW_SRC)
+        if PathProbe.isDirectoryWithoutFollowing(source.path) {
             flags |= copyfile_flags_t(COPYFILE_RECURSIVE)
         }
 

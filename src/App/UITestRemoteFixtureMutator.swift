@@ -48,7 +48,7 @@ enum UITestRemoteFixtureMutator {
                 throw error
             }
             return nil
-        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "cleanup":
+        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "stat", "cleanup":
             guard let sentinelID = command.sentinelID, UUID(uuidString: sentinelID) != nil else {
                 throw MutationError.invalidSentinel
             }
@@ -128,6 +128,15 @@ enum UITestRemoteFixtureMutator {
                 )
                 let command = "ln -s " + shellQuote(destination.path) + " " + shellQuote(link.path)
                 _ = try await SSHRemoteHostKindProbeClient(sshTarget: target).run(command)
+            case "stat":
+                // Reports what the host holds at the path: "directory", "link" or "file".
+                let location = try validatedChildLocation(
+                    command.relativePath,
+                    scenarioPath: scenarioPath,
+                    hostID: hostID
+                )
+                let entry = try await provider.stat(location)
+                return [entry.isSymbolicLink ? "link" : entry.isDirectory ? "directory" : "file"]
             case "cleanup":
                 try await provider.delete([scenario])
             default:

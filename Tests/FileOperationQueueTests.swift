@@ -1,3 +1,4 @@
+import DetoursProcess
 import XCTest
 @testable import Detours
 
@@ -124,6 +125,73 @@ final class FileOperationQueueTests: XCTestCase {
         let moved = dest.appendingPathComponent("a.txt")
         XCTAssertTrue(FileManager.default.fileExists(atPath: moved.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+
+    private func linkText(_ url: URL) throws -> String {
+        try FileManager.default.destinationOfSymbolicLink(atPath: url.path)
+    }
+
+    func testLocalCopyOfLinksKeepsLinks() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let target = try createTestFile(in: temp, name: "target.txt", content: "keep")
+        let valid = temp.appendingPathComponent("valid")
+        let dangling = temp.appendingPathComponent("dangling")
+        let looping = temp.appendingPathComponent("looping")
+        try FileManager.default.createSymbolicLink(atPath: valid.path, withDestinationPath: "target.txt")
+        try FileManager.default.createSymbolicLink(atPath: dangling.path, withDestinationPath: "missing.txt")
+        try FileManager.default.createSymbolicLink(atPath: looping.path, withDestinationPath: "looping")
+        let folder = try createTestFolder(in: temp, name: "Folder")
+        try FileManager.default.createSymbolicLink(
+            atPath: folder.appendingPathComponent("up").path,
+            withDestinationPath: "../target.txt"
+        )
+        try FileManager.default.createSymbolicLink(
+            atPath: folder.appendingPathComponent("gone").path,
+            withDestinationPath: "missing.txt"
+        )
+        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("self").path, withDestinationPath: "self")
+        let dest = try createTestFolder(in: temp, name: "Dest")
+
+        try await FileOperationQueue.shared.copy(items: [valid, dangling, looping, folder], to: dest)
+
+        XCTAssertEqual(try linkText(dest.appendingPathComponent("valid")), "target.txt")
+        XCTAssertEqual(try linkText(dest.appendingPathComponent("dangling")), "missing.txt")
+        XCTAssertEqual(try linkText(dest.appendingPathComponent("looping")), "looping")
+        XCTAssertEqual(try linkText(dest.appendingPathComponent("Folder/up")), "../target.txt")
+        XCTAssertEqual(try linkText(dest.appendingPathComponent("Folder/gone")), "missing.txt")
+        XCTAssertEqual(try linkText(dest.appendingPathComponent("Folder/self")), "self")
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "keep")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: temp.path).sorted(),
+                       ["Dest", "Folder", "dangling", "looping", "target.txt", "valid"])
+    }
+
+    func testLocalMoveOfLinkRenamesLink() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let target = try createTestFile(in: temp, name: "target.txt", content: "keep")
+        let link = temp.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: target.path)
+        let dest = try createTestFolder(in: temp, name: "Dest")
+
+        try await FileOperationQueue.shared.move(items: [link], to: dest)
+
+        XCTAssertEqual(try linkText(dest.appendingPathComponent("link")), target.path)
+        XCTAssertFalse(PathProbe.existsWithoutFollowing(link.path))
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "keep")
+    }
+
+    func testLocalTrashOfLinkKeepsTarget() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let target = try createTestFile(in: temp, name: "target.txt", content: "keep")
+        let link = temp.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "target.txt")
+
+        try await FileOperationQueue.shared.delete(items: [link])
+
+        XCTAssertFalse(PathProbe.existsWithoutFollowing(link.path))
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "keep")
     }
 
     func testDeleteFile() async throws {

@@ -976,7 +976,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertTrue(try Self.remotePathExists(crossSource.path + "/child.txt"))
     }
 
-    private static func makeRemoteFixtureRoot() throws -> String {
+    static func makeRemoteFixtureRoot() throws -> String {
         try makeRemoteFixtureRoot(target: linuxTestTarget)
     }
 
@@ -987,7 +987,7 @@ final class RemoteIntegrationTests: XCTestCase {
         return root
     }
 
-    private static func cleanupRemote(_ path: String) {
+    static func cleanupRemote(_ path: String) {
         cleanupRemote(path, target: linuxTestTarget)
     }
 
@@ -1006,7 +1006,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTFail("Remote path was not restored within \(timeout) seconds: \(path)")
     }
 
-    private static func remotePathExists(_ path: String) throws -> Bool {
+    static func remotePathExists(_ path: String) throws -> Bool {
         try remotePathExists(path, target: linuxTestTarget)
     }
 
@@ -1077,7 +1077,7 @@ final class RemoteIntegrationTests: XCTestCase {
         try runSSH("printf %s \"$HOME\"", target: target).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    fileprivate static func shellQuote(_ value: String) -> String {
+    static func shellQuote(_ value: String) -> String {
         "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 

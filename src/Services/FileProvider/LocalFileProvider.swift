@@ -1,4 +1,5 @@
 import CryptoKit
+import DetoursProcess
 import Foundation
 
 actor LocalFileProvider: FileProvider {
@@ -99,6 +100,14 @@ actor LocalFileProvider: FileProvider {
             return .local(URL(fileURLWithPath: destination))
         }
         return .local(url.deletingLastPathComponent().appendingPathComponent(destination))
+    }
+
+    func createSymbolicLink(at location: Location, targetPath: String) async throws {
+        let url = try localURL(from: location)
+        guard !PathProbe.existsWithoutFollowing(url.path) else {
+            throw FileOperationError.destinationExists(url)
+        }
+        try FileManager.default.createSymbolicLink(atPath: url.path, withDestinationPath: targetPath)
     }
 
     func openForQuickLook(_ location: Location) async throws -> URL {

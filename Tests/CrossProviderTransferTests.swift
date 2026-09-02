@@ -111,6 +111,173 @@ final class CrossProviderTransferTests: XCTestCase {
         XCTAssertFalse(destinationExists)
     }
 
+    // MARK: - Links
+
+    private func linkFixture(
+        source: [String: SymlinkFakeProvider.Node]
+    ) -> (source: SymlinkFakeProvider, destination: SymlinkFakeProvider, sourceHost: UUID, destinationHost: UUID) {
+        let sourceHost = UUID()
+        let destinationHost = UUID()
+        let sourceProvider = SymlinkFakeProvider(hostID: sourceHost, nodes: source)
+        let destinationProvider = SymlinkFakeProvider(hostID: destinationHost, nodes: ["/dst": .directory])
+        FileOperationQueue.shared.registerRemoteFileProvider(sourceProvider, for: sourceHost)
+        FileOperationQueue.shared.registerRemoteFileProvider(destinationProvider, for: destinationHost)
+        return (sourceProvider, destinationProvider, sourceHost, destinationHost)
+    }
+
+    private func unregister(_ hosts: UUID...) {
+        hosts.forEach { FileOperationQueue.shared.unregisterRemoteFileProvider(for: $0) }
+    }
+
+    func testSelectedFileLinkCopiesTargetUnderLinkName() async throws {
+        let fixture = linkFixture(source: [
+            "/src": .directory,
+            "/src/real.txt": .file(Data("payload".utf8)),
+            "/src/hop": .link("/src/real.txt"),
+            "/src/link": .link("hop"),
+        ])
+        defer { unregister(fixture.sourceHost, fixture.destinationHost) }
+        let destination = Location.remote(hostID: fixture.destinationHost, path: "/dst")
+
+        let copied = try await FileOperationQueue.shared.copy(
+            items: [.remote(hostID: fixture.sourceHost, path: "/src/link")],
+            to: destination
+        )
+
+        XCTAssertEqual(copied, [destination.appendingPathComponent("link")])
+        let landed = await fixture.destination.node(at: "/dst/link")
+        XCTAssertEqual(landed, .file(Data("payload".utf8)))
+        let calls = await fixture.destination.calls
+        XCTAssertEqual(calls, ["upload /dst/link"])
+    }
+
+    func testSelectedFolderLinkCopiesFolderUnderLinkName() async throws {
+        let fixture = linkFixture(source: [
+            "/src": .directory,
+            "/src/dir": .directory,
+            "/src/dir/a.txt": .file(Data("a".utf8)),
+            "/src/dir/sub": .directory,
+            "/src/dir/sub/b.txt": .file(Data("b".utf8)),
+            "/src/dirlink": .link("dir"),
+        ])
+        defer { unregister(fixture.sourceHost, fixture.destinationHost) }
+        let destination = Location.remote(hostID: fixture.destinationHost, path: "/dst")
+
+        let copied = try await FileOperationQueue.shared.copy(
+            items: [.remote(hostID: fixture.sourceHost, path: "/src/dirlink")],
+            to: destination
+        )
+
+        XCTAssertEqual(copied, [destination.appendingPathComponent("dirlink")])
+        let paths = await fixture.destination.paths()
+        XCTAssertEqual(paths, ["/dst", "/dst/dirlink", "/dst/dirlink/a.txt", "/dst/dirlink/sub", "/dst/dirlink/sub/b.txt"])
+        let root = await fixture.destination.node(at: "/dst/dirlink")
+        XCTAssertEqual(root, .directory)
+    }
+
+    func testNestedInsideLinkIsRecreatedAfterItsFolder() async throws {
+        let fixture = linkFixture(source: [
+            "/src": .directory,
+            "/src/folder": .directory,
+            "/src/folder/data": .directory,
+            "/src/folder/data/file.txt": .file(Data("f".utf8)),
+            "/src/folder/link": .link("/src/folder/data/file.txt"),
+        ])
+        defer { unregister(fixture.sourceHost, fixture.destinationHost) }
+        let destination = Location.remote(hostID: fixture.destinationHost, path: "/dst")
+
+        _ = try await FileOperationQueue.shared.copy(
+            items: [.remote(hostID: fixture.sourceHost, path: "/src/folder")],
+            to: destination
+        )
+
+        let calls = await fixture.destination.calls
+        let folderIndex = try XCTUnwrap(calls.firstIndex(of: "mkdir /dst/folder"))
+        let linkIndex = try XCTUnwrap(calls.firstIndex(of: "symlink /dst/folder/link -> data/file.txt"))
+        XCTAssertLessThan(folderIndex, linkIndex, "\(calls)")
+        let link = await fixture.destination.node(at: "/dst/folder/link")
+        XCTAssertEqual(link, .link("data/file.txt"))
+    }
+
+    func testDanglingLinkFailsOnlyThatItem() async throws {
+        let fixture = linkFixture(source: [
+            "/src": .directory,
+            "/src/folder": .directory,
+            "/src/folder/ok.txt": .file(Data("ok".utf8)),
+            "/src/folder/gone": .link("missing.txt"),
+            "/src/other.txt": .file(Data("other".utf8)),
+        ])
+        defer { unregister(fixture.sourceHost, fixture.destinationHost) }
+        let destination = Location.remote(hostID: fixture.destinationHost, path: "/dst")
+
+        do {
+            _ = try await FileOperationQueue.shared.copy(
+                items: [
+                    .remote(hostID: fixture.sourceHost, path: "/src/folder"),
+                    .remote(hostID: fixture.sourceHost, path: "/src/other.txt"),
+                ],
+                to: destination
+            )
+            XCTFail("Expected the dangling link to be reported")
+        } catch FileOperationError.partialFailure(let succeeded, let failed) {
+            XCTAssertEqual(succeeded.map(\.path), ["/dst/folder", "/dst/other.txt"])
+            XCTAssertEqual(failed.map(\.0.path), ["/src/folder/gone"])
+            let remote = try XCTUnwrap(failed.first?.1 as? RemoteOperationError)
+            XCTAssertEqual(
+                remote.underlying.localizedDescription,
+                "The link gone points to an item that does not exist."
+            )
+        }
+
+        let paths = await fixture.destination.paths()
+        XCTAssertEqual(paths, ["/dst", "/dst/folder", "/dst/folder/ok.txt", "/dst/other.txt"])
+        let calls = await fixture.destination.calls
+        XCTAssertFalse(calls.contains { $0.hasPrefix("trash") }, "The partial folder stays: \(calls)")
+    }
+
+    func testProviderMovesTrashOnlyCompleteSources() async throws {
+        let fixture = linkFixture(source: [
+            "/src": .directory,
+            "/src/real.txt": .file(Data("payload".utf8)),
+            "/src/link": .link("real.txt"),
+            "/src/folder": .directory,
+            "/src/folder/ok.txt": .file(Data("ok".utf8)),
+            "/src/folder/gone": .link("missing.txt"),
+        ])
+        defer { unregister(fixture.sourceHost, fixture.destinationHost) }
+        let destination = Location.remote(hostID: fixture.destinationHost, path: "/dst")
+
+        let moved = try await FileOperationQueue.shared.move(
+            items: [.remote(hostID: fixture.sourceHost, path: "/src/link")],
+            to: destination
+        )
+        XCTAssertEqual(moved, [destination.appendingPathComponent("link")])
+        var sourceCalls = await fixture.source.calls
+        XCTAssertEqual(sourceCalls, ["trash /src/link"])
+        let real = await fixture.source.node(at: "/src/real.txt")
+        XCTAssertEqual(real, .file(Data("payload".utf8)))
+        let landed = await fixture.destination.node(at: "/dst/link")
+        XCTAssertEqual(landed, .file(Data("payload".utf8)))
+
+        do {
+            _ = try await FileOperationQueue.shared.move(
+                items: [.remote(hostID: fixture.sourceHost, path: "/src/folder")],
+                to: destination
+            )
+            XCTFail("Expected the dangling link to be reported")
+        } catch FileOperationError.partialFailure(let succeeded, let failed) {
+            XCTAssertEqual(succeeded.map(\.path), ["/dst/folder"])
+            XCTAssertEqual(failed.map(\.0.path), ["/src/folder/gone"])
+        }
+        sourceCalls = await fixture.source.calls
+        XCTAssertEqual(sourceCalls, ["trash /src/link"], "A partial folder move never trashes its source")
+        let sourcePaths = await fixture.source.paths()
+        XCTAssertTrue(sourcePaths.contains("/src/folder/ok.txt"))
+        XCTAssertTrue(sourcePaths.contains("/src/folder/gone"))
+        let destinationPaths = await fixture.destination.paths()
+        XCTAssertTrue(destinationPaths.contains("/dst/folder/ok.txt"))
+    }
+
     private func waitFor(
         timeout: TimeInterval = 2,
         condition: @escaping () async -> Bool

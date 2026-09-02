@@ -16,6 +16,8 @@ enum FileOperationError: Error {
     case archivePasswordInvalid(String)
     case invalidName
     case itemBusy(URL)
+    case linkTargetMissing(name: String)
+    case linkLoops(name: String)
 }
 
 extension FileOperationError: LocalizedError {
@@ -51,6 +53,10 @@ extension FileOperationError: LocalizedError {
             return "The name must be a single file or folder name."
         case let .itemBusy(url):
             return "\"\(url.lastPathComponent)\" is still being copied. Wait for the copy to finish."
+        case let .linkTargetMissing(name):
+            return "The link \(name) points to an item that does not exist."
+        case let .linkLoops(name):
+            return "The link \(name) leads in a loop."
         }
     }
 }

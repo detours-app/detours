@@ -280,6 +280,9 @@ actor WindowsRemoteProvider: FileProvider {
         return try JSONDecoder.detoursWindows.decode(Int64.self, from: data)
     }
 
+    /// Windows links and junctions keep their existing transfer path.
+    nonisolated var supportsSymbolicLinks: Bool { false }
+
     func readSymlink(_ location: Location) async throws -> Location {
         let windowsPath = try WindowsPath(location: location, hostID: hostID)
         guard let nativePath = windowsPath.nativePath else {

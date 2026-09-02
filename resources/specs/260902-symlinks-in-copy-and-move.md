@@ -34,18 +34,18 @@ Detours preserves links copied within one host. Across hosts it copies a selecte
 
 ### Acceptance Criteria
 
-- [ ] **A1** Copying a link from one local folder to another local folder gives a link at the destination, and the original file is unchanged.
-- [ ] **A2** Copying a link within a remote host gives a link at the destination on that host.
-- [ ] **A3** Moving a link within a remote host renames the link, and the file it pointed at is still in place.
-- [ ] **A4** Copying a link to a file from the Mac to a remote host lands a regular file with the link's name and the target's contents on the host.
-- [ ] **A5** Copying a link to a folder from a remote host to the Mac lands a real folder with the link's name containing the target folder's files.
-- [ ] **A6** Copying a folder from the Mac to a remote host recreates a link that pointed inside that folder as a working link on the host, and turns a link that pointed outside it into a copy of the file it pointed at.
-- [ ] **A7** Moving a link to a file from the Mac to a remote host lands the file on the host, moves the link to the Mac's Trash, and leaves the original file on the Mac untouched.
-- [ ] **A8** Copying a link whose target is missing across hosts fails that item with a message naming the link, and the other selected items still copy; copying it within one host preserves the dangling link.
-- [ ] **A9** Copying a folder containing a link back to itself to a remote host fails that link with a message naming it and completes the rest of the folder.
-- [ ] **A10** Trashing a link on a remote host removes the link, and the file it pointed at is still in place.
-- [ ] **A11** The user guide describes the rule for links in copy and move.
-- [ ] **A12** A folder moved across hosts with a failed nested link leaves the whole source folder in place and reports the partial destination copy.
+- [x] **A1** Copying a link from one local folder to another local folder gives a link at the destination, and the original file is unchanged.
+- [x] **A2** Copying a link within a remote host gives a link at the destination on that host.
+- [x] **A3** Moving a link within a remote host renames the link, and the file it pointed at is still in place.
+- [x] **A4** Copying a link to a file from the Mac to a remote host lands a regular file with the link's name and the target's contents on the host.
+- [x] **A5** Copying a link to a folder from a remote host to the Mac lands a real folder with the link's name containing the target folder's files.
+- [x] **A6** Copying a folder from the Mac to a remote host recreates a link that pointed inside that folder as a working link on the host, and turns a link that pointed outside it into a copy of the file it pointed at.
+- [x] **A7** Moving a link to a file from the Mac to a remote host lands the file on the host, moves the link to the Mac's Trash, and leaves the original file on the Mac untouched.
+- [x] **A8** Copying a link whose target is missing across hosts fails that item with a message naming the link, and the other selected items still copy; copying it within one host preserves the dangling link.
+- [x] **A9** Copying a folder containing a link back to itself to a remote host fails that link with a message naming it and completes the rest of the folder.
+- [x] **A10** Trashing a link on a remote host removes the link, and the file it pointed at is still in place.
+- [x] **A11** The user guide describes the rule for links in copy and move.
+- [x] **A12** A folder moved across hosts with a failed nested link leaves the whole source folder in place and reports the partial destination copy.
 
 ### Out of scope
 
@@ -61,7 +61,7 @@ Detours preserves links copied within one host. Across hosts it copies a selecte
 
 ### Approach
 
-Two capabilities are missing and everything else composes from them: reading each hop of a link target, already available through `readSymlink` on every provider, and creating a link at a destination from raw target text. `FileProvider` in `src/Services/FileProvider/FileProvider.swift` gains `createSymbolicLink(at:targetPath:)`. `LocalFileProvider` implements it with `FileManager.createSymbolicLink(atPath:withDestinationPath:)`; `RemoteFileProvider` sends a new `symlink(path:targetPath:)` message with tag 18 in `src/Remote/Protocol/Messages.swift`, mirrored in `Server/ServerRPCProtocol.swift`, which `Server/RPCHandler.swift` lists as state-changing and `Server/FileOperations.swift` serves with the same path-based API. Transfers with a Windows source or destination remain on their current transfer paths and never call the new method. The Unix transfer resolver repeatedly calls `readSymlink` and `stat` until it reaches a non-link, while a per-chain visited set detects cyclic link chains. Whether the final referent is inside the copied tree is decided by comparing its canonical absolute path with the copied root's canonical path. A recreated link is written with a relative target from the copied link's parent to the copied referent, so the copy is correct whatever the original link text was.
+Two capabilities are missing and everything else composes from them: reading each hop of a link target, already available through `readSymlink` on every provider, and creating a link at a destination from raw target text. `FileProvider` in `src/Services/FileProvider/FileProvider.swift` gains `createSymbolicLink(at:targetPath:)`. `LocalFileProvider` implements it with `FileManager.createSymbolicLink(atPath:withDestinationPath:)`; `RemoteFileProvider` sends a new `symlink(path:targetPath:)` message with tag 23 in `src/Remote/Protocol/Messages.swift`, mirrored in `Server/ServerRPCProtocol.swift`, which `Server/RPCHandler.swift` lists as state-changing and `Server/FileOperations.swift` serves with the same path-based API. Transfers with a Windows source or destination remain on their current transfer paths and never call the new method. The Unix transfer resolver repeatedly calls `readSymlink` and `stat` until it reaches a non-link, while a per-chain visited set detects cyclic link chains. Whether the final referent is inside the copied tree is decided by comparing its canonical absolute path with the copied root's canonical path. A recreated link is written with a relative target from the copied link's parent to the copied referent, so the copy is correct whatever the original link text was.
 
 Same-host copies today go through `copyfile(3)` in `src/Operations/CopyfileHelper.swift` on the Mac and `FileManager.copyItem` in the helper's `copy` in `Server/FileOperations.swift`. `copyfile` follows a top-level link unless `COPYFILE_NOFOLLOW_SRC` is set, so the helper sets that flag; the Linux helper recreates a link source with `createSymbolicLink` rather than relying on Foundation's copy. Moves within one host are already renames and need no change beyond tests. The helper's trash in `Server/TrashOperations.swift` resolves links on the item path before moving it, which moves the target instead of the link; it changes to resolve only the parent directory and keep the final component as it is, and the same correction applies to its restore and rollback paths so a trashed link restores as a link.
 
@@ -96,28 +96,28 @@ Two failure modes shape the design. Links that loop, such as a folder containing
 
 **Phase 1: Link creation on every provider**
 
-- [ ] **C1** Add `createSymbolicLink(at:targetPath:)` to `FileProvider` in `src/Services/FileProvider/FileProvider.swift`, with a default that throws `FileProviderError.unsupportedOperation`.
-- [ ] **C2** Implement it in `src/Services/FileProvider/LocalFileProvider.swift` with `FileManager.createSymbolicLink(atPath:withDestinationPath:)` and a non-following existence check that refuses regular, linked and dangling-link destinations.
-- [ ] **C3** Add a `symlink(path:targetPath:)` message with tag 18 in `src/Remote/Protocol/Messages.swift` and `Server/ServerRPCProtocol.swift`, name it in the message-name table in `src/Services/FileProvider/RemoteFileProvider.swift`, list it as state-changing in `Server/RPCHandler.swift`, and serve it in `Server/FileOperations.swift` with the same path-based API and non-following destination check.
-- [ ] **C4** Implement the raw-target provider call in `src/Services/FileProvider/RemoteFileProvider.swift`, and implement it in `src/Remote/UITestRemoteProvider.swift` with a confined link path.
-- [ ] **C5** Add `linkTargetMissing(name:)` with “The link {name} points to an item that does not exist.” and `linkLoops(name:)` with “The link {name} leads in a loop.” to `src/Operations/FileOperationError.swift`, including the two cases in `LocalizedError` and `FileOperationQueue.errorPresentation`.
+- [x] **C1** Add `createSymbolicLink(at:targetPath:)` to `FileProvider` in `src/Services/FileProvider/FileProvider.swift`, with a default that throws `FileProviderError.unsupportedOperation`.
+- [x] **C2** Implement it in `src/Services/FileProvider/LocalFileProvider.swift` with `FileManager.createSymbolicLink(atPath:withDestinationPath:)` and a non-following existence check that refuses regular, linked and dangling-link destinations.
+- [x] **C3** Add a `symlink(path:targetPath:)` message with tag 23 in `src/Remote/Protocol/Messages.swift` and `Server/ServerRPCProtocol.swift`, name it in the message-name table in `src/Services/FileProvider/RemoteFileProvider.swift`, list it as state-changing in `Server/RPCHandler.swift`, and serve it in `Server/FileOperations.swift` with the same path-based API and non-following destination check.
+- [x] **C4** Implement the raw-target provider call in `src/Services/FileProvider/RemoteFileProvider.swift`, and implement it in `src/Remote/UITestRemoteProvider.swift` with a confined link path.
+- [x] **C5** Add `linkTargetMissing(name:)` with “The link {name} points to an item that does not exist.” and `linkLoops(name:)` with “The link {name} leads in a loop.” to `src/Operations/FileOperationError.swift`, including the two cases in `LocalizedError` and `FileOperationQueue.errorPresentation`.
 
 **Phase 2: Same host**
 
-- [ ] **C6** In `src/Operations/CopyfileHelper.swift`, detect a source link without following it, set `COPYFILE_NOFOLLOW_SRC`, and add `COPYFILE_RECURSIVE` only for a non-link directory.
-- [ ] **C7** In `Server/FileOperations.swift` `copy`, test for a source link before directory handling and recreate it with its original target text, including when that target is missing, instead of calling `copyItem`.
-- [ ] **C8** In `Server/TrashOperations.swift`, resolve only the parent of every trashed, restored or rolled-back path, retain its final component, and use non-following existence checks for source, trash and restore destinations so valid and dangling links move as links.
+- [x] **C6** In `src/Operations/CopyfileHelper.swift`, detect a source link without following it, set `COPYFILE_NOFOLLOW_SRC`, and add `COPYFILE_RECURSIVE` only for a non-link directory.
+- [x] **C7** In `Server/FileOperations.swift` `copy`, test for a source link before directory handling and recreate it with its original target text, including when that target is missing, instead of calling `copyItem`.
+- [x] **C8** In `Server/TrashOperations.swift`, resolve only the parent of every trashed, restored or rolled-back path, retain its final component, and use non-following existence checks for source, trash and restore destinations so valid and dangling links move as links.
 
 **Phase 3: Across hosts**
 
-- [ ] **C9** Add the link resolver and transfer plan to `src/Operations/FileOperationQueue+SymlinkTransfer.swift`; retain the existing `stageLocation` and `uploadStagedItem` path for any Windows endpoint, otherwise test for a link before directory handling and resolve every hop through `readSymlink` and `stat`, failing a repeated location with `linkLoops` or a missing target with `linkTargetMissing`, walking a folder referent under the link's name, and downloading a file referent under that name.
-- [ ] **C10** In the same new file, add a walk context carrying the copied root's canonical path and the resolved directory paths currently active; compare path components to classify descendants, resolve every nested link hop, record a link ending inside the root with a relative target, follow one ending outside like a selected link, fail an active directory or repeated link location with `linkLoops`, and fail a missing target with `linkTargetMissing`.
-- [ ] **C11** Write each recorded link into the temporary local folder with `FileManager.createSymbolicLink(atPath:withDestinationPath:)`; during upload, handle a link before checking whether its referent is a directory and recreate it through `createSymbolicLink(at:targetPath:)` after the containing folder exists.
-- [ ] **C12** Accumulate nested failures in the new file while building the remaining temporary content, upload that content, record its destination as a success without rollback, add each failed link path to the operation's existing partial-failure result, and suppress source trash for a moved folder with any nested failure.
+- [x] **C9** Add the link resolver and transfer plan to `src/Operations/FileOperationQueue+SymlinkTransfer.swift`; retain the existing `stageLocation` and `uploadStagedItem` path for any Windows endpoint, otherwise test for a link before directory handling and resolve every hop through `readSymlink` and `stat`, failing a repeated location with `linkLoops` or a missing target with `linkTargetMissing`, walking a folder referent under the link's name, and downloading a file referent under that name.
+- [x] **C10** In the same new file, add a walk context carrying the copied root's canonical path and the resolved directory paths currently active; compare path components to classify descendants, resolve every nested link hop, record a link ending inside the root with a relative target, follow one ending outside like a selected link, fail an active directory or repeated link location with `linkLoops`, and fail a missing target with `linkTargetMissing`.
+- [x] **C11** Write each recorded link into the temporary local folder with `FileManager.createSymbolicLink(atPath:withDestinationPath:)`; during upload, handle a link before checking whether its referent is a directory and recreate it through `createSymbolicLink(at:targetPath:)` after the containing folder exists.
+- [x] **C12** Accumulate nested failures in the new file while building the remaining temporary content, upload that content, record its destination as a success without rollback, add each failed link path to the operation's existing partial-failure result, and suppress source trash for a moved folder with any nested failure.
 
 **Phase 4: Documentation**
 
-- [ ] **C13** Describe the rule in `resources/docs/USER_GUIDE.md` under file operations and in `resources/docs/remote-vm-browsing.md` under transfers, and add one feature entry to `resources/docs/CHANGELOG.md`.
+- [x] **C13** Describe the rule in `resources/docs/USER_GUIDE.md` under file operations and in `resources/docs/remote-vm-browsing.md` under transfers, and add one feature entry to `resources/docs/CHANGELOG.md`.
 
 ---
 
@@ -127,45 +127,45 @@ All tests run on Foundry. Unit and integration tests run over SSH; the single in
 
 ### Unit Tests (`Tests/SymlinkTransferPlanTests.swift`)
 
-- [ ] **T1** `testLinkInsideRootIsRecordedAsRelativeLink` - A two-hop nested link ending inside the root yields a relative target from the link's folder to the copied counterpart.
-- [ ] **T2** `testLinkOutsideRootIsFollowed` - Two nested links resolving to the same outside folder are each walked as content.
-- [ ] **T3** `testAbsoluteLinkInsideRootIsStillInside` - An absolute link that resolves inside the root counts as inside.
-- [ ] **T4** `testReenteredDirectoryFailsWithLinkLoops` - Re-entering an active directory or repeating a location within one link chain fails with `linkLoops` and “The link {name} leads in a loop.”
-- [ ] **T5** `testMissingTargetFailsWithLinkTargetMissing` - A link chain whose final target cannot be read fails with `linkTargetMissing` and “The link {name} points to an item that does not exist.”
+- [x] **T1** `testLinkInsideRootIsRecordedAsRelativeLink` - A two-hop nested link ending inside the root yields a relative target from the link's folder to the copied counterpart.
+- [x] **T2** `testLinkOutsideRootIsFollowed` - Two nested links resolving to the same outside folder are each walked as content.
+- [x] **T3** `testAbsoluteLinkInsideRootIsStillInside` - An absolute link that resolves inside the root counts as inside.
+- [x] **T4** `testReenteredDirectoryFailsWithLinkLoops` - Re-entering an active directory or repeating a location within one link chain fails with `linkLoops` and “The link {name} leads in a loop.”
+- [x] **T5** `testMissingTargetFailsWithLinkTargetMissing` - A link chain whose final target cannot be read fails with `linkTargetMissing` and “The link {name} points to an item that does not exist.”
 
 ### Unit Tests (`Tests/CrossProviderTransferTests.swift`)
 
-- [ ] **T6** `testSelectedFileLinkCopiesTargetUnderLinkName` - With the fake providers, a selected two-hop link to a file uploads the final target's bytes under the selected link's name.
-- [ ] **T7** `testSelectedFolderLinkCopiesFolderUnderLinkName` - A selected link to a folder uploads that folder's children under the link's name.
-- [ ] **T8** `testNestedInsideLinkIsRecreatedAfterItsFolder` - A folder with an internal link uploads the folder first and then calls `createSymbolicLink` with a relative target.
-- [ ] **T9** `testDanglingLinkFailsOnlyThatItem` - A dangling nested link is reported by path while the rest of its selected folder and a second selected item upload; the result records the folder destination as successful and leaves it in place.
-- [ ] **T10** `testProviderMovesTrashOnlyCompleteSources` - A successful cross-provider link move trashes only the link, while a folder move with a failed nested link keeps the partial destination and leaves its whole source folder in place.
+- [x] **T6** `testSelectedFileLinkCopiesTargetUnderLinkName` - With the fake providers, a selected two-hop link to a file uploads the final target's bytes under the selected link's name.
+- [x] **T7** `testSelectedFolderLinkCopiesFolderUnderLinkName` - A selected link to a folder uploads that folder's children under the link's name.
+- [x] **T8** `testNestedInsideLinkIsRecreatedAfterItsFolder` - A folder with an internal link uploads the folder first and then calls `createSymbolicLink` with a relative target.
+- [x] **T9** `testDanglingLinkFailsOnlyThatItem` - A dangling nested link is reported by path while the rest of its selected folder and a second selected item upload; the result records the folder destination as successful and leaves it in place.
+- [x] **T10** `testProviderMovesTrashOnlyCompleteSources` - A successful cross-provider link move trashes only the link, while a folder move with a failed nested link keeps the partial destination and leaves its whole source folder in place.
 
 ### Unit Tests (`Tests/TrashOperationsTests.swift`)
 
-- [ ] **T11** `testTrashingLinkMovesLinkNotTarget` - Trashing valid and dangling links in a temporary home moves each link into the trash and leaves the valid link's referent in place.
-- [ ] **T12** `testRestorePathsPreserveLink` - Direct restore and batch rollback each put a link back at the original path.
+- [x] **T11** `testTrashingLinkMovesLinkNotTarget` - Trashing valid and dangling links in a temporary home moves each link into the trash and leaves the valid link's referent in place.
+- [x] **T12** `testRestorePathsPreserveLink` - Direct restore and batch rollback each put a link back at the original path.
 
 ### Unit Tests (`Tests/FileOperationQueueTests.swift`)
 
-- [ ] **T13** `testLocalCopyOfLinksKeepsLinks` - Copying selected valid, dangling and looping links, plus a folder containing them, between temporary folders preserves each target text and leaves each existing referent unchanged.
-- [ ] **T14** `testLocalMoveOfLinkRenamesLink` - Moving a link between temporary folders yields a link at the destination and leaves the target unchanged.
-- [ ] **T15** `testLocalTrashOfLinkKeepsTarget` - Trashing a link through the queue leaves the target file in place.
+- [x] **T13** `testLocalCopyOfLinksKeepsLinks` - Copying selected valid, dangling and looping links, plus a folder containing them, between temporary folders preserves each target text and leaves each existing referent unchanged.
+- [x] **T14** `testLocalMoveOfLinkRenamesLink` - Moving a link between temporary folders yields a link at the destination and leaves the target unchanged.
+- [x] **T15** `testLocalTrashOfLinkKeepsTarget` - Trashing a link through the queue leaves the target file in place.
 
 ### Integration Tests (`Tests/RemoteIntegrationTests+Symlinks.swift`, live against devtest from Foundry)
 
 Add the tests as an extension of `RemoteIntegrationTests`, exposing only the existing fixture, SSH quoting and path-check helpers that the new file reuses.
 
-- [ ] **T16** `testSameHostCopyOfLinksKeepsLinks` - Copying selected valid, dangling and looping links, plus a folder containing them, within devtest preserves each target text.
-- [ ] **T17** `testSameHostMoveOfLinkRenamesLink` - Moving a link within devtest renames it and leaves the target in place.
-- [ ] **T18** `testTrashingRemoteLinkLeavesTarget` - Trashing valid and dangling links on devtest removes both links and leaves the valid link's target in place; restoring brings both links back.
-- [ ] **T19** `testFileLinkUploadsTargetUnderLinkName` - Copying a local link to a file to devtest lands a regular file with the link's name and the target's bytes.
-- [ ] **T20** `testFolderLinkDownloadsFolderUnderLinkName` - Copying a devtest link to a folder containing an internal link lands a real folder with the selected link's name and recreates the internal link on the Mac.
-- [ ] **T21** `testFolderWithInsideAndOutsideLinksUploadsPerRule` - Copying a local folder holding one link inside it and one outside it to devtest recreates the first as a working relative link and the second as a regular file.
-- [ ] **T22** `testLoopingLinkFailsItemAndCompletesFolder` - A folder holding a link to itself copies its other files to devtest and fails the link with `linkLoops`.
-- [ ] **T23** `testDanglingLinkFailsItemOnly` - A dangling link and a plain file selected together across hosts copy the file and fail the link with the named `linkTargetMissing` message.
-- [ ] **T24** `testCrossHostMoveOfLinkTrashesLinkOnly` - Moving a local link to devtest lands the file on the host, puts the link in the Mac's Trash, and leaves the local target in place.
-- [ ] **T25** Add the tag-18 binary round-trip to `Tests/MessagesTests.swift`; `testSymlinkMessageRoundTripsThroughRealHelper` creates a link on devtest and refuses both regular and dangling-link destinations.
+- [x] **T16** `testSameHostCopyOfLinksKeepsLinks` - Copying selected valid, dangling and looping links, plus a folder containing them, within devtest preserves each target text.
+- [x] **T17** `testSameHostMoveOfLinkRenamesLink` - Moving a link within devtest renames it and leaves the target in place.
+- [x] **T18** `testTrashingRemoteLinkLeavesTarget` - Trashing valid and dangling links on devtest removes both links and leaves the valid link's target in place; restoring brings both links back.
+- [x] **T19** `testFileLinkUploadsTargetUnderLinkName` - Copying a local link to a file to devtest lands a regular file with the link's name and the target's bytes.
+- [x] **T20** `testFolderLinkDownloadsFolderUnderLinkName` - Copying a devtest link to a folder containing an internal link lands a real folder with the selected link's name and recreates the internal link on the Mac.
+- [x] **T21** `testFolderWithInsideAndOutsideLinksUploadsPerRule` - Copying a local folder holding one link inside it and one outside it to devtest recreates the first as a working relative link and the second as a regular file.
+- [x] **T22** `testLoopingLinkFailsItemAndCompletesFolder` - A folder holding a link to itself copies its other files to devtest and fails the link with `linkLoops`.
+- [x] **T23** `testDanglingLinkFailsItemOnly` - A dangling link and a plain file selected together across hosts copy the file and fail the link with the named `linkTargetMissing` message.
+- [x] **T24** `testCrossHostMoveOfLinkTrashesLinkOnly` - Moving a local link to devtest lands the file on the host, puts the link in the Mac's Trash, and leaves the local target in place.
+- [x] **T25** Add the tag-23 binary round-trip to `Tests/MessagesTests.swift`; `testSymlinkMessageRoundTripsThroughRealHelper` creates a link on devtest and refuses both regular and dangling-link destinations.
 
 ### E2E Tests (`Tests/UITests/DetoursUITests/DetoursUITests/RemoteSymlinkCopyUITests.swift`, guarded installed-smoke on Foundry against devtest)
 
@@ -175,4 +175,23 @@ Add the tests as an extension of `RemoteIntegrationTests`, exposing only the exi
 
 ## Build Log
 
-Populated at implement time.
+- **C1** `createSymbolicLink(at:targetPath:)` added to `FileProvider` with a default that throws `FileProviderError.unsupportedOperation("createSymbolicLink")`, so the Windows provider and every test fake keep compiling and refuse the call.
+- **C2** `LocalFileProvider.createSymbolicLink` refuses any destination that `lstat` can see (regular file, link, dangling link) with `destinationExists`, then calls `FileManager.createSymbolicLink(atPath:withDestinationPath:)` with the raw target text.
+- **C3** Tag 18 was already `watchEvent` on the client side, so the spec's tag collided with a live message; the new `symlink` message uses tag 23, the next free tag, in `RPCMessage` and `ServerRPCMessage`. Named `Symlink` in the message-type table, listed as state-changing in `RPCHandler`, served by `FileOperations.symlink(path:targetPath:)` with an `lstat` destination check. `MessagesTests` round-trips it.
+- **C4** `RemoteFileProvider.createSymbolicLink` sends the raw target bytes as a `RemotePath`; `UITestRemoteProvider` confines the link path to its root, refuses an existing destination without following it, and records the call in the provider history like `createDirectory`.
+- **C6** `CopyfileHelper` sets `COPYFILE_NOFOLLOW_SRC` on every copy and adds `COPYFILE_RECURSIVE` only when `lstat` reports a real directory, so a selected link copies as a link on the Mac.
+- **C7** The helper's `copy` recreates a link source with its original target text through `createSymbolicLink`, dangling or not, and names it like a file when picking a " copy" suffix, since a dangling link has no resource values to read.
+- **C8** `TrashOperations` addresses trash, restore and rollback paths through `resolvingParent(of:)`, which resolves every component but the last, and checks source, trash and restore destinations with `lstat` through the new `Server/PathProbe.swift`, so a valid or dangling link moves as a link and restores as a link.
+- **C9** `SymlinkTransferWalker` in `src/Operations/FileOperationQueue+SymlinkTransfer.swift`. `performProviderTransfer` keeps `stageLocation`/`uploadStagedItem` when either endpoint is a Windows provider; otherwise `stage` stats the item, resolves a selected link through `resolveFinalTarget` (hop by hop via `readSymlink` and `stat`, a visited set of lexically canonical paths plus a 40-hop ceiling for `linkLoops`, any unreadable hop for `linkTargetMissing`), walks a folder referent under the link's name and downloads a file referent under it.
+- **C10** `SymlinkWalkContext` carries the root's canonical components and the active directory stack; `classify` fails a referent that is an active directory with `linkLoops`, records a referent inside the root as a relative target computed in staged-tree coordinates, and follows one outside like a selected item. Canonicalisation is lexical so remote paths never touch the local automounter.
+- **C11** Recorded links are written into the staging folder with `createSymbolicLink(atPath:withDestinationPath:)`; `uploadUnixStagedItem` checks `isSymbolicLink` before `isDirectory` and recreates the link through the provider after `createDirectory` of its parent.
+- **C12** Nested failures accumulate in the walk context while the remaining tree stages and uploads; the destination joins `successes`, each failed link path joins `failures` wrapped in `RemoteOperationError.operation`, and a move trashes its source only when the item had no nested failure.
+- **T1-T5** `Tests/SymlinkTransferPlanTests.swift` drives `SymlinkTransferWalker` against `Tests/Helpers/SymlinkFakeProvider.swift`, an in-memory host with files, folders and raw-text links. `swift test --filter SymlinkTransferPlanTests` on Foundry at 5d0bd70: 5/5 PASS.
+- **T6-T10** Added to `Tests/CrossProviderTransferTests.swift` with two fake hosts registered on the shared queue. `swift test --filter CrossProviderTransferTests` on Foundry at 5d0bd70: 8/8 PASS (3 existing, 5 new).
+- **T11-T12** Added to `Tests/TrashOperationsTests.swift`. `swift test --filter TrashOperationsTests` on Foundry at 5d0bd70: 7/7 PASS.
+- **T13-T15** Added to `Tests/FileOperationQueueTests.swift`. `swift test --filter FileOperationQueueTests/testLocal` on Foundry at 5d0bd70: 3/3 PASS; the copy of a dangling and a self-looping link through `copyfile` with `COPYFILE_NOFOLLOW_SRC` lands as links.
+- **C13** `USER_GUIDE.md` gains a symbolic-link paragraph under Cross-Pane Operations and a line under Remote File Workflows; `remote-vm-browsing.md` gains a line under Remote Workflows; `CHANGELOG.md` gains an Unreleased feature entry (1.13.0 was already released today, so the entry sits above it for the next release to retitle).
+- **T16-T25** `Tests/RemoteIntegrationTests+Symlinks.swift`, an extension of `RemoteIntegrationTests` reusing its fixture root, SSH quoting and path-check helpers (made internal). First live run at 9297ea8 against devtest: 9/10, `testLoopingLinkFailsItemAndCompletesFolder` FAIL because the Mac lists the temporary folder as `/private/var/...` while the test handed it in as `/var/...`, so the folder's link back to itself was not seen as active and the folder was walked once more before failing. Fixed at 6a870bd by resolving every component but the last of a local path on disk. Rerun at 6a870bd: `SymlinkTransferPlanTests` 5, `CrossProviderTransferTests` 8, the ten live tests 10: 23/23 PASS in 26 s.
+- **A1** T13 on Foundry. **A2** T16. **A3** T17. **A4** T19 (and T26 in the installed app). **A5** T20. **A6** T21. **A7** T24, the link found in Foundry's Trash pointing at the untouched local target. **A8** T23 across hosts, T13 and T16 within one host. **A9** T22. **A10** T18. **A11** C13. **A12** T10 with the fake hosts: the partial destination is reported as succeeded and the source folder keeps every item.
+- **Simplify** After `/simplify`: `PathProbe` moved to `Shared/` and replaces four inline `lstat` probes and the duplicated parent-resolving rule; the link walk is chosen by a `supportsSymbolicLinks` provider capability (false on the Windows provider) instead of a class check; the staged-link upload branch lives in the existing `uploadStagedItem`; a resolved link carries its canonical path once; the fake provider lost unused trash state.
+- **C5** `FileOperationError.linkTargetMissing(name:)` and `linkLoops(name:)` added with the spec's messages in `LocalizedError` and a title/body pair in `FileOperationQueue.errorPresentation`.
