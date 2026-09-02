@@ -61,6 +61,7 @@ final class RemoteIntegrationTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testSymlinkQuickLookResolvesAndDownloadsTheLinkedFileThroughTheRealHelper() async throws {
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
@@ -81,7 +82,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertTrue(fileLink.isSymbolicLink)
         XCTAssertFalse(fileLink.isDirectory, "A link to a file must enter the remote Quick Look path")
 
-        let viewController = await FileListViewController()
+        let viewController = FileListViewController()
         let fileSource = try await viewController.resolveRemoteQuickLookSource(
             for: FileItem(entry: fileLink, icon: NSImage()),
             provider: session.provider
