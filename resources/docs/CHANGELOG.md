@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Symbolic links copy and move the way you would expect** - Within one machine a copied link stays a link and a moved link is renamed, on the Mac and on Linux and macOS hosts. Across machines a link travels as the file or folder it points at, under the link's name. Inside a folder that crosses machines, a link pointing within the folder is recreated to point at its copied counterpart, and a link pointing outside becomes a copy of its target. A link whose target is missing, or one that leads back into a folder already being copied, fails only that item with a message naming the link; a moved folder with such a failure stays whole at the source. Trashing a link on a remote host now removes the link alone, where before the helper moved the file it pointed at.
+
 ## 1.13.0 - 2026-09-02
 
 ### Features

@@ -163,6 +163,8 @@ If the destination is a deliberately selected closed folder, a completed F5 copy
 
 Cross-pane copy and move work between local panes, a local pane and a remote pane, and remote panes. Transfers that cross providers are staged through Detours' operation queue with progress and cancellation.
 
+**Symbolic links** follow one rule. Within one machine, a copied link stays a link with the same target, and a moved link is renamed without touching what it points at. Across machines, a selected link travels as the file or folder it points at, under the link's name, and a chain of links is followed to its end. Inside a folder copied across machines, a link pointing within that folder arrives as a link adjusted to the copied counterpart, while a link pointing outside arrives as a copy of what it points at. A link whose target is missing, or one that leads back into a folder already being copied, fails that one item with a message naming the link; the other items still copy, and a moved folder with such a failure stays whole at the source. Trashing a link removes the link and leaves its target in place, on the Mac and on remote hosts.
+
 ### Operation Progress
 
 Longer file operations show progress directly in both pane status bars. Progress includes the operation state, item counts, byte counts when available, transfer speed, completion messages, and errors.
@@ -292,6 +294,7 @@ Remote panes support normal Detours workflows:
 
 - Browse folders, tabs, breadcrumbs, and folder expansion
 - Copy, cut, paste, F5 copy-to-other-pane, and F6 move-to-other-pane across Mac and remote panes
+- Symbolic links: kept as links within one host, carried as what they point at across hosts (see Cross-Pane Operations)
 - Move to Trash and Undo restore
 - New Folder and New File
 - Rename

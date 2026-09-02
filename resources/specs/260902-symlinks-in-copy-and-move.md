@@ -117,7 +117,7 @@ Two failure modes shape the design. Links that loop, such as a folder containing
 
 **Phase 4: Documentation**
 
-- [ ] **C13** Describe the rule in `resources/docs/USER_GUIDE.md` under file operations and in `resources/docs/remote-vm-browsing.md` under transfers, and add one feature entry to `resources/docs/CHANGELOG.md`.
+- [x] **C13** Describe the rule in `resources/docs/USER_GUIDE.md` under file operations and in `resources/docs/remote-vm-browsing.md` under transfers, and add one feature entry to `resources/docs/CHANGELOG.md`.
 
 ---
 
@@ -190,4 +190,5 @@ Add the tests as an extension of `RemoteIntegrationTests`, exposing only the exi
 - **T6-T10** Added to `Tests/CrossProviderTransferTests.swift` with two fake hosts registered on the shared queue. `swift test --filter CrossProviderTransferTests` on Foundry at 5d0bd70: 8/8 PASS (3 existing, 5 new).
 - **T11-T12** Added to `Tests/TrashOperationsTests.swift`. `swift test --filter TrashOperationsTests` on Foundry at 5d0bd70: 7/7 PASS.
 - **T13-T15** Added to `Tests/FileOperationQueueTests.swift`. `swift test --filter FileOperationQueueTests/testLocal` on Foundry at 5d0bd70: 3/3 PASS; the copy of a dangling and a self-looping link through `copyfile` with `COPYFILE_NOFOLLOW_SRC` lands as links.
+- **C13** `USER_GUIDE.md` gains a symbolic-link paragraph under Cross-Pane Operations and a line under Remote File Workflows; `remote-vm-browsing.md` gains a line under Remote Workflows; `CHANGELOG.md` gains an Unreleased feature entry (1.13.0 was already released today, so the entry sits above it for the next release to retitle).
 - **C5** `FileOperationError.linkTargetMissing(name:)` and `linkLoops(name:)` added with the spec's messages in `LocalizedError` and a title/body pair in `FileOperationQueue.errorPresentation`.
