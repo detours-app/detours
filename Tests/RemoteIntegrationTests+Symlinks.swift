@@ -4,6 +4,7 @@ import XCTest
 /// Symbolic links in copy, move and trash against the live Linux test host, through the real
 /// helper. Same-host operations keep links; cross-host transfers carry what they point at.
 extension RemoteIntegrationTests {
+    @MainActor
     private func makeQueueSession() async throws -> RemoteIntegrationSession {
         let session = try await RemoteIntegrationSession.make()
         FileOperationQueue.shared.registerRemoteFileProvider(session.provider, for: session.hostID)
