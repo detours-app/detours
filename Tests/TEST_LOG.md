@@ -4,6 +4,12 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-02 11:50 (Foundry against devtest, silent quit on remote copy)
+
+- Marco reported Detours quitting with no crash report on an F5 copy from the Mac to a remote host. `swift test --filter RemoteIntegrationTests/testLargeUploadIntoMissingRemoteFolderReportsAnErrorInsteadOfDying` at d7ac426, before any fix: the xctest process exited with signal 13 (SIGPIPE). The helper fails the upload before reading the body, ssh exits, and the app's non-throwing write into the dead stdin pipe kills the process.
+- Same test at 448d99a and 5abb251, after the fix: PASS. `RemoteIntegrationTests/testLargeTransferUsesRemoteTransferChannel`, `RemoteIntegrationTests/testRemoteOpenWithSessionUploadsBackToRealRemoteFile` and `RemoteTransferChannelTests` (5): all PASS.
+- `resources/scripts/build.sh` on Foundry at 5abb251: build, sign, install, relaunch OK.
+
 ### 2026-09-02 11:20 (Foundry installed app against devtest)
 
 - `resources/scripts/qualification-foundry.sh installed-smoke refresh LINUX_TARGET --commit 66e57ece4c34a364f627302284176162471421b3 --run-id remote-symlink-preview-20260902-2 --smoke-repetitions 1 --test-filter RemoteSymlinkPreviewUITests/testSpaceOnRemoteSymlinkPreviewsTheLinkedFile`: **PASS**. The xcresult reports 1 passed, 0 failed, 0 skipped; the prompt guard recorded 0 TCC prompts, 0 XCUI interruptions and 0 visible prompt windows; guarded cleanup passed and devtest's home holds no leftover scenario folder.
