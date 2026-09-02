@@ -4,6 +4,13 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-02 19:05 (Foundry against devtest, symbolic links after the simplify pass)
+
+- `resources/scripts/build.sh` on Foundry at f8820a4: Linux helper rebuilt on dockerhost (18 + 14 in-container tests green), Intel helper rebuilt, app installed and relaunched.
+- `swift test --filter "MessagesTests|ServerOperationsTests|TrashOperationsTests|CopyfileHelperTests|SymlinkTransferPlanTests|CrossProviderTransferTests|FileOperationQueueTests/testLocal|RemoteIntegrationTests/(ten link tests + two existing transfer tests)"` at f8820a4: 44/44 PASS in 37 s, no compiler warnings.
+- Full suite `ssh foundry 'swift test'` at f8820a4: 1099 tests, 0 failures, 21 skipped (the seven Intel Mac and fourteen Windows live tests, whose hosts Foundry cannot reach), 399 s, no compiler warnings.
+- `resources/scripts/qualification-foundry.sh installed-smoke refresh LINUX_TARGET --commit 1ff6a81 --run-id symlink-copy-20260902-1 --smoke-repetitions 1 --test-filter RemoteSymlinkCopyUITests/testF5OnLocalLinkLandsTargetOnRemoteHost`: **NOT RUN**, the runner's preflight reported Foundry's console locked and stopped before building. Needs an unlocked console; rerun at the current commit once unlocked.
+
 ### 2026-09-02 18:57 (Foundry against devtest, symbolic links in copy and move, live)
 
 - `resources/scripts/build.sh` on Foundry at ee6ea3c: Linux helper rebuilt on dockerhost with its in-container tests green (18 + 14), Intel helper rebuilt, app built, signed, installed and relaunched on Foundry.
