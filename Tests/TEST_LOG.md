@@ -4,6 +4,12 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-02 18:50 (Foundry, symbolic links in copy and move, unit level)
+
+- Spec 260902-symlinks-in-copy-and-move, Phases 1-3. `swift test --filter "MessagesTests|ServerOperationsTests|TrashOperationsTests|CopyfileHelperTests"` on Foundry at c9a975f: 8 + 14 + 5 + 8 PASS, including the tag-23 Symlink round-trip.
+- `swift test --filter "SymlinkTransferPlanTests|CrossProviderTransferTests"` at 2abc2d5: 12/13, one FAIL in `testLinkOutsideRootIsFollowed` because the walker reported the relative spelling `/root/../outside/dir`; fixed at 5d0bd70 by canonicalising the resolved referent.
+- `swift test --filter "SymlinkTransferPlanTests|CrossProviderTransferTests|TrashOperationsTests|FileOperationQueueTests/testLocal"` at 5d0bd70: 23/23 PASS (T1-T15).
+
 ### 2026-09-02 12:00 (Foundry against devtest, large uploads to Linux hosts)
 
 - The dialog behind the silent quit was Cocoa error 512 from the helper. `swift test --filter RemoteIntegrationTests/testLargeUploadWithSpacesInTheNameIntoANestedFolderSucceeds` at a4eb31c reproduced it on devtest in an existing writable folder: 2 of 4 variants failed, independent of name and nesting. Driving `detours-server --transfer` directly on devtest under strace, 8 runs: 0 succeeded, each failing at `openat("", O_RDWR|O_CREAT|O_EXCL) = ENOENT`, the temporary file of Foundation's atomic file creation. Probe files removed from devtest and Foundry afterwards.

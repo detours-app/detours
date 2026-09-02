@@ -127,30 +127,30 @@ All tests run on Foundry. Unit and integration tests run over SSH; the single in
 
 ### Unit Tests (`Tests/SymlinkTransferPlanTests.swift`)
 
-- [ ] **T1** `testLinkInsideRootIsRecordedAsRelativeLink` - A two-hop nested link ending inside the root yields a relative target from the link's folder to the copied counterpart.
-- [ ] **T2** `testLinkOutsideRootIsFollowed` - Two nested links resolving to the same outside folder are each walked as content.
-- [ ] **T3** `testAbsoluteLinkInsideRootIsStillInside` - An absolute link that resolves inside the root counts as inside.
-- [ ] **T4** `testReenteredDirectoryFailsWithLinkLoops` - Re-entering an active directory or repeating a location within one link chain fails with `linkLoops` and “The link {name} leads in a loop.”
-- [ ] **T5** `testMissingTargetFailsWithLinkTargetMissing` - A link chain whose final target cannot be read fails with `linkTargetMissing` and “The link {name} points to an item that does not exist.”
+- [x] **T1** `testLinkInsideRootIsRecordedAsRelativeLink` - A two-hop nested link ending inside the root yields a relative target from the link's folder to the copied counterpart.
+- [x] **T2** `testLinkOutsideRootIsFollowed` - Two nested links resolving to the same outside folder are each walked as content.
+- [x] **T3** `testAbsoluteLinkInsideRootIsStillInside` - An absolute link that resolves inside the root counts as inside.
+- [x] **T4** `testReenteredDirectoryFailsWithLinkLoops` - Re-entering an active directory or repeating a location within one link chain fails with `linkLoops` and “The link {name} leads in a loop.”
+- [x] **T5** `testMissingTargetFailsWithLinkTargetMissing` - A link chain whose final target cannot be read fails with `linkTargetMissing` and “The link {name} points to an item that does not exist.”
 
 ### Unit Tests (`Tests/CrossProviderTransferTests.swift`)
 
-- [ ] **T6** `testSelectedFileLinkCopiesTargetUnderLinkName` - With the fake providers, a selected two-hop link to a file uploads the final target's bytes under the selected link's name.
-- [ ] **T7** `testSelectedFolderLinkCopiesFolderUnderLinkName` - A selected link to a folder uploads that folder's children under the link's name.
-- [ ] **T8** `testNestedInsideLinkIsRecreatedAfterItsFolder` - A folder with an internal link uploads the folder first and then calls `createSymbolicLink` with a relative target.
-- [ ] **T9** `testDanglingLinkFailsOnlyThatItem` - A dangling nested link is reported by path while the rest of its selected folder and a second selected item upload; the result records the folder destination as successful and leaves it in place.
-- [ ] **T10** `testProviderMovesTrashOnlyCompleteSources` - A successful cross-provider link move trashes only the link, while a folder move with a failed nested link keeps the partial destination and leaves its whole source folder in place.
+- [x] **T6** `testSelectedFileLinkCopiesTargetUnderLinkName` - With the fake providers, a selected two-hop link to a file uploads the final target's bytes under the selected link's name.
+- [x] **T7** `testSelectedFolderLinkCopiesFolderUnderLinkName` - A selected link to a folder uploads that folder's children under the link's name.
+- [x] **T8** `testNestedInsideLinkIsRecreatedAfterItsFolder` - A folder with an internal link uploads the folder first and then calls `createSymbolicLink` with a relative target.
+- [x] **T9** `testDanglingLinkFailsOnlyThatItem` - A dangling nested link is reported by path while the rest of its selected folder and a second selected item upload; the result records the folder destination as successful and leaves it in place.
+- [x] **T10** `testProviderMovesTrashOnlyCompleteSources` - A successful cross-provider link move trashes only the link, while a folder move with a failed nested link keeps the partial destination and leaves its whole source folder in place.
 
 ### Unit Tests (`Tests/TrashOperationsTests.swift`)
 
-- [ ] **T11** `testTrashingLinkMovesLinkNotTarget` - Trashing valid and dangling links in a temporary home moves each link into the trash and leaves the valid link's referent in place.
-- [ ] **T12** `testRestorePathsPreserveLink` - Direct restore and batch rollback each put a link back at the original path.
+- [x] **T11** `testTrashingLinkMovesLinkNotTarget` - Trashing valid and dangling links in a temporary home moves each link into the trash and leaves the valid link's referent in place.
+- [x] **T12** `testRestorePathsPreserveLink` - Direct restore and batch rollback each put a link back at the original path.
 
 ### Unit Tests (`Tests/FileOperationQueueTests.swift`)
 
-- [ ] **T13** `testLocalCopyOfLinksKeepsLinks` - Copying selected valid, dangling and looping links, plus a folder containing them, between temporary folders preserves each target text and leaves each existing referent unchanged.
-- [ ] **T14** `testLocalMoveOfLinkRenamesLink` - Moving a link between temporary folders yields a link at the destination and leaves the target unchanged.
-- [ ] **T15** `testLocalTrashOfLinkKeepsTarget` - Trashing a link through the queue leaves the target file in place.
+- [x] **T13** `testLocalCopyOfLinksKeepsLinks` - Copying selected valid, dangling and looping links, plus a folder containing them, between temporary folders preserves each target text and leaves each existing referent unchanged.
+- [x] **T14** `testLocalMoveOfLinkRenamesLink` - Moving a link between temporary folders yields a link at the destination and leaves the target unchanged.
+- [x] **T15** `testLocalTrashOfLinkKeepsTarget` - Trashing a link through the queue leaves the target file in place.
 
 ### Integration Tests (`Tests/RemoteIntegrationTests+Symlinks.swift`, live against devtest from Foundry)
 
@@ -186,4 +186,8 @@ Add the tests as an extension of `RemoteIntegrationTests`, exposing only the exi
 - **C10** `SymlinkWalkContext` carries the root's canonical components and the active directory stack; `classify` fails a referent that is an active directory with `linkLoops`, records a referent inside the root as a relative target computed in staged-tree coordinates, and follows one outside like a selected item. Canonicalisation is lexical so remote paths never touch the local automounter.
 - **C11** Recorded links are written into the staging folder with `createSymbolicLink(atPath:withDestinationPath:)`; `uploadUnixStagedItem` checks `isSymbolicLink` before `isDirectory` and recreates the link through the provider after `createDirectory` of its parent.
 - **C12** Nested failures accumulate in the walk context while the remaining tree stages and uploads; the destination joins `successes`, each failed link path joins `failures` wrapped in `RemoteOperationError.operation`, and a move trashes its source only when the item had no nested failure.
+- **T1-T5** `Tests/SymlinkTransferPlanTests.swift` drives `SymlinkTransferWalker` against `Tests/Helpers/SymlinkFakeProvider.swift`, an in-memory host with files, folders and raw-text links. `swift test --filter SymlinkTransferPlanTests` on Foundry at 5d0bd70: 5/5 PASS.
+- **T6-T10** Added to `Tests/CrossProviderTransferTests.swift` with two fake hosts registered on the shared queue. `swift test --filter CrossProviderTransferTests` on Foundry at 5d0bd70: 8/8 PASS (3 existing, 5 new).
+- **T11-T12** Added to `Tests/TrashOperationsTests.swift`. `swift test --filter TrashOperationsTests` on Foundry at 5d0bd70: 7/7 PASS.
+- **T13-T15** Added to `Tests/FileOperationQueueTests.swift`. `swift test --filter FileOperationQueueTests/testLocal` on Foundry at 5d0bd70: 3/3 PASS; the copy of a dangling and a self-looping link through `copyfile` with `COPYFILE_NOFOLLOW_SRC` lands as links.
 - **C5** `FileOperationError.linkTargetMissing(name:)` and `linkLoops(name:)` added with the spec's messages in `LocalizedError` and a title/body pair in `FileOperationQueue.errorPresentation`.
