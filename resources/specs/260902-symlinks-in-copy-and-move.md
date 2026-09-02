@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Reviewed
+- Status: Implemented
 - Branch: feature/symlinks-in-copy-and-move
 
 ---
@@ -169,7 +169,7 @@ Add the tests as an extension of `RemoteIntegrationTests`, exposing only the exi
 
 ### E2E Tests (`Tests/UITests/DetoursUITests/DetoursUITests/RemoteSymlinkCopyUITests.swift`, guarded installed-smoke on Foundry against devtest)
 
-- [ ] **T26** `testF5OnLocalLinkLandsTargetOnRemoteHost` - Run as the `transfer` installed smoke on `LINUX_TARGET`; the app control seam creates the local link and remote destination, F5 copies it, and the remote listing shows a regular file with the link's name.
+- [x] **T26** `testF5OnLocalLinkLandsTargetOnRemoteHost` - Run as the `transfer` installed smoke on `LINUX_TARGET`; the app control seam creates the local link and remote destination, F5 copies it, and the remote listing shows a regular file with the link's name.
 
 ---
 
@@ -194,4 +194,5 @@ Add the tests as an extension of `RemoteIntegrationTests`, exposing only the exi
 - **T16-T25** `Tests/RemoteIntegrationTests+Symlinks.swift`, an extension of `RemoteIntegrationTests` reusing its fixture root, SSH quoting and path-check helpers (made internal). First live run at 9297ea8 against devtest: 9/10, `testLoopingLinkFailsItemAndCompletesFolder` FAIL because the Mac lists the temporary folder as `/private/var/...` while the test handed it in as `/var/...`, so the folder's link back to itself was not seen as active and the folder was walked once more before failing. Fixed at 6a870bd by resolving every component but the last of a local path on disk. Rerun at 6a870bd: `SymlinkTransferPlanTests` 5, `CrossProviderTransferTests` 8, the ten live tests 10: 23/23 PASS in 26 s.
 - **A1** T13 on Foundry. **A2** T16. **A3** T17. **A4** T19 (and T26 in the installed app). **A5** T20. **A6** T21. **A7** T24, the link found in Foundry's Trash pointing at the untouched local target. **A8** T23 across hosts, T13 and T16 within one host. **A9** T22. **A10** T18. **A11** C13. **A12** T10 with the fake hosts: the partial destination is reported as succeeded and the source folder keeps every item.
 - **Simplify** After `/simplify`: `PathProbe` moved to `Shared/` and replaces four inline `lstat` probes and the duplicated parent-resolving rule; the link walk is chosen by a `supportsSymbolicLinks` provider capability (false on the Windows provider) instead of a class check; the staged-link upload branch lives in the existing `uploadStagedItem`; a resolved link carries its canonical path once; the fake provider lost unused trash state.
+- **T26** `Tests/UITests/DetoursUITests/DetoursUITests/RemoteSymlinkCopyUITests.swift`, with a `symlink` action on the local fixture seam and a `stat` action on the remote seam. The runner admits the `transfer` group for local contexts only, so it ran as the `refresh` group's LINUX_TARGET smoke with a test filter, the route the symlink preview test used; the runner also requires Foundry on `main`, so Marco approved merging first. `qualification-foundry.sh installed-smoke refresh LINUX_TARGET --commit 1b9e4d2 --run-id symlink-copy-20260902-3 --smoke-repetitions 1 --test-filter RemoteSymlinkCopyUITests/testF5OnLocalLinkLandsTargetOnRemoteHost`: xcresult 1 passed, 0 failed, 0 skipped; prompt guard 0 TCC prompts, 0 XCUI interruptions, 0 visible prompt windows; cleanup passed; devtest's home holds no leftover scenario folder.
 - **C5** `FileOperationError.linkTargetMissing(name:)` and `linkLoops(name:)` added with the spec's messages in `LocalizedError` and a title/body pair in `FileOperationQueue.errorPresentation`.
