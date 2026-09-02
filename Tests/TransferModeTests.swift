@@ -46,10 +46,11 @@ final class TransferModeTests: XCTestCase {
         writer.writeData(Data("/unused-source".utf8))
         writer.writeData(Data(destination.path.utf8))
         writer.writeInt64(Int64(body.count))
-        var frameLength = UInt32(writer.data.count).bigEndian
+        let header = writer.data
+        var frameLength = UInt32(header.count).bigEndian
         let framePrefix = Data(bytes: &frameLength, count: MemoryLayout<UInt32>.size)
         let feeder = Thread {
-            inputPipe.fileHandleForWriting.write(framePrefix + writer.data)
+            inputPipe.fileHandleForWriting.write(framePrefix + header)
             inputPipe.fileHandleForWriting.write(body)
             try? inputPipe.fileHandleForWriting.close()
         }

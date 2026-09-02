@@ -459,20 +459,39 @@ extension FileOperationQueue {
                 let stagedURL = itemStagingDirectory.appendingPathComponent(item.lastPathComponent)
                 try FileManager.default.createDirectory(at: itemStagingDirectory, withIntermediateDirectories: true)
 
-                try await stageLocation(item, provider: sourceProvider, to: stagedURL)
-                try await uploadStagedItem(stagedURL, to: finalLocation, provider: destinationProvider)
+                var nestedFailures: [(URL, Error)] = []
+                // Windows endpoints keep their existing transfer path; the link-aware walk is
+                // for Unix hosts and the Mac only. The check reads any location, not just a
+                // destination.
+                if isWindowsDestination(item) || isWindowsDestination(destination) {
+                    try await stageLocation(item, provider: sourceProvider, to: stagedURL)
+                    try await uploadStagedItem(stagedURL, to: finalLocation, provider: destinationProvider)
+                } else {
+                    nestedFailures = try await stageUnixItem(item, provider: sourceProvider, to: stagedURL)
+                    try await uploadUnixStagedItem(stagedURL, to: finalLocation, provider: destinationProvider)
+                }
                 // A failed upload leaves nothing at the destination, so there is nothing to roll
                 // back until the upload has landed. Rolling back earlier trashed a file that was
                 // never written and reported that as a failed restore.
                 finalLocationForRollback = finalLocation
 
-                if isMove {
+                // A folder with a failed nested link stays whole at the source: its partial
+                // destination is kept and reported, and the source is never trashed.
+                if isMove, nestedFailures.isEmpty {
                     sourceRestoreRecords.append(
                         try await trashSourceAfterProviderMove(item, provider: sourceProvider)
                     )
                 }
 
                 successes.append(finalLocation)
+                failures.append(contentsOf: nestedFailures.map { path, error in
+                    (path, RemoteOperationError.operation(
+                        action: isMove ? .move : .copy,
+                        item: path.lastPathComponent,
+                        host: hostName,
+                        underlying: error
+                    ))
+                })
                 if let displacedTokenForRollback {
                     displacedTokens.append(displacedTokenForRollback)
                 }
