@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 /// Where a nested link ends up when a folder crosses hosts.
@@ -8,36 +9,40 @@ enum SymlinkWalkOutcome: Equatable {
     case follow(Location, isDirectory: Bool)
 }
 
+/// A link chain followed to its end.
+struct ResolvedLinkTarget {
+    let location: Location
+    let entry: LoadedFileEntry
+    /// One spelling of `location`, see `SymlinkTransferWalker.canonicalPath(of:)`.
+    let canonicalPath: String
+}
+
 /// Paths of the copied tree that decide how a nested link is treated.
 struct SymlinkWalkContext {
     /// Canonical components of the copied root on the source host.
     let rootComponents: [String]
     /// The staged local copy of that root.
     let rootStagedURL: URL
+    private let rootStagedDepth: Int
     /// Canonical paths of the source directories currently being walked, root first.
-    var activeDirectories: [String]
+    var activeDirectories: [String] = []
     /// Nested links that could not be transferred, by source path.
     var failures: [(URL, Error)] = []
 
     init(root: Location, rootStagedURL: URL) {
-        let rootPath = SymlinkTransferWalker.canonicalPath(of: root)
-        rootComponents = SymlinkTransferWalker.canonicalComponents(of: rootPath)
+        rootComponents = SymlinkTransferWalker.canonicalComponents(of: SymlinkTransferWalker.canonicalPath(of: root))
         self.rootStagedURL = rootStagedURL.standardizedFileURL
-        activeDirectories = [rootPath]
+        rootStagedDepth = self.rootStagedURL.pathComponents.count
     }
 
-    func isActive(_ location: Location) -> Bool {
-        activeDirectories.contains(SymlinkTransferWalker.canonicalPath(of: location))
-    }
-
-    /// The relative target for a link staged at `stagedLink` whose referent is `target`, or nil
-    /// when the referent lies outside the copied root.
-    func relativeTarget(forLinkAt stagedLink: URL, pointingAt target: Location) -> String? {
-        let targetComponents = SymlinkTransferWalker.canonicalComponents(of: SymlinkTransferWalker.canonicalPath(of: target))
+    /// The relative target for a link staged at `stagedLink` whose referent has the canonical
+    /// path `target`, or nil when the referent lies outside the copied root.
+    func relativeTarget(forLinkAt stagedLink: URL, pointingAt target: String) -> String? {
+        let targetComponents = SymlinkTransferWalker.canonicalComponents(of: target)
         guard targetComponents.starts(with: rootComponents) else { return nil }
         let targetInsideRoot = Array(targetComponents.dropFirst(rootComponents.count))
         let linkDirectory = stagedLink.standardizedFileURL.deletingLastPathComponent()
-        let linkInsideRoot = Array(linkDirectory.pathComponents.dropFirst(rootStagedURL.pathComponents.count))
+        let linkInsideRoot = Array(linkDirectory.pathComponents.dropFirst(rootStagedDepth))
         let shared = zip(linkInsideRoot, targetInsideRoot).prefix { $0 == $1 }.count
         let ups = Array(repeating: "..", count: linkInsideRoot.count - shared)
         let relative = (ups + targetInsideRoot.dropFirst(shared)).joined(separator: "/")
@@ -45,9 +50,9 @@ struct SymlinkWalkContext {
     }
 }
 
-/// Stages one selected item of a Unix-to-Unix cross-host transfer into a local folder,
-/// resolving links the way the spec describes: a selected link becomes its final referent, a
-/// nested link inside the copied tree stays a link, a nested link outside it is followed.
+/// Stages one selected item of a link-aware cross-host transfer into a local folder: a
+/// selected link becomes its final referent, a nested link inside the copied tree stays a
+/// link, a nested link outside it is followed.
 struct SymlinkTransferWalker {
     let provider: any FileProvider
 
@@ -57,7 +62,7 @@ struct SymlinkTransferWalker {
     /// Follows `link` hop by hop to its final non-link entry. A hop that cannot be read fails
     /// as a missing target; a repeated location or too many hops fails as a loop. Both name
     /// the link the user sees, `name`, not the hop that failed.
-    func resolveFinalTarget(of link: Location, name: String) async throws -> (location: Location, entry: LoadedFileEntry) {
+    func resolveFinalTarget(of link: Location, name: String) async throws -> ResolvedLinkTarget {
         var visited: Set<String> = [Self.canonicalPath(of: link)]
         var current = link
         for _ in 0..<Self.maximumHops {
@@ -67,7 +72,8 @@ struct SymlinkTransferWalker {
             } catch {
                 throw FileOperationError.linkTargetMissing(name: name)
             }
-            guard visited.insert(Self.canonicalPath(of: next)).inserted else {
+            let canonical = Self.canonicalPath(of: next)
+            guard visited.insert(canonical).inserted else {
                 throw FileOperationError.linkLoops(name: name)
             }
             let entry: LoadedFileEntry
@@ -77,7 +83,7 @@ struct SymlinkTransferWalker {
                 throw FileOperationError.linkTargetMissing(name: name)
             }
             if !entry.isSymbolicLink {
-                return (Self.canonicalLocation(next), entry)
+                return ResolvedLinkTarget(location: Self.location(next, atPath: canonical), entry: entry, canonicalPath: canonical)
             }
             current = next
         }
@@ -90,7 +96,8 @@ struct SymlinkTransferWalker {
         var source = item
         var entry = try await provider.stat(item)
         if entry.isSymbolicLink {
-            (source, entry) = try await resolveFinalTarget(of: item, name: item.lastPathComponent)
+            let target = try await resolveFinalTarget(of: item, name: item.lastPathComponent)
+            (source, entry) = (target.location, target.entry)
         }
         guard entry.isDirectory else {
             try FileManager.default.createDirectory(
@@ -108,10 +115,10 @@ struct SymlinkTransferWalker {
     /// Decides what a nested link becomes. Exposed for the plan tests.
     func classify(link: Location, name: String, stagedLink: URL, context: SymlinkWalkContext) async throws -> SymlinkWalkOutcome {
         let target = try await resolveFinalTarget(of: link, name: name)
-        if target.entry.isDirectory, context.isActive(target.location) {
+        if target.entry.isDirectory, context.activeDirectories.contains(target.canonicalPath) {
             throw FileOperationError.linkLoops(name: name)
         }
-        if let relative = context.relativeTarget(forLinkAt: stagedLink, pointingAt: target.location) {
+        if let relative = context.relativeTarget(forLinkAt: stagedLink, pointingAt: target.canonicalPath) {
             return .recreate(relativeTarget: relative)
         }
         return .follow(target.location, isDirectory: target.entry.isDirectory)
@@ -144,16 +151,11 @@ struct SymlinkTransferWalker {
             case .follow(let target, isDirectory: false):
                 try await provider.download(target, to: stagedLink)
             }
-        } catch let error as FileOperationError {
-            switch error {
-            case .linkLoops, .linkTargetMissing:
-                // Only the staged remainder of this link goes: it lives in the app's own
-                // temporary transfer folder, never in a user directory.
-                try? FileManager.default.removeItem(at: stagedLink)
-                context.failures.append((URL(fileURLWithPath: link.location.path), error))
-            default:
-                throw error
-            }
+        } catch let error as FileOperationError where error.isNestedLinkFailure {
+            // Only the staged remainder of this link goes: it lives in the app's own
+            // temporary transfer folder, never in a user directory.
+            try? FileManager.default.removeItem(at: stagedLink)
+            context.failures.append((URL(fileURLWithPath: link.location.path), error))
         }
     }
 
@@ -183,16 +185,12 @@ struct SymlinkTransferWalker {
     /// folders both /var and /private/var; the last component stays as written so a link is
     /// still addressed as the link, never as its target.
     static func canonicalPath(of location: Location) -> String {
-        let components = canonicalComponents(of: location.path)
-        guard case .local = location, let last = components.last else {
-            return canonicalPath(components)
-        }
-        let parent = URL(fileURLWithPath: canonicalPath(Array(components.dropLast())), isDirectory: true)
-        return canonicalPath(canonicalComponents(of: parent.resolvingSymlinksInPath().path) + [last])
+        let folded = canonicalPath(canonicalComponents(of: location.path))
+        guard case .local = location, folded != "/" else { return folded }
+        return canonicalPath(canonicalComponents(of: PathProbe.resolvingParent(of: folded).path))
     }
 
-    static func canonicalLocation(_ location: Location) -> Location {
-        let path = canonicalPath(of: location)
+    private static func location(_ location: Location, atPath path: String) -> Location {
         switch location {
         case .local:
             return .local(URL(fileURLWithPath: path))
@@ -202,37 +200,13 @@ struct SymlinkTransferWalker {
     }
 }
 
-extension FileOperationQueue {
-    /// Stages one item for a Unix-to-Unix transfer and returns its failed nested links.
-    func stageUnixItem(_ item: Location, provider: any FileProvider, to stagedURL: URL) async throws -> [(URL, Error)] {
-        try await SymlinkTransferWalker(provider: provider).stage(item, to: stagedURL)
-    }
-
-    /// Uploads a staged item, recreating a staged link through the provider once its
-    /// containing folder exists.
-    func uploadUnixStagedItem(_ localURL: URL, to location: Location, provider: any FileProvider) async throws {
-        let values = try localURL.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey])
-        if values.isSymbolicLink == true {
-            let target = try FileManager.default.destinationOfSymbolicLink(atPath: localURL.path)
-            try await provider.createSymbolicLink(at: location, targetPath: target)
-            return
+private extension FileOperationError {
+    var isNestedLinkFailure: Bool {
+        switch self {
+        case .linkLoops, .linkTargetMissing:
+            return true
+        default:
+            return false
         }
-        if values.isDirectory == true {
-            try await provider.createDirectory(at: location, withIntermediateDirectories: true)
-            let children = try FileManager.default.contentsOfDirectory(
-                at: localURL,
-                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-                options: []
-            )
-            for child in children {
-                try await uploadUnixStagedItem(
-                    child,
-                    to: location.appendingPathComponent(child.lastPathComponent),
-                    provider: provider
-                )
-            }
-            return
-        }
-        try await provider.upload(localURL, to: location)
     }
 }

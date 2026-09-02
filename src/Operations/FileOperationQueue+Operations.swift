@@ -413,6 +413,7 @@ extension FileOperationQueue {
         var displacedTokens: [TrashedItem] = []
         var sourceRestoreRecords: [ProviderMoveSourceRestore] = []
         let hostName = await transferHostName(for: destination)
+        let destinationSupportsLinks = destinationProvider.supportsSymbolicLinks
 
         for (index, item) in items.enumerated() {
             try checkCancelled()
@@ -459,17 +460,15 @@ extension FileOperationQueue {
                 let stagedURL = itemStagingDirectory.appendingPathComponent(item.lastPathComponent)
                 try FileManager.default.createDirectory(at: itemStagingDirectory, withIntermediateDirectories: true)
 
+                // The link-aware walk needs links on both sides; otherwise the item is staged
+                // as it has always been, following whatever the host reports.
                 var nestedFailures: [(URL, Error)] = []
-                // Windows endpoints keep their existing transfer path; the link-aware walk is
-                // for Unix hosts and the Mac only. The check reads any location, not just a
-                // destination.
-                if isWindowsDestination(item) || isWindowsDestination(destination) {
-                    try await stageLocation(item, provider: sourceProvider, to: stagedURL)
-                    try await uploadStagedItem(stagedURL, to: finalLocation, provider: destinationProvider)
+                if destinationSupportsLinks, sourceProvider.supportsSymbolicLinks {
+                    nestedFailures = try await SymlinkTransferWalker(provider: sourceProvider).stage(item, to: stagedURL)
                 } else {
-                    nestedFailures = try await stageUnixItem(item, provider: sourceProvider, to: stagedURL)
-                    try await uploadUnixStagedItem(stagedURL, to: finalLocation, provider: destinationProvider)
+                    try await stageLocation(item, provider: sourceProvider, to: stagedURL)
                 }
+                try await uploadStagedItem(stagedURL, to: finalLocation, provider: destinationProvider)
                 // A failed upload leaves nothing at the destination, so there is nothing to roll
                 // back until the upload has landed. Rolling back earlier trashed a file that was
                 // never written and reported that as a failed restore.
@@ -597,7 +596,13 @@ extension FileOperationQueue {
     }
 
     private func uploadStagedItem(_ localURL: URL, to location: Location, provider: any FileProvider) async throws {
-        let values = try localURL.resourceValues(forKeys: [.isDirectoryKey])
+        let values = try localURL.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey])
+        if values.isSymbolicLink == true {
+            // A staged link is recreated through the provider once its folder exists.
+            let target = try FileManager.default.destinationOfSymbolicLink(atPath: localURL.path)
+            try await provider.createSymbolicLink(at: location, targetPath: target)
+            return
+        }
         if values.isDirectory == true {
             try await provider.createDirectory(at: location, withIntermediateDirectories: true)
             let children = try FileManager.default.contentsOfDirectory(

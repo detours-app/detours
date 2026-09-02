@@ -1,3 +1,4 @@
+import DetoursProcess
 import XCTest
 @testable import detours_server
 

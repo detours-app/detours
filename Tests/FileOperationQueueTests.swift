@@ -1,3 +1,4 @@
+import DetoursProcess
 import XCTest
 @testable import Detours
 
@@ -176,7 +177,7 @@ final class FileOperationQueueTests: XCTestCase {
         try await FileOperationQueue.shared.move(items: [link], to: dest)
 
         XCTAssertEqual(try linkText(dest.appendingPathComponent("link")), target.path)
-        XCTAssertFalse(PathProbeForTests.existsWithoutFollowing(link.path))
+        XCTAssertFalse(PathProbe.existsWithoutFollowing(link.path))
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "keep")
     }
 
@@ -189,7 +190,7 @@ final class FileOperationQueueTests: XCTestCase {
 
         try await FileOperationQueue.shared.delete(items: [link])
 
-        XCTAssertFalse(PathProbeForTests.existsWithoutFollowing(link.path))
+        XCTAssertFalse(PathProbe.existsWithoutFollowing(link.path))
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "keep")
     }
 
@@ -286,12 +287,5 @@ private func XCTAssertThrowsErrorAsync(_ expression: @escaping () async throws -
         XCTFail("Expected error to be thrown")
     } catch {
         XCTAssertTrue(true)
-    }
-}
-
-enum PathProbeForTests {
-    static func existsWithoutFollowing(_ path: String) -> Bool {
-        var info = Darwin.stat()
-        return lstat(path, &info) == 0
     }
 }

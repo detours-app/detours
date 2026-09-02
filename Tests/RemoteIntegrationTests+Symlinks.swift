@@ -1,3 +1,4 @@
+import DetoursProcess
 import XCTest
 @testable import Detours
 
@@ -35,11 +36,6 @@ extension RemoteIntegrationTests {
 
     private static func localIsLink(_ url: URL) -> Bool {
         (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
-    }
-
-    private static func localExistsWithoutFollowing(_ url: URL) -> Bool {
-        var info = Darwin.stat()
-        return lstat(url.path, &info) == 0
     }
 
     func testSameHostCopyOfLinksKeepsLinks() async throws {
@@ -271,7 +267,7 @@ extension RemoteIntegrationTests {
         XCTAssertEqual(moved, [dest.appendingPathComponent(linkName)])
         XCTAssertTrue(try Self.remoteIsRegularFile(root + "/dest/" + linkName))
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(root + "/dest/" + linkName))"), "stays local")
-        XCTAssertFalse(Self.localExistsWithoutFollowing(link))
+        XCTAssertFalse(PathProbe.existsWithoutFollowing(link.path))
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "stays local")
         let trash = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
         let trashedLink = try XCTUnwrap(

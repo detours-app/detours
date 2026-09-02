@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 /// Wraps `copyfile(3)` with a 1 MB buffer for better throughput on fast storage.
@@ -35,8 +36,7 @@ enum CopyfileHelper {
         // A link copies as a link, never as the item it points at, so the source is
         // never followed; only a real directory recurses.
         var flags = copyfile_flags_t(COPYFILE_ALL) | copyfile_flags_t(COPYFILE_NOFOLLOW_SRC)
-        var info = Darwin.stat()
-        if lstat(source.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFDIR {
+        if PathProbe.isDirectoryWithoutFollowing(source.path) {
             flags |= copyfile_flags_t(COPYFILE_RECURSIVE)
         }
 

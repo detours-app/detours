@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 enum TrashOperationsError: Error, Equatable, Sendable {
@@ -24,7 +25,7 @@ struct TrashOperations {
         do {
             for path in paths {
                 // Only the parent is resolved: a link is trashed as the link, never as its target.
-                let sourceURL = Self.resolvingParent(of: path)
+                let sourceURL = PathProbe.resolvingParent(of: path)
                 guard PathProbe.existsWithoutFollowing(sourceURL.path) else {
                     throw TrashOperationsError.missingItem(path)
                 }
@@ -146,21 +147,13 @@ struct TrashOperations {
     }
 
     private func canonicalRestoreDestination(for originalPath: String) throws -> URL {
-        let destinationURL = Self.resolvingParent(of: originalPath)
+        let destinationURL = PathProbe.resolvingParent(of: originalPath)
 
         guard isDescendantOrSame(destinationURL, of: homeDirectory) else {
             throw TrashOperationsError.restoreDestinationOutsideHome(destinationURL.path)
         }
 
         return destinationURL
-    }
-
-    /// Resolves links in every component but the last, so the item itself is addressed as
-    /// it is on disk: a link stays a link, a dangling link stays addressable.
-    static func resolvingParent(of path: String) -> URL {
-        let requestedURL = URL(fileURLWithPath: path).standardizedFileURL
-        let parentURL = requestedURL.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath()
-        return parentURL.appendingPathComponent(requestedURL.lastPathComponent)
     }
 
     private func isDescendantOrSame(_ child: URL, of parent: URL) -> Bool {

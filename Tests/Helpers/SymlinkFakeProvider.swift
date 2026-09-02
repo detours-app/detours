@@ -8,21 +8,23 @@ actor SymlinkFakeProvider: FileProvider {
         case file(Data)
         case directory
         case link(String)
+
+        var isLink: Bool {
+            if case .link = self { return true }
+            return false
+        }
     }
 
     enum Failure: Error, Equatable {
         case missing(String)
         case notAFile(String)
         case exists(String)
-        case trashFailed
     }
 
     let hostID: UUID
     private var nodes: [String: Node]
-    private var trash: [String: [String: Node]] = [:]
     /// Every state-changing call in order: "mkdir /p", "upload /p", "symlink /p -> t", "trash /p".
     private(set) var calls: [String] = []
-    var failTrash = false
 
     init(hostID: UUID, nodes: [String: Node]) {
         self.hostID = hostID
@@ -34,8 +36,6 @@ actor SymlinkFakeProvider: FileProvider {
     }
 
     func node(at path: String) -> Node? { nodes[Self.canonical(path)] }
-
-    func setFailTrash(_ value: Bool) { failTrash = value }
 
     func paths() -> [String] { nodes.keys.sorted() }
 
@@ -64,7 +64,7 @@ actor SymlinkFakeProvider: FileProvider {
             url: Location.remoteFileURL(path),
             name: String(path.split(separator: "/").last ?? ""),
             isDirectory: node == .directory,
-            isSymbolicLink: { if case .link = node { return true } else { return false } }(),
+            isSymbolicLink: node?.isLink ?? false,
             fileSize: size
         )
     }
@@ -113,38 +113,28 @@ actor SymlinkFakeProvider: FileProvider {
     }
 
     func trash(_ items: [Location]) async throws -> [TrashedItem] {
-        if failTrash { throw Failure.trashFailed }
-        return try items.map { item in
+        try items.map { item in
             let path = Self.canonical(item.path)
             guard nodes[path] != nil else { throw Failure.missing(path) }
-            let removed = removeTree(at: path)
-            let token = "/trash/\(UUID().uuidString)"
-            trash[token] = removed
+            removeTree(at: path)
             calls.append("trash \(path)")
-            return TrashedItem(originalLocation: item, trashLocation: .remote(hostID: hostID, path: token))
+            return TrashedItem(originalLocation: item, trashLocation: .remote(hostID: hostID, path: "/trash/\(UUID().uuidString)"))
         }
     }
 
     func restoreFromTrash(_ items: [TrashedItem]) async throws -> [Location] {
-        items.map { item in
-            if let removed = trash.removeValue(forKey: item.trashLocation.path) {
-                nodes.merge(removed) { _, new in new }
-            }
-            return item.originalLocation
-        }
+        items.map(\.originalLocation)
     }
 
     func delete(_ items: [Location]) async throws {
-        for item in items { _ = removeTree(at: Self.canonical(item.path)) }
+        for item in items { removeTree(at: Self.canonical(item.path)) }
     }
 
-    private func removeTree(at path: String) -> [String: Node] {
+    private func removeTree(at path: String) {
         let prefix = path + "/"
-        var removed: [String: Node] = [:]
         for key in nodes.keys where key == path || key.hasPrefix(prefix) {
-            removed[key] = nodes.removeValue(forKey: key)
+            nodes.removeValue(forKey: key)
         }
-        return removed
     }
 
     func copy(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }

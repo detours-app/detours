@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 struct FileOperations {
@@ -342,10 +343,11 @@ struct FileOperations {
 
     private func destinationNameParts(for sourceURL: URL) throws -> (baseName: String, ext: String) {
         // A link is named like a file whatever it points at; a dangling one has no values to read.
-        let values = PathProbe.isSymbolicLink(sourceURL.path)
-            ? nil
-            : try sourceURL.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
-        if values?.isDirectory == true, values?.isPackage != true {
+        guard !PathProbe.isSymbolicLink(sourceURL.path) else {
+            return (sourceURL.deletingPathExtension().lastPathComponent, sourceURL.pathExtension)
+        }
+        let values = try sourceURL.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+        if values.isDirectory == true, values.isPackage != true {
             return (sourceURL.lastPathComponent, "")
         }
         let ext = sourceURL.pathExtension

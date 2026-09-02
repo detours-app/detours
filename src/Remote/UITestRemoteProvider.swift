@@ -1,4 +1,5 @@
 import CryptoKit
+import DetoursProcess
 import Foundation
 
 enum UITestRemoteCallPhase: String, Codable, Sendable {
@@ -439,8 +440,7 @@ actor UITestRemoteProvider: FileProvider {
         do {
             try failIfRequested(operation: "createSymbolicLink")
             let link = try confinedURL(for: location, mustExist: false)
-            var info = Darwin.stat()
-            guard lstat(link.path, &info) != 0 else {
+            guard !PathProbe.existsWithoutFollowing(link.path) else {
                 throw CocoaError(.fileWriteFileExists)
             }
             try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: targetPath)
