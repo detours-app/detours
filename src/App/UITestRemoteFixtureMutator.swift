@@ -48,7 +48,7 @@ enum UITestRemoteFixtureMutator {
                 throw error
             }
             return nil
-        case "createDirectory", "write", "move", "remove", "gitInit", "cleanup":
+        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "cleanup":
             guard let sentinelID = command.sentinelID, UUID(uuidString: sentinelID) != nil else {
                 throw MutationError.invalidSentinel
             }
@@ -108,6 +108,25 @@ enum UITestRemoteFixtureMutator {
                     + " -c user.name='Detours Qualification'"
                     + " -c user.email=qualification@detours.invalid"
                     + " commit -q -m 'initial fixture'"
+                _ = try await SSHRemoteHostKindProbeClient(sshTarget: target).run(command)
+            case "symlink":
+                // Symlinks are created over SSH: the provider has no call for them, and the
+                // Windows target has no `ln`.
+                guard UITestEnvironment.realRemoteContext != "WINDOWS_TARGET",
+                      let target = UITestEnvironment.realRemoteTarget else {
+                    throw MutationError.symlinkUnavailable
+                }
+                let link = try validatedChildLocation(
+                    command.relativePath,
+                    scenarioPath: scenarioPath,
+                    hostID: hostID
+                )
+                let destination = try validatedChildLocation(
+                    command.destinationRelativePath,
+                    scenarioPath: scenarioPath,
+                    hostID: hostID
+                )
+                let command = "ln -s " + shellQuote(destination.path) + " " + shellQuote(link.path)
                 _ = try await SSHRemoteHostKindProbeClient(sshTarget: target).run(command)
             case "cleanup":
                 try await provider.delete([scenario])
@@ -222,6 +241,7 @@ enum UITestRemoteFixtureMutator {
         case missingContents
         case crossDirectoryMove
         case gitUnavailable
+        case symlinkUnavailable
         case sentinelMismatch(String)
         case unknownAction(String)
 
@@ -237,6 +257,7 @@ enum UITestRemoteFixtureMutator {
             case .missingContents: "The remote fixture write has no contents."
             case .crossDirectoryMove: "The remote fixture move crossed directories."
             case .gitUnavailable: "The remote fixture Git setup is unavailable."
+            case .symlinkUnavailable: "The remote fixture symlink setup is unavailable."
             case .sentinelMismatch(let path): "The remote fixture sentinel did not match: \(path)"
             case .unknownAction(let action): "Unknown remote fixture mutation action: \(action)"
             }
