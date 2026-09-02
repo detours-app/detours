@@ -490,6 +490,33 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(remoteRoot + "/notes.md"))"), "edited")
     }
 
+    /// A large upload whose destination folder does not exist makes the helper fail before it
+    /// reads the body. The app must report that as an error, not die writing into the dead pipe.
+    func testLargeUploadIntoMissingRemoteFolderReportsAnErrorInsteadOfDying() async throws {
+        let session = try await RemoteIntegrationSession.make()
+        let remoteRoot = try Self.makeRemoteFixtureRoot()
+        defer { Self.cleanupRemote(remoteRoot) }
+        let localRoot = try createTempDirectory()
+        defer { cleanupTempDirectory(localRoot) }
+        let source = localRoot.appendingPathComponent("large.bin")
+        try Data(count: 4 * 1_024 * 1_024).write(to: source)
+        let destination = Location.remote(hostID: session.hostID, path: remoteRoot + "/missing/large.bin")
+
+        do {
+            try await session.provider.upload(source, to: destination)
+            XCTFail("Uploading into a missing folder must fail")
+        } catch let error as RemoteTransferError {
+            guard case .processFailed = error else {
+                XCTFail("Unexpected transfer error: \(error)")
+                return
+            }
+        }
+
+        let names = try await session.provider.list(.remote(hostID: session.hostID, path: remoteRoot), showHidden: true)
+            .map(\.name)
+        XCTAssertEqual(names, [], "The failed upload must leave nothing behind")
+    }
+
     func testLargeTransferUsesRemoteTransferChannel() async throws {
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
