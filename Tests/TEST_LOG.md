@@ -4,6 +4,12 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-02 12:00 (Foundry against devtest, large uploads to Linux hosts)
+
+- The dialog behind the silent quit was Cocoa error 512 from the helper. `swift test --filter RemoteIntegrationTests/testLargeUploadWithSpacesInTheNameIntoANestedFolderSucceeds` at a4eb31c reproduced it on devtest in an existing writable folder: 2 of 4 variants failed, independent of name and nesting. Driving `detours-server --transfer` directly on devtest under strace, 8 runs: 0 succeeded, each failing at `openat("", O_RDWR|O_CREAT|O_EXCL) = ENOENT`, the temporary file of Foundation's atomic file creation. Probe files removed from devtest and Foundry afterwards.
+- Fix at bfea2e8 (plain exclusive open for the partial). `swift test --filter TransferModeTests` on Foundry: 4/4 PASS. Linux helper rebuilt on dockerhost from Foundry in 34 s with its 18 in-container tests green. Live on devtest with the redeployed helper, two consecutive passes each of: the four-variant upload test, the missing-folder upload test, the 100 MB download, the open-with upload-back, and the list/Quick Look boundary test: 5/5 PASS both times.
+- Rollback fix at fe97adc: `swift test --filter CrossProviderTransferTests` on Foundry: 3/3 PASS, including the new failed-upload case.
+
 ### 2026-09-02 11:50 (Foundry against devtest, silent quit on remote copy)
 
 - Marco reported Detours quitting with no crash report on an F5 copy from the Mac to a remote host. `swift test --filter RemoteIntegrationTests/testLargeUploadIntoMissingRemoteFolderReportsAnErrorInsteadOfDying` at d7ac426, before any fix: the xctest process exited with signal 13 (SIGPIPE). The helper fails the upload before reading the body, ssh exits, and the app's non-throwing write into the dead stdin pipe kills the process.
