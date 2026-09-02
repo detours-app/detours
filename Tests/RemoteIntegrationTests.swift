@@ -524,15 +524,24 @@ final class RemoteIntegrationTests: XCTestCase {
         try Self.runSSH("mkdir -p \(Self.shellQuote(remoteRoot + "/2026-09-01T1028/report"))")
         let localRoot = try createTempDirectory()
         defer { cleanupTempDirectory(localRoot) }
-        let name = "OSAI-OS-549575-Exam-Report Best Practice.pdf"
-        let source = localRoot.appendingPathComponent(name)
+        let source = localRoot.appendingPathComponent("payload.bin")
         try Data(count: 3 * 1_024 * 1_024).write(to: source)
-        let destination = Location.remote(hostID: session.hostID, path: remoteRoot + "/2026-09-01T1028/report/" + name)
-
-        try await session.provider.upload(source, to: destination)
-
-        let entry = try await session.provider.stat(destination)
-        XCTAssertEqual(entry.fileSize, 3 * 1_024 * 1_024)
+        let cases: [(label: String, path: String)] = [
+            ("plain name, root", remoteRoot + "/plain.pdf"),
+            ("spaces, root", remoteRoot + "/Exam Report Best Practice.pdf"),
+            ("plain name, nested", remoteRoot + "/2026-09-01T1028/report/plain.pdf"),
+            ("spaces, nested", remoteRoot + "/2026-09-01T1028/report/OSAI-OS-549575-Exam-Report Best Practice.pdf"),
+        ]
+        for testCase in cases {
+            let destination = Location.remote(hostID: session.hostID, path: testCase.path)
+            do {
+                try await session.provider.upload(source, to: destination)
+                let entry = try await session.provider.stat(destination)
+                XCTAssertEqual(entry.fileSize, 3 * 1_024 * 1_024, testCase.label)
+            } catch {
+                XCTFail("\(testCase.label): \(error)")
+            }
+        }
     }
 
     func testLargeTransferUsesRemoteTransferChannel() async throws {
