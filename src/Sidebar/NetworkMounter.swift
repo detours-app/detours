@@ -114,9 +114,7 @@ final class NetworkMounter {
                 let openOptions = NSMutableDictionary()
                 let mountOptions = NSMutableDictionary()
 
-                // Detours owns every mount dialog. Without this NetFS puts up its
-                // own authentication and error UI alongside ours.
-                openOptions[kNAUIOptionKey] = kNAUIOptionNoUI
+                openOptions[kNAUIOptionKey] = Self.uiOption(for: url, username: username)
 
                 // Set up authentication if provided
                 if username != nil {
@@ -143,6 +141,19 @@ final class NetworkMounter {
                 continuation.resume(returning: (result, points))
             }
         }
+    }
+
+    /// Detours owns the login and error dialogs, so NetFS UI stays off. The one
+    /// exception is a bare server URL with credentials already collected: the
+    /// public API has no way to list shares, and with its UI suppressed NetFS
+    /// answers "no shares available" instead of mounting. Letting NetFS show
+    /// only its share picker there is what makes a sidebar server mount at all.
+    nonisolated static func uiOption(for url: URL, username: String?) -> String {
+        let hasShare = !url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).isEmpty
+        if username != nil && !hasShare {
+            return kNAUIOptionAllowUI as String
+        }
+        return kNAUIOptionNoUI as String
     }
 
     /// Mount a discovered network server

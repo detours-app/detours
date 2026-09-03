@@ -117,6 +117,21 @@ final class NetworkTests: XCTestCase {
         XCTAssertEqual(server.displayName, "nas.local")
     }
 
+    // MARK: - NetFS UI option
+
+    func testBareServerURLWithCredentialsAllowsSharePicker() {
+        let bare = URL(string: "smb://vancouver.local")!
+        XCTAssertEqual(NetworkMounter.uiOption(for: bare, username: "marco"), "AllowUI")
+        XCTAssertEqual(NetworkMounter.uiOption(for: URL(string: "smb://vancouver.local/")!, username: "marco"), "AllowUI")
+    }
+
+    func testShareURLOrMissingCredentialsKeepNetFSUIOff() {
+        let share = URL(string: "smb://vancouver.local/serverbackup")!
+        XCTAssertEqual(NetworkMounter.uiOption(for: share, username: "marco"), "NoUI")
+        XCTAssertEqual(NetworkMounter.uiOption(for: URL(string: "smb://vancouver.local")!, username: nil), "NoUI")
+        XCTAssertEqual(NetworkMounter.uiOption(for: share, username: nil), "NoUI")
+    }
+
     // MARK: - NetworkMountError Tests
 
     func testNetworkMountErrorDescriptions() {
