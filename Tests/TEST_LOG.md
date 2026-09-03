@@ -4,6 +4,10 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-03 10:56 (Spectre install-only delivery)
+
+- `resources/scripts/build.sh` on Spectre at 8b34f58 after the Foundry proof above: built, signed, installed and relaunched, no warnings. No tests or probes run on Spectre.
+
 ### 2026-09-03 10:55 (Foundry, sidebar server mount share picker)
 
 - NetFS probe on Foundry against devtest at 124593d, mirroring the app's mount call with the qualification account: bare host without credentials returns EAUTH (80); bare host with valid credentials and NetFS UI suppressed returns kNetAuthErrorNoSharesAvailable (-6003) in 1.5 s with no mount; the share URL with the same credentials mounts in 0.7 s (mount point array empty, volume found by diff). Vancouver bare host without credentials also returns EAUTH. This is the sidebar defect: a discovered server is a bare host, so NetFS had no way to choose a share. Probe share unmounted and probe removed afterwards.
