@@ -4,7 +4,7 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
-### 2026-09-07 13:40 (Spectre install-only delivery)
+### 2026-09-07 13:37 (Spectre install-only delivery)
 
 - `resources/scripts/build.sh` on Spectre at b49054e after the Foundry proof below: built in 419 s under the backup scan, signed, installed and relaunched, no warnings, Detours running afterwards. No tests or probes run on Spectre.
 
