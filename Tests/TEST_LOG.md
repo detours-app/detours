@@ -4,6 +4,10 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-07 13:40 (Spectre install-only delivery)
+
+- `resources/scripts/build.sh` on Spectre at b49054e after the Foundry proof below: built in 419 s under the backup scan, signed, installed and relaunched, no warnings, Detours running afterwards. No tests or probes run on Spectre.
+
 ### 2026-09-07 13:05 (Foundry, remote watcher relevance check off the disk)
 
 - Syscall probe on Foundry (throwaway interposing dylib under ~/tmp/urlprobe, outside the repo) at 6cfacd6, 100 iterations per row, macOS 26.6.2, Swift 6.3.3: `URL(fileURLWithPath:)` costs 1 lstat per call on any path without a trailing slash, existing or missing; `URL(fileURLWithPath:isDirectory:)` and `URL(filePath:directoryHint:)` cost 0 syscalls; `standardizedFileURL` costs 0 syscalls on ordinary paths, 2 lstat + 1 getattrlist per call on a path containing `..`, and 1 stat per call on a path starting with `/private`; `path`, `standardized` and `deletingLastPathComponent()` cost 0. This confirms the sample: the two unhinted initialisers in `isRemoteDescendant` were the per-event lstat calls.
