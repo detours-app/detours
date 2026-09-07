@@ -140,17 +140,20 @@ extension PaneViewController {
         return canvas
     }
 
+    /// Rebuilt on the main thread after every changed remote listing. The
+    /// segments carry remote paths, so build them without stating the local
+    /// disk; only the path text is ever read back.
     private func remoteBreadcrumbComponents(for path: String) -> [(String, URL)] {
         let normalizedPath = path.hasPrefix("/") ? path : "/" + path
         let parts = normalizedPath.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
         guard !parts.isEmpty else {
-            return [("/", URL(fileURLWithPath: "/"))]
+            return [("/", Location.remoteFileURL("/"))]
         }
 
         var current = ""
         return parts.map { part in
             current += "/" + part
-            return (part, URL(fileURLWithPath: current))
+            return (part, Location.remoteFileURL(current))
         }
     }
 

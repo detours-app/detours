@@ -3,8 +3,9 @@ import XCTest
 @testable import Detours
 
 /// The watcher-relevance check runs on the main thread for every change
-/// event, so it is pure string work. These tests pin the containment
-/// semantics that the string comparison must keep.
+/// event and must not ask the disk whether a folder exists. These tests pin
+/// the containment semantics the path comparison has to keep; the syscall
+/// count itself is proven by the probe recorded in TEST_LOG.md.
 @MainActor
 final class RemoteDescendantTests: XCTestCase {
     private let host = UUID()
