@@ -4,6 +4,16 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-07 13:05 (Foundry, remote watcher relevance check off the disk)
+
+- Syscall probe on Foundry (throwaway interposing dylib under ~/tmp/urlprobe, outside the repo) at 6cfacd6, 100 iterations per row, macOS 26.6.2, Swift 6.3.3: `URL(fileURLWithPath:)` costs 1 lstat per call on any path without a trailing slash, existing or missing; `URL(fileURLWithPath:isDirectory:)` and `URL(filePath:directoryHint:)` cost 0 syscalls; `standardizedFileURL` costs 0 syscalls on ordinary paths, 2 lstat + 1 getattrlist per call on a path containing `..`, and 1 stat per call on a path starting with `/private`; `path`, `standardized` and `deletingLastPathComponent()` cost 0. This confirms the sample: the two unhinted initialisers in `isRemoteDescendant` were the per-event lstat calls.
+- `resources/scripts/build.sh` on Foundry at c02c977: build, sign, install and relaunch succeeded, no compiler warnings, Detours running afterwards.
+- `swift test --filter RemoteDescendantTests` at c02c977: 7/7 PASS. Pins descendant, same folder, shared prefix without separator, ancestor of child, trailing slash and dot segment normalisation, other host and local inputs, and the pane displays-directory decision with a remote root. Semantics only; the syscall count is proven by the probe above, not by the test.
+- `swift test --filter "PaneRefreshSchedulerTests|RefreshArchitectureTests|PaneRefreshRemoteListingTests|LocationTests"` at c02c977: 33/33 PASS in 5 s.
+- Adversarial review of c02c977 (three reviewers, three refuters per finding): the change is equivalent to the old code over 30,976 ordered path pairs including symlinks, files, `/private` and `..` shapes; the synchronous per-event chain is now syscall-free for ordinary remote paths. Confirmed leftovers outside this fix: the remote breadcrumb rebuild used the same unhinted initialiser per segment (fixed at 3d61b79); expanded-folder restore on subtree applies builds one unhinted URL per expanded remote folder; local reconcile resolves symlinks per entry for git status lookups on the main thread.
+- `resources/scripts/build.sh` on Foundry at 3d61b79: build, sign, install and relaunch succeeded, no compiler warnings, Detours still running afterwards.
+- `swift test --filter "RemoteDescendantTests|PaneViewControllerTests|DroppablePathControlTests"` at 3d61b79: 53/53 PASS in 1 s, covering the remote breadcrumb navigation cases.
+
 ### 2026-09-03 10:56 (Spectre install-only delivery)
 
 - `resources/scripts/build.sh` on Spectre at 8b34f58 after the Foundry proof above: built, signed, installed and relaunched, no warnings. No tests or probes run on Spectre.
