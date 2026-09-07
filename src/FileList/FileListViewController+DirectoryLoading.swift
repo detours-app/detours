@@ -569,14 +569,16 @@ extension FileListViewController {
         FrecencyStore.shared.recordVisit(location)
     }
 
+    /// Runs on the main thread once per watcher event, so it must stay pure
+    /// string work: `Location.remoteFileURL` never stats the path.
     func isRemoteDescendant(_ location: Location, of ancestor: Location) -> Bool {
         guard case .remote(let locationHost, let locationPath) = location,
               case .remote(let ancestorHost, let ancestorPath) = ancestor,
               locationHost == ancestorHost else {
             return false
         }
-        let normalizedLocation = URL(fileURLWithPath: locationPath).standardizedFileURL.path
-        let normalizedAncestor = URL(fileURLWithPath: ancestorPath).standardizedFileURL.path
+        let normalizedLocation = Location.remoteFileURL(locationPath).standardizedFileURL.path
+        let normalizedAncestor = Location.remoteFileURL(ancestorPath).standardizedFileURL.path
         guard normalizedLocation != normalizedAncestor else { return false }
         let ancestorPrefix = normalizedAncestor == "/"
             ? "/"
