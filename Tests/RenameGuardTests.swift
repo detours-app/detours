@@ -69,4 +69,20 @@ final class RenameGuardTests: XCTestCase {
         let renamed = try await FileOperationQueue.shared.rename(item: folder, to: "Report 2026")
         XCTAssertTrue(FileManager.default.fileExists(atPath: renamed.path))
     }
+
+    /// A reservation is taken before the item exists and released after it does.
+    /// Under /private, `standardizedFileURL` rewrites the path once the item exists,
+    /// so keying on it leaked the reservation and every later rename inside the
+    /// folder was refused as "still being copied".
+    func testReservationReleasesUnderPrivatePrefix() async throws {
+        let temp = URL(fileURLWithPath: "/private/tmp").appendingPathComponent("detours-rename-guard-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let created = try await FileOperationQueue.shared.createFolder(in: temp, name: "Folder", undoManager: nil)
+        XCTAssertNil(FileOperationQueue.shared.reservationCovering(created))
+
+        let renamed = try await FileOperationQueue.shared.rename(item: created, to: "Report 2026")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: renamed.path))
+    }
 }
