@@ -159,9 +159,11 @@ final class FileOperationQueue {
 
     // MARK: - Fast-lane coordination
 
-    /// Destination URLs reserved by an in-flight operation (heavy or fast lane).
-    /// Every `uniqueXxxDestination` helper skips reserved URLs to prevent name races.
-    var reservedDestinations: Set<URL> = []
+    /// Destination paths reserved by an in-flight operation (heavy or fast lane).
+    /// Every `uniqueXxxDestination` helper skips reserved paths to prevent name races.
+    /// Keyed on `reservationKey`, which does not consult the disk, so the key taken
+    /// before an item exists still matches the release taken after it does.
+    var reservedDestinations: Set<String> = []
 
     /// Filesystem paths (standardized) that an active heavy operation is mutating.
     /// Fast-lane classification routes overlapping requests to the heavy lane.

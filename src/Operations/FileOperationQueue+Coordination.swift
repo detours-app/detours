@@ -1,5 +1,8 @@
 import AppKit
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "com.detours", category: "operations")
 
 extension FileOperationQueue {
     // MARK: - File I/O (off main thread)
@@ -26,26 +29,43 @@ extension FileOperationQueue {
 
     // MARK: - Destination reservations
 
+    /// Disk-independent key for a reservation. `standardizedFileURL` rewrites
+    /// `/private/tmp/x` to `/tmp/x` once `x` exists, so a reservation taken before
+    /// creation and released after it would use two different keys and leak.
+    nonisolated static func reservationKey(_ url: URL) -> String {
+        url.standardized.path
+    }
+
     func reserveDestination(_ url: URL) {
-        reservedDestinations.insert(url.standardizedFileURL)
+        reservedDestinations.insert(Self.reservationKey(url))
     }
 
     func releaseDestination(_ url: URL) {
-        reservedDestinations.remove(url.standardizedFileURL)
+        reservedDestinations.remove(Self.reservationKey(url))
     }
 
     func isReserved(_ url: URL) -> Bool {
-        reservedDestinations.contains(url.standardizedFileURL)
+        reservedDestinations.contains(Self.reservationKey(url))
     }
 
-    /// True when `url` is, or lives inside, a destination an in-flight operation
-    /// is still writing. Moving such an item out from under the copy engine
-    /// strands the copy and can corrupt the destination tree.
-    func touchesReservedDestination(_ url: URL) -> Bool {
-        let path = url.standardizedFileURL.path
-        return reservedDestinations.contains { reserved in
-            path == reserved.path || path.hasPrefix(reserved.path + "/")
+    /// The reservation that covers `url`: the same path, or an ancestor an
+    /// in-flight operation is still writing. Moving such an item out from under
+    /// the copy engine strands the copy and can corrupt the destination tree.
+    func reservationCovering(_ url: URL) -> String? {
+        let path = Self.reservationKey(url)
+        return reservedDestinations.first { reserved in
+            path == reserved || path.hasPrefix(reserved + "/")
         }
+    }
+
+    /// Throws `itemBusy` when a reservation covers `url`, and logs which one so a
+    /// refusal the user did not expect can be traced to the operation holding it.
+    func refuseIfReserved(_ url: URL) throws {
+        guard let reserved = reservationCovering(url) else { return }
+        logger.error(
+            "Rename of \(url.path, privacy: .public) refused: reserved destination \(reserved, privacy: .public) still in flight; all reservations: \(self.reservedDestinations.sorted(), privacy: .public)"
+        )
+        throw FileOperationError.itemBusy(url)
     }
 
     // MARK: - Protected-path scoping

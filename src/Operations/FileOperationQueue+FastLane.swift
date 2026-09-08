@@ -14,9 +14,7 @@ extension FileOperationQueue {
             throw FileOperationError.unknown(NSError(domain: "Detours", code: 1, userInfo: [NSLocalizedDescriptionKey: "Name contains invalid characters."]))
         }
 
-        if touchesReservedDestination(item) {
-            throw FileOperationError.itemBusy(item)
-        }
+        try refuseIfReserved(item)
 
         let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
         if FileManager.default.fileExists(atPath: destination.path) || isReserved(destination) {
