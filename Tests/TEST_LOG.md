@@ -4,6 +4,10 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-08 12:14 (Spectre install-only delivery)
+
+- `resources/scripts/build.sh` on Spectre at 5f1a0f8 after the Foundry proof below: built in 52 s, signed, installed and relaunched, no warnings, Detours running afterwards. No tests or probes run on Spectre.
+
 ### 2026-09-08 12:10 (Foundry, destination reservation key leak)
 
 - Standardisation probes on Foundry (throwaway scripts under /tmp, probe folders under the Foundry home and /private/tmp, all removed afterwards): `standardizedFileURL` of the same URL is `/private/tmp/x` before `x` exists and `/tmp/x` after, so a reservation taken before creation and released after it used two keys; a URL built after a directory exists carries a trailing slash and is not equal to the pre-creation URL; `standardized.path` is stable across creation, trailing slashes and dot segments on home, /private/tmp and the temp dir.
