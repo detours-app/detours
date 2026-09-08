@@ -4,6 +4,14 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-08 12:10 (Foundry, destination reservation key leak)
+
+- Standardisation probes on Foundry (throwaway scripts under /tmp, probe folders under the Foundry home and /private/tmp, all removed afterwards): `standardizedFileURL` of the same URL is `/private/tmp/x` before `x` exists and `/tmp/x` after, so a reservation taken before creation and released after it used two keys; a URL built after a directory exists carries a trailing slash and is not equal to the pre-creation URL; `standardized.path` is stable across creation, trailing slashes and dot segments on home, /private/tmp and the temp dir.
+- `swift test --filter RenameGuardTests/testReservationReleasesUnderPrivatePrefix` at 8016f01 (test only, unfixed code): 1 FAIL as intended, the next unique folder name after create and rename under /private/tmp was "Folder 2" instead of "Folder", which is the leaked reservation. An earlier version of the test at cc1e31e passed on the unfixed code because the rename lookup was rewritten the same way as the leaked key; it did not prove the leak and was replaced.
+- `swift test --filter "RenameGuardTests|FastLane|Reserv|UniqueDestination|Duplicate"` at b20f41e: 45/45 PASS in 0.5 s, including the new /private case and the existing fast-lane reservation, rename guard and duplicate cases.
+- `resources/scripts/build.sh` on Foundry at b20f41e: build, sign, install and relaunch succeeded in 49 s, no compiler warnings, Detours running afterwards.
+- Not reproduced: the "Folder is still being copied" alert Marco saw on a New Folder rename under Documents/2 Areas. The folder is on a plain home path where the key leak does not occur; every reserve has a matching release on success and failure; no operation was in flight. The busy refusal now logs the blocking reservation and all live reservations so the next occurrence names the holder.
+
 ### 2026-09-07 13:37 (Spectre install-only delivery)
 
 - `resources/scripts/build.sh` on Spectre at b49054e after the Foundry proof below: built in 419 s under the backup scan, signed, installed and relaunched, no warnings, Detours running afterwards. No tests or probes run on Spectre.
