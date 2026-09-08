@@ -270,8 +270,7 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
 
     @objc private func copyPathFromContextMenu(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
-        let escapedPath = url.path.replacingOccurrences(of: " ", with: "\\ ")
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(escapedPath, forType: .string)
+        NSPasteboard.general.setString(url.path.shellQuoted, forType: .string)
     }
 }

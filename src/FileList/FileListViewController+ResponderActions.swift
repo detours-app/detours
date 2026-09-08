@@ -221,7 +221,7 @@ extension FileListViewController {
     @objc func copyPath(_ sender: Any?) {
         let locations = selectedLocations
         guard !locations.isEmpty else { return }
-        let paths = locations.map { $0.path.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: "\n")
+        let paths = locations.map { $0.path.shellQuoted }.joined(separator: "\n")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(paths, forType: .string)
     }

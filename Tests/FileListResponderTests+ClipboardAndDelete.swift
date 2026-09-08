@@ -12,10 +12,10 @@ extension FileListResponderTests {
 
         let pasteboardContents = NSPasteboard.general.string(forType: .string)
         // Resolve symlinks for comparison (e.g., /var -> /private/var)
-        // Unescape spaces before creating URL (copyPath escapes spaces for terminal use)
+        // copyPath wraps the path in single quotes for terminal use
         let expectedPath = fileURL.resolvingSymlinksInPath().path
-        let unescaped = pasteboardContents?.replacingOccurrences(of: "\\ ", with: " ")
-        let actualPath = unescaped.flatMap { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
+        let unquoted = pasteboardContents.map { String($0.dropFirst().dropLast()) }
+        let actualPath = unquoted.flatMap { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
         XCTAssertEqual(actualPath, expectedPath)
     }
 
@@ -41,14 +41,15 @@ extension FileListResponderTests {
         XCTAssertNotNil(pasteboardContents)
         let paths = pasteboardContents!.split(separator: "\n")
         XCTAssertEqual(paths.count, 2)
-        // Paths should contain the file names (escaped if needed)
-        XCTAssertTrue(paths.contains { $0.hasSuffix("a.txt") })
-        XCTAssertTrue(paths.contains { $0.hasSuffix("b.txt") })
+        // Each line is one single-quoted path
+        XCTAssertTrue(paths.contains { $0.hasSuffix("/a.txt'") })
+        XCTAssertTrue(paths.contains { $0.hasSuffix("/b.txt'") })
+        XCTAssertTrue(paths.allSatisfy { $0.hasPrefix("'") })
     }
 
-    func testCopyPathEscapesSpaces() throws {
+    func testCopyPathQuotesShellSpecialCharacters() throws {
         let temp = try createTempDirectory()
-        let fileWithSpaces = try createTestFile(in: temp, name: "file with spaces.txt")
+        let fileWithSpaces = try createTestFile(in: temp, name: "file with (spaces) & $x.txt")
 
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
@@ -65,12 +66,18 @@ extension FileListResponderTests {
 
         let pasteboardContents = NSPasteboard.general.string(forType: .string)
         XCTAssertNotNil(pasteboardContents)
-        // Spaces should be escaped with backslash
-        XCTAssertTrue(pasteboardContents!.contains("file\\ with\\ spaces.txt"), "Spaces should be escaped")
-        XCTAssertFalse(pasteboardContents!.contains("file with spaces.txt"), "Unescaped spaces should not appear")
-        // The escaped path should be usable - unescape and verify it matches the original
-        let unescaped = pasteboardContents!.replacingOccurrences(of: "\\ ", with: " ")
-        XCTAssertEqual(URL(fileURLWithPath: unescaped).resolvingSymlinksInPath().path, fileWithSpaces.resolvingSymlinksInPath().path)
+        // The whole path is wrapped in single quotes, nothing inside is escaped
+        XCTAssertTrue(pasteboardContents!.hasPrefix("'/"), "Path should start with a single quote")
+        XCTAssertTrue(pasteboardContents!.hasSuffix("/file with (spaces) & $x.txt'"), "Path should end with the literal name and a single quote")
+        XCTAssertFalse(pasteboardContents!.contains("\\"), "No backslash escaping inside the quotes")
+        let unquoted = String(pasteboardContents!.dropFirst().dropLast())
+        XCTAssertEqual(URL(fileURLWithPath: unquoted).resolvingSymlinksInPath().path, fileWithSpaces.resolvingSymlinksInPath().path)
+    }
+
+    func testShellQuotedWrapsInSingleQuotesAndSplicesEmbeddedQuotes() {
+        XCTAssertEqual("/plain/path".shellQuoted, "'/plain/path'")
+        XCTAssertEqual("/a b/(c)/$d & e".shellQuoted, "'/a b/(c)/$d & e'")
+        XCTAssertEqual("/Marco's Files".shellQuoted, "'/Marco'\\''s Files'")
     }
 
     func testMenuValidationForGetInfoCopyPathShowInFinder() throws {

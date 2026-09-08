@@ -92,7 +92,7 @@ final class DroppablePathControlTests: XCTestCase {
         XCTAssertNil(pathControl.pathItemIndex(at: point))
     }
 
-    func testContextMenuCopyPathEscapesSpaces() {
+    func testContextMenuCopyPathQuotesPath() {
         let pathControl = DroppablePathControl(frame: NSRect(x: 0, y: 0, width: 400, height: 24))
 
         let item1 = NSPathControlItem()
@@ -140,9 +140,8 @@ final class DroppablePathControlTests: XCTestCase {
 
             let pasteboardContents = NSPasteboard.general.string(forType: .string)
             XCTAssertNotNil(pasteboardContents)
-            // Spaces should be escaped
-            XCTAssertTrue(pasteboardContents!.contains("My\\ Documents"), "Spaces should be escaped")
-            XCTAssertFalse(pasteboardContents!.contains("My Documents"), "Unescaped spaces should not appear")
+            // The path is wrapped in single quotes, spaces left literal
+            XCTAssertEqual(pasteboardContents, "'/Users/My Documents'")
         }
     }
 
