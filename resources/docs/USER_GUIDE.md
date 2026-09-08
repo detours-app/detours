@@ -108,9 +108,9 @@ Quick Open follows the active tab:
 
 Results are ranked by "frecency" - frequently and recently visited directories appear first (marked with a star).
 
-**Tip:** Quick Open searches Documents, Downloads, Desktop, dev folders, and iCloud Drive. Enable "Include hidden files in Quick Open" in Preferences to also search hidden files.
+**Tip:** Quick Open searches the whole Mac through Spotlight. Enable "Include hidden files in Quick Open" in Preferences to also search hidden files.
 
-Remote Quick Open keeps recent places scoped to the active host and searches names case-insensitively. On macOS and Linux helper hosts, it searches the remote home folder and `/opt` and streams results as the helper finds them. On Windows hosts, it searches from the active folder through the PowerShell backend.
+Remote Quick Open keeps recent places scoped to the active host and searches names case-insensitively. On macOS and Linux helper hosts, it searches the remote home folder and `/opt` first, then the rest of the host with hidden folders, `node_modules`, pseudo filesystems and external mounts left out, and streams results as the helper finds them. On Windows hosts, it searches from the active folder through the PowerShell backend.
 
 ### Selection
 
@@ -183,6 +183,8 @@ An item a running copy is still writing cannot be renamed; Detours refuses with 
 | Open in Editor | F4 (opens in TextEdit) |
 | Reveal in Finder | File menu → Reveal in Finder |
 | Show Package Contents | File menu (for .app bundles etc.) |
+
+Copy Path puts the selected paths on the clipboard wrapped in single quotes, one per line, so they paste into a terminal as they are whatever characters the names contain. The path bar's right-click Copy Path does the same for that folder.
 
 On remote selections, Get Info opens a Detours info window with host, path, kind, size, modified date, hidden/readable state, and symlink target when applicable. Reveal in Finder and Share are local-only because Finder and macOS sharing services require local files.
 
@@ -433,6 +435,7 @@ Open with **Cmd-,** (or Detours menu → Preferences)
 - **Show hidden files by default**: New tabs show hidden files
 - **Include hidden files in Quick Open**: Search includes hidden files
 - **Enable folder expansion**: Show disclosure triangles
+- **Folders on top**: List folders before files whatever the sort column
 - **Wrap long lines**: Wrap long lines in Detours text previews
 
 ### Appearance
@@ -469,7 +472,7 @@ Features that aren't immediately obvious:
 ### Split Pane Divider
 
 - **Drag** the divider between panes to resize
-- **Snap to center**: Divider snaps to equal width when dragged within 12px of center
+- **Equal-width indicator**: A brief blue line on the divider shows the moment the panes are equal width while dragging; it does not move the divider
 - **Equalize panes**: Press Ctrl-Cmd-= or choose View → Equalize Panes
 
 ### iCloud Drive

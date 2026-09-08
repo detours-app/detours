@@ -56,7 +56,7 @@ Current remote exceptions:
 
 ## Remote Quick Open
 
-Command-P follows the active tab and never falls back to searching the Mac from a remote tab. On macOS and Linux hosts, Quick Open searches the remote home folder and `/opt` through the helper and streams results as they arrive. On Windows hosts, it searches from the active folder through PowerShell. Recent places remain scoped to the active host, and a disconnected remote tab shows a Reconnect action.
+Command-P follows the active tab and never falls back to searching the Mac from a remote tab. On macOS and Linux hosts, Quick Open searches the remote home folder and `/opt` first and then the rest of the host through the helper, and streams results as they arrive. On Windows hosts, it searches from the active folder through PowerShell. Recent places remain scoped to the active host, and a disconnected remote tab shows a Reconnect action.
 
 ## Remote Quick Look
 

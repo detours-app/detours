@@ -10,6 +10,7 @@
 
 - **A busy disk no longer freezes the window while a remote folder is open** - With a remote folder showing, every change notice for a folder inside it made Detours check whether that folder was still on screen, and the check asked the local disk a question it never needed answering. While a backup tool or Spotlight was working the disk hard, each of those questions took long enough that the interface stopped responding until the disk went quiet. The check now works on the path text and no longer asks the disk whether the folder exists.
 - **Connecting to a server from the sidebar reaches its shares again** - Picking a server such as a NAS in the sidebar, then entering the right name and password, ended in a bare "error code -6003" or nothing at all, and the share never appeared. The connection names the server but no share, and with the system's own dialogs switched off there was nothing to choose one. Detours now lets macOS show its share picker for that one step, so a login is followed by the list of shares and the chosen one opens in the pane.
+- **A copied path pastes into the terminal whatever the folder is called** - Copy Path escaped only spaces, so a folder with parentheses, an ampersand or a dollar sign in its name pasted into zsh as a pattern the shell refused with "no matches found". The path is now wrapped in single quotes, which every shell reads literally, from the Edit menu, the context menu, Command-Option-C and the path bar alike. Several selected items still copy one path per line.
 
 ## 1.13.0 - 2026-09-02
 
