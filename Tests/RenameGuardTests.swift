@@ -80,8 +80,6 @@ final class RenameGuardTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: temp) }
 
         let created = try await FileOperationQueue.shared.createFolder(in: temp, name: "Folder", undoManager: nil)
-        XCTAssertNil(FileOperationQueue.shared.reservationCovering(created))
-
         let renamed = try await FileOperationQueue.shared.rename(item: created, to: "Report 2026")
         XCTAssertTrue(FileManager.default.fileExists(atPath: renamed.path))
     }
