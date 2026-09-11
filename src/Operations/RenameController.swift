@@ -9,6 +9,10 @@ protocol RenameControllerDelegate: AnyObject {
     /// Called whenever an editing session ends, before any commit or cancel
     /// side effects run.
     func renameControllerDidEndEditing(_ controller: RenameController, item: FileItem?)
+    /// Whether the current listing already shows a sibling of `item` named
+    /// `name`. Covers providers whose existence check only happens when the
+    /// rename runs, so a taken name is caught while the editor is still open.
+    func renameController(_ controller: RenameController, listingHasSiblingNamed name: String, of item: FileItem) -> Bool
 }
 
 @MainActor
@@ -28,6 +32,23 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     private var renameFieldMaximumWidth: CGFloat = 0
 
     private var currentUndoManager: UndoManager?
+    private var isPresentingNameConflict = false
+
+    /// Presents the taken-name alert and calls the completion once it is
+    /// dismissed. Replaceable so tests can observe the conflict without a
+    /// modal sheet.
+    var nameConflictPresenter: (_ name: String, _ window: NSWindow?, _ completion: @escaping @MainActor () -> Void) -> Void = { name, window, completion in
+        let alert = NSAlert()
+        alert.messageText = "The name \"\(name)\" is already taken."
+        alert.informativeText = "Please choose a different name."
+        alert.addButton(withTitle: "OK")
+        if let window {
+            alert.beginSheetModal(for: window) { _ in completion() }
+        } else {
+            alert.runModal()
+            completion()
+        }
+    }
 
     var activeEditorWidth: CGFloat? {
         textField?.frame.width
@@ -189,12 +210,9 @@ final class RenameController: NSObject, NSTextFieldDelegate {
             return
         }
 
-        if case .local(let itemURL) = item.location {
-            let destination = itemURL.deletingLastPathComponent().appendingPathComponent(newName)
-            if FileManager.default.fileExists(atPath: destination.path) {
-                NSSound.beep()
-                return
-            }
+        if nameIsTaken(newName, for: item) {
+            presentNameConflict(newName)
+            return
         }
 
         let oldLocation = item.location
@@ -261,11 +279,37 @@ final class RenameController: NSObject, NSTextFieldDelegate {
 
                 delegate?.renameController(self, didRename: item, to: newURL)
             } catch FileOperationError.destinationExists {
-                // Matches the local path's refusal: a taken name is not worth an alert.
-                NSSound.beep()
+                // The editor is already gone; the item keeps its previous name.
+                nameConflictPresenter(newName, tableView?.window) {}
             } catch {
                 FileOperationQueue.shared.presentError(error)
             }
+        }
+    }
+
+    private func nameIsTaken(_ newName: String, for item: FileItem) -> Bool {
+        if case .local(let itemURL) = item.location {
+            let destination = itemURL.deletingLastPathComponent().appendingPathComponent(newName)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                return true
+            }
+        }
+        return delegate?.renameController(self, listingHasSiblingNamed: newName, of: item) ?? false
+    }
+
+    /// Finder behaviour: name the conflict, then hand the editor back so the
+    /// user can pick another name or press Escape. Focus loss while the alert
+    /// is up must not re-enter the commit, and the field must be refocused
+    /// afterwards because a click-away has already ended its editing session.
+    private func presentNameConflict(_ newName: String) {
+        guard !isPresentingNameConflict else { return }
+        isPresentingNameConflict = true
+        nameConflictPresenter(newName, tableView?.window) { [weak self] in
+            guard let self else { return }
+            self.isPresentingNameConflict = false
+            guard let field = self.textField else { return }
+            self.tableView?.window?.makeFirstResponder(field)
+            field.currentEditor()?.selectAll(nil)
         }
     }
 
@@ -335,6 +379,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
     }
 
     func controlTextDidEndEditing(_ notification: Notification) {
+        guard !isPresentingNameConflict else { return }
         // A table reload can end field editing without an Escape command. For a
         // newly created item, treating that focus loss as cancellation would
         // move the item to Trash. Keep the default name (and its undo entry)

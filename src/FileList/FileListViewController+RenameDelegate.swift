@@ -139,6 +139,13 @@ extension FileListViewController: RenameControllerDelegate {
         }
     }
 
+    func renameController(_ controller: RenameController, listingHasSiblingNamed name: String, of item: FileItem) -> Bool {
+        let parent = item.location.deletingLastPathComponent()
+        return dataSource.items.contains { candidate in
+            candidate !== item && candidate.name == name && candidate.location.deletingLastPathComponent() == parent
+        }
+    }
+
     func renameControllerDidCancelNewItem(_ controller: RenameController, item: FileItem) {
         // SAFETY CHECK: Only trash if this looks like a newly created item
         // This prevents catastrophic data loss if the wrong item was selected
