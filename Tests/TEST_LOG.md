@@ -4,6 +4,13 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-12 14:36 (Foundry, taken-name alert on new-folder rename)
+
+- `swift test --filter FileListResponderTests/testNewFolderRenameToTakenNameAlertsAndKeepsEditing` at 6e6f26c: 1 FAIL, the loaded directory's first row (the existing folder) was selected so the new folder was created inside it and no conflict arose; test setup, not the fix. Fixed at daca967 by clearing the selection first.
+- Same filter at daca967: 1/1 PASS in 0.2 s. Enter on a taken name presents one alert and keeps the editor; focus loss while the alert is up presents nothing more; a click-away after dismissal presents a second alert and keeps the editor; both folders remain on disk; Escape trashes the new folder and removes the editor.
+- `swift test --filter FileListResponderTests` at daca967: 69/69 PASS in 18.4 s.
+- `resources/scripts/build.sh` on Foundry at daca967: build, sign, install and relaunch succeeded in 47 s, no compiler warnings, Detours running afterwards.
+
 ### 2026-09-08 12:14 (Spectre install-only delivery)
 
 - `resources/scripts/build.sh` on Spectre at 5f1a0f8 after the Foundry proof below: built in 52 s, signed, installed and relaunched, no warnings, Detours running afterwards. No tests or probes run on Spectre.
