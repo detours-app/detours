@@ -215,7 +215,12 @@ Tests/             # XCTest files
 resources/
 ├── specs/         # Feature specifications
 ├── docs/          # User guide, changelog, process docs
-└── scripts/       # Build scripts
+├── scripts/       # Build, release, screenshot and qualification scripts
+├── fixtures/      # Qualification fixture files
+├── icons/         # App icon sources
+├── PreviewAssets/ # Bundled preview renderers (markdown-it, DOMPurify)
+└── Servers/       # Prebuilt remote helper binaries bundled by build.sh
+LinuxStaticFoundationGuard/  # C shim making the static Linux helper's mktemp fail closed
 build/             # Temp build output (deleted after install)
 ```
 

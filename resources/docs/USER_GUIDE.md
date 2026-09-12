@@ -33,9 +33,8 @@ Tabs can be reordered by dragging, and moved between panes by dragging to the ot
 
 ### Path Bar
 
-Below the tabs, the path bar shows:
+Back and Forward buttons sit in the tab bar row. Below the tabs, the path bar shows:
 
-- **Back/Forward buttons**: Navigate history
 - **Home button**: Go to home directory
 - **iCloud button**: Go to iCloud Drive
 - **Path**: Click any segment to navigate
@@ -73,7 +72,7 @@ The sidebar shows remote hosts, mounted volumes, network shares, and favorite fo
 
 **Remote hosts:** The sidebar has a dedicated Remote Hosts section for SSH targets added in Detours. Selecting a connected host opens that host in the active pane. Unreachable hosts remain visible with a reconnect state.
 
-**Network shares:** The sidebar has a dedicated NETWORK section showing servers discovered via Bonjour. Servers group their mounted volumes underneath. Offline servers appear dimmed. Use File → Connect to Network Share... to connect to a server manually (SMB/AFP).
+**Network shares:** The sidebar has a dedicated NETWORK section showing servers discovered via Bonjour. Servers group their mounted volumes underneath. Offline servers appear dimmed. Use File → Connect to Network Share... to connect to a server manually (SMB/AFP). Connecting runs in the background, so the window stays usable while the server answers, and a failed attempt shows one message. When a sidebar server asks for a name and password, macOS shows its share picker after the login so you can choose the share to mount.
 
 ---
 
@@ -146,6 +145,8 @@ The File menu and context menu also include New File choices for Text File, Mark
 
 The inline Rename field grows as you type or paste a longer name, up to the visible edge of the Name column.
 
+A new folder or file starts as "Folder" or "Text File", or the next free number when that name is in use. If the name you type is already taken, Detours says so and returns you to the name field; type another name, or press Escape to discard the new item.
+
 **Duplicate Structure** creates a copy of a folder's entire directory hierarchy without copying files. Ideal for year-based folder templates (e.g., `Clients/2025/` → `Clients/2026/`). Auto-detects years in folder names and offers to substitute them.
 
 ### Cross-Pane Operations
@@ -171,7 +172,7 @@ Longer file operations show progress directly in both pane status bars. Progress
 
 Small independent operations such as rename, new file, new folder, move to Trash, and small copies can run while unrelated large operations continue in the background.
 
-An item a running copy is still writing cannot be renamed; Detours refuses with a message to wait for the copy to finish, so a half-written folder is never moved out from under the copy.
+An item a running copy is still writing cannot be renamed; Detours refuses with a message to wait for the copy to finish, so a half-written folder is never moved out from under the copy. The system log records which operation holds the path, for the case where the refusal is unexpected.
 
 ### Other Actions
 
@@ -188,7 +189,7 @@ Copy Path puts the selected paths on the clipboard wrapped in single quotes, one
 
 On remote selections, Get Info opens a Detours info window with host, path, kind, size, modified date, hidden/readable state, and symlink target when applicable. Reveal in Finder and Share are local-only because Finder and macOS sharing services require local files.
 
-Quick Look opens supported text, data, document and image files in a themed Detours preview window. PDFs open in the system Quick Look panel, which offers page thumbnails and page-by-page navigation. Markdown and HTML previews have Rendered and Source views. Comma, semicolon and tab separated data files and Excel workbooks show as tables with the column names and row numbers held in place while scrolling; Word documents show their headings, lists and tables in the active theme. Rendered HTML keeps inline styling and self-contained images but removes scripts, forms, navigation, external resources, and other active content. Long lines wrap by default; use View > Wrap Lines in Preview (`Option-W`) to change the current source preview. In a table that same setting switches between showing a value too wide for its column in full and trimming it to one line per row, and the toolbar names whichever it is doing. View > Open in System Preview (`Option-P`) hands the file you are looking at to the macOS panel, for the times its viewer suits the file better; it applies to that file, and moving to another previews it the usual way again. Unsupported files use the system Quick Look panel. Remote previews download into the same Detours window and are limited to 100 MB. A symbolic link previews the file it points at, under that file's name; a link to a folder closes the preview, as selecting a folder does.
+Quick Look opens supported text, data, document and image files in a themed Detours preview window. A file whose contents are text previews as text whatever its name ends in, including UTF-16 files such as Windows registry exports; source files and security assessment files such as nmap output, Nessus reports, certificates and wordlists are shown with syntax colouring. PDF, SVG and RTF go to the macOS preview. PDFs open in the system Quick Look panel, which offers page thumbnails and page-by-page navigation. Markdown and HTML previews have Rendered and Source views. Comma, semicolon and tab separated data files and Excel workbooks show as tables with the column names and row numbers held in place while scrolling; Word documents show their headings, lists and tables in the active theme. Rendered HTML keeps inline styling and self-contained images but removes scripts, forms, navigation, external resources, and other active content. Long lines wrap by default; use View > Wrap Lines in Preview (`Option-W`) to change the current source preview. In a table that same setting switches between showing a value too wide for its column in full and trimming it to one line per row, and the toolbar names whichever it is doing. View > Open in System Preview (`Option-P`) hands the file you are looking at to the macOS panel, for the times its viewer suits the file better; it applies to that file, and moving to another previews it the usual way again. Unsupported files use the system Quick Look panel. Remote previews download into the same Detours window and are limited to 100 MB. A symbolic link previews the file it points at, under that file's name; a link to a folder closes the preview, as selecting a folder does.
 
 ### Archives
 
@@ -298,7 +299,7 @@ Remote panes support normal Detours workflows:
 - Copy, cut, paste, F5 copy-to-other-pane, and F6 move-to-other-pane across Mac and remote panes
 - Symbolic links: kept as links within one host, carried as what they point at across hosts (see Cross-Pane Operations)
 - Move to Trash and Undo restore
-- New Folder and New File
+- New Folder and New File, with the same taken-name message as local folders
 - Rename
 - Get Info and Copy Path
 - Quick Look and Open With round trips
@@ -402,7 +403,7 @@ Preferences → Appearance offers four themes:
 - **Light**: Light background, dark text
 - **Dark**: Dark background, light text
 - **Foolscap**: Warm cream background, Courier font
-- **Drafting**: Cool blue-gray background, Menlo font
+- **Drafting**: Cool blue-gray background, JetBrains Mono NL font
 
 Select **System** to automatically follow macOS dark/light mode.
 
@@ -452,7 +453,7 @@ Customize keyboard shortcuts for 15 actions:
 
 - Quick Look, Open in Editor
 - Copy/Move to Other Pane
-- New Folder, Move to Trash, Delete Immediately, Rename
+- New Folder, Delete to Trash, Delete Immediately, Rename
 - Open in New Tab
 - Toggle Hidden Files
 - Quick Open, Filter, Refresh, Toggle Sidebar, Add Remote Host
@@ -484,6 +485,7 @@ Features that aren't immediately obvious:
 - `Shared` shows one combined list for items shared to you and by you
 - Shared labels show `Shared by <owner>` or `Shared by me`
 - Hidden-files toggle applies to both iCloud root and `Shared` view
+- A stray hidden flag left by an interrupted sync is cleared from anything Detours has just duplicated or renamed
 
 ### Packages
 
@@ -595,6 +597,7 @@ With "Restore session" enabled:
 | Toggle sidebar | Cmd-0 |
 | Toggle status bar | (View menu) |
 | Wrap lines in preview | Option-W |
+| Open in System Preview | Option-P |
 | New tab | Cmd-T |
 | Close tab | Cmd-W |
 | Close window | Cmd-Shift-W |

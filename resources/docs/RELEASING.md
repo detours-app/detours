@@ -72,7 +72,8 @@ The script reads the version from the root `VERSION` file and:
 4. Signs the DMG with the Developer ID Application identity
 5. Notarizes the DMG with Apple (automated, ~5-15 min)
 6. Staples the notarization ticket to the DMG
-7. Tags the release as `v<version>`
+7. Writes `RELEASE_NOTES.md` from the latest changelog section
+8. Tags the release as `v<version>`
 
 The script will prompt to push `main`, push the tag, and upload the DMG. Press `y` to publish automatically, or `n` to do it manually later.
 
@@ -127,7 +128,7 @@ gh release upload "v$version" "Detours-$version.dmg" --repo detours-app/detours 
 
 - [ ] All tests pass
 - [ ] `$update-docs` run and `resources/scripts/confirm-update-docs.sh` completed for the release commit
-- [ ] CHANGELOG.md updated (heading changed from "Unreleased" to version + date)
+- [ ] `resources/docs/CHANGELOG.md` updated (heading changed from "Unreleased" to version + date)
 - [ ] `VERSION` file bumped (single source of truth - build.sh reads this)
 - [ ] Build succeeds in release mode
 - [ ] DMG is Developer ID signed

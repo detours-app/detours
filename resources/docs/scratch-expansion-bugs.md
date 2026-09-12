@@ -1,5 +1,7 @@
 # Folder Expansion Bugs - Spec
 
+The file and line references below describe the tree at the time of the investigation. Depth sorting now lives in `FileListDataSource+Sorting.swift` and `FileListViewController+SelectionState.swift`, expansion and selection restore in `FileListViewController+Setup.swift`, and the unit tests named as ticked have since been removed; their runs remain in `Tests/TEST_LOG.md`.
+
 Status: Resolved historical investigation. The implementation now restores expanded folders parent-first, preserves selection by URL, and keeps expansion state across file-operation and watcher reloads.
 
 ## Problems Reported

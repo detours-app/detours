@@ -60,7 +60,7 @@ Requires Xcode Command Line Tools with Swift 6.2+.
 
 ## Keyboard Shortcuts
 
-All shortcuts are customizable in Preferences (Cmd-,).
+Shortcuts for the actions listed under Preferences > Shortcuts (Cmd-,) can be changed; the tab, navigation and menu shortcuts are fixed.
 
 | Action | Default |
 | ------ | -------- |
@@ -91,6 +91,8 @@ All shortcuts are customizable in Preferences (Cmd-,).
 | Expand All (recursive) | Option-Right |
 | Collapse All (recursive) | Option-Left |
 | Refresh | Cmd-R |
+| Filter | Cmd-F |
+| Connect to Server | Cmd-K |
 
 See the [User Guide](resources/docs/USER_GUIDE.md) for complete documentation.
 

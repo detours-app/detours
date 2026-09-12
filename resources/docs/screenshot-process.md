@@ -62,7 +62,10 @@ mkdir -p \
   "$HOME/2 Areas" \
   "$HOME/3 Resources" \
   "$HOME/4 Archive" \
-  "$HOME/dev"
+  "$HOME/dev" \
+  "$HOME/Documents" \
+  "$HOME/Downloads" \
+  "$HOME/Applications"
 ```
 
 It writes these session defaults for bundle id `com.detours.app`:

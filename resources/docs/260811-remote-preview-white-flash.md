@@ -1,4 +1,6 @@
-# Handoff: the white flash when previewing a remote file
+# Post-mortem: the white flash when previewing a remote file
+
+Completed 2026-08-11; kept as the record of the investigation and of which tests own the regression.
 
 Resolved in the actual reported path at product commit `921ec79`, with real-remote regression coverage completed at `248d8b9`. The decisive fact was that Marco previews files on a remote host. All earlier work exercised the local preview pipeline; remote previews still explicitly opened Apple's `QLPreviewPanel`, whose white surface was the reported flash.
 
