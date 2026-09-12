@@ -18,6 +18,9 @@ extension FileListResponderTests {
             completions.append(completion)
         }
 
+        // Loading selects the first row; a selected folder would receive the
+        // new folder inside it, and the conflict is with a sibling.
+        viewController.tableView.deselectAll(nil)
         XCTAssertTrue(viewController.handleKeyDown(
             makeFunctionKeyEvent(keyCode: 98, functionKey: NSF7FunctionKey)
         ))
