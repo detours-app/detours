@@ -4,6 +4,10 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-14 12:21 (Spectre install-only delivery)
+
+- `resources/scripts/build.sh` on Spectre at b667f1a after the Foundry proof below: built in 56.16 s, signed, found no stale copies, installed, and relaunched. No tests or probes ran on Spectre.
+
 ### 2026-09-14 12:19 (Foundry, pane chrome focus)
 
 - `swift test --filter MainWindowPaneActivationTests` at 7c399d1: 2/2 PASS in 0.426 s. The horizontal pane projection activates the intended pane, moves keyboard focus to its selected file list, and ignores the sidebar and current pane.
