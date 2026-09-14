@@ -4,6 +4,13 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-14 12:19 (Foundry, pane chrome focus)
+
+- `swift test --filter MainWindowPaneActivationTests` at 7c399d1: 2/2 PASS in 0.426 s. The horizontal pane projection activates the intended pane, moves keyboard focus to its selected file list, and ignores the sidebar and current pane.
+- The first guarded run exposed a stale source census after the symbolic-link spec moved to `resources/specs/done`; the matrix now maps it to its governed capabilities, and `qualification.sh audit-matrix` passes all 102 rows.
+- The first installed test reached the app but could not locate the plain tab-bar `NSView` through accessibility. The test now clicks empty tab-bar space relative to the visible New Tab button, without adding test-only accessibility behavior.
+- `qualification-foundry.sh installed-smoke activation LOCAL_ROOT` at 7c399d1, filtered to `ChromePolishUITests/testPaneChromeAndTitlebarClicksMoveFocus`: **PASS**, 1 passed, 0 failed, 0 skipped. The installed app moved pane and keyboard focus after clicks on the breadcrumb, empty tab-bar space, and corresponding titlebar region. The prompt guard recorded 0 TCC prompts, 0 XCUI interruptions, and 0 visible prompt windows; guarded cleanup passed.
+
 ### 2026-09-12 14:39 (Spectre install-only delivery)
 
 - `resources/scripts/build.sh` on Spectre at def6c6b after the Foundry proof below: built in 52 s, signed, installed and relaunched, no warnings, Detours running afterwards. No tests or probes run on Spectre.
