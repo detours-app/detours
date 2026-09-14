@@ -63,7 +63,6 @@ final class PaneTabBar: NSView {
     }
 
     private func setup() {
-        setAccessibilityIdentifier("paneTabBar")
         setupNavigationButtons()
         setupScrollView()
         setupNewTabButton()

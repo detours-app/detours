@@ -114,15 +114,15 @@ final class ChromePolishUITests: BaseUITest {
         let rightPath = app.descendants(matching: .any)
             .matching(identifier: "panePathControl")
             .element(boundBy: 1)
-        let tabBars = app.descendants(matching: .any).matching(identifier: "paneTabBar")
-        let leftTabBar = tabBars.element(boundBy: 0)
-        let rightTabBar = tabBars.element(boundBy: 1)
+        let newTabButtons = app.buttons.matching(identifier: "paneNewTabButton")
+        let leftNewTabButton = newTabButtons.element(boundBy: 0)
+        let rightNewTabButton = newTabButtons.element(boundBy: 1)
         let window = app.windows.firstMatch
 
         XCTAssertTrue(leftOutline.waitForExistence(timeout: 3), "Left file list should exist")
         XCTAssertTrue(rightPath.waitForExistence(timeout: 3), "Right breadcrumb should exist")
-        XCTAssertTrue(leftTabBar.waitForExistence(timeout: 3), "Left tab bar should exist")
-        XCTAssertTrue(rightTabBar.waitForExistence(timeout: 3), "Right tab bar should exist")
+        XCTAssertTrue(leftNewTabButton.waitForExistence(timeout: 3), "Left New Tab button should exist")
+        XCTAssertTrue(rightNewTabButton.waitForExistence(timeout: 3), "Right New Tab button should exist")
 
         leftOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         assertPaneHasKeyboardFocus("left", after: "clicking the left file list")
@@ -130,10 +130,12 @@ final class ChromePolishUITests: BaseUITest {
         rightPath.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         assertPaneHasKeyboardFocus("right", after: "clicking the right breadcrumb")
 
-        leftTabBar.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)).click()
+        leftNewTabButton.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
+            .withOffset(CGVector(dx: -16, dy: 0))
+            .click()
         assertPaneHasKeyboardFocus("left", after: "clicking empty left tab-bar space")
 
-        let normalizedRightPaneX = (rightTabBar.frame.midX - window.frame.minX) / window.frame.width
+        let normalizedRightPaneX = (rightNewTabButton.frame.midX - window.frame.minX) / window.frame.width
         window.coordinate(withNormalizedOffset: CGVector(dx: normalizedRightPaneX, dy: 0.02)).click()
         assertPaneHasKeyboardFocus("right", after: "clicking the titlebar above the right pane")
     }
