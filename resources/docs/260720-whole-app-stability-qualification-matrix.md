@@ -182,6 +182,7 @@ The census is mechanically audited by `qualification.sh audit-matrix`: main-menu
 | `260715-file-opening-and-remote-operations` | NAV-008..009, VIEW-011, FILE-011, REMOTE-001..005 |
 | `260717-pane-refresh-authority` | FILE-017, NAV-005, REFRESH-001..004, XFER-001..002 |
 | `260811-data-and-document-previews` | VIEW-009..010 |
+| `260902-symlinks-in-copy-and-move` | FILE-015, VIEW-009, XFER-001..003 |
 
 ## Final Run Records
 
