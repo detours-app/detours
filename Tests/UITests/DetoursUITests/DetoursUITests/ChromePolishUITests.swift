@@ -107,6 +107,37 @@ final class ChromePolishUITests: BaseUITest {
         XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "Closing the second tab should return to the original tab")
     }
 
+    func testPaneChromeAndTitlebarClicksMoveFocus() throws {
+        launchChromePolishApp()
+
+        let leftOutline = app.leftPaneOutlineView
+        let rightPath = app.descendants(matching: .any)
+            .matching(identifier: "panePathControl")
+            .element(boundBy: 1)
+        let tabBars = app.descendants(matching: .any).matching(identifier: "paneTabBar")
+        let leftTabBar = tabBars.element(boundBy: 0)
+        let rightTabBar = tabBars.element(boundBy: 1)
+        let window = app.windows.firstMatch
+
+        XCTAssertTrue(leftOutline.waitForExistence(timeout: 3), "Left file list should exist")
+        XCTAssertTrue(rightPath.waitForExistence(timeout: 3), "Right breadcrumb should exist")
+        XCTAssertTrue(leftTabBar.waitForExistence(timeout: 3), "Left tab bar should exist")
+        XCTAssertTrue(rightTabBar.waitForExistence(timeout: 3), "Right tab bar should exist")
+
+        leftOutline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        assertPaneHasKeyboardFocus("left", after: "clicking the left file list")
+
+        rightPath.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        assertPaneHasKeyboardFocus("right", after: "clicking the right breadcrumb")
+
+        leftTabBar.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)).click()
+        assertPaneHasKeyboardFocus("left", after: "clicking empty left tab-bar space")
+
+        let normalizedRightPaneX = (rightTabBar.frame.midX - window.frame.minX) / window.frame.width
+        window.coordinate(withNormalizedOffset: CGVector(dx: normalizedRightPaneX, dy: 0.02)).click()
+        assertPaneHasKeyboardFocus("right", after: "clicking the titlebar above the right pane")
+    }
+
     func testSidebarMountedVolumesExposeEject() throws {
         // Needs the mounted demo volumes staged by screenshot-setup.sh, which a guarded
         // qualification root does not provide.
@@ -286,6 +317,23 @@ final class ChromePolishUITests: BaseUITest {
         let crumb = pathControl.staticTexts[title]
         XCTAssertTrue(crumb.waitForExistence(timeout: 3), "\(title) breadcrumb should exist")
         crumb.click()
+    }
+
+    private func assertPaneHasKeyboardFocus(
+        _ pane: String,
+        after action: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(
+            waitForCondition {
+                guard let state = try? self.requestRemotePaneState(pane: pane) else { return false }
+                return state.activePane && state.focus == "fileList"
+            },
+            "The \(pane) pane should be active with file-list focus after \(action)",
+            file: file,
+            line: line
+        )
     }
 
     private func assertSidebarRow(

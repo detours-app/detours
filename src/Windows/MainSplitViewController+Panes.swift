@@ -319,6 +319,16 @@ extension MainSplitViewController {
         rightPane.setActive(index == 1)
     }
 
+    func activatePane(atWindowX windowX: CGFloat) {
+        for (index, pane) in [leftPane, rightPane].enumerated() {
+            let frameInWindow = pane.view.convert(pane.view.bounds, to: nil)
+            guard windowX >= frameInWindow.minX, windowX < frameInWindow.maxX else { continue }
+            guard activePaneIndex != index else { return }
+            setActivePane(index)
+            return
+        }
+    }
+
     func switchToOtherPane() {
         setActivePane(activePaneIndex == 0 ? 1 : 0)
         let targetPane = activePaneIndex == 0 ? leftPane : rightPane

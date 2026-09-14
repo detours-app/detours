@@ -3,6 +3,17 @@ import AppKit
 final class MainWindow: NSWindow {
     weak var splitViewController: MainSplitViewController?
 
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            splitViewController?.activatePane(atWindowX: event.locationInWindow.x)
+        default:
+            break
+        }
+
+        super.sendEvent(event)
+    }
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if ShortcutManager.shared.matches(event: event, action: .filter) {
             splitViewController?.filter(nil)
