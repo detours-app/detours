@@ -4,6 +4,22 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-16 18:12 (Foundry, window size lost on relaunch)
+
+- Marco's window came back at the built-in default after a Spectre install relaunch. Diagnosed from the saved preference: it held exactly the default size, centred, which only a discard-then-save produces. The launch check accepted a saved frame only when it fitted entirely inside one screen's visible frame and deleted it otherwise, so a window sized to fill the screen lost its size on every relaunch. It now fits the frame back onto the screen instead.
+- `swift test --filter AppKitGeometrySanitizerTests` at 3dddb3c: 19/19 PASS in 0.02 s, covering shrink-to-screen, move-back-on-screen, grow-to-minimum, discard only when unreadable, leave untouched with no screen, and the AppKit autosave string format with its trailing screen record preserved.
+- Foundry end-to-end (affects Foundry's Detours preferences, reset afterwards): saved `0 0 1980 1140` against a 1920-wide screen, launched the installed app, read back `0 53 1920 996`. The window keeps full screen width instead of collapsing to the 1200 pt default. App running afterwards, so no launch crash.
+- `resources/scripts/build.sh` on Foundry at a2582c4: build, sign, install and relaunch succeeded in 47.77 s, no compiler warnings, Detours running afterwards.
+- **XCUI verification BLOCKED, not run.** `qualification-foundry.sh installed-smoke session LOCAL_ROOT --test-filter WindowPaneGeometryUITests/testOversizedSavedWindowFrameComesBackAtScreenSizeNotTheDefault` at 13527b9 built the app and then cancelled in the post-run prompt audit: `visible_prompt: owner=UserNotificationCenter window=95`. That owner is the sentry's own consent-dialog marker, so the run failed closed as designed and the dialog was left untouched. The new UI case is committed but unproven.
+- The first two attempts were refused by the preflight with "Detours preferences remain; run reset" even on a freshly reset machine. Clearing the preferences leaves an empty domain that `defaults read` still reports successfully, so the gate never cleared. Fixed at 13527b9 to test for actual settings.
+- Not reproduced and not attempted: what put the consent dialog on Foundry's screen.
+
+### 2026-09-16 17:52 (Foundry, copy and move of a folder with its own contents)
+
+- `swift test --filter FileOperationQueueTests` at a2582c4: 77/77 PASS in 0.66 s, including the two new cases proving a folder selected together with a child copies and moves once, with the child arriving inside its folder rather than alongside it. Duplicate deliberately left unpruned.
+- Broad confirmation at a2582c4 across `FileOperationQueueTests`, `AppKitGeometrySanitizerTests`, `ClipboardManagerTests`, `TrashOperationsTests`, `FileListDragDropTests`, `PaneOperationTransactionTests`, `OperationRestoreRevealTests`, `RenameGuardTests`, `ArchiveOperationTests` and `MainWindowPaneActivationTests`: 170/170 PASS in 4.9 s.
+- The five `weak self` capture warnings are cleared. One was a real retain cycle: the idle remote-host probe timer is owned by the split view controller and its closure owned the controller back, because the weak capture sat on an inner task rather than on the closure the timer holds. `swift build` on Foundry afterwards reports no warnings.
+
 ### 2026-09-16 17:24 (Foundry, deleting a folder together with its own contents)
 
 - Reproduced from the code path, not the UI: `performDelete` trashed the selection in row order, so a selection holding a folder above one of its own children trashed the folder first and then reported the child as missing. The fix drops items already covered by another item in the same selection, and exact duplicates, before the delete is routed, so it covers Trash, Delete Immediately, the fast lane and remote hosts alike.
