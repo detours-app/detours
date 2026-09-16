@@ -23,6 +23,13 @@
   `DroppablePathControlTests`); everything else runs over SSH. A consent prompt
   is never answered or dismissed to make a run pass. Details in
   `resources/docs/testing-runbook.md`.
+- A UI test cannot seed the app's preferences, and it fails silently: the XCUI
+  runner is sandboxed, so `defaults write com.detours.app ...` from a test goes
+  to the runner's own container and the app never reads it. The test still
+  passes, asserting against an app that started from defaults. Saved window
+  frames and split layouts are planted by `seed_geometry_defaults` in
+  `resources/scripts/qualification-workflows.sh`, which runs unsandboxed before
+  the run. Anything else needed in that domain goes there too.
 - After app code changes, run `resources/scripts/build.sh` without
   `--no-install` on Spectre before handing off so the fixed Detours app is
   installed in Spectre's `/Applications` and relaunched. Foundry builds/tests

@@ -48,6 +48,8 @@ Normal Move to Trash operations are recoverable:
 
 Remote Delete Immediately routes through each provider's permanent delete path. Normal remote Move to Trash remains recoverable through the separate provider trash and restore contract.
 
+Delete, Delete Immediately, copy and move all prune their selection first, through `FileOperationQueue.withoutContainedItems`: an item already covered by another item in the same selection is dropped, along with exact duplicates. A folder selected together with something inside it is therefore handled once. This removes no user data that the selection did not already cover, because the contained item travels with its ancestor; it exists because operating on the ancestor first left the contained item's path gone and the operation reported it missing. Duplicate is deliberately excluded: duplicating a folder and something inside it is a request for two independent copies.
+
 ## Extraction Safeguards
 
 ### Process cancellation never removes the destination

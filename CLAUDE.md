@@ -82,6 +82,7 @@ For repeatable installed-app UI tests, use XCUITest through the guarded Foundry 
 
 - Tests live in `Tests/UITests/DetoursUITests/`
 - Tests target the installed `/Applications/Detours.app`
+- **A UI test cannot seed the app's preferences.** The runner is sandboxed, so `defaults write com.detours.app ...` from a test lands in the runner's own container and the app never reads it. Nothing errors: the test passes while asserting against an app that started from defaults. Saved window frames and split layouts are planted by `seed_geometry_defaults` in `resources/scripts/qualification-workflows.sh`, which runs unsandboxed before the run; put anything else needed in that domain there
 - The guarded runner reuses one build, streams checked progress, starts the
   independent prompt sentry before app/test launch, and performs bounded cleanup
 
