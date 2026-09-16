@@ -60,6 +60,34 @@ final class WindowPaneGeometryUITests: XCTestCase {
         assertWindowCanResize()
     }
 
+    /// A window sized to fill the screen overhangs the visible frame by a few points once
+    /// the menu bar and Dock are taken off it. That used to get the saved frame thrown
+    /// away, so the window came back at its built-in default size; it must now come back
+    /// at screen size instead.
+    func testOversizedSavedWindowFrameComesBackAtScreenSizeNotTheDefault() throws {
+        let screen = try XCTUnwrap(NSScreen.screens.max { $0.visibleFrame.width < $1.visibleFrame.width })
+        let visible = screen.visibleFrame
+        // Below this the screen cannot tell a restored window apart from the default one.
+        try XCTSkipUnless(visible.width > 1400, "Screen too narrow to distinguish a restore from the default")
+        let oversized = NSRect(
+            x: visible.minX,
+            y: visible.minY,
+            width: visible.width + 60,
+            height: visible.height + 60
+        )
+        try writeStringDefault(key: windowFrameKey, value: NSStringFromRect(oversized))
+
+        launchApp()
+        let restored = mainWindow().frame
+
+        XCTAssertEqual(restored.width, visible.width, accuracy: 12, "The window fills the screen it was saved on")
+        XCTAssertGreaterThan(
+            restored.width,
+            1400,
+            "A restored full-screen-width window must not collapse to the 1200pt default"
+        )
+    }
+
     func testMainWindowResizePersistsAcrossRelaunch() throws {
         launchApp()
         let resizedFrame = try resizeMainWindow()
