@@ -2,12 +2,8 @@ import AppKit
 import XCTest
 
 final class WindowPaneGeometryUITests: XCTestCase {
-    private let defaultsDomain = "com.detours.app"
     private let uiTestRootName = "DetoursUITests-Temp"
     private let resizeCommandFileName = ".detours-resize-main-window.json"
-    private let windowFrameKey = "NSWindow Frame MainWindow"
-    private let splitFramesKey = "NSSplitView Subview Frames Detours.MainSplitView.AppKitV1"
-    private let migrationMarkerKey = "Detours.AppKitGeometryMigration.AppKitV1"
     private var app: XCUIApplication!
 
     private struct ResizeMainWindowCommand: Encodable {
@@ -18,7 +14,6 @@ final class WindowPaneGeometryUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        try clearGeometryDefaults()
         try FileManager.default.createDirectory(at: uiTestRootURL, withIntermediateDirectories: true)
         clearResizeCommand()
         app = DetoursUITestApp.make()
@@ -28,7 +23,6 @@ final class WindowPaneGeometryUITests: XCTestCase {
 
     override func tearDownWithError() throws {
         app?.terminate()
-        try? clearGeometryDefaults()
         clearResizeCommand()
         app = nil
     }
@@ -40,24 +34,43 @@ final class WindowPaneGeometryUITests: XCTestCase {
         assertStable(frames, tolerance: 2.0, "Window frame should not jump after launch")
     }
 
+    /// The saved frame is planted by the qualification harness before the app starts, because
+    /// this runner is sandboxed and anything it writes to the app's preference domain goes to
+    /// its own container instead. See `seed_geometry_defaults` in qualification-workflows.sh.
     func testPoisonedSavedWindowFrameFallsBackWithoutJump() throws {
-        try writeStringDefault(
-            key: windowFrameKey,
-            value: NSStringFromRect(NSRect(x: -5000, y: -5000, width: 3200, height: 2200))
-        )
+        let screen = try XCTUnwrap(NSScreen.screens.max { $0.visibleFrame.width < $1.visibleFrame.width })
+        let visible = screen.visibleFrame
 
         launchApp()
         let window = mainWindow()
-        let largestScreen = NSScreen.screens.map(\.visibleFrame).max { $0.width < $1.width }
-        XCTAssertNotNil(largestScreen)
-        if let largestScreen {
-            XCTAssertLessThanOrEqual(window.frame.width, largestScreen.width + 2)
-            XCTAssertLessThanOrEqual(window.frame.height, largestScreen.height + 2)
-        }
+        XCTAssertLessThanOrEqual(window.frame.width, visible.width + 2)
+        XCTAssertLessThanOrEqual(window.frame.height, visible.height + 2)
+        XCTAssertGreaterThanOrEqual(window.frame.minX, visible.minX - 2, "The window is reachable on screen")
+        XCTAssertLessThanOrEqual(window.frame.maxX, visible.maxX + 2)
 
         let frames = sampleWindowFrames(duration: 2.0)
         assertStable(frames, tolerance: 2.0, "Poisoned window defaults should fall back without a jump")
         assertWindowCanResize()
+    }
+
+    /// A window filling the screen overhangs the visible frame once the menu bar is taken off
+    /// it. That used to get the saved frame discarded, so the window came back at its built-in
+    /// default size. The oversized frame is planted by the harness, as above.
+    func testOversizedSavedWindowFrameComesBackAtScreenSizeNotTheDefault() throws {
+        let screen = try XCTUnwrap(NSScreen.screens.max { $0.visibleFrame.width < $1.visibleFrame.width })
+        let visible = screen.visibleFrame
+        // Below this the screen cannot tell a restored window apart from the default one.
+        try XCTSkipUnless(visible.width > 1400, "Screen too narrow to distinguish a restore from the default")
+
+        launchApp()
+        let restored = mainWindow().frame
+
+        XCTAssertEqual(restored.width, visible.width, accuracy: 12, "The window fills the screen it was saved on")
+        XCTAssertGreaterThan(
+            restored.width,
+            1400,
+            "A restored full-screen-width window must not collapse to the 1200pt default"
+        )
     }
 
     func testMainWindowResizePersistsAcrossRelaunch() throws {
@@ -118,7 +131,6 @@ final class WindowPaneGeometryUITests: XCTestCase {
     private func resetBetweenQualificationCycles() throws {
         app.terminate()
         XCTAssertTrue(app.wait(for: .notRunning, timeout: 5))
-        try clearGeometryDefaults()
         clearResizeCommand()
     }
 
@@ -132,17 +144,9 @@ final class WindowPaneGeometryUITests: XCTestCase {
         try data.write(to: markerURL, options: .atomic)
     }
 
+    /// The unusable split layout is planted by the qualification harness before the app
+    /// starts, as above.
     func testPoisonedSplitDefaultsFallBackWithoutUnusablePanes() throws {
-        // AppKit stores split subview frames comma-separated, not as NSStringFromRect braces.
-        try writeArrayDefault(
-            key: splitFramesKey,
-            values: [
-                "0.000000, 0.000000, 180.000000, 700.000000, NO, NO",
-                "180.000000, 0.000000, 60.000000, 700.000000, NO, NO",
-                "240.000000, 0.000000, 560.000000, 700.000000, NO, NO",
-            ]
-        )
-
         launchApp()
         waitForPanes()
 
@@ -422,29 +426,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
         throw NSError(domain: "WindowPaneGeometryUITests", code: 4)
     }
 
-    private func clearGeometryDefaults() throws {
-        for key in [windowFrameKey, splitFramesKey, migrationMarkerKey] {
-            try runDefaults(["delete", defaultsDomain, key], allowFailure: true)
-        }
-    }
-
-    private func writeStringDefault(key: String, value: String) throws {
-        try runDefaults(["write", defaultsDomain, key, "-string", value])
-    }
-
-    private func writeArrayDefault(key: String, values: [String]) throws {
-        try runDefaults(["write", defaultsDomain, key, "-array"] + values)
-    }
-
-    private func runDefaults(_ arguments: [String], allowFailure: Bool = false) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
-        process.arguments = arguments
-        try process.run()
-        process.waitUntilExit()
-
-        if process.terminationStatus != 0 && !allowFailure {
-            throw NSError(domain: "WindowPaneGeometryUITests", code: Int(process.terminationStatus))
-        }
-    }
+    // This runner is sandboxed, so reading or writing the app's preference domain from here
+    // reaches its own container and never the app. Saved geometry is planted and cleared by
+    // the qualification harness around the run instead.
 }

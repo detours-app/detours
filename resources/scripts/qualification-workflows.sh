@@ -494,6 +494,71 @@ stop_installed_app() {
     fail "Detours did not stop between installed qualification iterations"
 }
 
+# Geometry cases need a saved window frame or split layout in place before the app starts.
+# The XCUITest runner is sandboxed, so a `defaults write com.detours.app` from inside a test
+# lands in the runner's own container and the app never reads it; a test that seeds its own
+# geometry therefore proves nothing. Seeding happens here instead, in the unsandboxed harness.
+geometry_seed_scenario() {
+    case "$1" in
+        *testOversizedSavedWindowFrameComesBackAtScreenSize*) printf 'oversized-window\n' ;;
+        *testPoisonedSavedWindowFrameFallsBackWithoutJump*) printf 'offscreen-window\n' ;;
+        *testPoisonedSplitDefaultsFallBackWithoutUnusablePanes*) printf 'unusable-split\n' ;;
+        *) printf '\n' ;;
+    esac
+}
+
+# The app's own saved frame, which carries AppKit's `x y w h sx sy sw sh` shape and the
+# current screen record. Reading it back beats measuring the screen here: the seeds below
+# are derived from the screen AppKit itself reports, so they stay correct on any display.
+current_saved_window_frame() {
+    local frame
+    stop_installed_app
+    defaults delete "$APP_BUNDLE_ID" "NSWindow Frame MainWindow" >/dev/null 2>&1 || true
+    open -a "$PROJECT_DIR/build/Detours.app"
+    local attempt
+    for (( attempt = 1; attempt <= 100; attempt++ )); do
+        frame="$(defaults read "$APP_BUNDLE_ID" "NSWindow Frame MainWindow" 2>/dev/null || true)"
+        [[ -z "$frame" ]] || break
+        sleep 0.2
+    done
+    stop_installed_app
+    [[ -n "$frame" ]] || fail "the app did not save a window frame to derive a geometry seed from"
+    printf '%s\n' "$frame"
+}
+
+seed_geometry_defaults() {
+    local scenario="$1"
+    [[ -n "$scenario" ]] || return 0
+
+    if [[ "$scenario" == unusable-split ]]; then
+        defaults write "$APP_BUNDLE_ID" "NSSplitView Subview Frames Detours.MainSplitView.AppKitV1" -array \
+            "0.000000, 0.000000, 180.000000, 700.000000, NO, NO" \
+            "180.000000, 0.000000, 60.000000, 700.000000, NO, NO" \
+            "240.000000, 0.000000, 560.000000, 700.000000, NO, NO"
+        printf 'qualification: seeded unusable split frames for %s\n' "$scenario"
+        return 0
+    fi
+
+    local reference seeded
+    reference="$(current_saved_window_frame)"
+    seeded="$(SEED_SCENARIO="$scenario" awk '
+        {
+            screen_x = $5; screen_y = $6; screen_w = $7; screen_h = $8
+            if (ENVIRON["SEED_SCENARIO"] == "oversized-window") {
+                # Larger than the screen in both directions, the shape a window filling the
+                # screen leaves behind once the menu bar is taken off the visible frame.
+                printf "%g %g %g %g %g %g %g %g ", screen_x, screen_y, screen_w + 200, screen_h + 200, screen_x, screen_y, screen_w, screen_h
+            } else {
+                # Far off every screen, the shape a disconnected display leaves behind.
+                printf "%g %g %g %g %g %g %g %g ", screen_x - 5000, screen_y - 5000, screen_w + 1280, screen_h + 1280, screen_x, screen_y, screen_w, screen_h
+            }
+        }
+    ' <<< "$reference")"
+    [[ -n "$seeded" ]] || fail "could not derive a geometry seed from: $reference"
+    defaults write "$APP_BUNDLE_ID" "NSWindow Frame MainWindow" -string "$seeded"
+    printf 'qualification: seeded %s window frame %s\n' "$scenario" "$seeded"
+}
+
 run_installed_once() {
     local selected_group="$1"
     local root_name="$2"
@@ -518,6 +583,7 @@ run_installed_once() {
     mkdir -p "$control_root"
     printf 'qualification: installed %s %s repetitions 1-%d\n' \
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
+    seed_geometry_defaults "$(geometry_seed_scenario "$test_filter")" | tee -a "$log_path.log"
     started_at="$(date +%s)"
     set +e
     QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
