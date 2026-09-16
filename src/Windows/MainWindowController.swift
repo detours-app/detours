@@ -104,7 +104,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     override func showWindow(_ sender: Any?) {
         super.showWindow(sender)
-        clampWindowToCurrentScreen()
+        moveWindowIntoReachOnCurrentScreen()
     }
 
     @available(*, unavailable)
@@ -130,33 +130,34 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func handleScreenParametersChange() {
-        // AppKit relocates windows onto the surviving screens after this notification, so clamp
+        // AppKit relocates windows onto the surviving screens after this notification, so check
         // once the move has landed rather than against the frame the window still has here.
         DispatchQueue.main.async { [weak self] in
-            self?.clampWindowToCurrentScreen()
+            self?.moveWindowIntoReachOnCurrentScreen()
         }
     }
 
-    /// Shrinks the window into its screen when something has made it larger than the screen.
-    func clampWindowToCurrentScreen() {
+    /// Moves the window back where it can be grabbed, without changing its size.
+    ///
+    /// A window larger than the current screen keeps that size. Shrinking it here would
+    /// save the shrunk frame, so plugging the larger display back in would not bring the
+    /// size back; the window is resizable, so a size that suits the screen is the user's
+    /// call. Only a window left out of reach is moved.
+    func moveWindowIntoReachOnCurrentScreen() {
         guard let window,
               let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame else { return }
 
-        let clamped = AppKitGeometrySanitizer.clampedFrame(
-            window.frame,
-            toVisibleFrame: visibleFrame,
-            minimumSize: Self.minimumContentSize
-        )
-        guard clamped != window.frame else { return }
+        let reachable = AppKitGeometrySanitizer.reachableFrame(window.frame, onVisibleFrame: visibleFrame)
+        guard reachable != window.frame else { return }
 
-        window.setFrame(clamped, display: true)
+        window.setFrame(reachable, display: true)
         window.saveFrame(usingName: Self.frameAutosaveName)
     }
 
     // MARK: - NSWindowDelegate
 
     func windowDidChangeScreen(_ notification: Notification) {
-        clampWindowToCurrentScreen()
+        moveWindowIntoReachOnCurrentScreen()
     }
 
     func windowDidBecomeKey(_ notification: Notification) {

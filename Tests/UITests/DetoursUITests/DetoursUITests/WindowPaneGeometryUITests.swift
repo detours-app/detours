@@ -43,10 +43,11 @@ final class WindowPaneGeometryUITests: XCTestCase {
 
         launchApp()
         let window = mainWindow()
-        XCTAssertLessThanOrEqual(window.frame.width, visible.width + 2)
-        XCTAssertLessThanOrEqual(window.frame.height, visible.height + 2)
+        // Reachability only. A window bigger than the screen keeps that size, so its far
+        // edges may sit off the screen; what matters is that it can be grabbed.
         XCTAssertGreaterThanOrEqual(window.frame.minX, visible.minX - 2, "The window is reachable on screen")
-        XCTAssertLessThanOrEqual(window.frame.maxX, visible.maxX + 2)
+        XCTAssertLessThan(window.frame.minX, visible.maxX, "The window starts on the screen, not past it")
+        XCTAssertGreaterThanOrEqual(window.frame.minY, visible.minY - 2)
 
         let frames = sampleWindowFrames(duration: 2.0)
         assertStable(frames, tolerance: 2.0, "Poisoned window defaults should fall back without a jump")
@@ -55,8 +56,9 @@ final class WindowPaneGeometryUITests: XCTestCase {
 
     /// A window filling the screen overhangs the visible frame once the menu bar is taken off
     /// it. That used to get the saved frame discarded, so the window came back at its built-in
-    /// default size. The oversized frame is planted by the harness, as above.
-    func testOversizedSavedWindowFrameComesBackAtScreenSizeNotTheDefault() throws {
+    /// default size. The oversized frame is planted by the harness, as above, and the app must
+    /// hand it back untouched: the size is the user's, even when it is bigger than the screen.
+    func testOversizedSavedWindowFrameComesBackAtItsSavedSize() throws {
         let screen = try XCTUnwrap(NSScreen.screens.max { $0.visibleFrame.width < $1.visibleFrame.width })
         let visible = screen.visibleFrame
         // Below this the screen cannot tell a restored window apart from the default one.
@@ -65,7 +67,11 @@ final class WindowPaneGeometryUITests: XCTestCase {
         launchApp()
         let restored = mainWindow().frame
 
-        XCTAssertEqual(restored.width, visible.width, accuracy: 12, "The window fills the screen it was saved on")
+        XCTAssertGreaterThan(
+            restored.width,
+            visible.width,
+            "The saved size is kept even though it is wider than the screen"
+        )
         XCTAssertGreaterThan(
             restored.width,
             1400,

@@ -45,13 +45,14 @@ enum AppKitGeometrySanitizer {
         defaults.set(true, forKey: migrationMarkerKey)
     }
 
-    /// Fits the saved window frame back onto a screen, keeping as much of the user's
-    /// size and position as the screen allows.
+    /// Moves the saved window frame back onto a screen when it would otherwise open out
+    /// of reach, and never changes its size.
     ///
-    /// Discarding the saved frame instead throws the window back to its built-in
-    /// default size, centred, and loses the size the user chose. A frame only
-    /// stops being usable when it cannot be read at all, so that is the only case
-    /// that removes the preference.
+    /// The window's size belongs to whoever set it. Shrinking it to fit a smaller screen
+    /// loses that size permanently, because the shrunk frame is what gets saved; the
+    /// window is resizable, so a size too big for the current screen is the user's to
+    /// correct. Position is different: a window with no title bar on any screen cannot
+    /// be reached at all, so it is pulled back far enough to grab.
     static func sanitizeWindowFrame(
         defaults: UserDefaults,
         autosaveName: String,
@@ -73,11 +74,7 @@ enum AppKitGeometrySanitizer {
         // saved frame is still the best guess available.
         guard let screenFrame = screenFrame(hosting: frame, among: usableScreens) else { return }
 
-        let fitted = clampedFrame(
-            grown(frame, toAtLeast: minimumSize),
-            toVisibleFrame: screenFrame,
-            minimumSize: minimumSize
-        )
+        let fitted = reachableFrame(frame, onVisibleFrame: screenFrame)
         guard fitted != frame else { return }
 
         defaults.set(rewritten(value, withFrame: fitted), forKey: key)
@@ -98,16 +95,6 @@ enum AppKitGeometrySanitizer {
 
     private static func area(_ rect: NSRect) -> CGFloat {
         rect.isNull || rect.isEmpty ? 0 : rect.width * rect.height
-    }
-
-    private static func grown(_ frame: NSRect, toAtLeast minimumSize: NSSize) -> NSRect {
-        NSRect(
-            origin: frame.origin,
-            size: NSSize(
-                width: max(frame.width, minimumSize.width),
-                height: max(frame.height, minimumSize.height)
-            )
-        )
     }
 
     /// Writes a corrected frame back in the format the value already used. AppKit's own
@@ -177,17 +164,14 @@ enum AppKitGeometrySanitizer {
         return true
     }
 
-    /// Fits a window frame inside one screen's visible frame, shrinking before moving.
+    /// Moves a window frame so it can be grabbed on the given screen, without ever
+    /// changing its size.
     ///
-    /// The launch sanitizer only accepts or rejects a saved frame, so it cannot help once the
-    /// window is open: a pane that demands more width than the screen has, or a display that
-    /// gets disconnected, both leave the window wider than the screen with its resize edge out
-    /// of reach. Clamping keeps the window recoverable by mouse whatever caused the overshoot.
-    static func clampedFrame(
-        _ frame: NSRect,
-        toVisibleFrame visibleFrame: NSRect,
-        minimumSize: NSSize
-    ) -> NSRect {
+    /// A window wider or taller than the screen is left that way: it is resizable, and
+    /// shrinking it here would overwrite the size the user chose with whatever the
+    /// smallest screen of the moment allows. Only the origin moves, and only far enough
+    /// that the window overlaps the visible frame and its title bar is on it.
+    static func reachableFrame(_ frame: NSRect, onVisibleFrame visibleFrame: NSRect) -> NSRect {
         guard isFinite(frame),
               isFinite(visibleFrame),
               visibleFrame.width > 0,
@@ -195,32 +179,30 @@ enum AppKitGeometrySanitizer {
             return frame
         }
 
-        var clamped = frame
-        clamped.size.width = min(frame.width, max(minimumSize.width, visibleFrame.width))
-        clamped.size.height = min(frame.height, max(minimumSize.height, visibleFrame.height))
-        clamped.origin.x = clampOrigin(
+        var moved = frame
+        moved.origin.x = reachableOrigin(
             frame.origin.x,
-            length: clamped.width,
+            length: frame.width,
             lowerBound: visibleFrame.minX,
             upperBound: visibleFrame.maxX
         )
-        clamped.origin.y = clampOrigin(
+        moved.origin.y = reachableOrigin(
             frame.origin.y,
-            length: clamped.height,
+            length: frame.height,
             lowerBound: visibleFrame.minY,
             upperBound: visibleFrame.maxY
         )
-        return clamped
+        return moved
     }
 
-    private static func clampOrigin(
+    private static func reachableOrigin(
         _ origin: CGFloat,
         length: CGFloat,
         lowerBound: CGFloat,
         upperBound: CGFloat
     ) -> CGFloat {
-        // A window larger than the screen still pins to the screen origin rather than drifting
-        // off it, so its title bar stays reachable.
+        // A window longer than the screen pins to the screen origin and overhangs the far
+        // edge, rather than being cut down to fit.
         let maximumOrigin = max(upperBound - length, lowerBound)
         return min(max(origin, lowerBound), maximumOrigin)
     }

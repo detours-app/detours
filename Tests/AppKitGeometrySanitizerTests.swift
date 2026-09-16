@@ -35,9 +35,10 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: key), NSStringFromRect(frame))
     }
 
-    func testShrinksOversizedWindowFrameInsteadOfDiscardingIt() {
+    func testKeepsAWindowFrameLargerThanTheScreenAtItsOwnSize() {
         let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
-        defaults.set(NSStringFromRect(NSRect(x: 0, y: 0, width: 1600, height: 920)), forKey: key)
+        let oversized = NSRect(x: 0, y: 0, width: 1600, height: 920)
+        defaults.set(NSStringFromRect(oversized), forKey: key)
 
         AppKitGeometrySanitizer.sanitizeWindowFrame(
             defaults: defaults,
@@ -46,8 +47,11 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
             minimumSize: NSSize(width: 800, height: 520)
         )
 
-        let saved = AppKitGeometrySanitizer.parseRect(defaults.string(forKey: key) ?? "")
-        XCTAssertEqual(saved, NSRect(x: 0, y: 0, width: 1440, height: 900))
+        XCTAssertEqual(
+            defaults.string(forKey: key),
+            NSStringFromRect(oversized),
+            "A window bigger than the screen keeps its size; the user can resize it"
+        )
     }
 
     func testMovesOffscreenWindowFrameBackWithoutLosingItsSize() {
@@ -66,9 +70,10 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
         XCTAssertEqual(saved?.maxX, 1440)
     }
 
-    func testGrowsTooSmallWindowFrameToTheMinimum() {
+    func testKeepsASmallWindowFrameAtItsOwnSize() {
         let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
-        defaults.set(NSStringFromRect(NSRect(x: 120, y: 80, width: 760, height: 500)), forKey: key)
+        let small = NSRect(x: 120, y: 80, width: 760, height: 500)
+        defaults.set(NSStringFromRect(small), forKey: key)
 
         AppKitGeometrySanitizer.sanitizeWindowFrame(
             defaults: defaults,
@@ -77,8 +82,11 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
             minimumSize: NSSize(width: 800, height: 520)
         )
 
-        let saved = AppKitGeometrySanitizer.parseRect(defaults.string(forKey: key) ?? "")
-        XCTAssertEqual(saved, NSRect(x: 120, y: 80, width: 800, height: 520))
+        XCTAssertEqual(
+            defaults.string(forKey: key),
+            NSStringFromRect(small),
+            "The window's own minimum size governs at display time; the saved frame is left alone"
+        )
     }
 
     func testDiscardsOnlyAnUnreadableWindowFrame() {
@@ -110,7 +118,7 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: key), value)
     }
 
-    func testShrinksLargeWindowKeepingAppKitAutosaveFormatAndScreenRecord() {
+    func testMovesLargeWindowClearOfTheMenuBarKeepingItsSizeAndAppKitFormat() {
         let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
         defaults.set("0 0 3800 1560 0 0 3840 1590 ", forKey: key)
 
@@ -122,11 +130,11 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
         )
 
         let value = defaults.string(forKey: key)
-        XCTAssertEqual(value, "0 25 3800 1520 0 0 3840 1590 ")
+        XCTAssertEqual(value, "0 25 3800 1560 0 0 3840 1590 ", "AppKit's format and screen record survive")
         XCTAssertEqual(
-            AppKitGeometrySanitizer.parseRect(value ?? ""),
-            NSRect(x: 0, y: 25, width: 3800, height: 1520),
-            "A near-full-screen window keeps its width instead of dropping to the default size"
+            AppKitGeometrySanitizer.parseRect(value ?? "")?.size,
+            NSSize(width: 3800, height: 1560),
+            "A window taller than the visible frame moves clear of the menu bar but keeps its size"
         )
     }
 
@@ -252,63 +260,48 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
         XCTAssertEqual(saved, NSRect(x: 0, y: 80, width: 900, height: 620))
     }
 
-    // MARK: - Clamping an open window to its screen
+    // MARK: - Moving an open window back into reach
 
     private let screen = NSRect(x: 0, y: 0, width: 2056, height: 1290)
-    private let minimum = NSSize(width: 800, height: 520)
 
-    func testClampShrinksWindowWiderThanItsScreen() {
-        let clamped = AppKitGeometrySanitizer.clampedFrame(
-            NSRect(x: 428, y: 418, width: 2811, height: 732),
-            toVisibleFrame: screen,
-            minimumSize: minimum
-        )
+    func testAWindowWiderThanItsScreenKeepsItsWidth() {
+        let frame = NSRect(x: 428, y: 418, width: 2811, height: 732)
+        let moved = AppKitGeometrySanitizer.reachableFrame(frame, onVisibleFrame: screen)
 
-        XCTAssertEqual(clamped.width, screen.width)
-        XCTAssertLessThanOrEqual(clamped.maxX, screen.maxX)
-        XCTAssertEqual(clamped.height, 732, "Only the overshooting dimension changes")
+        XCTAssertEqual(moved.size, frame.size, "The size is the user's, not the screen's")
+        XCTAssertEqual(moved.origin.x, screen.minX, "It pins to the screen origin and overhangs the far edge")
     }
 
-    func testClampMovesOffscreenWindowBackWithoutResizing() {
-        let clamped = AppKitGeometrySanitizer.clampedFrame(
+    func testMovesOffscreenWindowBackWithoutResizing() {
+        let moved = AppKitGeometrySanitizer.reachableFrame(
             NSRect(x: 1900, y: 1200, width: 900, height: 620),
-            toVisibleFrame: screen,
-            minimumSize: minimum
+            onVisibleFrame: screen
         )
 
-        XCTAssertEqual(clamped.size, NSSize(width: 900, height: 620))
-        XCTAssertLessThanOrEqual(clamped.maxX, screen.maxX)
-        XCTAssertLessThanOrEqual(clamped.maxY, screen.maxY)
-        XCTAssertGreaterThanOrEqual(clamped.minX, screen.minX)
+        XCTAssertEqual(moved.size, NSSize(width: 900, height: 620))
+        XCTAssertLessThanOrEqual(moved.maxX, screen.maxX)
+        XCTAssertLessThanOrEqual(moved.maxY, screen.maxY)
+        XCTAssertGreaterThanOrEqual(moved.minX, screen.minX)
     }
 
-    func testClampLeavesFittingWindowAlone() {
+    func testLeavesAWindowAlreadyInReachAlone() {
         let frame = NSRect(x: 120, y: 80, width: 1200, height: 700)
 
-        XCTAssertEqual(
-            AppKitGeometrySanitizer.clampedFrame(frame, toVisibleFrame: screen, minimumSize: minimum),
-            frame
-        )
+        XCTAssertEqual(AppKitGeometrySanitizer.reachableFrame(frame, onVisibleFrame: screen), frame)
     }
 
-    func testClampPinsToScreenOriginWhenScreenIsSmallerThanTheMinimum() {
+    func testPinsToScreenOriginOnAScreenSmallerThanTheWindow() {
         let tinyScreen = NSRect(x: 40, y: 30, width: 600, height: 400)
-        let clamped = AppKitGeometrySanitizer.clampedFrame(
-            NSRect(x: 500, y: 500, width: 1200, height: 700),
-            toVisibleFrame: tinyScreen,
-            minimumSize: minimum
-        )
+        let frame = NSRect(x: 500, y: 500, width: 1200, height: 700)
+        let moved = AppKitGeometrySanitizer.reachableFrame(frame, onVisibleFrame: tinyScreen)
 
-        XCTAssertEqual(clamped.origin, tinyScreen.origin, "The title bar must stay reachable")
-        XCTAssertEqual(clamped.size, minimum, "The window never shrinks below its usable minimum")
+        XCTAssertEqual(moved.origin, tinyScreen.origin, "The title bar must stay reachable")
+        XCTAssertEqual(moved.size, frame.size, "A window too big for the screen is still the user's to resize")
     }
 
-    func testClampIgnoresAnUnusableScreenFrame() {
+    func testIgnoresAnUnusableScreenFrame() {
         let frame = NSRect(x: 120, y: 80, width: 1200, height: 700)
 
-        XCTAssertEqual(
-            AppKitGeometrySanitizer.clampedFrame(frame, toVisibleFrame: .zero, minimumSize: minimum),
-            frame
-        )
+        XCTAssertEqual(AppKitGeometrySanitizer.reachableFrame(frame, onVisibleFrame: .zero), frame)
     }
 }

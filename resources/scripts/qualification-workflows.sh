@@ -500,7 +500,7 @@ stop_installed_app() {
 # geometry therefore proves nothing. Seeding happens here instead, in the unsandboxed harness.
 geometry_seed_scenario() {
     case "$1" in
-        *testOversizedSavedWindowFrameComesBackAtScreenSize*) printf 'oversized-window\n' ;;
+        *testOversizedSavedWindowFrameComesBack*) printf 'oversized-window\n' ;;
         *testPoisonedSavedWindowFrameFallsBackWithoutJump*) printf 'offscreen-window\n' ;;
         *testPoisonedSplitDefaultsFallBackWithoutUnusablePanes*) printf 'unusable-split\n' ;;
         *) printf '\n' ;;
