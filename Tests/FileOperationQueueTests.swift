@@ -230,6 +230,47 @@ final class FileOperationQueueTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
     }
 
+    func testCopyFolderWithItsOwnChildSelected() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = temp.appendingPathComponent("source")
+        let folder = source.appendingPathComponent("folder")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let child = try createTestFile(in: folder, name: "a.txt", content: "kept")
+        let destination = temp.appendingPathComponent("destination")
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+
+        let copied = try await FileOperationQueue.shared.copy(items: [folder, child], to: destination)
+
+        XCTAssertEqual(copied.count, 1)
+        let copiedChild = destination.appendingPathComponent("folder/a.txt")
+        XCTAssertEqual(try String(contentsOf: copiedChild, encoding: .utf8), "kept")
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: destination.appendingPathComponent("a.txt").path),
+            "The child arrives inside its folder, not alongside it"
+        )
+    }
+
+    func testMoveFolderWithItsOwnChildSelected() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let source = temp.appendingPathComponent("source")
+        let folder = source.appendingPathComponent("folder")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let child = try createTestFile(in: folder, name: "a.txt", content: "kept")
+        let destination = temp.appendingPathComponent("destination")
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+
+        let moved = try await FileOperationQueue.shared.move(items: [folder, child], to: destination)
+
+        XCTAssertEqual(moved.count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        let movedChild = destination.appendingPathComponent("folder/a.txt")
+        XCTAssertEqual(try String(contentsOf: movedChild, encoding: .utf8), "kept")
+    }
+
     func testWithoutContainedItemsKeepsSiblingsAndDropsDuplicates() {
         let root = URL(fileURLWithPath: "/tmp/root")
         let folder = root.appendingPathComponent("folder")

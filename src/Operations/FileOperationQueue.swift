@@ -195,7 +195,8 @@ final class FileOperationQueue {
     }
 
     @discardableResult
-    func copy(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+    func copy(items rawItems: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+        let items = Self.withoutContainedItems(rawItems)
         if await isFastLaneCandidate(sources: items, destination: destination),
            let sourceURLs = localURLs(from: items),
            case .local(let destinationURL) = destination {
@@ -231,7 +232,8 @@ final class FileOperationQueue {
     }
 
     @discardableResult
-    func move(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+    func move(items rawItems: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
+        let items = Self.withoutContainedItems(rawItems)
         if await isFastLaneCandidate(sources: items, destination: destination),
            let sourceURLs = localURLs(from: items),
            case .local(let destinationURL) = destination {
