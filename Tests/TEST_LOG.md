@@ -4,6 +4,13 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-16 17:24 (Foundry, deleting a folder together with its own contents)
+
+- Reproduced from the code path, not the UI: `performDelete` trashed the selection in row order, so a selection holding a folder above one of its own children trashed the folder first and then reported the child as missing. The fix drops items already covered by another item in the same selection, and exact duplicates, before the delete is routed, so it covers Trash, Delete Immediately, the fast lane and remote hosts alike.
+- `swift test --filter FileOperationQueueTests` at 96c9862: 75/75 PASS in 0.62 s, including the three new cases: folder listed before its child, child listed before its folder, and the pruning itself keeping siblings while dropping duplicates.
+- `resources/scripts/build.sh` on Foundry at 96c9862: build, sign, install and relaunch succeeded in 50.08 s, no compiler warnings.
+- Not fixed, reported instead: copy and move take the same unpruned selection and would fail the same way on a folder listed with its own child.
+
 ### 2026-09-14 12:21 (Spectre install-only delivery)
 
 - `resources/scripts/build.sh` on Spectre at b667f1a after the Foundry proof below: built in 56.16 s, signed, found no stale copies, installed, and relaunched. No tests or probes ran on Spectre.
