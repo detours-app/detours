@@ -256,7 +256,8 @@ final class FileOperationQueue {
         try await delete(items: items.map(Location.local), undoManager: undoManager)
     }
 
-    func delete(items: [Location], undoManager: UndoManager? = nil) async throws {
+    func delete(items rawItems: [Location], undoManager: UndoManager? = nil) async throws {
+        let items = Self.withoutContainedItems(rawItems)
         if await isFastLaneDeleteCandidate(items),
            let urls = localURLs(from: items) {
             try await performFastDelete(items: urls, undoManager: undoManager)
@@ -287,7 +288,8 @@ final class FileOperationQueue {
     /// This method should ONLY be called after explicit user confirmation via a dialog.
     /// NEVER call this from undo handlers, cleanup code, or any automated flow.
     /// Use `delete(items:undoManager:)` instead for trash with undo support.
-    func deleteImmediately(items: [Location]) async throws {
+    func deleteImmediately(items rawItems: [Location]) async throws {
+        let items = Self.withoutContainedItems(rawItems)
         // Log every call for debugging - permanent deletion should be rare
         for item in items {
             print("⚠️ PERMANENT DELETE (no recovery): \(item.path)")

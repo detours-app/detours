@@ -203,6 +203,46 @@ final class FileOperationQueueTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
     }
 
+    func testDeleteFolderWithItsOwnChildSelected() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let folder = temp.appendingPathComponent("folder")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        let child = try createTestFile(in: folder, name: "a.txt")
+
+        try await FileOperationQueue.shared.delete(items: [folder, child])
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: child.path))
+    }
+
+    func testDeleteChildSelectedBeforeItsFolder() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let folder = temp.appendingPathComponent("folder")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        let child = try createTestFile(in: folder, name: "a.txt")
+
+        try await FileOperationQueue.shared.delete(items: [child, folder])
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+    }
+
+    func testWithoutContainedItemsKeepsSiblingsAndDropsDuplicates() {
+        let root = URL(fileURLWithPath: "/tmp/root")
+        let folder = root.appendingPathComponent("folder")
+        let child = folder.appendingPathComponent("a.txt")
+        let sibling = root.appendingPathComponent("b.txt")
+
+        let pruned = FileOperationQueue.withoutContainedItems(
+            [child, sibling, folder, sibling].map(Location.local)
+        )
+
+        XCTAssertEqual(pruned, [Location.local(sibling), Location.local(folder)])
+    }
+
     func testDuplicateFile() async throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }

@@ -172,6 +172,23 @@ extension FileOperationQueue {
         return urls.count <= Self.fastLaneMaxItems && !deleteConflictsWithActiveHeavyOperation(urls)
     }
 
+    /// Drops items already covered by another item in the same selection, plus
+    /// exact duplicates. Removing a folder removes everything inside it, so a
+    /// selection holding both a folder and something under it would fail on the
+    /// contained item once its ancestor was gone.
+    nonisolated static func withoutContainedItems(_ items: [Location]) -> [Location] {
+        var kept: [Location] = []
+        kept.reserveCapacity(items.count)
+        for item in items {
+            if kept.contains(where: { $0 == item || FileDropValidator.isDescendant(item, of: $0) }) {
+                continue
+            }
+            kept.removeAll { FileDropValidator.isDescendant($0, of: item) }
+            kept.append(item)
+        }
+        return kept
+    }
+
     func localURLs(from locations: [Location]) -> [URL]? {
         var urls: [URL] = []
         urls.reserveCapacity(locations.count)
