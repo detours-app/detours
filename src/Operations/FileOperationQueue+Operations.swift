@@ -95,12 +95,12 @@ extension FileOperationQueue {
                         let cancelFlag = CancelFlag()
                         self.currentCancelFlag = cancelFlag
                         let cancellationProbe = self.copyProgressCancellationProbeForTesting
-                        try await runFileIO {
+                        try await runFileIO { [weak self] in
                             try CopyfileHelper.copy(from: source, to: destinationURL) { copiedBytes in
                                 if cancellationProbe?(previousBytes + copiedBytes) == true {
                                     cancelFlag.cancel()
                                 }
-                                DispatchQueue.main.async { [weak self] in
+                                DispatchQueue.main.async {
                                     self?.updateProgress(
                                         operation: operation,
                                         currentItem: source,

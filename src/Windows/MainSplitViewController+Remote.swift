@@ -83,8 +83,10 @@ extension MainSplitViewController {
     /// cleared to its idle state so the dot recovers to green the same way.
     func startIdleRemoteHostProbing() {
         idleHostProbeTimer?.invalidate()
-        let timer = Timer.scheduledTimer(withTimeInterval: Self.idleHostProbeInterval, repeats: true) { _ in
-            Task { @MainActor [weak self] in
+        // The controller owns this timer, so the timer's own closure must not own the
+        // controller back. The weak capture belongs here, on the closure the timer holds.
+        let timer = Timer.scheduledTimer(withTimeInterval: Self.idleHostProbeInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
                 await self?.probeIdleRemoteHosts()
             }
         }

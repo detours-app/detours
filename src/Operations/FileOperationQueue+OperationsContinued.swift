@@ -375,9 +375,9 @@ extension FileOperationQueue {
                     let itemCount = items.count
                     let cancelFlag = CancelFlag()
                     self.currentCancelFlag = cancelFlag
-                    try await runFileIO {
+                    try await runFileIO { [weak self] in
                         try CopyfileHelper.copy(from: source, to: destination) { copiedBytes in
-                            DispatchQueue.main.async { [weak self] in
+                            DispatchQueue.main.async {
                                 self?.updateProgress(
                                     operation: operation,
                                     currentItem: source,

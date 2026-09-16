@@ -268,7 +268,9 @@ extension FileListViewController {
     }
 
     private func extractArchive(_ archiveLocation: Location, password: String?) {
-        Task { @MainActor in
+        // The extraction holds the controller for its duration on purpose; the retry
+        // callback below outlives it and must not, hence the differing ownership.
+        Task { @MainActor [self] in
             do {
                 let extractedLocation = try await PaneFileOperationCoordinator.shared.perform(
                     affecting: [archiveLocation.deletingLastPathComponent()]

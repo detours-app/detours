@@ -283,10 +283,10 @@ extension FileOperationQueue {
             passwordEchoPolicy: sevenZipPasswordEchoPolicy
         )
         let parser = ArchivePercentageParser()
-        let runnerTask = Task {
-            try await PtyProcessRunner().run(invocation) { [weak self] data in
+        let runnerTask = Task { [weak self] in
+            try await PtyProcessRunner().run(invocation) { data in
                 guard let percent = parser.consume(data) else { return }
-                Task { @MainActor [weak self] in
+                Task { @MainActor in
                     guard let self, let operation = self.currentOperation else { return }
                     let fraction = min(Double(percent) / 100, 1)
                     self.updateProgress(
