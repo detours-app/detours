@@ -96,7 +96,13 @@ run_preflight() {
     ! mount | grep -F "$SMB_MOUNT_POINT" >/dev/null 2>&1 || fail "qualification SMB share is still mounted"
     [[ ! -e "$SMB_MOUNT_POINT" ]] || fail "qualification SMB mountpoint remains; run reset"
     ! mount | grep -E '/Volumes/DetoursQualification-[0-9a-f-]{36}' >/dev/null 2>&1 || fail "qualification APFS image is still mounted"
-    ! defaults read "$APP_BUNDLE_ID" >/dev/null 2>&1 || fail "Detours preferences remain; run reset"
+    # `defaults delete` empties the domain but leaves an empty plist behind, which
+    # `defaults read` still reports successfully. A domain holding no keys carries no
+    # Detours state, so only actual keys count as leftovers.
+    local detours_prefs_state
+    detours_prefs_state="$(defaults read "$APP_BUNDLE_ID" 2>/dev/null | tr -d '[:space:]')"
+    [[ -z "$detours_prefs_state" || "$detours_prefs_state" == "{}" ]] \
+        || fail "Detours preferences remain; run reset"
     [[ ! -e "$HOME/Library/Caches/$APP_BUNDLE_ID" ]] || fail "Detours cache remains; run reset"
     [[ ! -e "$HOME/Library/Saved Application State/$APP_BUNDLE_ID.savedState" ]] || fail "Detours saved state remains; run reset"
     [[ ! -e "$HOME/DetoursUITests-Temp" ]] || fail "UI test fixture root remains; run reset"
