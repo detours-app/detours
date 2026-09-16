@@ -35,7 +35,7 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: key), NSStringFromRect(frame))
     }
 
-    func testRejectsOversizedWindowFrame() {
+    func testShrinksOversizedWindowFrameInsteadOfDiscardingIt() {
         let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
         defaults.set(NSStringFromRect(NSRect(x: 0, y: 0, width: 1600, height: 920)), forKey: key)
 
@@ -46,10 +46,11 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
             minimumSize: NSSize(width: 800, height: 520)
         )
 
-        XCTAssertNil(defaults.object(forKey: key))
+        let saved = AppKitGeometrySanitizer.parseRect(defaults.string(forKey: key) ?? "")
+        XCTAssertEqual(saved, NSRect(x: 0, y: 0, width: 1440, height: 900))
     }
 
-    func testRejectsOffscreenWindowFrame() {
+    func testMovesOffscreenWindowFrameBackWithoutLosingItsSize() {
         let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
         defaults.set(NSStringFromRect(NSRect(x: 2000, y: 80, width: 900, height: 620)), forKey: key)
 
@@ -60,10 +61,12 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
             minimumSize: NSSize(width: 800, height: 520)
         )
 
-        XCTAssertNil(defaults.object(forKey: key))
+        let saved = AppKitGeometrySanitizer.parseRect(defaults.string(forKey: key) ?? "")
+        XCTAssertEqual(saved?.size, NSSize(width: 900, height: 620), "The chosen size survives the move")
+        XCTAssertEqual(saved?.maxX, 1440)
     }
 
-    func testRejectsTooSmallWindowFrame() {
+    func testGrowsTooSmallWindowFrameToTheMinimum() {
         let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
         defaults.set(NSStringFromRect(NSRect(x: 120, y: 80, width: 760, height: 500)), forKey: key)
 
@@ -74,7 +77,57 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
             minimumSize: NSSize(width: 800, height: 520)
         )
 
+        let saved = AppKitGeometrySanitizer.parseRect(defaults.string(forKey: key) ?? "")
+        XCTAssertEqual(saved, NSRect(x: 120, y: 80, width: 800, height: 520))
+    }
+
+    func testDiscardsOnlyAnUnreadableWindowFrame() {
+        let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
+        defaults.set("not a frame", forKey: key)
+
+        AppKitGeometrySanitizer.sanitizeWindowFrame(
+            defaults: defaults,
+            autosaveName: "MainWindow",
+            visibleScreenFrames: [NSRect(x: 0, y: 0, width: 1440, height: 900)],
+            minimumSize: NSSize(width: 800, height: 520)
+        )
+
         XCTAssertNil(defaults.object(forKey: key))
+    }
+
+    func testKeepsSavedFrameWhenNoScreenIsAvailableToMeasureAgainst() {
+        let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
+        let value = NSStringFromRect(NSRect(x: 4000, y: 80, width: 2400, height: 1400))
+        defaults.set(value, forKey: key)
+
+        AppKitGeometrySanitizer.sanitizeWindowFrame(
+            defaults: defaults,
+            autosaveName: "MainWindow",
+            visibleScreenFrames: [],
+            minimumSize: NSSize(width: 800, height: 520)
+        )
+
+        XCTAssertEqual(defaults.string(forKey: key), value)
+    }
+
+    func testShrinksLargeWindowKeepingAppKitAutosaveFormatAndScreenRecord() {
+        let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
+        defaults.set("0 0 3800 1560 0 0 3840 1590 ", forKey: key)
+
+        AppKitGeometrySanitizer.sanitizeWindowFrame(
+            defaults: defaults,
+            autosaveName: "MainWindow",
+            visibleScreenFrames: [NSRect(x: 0, y: 25, width: 3840, height: 1520)],
+            minimumSize: NSSize(width: 800, height: 520)
+        )
+
+        let value = defaults.string(forKey: key)
+        XCTAssertEqual(value, "0 25 3800 1520 0 0 3840 1590 ")
+        XCTAssertEqual(
+            AppKitGeometrySanitizer.parseRect(value ?? ""),
+            NSRect(x: 0, y: 25, width: 3800, height: 1520),
+            "A near-full-screen window keeps its width instead of dropping to the default size"
+        )
     }
 
     func testRejectsUnusableSplitFrames() {
@@ -183,7 +236,7 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: key), NSStringFromRect(frame))
     }
 
-    func testMigrationRemovesInvalidMainWindowAutosaveFrame() {
+    func testMigrationRecoversAnOffscreenMainWindowAutosaveFrame() {
         let key = AppKitGeometrySanitizer.windowFrameKey(autosaveName: "MainWindow")
         defaults.set(NSStringFromRect(NSRect(x: -2000, y: 80, width: 900, height: 620)), forKey: key)
 
@@ -195,7 +248,8 @@ final class AppKitGeometrySanitizerTests: XCTestCase {
             minimumWindowSize: NSSize(width: 800, height: 520)
         )
 
-        XCTAssertNil(defaults.object(forKey: key))
+        let saved = AppKitGeometrySanitizer.parseRect(defaults.string(forKey: key) ?? "")
+        XCTAssertEqual(saved, NSRect(x: 0, y: 80, width: 900, height: 620))
     }
 
     // MARK: - Clamping an open window to its screen

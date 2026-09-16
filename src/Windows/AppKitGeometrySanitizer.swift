@@ -45,6 +45,13 @@ enum AppKitGeometrySanitizer {
         defaults.set(true, forKey: migrationMarkerKey)
     }
 
+    /// Fits the saved window frame back onto a screen, keeping as much of the user's
+    /// size and position as the screen allows.
+    ///
+    /// Discarding the saved frame instead throws the window back to its built-in
+    /// default size, centred, and loses the size the user chose. A frame only
+    /// stops being usable when it cannot be read at all, so that is the only case
+    /// that removes the preference.
     static func sanitizeWindowFrame(
         defaults: UserDefaults,
         autosaveName: String,
@@ -53,10 +60,69 @@ enum AppKitGeometrySanitizer {
     ) {
         let key = windowFrameKey(autosaveName: autosaveName)
         guard let value = defaults.string(forKey: key) else { return }
-        guard isValidWindowFrame(value, visibleScreenFrames: visibleScreenFrames, minimumSize: minimumSize) else {
+
+        guard let frame = parseRect(value), isFinite(frame), frame.width > 0, frame.height > 0 else {
             defaults.removeObject(forKey: key)
             return
         }
+
+        let usableScreens = visibleScreenFrames.filter {
+            isFinite($0) && $0.width > 0 && $0.height > 0
+        }
+        // With no screen to measure against there is nothing to correct, and the
+        // saved frame is still the best guess available.
+        guard let screenFrame = screenFrame(hosting: frame, among: usableScreens) else { return }
+
+        let fitted = clampedFrame(
+            grown(frame, toAtLeast: minimumSize),
+            toVisibleFrame: screenFrame,
+            minimumSize: minimumSize
+        )
+        guard fitted != frame else { return }
+
+        defaults.set(rewritten(value, withFrame: fitted), forKey: key)
+    }
+
+    /// Picks the screen the saved frame belongs to: the one it overlaps most, or the
+    /// first available screen when the frame sits entirely off every screen, which is
+    /// what a disconnected display leaves behind.
+    private static func screenFrame(hosting frame: NSRect, among screenFrames: [NSRect]) -> NSRect? {
+        let overlapping = screenFrames.max { left, right in
+            area(left.intersection(frame)) < area(right.intersection(frame))
+        }
+        guard let overlapping, area(overlapping.intersection(frame)) > 0 else {
+            return screenFrames.first
+        }
+        return overlapping
+    }
+
+    private static func area(_ rect: NSRect) -> CGFloat {
+        rect.isNull || rect.isEmpty ? 0 : rect.width * rect.height
+    }
+
+    private static func grown(_ frame: NSRect, toAtLeast minimumSize: NSSize) -> NSRect {
+        NSRect(
+            origin: frame.origin,
+            size: NSSize(
+                width: max(frame.width, minimumSize.width),
+                height: max(frame.height, minimumSize.height)
+            )
+        )
+    }
+
+    /// Writes a corrected frame back in the format the value already used. AppKit's own
+    /// `x y w h sx sy sw sh` string keeps its trailing screen record, because that is
+    /// what AppKit reads to decide whether the display has changed since the save.
+    private static func rewritten(_ value: String, withFrame frame: NSRect) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.hasPrefix("{") else { return NSStringFromRect(frame) }
+
+        let numbers = trimmed
+            .components(separatedBy: CharacterSet(charactersIn: ", \t"))
+            .filter { !$0.isEmpty }
+        let head = [frame.origin.x, frame.origin.y, frame.width, frame.height]
+            .map { String(format: "%g", $0) }
+        return (head + numbers.dropFirst(4)).joined(separator: " ") + " "
     }
 
     static func sanitizeSplitFrames(
@@ -77,28 +143,6 @@ enum AppKitGeometrySanitizer {
               ) else {
             defaults.removeObject(forKey: key)
             return
-        }
-    }
-
-    static func isValidWindowFrame(
-        _ frameString: String,
-        visibleScreenFrames: [NSRect],
-        minimumSize: NSSize
-    ) -> Bool {
-        guard let frame = parseRect(frameString),
-              isFinite(frame),
-              frame.width >= minimumSize.width,
-              frame.height >= minimumSize.height,
-              frame.width > 0,
-              frame.height > 0 else {
-            return false
-        }
-
-        return visibleScreenFrames.contains { screenFrame in
-            guard isFinite(screenFrame), screenFrame.width > 0, screenFrame.height > 0 else {
-                return false
-            }
-            return screenFrame.contains(frame)
         }
     }
 
