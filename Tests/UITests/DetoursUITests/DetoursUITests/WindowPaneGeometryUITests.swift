@@ -44,10 +44,14 @@ final class WindowPaneGeometryUITests: XCTestCase {
         launchApp()
         let window = mainWindow()
         // Reachability only. A window bigger than the screen keeps that size, so its far
-        // edges may sit off the screen; what matters is that it can be grabbed.
+        // edges may sit off the screen; what matters is that its title bar can be grabbed.
+        // XCUI reports frames from the top-left, NSScreen from the bottom-left, so the
+        // visible frame's top edge has to be flipped before the two can be compared.
+        let visibleTop = screen.frame.height - visible.maxY
         XCTAssertGreaterThanOrEqual(window.frame.minX, visible.minX - 2, "The window is reachable on screen")
         XCTAssertLessThan(window.frame.minX, visible.maxX, "The window starts on the screen, not past it")
-        XCTAssertGreaterThanOrEqual(window.frame.minY, visible.minY - 2)
+        XCTAssertGreaterThanOrEqual(window.frame.minY, visibleTop - 2, "The title bar clears the menu bar")
+        XCTAssertLessThan(window.frame.minY, screen.frame.height, "The title bar is on the screen")
 
         let frames = sampleWindowFrames(duration: 2.0)
         assertStable(frames, tolerance: 2.0, "Poisoned window defaults should fall back without a jump")

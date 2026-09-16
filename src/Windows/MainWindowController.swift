@@ -22,6 +22,26 @@ final class MainWindow: NSWindow {
 
         return super.performKeyEquivalent(with: event)
     }
+
+    /// Keeps AppKit's placement but not its resizing.
+    ///
+    /// AppKit shrinks a window to the screen whenever it displays it, and the shrunk frame
+    /// is what gets saved, so a window restored onto a smaller screen loses the size it was
+    /// given and does not get it back when the larger screen returns. The window is
+    /// resizable; its size is the user's. Only the placement AppKit computes is kept, so the
+    /// title bar still lands clear of the menu bar, with the window hanging off the bottom
+    /// or the side when it is larger than the screen.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        let placed = super.constrainFrameRect(frameRect, to: screen)
+        guard placed.size != frameRect.size else { return placed }
+
+        return NSRect(
+            x: placed.origin.x,
+            y: placed.maxY - frameRect.height,
+            width: frameRect.width,
+            height: frameRect.height
+        )
+    }
 }
 
 final class MainWindowController: NSWindowController, NSWindowDelegate {
