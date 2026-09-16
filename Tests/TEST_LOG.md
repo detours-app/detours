@@ -4,6 +4,16 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-16 20:26 (Foundry, the window keeps its size on a screen too small for it)
+
+Marco asked for the app to stop resizing the window at all. Removing the app's own clamping was not enough: AppKit shrinks a window to the screen whenever it displays one, and saves the shrunk frame. Direct Foundry probe at 264e2c3, seeding `0 0 2120 1249` on a 1920-wide screen: while running and after quitting, the saved frame read `0 53 1920 996`. The size was destroyed by AppKit, not by Detours. The window now declines AppKit's resizing while keeping its placement.
+
+- Probe at 5a5e0a5, same seed: Foundry's saved frame afterwards read `0 -200 2120 1249 0 0 1920 1049`. The full 2120x1249 survives, positioned so the title bar sits at the top of the visible frame and the window hangs off the bottom.
+- `swift test --filter AppKitGeometrySanitizerTests` at 264e2c3: 19/19 PASS in 0.02 s, now asserting that an oversized frame, a below-minimum frame and a frame overhanging the menu bar all keep their size, and that only the origin moves.
+- All eight `WindowPaneGeometryUITests` cases PASS at 5a5e0a5 as guarded `installed-smoke session LOCAL_ROOT` runs: oversized saved frame, poisoned saved frame, unusable split frames, resize persistence, launch frame stability, equalize panes, sidebar resize, and the group's own divider-drag workflow.
+- **Seen once, not reproduced:** the first batch of these runs left the guarded runner's SSH session open for six minutes after the test finished, with no process alive on Foundry and no further output after "Testing started completed". The run was stopped with its cancel path, Foundry was left clean, and the same sequence with and without a reset between cases then completed normally four times. No cause established; recorded so a second occurrence is not treated as the first.
+- One test bug fixed along the way: the case compared window positions XCUI reports from the top-left against screen bounds NSScreen reports from the bottom-left.
+
 ### 2026-09-16 19:34 (Foundry, geometry seeded from the harness)
 
 All at 2d40a33, each a guarded `installed-smoke session LOCAL_ROOT` run with one filter:
