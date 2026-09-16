@@ -75,7 +75,10 @@ final class WindowPaneGeometryUITests: XCTestCase {
             width: visible.width + 60,
             height: visible.height + 60
         )
-        try writeStringDefault(key: windowFrameKey, value: NSStringFromRect(oversized))
+        try writeStringDefault(
+            key: windowFrameKey,
+            value: appKitAutosaveString(frame: oversized, screenFrame: screen.frame)
+        )
 
         launchApp()
         let restored = mainWindow().frame
@@ -454,6 +457,17 @@ final class WindowPaneGeometryUITests: XCTestCase {
         for key in [windowFrameKey, splitFramesKey, migrationMarkerKey] {
             try runDefaults(["delete", defaultsDomain, key], allowFailure: true)
         }
+    }
+
+    /// The `x y w h sx sy sw sh` string AppKit itself writes for a saved window frame.
+    /// `NSStringFromRect` produces a shape AppKit never saves and cannot restore from, so
+    /// a test using it proves nothing about what happens to a real saved frame.
+    private func appKitAutosaveString(frame: NSRect, screenFrame: NSRect) -> String {
+        let numbers = [
+            frame.origin.x, frame.origin.y, frame.width, frame.height,
+            screenFrame.origin.x, screenFrame.origin.y, screenFrame.width, screenFrame.height,
+        ]
+        return numbers.map { String(format: "%g", $0) }.joined(separator: " ") + " "
     }
 
     private func writeStringDefault(key: String, value: String) throws {
