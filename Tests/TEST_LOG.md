@@ -4,6 +4,21 @@
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
 
+### 2026-09-16 19:34 (Foundry, geometry seeded from the harness)
+
+All at 2d40a33, each a guarded `installed-smoke session LOCAL_ROOT` run with one filter:
+
+| Case | Seed planted by the harness | Result |
+| --- | --- | --- |
+| `testOversizedSavedWindowFrameComesBackAtScreenSizeNotTheDefault` | `0 0 2120 1249 0 0 1920 1049` | PASS |
+| `testPoisonedSavedWindowFrameFallsBackWithoutJump` | `-5000 -5000 3200 2329 0 0 1920 1049` | PASS |
+| `testPoisonedSplitDefaultsFallBackWithoutUnusablePanes` | unusable split frames | PASS |
+| `testPaneDividerDragPersistsAcrossRelaunch` (group workflow, no seed) | none | PASS |
+
+- The seeds are derived at run time from the frame the app itself saves, so they carry AppKit's own screen record and stay correct on any display. Prompt audits clean and cleanup green on every run.
+- Evidence that the oversized case discriminates: the identical assertion reported `1200.0 is not equal to 1920.0` at 13527b9, when the saved frame never reached the app, and reports the screen width once a frame is planted. 1200 is exactly what the old discard behaviour produced.
+- Attempted and abandoned: staging the pre-fix sanitizer on Foundry to watch the case go red. The guarded runner refuses a dirty worktree, which is correct, and proving it that way would mean pushing a knowingly broken commit to main. The file was restored and Foundry left clean at 2d40a33.
+
 ### 2026-09-16 18:48 (Foundry, the UI suite cannot seed the app's saved window frame)
 
 - Once Marco cleared the dialog, the new UI case ran and FAILED: window width 1200, expected 1920. Two explanations were tried and both were wrong: the AppKit autosave string format made no difference, and neither did the migration marker. Direct probes on Foundry with an oversized `0 0 1980 1140` saved frame restored the window at `0 53 1920 996` every time, with the marker present and with it cleared, so the launch-check fix itself is correct.
