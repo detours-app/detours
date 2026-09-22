@@ -2,6 +2,14 @@ import Foundation
 import XCTest
 
 final class BuildCacheTests: XCTestCase {
+    func testBundleUsesTheExecutableReportedByTheCurrentBuild() throws {
+        let script = try String(contentsOfFile: "resources/scripts/build.sh", encoding: .utf8)
+        XCTAssertTrue(script.contains("swift build \"${BUILD_ARGS[@]}\""))
+        XCTAssertTrue(script.contains("BUILT_DIRECTORY=$(swift build \"${BUILD_ARGS[@]}\" --show-bin-path)"))
+        XCTAssertTrue(script.contains("BUILT_BINARY=\"$BUILT_DIRECTORY/Detours\""))
+        XCTAssertFalse(script.contains("BUILT_BINARY=\".build/"))
+    }
+
     func testHashTriggersRebuildWhenSourceChanges() throws {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let serverProbe = root

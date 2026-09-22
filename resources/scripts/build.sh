@@ -110,12 +110,6 @@ for arg in "$@"; do
     esac
 done
 
-# SwiftPM uses a capitalized config name in the multi-arch product path
-case "$BUILD_CONFIG" in
-    release) CONFIG_CAP="Release" ;;
-    debug)   CONFIG_CAP="Debug" ;;
-esac
-
 echo "DETOURS BUILD" >&2
 echo "-------------" >&2
 
@@ -212,15 +206,18 @@ else
 fi
 
 # Build
+BUILD_ARGS=(-c "$BUILD_CONFIG")
 if [ "$UNIVERSAL" = true ]; then
     log_info "Swift build ($BUILD_CONFIG, universal arm64+x86_64)"
-    swift build -c "$BUILD_CONFIG" --arch arm64 --arch x86_64
-    BUILT_BINARY=".build/apple/Products/$CONFIG_CAP/Detours"
+    BUILD_ARGS+=(--arch arm64 --arch x86_64)
 else
     log_info "Swift build ($BUILD_CONFIG)"
-    swift build -c "$BUILD_CONFIG"
-    BUILT_BINARY=".build/arm64-apple-macosx/$BUILD_CONFIG/Detours"
 fi
+swift build "${BUILD_ARGS[@]}"
+BUILT_DIRECTORY=$(swift build "${BUILD_ARGS[@]}" --show-bin-path)
+BUILT_BINARY="$BUILT_DIRECTORY/Detours"
+[ -x "$BUILT_BINARY" ] || { log_error "Built executable missing: $BUILT_BINARY"; exit 1; }
+log_info "Bundle executable: $BUILT_BINARY"
 log_ok "Build complete"
 
 # Create app bundle

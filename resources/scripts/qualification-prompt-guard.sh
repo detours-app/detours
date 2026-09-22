@@ -91,6 +91,7 @@ run_live() {
     [[ ! -e "$visible_ready" && ! -e "$visible_incident" && ! -e "$tccd_log" ]] || exit 1
 
     cleanup() {
+        trap - EXIT HUP INT TERM
         if [[ -n "$stream_pid" ]] && kill -0 "$stream_pid" 2>/dev/null; then
             kill -TERM "$stream_pid" 2>/dev/null || true
             wait "$stream_pid" 2>/dev/null || true
@@ -179,6 +180,7 @@ run_live() {
         fi
         sleep 0.1
     done
+    cleanup
 }
 
 case "${1:-}" in
