@@ -6,6 +6,10 @@
 | --- | --- | --- |
 | Restored tab, SSH lifetime, refresh recovery and teardown regression classes | `bb5f066` | FAIL: 25 tests, one failure. The new restored-tab regression had a registered directory watch but the connection became disconnected at the idle deadline because the pending remote tab never acquired a pane ownership count. The other 24 tests passed. |
 | Same four regression classes after pending-tab ownership fix | `e95602a` | PASS: 25 tests, zero failures, 1.510 seconds after a 6.50-second build. The restored tab remains connected past the idle deadline and closing it permits idle teardown. |
+| Guarded live Intel Mac provider UI check, `restored-remote-lifetime` | `e4e7219` | FAIL: signed app build passed in 46.24 seconds and the XCResult reports one passing test, but cleanup rejected the concurrently running full-suite xctest process and the prompt guard exited with `stream_pid: unbound variable`. Qualification is not accepted until cleanup and prompt audit pass. No Spectre install performed. |
+| Read-only inspection of the executable installed at 12:06 | `411067b` | FAIL: bundle version 1.13.1 contains the old error-banner text. The installer copied the fixed `.build/arm64-apple-macosx/release/Detours` artifact dated September 14, while `.build/release` points to the current `.build/out/Products/Release` artifact containing the corrected messages. Earlier Foundry UI evidence does not prove that the corrected executable reached Spectre. |
+| Full Foundry SSH suite excluding login-session classes | `e4e7219` | PASS: 1,104 XCTest passes, 14 Windows live skips because the host was unreachable, zero failures, 233.986 seconds; 47 Swift Testing cases also passed. This does not waive the failed UI qualification or prove delivery to Spectre. |
+| Exact failed-run cleanup after the full suite completed | `e4e7219` | PASS: canonical cleanup removed the guarded Foundry fixture root and returned zero. The failed prompt guard left its two detector processes orphaned; their recorded PIDs and command lines were checked before terminating those exact processes. |
 
 ## 2026-09-22 10:58 (Foundry, remote refresh recovery)
 
