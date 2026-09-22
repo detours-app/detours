@@ -2,6 +2,23 @@ import Foundation
 import XCTest
 
 final class BuildCacheTests: XCTestCase {
+    func testWholeUIRunIncludesSeparatelySeededGeometryCases() throws {
+        let script = try String(contentsOfFile: "resources/scripts/qualification-workflows.sh", encoding: .utf8)
+        let start = try XCTUnwrap(script.range(of: "run_installed_all() {"))
+        let end = try XCTUnwrap(script.range(of: "run_installed_qualification_batch() {"))
+        let runner = String(script[start.lowerBound..<end.lowerBound])
+        for test in [
+            "testOversizedSavedWindowFrameComesBackAtItsSavedSize",
+            "testPoisonedSavedWindowFrameFallsBackWithoutJump",
+            "testPoisonedSplitDefaultsFallBackWithoutUnusablePanes",
+        ] {
+            XCTAssertTrue(runner.contains("-skip-testing:DetoursUITests/WindowPaneGeometryUITests/\(test)"))
+            XCTAssertEqual(runner.components(separatedBy: test).count, 3, "Each case must also run with its seed")
+        }
+        XCTAssertTrue(runner.contains("run_installed_once session LOCAL_ROOT 1"))
+        XCTAssertTrue(runner.contains("WindowPaneGeometryUITests/$DETOURS_GEOMETRY_CASE"))
+    }
+
     func testBundleUsesTheExecutableReportedByTheCurrentBuild() throws {
         let script = try String(contentsOfFile: "resources/scripts/build.sh", encoding: .utf8)
         XCTAssertTrue(script.contains("swift build \"${BUILD_ARGS[@]}\""))

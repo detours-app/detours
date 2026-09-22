@@ -663,6 +663,9 @@ run_installed_all() {
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath "$QUALIFICATION_UI_DERIVED_DATA" \
             -only-testing:DetoursUITests \
+            -skip-testing:DetoursUITests/WindowPaneGeometryUITests/testOversizedSavedWindowFrameComesBackAtItsSavedSize \
+            -skip-testing:DetoursUITests/WindowPaneGeometryUITests/testPoisonedSavedWindowFrameFallsBackWithoutJump \
+            -skip-testing:DetoursUITests/WindowPaneGeometryUITests/testPoisonedSplitDefaultsFallBackWithoutUnusablePanes \
             "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
             "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$LOCAL_ROOT" \
             "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
@@ -680,6 +683,16 @@ run_installed_all() {
     fi
     record_scenario_timing installed all INSTALLED_ALL 1 "$started_at" "$status"
     (( status == 0 )) || return "$status"
+    local DETOURS_GEOMETRY_CASE
+    for DETOURS_GEOMETRY_CASE in \
+        testPoisonedSplitDefaultsFallBackWithoutUnusablePanes \
+        testPoisonedSavedWindowFrameFallsBackWithoutJump \
+        testOversizedSavedWindowFrameComesBackAtItsSavedSize; do
+        run_installed_once session LOCAL_ROOT 1 \
+            "${log_path}-${DETOURS_GEOMETRY_CASE}" \
+            "${result_bundle%.xcresult}-${DETOURS_GEOMETRY_CASE}.xcresult" \
+            "" LOCAL_ROOT "WindowPaneGeometryUITests/$DETOURS_GEOMETRY_CASE"
+    done
 }
 
 run_installed_qualification_batch() {

@@ -11,6 +11,7 @@
 | Full Foundry SSH suite excluding login-session classes | `e4e7219` | PASS: 1,104 XCTest passes, 14 Windows live skips because the host was unreachable, zero failures, 233.986 seconds; 47 Swift Testing cases also passed. This does not waive the failed UI qualification or prove delivery to Spectre. |
 | Exact failed-run cleanup after the full suite completed | `e4e7219` | PASS: canonical cleanup removed the guarded Foundry fixture root and returned zero. The failed prompt guard left its two detector processes orphaned; their recorded PIDs and command lines were checked before terminating those exact processes. |
 | Build selection, qualification contracts, restoration and refresh recovery | `04e6ff0` | PASS: 32 tests, zero failures, 3.823 seconds after a 3.15-second build. Includes output-path regression, guarded cleanup contracts and restored connection lifetime. |
+| Full guarded UI target, `delivery-ui-all` | `6674dee` | FAIL: 93 cases passed before the oversized saved-window case asserted 1,060 points against a required width above 1,920. The all-tests path omitted the per-case geometry preference seeding already used by the focused runner. Guarded cleanup and prompt audit completed without the previous cleanup error. No Spectre install performed. |
 
 ## 2026-09-22 10:58 (Foundry, remote refresh recovery)
 
