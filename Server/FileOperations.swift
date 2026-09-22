@@ -41,9 +41,21 @@ struct FileOperations {
             .filter { showHidden || !$0.hasPrefix(".") }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
 
-        return try contents.map { name in
-            try fileEntry(path: URL(fileURLWithPath: directory).appendingPathComponent(name).path)
+        return try contents.compactMap { name in
+            do {
+                return try fileEntry(path: URL(fileURLWithPath: directory).appendingPathComponent(name).path)
+            } catch {
+                guard Self.isMissingFileError(error) else { throw error }
+                return nil
+            }
         }
+    }
+
+    static func isMissingFileError(_ error: any Error) -> Bool {
+        let error = error as NSError
+        return (error.domain == NSCocoaErrorDomain
+            && [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code))
+            || (error.domain == NSPOSIXErrorDomain && [Int(ENOENT), Int(ENOTDIR)].contains(error.code))
     }
 
     func stat(path: ServerRemotePath) throws -> Data {

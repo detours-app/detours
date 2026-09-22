@@ -187,10 +187,11 @@ extension FileListViewController {
         banner.setAccessibilityRole(.group)
         banner.setAccessibilityIdentifier("remoteRefreshErrorBanner")
 
-        let directoryName = directory.lastPathComponent.isEmpty
-            ? directory.path
-            : directory.lastPathComponent
-        let message = "Could not refresh \"\(directoryName)\". \(error.localizedDescription)"
+        Logger(subsystem: "com.detours", category: "filelist")
+            .error("Remote refresh failed: \(error.localizedDescription, privacy: .public)")
+        let message = (error as? RemoteFileProviderError) == .notFound
+            ? "This folder no longer exists. Open its parent folder."
+            : "Could not refresh this folder. Try again."
         banner.setAccessibilityLabel("Remote refresh failed. \(message)")
 
         let label = NSTextField(labelWithString: message)
@@ -198,6 +199,9 @@ extension FileListViewController {
         label.font = ThemeManager.shared.currentTheme.uiFont(size: 12)
         label.textColor = ThemeManager.shared.currentTheme.textPrimary
         label.lineBreakMode = .byTruncatingMiddle
+        label.maximumNumberOfLines = 1
+        label.cell?.wraps = false
+        label.cell?.usesSingleLineMode = true
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         label.widthAnchor.constraint(lessThanOrEqualToConstant: messageMaximumWidth).isActive = true
         label.setAccessibilityIdentifier("remoteRefreshErrorLabel")
@@ -210,6 +214,8 @@ extension FileListViewController {
         retryButton.translatesAutoresizingMaskIntoConstraints = false
         retryButton.bezelStyle = .rounded
         retryButton.controlSize = .small
+        retryButton.setContentHuggingPriority(.required, for: .horizontal)
+        retryButton.setContentCompressionResistancePriority(.required, for: .horizontal)
         retryButton.setAccessibilityIdentifier("remoteRefreshRetryButton")
         retryButton.setAccessibilityLabel("Retry remote refresh")
 
@@ -217,16 +223,18 @@ extension FileListViewController {
         banner.addSubview(retryButton)
         view.addSubview(banner, positioned: .above, relativeTo: scrollView)
         NSLayoutConstraint.activate([
-            banner.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 6),
-            banner.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 8),
-            banner.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -8),
+            banner.topAnchor.constraint(equalTo: filterBar.bottomAnchor),
+            banner.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            banner.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            banner.heightAnchor.constraint(equalToConstant: 32),
             label.leadingAnchor.constraint(equalTo: banner.leadingAnchor, constant: 10),
             label.centerYAnchor.constraint(equalTo: banner.centerYAnchor),
-            retryButton.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
+            retryButton.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 8),
             retryButton.trailingAnchor.constraint(equalTo: banner.trailingAnchor, constant: -8),
             retryButton.topAnchor.constraint(equalTo: banner.topAnchor, constant: 5),
             retryButton.bottomAnchor.constraint(equalTo: banner.bottomAnchor, constant: -5),
         ])
+        scrollViewTopConstraint?.constant = 32
         remoteRefreshErrorBanner = banner
 
         let userInfo: [NSAccessibility.NotificationUserInfoKey: Any] = [
@@ -247,6 +255,7 @@ extension FileListViewController {
         }
         remoteRefreshErrorBanner?.removeFromSuperview()
         remoteRefreshErrorBanner = nil
+        scrollViewTopConstraint?.constant = 0
         failedRemoteRefreshDirectory = nil
     }
 

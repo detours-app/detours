@@ -335,6 +335,17 @@ extension FileListViewController {
         switch request.directory {
         case .remote:
             guard isCurrentRemoteRefreshDirectory(request.directory) else { return }
+            guard paneHasRefreshableListing(request.directory) else { return }
+            if (error as? RemoteFileProviderError) == .notFound,
+               request.directory != currentRemoteLocation {
+                unwatchCollapsedDirectory(request.directory)
+                hideRemoteRefreshError(for: request.directory)
+                refreshScheduler.submitListingRefresh(
+                    directory: request.directory.deletingLastPathComponent(),
+                    cause: .watcher
+                )
+                return
+            }
             showRemoteRefreshError(directory: request.directory, error: error)
         case .local(let url):
             guard paneHasRefreshableListing(request.directory) else { return }

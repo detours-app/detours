@@ -3,6 +3,7 @@ import Foundation
 enum RemoteFileProviderError: Error, Equatable, LocalizedError {
     case expectedRemote(Location)
     case invalidResponse(String)
+    case notFound
 
     var errorDescription: String? {
         switch self {
@@ -10,6 +11,8 @@ enum RemoteFileProviderError: Error, Equatable, LocalizedError {
             return "Expected a remote location."
         case .invalidResponse(let message):
             return message
+        case .notFound:
+            return "The remote folder no longer exists."
         }
     }
 }
@@ -133,7 +136,7 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
         if envelope.kind == .error {
             pendingResponses.removeValue(forKey: envelope.id)?
                 .continuation
-                .resume(throwing: RemoteFileProviderError.invalidResponse(Self.decodeError(envelope.payload)))
+                .resume(throwing: Self.decodeError(envelope.payload))
             return
         }
 
@@ -158,12 +161,15 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
         }
     }
 
-    private static func decodeError(_ payload: Data) -> String {
+    static func decodeError(_ payload: Data) -> RemoteFileProviderError {
         var reader = RPCBinaryReader(data: payload)
         if let message = try? reader.readString(), !message.isEmpty {
-            return message
+            if (try? reader.readString()) == "notFound" {
+                return .notFound
+            }
+            return .invalidResponse(message)
         }
-        return "The remote server reported an error."
+        return .invalidResponse("The remote server reported an error.")
     }
 
     #if DEBUG

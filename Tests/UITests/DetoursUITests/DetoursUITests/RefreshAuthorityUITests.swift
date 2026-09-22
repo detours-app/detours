@@ -143,6 +143,30 @@ final class RefreshAuthorityRemoteRenameUITests: BaseUITest {
         return visible.first ?? app.leftPaneOutlineView
     }
 
+    func testRefreshErrorIsReadableAboveListingAndRetryRecovers() throws {
+        let outline = visibleLeftOutline()
+        let row = outline.outlineRow(withStaticText: "file1.txt")
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.staticTexts["file1.txt"].click()
+        try forceNextRemoteFailure(operation: "list", message: String(repeating: "NSFilePath=broken\n", count: 100))
+        pressCharKey("r", modifiers: .command)
+        let banner = app.descendants(matching: .any)["remoteRefreshErrorBanner"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 5))
+        let label = app.staticTexts["remoteRefreshErrorLabel"]
+        let retry = app.buttons["remoteRefreshRetryButton"]
+        XCTAssertEqual(label.value as? String ?? label.label, "Could not refresh this folder. Try again.")
+        XCTAssertLessThanOrEqual(banner.frame.maxY, outline.frame.minY)
+        XCTAssertLessThan(retry.frame.width, 90)
+        XCTAssertTrue(row.isHittable)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Remote refresh error above listing"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        retry.click()
+        XCTAssertTrue(waitForCondition(timeout: 5) { !banner.exists })
+        XCTAssertTrue(row.isHittable)
+    }
+
     func testRemoteInlineRenameShowsSingleEditorAndSelectsResult() throws {
         let leftOutline = visibleLeftOutline()
         let fileRow = leftOutline.outlineRow(withStaticText: "file1.txt")
