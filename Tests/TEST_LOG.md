@@ -20,6 +20,7 @@
 | Guarded installed automatic recovery and error presentation check | `a9cdd3e` | PASS: one UI regression passed; automatic recovery after a watcher-triggered transient failure and bounded retries before persistent-error presentation. Run `remote-refresh-recovery-a9cdd3e` returned zero after cleanup; zero consent prompts or interruptions. Exported screenshot inspected: one-line message and compact button above unobstructed headings and rows. |
 | Full Foundry SSH regression suite after automatic recovery changes | `a9cdd3e` | PASS: 1,103 XCTest passes, 14 Windows live skips because `detours-windows` was unreachable, zero failures; 47 Swift Testing cases also passed. SSH suite completed in 235.271 seconds and returned zero. |
 | Foundry login-session clipboard and path-control classes | `a9cdd3e` | PASS: 19 tests, zero skips or failures, guarded GUI runner returned zero. |
+| Version 1.13.1 signed build and focused installed regression | `9a055f3` | PASS: build completed in 0.29 seconds and bundle metadata reports 1.13.1; guarded run `release-1-13-1-9a055f3` passed one UI case with zero skips, failures, prompts or interruptions, and cleanup passed. Exported screenshot inspected: compact error strip above readable headings and rows. Executable sources are unchanged from the full-suite-qualified build. |
 
 ## Evidence policy
 
