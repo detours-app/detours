@@ -16,6 +16,7 @@
 | Guarded oversized-window regression with required seed, `delivery-ui-geometry` | `cde3a92` | PASS: the previously failing case passes through the seeded launcher; qualification returned zero. This isolates the failure to missing test setup, not window restoration. |
 | Corrected full guarded UI target, `delivery-ui-all` | `835ba48` | PASS: 99 cases passed across the 106-case shared batch and three seeded geometry cases; 10 screenshot/live-provider cases skipped because their contexts were not selected. Zero failures, consent prompts, interruptions or cleanup errors. The error-banner and automatic refresh recovery case passed. |
 | Final live Wraith provider UI check, `delivery-ui-remote` | `13931e9` | PASS: external creation appeared through the real provider watcher before manual refresh; guarded qualification returned zero. The full-target error screenshot was inspected: a one-line message and compact Retry button sit above unobstructed column headings and file rows. |
+| Final Spectre install-only delivery after Foundry qualification | `0014ed1` | PASS: normal build script compiled in 45.76 seconds, selected `.build/out/Products/Release/Detours`, signed, installed and relaunched. Read-only artifact verification found identical arm64 UUID `AA496166-919B-3798-8772-6DEFCF5DE7EE` in the built and installed executables, the corrected error text in the installed binary, version 1.13.1, and a valid deep strict code signature. No Spectre tests or runtime probes ran. |
 
 ## 2026-09-22 10:58 (Foundry, remote refresh recovery)
 
