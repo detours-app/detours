@@ -15,6 +15,7 @@
 | Focused installer, geometry-runner contract and remote regressions | `553325f` | PASS: 33 tests, zero failures, 3.847 seconds. The new contract requires all three geometry cases to run through the seeded launcher rather than being omitted from qualification. |
 | Guarded oversized-window regression with required seed, `delivery-ui-geometry` | `cde3a92` | PASS: the previously failing case passes through the seeded launcher; qualification returned zero. This isolates the failure to missing test setup, not window restoration. |
 | Corrected full guarded UI target, `delivery-ui-all` | `835ba48` | PASS: 99 cases passed across the 106-case shared batch and three seeded geometry cases; 10 screenshot/live-provider cases skipped because their contexts were not selected. Zero failures, consent prompts, interruptions or cleanup errors. The error-banner and automatic refresh recovery case passed. |
+| Final live Wraith provider UI check, `delivery-ui-remote` | `13931e9` | PASS: external creation appeared through the real provider watcher before manual refresh; guarded qualification returned zero. The full-target error screenshot was inspected: a one-line message and compact Retry button sit above unobstructed column headings and file rows. |
 
 ## 2026-09-22 10:58 (Foundry, remote refresh recovery)
 
