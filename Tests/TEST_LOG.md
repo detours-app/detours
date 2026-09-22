@@ -12,6 +12,7 @@
 | Exact failed-run cleanup after the full suite completed | `e4e7219` | PASS: canonical cleanup removed the guarded Foundry fixture root and returned zero. The failed prompt guard left its two detector processes orphaned; their recorded PIDs and command lines were checked before terminating those exact processes. |
 | Build selection, qualification contracts, restoration and refresh recovery | `04e6ff0` | PASS: 32 tests, zero failures, 3.823 seconds after a 3.15-second build. Includes output-path regression, guarded cleanup contracts and restored connection lifetime. |
 | Full guarded UI target, `delivery-ui-all` | `6674dee` | FAIL: 93 cases passed before the oversized saved-window case asserted 1,060 points against a required width above 1,920. The all-tests path omitted the per-case geometry preference seeding already used by the focused runner. Guarded cleanup and prompt audit completed without the previous cleanup error. No Spectre install performed. |
+| Focused installer, geometry-runner contract and remote regressions | `553325f` | PASS: 33 tests, zero failures, 3.847 seconds. The new contract requires all three geometry cases to run through the seeded launcher rather than being omitted from qualification. |
 
 ## 2026-09-22 10:58 (Foundry, remote refresh recovery)
 
