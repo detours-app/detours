@@ -198,10 +198,19 @@ extension FileListViewController {
     }
 
     func showPendingRemoteReconnect(host: RemoteHost, path: String) {
+        let previousRemoteHost = currentRemoteHost
         refreshScheduler.noteNavigation()
         dataSource.cancelCurrentLoad()
         hideErrorOverlay()
         currentRemoteHost = host
+        if previousRemoteHost?.id != host.id {
+            Task {
+                if let previousRemoteHost {
+                    await RemoteConnectionRegistry.shared.paneStoppedViewing(hostID: previousRemoteHost.id)
+                }
+                await RemoteConnectionRegistry.shared.paneStartedViewing(hostID: host.id)
+            }
+        }
         currentRemoteLocation = .remote(hostID: host.id, path: path)
         currentRemoteProvider = nil
         currentDirectory = nil

@@ -1,5 +1,11 @@
 # Test Log
 
+## 2026-09-22 18:46 (Foundry, restored remote connection lifetime)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Restored tab, SSH lifetime, refresh recovery and teardown regression classes | `bb5f066` | FAIL: 25 tests, one failure. The new restored-tab regression had a registered directory watch but the connection became disconnected at the idle deadline because the pending remote tab never acquired a pane ownership count. The other 24 tests passed. |
+
 ## 2026-09-22 10:58 (Foundry, remote refresh recovery)
 
 | Check | Commit | Result |
