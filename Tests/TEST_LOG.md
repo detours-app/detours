@@ -10,6 +10,7 @@
 | Read-only inspection of the executable installed at 12:06 | `411067b` | FAIL: bundle version 1.13.1 contains the old error-banner text. The installer copied the fixed `.build/arm64-apple-macosx/release/Detours` artifact dated September 14, while `.build/release` points to the current `.build/out/Products/Release` artifact containing the corrected messages. Earlier Foundry UI evidence does not prove that the corrected executable reached Spectre. |
 | Full Foundry SSH suite excluding login-session classes | `e4e7219` | PASS: 1,104 XCTest passes, 14 Windows live skips because the host was unreachable, zero failures, 233.986 seconds; 47 Swift Testing cases also passed. This does not waive the failed UI qualification or prove delivery to Spectre. |
 | Exact failed-run cleanup after the full suite completed | `e4e7219` | PASS: canonical cleanup removed the guarded Foundry fixture root and returned zero. The failed prompt guard left its two detector processes orphaned; their recorded PIDs and command lines were checked before terminating those exact processes. |
+| Build selection, qualification contracts, restoration and refresh recovery | `04e6ff0` | PASS: 32 tests, zero failures, 3.823 seconds after a 3.15-second build. Includes output-path regression, guarded cleanup contracts and restored connection lifetime. |
 
 ## 2026-09-22 10:58 (Foundry, remote refresh recovery)
 
