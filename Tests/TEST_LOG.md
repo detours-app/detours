@@ -9,6 +9,8 @@
 | First installed-check launch, `remote-refresh-recovery-cd4a6f5` | `cd4a6f5` | INCOMPLETE: local background supervisor exited during the app build, before XCUI. Exact cancellation ran and a process check confirmed no qualification or build processes remained. |
 | Supervised build's Linux helper checks on dockerhost | `cd4a6f5` | PASS: 18 process tests in 12.001 seconds and 14 archive tests in 1.474 seconds, zero failures. |
 | Signed Foundry build and `RefreshAuthorityRemoteRenameUITests/testRefreshErrorIsReadableAboveListingAndRetryRecovers` | `cd4a6f5` | FAIL: app build passed in 46.14 seconds; UI test reached the remote file row but the expected error banner did not appear at line 154. The fake provider read failure controls from the fixture root, while the sandboxed runner wrote them to its separate control root. Run `remote-refresh-recovery-cd4a6f5-2`. |
+| Signed Foundry build and focused installed refresh error check | `09df826` | PASS: app build completed in 46.57 seconds; guarded UI run verified readable text above the listing, a compact Retry button, visible file rows, and successful retry. Run `remote-refresh-recovery-09df826`; launcher returned zero after cleanup. |
+| Full Foundry SSH suite, excluding the two login-session classes | `09df826` | FAIL: stopped on `DarwinServerSmokeTests/testMalformedRequestDoesNotTerminateDarwinHelper`; appending an error-classification field broke the single-string error payload contract. The run was terminated after preserving the failure. |
 
 ## Evidence policy
 

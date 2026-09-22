@@ -164,7 +164,7 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
     static func decodeError(_ payload: Data) -> RemoteFileProviderError {
         var reader = RPCBinaryReader(data: payload)
         if let message = try? reader.readString(), !message.isEmpty {
-            if (try? reader.readString()) == "notFound" {
+            if message == "notFound" {
                 return .notFound
             }
             return .invalidResponse(message)

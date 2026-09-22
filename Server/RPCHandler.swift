@@ -238,8 +238,7 @@ struct RPCHandler: @unchecked Sendable {
 
     static func encodeError(_ error: Error) -> Data {
         var writer = ServerRPCBinaryWriter()
-        writer.writeString(String(describing: error))
-        writer.writeString(FileOperations.isMissingFileError(error) ? "notFound" : "other")
+        writer.writeString(FileOperations.isMissingFileError(error) ? "notFound" : String(describing: error))
         return writer.data
     }
 

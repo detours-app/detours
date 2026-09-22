@@ -10,6 +10,13 @@ final class RemoteRefreshRecoveryTests: XCTestCase {
         XCTAssertEqual(SSHRemoteRPCClient.decodeError(payload), .notFound)
     }
 
+    func testMissingErrorKeepsSingleStringWireFormat() throws {
+        let payload = RPCHandler.encodeError(NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT)))
+        var reader = ServerRPCBinaryReader(data: payload)
+        XCTAssertEqual(try reader.readString(), "notFound")
+        XCTAssertNoThrow(try reader.requireComplete())
+    }
+
     func testPermissionErrorIsNotTreatedAsDisappearance() {
         let error = NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES))
         XCTAssertFalse(FileOperations.isMissingFileError(error))
