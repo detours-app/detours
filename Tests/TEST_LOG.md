@@ -17,6 +17,9 @@
 | Automatic watcher recovery helper checks on dockerhost | `4cb6bf3` | PASS: 18 process tests and 14 archive tests, zero failures. |
 | Signed Foundry build with automatic watcher recovery | `4cb6bf3` | PASS: Linux helper, universal macOS helper, and signed app build completed; result zero. |
 | Focused automatic recovery, watcher, listing and protocol checks | `4cb6bf3` | PASS: 42 tests, zero skips or failures, 5.147 seconds. Includes missed native events, in-place edits, replaced directories, shared subscriptions, reconnect restoration and bounded automatic retry. |
+| Guarded installed automatic recovery and error presentation check | `a9cdd3e` | PASS: one UI regression passed; automatic recovery after a watcher-triggered transient failure and bounded retries before persistent-error presentation. Run `remote-refresh-recovery-a9cdd3e` returned zero after cleanup; zero consent prompts or interruptions. Exported screenshot inspected: one-line message and compact button above unobstructed headings and rows. |
+| Full Foundry SSH regression suite after automatic recovery changes | `a9cdd3e` | PASS: 1,103 XCTest passes, 14 Windows live skips because `detours-windows` was unreachable, zero failures; 47 Swift Testing cases also passed. SSH suite completed in 235.271 seconds and returned zero. |
+| Foundry login-session clipboard and path-control classes | `a9cdd3e` | PASS: 19 tests, zero skips or failures, guarded GUI runner returned zero. |
 
 ## Evidence policy
 
