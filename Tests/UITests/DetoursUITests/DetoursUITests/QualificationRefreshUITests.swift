@@ -359,6 +359,10 @@ final class QualificationRefreshUITests: BaseUITest {
         }
 
         let unchangedMutationCount = state.listingMutationCount
+        let automaticUpdate = XCTAttachment(screenshot: app.screenshot())
+        automaticUpdate.name = "Provider change visible before manual refresh"
+        automaticUpdate.lifetime = .keepAlways
+        add(automaticUpdate)
         let requestCount = state.refreshRequestCount
         state = try performManualRefresh(after: state)
         XCTAssertGreaterThan(state.refreshRequestCount, requestCount)
