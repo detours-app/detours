@@ -1,5 +1,11 @@
 # Test Log
 
+## 2026-09-22 10:58 (Foundry, remote refresh recovery)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| `swift test --filter 'RemoteRefreshRecoveryTests\|PaneRefreshRemoteListingTests\|FileOperationsServerTests'` | `e3502e2` | PASS: 26 tests, zero failures, 0.955 seconds after a 7.93-second build. Covers vanished files, missing expanded folders, error transport, narrow error layout, and retry recovery. |
+
 ## Evidence policy
 
 Every historical entry that reports a Detours test, test build, runtime probe, UI automation run, or test-data setup on Spectre is an **INVALID INCIDENT RECORD**. Its recorded PASS or FAIL value describes what that prohibited command reported at the time; it is not accepted verification evidence. These entries remain in the log to preserve the incident history. Spectre install-only `resources/scripts/build.sh` delivery records remain valid when they follow Foundry verification.
