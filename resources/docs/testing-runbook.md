@@ -206,6 +206,10 @@ Disabling the sandbox on the UI test target would lift the write restriction. It
 
 `qualification.sh installed-all LOCAL_ROOT` runs the whole XCUI target once under the same preflight, sentry, outside-root comparison and cleanup as the workflow campaigns.
 
+The shared batch excludes only the three cases that require distinct saved preferences: oversized window, off-screen window, and unusable split frames. After that batch passes, the runner executes each through the seeded single-case launcher, reusing the build and writing a separate result bundle for each. These cases remain part of whole-target qualification; they are not omitted from coverage. Tests requiring a live host or screenshot fixture can still skip in `LOCAL_ROOT`, so that run does not replace a required provider-specific check.
+
+Run the unit suite and installed UI qualification sequentially. Installed cleanup rejects a remaining `xctest` process, including one from a concurrent unit run. The prompt guard explicitly stops its detectors before returning from live monitoring and clears its exit trap during cleanup.
+
 This exists because for two weeks only the eight workflow tests ever ran under the guarded runner. The rest of the target kept passing under assumptions the runner does not hold, and nobody could see it: tests wrote fixtures directly, wrote control files into the fixture root, and reached the fixture root by opening one row in the home directory. A harness that covers a subset while reading as the qualification hides that rot. Run the whole target after any change to the runner, the roots, or the control seam.
 
 Supervision of a whole-target run is deliberately thin: xcodebuild reports per-test progress, the live scanners report a failure or a consent dialog the moment it appears, an elapsed line proves the run is not silent, and one absolute deadline bounds it. Counting per-iteration heartbeats belongs to the repetition campaigns that write them; applied to a whole-target run it once failed a run in which every test passed.
@@ -225,6 +229,8 @@ Marco removed the 12-hour soak from the current qualification on 2026-07-22. It 
 ## Coverage Model
 
 Remote change recovery is covered by `ServerWatchRecoveryTests` for missed events, in-place edits, directory replacement and shared subscriptions, and `RemoteRefreshRecoveryTests` for disappearance, reconnect reloads, automatic retries and error layout. `RefreshAuthorityRemoteRenameUITests/testRefreshErrorIsReadableAboveListingAndRetryRecovers` is the focused installed boundary: repeated injected failures prove the compact banner and Retry control, then a watcher-triggered rename proves recovery without manual refresh. The fake provider consumes its failure request from the runner control directory, not the fixture root.
+
+`RestoredRemoteConnectionTests` proves that a restored tab keeps its connection alive beyond the idle deadline and releases that ownership on close. `QualificationRefreshUITests/testRefreshProviderBoundary` verifies external creation through the real provider watcher before manual refresh and retains a screenshot of that state. `BuildCacheTests` covers selection of the current build's executable and inclusion of all three seeded geometry cases in whole-target qualification.
 
 The capability matrix remains the contract for what must be proved. The test layer is chosen separately from the capability.
 

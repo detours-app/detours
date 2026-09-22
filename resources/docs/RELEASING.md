@@ -64,6 +64,8 @@ resources/scripts/confirm-update-docs.sh
 
 The confirmation helper records the current clean commit after the docs pass. `release.sh` refuses to continue if the confirmation is missing, stale, or the worktree has uncommitted changes.
 
+The build script asks Swift for the executable output directory using the same configuration and architecture arguments as the build, then logs the executable it bundles. It does not assume a fixed architecture-specific cache path. A matching app version alone does not prove that the installed executable is current: compare the built and installed Mach-O UUIDs when checking delivery. The final Spectre install follows successful Foundry verification and relaunches Detours.
+
 The script reads the version from the root `VERSION` file and:
 
 1. Verifies the `$update-docs` preflight for the current clean commit

@@ -325,6 +325,8 @@ Large transfers use a second SSH channel so listings, git status, Quick Open sea
 
 Remote listings update automatically. On supported macOS and Linux hosts, native notifications normally trigger a refresh after a 100 ms quiet period; a once-per-second check catches missed changes and in-place edits. Network and listing time add to that delay. Reconnects restore watches and reload visible folders, and transient failures retry automatically. Persistent errors use a compact banner above the list. See [Automatic Remote Updates](remote-vm-browsing.md#automatic-remote-updates) for timing and platform details.
 
+An open remote tab keeps its connection active even when you are not interacting with it. This also applies to tabs restored when Detours starts, so the idle timeout does not silently stop their updates.
+
 ### Remote Trash
 
 Remote deletes do not use the Mac Trash. On macOS and Linux hosts, Detours uses the remote user's FreeDesktop trash. On Windows hosts, it uses a Detours-managed `.detours-trash` folder in the user's profile. Undo restores items from the corresponding host-side trash. The first remote delete shows an explainer; it is also available from Help → About Remote Trash.
