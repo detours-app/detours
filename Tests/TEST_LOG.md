@@ -14,6 +14,9 @@
 | Wire-compatible helper build's Linux checks on dockerhost | `bd3f51a` | PASS: 18 process tests and 14 archive tests, zero failures. |
 | Signed Foundry build and focused recovery/protocol checks | `bd3f51a` | PASS: build returned zero; 30 tests passed with zero skips or failures, including `DarwinServerSmokeTests` and the single-string framing regression. |
 | Full Foundry SSH suite, excluding login-session classes | `bd3f51a` | PASS: 1,096 XCTest cases passed, 14 Windows live cases skipped, zero failures. This precedes the additional automatic watcher recovery work requested during verification. |
+| Automatic watcher recovery helper checks on dockerhost | `4cb6bf3` | PASS: 18 process tests and 14 archive tests, zero failures. |
+| Signed Foundry build with automatic watcher recovery | `4cb6bf3` | PASS: Linux helper, universal macOS helper, and signed app build completed; result zero. |
+| Focused automatic recovery, watcher, listing and protocol checks | `4cb6bf3` | PASS: 42 tests, zero skips or failures, 5.147 seconds. Includes missed native events, in-place edits, replaced directories, shared subscriptions, reconnect restoration and bounded automatic retry. |
 
 ## Evidence policy
 
