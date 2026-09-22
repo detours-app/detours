@@ -13,6 +13,7 @@
 | Build selection, qualification contracts, restoration and refresh recovery | `04e6ff0` | PASS: 32 tests, zero failures, 3.823 seconds after a 3.15-second build. Includes output-path regression, guarded cleanup contracts and restored connection lifetime. |
 | Full guarded UI target, `delivery-ui-all` | `6674dee` | FAIL: 93 cases passed before the oversized saved-window case asserted 1,060 points against a required width above 1,920. The all-tests path omitted the per-case geometry preference seeding already used by the focused runner. Guarded cleanup and prompt audit completed without the previous cleanup error. No Spectre install performed. |
 | Focused installer, geometry-runner contract and remote regressions | `553325f` | PASS: 33 tests, zero failures, 3.847 seconds. The new contract requires all three geometry cases to run through the seeded launcher rather than being omitted from qualification. |
+| Guarded oversized-window regression with required seed, `delivery-ui-geometry` | `cde3a92` | PASS: the previously failing case passes through the seeded launcher; qualification returned zero. This isolates the failure to missing test setup, not window restoration. |
 
 ## 2026-09-22 10:58 (Foundry, remote refresh recovery)
 
