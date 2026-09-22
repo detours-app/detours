@@ -554,14 +554,15 @@ actor UITestRemoteProvider: FileProvider {
             throw FileProviderError.unsupportedOperation("UI-test forced \(operation) failure")
         }
 
-        let controlURL = base.appendingPathComponent(Self.failureFileName)
+        let controlDirectory = UITestEnvironment.controlDirectory ?? base
+        let controlURL = controlDirectory.appendingPathComponent(Self.failureFileName)
         guard let data = try? Data(contentsOf: controlURL),
               let control = try? JSONDecoder().decode(FailureControl.self, from: data),
               control.operation == operation else {
             return
         }
         try FileManager.default.removeItem(at: controlURL)
-        let acknowledgementURL = base.appendingPathComponent(Self.failureAcknowledgementFileName)
+        let acknowledgementURL = controlDirectory.appendingPathComponent(Self.failureAcknowledgementFileName)
         try JSONEncoder().encode(control).write(to: acknowledgementURL, options: .atomic)
         throw FileProviderError.unsupportedOperation(
             control.message ?? "UI-test forced \(operation) failure"

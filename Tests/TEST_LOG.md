@@ -5,6 +5,10 @@
 | Check | Commit | Result |
 | --- | --- | --- |
 | `swift test --filter 'RemoteRefreshRecoveryTests\|PaneRefreshRemoteListingTests\|FileOperationsServerTests'` | `e3502e2` | PASS: 26 tests, zero failures, 0.955 seconds after a 7.93-second build. Covers vanished files, missing expanded folders, error transport, narrow error layout, and retry recovery. |
+| Foundry build's Linux helper checks on dockerhost | `cd4a6f5` | PASS: 18 process tests in 11.902 seconds and 14 archive tests in 1.509 seconds, zero failures. |
+| First installed-check launch, `remote-refresh-recovery-cd4a6f5` | `cd4a6f5` | INCOMPLETE: local background supervisor exited during the app build, before XCUI. Exact cancellation ran and a process check confirmed no qualification or build processes remained. |
+| Supervised build's Linux helper checks on dockerhost | `cd4a6f5` | PASS: 18 process tests in 12.001 seconds and 14 archive tests in 1.474 seconds, zero failures. |
+| Signed Foundry build and `RefreshAuthorityRemoteRenameUITests/testRefreshErrorIsReadableAboveListingAndRetryRecovers` | `cd4a6f5` | FAIL: app build passed in 46.14 seconds; UI test reached the remote file row but the expected error banner did not appear at line 154. The fake provider read failure controls from the fixture root, while the sandboxed runner wrote them to its separate control root. Run `remote-refresh-recovery-cd4a6f5-2`. |
 
 ## Evidence policy
 
