@@ -308,7 +308,7 @@ Remote panes support normal Detours workflows:
 - Drag remote files out to Finder or other apps
 - Archive and Extract Here, with formats based on host tool availability
 - Git status markers
-- File watching with polling fallback when needed
+- Automatic updates after external changes, replaced folders, reconnects, and transient listing failures
 
 Current remote exceptions:
 
@@ -317,9 +317,13 @@ Current remote exceptions:
 - Delete Immediately permanently removes remote items after the same explicit,
   non-recoverable confirmation used for local items.
 - Windows remote hosts do not support password-protected archives. Supported macOS and Linux helper hosts support password-protected ZIP and 7Z without placing passwords in process arguments.
-- Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported because this release bundles only `x86_64 Linux` and `x86_64 macOS` helpers.
+- Helper deployment accepts only x86_64 Linux and Intel macOS. Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported.
 
 Large transfers use a second SSH channel so listings, git status, Quick Open search, and watch events can continue on the metadata channel. A transfer the host refuses fails with the host's own message and leaves nothing at the destination. Remote git status runs after the directory listing completes; a slow repository should not block the list refresh.
+
+### Automatic Remote Updates
+
+Remote listings update automatically. On supported macOS and Linux hosts, native notifications normally trigger a refresh after a 100 ms quiet period; a once-per-second check catches missed changes and in-place edits. Network and listing time add to that delay. Reconnects restore watches and reload visible folders, and transient failures retry automatically. Persistent errors use a compact banner above the list. See [Automatic Remote Updates](remote-vm-browsing.md#automatic-remote-updates) for timing and platform details.
 
 ### Remote Trash
 

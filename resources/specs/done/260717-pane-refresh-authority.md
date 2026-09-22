@@ -5,6 +5,8 @@
 - Status: Implemented
 - Branch: fix/pane-refresh-authority
 
+Current implementation reconciliation (2026-09-22): steady-state remote failures now receive up to three automatic retries, while missing expanded folders refresh their parent and disappear from the tree. Reconnects restore watches and reload materialized directories. Remaining errors use a compact banner above the listing. These changes still enter through the scheduler; see [Automatic Remote Updates](../../docs/remote-vm-browsing.md#automatic-remote-updates).
+
 ---
 
 ## Business

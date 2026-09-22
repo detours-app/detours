@@ -12,6 +12,7 @@ Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macO
 - **Quick Open** - Spotlight locally and host-aware name search on remote tabs, with frecency ranking (Cmd-P)
 - **Git status indicators** - See modified, staged, and untracked files at a glance
 - **SSH remote browsing** - Browse supported macOS, Linux, and Windows hosts directly in Detours panes
+- **Automatic remote updates** - Detect external changes, recover watches after folder replacement or reconnect, and retry transient listing failures without manual refresh
 - **Remote file workflows** - Copy, move, cut, paste, trash, restore, archive,
   extract, create files/folders, Get Info, Quick Look, Open With, and drag files
   within or between local and remote panes
@@ -92,7 +93,7 @@ Shortcuts for the actions listed under Preferences > Shortcuts (Cmd-,) can be ch
 | Collapse All (recursive) | Option-Left |
 | Refresh | Cmd-R |
 | Filter | Cmd-F |
-| Connect to Server | Cmd-K |
+| Add Remote Host | Cmd-K |
 
 See the [User Guide](resources/docs/USER_GUIDE.md) for complete documentation.
 

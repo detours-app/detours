@@ -5,6 +5,8 @@
 - Status: Implemented
 - Branch: feature/remote-vm-browsing
 
+Current implementation reconciliation (2026-09-22): the tasks below retain the original design and completion record. Production Unix watches now use native events plus remote-side one-second directory snapshots, shared subscriptions, replacement-watch recovery, and pane-driven reconnect reloads. The ten-second client polling fallback described here exists as an isolated implementation but is not supplied to production watch setup, so its inotify-limit banner and recovery flow are not active. See [Automatic Remote Updates](../../docs/remote-vm-browsing.md#automatic-remote-updates) for the shipped behavior and limits.
+
 ---
 
 ## Business

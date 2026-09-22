@@ -23,7 +23,7 @@ The actual connection is still made by OpenSSH, so the SSH target may use the di
 - `ControlMaster`
 - `ControlPath`
 
-Host-key trust uses OpenSSH. The Add Remote Host flow scans the target host key before saving the host and records it in the user's known-hosts file; subsequent helper, transfer, and search SSH processes run with `StrictHostKeyChecking=yes`, public-key authentication, and no password prompts. If SSH rejects the target, Detours surfaces that failure instead of prompting for credentials inside the app.
+Host-key trust uses OpenSSH. Before saving a new host, Detours displays the scanned key's fingerprint and asks the user to confirm it with the server administrator. Only an accepted key is recorded in the user's known-hosts file. Subsequent helper, transfer, and search SSH processes run with `StrictHostKeyChecking=yes`, public-key authentication, and no password prompts. If SSH rejects the target, Detours surfaces that failure instead of prompting for credentials inside the app.
 
 ## Remote Workflows
 
@@ -43,7 +43,7 @@ Remote panes are normal Detours panes for the commands that have been routed thr
 - Drag files out to Finder or other apps
 - Archive and Extract Here, with formats based on host tool availability
 - Git status markers
-- File watching with polling fallback when needed
+- Automatic listing updates, including recovery from missed notifications, replaced folders, reconnects, and transient listing failures
 
 Current remote exceptions:
 
@@ -52,7 +52,17 @@ Current remote exceptions:
 - Delete Immediately permanently removes remote items after the same explicit,
   non-recoverable confirmation used for local items.
 - Password-protected ZIP and 7Z work through the bundled helper on supported macOS and Linux hosts. Windows remote hosts support unencrypted archives only.
-- Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported because this release bundles only `x86_64 Linux` and `x86_64 macOS` helpers.
+- Helper deployment accepts only x86_64 Linux and Intel macOS. Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported.
+
+## Automatic Remote Updates
+
+On supported macOS and Linux hosts, the helper watches the pane's root and expanded folders. It also compares directory identity and immediate-child metadata once per second on the remote host, catching in-place edits and missed native notifications without sending unchanged listings across SSH. Replacing a watched folder reattaches its native watch. Two panes watching the same folder keep independent subscriptions, so closing one does not stop updates in the other.
+
+Native events are collected on a 20 ms loop, then watcher-only refreshes wait for a 100 ms quiet period before requesting a listing. A missed event can add about one second before detection. These are scheduling intervals, not an end-to-end guarantee: listing time, network latency, ongoing operations, and continuing changes can add delay.
+
+Files that disappear during enumeration are skipped. If an expanded folder disappears, its parent is refreshed and the stale branch is removed. When a connection returns, loaded tabs for that host restore their watches and reload their visible directories. Transient listing failures retry automatically after 0.5, 1, and 2 seconds; navigation or a successful refresh cancels outstanding retries. An error that remains appears as a short, single-line banner above the listing, with Retry available. If the pane's root no longer exists, the banner directs the user to its parent; recreating the watched root can trigger recovery.
+
+Windows uses its separate PowerShell watcher. The helper's one-second metadata check applies only to successfully registered Unix watches. If the host refuses watch allocation, such as when Linux reaches its inotify limit, automatic updates for that directory are unavailable until a watch can be restored. A ten-second client polling implementation exists but is not connected to production watch setup.
 
 ## Remote Quick Open
 
@@ -75,7 +85,7 @@ The install writes a temporary file first and then renames it into place. On lat
 Bundled helper names:
 
 - `detours-server-x86_64-linux` for `Linux x86_64`
-- `detours-server-x86_64-darwin` for `Darwin x86_64`
+- `detours-server-x86_64-darwin` for `Darwin x86_64`; the file is universal arm64/x86_64 so Foundry can verify it natively, but deployment still rejects `Darwin arm64` hosts
 
 Apple Silicon macOS hosts (`Darwin arm64`) are not supported in this release.
 

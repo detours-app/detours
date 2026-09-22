@@ -224,6 +224,8 @@ Marco removed the 12-hour soak from the current qualification on 2026-07-22. It 
 
 ## Coverage Model
 
+Remote change recovery is covered by `ServerWatchRecoveryTests` for missed events, in-place edits, directory replacement and shared subscriptions, and `RemoteRefreshRecoveryTests` for disappearance, reconnect reloads, automatic retries and error layout. `RefreshAuthorityRemoteRenameUITests/testRefreshErrorIsReadableAboveListingAndRetryRecovers` is the focused installed boundary: repeated injected failures prove the compact banner and Retry control, then a watcher-triggered rename proves recovery without manual refresh. The fake provider consumes its failure request from the runner control directory, not the fixture root.
+
 The capability matrix remains the contract for what must be proved. The test layer is chosen separately from the capability.
 
 For refresh, the combination model includes:
