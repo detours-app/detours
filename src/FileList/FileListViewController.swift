@@ -127,6 +127,8 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     var errorOverlay: NSView?
     var remoteRefreshErrorBanner: NSView?
     var failedRemoteRefreshDirectory: Location?
+    var remoteRefreshRecoveryTasks: [Location: Task<Void, Never>] = [:]
+    var remoteRefreshRecoveryAttempts: [Location: Int] = [:]
     var failedLocalRefreshDirectory: Location?
     var quickLookPreviewItems: [DetoursQuickLookItem] = []
     /// Previews Detours renders itself are shown in this window rather than the system panel, which

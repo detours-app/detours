@@ -219,6 +219,7 @@ extension FileListViewController {
     func shutdown() {
         guard !isShutDown else { return }
         isShutDown = true
+        cancelRemoteRefreshRecovery()
         navigationLoadID = nil
         isNavigationLoadInFlight = false
         remoteExpansionRestoreTask?.cancel()

@@ -30,6 +30,7 @@ actor UITestRemoteProvider: FileProvider {
         let id: String
         let operation: String
         let message: String?
+        var count: Int?
     }
 
     private struct ListingGateNotice: Codable {
@@ -557,11 +558,16 @@ actor UITestRemoteProvider: FileProvider {
         let controlDirectory = UITestEnvironment.controlDirectory ?? base
         let controlURL = controlDirectory.appendingPathComponent(Self.failureFileName)
         guard let data = try? Data(contentsOf: controlURL),
-              let control = try? JSONDecoder().decode(FailureControl.self, from: data),
+              var control = try? JSONDecoder().decode(FailureControl.self, from: data),
               control.operation == operation else {
             return
         }
-        try FileManager.default.removeItem(at: controlURL)
+        if let count = control.count, count > 1 {
+            control.count = count - 1
+            try JSONEncoder().encode(control).write(to: controlURL, options: .atomic)
+        } else {
+            try FileManager.default.removeItem(at: controlURL)
+        }
         let acknowledgementURL = controlDirectory.appendingPathComponent(Self.failureAcknowledgementFileName)
         try JSONEncoder().encode(control).write(to: acknowledgementURL, options: .atomic)
         throw FileProviderError.unsupportedOperation(

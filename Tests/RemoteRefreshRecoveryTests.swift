@@ -103,6 +103,58 @@ final class RemoteRefreshRecoveryTests: XCTestCase {
         controller.hideRemoteRefreshError()
         XCTAssertEqual(controller.scrollViewTopConstraint?.constant, 0)
     }
+
+    func testTransientWatcherFailureRecoversWithoutManualRefresh() async throws {
+        let controller = FileListViewController()
+        controller.loadViewIfNeeded()
+        defer { controller.shutdown() }
+        let hostID = UUID()
+        let root = Location.remote(hostID: hostID, path: "/root")
+        let rpc = MissingBranchRPCClient(failuresRemaining: 1)
+        controller.currentRemoteLocation = root
+        controller.dataSource.displayedRootLocation = root
+        controller.currentRemoteProvider = RemoteFileProvider(
+            hostID: hostID, rpcClient: rpc, transferChannel: RemoteTransferChannel(sshTarget: "unused")
+        )
+        controller.refreshScheduler.submitListingRefresh(directory: root, cause: .watcher)
+        let deadline = Date().addingTimeInterval(2)
+        while await rpc.listedPaths.count < 2 && Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        while controller.refreshScheduler.isRefreshInFlight && Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        let paths = await rpc.listedPaths
+        XCTAssertEqual(paths, ["/root", "/root"])
+        XCTAssertNil(controller.remoteRefreshErrorBanner)
+        XCTAssertTrue(controller.remoteRefreshRecoveryTasks.isEmpty)
+    }
+
+    func testReconnectRestartsWatchAndReloadsWithoutManualRefresh() async throws {
+        let controller = FileListViewController()
+        controller.loadViewIfNeeded()
+        defer { controller.shutdown() }
+        let hostID = UUID()
+        let root = Location.remote(hostID: hostID, path: "/root")
+        let rpc = MissingBranchRPCClient()
+        controller.currentRemoteLocation = root
+        controller.dataSource.displayedRootLocation = root
+        controller.currentRemoteProvider = RemoteFileProvider(
+            hostID: hostID, rpcClient: rpc, transferChannel: RemoteTransferChannel(sshTarget: "unused"),
+            watcherClient: RemoteWatcherClient(hostID: hostID, rpcClient: rpc)
+        )
+
+        controller.recoverRemoteListingAfterReconnect()
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
+            let listed = await rpc.listedPaths
+            if controller.providerWatches[root] != nil, !listed.isEmpty { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotNil(controller.providerWatches[root])
+        let paths = await rpc.listedPaths
+        XCTAssertEqual(paths, ["/root"])
+    }
 }
 
 private final class DisappearingEntryFileManager: FileManager, @unchecked Sendable {
@@ -113,12 +165,17 @@ private final class DisappearingEntryFileManager: FileManager, @unchecked Sendab
 
 private actor MissingBranchRPCClient: RemoteRPCClient {
     var listedPaths: [String] = []
+    var failuresRemaining: Int
+
+    init(failuresRemaining: Int = 0) { self.failuresRemaining = failuresRemaining }
 
     func send(_ message: RPCMessage) async throws -> [Data] {
-        guard case .list(let path, _) = message else {
-            throw RemoteFileProviderError.invalidResponse("Unexpected test request")
-        }
+        guard case .list(let path, _) = message else { return [] }
         listedPaths.append(path.lossyDisplayString)
+        if failuresRemaining > 0 {
+            failuresRemaining -= 1
+            throw RemoteFileProviderError.invalidResponse("Transient connection failure")
+        }
         if path.lossyDisplayString == "/root/missing" {
             throw RemoteFileProviderError.notFound
         }

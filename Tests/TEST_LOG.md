@@ -11,6 +11,9 @@
 | Signed Foundry build and `RefreshAuthorityRemoteRenameUITests/testRefreshErrorIsReadableAboveListingAndRetryRecovers` | `cd4a6f5` | FAIL: app build passed in 46.14 seconds; UI test reached the remote file row but the expected error banner did not appear at line 154. The fake provider read failure controls from the fixture root, while the sandboxed runner wrote them to its separate control root. Run `remote-refresh-recovery-cd4a6f5-2`. |
 | Signed Foundry build and focused installed refresh error check | `09df826` | PASS: app build completed in 46.57 seconds; guarded UI run verified readable text above the listing, a compact Retry button, visible file rows, and successful retry. Run `remote-refresh-recovery-09df826`; launcher returned zero after cleanup. |
 | Full Foundry SSH suite, excluding the two login-session classes | `09df826` | FAIL: stopped on `DarwinServerSmokeTests/testMalformedRequestDoesNotTerminateDarwinHelper`; appending an error-classification field broke the single-string error payload contract. The run was terminated after preserving the failure. |
+| Wire-compatible helper build's Linux checks on dockerhost | `bd3f51a` | PASS: 18 process tests and 14 archive tests, zero failures. |
+| Signed Foundry build and focused recovery/protocol checks | `bd3f51a` | PASS: build returned zero; 30 tests passed with zero skips or failures, including `DarwinServerSmokeTests` and the single-string framing regression. |
+| Full Foundry SSH suite, excluding login-session classes | `bd3f51a` | PASS: 1,096 XCTest cases passed, 14 Windows live cases skipped, zero failures. This precedes the additional automatic watcher recovery work requested during verification. |
 
 ## Evidence policy
 

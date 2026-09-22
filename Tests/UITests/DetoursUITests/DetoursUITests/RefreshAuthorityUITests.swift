@@ -148,10 +148,12 @@ final class RefreshAuthorityRemoteRenameUITests: BaseUITest {
         let row = outline.outlineRow(withStaticText: "file1.txt")
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.staticTexts["file1.txt"].click()
-        try forceNextRemoteFailure(operation: "list", message: String(repeating: "NSFilePath=broken\n", count: 100))
+        try forceNextRemoteFailure(operation: "list", message: String(repeating: "NSFilePath=broken\n", count: 100), count: 4)
         pressCharKey("r", modifiers: .command)
         let banner = app.descendants(matching: .any)["remoteRefreshErrorBanner"]
         XCTAssertTrue(banner.waitForExistence(timeout: 5))
+        let failureControl = uiTestControlRootURL.appendingPathComponent(".detours-remote-provider-failure.json")
+        XCTAssertTrue(waitForCondition(timeout: 8) { !FileManager.default.fileExists(atPath: failureControl.path) })
         let label = app.staticTexts["remoteRefreshErrorLabel"]
         let retry = app.buttons["remoteRefreshRetryButton"]
         XCTAssertEqual(label.value as? String ?? label.label, "Could not refresh this folder. Try again.")
@@ -165,6 +167,11 @@ final class RefreshAuthorityRemoteRenameUITests: BaseUITest {
         retry.click()
         XCTAssertTrue(waitForCondition(timeout: 5) { !banner.exists })
         XCTAssertTrue(row.isHittable)
+        try forceNextRemoteFailure(operation: "list")
+        try performRemoteRename(sourcePath: "/file1.txt", newName: "externally-renamed.txt")
+        XCTAssertTrue(outline.outlineRow(withStaticText: "externally-renamed.txt").waitForExistence(timeout: 5))
+        XCTAssertFalse(row.exists)
+        XCTAssertTrue(waitForCondition(timeout: 5) { !banner.exists })
     }
 
     func testRemoteInlineRenameShowsSingleEditorAndSelectsResult() throws {

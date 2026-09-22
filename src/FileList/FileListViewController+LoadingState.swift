@@ -249,6 +249,7 @@ extension FileListViewController {
     }
 
     func hideRemoteRefreshError(for directory: Location? = nil) {
+        cancelRemoteRefreshRecovery(for: directory)
         if let directory,
            failedRemoteRefreshDirectory != directory {
             return

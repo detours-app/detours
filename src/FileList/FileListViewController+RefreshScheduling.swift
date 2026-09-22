@@ -206,6 +206,10 @@ extension FileListViewController {
         hideRemoteRefreshError(for: directory)
         let outlineStarted = RemoteTimingLog.start()
         let applyKind = dataSource.applier.applyReconciledListing(reconciliation)
+        for watched in Array(providerWatches.keys) where !paneHasRefreshableListing(watched) {
+            unwatchCollapsedDirectory(watched)
+            hideRemoteRefreshError(for: watched)
+        }
         RemoteTimingLog.mark("apply outline", since: outlineStarted, "kind=\(applyKind)")
         if applyKind != .noop {
             recordQualificationListingMutation()
@@ -347,6 +351,9 @@ extension FileListViewController {
                 return
             }
             showRemoteRefreshError(directory: request.directory, error: error)
+            if (error as? RemoteFileProviderError) != .notFound {
+                scheduleRemoteRefreshRecovery(for: request.directory)
+            }
         case .local(let url):
             guard paneHasRefreshableListing(request.directory) else { return }
             if currentDirectory?.standardizedFileURL != url.standardizedFileURL,

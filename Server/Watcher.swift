@@ -44,7 +44,9 @@ final class Watcher: @unchecked Sendable {
     private let backend: InotifyBackend
     private let lock = NSLock()
     private var watchesByToken: [UUID: WatchRegistration] = [:]
-    private var tokenByDescriptor: [Int32: UUID] = [:]
+    private var tokensByDescriptor: [Int32: Set<UUID>] = [:]
+    private var snapshotsByPath: [String: DirectoryWatchSnapshot] = [:]
+    private var nextSnapshotCheck = Date.distantPast
 
     #if os(Linux) || os(macOS)
     init(backend: InotifyBackend = SystemInotifyBackend()) {
@@ -69,15 +71,20 @@ final class Watcher: @unchecked Sendable {
         if watchesByToken[token] != nil {
             let registration = watchesByToken.removeValue(forKey: token)
             if let registration {
-                tokenByDescriptor.removeValue(forKey: registration.descriptor)
-                try backend.removeWatch(registration.descriptor)
+                try removeRegistration(registration)
             }
         }
 
         do {
-            let descriptor = try backend.addWatch(path: path)
+            let descriptor: Int32
+            if let existing = watchesByToken.values.first(where: { $0.path == path }) {
+                descriptor = existing.descriptor
+            } else {
+                descriptor = try backend.addWatch(path: path)
+                snapshotsByPath[path] = DirectoryWatchSnapshot.capture(path)
+            }
             watchesByToken[token] = WatchRegistration(token: token, path: path, descriptor: descriptor)
-            tokenByDescriptor[descriptor] = token
+            tokensByDescriptor[descriptor, default: []].insert(token)
         } catch ServerWatcherError.systemCallFailed("inotify_add_watch", let errno) where errno == ENOSPC {
             throw ServerWatcherError.inotifyLimitExceeded(command: Self.inotifyLimitCommand)
         }
@@ -90,7 +97,14 @@ final class Watcher: @unchecked Sendable {
         guard let registration = watchesByToken.removeValue(forKey: token) else {
             throw ServerWatcherError.unknownWatch(token)
         }
-        tokenByDescriptor.removeValue(forKey: registration.descriptor)
+        try removeRegistration(registration)
+    }
+
+    private func removeRegistration(_ registration: WatchRegistration) throws {
+        tokensByDescriptor[registration.descriptor]?.remove(registration.token)
+        guard tokensByDescriptor[registration.descriptor]?.isEmpty == true else { return }
+        tokensByDescriptor.removeValue(forKey: registration.descriptor)
+        snapshotsByPath.removeValue(forKey: registration.path)
         try backend.removeWatch(registration.descriptor)
     }
 
@@ -103,38 +117,57 @@ final class Watcher: @unchecked Sendable {
     func token(for descriptor: Int32) -> UUID? {
         lock.lock()
         defer { lock.unlock() }
-        return tokenByDescriptor[descriptor]
+        return tokensByDescriptor[descriptor]?.first
     }
 
     func event(forDescriptor descriptor: Int32, kind: ServerWatchEventKind, name: String) -> ServerWatchEvent? {
         lock.lock()
         defer { lock.unlock() }
-        return eventLocked(forDescriptor: descriptor, kind: kind, name: name)
+        return eventsLocked(forDescriptor: descriptor, kind: kind, name: name).first
     }
 
     func pendingEvents() throws -> [ServerWatchEvent] {
-        let descriptorEvents = try backend.readEvents()
         lock.lock()
         defer { lock.unlock() }
-        return descriptorEvents.compactMap { event in
-            eventLocked(forDescriptor: event.descriptor, kind: event.kind, name: event.name)
+        let descriptorEvents = try backend.readEvents()
+        var events = descriptorEvents.flatMap { event in
+            eventsLocked(forDescriptor: event.descriptor, kind: event.kind, name: event.name)
         }
+        let changedPaths = Set(events.compactMap { watchesByToken[$0.token]?.path })
+        let checkAll = Date() >= nextSnapshotCheck
+        if checkAll { nextSnapshotCheck = Date().addingTimeInterval(1) }
+        for path in Set(watchesByToken.values.map(\.path)) where checkAll || changedPaths.contains(path) {
+            let snapshot = DirectoryWatchSnapshot.capture(path)
+            let previous = snapshotsByPath[path]
+            guard snapshot != previous else { continue }
+            let registrations = watchesByToken.values.filter { $0.path == path }
+            if snapshot.identity != nil, snapshot.identity != previous?.identity {
+                // A replacement directory has a new inode. Reattach native watches
+                // before announcing it, so subsequent changes keep arriving.
+                let descriptor = try backend.addWatch(path: path)
+                for registration in registrations {
+                    if registration.descriptor != descriptor {
+                        try removeRegistration(registration)
+                    }
+                    watchesByToken[registration.token]?.descriptor = descriptor
+                    tokensByDescriptor[descriptor, default: []].insert(registration.token)
+                }
+            }
+            snapshotsByPath[path] = snapshot
+            if !changedPaths.contains(path) {
+                events += registrations.map { ServerWatchEvent(token: $0.token, kind: .modified, path: path) }
+            }
+        }
+        return events
     }
 
-    private func eventLocked(forDescriptor descriptor: Int32, kind: ServerWatchEventKind, name: String) -> ServerWatchEvent? {
-        guard let token = tokenByDescriptor[descriptor],
-              let registration = watchesByToken[token] else {
-            return nil
+    private func eventsLocked(forDescriptor descriptor: Int32, kind: ServerWatchEventKind, name: String) -> [ServerWatchEvent] {
+        (tokensByDescriptor[descriptor] ?? []).compactMap { token in
+            guard let registration = watchesByToken[token] else { return nil }
+            let eventPath = name.isEmpty ? registration.path
+                : (registration.path as NSString).appendingPathComponent(name)
+            return ServerWatchEvent(token: token, kind: kind, path: eventPath)
         }
-
-        let eventPath: String
-        if name.isEmpty {
-            eventPath = registration.path
-        } else {
-            eventPath = URL(fileURLWithPath: registration.path).appendingPathComponent(name).path
-        }
-
-        return ServerWatchEvent(token: token, kind: kind, path: eventPath)
     }
 
     func reemitWatchAfterDirectoryRename(token: UUID, newPath: String) throws -> ServerWatchEvent {
@@ -152,7 +185,7 @@ final class Watcher: @unchecked Sendable {
 struct WatchRegistration: Equatable, Sendable {
     let token: UUID
     var path: String
-    let descriptor: Int32
+    var descriptor: Int32
 }
 
 final class SystemInotifyBackend: InotifyBackend {
@@ -223,7 +256,7 @@ final class SystemInotifyBackend: InotifyBackend {
 
     func addWatch(path: String) throws -> Int32 {
         #if os(Linux)
-        let mask = UInt32(IN_CREATE | IN_MODIFY | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_ATTRIB)
+        let mask = UInt32(IN_CREATE | IN_MODIFY | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_ATTRIB | IN_DELETE_SELF | IN_MOVE_SELF)
         let inotifyFD = try inotifyDescriptor().rawValue
         let watchDescriptor = path.withCString { pathPointer in
             inotify_add_watch(inotifyFD, pathPointer, mask)
@@ -245,7 +278,7 @@ final class SystemInotifyBackend: InotifyBackend {
 
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fileDescriptor,
-            eventMask: [.write, .delete, .rename, .extend, .attrib],
+            eventMask: [.write, .delete, .rename, .extend],
             queue: .global(qos: .utility)
         )
         source.setEventHandler { [weak self] in
@@ -284,7 +317,7 @@ final class SystemInotifyBackend: InotifyBackend {
     func removeWatch(_ descriptorToRemove: Int32) throws {
         #if os(Linux)
         let result = inotify_rm_watch(try inotifyDescriptor().rawValue, descriptorToRemove)
-        guard result == 0 else {
+        guard result == 0 || errno == EINVAL else {
             throw ServerWatcherError.systemCallFailed("inotify_rm_watch", errno: errno)
         }
         #elseif os(macOS)

@@ -142,6 +142,7 @@ extension BaseUITest {
         let id: String
         let operation: String
         let message: String
+        let count: Int
     }
 
     private struct RemoteMutationControl: Encodable {
@@ -239,11 +240,12 @@ extension BaseUITest {
         try Data().write(to: url, options: .atomic)
     }
 
-    func forceNextRemoteFailure(operation: String, message: String = "Controlled UI-test failure") throws {
+    func forceNextRemoteFailure(operation: String, message: String = "Controlled UI-test failure", count: Int = 1) throws {
         let control = RemoteFailureControl(
             id: UUID().uuidString,
             operation: operation,
-            message: message
+            message: message,
+            count: count
         )
         let url = uiTestControlRootURL.appendingPathComponent(".detours-remote-provider-failure.json")
         try JSONEncoder().encode(control).write(to: url, options: .atomic)

@@ -104,8 +104,15 @@ extension PaneViewController {
     }
 
     @objc func handleSSHConnectionStateChange(_ notification: Notification) {
-        guard let change = notification.object as? SSHConnectionStateChange,
-              let host = selectedReconnectHost(),
+        guard let change = notification.object as? SSHConnectionStateChange else { return }
+        if change.newState == .connected, change.oldState != .connected {
+            for tab in tabs {
+                guard let controller = tab.fileListViewControllerIfLoaded,
+                      controller.currentRemoteHost?.id == change.hostID else { continue }
+                controller.recoverRemoteListingAfterReconnect()
+            }
+        }
+        guard let host = selectedReconnectHost(),
               host.id == change.hostID else {
             return
         }
