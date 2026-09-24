@@ -9,6 +9,7 @@
 | Rebuilt helpers, signed no-install Foundry build, descriptor lifetime and Git regressions | `fac548c` | PASS: 7 tests, zero failures or skips, 8.379 seconds. The same 32-refresh descriptor assertion that failed at 20 to 84 now passes with the rebuilt Linux helper; live Git overlay and helper concurrency checks also pass. |
 | Full Foundry SSH suite excluding login-session clipboard and path-control classes | `fac548c` | PASS: 1,107 XCTest cases passed, 14 Windows live cases skipped because detours-windows was unreachable, zero failures, 241.425 seconds. All 47 Swift Testing cases passed in 2.791 seconds; command returned zero. |
 | Guarded installed Linux refresh check, `git-refresh-handles` | `8c80a30` | PASS: one UI case, zero failures or skips; cleanup passed with zero consent prompts, visible prompt windows or XCUI interruptions. Inspected the exported screenshot: provider-created.txt appears in the remote listing before manual refresh, with readable rows and no error banner. |
+| Final Spectre install-only delivery and read-only artifact inspection | `cb9bd15` | PASS: normal build signed, installed and relaunched Detours. Installed Linux helper and active kali-vienna helper both match Foundry SHA-256 34b83b38ba2fc3d484049bbba778b1da704031c16d480fe26c80db1d4d134c18. Deep strict signature verification passed. Active helper had 24 handles and 3 pipes, versus the exhausted 1,024-handle process diagnosed initially. No Spectre tests or runtime probes ran. |
 
 ## 2026-09-22 18:46 (Foundry, restored remote connection lifetime)
 
