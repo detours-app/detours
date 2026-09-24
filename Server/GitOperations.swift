@@ -90,6 +90,11 @@ struct GitOperations {
     }
 
     private func waitUntilExit(_ process: Process, timeout: TimeInterval) -> Bool {
+        // Linux Foundation retains the process and its output pipe until
+        // waitUntilExit releases its run-loop source, even after isRunning is false.
+        defer {
+            if !process.isRunning { process.waitUntilExit() }
+        }
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning && Date() < deadline {
             Thread.sleep(forTimeInterval: 0.05)

@@ -1,5 +1,11 @@
 # Test Log
 
+## 2026-09-24 (Foundry, Linux helper descriptors after Git refresh)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Signed no-install Foundry build and persistent Linux helper descriptor regression | `0a02249` | FAIL: build passed; 32 Git refreshes increased descriptors from 20 to 84, exceeding the allowed 22. The helper retained two output pipes per refresh because polling process completion did not perform Foundation run-loop cleanup. One test, one failure, 5.240 seconds. |
+
 ## 2026-09-22 18:46 (Foundry, restored remote connection lifetime)
 
 | Check | Commit | Result |
