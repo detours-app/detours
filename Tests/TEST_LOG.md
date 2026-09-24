@@ -8,6 +8,7 @@
 | Foundry build's Linux helper checks on dockerhost | `fac548c` | PASS: 18 process tests and 14 archive tests, zero failures; release Linux helper built successfully. |
 | Rebuilt helpers, signed no-install Foundry build, descriptor lifetime and Git regressions | `fac548c` | PASS: 7 tests, zero failures or skips, 8.379 seconds. The same 32-refresh descriptor assertion that failed at 20 to 84 now passes with the rebuilt Linux helper; live Git overlay and helper concurrency checks also pass. |
 | Full Foundry SSH suite excluding login-session clipboard and path-control classes | `fac548c` | PASS: 1,107 XCTest cases passed, 14 Windows live cases skipped because detours-windows was unreachable, zero failures, 241.425 seconds. All 47 Swift Testing cases passed in 2.791 seconds; command returned zero. |
+| Guarded installed Linux refresh check, `git-refresh-handles` | `8c80a30` | PASS: one UI case, zero failures or skips; cleanup passed with zero consent prompts, visible prompt windows or XCUI interruptions. Inspected the exported screenshot: provider-created.txt appears in the remote listing before manual refresh, with readable rows and no error banner. |
 
 ## 2026-09-22 18:46 (Foundry, restored remote connection lifetime)
 
