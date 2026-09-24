@@ -5,6 +5,9 @@
 | Check | Commit | Result |
 | --- | --- | --- |
 | Signed no-install Foundry build and persistent Linux helper descriptor regression | `0a02249` | FAIL: build passed; 32 Git refreshes increased descriptors from 20 to 84, exceeding the allowed 22. The helper retained two output pipes per refresh because polling process completion did not perform Foundation run-loop cleanup. One test, one failure, 5.240 seconds. |
+| Foundry build's Linux helper checks on dockerhost | `fac548c` | PASS: 18 process tests and 14 archive tests, zero failures; release Linux helper built successfully. |
+| Rebuilt helpers, signed no-install Foundry build, descriptor lifetime and Git regressions | `fac548c` | PASS: 7 tests, zero failures or skips, 8.379 seconds. The same 32-refresh descriptor assertion that failed at 20 to 84 now passes with the rebuilt Linux helper; live Git overlay and helper concurrency checks also pass. |
+| Full Foundry SSH suite excluding login-session clipboard and path-control classes | `fac548c` | PASS: 1,107 XCTest cases passed, 14 Windows live cases skipped because detours-windows was unreachable, zero failures, 241.425 seconds. All 47 Swift Testing cases passed in 2.791 seconds; command returned zero. |
 
 ## 2026-09-22 18:46 (Foundry, restored remote connection lifetime)
 
