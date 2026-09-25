@@ -1,5 +1,12 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, Linux build host migration)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux helper container checks on devtest, orchestrated by Foundry | `0b13078` | PASS: 18 process tests in 11.891 seconds and 14 archive tests in 1.747 seconds, zero failures or skips. Swift 6.2.4 container compiled the static Linux helper on devtest. |
+| Required no-install build on Foundry | `0b13078` | PASS: Linux helper built on devtest, universal macOS helper built on Foundry, app bundle signed; explicit build result zero. No production host contacted. |
+
 ## 2026-09-25 (Foundry, remote reliability review)
 
 | Check | Commit | Result |
