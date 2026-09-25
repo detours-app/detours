@@ -2,6 +2,9 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Linux legacy helper removal compilation | `238b0ce` | PASS: compilation and 18 process tests, zero failures, 11.986 seconds. |
+| Linux accepted mutation migration | `238b0ce` | PASS: 122 archive/operation tests, zero failures, 17.522 seconds. Migrated checks cover chosen sibling names, large copies, same-source refusal, confirmed permanent deletion and accepted upload through rename, Trash and restore. Static Linux helper built. |
+| Signed Foundry accepted mutation migration | `238b0ce` | PASS: both helpers, signed no-install app build and 184 focused tests, zero failures, 13.932 seconds. Accepted mutation migration, read-only adapter/helper smoke, Trash rollback, archive, receipt/recovery and live Windows journal checks passed. |
 | Linux legacy mutation refusal compilation | `dd590cd` | FAIL: the new RPC refusal test omitted try on a throwing assertion; compilation stopped before tests. Correcting the assertion before rerunning verification. |
 | Linux legacy refusal compilation correction | `44cb0fe` | PASS: compilation and 18 process tests, zero failures, 11.888 seconds. |
 | Linux legacy mutation refusal and regressions | `44cb0fe` | PASS: 118 archive/operation tests, zero failures, 17.923 seconds. Legacy RPC mutations and stream uploads refuse before changing files or consuming an upload body; read-only downloads remain available. Static Linux helper built. |
