@@ -111,7 +111,7 @@ final class WindowsOperationFilesystemLiveTests: XCTestCase {
             before = $before; moved = $moved; collisionCode = $collisionCode; directoryCollisionCode = $directoryCollisionCode
             privateDirectory = $privateDirectory; originalsPreserved = $originalsPreserved; staleRejected = $staleRejected
             linkPreserved = $linkPreserved; directoryPreserved = $directoryPreserved
-        } | ConvertTo-Json -Compress -Depth 10
+        }
     } finally {
         foreach ($path in @($link, $movedLink)) {
             if ([System.IO.Directory]::Exists($path)) { [System.IO.Directory]::Delete($path) }
