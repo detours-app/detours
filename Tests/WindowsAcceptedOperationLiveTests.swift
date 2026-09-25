@@ -8,6 +8,7 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         let root: String
         let account: OperationAccount
         let operation: WindowsOperationArguments
+        var trashFailure: String?
     }
 
     func testAcceptedWindowsUploadCommitRenameCancellationAndConflicts() async throws {
@@ -37,9 +38,9 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     private func exercise(channel: PowerShellChannel, root: String) async throws {
         let account = OperationAccount(hostIdentity: "accepted-fixture", accountIdentity: "accepted-fixture-user")
         func location(_ name: String) -> OperationLocation { .init(account: account, path: .windows(root + "\\" + name)) }
-        func send(_ request: OperationRequest) async throws -> OperationReply {
+        func send(_ request: OperationRequest, trashFailure: String? = nil) async throws -> OperationReply {
             let script = try PowerShellScript(source: PowerShellScript.prelude(operationBody: Self.requestScript),
-                arguments: Arguments(root: root, account: account, operation: WindowsOperationArguments(request)))
+                arguments: Arguments(root: root, account: account, operation: WindowsOperationArguments(request), trashFailure: trashFailure))
             return try OperationReply.decode(await channel.run(script, operation: "AcceptedFixtureRequest"))
         }
         guard case .handshake(let handshake) = try await send(.handshake) else { return XCTFail("No Windows operation handshake") }
@@ -103,6 +104,22 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         let duplicateFolder = try await send(.execute(folderRequest))
         XCTAssertEqual(duplicateFolder, .receipt(folder))
 
+        let trashIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .trash, sources: [location("copy")],
+            destination: nil, sourceObservations: [try XCTUnwrap(copy.effects.first?.observation)], conflict: .createNew)
+        let trashRequest = try identity(trashIntent)
+        _ = try await send(.accept(identity: trashRequest, intent: trashIntent))
+        guard case .receipt(let trashed) = try await send(.execute(trashRequest)) else { return XCTFail("No Trash result") }
+        XCTAssertEqual(trashed.outcome, .committed, trashed.failure ?? "")
+        XCTAssertEqual(trashed.sourceDisposition, .confirmed)
+        XCTAssertEqual(trashed.effects.first?.observation.sha256, intent.payloadProof?.sha256)
+        let restoreReference = try XCTUnwrap(trashed.recovery.first(where: { $0.purpose == .sourceTrash }))
+        XCTAssertEqual(restoreReference.original, location("copy"))
+        XCTAssertEqual(restoreReference.knownLocation, trashed.effects.first?.location)
+        let removedSource = try await send(.lookup(location("copy")))
+        XCTAssertEqual(removedSource, .lookup(.missing))
+        let duplicateTrash = try await send(.execute(trashRequest))
+        XCTAssertEqual(duplicateTrash, .receipt(trashed))
+
         let cancelledIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .editorUpload, sources: [],
             destination: location("cancelled"), sourceObservations: [], conflict: .createNew, payloadProof: intent.payloadProof)
         let cancelledRequest = try identity(cancelledIntent)
@@ -133,6 +150,38 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         guard case .status(let snapshot) = status else { return XCTFail("No recorded result") }
         XCTAssertEqual(snapshot.receipt, receipt)
         XCTAssertNil(snapshot.workspace)
+
+        let rollbackIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .trash, sources: [renamed],
+            destination: nil, sourceObservations: [try XCTUnwrap(rename.effects.first?.observation)], conflict: .createNew)
+        let rollbackRequest = try identity(rollbackIntent)
+        _ = try await send(.accept(identity: rollbackRequest, intent: rollbackIntent))
+        guard case .receipt(let rollback) = try await send(.execute(rollbackRequest), trashFailure: "changed") else {
+            return XCTFail("No changed-source Trash result")
+        }
+        XCTAssertEqual(rollback.outcome, .failedUnchanged, rollback.failure ?? "")
+        XCTAssertEqual(rollback.sourceDisposition, .present)
+        XCTAssertTrue(rollback.recovery.isEmpty)
+        guard case .lookup(.found(let restored)) = try await send(.lookup(renamed)) else { return XCTFail("Changed source was not restored") }
+        XCTAssertEqual(restored.identity, rename.effects.first?.observation.identity)
+
+        let blockedIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .trash, sources: [renamed],
+            destination: nil, sourceObservations: [restored], conflict: .createNew)
+        let blockedRequest = try identity(blockedIntent)
+        _ = try await send(.accept(identity: blockedRequest, intent: blockedIntent))
+        guard case .receipt(let blocked) = try await send(.execute(blockedRequest), trashFailure: "occupied") else {
+            return XCTFail("No blocked Trash rollback result")
+        }
+        XCTAssertEqual(blocked.outcome, .partial, blocked.failure ?? "")
+        let held = try XCTUnwrap(blocked.recovery.first(where: { $0.purpose == .sourceTrash })?.knownLocation)
+        guard case .windows(let heldPath) = held.path else { return XCTFail("No Windows holding path") }
+        let contentsScript = try PowerShellScript(source: """
+            param($Arguments)
+            @{ source = [System.IO.File]::ReadAllText($Arguments.source); held = [System.IO.File]::ReadAllText($Arguments.held) }
+            """, arguments: ["source": root + "\\renamed", "held": heldPath])
+        let contents = try JSONDecoder().decode([String: String].self,
+            from: await channel.run(contentsScript, operation: "CheckTrashRollbackContents"))
+        XCTAssertEqual(contents["source"], "competing writer")
+        XCTAssertEqual(contents["held"], "changed after move")
     }
 
     private func exerciseIngress(channel: PowerShellChannel, root: String, control: URL) async throws {
@@ -221,10 +270,18 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.requestHelpers)
     \#(WindowsOperationScripts.mutationHelpers)
     \#(WindowsOperationScripts.ingressHelpers)
+    \#(WindowsOperationScripts.trashHelpers)
     $nativeProof = ${function:Get-WindowsContentProof}
     function Get-WindowsContentProof([string]$Path) {
         $probe = [System.IO.FileStream]::new((Join-Path (Join-Path $Arguments.root 'journal') 'commit.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
         $probe.Dispose()
+        if ($Path.Contains('\.detours-trash\') -and $Arguments.trashFailure) {
+            if ($Arguments.trashFailure -eq 'changed') { [System.IO.File]::WriteAllText($Path, 'changed after move') }
+            elseif ($Arguments.trashFailure -eq 'occupied') {
+                [System.IO.File]::WriteAllText((Join-Path $Arguments.root 'renamed'), 'competing writer')
+                throw 'Injected post-move verification failure.'
+            }
+        }
         & $nativeProof $Path
     }
     Invoke-WindowsOperation (Join-Path $Arguments.root 'journal') $Arguments.account $Arguments.operation.request $Arguments.operation.canonicalIntent

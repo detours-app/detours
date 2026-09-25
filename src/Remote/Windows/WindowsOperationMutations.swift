@@ -107,7 +107,8 @@ extension WindowsOperationScripts {
         $receipt.effects = @($previous.effects)
         $receipt.failure = 'Operation worker ended before its result was recorded.'
         if ($previous.phase -eq 'committing' -and ($null -ne $previous.preparedPayload -or @($previous.effects).Count -eq 1)) {
-            $destination = Get-OperationPath $Context.record.intent.destination $Context.account
+            $resultLocation = if ($Context.record.intent.action -eq 'trash') { $Context.record.windowsTrashLocation } else { $Context.record.intent.destination }
+            $destination = Get-OperationPath $resultLocation $Context.account
             $lookup = Get-WindowsOperationLookup $destination
             if ($lookup.ContainsKey('found')) {
                 $expected = if ($null -ne $previous.preparedPayload) { $previous.preparedPayload.observation } else { $previous.effects[0].observation }
@@ -117,13 +118,16 @@ extension WindowsOperationScripts {
                     $actual.kind -ceq $expected.kind -and $actual.contentVersion -ceq $expected.contentVersion -and
                     $actual.linkTarget -ceq $expected.linkTarget -and ($null -eq $expected.sha256 -or $actual.sha256 -ceq $expected.sha256)) {
                     $receipt.outcome = 'committed'; $receipt.failure = $null
-                    $receipt.effects = @(@{ location = $Context.record.intent.destination; observation = $actual })
+                    $receipt.effects = @(@{ location = $resultLocation; observation = $actual })
                     $receipt.contentVerified = $null -ne $expected.sha256
                     if ($Context.record.intent.action -in @('move', 'rename')) { $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @() }
+                    if ($Context.record.intent.action -eq 'trash') {
+                        $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @(Get-WindowsTrashReference $Context $resultLocation)
+                    }
                 }
             }
         }
-        if ($receipt.outcome -eq 'unknown' -and $Context.record.intent.action -in @('move', 'rename')) { $receipt.sourceDisposition = 'unknown' }
+        if ($receipt.outcome -eq 'unknown' -and $Context.record.intent.action -in @('move', 'rename', 'trash')) { $receipt.sourceDisposition = 'unknown' }
         Save-WindowsReceipt $Context $receipt | Out-Null
     }
     function Prepare-WindowsPayload($Context, [string]$Kind, $Parameters) {
@@ -250,6 +254,7 @@ extension WindowsOperationScripts {
         try {
             Assert-WindowsOperationActive $Context
             if ($Kind -in @('prepareUpload', 'prepareCopy')) { return Prepare-WindowsPayload $Context $Kind $Parameters }
+            if ($Kind -eq 'execute' -and $Context.record.intent.action -eq 'trash') { return Invoke-WindowsTrash $Context }
             Commit-WindowsMutation $Context $Kind
         } catch {
             $failure = $_.Exception.Message
