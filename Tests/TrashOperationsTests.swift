@@ -48,20 +48,15 @@ final class TrashOperationsTests: XCTestCase {
         }
     }
 
-    func testServerTrashRollsBackEarlierItemsWhenLaterItemIsMissing() throws {
+    func testTrashRollsBackEarlierItemsWhenLaterItemIsMissing() throws {
         let home = try createTempDirectory()
         defer { cleanupTempDirectory(home) }
         let source = try createTestFile(in: home, name: "notes.txt", content: "preserve me")
         let missing = home.appendingPathComponent("missing.txt")
-        let operations = FileOperations(
-            trashOperations: TrashOperations(homeDirectory: home)
-        )
+        let operations = TrashOperations(homeDirectory: home)
 
         XCTAssertThrowsError(
-            try operations.trash(items: [
-                ServerRemotePath(source.path),
-                ServerRemotePath(missing.path),
-            ])
+            try operations.trash(paths: [source.path, missing.path])
         ) { error in
             XCTAssertEqual(error as? TrashOperationsError, .missingItem(missing.path))
         }

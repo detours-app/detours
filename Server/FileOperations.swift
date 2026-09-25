@@ -5,19 +5,13 @@ struct FileOperations {
     static let defaultListChunkSize = 1_000
 
     private let fileManager: FileManager
-    private let trashOperations: TrashOperations
-    private let archiveOperations: ArchiveOperations
     private let listChunkSize: Int
 
     init(
         fileManager: FileManager = .default,
-        trashOperations: TrashOperations = TrashOperations(),
-        archiveOperations: ArchiveOperations = ArchiveOperations(),
         listChunkSize: Int = Self.defaultListChunkSize
     ) {
         self.fileManager = fileManager
-        self.trashOperations = trashOperations
-        self.archiveOperations = archiveOperations
         self.listChunkSize = max(1, listChunkSize)
     }
 
@@ -62,84 +56,6 @@ struct FileOperations {
         try encodeFileEntries([fileEntry(path: path.string)])
     }
 
-    func copy(sources: [ServerRemotePath], destination: ServerRemotePath, maximumRPCBytes _: Int64) throws -> Data {
-        let destinationURL = URL(fileURLWithPath: destination.string)
-        let copied = try sources.map { source in
-            let sourceURL = URL(fileURLWithPath: source.string)
-            let finalURL = try copyDestination(for: sourceURL, in: destinationURL)
-            if PathProbe.isSymbolicLink(sourceURL.path) {
-                // A link copies as a link with its original target text, dangling or not.
-                let target = try fileManager.destinationOfSymbolicLink(atPath: sourceURL.path)
-                try fileManager.createSymbolicLink(atPath: finalURL.path, withDestinationPath: target)
-            } else {
-                try fileManager.copyItem(at: sourceURL, to: finalURL)
-            }
-            return ServerRemotePath(finalURL.path)
-        }
-        return encodePathList(copied)
-    }
-
-    func move(sources: [ServerRemotePath], destination: ServerRemotePath) throws -> Data {
-        let destinationURL = URL(fileURLWithPath: destination.string)
-        let moved = try sources.map { source in
-            let sourceURL = URL(fileURLWithPath: source.string)
-            var finalURL = destinationURL.appendingPathComponent(sourceURL.lastPathComponent)
-            if isSameFilesystemPath(sourceURL, finalURL) {
-                return ServerRemotePath(sourceURL.path)
-            }
-            if fileManager.fileExists(atPath: finalURL.path) {
-                finalURL = try uniqueNumberedDestination(for: sourceURL, in: destinationURL)
-            }
-            try fileManager.moveItem(at: sourceURL, to: finalURL)
-            return ServerRemotePath(finalURL.path)
-        }
-        return encodePathList(moved)
-    }
-
-    func rename(item: ServerRemotePath, newName: Data) throws -> Data {
-        let sourceURL = URL(fileURLWithPath: item.string)
-        guard let name = String(bytes: newName, encoding: .utf8) else {
-            throw ServerRPCProtocolError.invalidFrame
-        }
-        let destinationURL = sourceURL.deletingLastPathComponent().appendingPathComponent(name)
-        try fileManager.moveItem(at: sourceURL, to: destinationURL)
-        return encodePathList([ServerRemotePath(destinationURL.path)])
-    }
-
-    func trash(items: [ServerRemotePath]) throws -> Data {
-        let infoPaths = try trashOperations.trash(paths: items.map(\.string)).map(ServerRemotePath.init)
-        return encodePathList(infoPaths)
-    }
-
-    /// Permanently removes user-selected items after the client has shown its
-    /// explicit, non-recoverable deletion confirmation.
-    func delete(items: [ServerRemotePath]) throws {
-        for item in items {
-            try fileManager.removeItem(at: URL(fileURLWithPath: item.string))
-        }
-    }
-
-    func restoreFromTrash(items: [ServerRemotePath]) throws -> Data {
-        let restored = try trashOperations.restore(trashInfoPaths: items.map(\.string)).map(ServerRemotePath.init)
-        return encodePathList(restored)
-    }
-
-    func mkDir(path: ServerRemotePath) throws -> Data {
-        let url = URL(fileURLWithPath: path.string)
-        try fileManager.createDirectory(at: url, withIntermediateDirectories: false)
-        return encodePathList([path])
-    }
-
-    /// Creates a link at `path` with the raw `targetPath` text. A regular file, a link, or a
-    /// dangling link already at `path` refuses, so the check never follows the destination.
-    func symlink(path: ServerRemotePath, targetPath: ServerRemotePath) throws -> Data {
-        guard !PathProbe.existsWithoutFollowing(path.string) else {
-            throw CocoaError(.fileWriteFileExists)
-        }
-        try fileManager.createSymbolicLink(atPath: path.string, withDestinationPath: targetPath.string)
-        return encodePathList([path])
-    }
-
     func download(path: ServerRemotePath, maximumRPCBytes: Int64) throws -> Data {
         let url = URL(fileURLWithPath: path.string)
         let values = try url.resourceValues(forKeys: [.fileSizeKey])
@@ -148,21 +64,6 @@ struct FileOperations {
             throw ServerRPCError.unsupportedCommand("download over rpc threshold")
         }
         return try Data(contentsOf: url)
-    }
-
-    func upload(path: ServerRemotePath, contents: Data, expectedByteCount: Int64, maximumRPCBytes: Int64) throws {
-        guard Int64(contents.count) == expectedByteCount,
-              expectedByteCount <= maximumRPCBytes else {
-            throw ServerRPCError.unsupportedCommand("upload size mismatch")
-        }
-
-        let destination = URL(fileURLWithPath: path.string)
-        let partial = destination.deletingLastPathComponent()
-            .appendingPathComponent(destination.lastPathComponent + ".detours-partial")
-        try? fileManager.removeItem(at: partial)
-        try trashExistingItem(at: destination)
-        try SafeFileWriter.write(contents, to: partial)
-        try fileManager.moveItem(at: partial, to: destination)
     }
 
     func fileVersion(path: ServerRemotePath) throws -> Data {
@@ -201,24 +102,6 @@ struct FileOperations {
             writer.writeString(status.status.rawValue)
         }
         return writer.data
-    }
-
-    func archiveCreate(items: [ServerRemotePath], format: String, archiveName: Data, password: String?) throws -> Data {
-        guard let archiveNameString = String(bytes: archiveName, encoding: .utf8) else {
-            throw ServerRPCProtocolError.invalidFrame
-        }
-        let archivePath = try archiveOperations.createArchive(
-            items: items.map(\.string),
-            format: format,
-            archiveName: archiveNameString,
-            password: password
-        )
-        return encodePathList([ServerRemotePath(archivePath)])
-    }
-
-    func archiveExtract(archive: ServerRemotePath, password: String?) throws -> Data {
-        let extracted = try archiveOperations.extractArchive(archive: archive.string, password: password)
-        return encodePathList([ServerRemotePath(extracted)])
     }
 
     private struct ServerFileEntry {
@@ -303,78 +186,6 @@ struct FileOperations {
             writer.writeData(path.bytes)
         }
         return writer.data
-    }
-
-    /// Moves an existing item at `url` to the remote Trash before it is overwritten.
-    /// User files are never permanently removed; per the project rule, deletion routes through TrashOperations.
-    private func trashExistingItem(at url: URL) throws {
-        guard fileManager.fileExists(atPath: url.path) else { return }
-        _ = try trashOperations.trash(paths: [url.path])
-    }
-
-    private func copyDestination(for sourceURL: URL, in destinationURL: URL) throws -> URL {
-        let initial = destinationURL.appendingPathComponent(sourceURL.lastPathComponent)
-        if isSameFilesystemPath(sourceURL, initial) {
-            return try uniqueCopyDestination(for: sourceURL, in: destinationURL)
-        }
-        if fileManager.fileExists(atPath: initial.path) {
-            return try uniqueNumberedDestination(for: sourceURL, in: destinationURL)
-        }
-        return initial
-    }
-
-    private func isSameFilesystemPath(_ lhs: URL, _ rhs: URL) -> Bool {
-        lhs.standardizedFileURL.resolvingSymlinksInPath().path == rhs.standardizedFileURL.resolvingSymlinksInPath().path
-    }
-
-    private func uniqueCopyDestination(for sourceURL: URL, in directoryURL: URL) throws -> URL {
-        let (baseName, ext) = try destinationNameParts(for: sourceURL)
-        var attempt = 1
-        while true {
-            let suffix = attempt == 1 ? " copy" : " copy \(attempt)"
-            let name = ext.isEmpty ? baseName + suffix : "\(baseName)\(suffix).\(ext)"
-            let candidate = directoryURL.appendingPathComponent(name)
-            if !fileManager.fileExists(atPath: candidate.path) {
-                return candidate
-            }
-            attempt += 1
-        }
-    }
-
-    private func uniqueNumberedDestination(for sourceURL: URL, in directoryURL: URL) throws -> URL {
-        let originalName = sourceURL.lastPathComponent.isEmpty ? "Untitled" : sourceURL.lastPathComponent
-        var attempt = 2
-        while true {
-            let candidate = directoryURL.appendingPathComponent(numberedName(originalName, index: attempt))
-            if !fileManager.fileExists(atPath: candidate.path) {
-                return candidate
-            }
-            attempt += 1
-        }
-    }
-
-    private func destinationNameParts(for sourceURL: URL) throws -> (baseName: String, ext: String) {
-        // A link is named like a file whatever it points at; a dangling one has no values to read.
-        guard !PathProbe.isSymbolicLink(sourceURL.path) else {
-            return (sourceURL.deletingPathExtension().lastPathComponent, sourceURL.pathExtension)
-        }
-        let values = try sourceURL.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
-        if values.isDirectory == true, values.isPackage != true {
-            return (sourceURL.lastPathComponent, "")
-        }
-        let ext = sourceURL.pathExtension
-        let baseName = ext.isEmpty ? sourceURL.lastPathComponent : sourceURL.deletingPathExtension().lastPathComponent
-        return (baseName.isEmpty ? "Untitled" : baseName, ext)
-    }
-
-    private func numberedName(_ name: String, index: Int) -> String {
-        let nsName = name as NSString
-        let ext = nsName.pathExtension
-        let stem = ext.isEmpty ? name : nsName.deletingPathExtension
-        guard !ext.isEmpty else {
-            return "\(stem) \(index)"
-        }
-        return "\(stem) \(index).\(ext)"
     }
 
     private func sha256Hex(path: String) throws -> String {

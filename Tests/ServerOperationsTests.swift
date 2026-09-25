@@ -2,19 +2,6 @@ import XCTest
 @testable import detours_server
 
 final class FileOperationsServerTests: XCTestCase {
-    func testDeletePermanentlyRemovesItemWithoutCreatingTrashMetadata() throws {
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-        let source = try createTestFile(in: temp, name: "delete-me.txt", content: "body")
-
-        try FileOperations(trashOperations: TrashOperations(homeDirectory: temp)).delete(
-            items: [ServerRemotePath(source.path)]
-        )
-
-        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: temp.appendingPathComponent(".local/share/Trash").path))
-    }
-
     func testListReturnsExpectedEntries() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -43,57 +30,6 @@ final class FileOperationsServerTests: XCTestCase {
         XCTAssertEqual(try decodeServerFileEntries(chunks[2]).map(\.name), ["file-4.txt"])
     }
 
-    func testCopyIntoSameDirectoryCreatesCopyAndKeepsSource() throws {
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-        let source = try createTestFile(in: temp, name: "source.txt", content: "body")
-
-        let payload = try FileOperations().copy(
-            sources: [ServerRemotePath(source.path)],
-            destination: ServerRemotePath(temp.path),
-            maximumRPCBytes: 1
-        )
-        let copied = try decodeServerPathList(payload)
-
-        let copy = temp.appendingPathComponent("source copy.txt")
-        XCTAssertEqual(copied, [copy.path])
-        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "body")
-        XCTAssertEqual(try String(contentsOf: copy, encoding: .utf8), "body")
-    }
-
-    func testMoveIntoSameDirectoryLeavesSourceInPlace() throws {
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-        let source = try createTestFile(in: temp, name: "source.txt", content: "body")
-
-        let payload = try FileOperations().move(
-            sources: [ServerRemotePath(source.path)],
-            destination: ServerRemotePath(temp.path)
-        )
-        let moved = try decodeServerPathList(payload)
-
-        XCTAssertEqual(moved, [source.path])
-        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "body")
-    }
-
-    func testCopyUsesServerSideCopyWithoutRPCByteThreshold() throws {
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-        let source = temp.appendingPathComponent("large.bin")
-        try Data(repeating: 7, count: 1_048_577).write(to: source)
-        let destination = try createTestFolder(in: temp, name: "dest")
-
-        let payload = try FileOperations().copy(
-            sources: [ServerRemotePath(source.path)],
-            destination: ServerRemotePath(destination.path),
-            maximumRPCBytes: 1
-        )
-        let copied = try decodeServerPathList(payload)
-
-        let copy = destination.appendingPathComponent("large.bin")
-        XCTAssertEqual(copied, [copy.path])
-        XCTAssertEqual(try XCTUnwrap(copy.resourceValues(forKeys: [.fileSizeKey]).fileSize), 1_048_577)
-    }
 }
 
 final class TrashOperationsServerTests: XCTestCase {
@@ -282,51 +218,18 @@ final class DarwinServerSmokeTests: XCTestCase {
         try responseReader.requireComplete()
     }
 
-    func testDarwinFileOperationsRoundTrip() throws {
+    func testDarwinReadOnlyFileOperations() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
         let source = try createTestFile(in: temp, name: "source.txt", content: "body")
-        let destination = temp.appendingPathComponent("uploaded.txt")
-        let operations = FileOperations(trashOperations: TrashOperations(homeDirectory: temp))
+        let operations = FileOperations()
 
         let listPayload = try operations.list(path: ServerRemotePath(temp.path), showHidden: false)
         XCTAssertEqual(try decodeServerFileEntries(listPayload).map(\.name), ["source.txt"])
-
         let statPayload = try operations.stat(path: ServerRemotePath(source.path))
         XCTAssertEqual(try decodeServerFileEntries(statPayload).first?.name, "source.txt")
-
-        try operations.upload(
-            path: ServerRemotePath(destination.path),
-            contents: Data("upload".utf8),
-            expectedByteCount: 6,
-            maximumRPCBytes: 1_024
-        )
-        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "upload")
-
-        let downloaded = try operations.download(path: ServerRemotePath(destination.path), maximumRPCBytes: 1_024)
-        XCTAssertEqual(String(data: downloaded, encoding: .utf8), "upload")
-
-        let renamedPayload = try operations.rename(item: ServerRemotePath(destination.path), newName: Data("renamed.txt".utf8))
-        var renamedReader = ServerRPCBinaryReader(data: renamedPayload)
-        XCTAssertEqual(try renamedReader.readUInt32(), 1)
-        XCTAssertEqual(
-            String(bytes: try renamedReader.readData(), encoding: .utf8),
-            temp.appendingPathComponent("renamed.txt").path
-        )
-
-        let trashPayload = try operations.trash(items: [ServerRemotePath(temp.appendingPathComponent("renamed.txt").path)])
-        var trashReader = ServerRPCBinaryReader(data: trashPayload)
-        let trashCount = try trashReader.readUInt32()
-        XCTAssertEqual(trashCount, 1)
-        let trashInfoPath = try XCTUnwrap(String(bytes: trashReader.readData(), encoding: .utf8))
-
-        let restoredPayload = try operations.restoreFromTrash(items: [ServerRemotePath(trashInfoPath)])
-        var restoredReader = ServerRPCBinaryReader(data: restoredPayload)
-        XCTAssertEqual(try restoredReader.readUInt32(), 1)
-        XCTAssertEqual(
-            String(bytes: try restoredReader.readData(), encoding: .utf8),
-            temp.appendingPathComponent("renamed.txt").path
-        )
+        let downloaded = try operations.download(path: ServerRemotePath(source.path), maximumRPCBytes: 1_024)
+        XCTAssertEqual(downloaded, Data("body".utf8))
     }
 
     private func buildDarwinHelperIfNeeded() throws -> URL {
@@ -463,20 +366,6 @@ private func decodeServerFileEntries(_ payload: Data) throws -> [DecodedServerFi
     }
     try reader.requireComplete()
     return entries
-}
-
-private func decodeServerPathList(_ payload: Data) throws -> [String] {
-    var reader = ServerRPCBinaryReader(data: payload)
-    let count = try reader.readUInt32()
-    var paths: [String] = []
-    for _ in 0..<count {
-        guard let path = String(bytes: try reader.readData(), encoding: .utf8) else {
-            throw ServerRPCProtocolError.invalidFrame
-        }
-        paths.append(path)
-    }
-    try reader.requireComplete()
-    return paths
 }
 
 private struct FailingInotifyBackend: InotifyBackend {

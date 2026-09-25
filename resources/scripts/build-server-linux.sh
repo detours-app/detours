@@ -44,6 +44,7 @@ COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     Tests/ServerOperationArchiveTests.swift \
     Tests/ServerOperationExtractionTests.swift \
     Tests/ServerLegacyMutationTests.swift \
+    Tests/ServerAcceptedMutationTests.swift \
     Tests/OperationFilesystemTests.swift \
     Tests/OperationPublicationTests.swift \
     Tests/OperationContentProofTests.swift \
@@ -104,7 +105,7 @@ let package = Package(
             path: "Tests",
             exclude: ["DetoursProcessTests"],
             sources: [
-                "ServerArchiveOperationsTests.swift", "ServerArchiveStreamTests.swift", "ServerOperationArchiveTests.swift", "ServerOperationExtractionTests.swift", "ServerLegacyMutationTests.swift",
+                "ServerArchiveOperationsTests.swift", "ServerArchiveStreamTests.swift", "ServerOperationArchiveTests.swift", "ServerOperationExtractionTests.swift", "ServerLegacyMutationTests.swift", "ServerAcceptedMutationTests.swift",
                 "OperationFilesystemTests.swift", "OperationPublicationTests.swift",
                 "OperationContentProofTests.swift", "OperationManifestTests.swift", "ServerOperationServiceTests.swift", "ServerOperationTrashTests.swift",
                 "ServerOperationBackupTests.swift", "ServerOperationTreeCopyTests.swift", "ServerOperationPreparationTests.swift",
