@@ -73,7 +73,8 @@ BOOL WINAPI DllMain(
 static __attribute__((constructor)) void Init_ForceToUTF8();
 static __attribute__((constructor)) void Init_ForceToUTF8()
 {
-  g_ForceToUTF8 = IsNativeUTF8();
+  // Detours passes UTF-8 names independently of the embedding process locale.
+  g_ForceToUTF8 = true;
   // printf("\nDLLExports2.cpp::Init_ForceToUTF8 =%d\n", g_ForceToUTF8 ? 1 : 0);
 }
 
