@@ -21,6 +21,9 @@ extension WindowsOperationScripts {
             public Identity identity; public string kind; public string version;
             public ulong byteCount; public string sha256; public string linkTarget; public string contentVersion;
         }
+        public sealed class TreeEntry { public string relativePath; public Observation observation; }
+        public sealed class ContentProof { public ulong byteCount; public string sha256; }
+        public sealed class TreeManifest { public TreeEntry[] entries; public ContentProof proof; }
         [StructLayout(LayoutKind.Sequential)]
         public struct RenameInfo { public uint flags; public IntPtr root; public uint length; public ushort name; }
         [StructLayout(LayoutKind.Sequential)]
@@ -150,6 +153,66 @@ extension WindowsOperationScripts {
                     return after;
                 }
             }
+        }
+        public static TreeManifest Manifest(string path) {
+            var entries = new System.Collections.Generic.List<TreeEntry>();
+            CollectTree(path, "", entries);
+            entries.Sort(delegate(TreeEntry left, TreeEntry right) {
+                byte[] a = Convert.FromBase64String(left.relativePath), b = Convert.FromBase64String(right.relativePath);
+                for (int index = 0; index < Math.Min(a.Length, b.Length); index++) {
+                    int order = a[index].CompareTo(b[index]); if (order != 0) return order;
+                }
+                return a.Length.CompareTo(b.Length);
+            });
+            StringBuilder json = new StringBuilder("[");
+            ulong total = 0;
+            foreach (TreeEntry entry in entries) {
+                Observation observed = entry.observation;
+                ulong size = observed.kind == "file" ? observed.byteCount : 0;
+                total = checked(total + size);
+                if (json.Length > 1) json.Append(',');
+                json.Append("{\"byteCount\":").Append(size.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                json.Append(",\"kind\":\"").Append(observed.kind).Append('"');
+                if (observed.linkTarget != null) json.Append(",\"linkTarget\":\"").Append(observed.linkTarget).Append('"');
+                json.Append(",\"relativePath\":\"").Append(entry.relativePath).Append('"');
+                if (observed.sha256 != null) json.Append(",\"sha256\":\"").Append(observed.sha256).Append('"');
+                json.Append('}');
+            }
+            json.Append(']');
+            using (SHA256 hash = SHA256.Create()) {
+                string digest = BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(json.ToString()))).Replace("-", "").ToLowerInvariant();
+                return new TreeManifest { entries = entries.ToArray(), proof = new ContentProof { byteCount = total, sha256 = digest } };
+            }
+        }
+        private static void CollectTree(string path, string relative, System.Collections.Generic.List<TreeEntry> entries) {
+            Observation before = Observe(path);
+            string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(relative));
+            if (before.kind == "file") {
+                Observation proved = Prove(path);
+                Require(proved, before.identity.volume, before.identity.@object, before.version);
+                entries.Add(new TreeEntry { relativePath = encoded, observation = proved });
+            } else if (before.kind == "symbolicLink") {
+                entries.Add(new TreeEntry { relativePath = encoded, observation = before });
+            } else {
+                using (SafeFileHandle directory = Open(path, 0x81, 3)) {
+                    Require(Observe(directory), before.identity.volume, before.identity.@object, before.version);
+                    string[] names = Directory.GetFileSystemEntries(path);
+                    Array.Sort(names, StringComparer.Ordinal);
+                    entries.Add(new TreeEntry { relativePath = encoded, observation = before });
+                    foreach (string child in names) {
+                        string name = Path.GetFileName(child);
+                        CollectTree(child, relative.Length == 0 ? name : relative + "/" + name, entries);
+                    }
+                    string[] after = Directory.GetFileSystemEntries(path);
+                    Array.Sort(after, StringComparer.Ordinal);
+                    if (after.Length != names.Length) throw new IOException("Operation directory changed.");
+                    for (int index = 0; index < names.Length; index++) {
+                        if (names[index] != after[index]) throw new IOException("Operation directory changed.");
+                    }
+                    Require(Observe(directory), before.identity.volume, before.identity.@object, before.version);
+                }
+            }
+            Require(Observe(path), before.identity.volume, before.identity.@object, before.version);
         }
         private static void Require(Observation actual, string volume, string id, string version) {
             if (actual.identity.volume != volume || actual.identity.@object != id || actual.version != version)
