@@ -45,6 +45,7 @@ extension WindowsOperationScripts {
     \#(mutationHelpers)
     \#(ingressHelpers)
     \#(trashHelpers)
+    \#(restoreHelpers)
     $profile = [Environment]::GetFolderPath('UserProfile')
     if ([string]::IsNullOrWhiteSpace($profile)) { throw 'Windows user profile is unavailable.' }
     $machine = [Microsoft.Win32.Registry]::GetValue('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography', 'MachineGuid', $null)
@@ -128,6 +129,12 @@ extension WindowsOperationScripts {
             Cancel-Operation $Root $identity.id
             return @{ cancellationRecorded = @{ _0 = $identity } }
         }
+        if ($kind -eq 'execute') {
+            $accepted = Read-WindowsOperation $Root $identity $Account $epoch
+            if ($accepted.intent.action -eq 'restore') {
+                return @{ receipt = @{ _0 = (Invoke-WindowsRestoreRequest $Root $identity $Account $epoch) } }
+            }
+        }
         $lockPath = Join-Path $Root ($key + '.lock')
         if ($kind -eq 'status') {
             $record = Read-WindowsOperation $Root $identity $Account $epoch
@@ -146,7 +153,7 @@ extension WindowsOperationScripts {
                 if ($digest -cne $identity.intentDigest) { throw 'Operation intent digest mismatch.' }
                 $intent = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
                 if ((Get-OperationKey $intent.id) -cne $key) { throw 'Operation item identity mismatch.' }
-                if ($intent.action -notin @('copy', 'editorUpload', 'rename', 'move', 'createFolder', 'trash')) {
+                if ($intent.action -notin @('copy', 'editorUpload', 'rename', 'move', 'createFolder', 'trash', 'restore')) {
                     throw 'This Windows operation action is not implemented.'
                 }
                 return @{ accepted = @{ _0 = (Accept-Operation $Root $intent $digest $Account $epoch $ownership) } }

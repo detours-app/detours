@@ -120,6 +120,29 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         let duplicateTrash = try await send(.execute(trashRequest))
         XCTAssertEqual(duplicateTrash, .receipt(trashed))
 
+        let restoreIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .restore,
+            sources: [try XCTUnwrap(restoreReference.knownLocation)], destination: location("copy"),
+            sourceObservations: [try XCTUnwrap(trashed.effects.first?.observation)], conflict: .createNew, reverses: trashIntent.id)
+        let restoreRequest = try identity(restoreIntent)
+        _ = try await send(.accept(identity: restoreRequest, intent: restoreIntent))
+        guard case .receipt(let restoredCopy) = try await send(.execute(restoreRequest)) else { return XCTFail("No restore result") }
+        XCTAssertEqual(restoredCopy.outcome, .committed, restoredCopy.failure ?? "")
+        XCTAssertEqual(restoredCopy.effects.first?.observation.identity, copy.effects.first?.observation.identity)
+        XCTAssertEqual(restoredCopy.effects.first?.observation.sha256, intent.payloadProof?.sha256)
+        XCTAssertTrue(restoredCopy.recovery.isEmpty, restoredCopy.failure ?? "")
+        let duplicateRestore = try await send(.execute(restoreRequest))
+        XCTAssertEqual(duplicateRestore, .receipt(restoredCopy))
+        guard case .status(let consumedTrash) = try await send(.status(trashRequest)) else { return XCTFail("No consumed Trash record") }
+        XCTAssertTrue(try XCTUnwrap(consumedTrash.receipt).recovery.isEmpty)
+
+        let unauthorizedIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .restore,
+            sources: [location("copy")], destination: location("unapproved"),
+            sourceObservations: [try XCTUnwrap(restoredCopy.effects.first?.observation)], conflict: .createNew, reverses: trashIntent.id)
+        let unauthorizedRequest = try identity(unauthorizedIntent)
+        _ = try await send(.accept(identity: unauthorizedRequest, intent: unauthorizedIntent))
+        guard case .receipt(let unauthorized) = try await send(.execute(unauthorizedRequest)) else { return XCTFail("No refused restore result") }
+        XCTAssertEqual(unauthorized.outcome, .failedUnchanged, unauthorized.failure ?? "")
+
         let cancelledIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .editorUpload, sources: [],
             destination: location("cancelled"), sourceObservations: [], conflict: .createNew, payloadProof: intent.payloadProof)
         let cancelledRequest = try identity(cancelledIntent)
@@ -182,6 +205,19 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
             from: await channel.run(contentsScript, operation: "CheckTrashRollbackContents"))
         XCTAssertEqual(contents["source"], "competing writer")
         XCTAssertEqual(contents["held"], "changed after move")
+
+        guard case .lookup(.found(let retained)) = try await send(.lookup(held)) else { return XCTFail("Held source missing") }
+        let occupiedRestoreIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .restore,
+            sources: [held], destination: renamed, sourceObservations: [retained], conflict: .createNew, reverses: blockedIntent.id)
+        let occupiedRestoreRequest = try identity(occupiedRestoreIntent)
+        _ = try await send(.accept(identity: occupiedRestoreRequest, intent: occupiedRestoreIntent))
+        guard case .receipt(let occupiedRestore) = try await send(.execute(occupiedRestoreRequest)) else {
+            return XCTFail("No occupied restore result")
+        }
+        XCTAssertEqual(occupiedRestore.outcome, .failedUnchanged, occupiedRestore.failure ?? "")
+        let preservedContents = try JSONDecoder().decode([String: String].self,
+            from: await channel.run(contentsScript, operation: "CheckRefusedRestoreContents"))
+        XCTAssertEqual(preservedContents, contents)
     }
 
     private func exerciseIngress(channel: PowerShellChannel, root: String, control: URL) async throws {
@@ -271,6 +307,7 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.mutationHelpers)
     \#(WindowsOperationScripts.ingressHelpers)
     \#(WindowsOperationScripts.trashHelpers)
+    \#(WindowsOperationScripts.restoreHelpers)
     $nativeProof = ${function:Get-WindowsContentProof}
     function Get-WindowsContentProof([string]$Path) {
         $probe = [System.IO.FileStream]::new((Join-Path (Join-Path $Arguments.root 'journal') 'commit.lock'), 'OpenOrCreate', 'ReadWrite', 'None')

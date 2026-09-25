@@ -120,14 +120,14 @@ extension WindowsOperationScripts {
                     $receipt.outcome = 'committed'; $receipt.failure = $null
                     $receipt.effects = @(@{ location = $resultLocation; observation = $actual })
                     $receipt.contentVerified = $null -ne $expected.sha256
-                    if ($Context.record.intent.action -in @('move', 'rename')) { $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @() }
+                    if ($Context.record.intent.action -in @('move', 'rename', 'restore')) { $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @() }
                     if ($Context.record.intent.action -eq 'trash') {
                         $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @(Get-WindowsTrashReference $Context $resultLocation)
                     }
                 }
             }
         }
-        if ($receipt.outcome -eq 'unknown' -and $Context.record.intent.action -in @('move', 'rename', 'trash')) { $receipt.sourceDisposition = 'unknown' }
+        if ($receipt.outcome -eq 'unknown' -and $Context.record.intent.action -in @('move', 'rename', 'trash', 'restore')) { $receipt.sourceDisposition = 'unknown' }
         Save-WindowsReceipt $Context $receipt | Out-Null
     }
     function Prepare-WindowsPayload($Context, [string]$Kind, $Parameters) {
@@ -184,7 +184,7 @@ extension WindowsOperationScripts {
             $payload = $Context.record.receipt.preparedPayload
             $source = Get-OperationPath $payload.location $Context.account
             Assert-WindowsObservation ((Get-WindowsContentProof $source)) $payload.observation
-        } elseif ($intent.action -in @('rename', 'move')) {
+        } elseif ($intent.action -in @('rename', 'move', 'restore')) {
             if (@($intent.sources).Count -ne 1 -or @($intent.sourceObservations).Count -ne 1) { throw 'Invalid accepted native move.' }
             $source = Get-OperationPath $intent.sources[0] $Context.account
             $observed = [DetoursOperationFiles]::Observe($source)
@@ -199,7 +199,7 @@ extension WindowsOperationScripts {
             $receipt = New-WindowsReceipt $Context 'committing' 'running'
             $receipt.preparedPayload = $payload
             $receipt.plannedPaths = @($intent.destination)
-            if ($intent.action -in @('rename', 'move')) {
+            if ($intent.action -in @('rename', 'move', 'restore')) {
                 $receipt.sourceDisposition = 'unknown'
                 $receipt.recovery = @(@{ identity = $payload.observation.identity; purpose = 'source'; original = $payload.location
                     knownLocation = $null; possibleLocations = @($payload.location, $intent.destination) })
@@ -213,7 +213,7 @@ extension WindowsOperationScripts {
             }
             $receipt = New-WindowsReceipt $Context 'committing' 'running'
             $receipt.effects = @(@{ location = $intent.destination; observation = $observed })
-            if ($intent.action -in @('rename', 'move')) { $receipt.sourceDisposition = 'unknown' }
+            if ($intent.action -in @('rename', 'move', 'restore')) { $receipt.sourceDisposition = 'unknown' }
             Save-WindowsReceipt $Context $receipt | Out-Null
         } finally { $commit.Dispose() }
         if ($observed.kind -eq 'file') {
@@ -225,7 +225,7 @@ extension WindowsOperationScripts {
         $receipt = New-WindowsReceipt $Context 'terminal' 'committed'
         $receipt.effects = @(@{ location = $intent.destination; observation = $observed })
         $receipt.contentVerified = $null -ne $observed.sha256
-        if ($intent.action -in @('rename', 'move')) { $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @() }
+        if ($intent.action -in @('rename', 'move', 'restore')) { $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @() }
         Save-WindowsReceipt $Context $receipt | Out-Null
         if ($null -ne $Context.record.workspace) {
             try {
