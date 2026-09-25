@@ -55,6 +55,8 @@ extension ServerOperationService {
             return .receipt(try await prepareUpload(identity, contents: contents))
         case .commit(let identity):
             return .receipt(try await commit(identity))
+        case .execute(let identity):
+            return .receipt(try await execute(identity))
         case .status(let identity):
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {

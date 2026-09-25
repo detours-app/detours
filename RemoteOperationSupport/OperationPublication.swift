@@ -49,7 +49,8 @@ public enum OperationPublication {
                                                              expected: payload.observation)
         let confirmed = OperationObservation(identity: observation.identity, kind: observation.kind,
                                              version: observation.version, byteCount: observation.byteCount,
-                                             sha256: payload.observation.sha256, linkTarget: observation.linkTarget)
+                                             sha256: payload.observation.sha256, linkTarget: observation.linkTarget,
+                                             contentVersion: observation.contentVersion)
         let committed = OperationReceipt(
             id: id, account: journal.account, epoch: journal.epoch, intentDigest: accepted.intentDigest,
             revision: committing.revision + 1, phase: .committed,

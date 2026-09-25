@@ -56,10 +56,11 @@ public struct OperationObservation: Codable, Equatable, Sendable {
     public let byteCount: UInt64
     public let sha256: String?
     public let linkTarget: Data?
+    public let contentVersion: Data?
 
     public init(
         identity: OperationObjectIdentity, kind: Kind, version: Data,
-        byteCount: UInt64, sha256: String?, linkTarget: Data?
+        byteCount: UInt64, sha256: String?, linkTarget: Data?, contentVersion: Data? = nil
     ) {
         self.identity = identity
         self.kind = kind
@@ -67,6 +68,7 @@ public struct OperationObservation: Codable, Equatable, Sendable {
         self.byteCount = byteCount
         self.sha256 = sha256
         self.linkTarget = linkTarget
+        self.contentVersion = contentVersion
     }
 }
 

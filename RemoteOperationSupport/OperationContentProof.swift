@@ -101,6 +101,7 @@ extension OperationDirectory {
             throw OperationFilesystemError.identityChanged
         }
         return OperationObservation(identity: before.identity, kind: before.kind, version: before.version,
-                                    byteCount: proof.byteCount, sha256: proof.sha256, linkTarget: nil)
+                                    byteCount: proof.byteCount, sha256: proof.sha256, linkTarget: nil,
+                                    contentVersion: before.contentVersion)
     }
 }

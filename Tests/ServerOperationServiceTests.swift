@@ -49,6 +49,81 @@ final class ServerOperationServiceTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
     }
 
+    func testNativeRenameMoveAndFolderCreationKeepOneRecordedResult() async throws {
+        for action in [OperationIntent.Action.rename, .move, .createFolder] {
+            let fixture = try await Fixture(size: 32, action: action)
+            defer { fixture.cleanup() }
+            _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+            let result = try await fixture.service.execute(fixture.identity)
+            XCTAssertEqual(result.outcome, .committed)
+            XCTAssertEqual(result.effects.first?.observation.kind, action == .createFolder ? .directory : .file)
+            let duplicate = try await fixture.service.execute(fixture.identity)
+            XCTAssertEqual(duplicate, result)
+            if action != .createFolder {
+                XCTAssertEqual(result.sourceDisposition, .confirmed)
+                XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("source").path))
+                XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+            }
+        }
+    }
+
+    func testNativeConflictAndChangedSourceLeaveUserFilesUntouched() async throws {
+        for changedSource in [false, true] {
+            let fixture = try await Fixture(size: 32, action: .move)
+            defer { fixture.cleanup() }
+            _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+            let source = fixture.root.appendingPathComponent("source")
+            let competitor = Data("other writer".utf8)
+            try competitor.write(to: changedSource ? source : fixture.destination, options: .atomic)
+            let result = try await fixture.service.execute(fixture.identity)
+            XCTAssertEqual(result.outcome, .failedUnchanged)
+            XCTAssertTrue(result.effects.isEmpty)
+            XCTAssertEqual(try Data(contentsOf: changedSource ? source : fixture.destination), competitor)
+            XCTAssertEqual(FileManager.default.fileExists(atPath: fixture.destination.path), !changedSource)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+        }
+    }
+
+    func testNativeCancellationBeforeMutationIsConfirmedUnchanged() async throws {
+        let fixture = try await Fixture(size: 32, action: .rename)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        try fixture.service.cancel(fixture.identity)
+        let result = try await fixture.service.execute(fixture.identity)
+        XCTAssertEqual(result.outcome, .failedUnchanged)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("source").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+    }
+
+    func testLostNativeMoveConclusionIsReconciledWithoutAnotherMove() async throws {
+        let fixture = try await Fixture(size: 32, action: .move)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        let source = try XCTUnwrap(fixture.intent.sources.first)
+        let expected = try XCTUnwrap(fixture.intent.sourceObservations.first)
+        let destination = try XCTUnwrap(fixture.intent.destination)
+        do {
+            let ownership = try await fixture.service.journal.acquireItem(fixture.identity.id)
+            try fixture.service.journal.record(OperationReceipt(
+                id: fixture.identity.id, account: fixture.identity.account, epoch: fixture.identity.epoch,
+                intentDigest: fixture.identity.intentDigest, revision: 1, phase: .committing, outcome: .running,
+                sourceDisposition: .unknown, preparedPayload: OperationEffect(location: source, observation: expected),
+                recovery: [OperationRecoveryReference(identity: expected.identity, purpose: .source, original: source,
+                                                        knownLocation: nil, possibleLocations: [source, destination])]
+            ), ownership: ownership)
+            let directory = try OperationDirectory(path: Data(fixture.root.path.utf8))
+            _ = try directory.moveExclusive(Data("source".utf8), to: directory, named: Data("destination".utf8), expected: expected)
+            XCTAssertEqual(try fixture.service.status(fixture.identity).receipt?.phase, .committing)
+            withExtendedLifetime(ownership) {}
+        }
+        let result = try XCTUnwrap(fixture.service.status(fixture.identity).receipt)
+        XCTAssertEqual(result.outcome, .committed)
+        XCTAssertEqual(result.sourceDisposition, .confirmed)
+        XCTAssertTrue(result.recovery.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+        XCTAssertEqual(try fixture.service.status(fixture.identity).receipt, result)
+    }
+
     func testWrongByteCountOrHashLeavesDestinationUntouched() async throws {
         for bad in [Data([1]), Data(repeating: 7, count: 32)] {
             let fixture = try await Fixture(size: 32)
@@ -254,7 +329,7 @@ final class ServerOperationServiceTests: XCTestCase {
         let identity: OperationRequestIdentity
         let intent: OperationIntent
 
-        init(size: Int) async throws {
+        init(size: Int, action: OperationIntent.Action = .copy) async throws {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
             self.root = root
@@ -263,10 +338,19 @@ final class ServerOperationServiceTests: XCTestCase {
             let account = OperationAccount(hostIdentity: "fixture", accountIdentity: "fixture-user")
             let service = try await ServerOperationService(root: root.appendingPathComponent("journal"), account: account)
             self.service = service
+            var sources: [OperationLocation] = []
+            var observations: [OperationObservation] = []
+            if [.rename, .move].contains(action) {
+                let source = root.appendingPathComponent("source")
+                try bytes.write(to: source)
+                sources = [OperationLocation(account: account, path: .unix(Data(source.path.utf8)))]
+                observations = [try OperationDirectory(path: Data(root.path.utf8)).observe(Data("source".utf8))]
+            }
             let intent = OperationIntent(
-                id: .init(operation: UUID(), item: UUID()), action: .copy, sources: [],
+                id: .init(operation: UUID(), item: UUID()), action: action, sources: sources,
                 destination: OperationLocation(account: account, path: .unix(Data(destination.path.utf8))),
-                sourceObservations: [], conflict: .createNew, payloadProof: try OperationContentProof.data(bytes)
+                sourceObservations: observations, conflict: .createNew,
+                payloadProof: action == .copy ? try OperationContentProof.data(bytes) : nil
             )
             self.intent = intent
             self.identity = OperationRequestIdentity(id: intent.id, account: account, epoch: service.journal.epoch,

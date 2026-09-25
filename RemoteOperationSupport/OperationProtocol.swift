@@ -67,6 +67,7 @@ public enum OperationRequest: Codable, Equatable, Sendable {
     case accept(identity: OperationRequestIdentity, intent: OperationIntent)
     case prepareUpload(identity: OperationRequestIdentity, contents: Data)
     case commit(OperationRequestIdentity)
+    case execute(OperationRequestIdentity)
     case status(OperationRequestIdentity)
     case cancel(OperationRequestIdentity)
     case acknowledge(identity: OperationRequestIdentity, retainingUndo: Bool)

@@ -10,7 +10,7 @@ public enum OperationOutcome: String, Codable, Sendable {
 
 public struct OperationRecoveryReference: Codable, Equatable, Sendable {
     public enum Purpose: String, Codable, Sendable {
-        case scratch, displacedOriginal, sourceTrash
+        case scratch, displacedOriginal, sourceTrash, source
     }
 
     public let identity: OperationObjectIdentity

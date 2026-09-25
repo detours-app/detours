@@ -61,9 +61,11 @@ public final class OperationDirectory: @unchecked Sendable {
         let changed = info.st_ctim
         #endif
         let version = "\(info.st_size):\(modified.tv_sec):\(modified.tv_nsec):\(changed.tv_sec):\(changed.tv_nsec):\(info.st_mode)"
+        let contentVersion = "\(info.st_size):\(modified.tv_sec):\(modified.tv_nsec):\(info.st_mode):\(info.st_uid):\(info.st_gid)"
         return OperationObservation(identity: Self.identity(info), kind: kind, version: Data(version.utf8),
                                     byteCount: UInt64(max(0, info.st_size)), sha256: nil,
-                                    linkTarget: kind == .symbolicLink ? try readLink(name) : nil)
+                                    linkTarget: kind == .symbolicLink ? try readLink(name) : nil,
+                                    contentVersion: Data(contentVersion.utf8))
     }
 
     public func lookup(_ name: Data) throws -> OperationLookup<OperationObservation> {
@@ -97,8 +99,21 @@ public final class OperationDirectory: @unchecked Sendable {
         try destination.synchronize()
         try destination.requireCurrentPath()
         let moved = try destination.observe(target)
-        guard moved.identity == expected.identity else { throw OperationFilesystemError.identityChanged }
+        guard moved.identity == expected.identity, moved.kind == expected.kind, moved.linkTarget == expected.linkTarget,
+              expected.contentVersion == nil || moved.contentVersion == expected.contentVersion else {
+            throw OperationFilesystemError.identityChanged
+        }
         return moved
+    }
+
+    public func createDirectory(_ name: Data) throws -> OperationObservation {
+        try Self.validateName(name)
+        try requireCurrentPath()
+        let result = try Self.withBytes(name) { mkdirat(descriptor, $0, mode_t(0o777)) }
+        guard result == 0 else { throw Self.systemError() }
+        try synchronize()
+        try requireCurrentPath()
+        return try observe(name)
     }
 
     public func synchronize() throws {
