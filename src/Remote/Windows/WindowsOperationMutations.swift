@@ -202,6 +202,12 @@ extension WindowsOperationScripts {
             $source = Get-OperationPath $intent.sources[0] $Context.account
             $observed = [DetoursOperationFiles]::Observe($source)
             if ($observed.kind -eq 'file') { $observed = (Get-WindowsContentProof $source) }
+            else {
+                $sourceManifest = Get-WindowsTreeProof $source
+                $observed = Get-WindowsManifestObservation $sourceManifest
+                $Context.record | Add-Member -NotePropertyName sourceManifest -NotePropertyValue $sourceManifest -Force
+                Save-WindowsWorkspace $Context
+            }
             Assert-WindowsObservation $observed $intent.sourceObservations[0]
             $payload = @{ location = $intent.sources[0]; observation = $observed }
         } elseif ($intent.action -ne 'createFolder' -or @($intent.sources).Count -ne 0) { throw 'Unsupported accepted native operation.' }
@@ -234,6 +240,12 @@ extension WindowsOperationScripts {
             $verified = Get-WindowsContentProof $destination
             Assert-WindowsObservation $verified $observed
             if ($verified.sha256 -cne $payload.observation.sha256) { throw 'Published operation content changed.' }
+            $observed = $verified
+        } elseif ($null -ne $payload) {
+            $movedManifest = Get-WindowsTreeProof $destination
+            Assert-WindowsTreeMovement $sourceManifest $movedManifest
+            $verified = Get-WindowsManifestObservation $movedManifest
+            Assert-WindowsObservation $verified $observed
             $observed = $verified
         }
         $receipt = New-WindowsReceipt $Context 'terminal' 'committed'

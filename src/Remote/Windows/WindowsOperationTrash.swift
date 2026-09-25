@@ -82,6 +82,12 @@ extension WindowsOperationScripts {
             $expected = $intent.sourceObservations[0]
             $before = [DetoursOperationFiles]::Observe($source)
             if ($before.kind -eq 'file') { $before = Get-WindowsContentProof $source }
+            else {
+                $manifest = Get-WindowsTreeProof $source
+                $before = Get-WindowsManifestObservation $manifest
+                $Context.record | Add-Member -NotePropertyName sourceManifest -NotePropertyValue $manifest -Force
+                Save-WindowsWorkspace $Context
+            }
             Assert-WindowsObservation $before $expected
             $root = Join-Path ([System.IO.Path]::GetDirectoryName($Context.root)) '.detours-trash'
             $directory = Join-Path $root ((Get-OperationKey $Context.identity.id) + '-' + [guid]::NewGuid().ToString('D'))
@@ -116,7 +122,12 @@ extension WindowsOperationScripts {
                 $receipt.sourceDisposition = 'unknown'; $receipt.effects = @(@{ location = $location; observation = $moved })
                 Save-WindowsReceipt $Context $receipt | Out-Null
             } finally { $commit.Dispose() }
-            $actual = if ($moved.kind -eq 'file') { Get-WindowsContentProof $target } else { [DetoursOperationFiles]::Observe($target) }
+            if ($moved.kind -eq 'file') { $actual = Get-WindowsContentProof $target }
+            else {
+                $after = Get-WindowsTreeProof $target
+                Assert-WindowsTreeMovement $manifest $after
+                $actual = Get-WindowsManifestObservation $after
+            }
             Assert-WindowsObservation $actual $moved
             if ($actual.sha256 -cne $before.sha256) { throw 'Trashed source content changed.' }
             $receipt = New-WindowsReceipt $Context 'terminal' 'committed'

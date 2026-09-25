@@ -291,7 +291,7 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         }
     }
 
-    private func cleanup(channel: PowerShellChannel, root: String) async throws {
+    func cleanup(channel: PowerShellChannel, root: String) async throws {
         struct Cleanup: Encodable { let root: String }
         let script = try PowerShellScript(source: PowerShellScript.prelude(operationBody: """
             param($Arguments)
@@ -311,6 +311,16 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.restoreHelpers)
     \#(WindowsOperationScripts.replacementHelpers)
     \#(WindowsOperationScripts.backupHandoffHelpers)
+    \#(WindowsOperationScripts.treeProofHelpers)
+    $nativeTreeProof = ${function:Get-WindowsTreeProof}
+    function Get-WindowsTreeProof([string]$Path) {
+        $probe = [System.IO.FileStream]::new((Join-Path (Join-Path $Arguments.root 'journal') 'commit.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+        $probe.Dispose()
+        if ($Arguments.trashFailure -eq 'treeChanged' -and $Path.Contains('\.detours-trash\')) {
+            [System.IO.File]::WriteAllText((Join-Path $Path 'child.txt'), 'modified')
+        }
+        & $nativeTreeProof $Path
+    }
     $nativeBackupReference = ${function:Set-WindowsBackupReference}
     function Set-WindowsBackupReference($Context, $KnownLocation, $Locations) {
         & $nativeBackupReference $Context $KnownLocation $Locations
