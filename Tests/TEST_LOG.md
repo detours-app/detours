@@ -1,5 +1,12 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, complete folder preparation)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux complete-folder preparation | `4c416ef` | PASS: 18 process tests in 11.986 seconds and 83 operation/archive tests in 5.961 seconds, zero failures or skips. Folder and selected-link copies publish only after complete preparation; changed source/payload trees, cancellation, competing names and source-descendant destinations preserve original data. Static Linux helper built. |
+| Signed Foundry complete-folder preparation | `4c416ef` | PASS: both helper builds, signed no-install app build and 105 tests, zero failures or skips, 3.462 seconds. Complete directory and selected-link publication, metadata, duplicate commit, changed payload ownership and live Windows journal regressions passed. |
+
 ## 2026-09-25 (Foundry and devtest, accepted Unix uploads)
 
 | Check | Commit | Result |
