@@ -27,6 +27,7 @@ final class ServerOperationArchiveTests: XCTestCase {
             XCTAssertEqual(committed.effects.first?.observation.identity, ready.preparedPayload?.observation.identity)
             XCTAssertTrue(committed.recovery.isEmpty)
             XCTAssertNil(committed.failure)
+            if format == .zip { try assertZIPHeaders(fixture.destination, encrypted: encrypted) }
             print("Archive compatibility: \(format.rawValue), encrypted=\(encrypted), prepared output extraction")
             let extracted = URL(fileURLWithPath: try ArchiveOperations().extractArchive(archive: fixture.destination.path, password: fixture.password))
             XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent("first/nested/émoji 📁.txt")), fixture.contents)
@@ -189,6 +190,48 @@ final class ServerOperationArchiveTests: XCTestCase {
         XCTAssertNil(try fixture.service.status(fixture.identity).workspace)
         XCTAssertEqual(try fixture.service.status(fixture.identity).receipt?.outcome, .failedUnchanged)
         try fixture.assertSourcesUnchanged()
+    }
+
+    private func assertZIPHeaders(_ archive: URL, encrypted: Bool) throws {
+        let bytes = [UInt8](try Data(contentsOf: archive))
+        func integer(_ offset: Int, _ count: Int) throws -> Int {
+            guard offset >= 0, offset + count <= bytes.count else { throw OperationFilesystemError.invalidPath }
+            return (0..<count).reduce(0) { $0 | (Int(bytes[offset + $1]) << (8 * $1)) }
+        }
+        let end = try XCTUnwrap((0...max(0, bytes.count - 22)).reversed().first { offset in
+            Array(bytes[offset..<min(offset + 4, bytes.count)]) == [0x50, 0x4b, 0x05, 0x06]
+        })
+        var central = try integer(end + 16, 4)
+        for _ in 0..<(try integer(end + 10, 2)) {
+            XCTAssertEqual(try integer(central, 4), 0x02014b50)
+            let local = try integer(central + 42, 4)
+            XCTAssertEqual(try integer(local, 4), 0x04034b50)
+            let length = try integer(central + 28, 2)
+            let localLength = try integer(local + 26, 2)
+            let name = Array(bytes[(central + 46)..<(central + 46 + length)])
+            let localName = Array(bytes[(local + 30)..<(local + 30 + localLength)])
+            XCTAssertEqual(localName, name)
+            let flags = try integer(central + 8, 2)
+            XCTAssertEqual(try integer(local + 6, 2), flags, try XCTUnwrap(String(bytes: name, encoding: .utf8)))
+            if name.contains(where: { $0 >= 128 }) { XCTAssertNotEqual(flags & 0x800, 0) }
+            if encrypted, name.last != 47 {
+                XCTAssertEqual(try integer(central + 10, 2), 99)
+                var extra = central + 46 + length
+                let limit = extra + (try integer(central + 30, 2))
+                var foundAES = false
+                while extra + 4 <= limit {
+                    let size = try integer(extra + 2, 2)
+                    if try integer(extra, 2) == 0x9901 {
+                        XCTAssertEqual(size, 7)
+                        XCTAssertEqual(try integer(extra + 8, 1), 3)
+                        foundAES = true
+                    }
+                    extra += 4 + size
+                }
+                XCTAssertTrue(foundAES)
+            }
+            central += 46 + length + (try integer(central + 30, 2)) + (try integer(central + 32, 2))
+        }
     }
 
     private struct Fixture {
