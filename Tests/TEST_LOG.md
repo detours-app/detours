@@ -38,6 +38,8 @@
 | Linux replacement-backup handoff | `d7de7c1` | PASS: 18 process tests in 11.772 seconds and 63 operation/archive tests in 6.123 seconds, zero failures or skips. Successful and refused backup handoffs preserve the new destination; restore metadata names the original destination; lost handoff results are located without replay. |
 | Signed Foundry replacement-backup handoff | `d7de7c1` | PASS: both helper builds, signed no-install app build and 84 tests, zero failures or skips, 3.836 seconds. Successful, refused and interrupted backup handoffs retain the original without changing the confirmed destination; live Windows journal checks passed. |
 | Replacement-backup restore build | `60f5935` | FAIL: Linux compilation rejected a private helper call from the new restoration extension; no tests ran. The cleanup now uses the existing accessible location resolver. |
+| Linux replacement-backup restoration | `2e6c20f` | PASS: 18 process tests in 11.887 seconds and 64 operation/archive tests in 6.269 seconds, zero failures or skips. Restoration from Trash and private holding storage preserves incoming files, refuses changed originals and occupied destinations, cleans owned recovery data and returns duplicate results unchanged. |
+| Signed Foundry replacement-backup restoration | `2e6c20f` | PASS: both helper builds, signed no-install app build and 85 tests, zero failures or skips, 3.116 seconds. Retained-original restoration, owned cleanup, refusal cases, duplicate results and the live Windows journal passed. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 

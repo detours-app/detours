@@ -10,7 +10,7 @@ extension ServerOperationService {
         defer { withExtendedLifetime(ownership) {} }
         let current = try journal.read(snapshot.id)
         guard current == snapshot else { return current }
-        if receipt.outcome == .committed {
+        if receipt.outcome == .committed || receipt.phase == .committed {
             let recovery = locateOriginals(receipt.recovery)
             guard recovery != receipt.recovery else { return current }
             try journal.record(OperationReceipt(

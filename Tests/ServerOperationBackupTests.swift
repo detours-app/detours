@@ -5,50 +5,61 @@ import XCTest
 
 final class ServerOperationBackupTests: XCTestCase {
     func testLostBackupHandoffResultIsLocatedWithoutRepeatingIt() async throws {
-        let fixture = try Fixture()
-        defer { fixture.cleanup() }
-        let destination = try fixture.url(fixture.original)
-        try Data("original".utf8).write(to: destination)
-        let incoming = Data("incoming".utf8)
-        let service = try await fixture.service()
-        let (request, intent) = try fixture.replacement(epoch: service.journal.epoch, contents: incoming)
-        _ = try await service.accept(request, intent: intent)
-        _ = try await service.prepareUpload(request, contents: incoming)
-        let reservation = try fixture.store.plan(id: request.id, original: fixture.original)
-        do {
-            let ownership = try await service.journal.acquireItem(request.id)
-            defer { withExtendedLifetime(ownership) {} }
-            let published = try await OperationPublication.publish(journal: service.journal, id: request.id, ownership: ownership)
-            let commit = try await service.journal.acquireCommit()
-            defer { withExtendedLifetime(commit) {} }
-            let original = try XCTUnwrap(published.recovery.first { $0.purpose == .displacedOriginal })
-            let holding = try XCTUnwrap(original.knownLocation)
-            let information = try fixture.store.prepare(reservation)
-            let recovery = published.recovery.filter { $0 != original } + [
-                OperationRecoveryReference(identity: original.identity, purpose: .displacedOriginal, original: fixture.original,
-                                           knownLocation: nil, possibleLocations: [holding, reservation.item]),
-                OperationRecoveryReference(identity: information.observation.identity, purpose: .scratch, original: nil,
-                                           knownLocation: information.location, possibleLocations: [information.location]),
-            ]
-            try service.journal.record(OperationReceipt(
-                id: request.id, account: request.account, epoch: request.epoch, intentDigest: request.intentDigest,
-                revision: published.revision + 1, phase: .committed, outcome: .committed, effects: published.effects,
-                sourceDisposition: published.sourceDisposition, contentVerified: true,
-                plannedPaths: [reservation.item, reservation.information], recovery: recovery
-            ), ownership: ownership)
-            let held = try service.resolve(holding)
-            let target = try service.resolve(reservation.item)
-            _ = try held.directory.moveExclusive(held.name, to: target.directory, named: target.name,
-                                                 expected: held.directory.observe(held.name))
+        for action in [OperationIntent.Action.copy, .move] {
+            let fixture = try Fixture()
+            defer { fixture.cleanup() }
+            let destination = try fixture.url(fixture.original)
+            try Data("original".utf8).write(to: destination)
+            let incoming = Data("incoming".utf8)
+            let service = try await fixture.service()
+            let (request, intent) = try fixture.replacement(epoch: service.journal.epoch, contents: incoming, action: action)
+            _ = try await service.accept(request, intent: intent)
+            if action == .move {
+                _ = try await service.prepareCopy(request)
+            } else {
+                _ = try await service.prepareUpload(request, contents: incoming)
+            }
+            let reservation = try fixture.store.plan(id: request.id, original: fixture.original)
+            do {
+                let ownership = try await service.journal.acquireItem(request.id)
+                defer { withExtendedLifetime(ownership) {} }
+                let published = try await OperationPublication.publish(journal: service.journal, id: request.id, ownership: ownership)
+                let commit = try await service.journal.acquireCommit()
+                defer { withExtendedLifetime(commit) {} }
+                let original = try XCTUnwrap(published.recovery.first { $0.purpose == .displacedOriginal })
+                let holding = try XCTUnwrap(original.knownLocation)
+                let information = try fixture.store.prepare(reservation)
+                let recovery = published.recovery.filter { $0 != original } + [
+                    OperationRecoveryReference(identity: original.identity, purpose: .displacedOriginal, original: fixture.original,
+                                               knownLocation: nil, possibleLocations: [holding, reservation.item]),
+                    OperationRecoveryReference(identity: information.observation.identity, purpose: .scratch, original: nil,
+                                               knownLocation: information.location, possibleLocations: [information.location]),
+                ]
+                try service.journal.record(OperationReceipt(
+                    id: request.id, account: request.account, epoch: request.epoch, intentDigest: request.intentDigest,
+                    revision: published.revision + 1, phase: .committed, outcome: published.outcome, effects: published.effects,
+                    sourceDisposition: published.sourceDisposition, contentVerified: true,
+                    plannedPaths: [reservation.item, reservation.information], recovery: recovery
+                ), ownership: ownership)
+                let held = try service.resolve(holding)
+                let target = try service.resolve(reservation.item)
+                _ = try held.directory.moveExclusive(held.name, to: target.directory, named: target.name,
+                                                     expected: held.directory.observe(held.name))
+            }
+            let result = try XCTUnwrap(service.status(request).receipt)
+            XCTAssertEqual(result.outcome, action == .move ? .running : .committed)
+            XCTAssertEqual(result.phase, .committed)
+            if action == .move {
+                XCTAssertEqual(result.sourceDisposition, .present)
+                XCTAssertEqual(try Data(contentsOf: fixture.root.appendingPathComponent("incoming")), incoming)
+            }
+            XCTAssertEqual(result.recovery.first { $0.purpose == .displacedOriginal }?.knownLocation, reservation.item)
+            XCTAssertEqual(result.plannedPaths, [reservation.item, reservation.information])
+            XCTAssertEqual(try Data(contentsOf: destination), incoming)
+            XCTAssertEqual(try Data(contentsOf: fixture.url(reservation.item)), Data("original".utf8))
+            let duplicate = try await service.commit(request)
+            XCTAssertEqual(duplicate, result)
         }
-        let result = try XCTUnwrap(service.status(request).receipt)
-        XCTAssertEqual(result.outcome, .committed)
-        XCTAssertEqual(result.recovery.first { $0.purpose == .displacedOriginal }?.knownLocation, reservation.item)
-        XCTAssertEqual(result.plannedPaths, [reservation.item, reservation.information])
-        XCTAssertEqual(try Data(contentsOf: destination), incoming)
-        XCTAssertEqual(try Data(contentsOf: fixture.url(reservation.item)), Data("original".utf8))
-        let duplicate = try await service.commit(request)
-        XCTAssertEqual(duplicate, result)
     }
 
     func testReplacementBackupHandoffPreservesTheCommittedDestination() async throws {
@@ -169,10 +180,18 @@ final class ServerOperationBackupTests: XCTestCase {
             try await ServerOperationService(root: root.appendingPathComponent("journal"), account: account, homeDirectory: root)
         }
 
-        func replacement(epoch: UUID, contents: Data) throws -> (OperationRequestIdentity, OperationIntent) {
+        func replacement(epoch: UUID, contents: Data, action: OperationIntent.Action = .copy) throws -> (OperationRequestIdentity, OperationIntent) {
             let observed = try OperationDirectory(path: Data(root.path.utf8)).observe(Data("source".utf8))
-            let intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .copy, sources: [],
-                                         destination: original, sourceObservations: [], conflict: .replace(observed),
+            var sources: [OperationLocation] = []
+            var observations: [OperationObservation] = []
+            if action == .move {
+                let source = root.appendingPathComponent("incoming")
+                try contents.write(to: source)
+                sources = [OperationLocation(account: account, path: .unix(Data(source.path.utf8)))]
+                observations = [try OperationDirectory(path: Data(root.path.utf8)).proveFile(Data("incoming".utf8), progress: { _ in })]
+            }
+            let intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: action, sources: sources,
+                                         destination: original, sourceObservations: observations, conflict: .replace(observed),
                                          payloadProof: try OperationContentProof.data(contents))
             return (OperationRequestIdentity(id: intent.id, account: account, epoch: epoch,
                                               intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256), intent)
