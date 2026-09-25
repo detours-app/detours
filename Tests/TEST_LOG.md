@@ -1,5 +1,12 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, Unix operation journal)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux helper container checks and required signed Foundry build | `2f86fb0` | PASS: Unix journal compiled on Linux and both macOS architectures; 18 process tests in 12.097 seconds and 14 archive tests in 1.699 seconds, zero failures or skips. Static Linux helper and signed no-install app build passed. |
+| Unix journal filesystem and shared-contract tests on Foundry | `2f86fb0` | PASS: 16 tests, zero failures or skips, 0.015 seconds. Six journal cases prove persistence, private directories, cancellation independent of ownership, corrupt/missing/old-epoch errors and retained terminal tombstones. |
+
 ## 2026-09-25 (Foundry and devtest, shared remote operation contract)
 
 | Check | Commit | Result |

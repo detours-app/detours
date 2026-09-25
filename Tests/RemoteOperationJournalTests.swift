@@ -120,6 +120,25 @@ final class RemoteOperationJournalTests: XCTestCase {
         }
     }
 
+    func testStoppedUnknownReceiptCanBeReconciledWithoutResubmission() async throws {
+        let root = try temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let journal = try await OperationJournal(root: root, account: account)
+        let intent = makeIntent()
+        let ownership = try await journal.acquireItem(intent.id)
+        _ = try journal.accept(intent, digest: "digest", ownership: ownership)
+        try journal.record(OperationReceipt(
+            id: intent.id, account: account, epoch: journal.epoch, intentDigest: "digest",
+            revision: 1, phase: .terminal, outcome: .unknown
+        ), ownership: ownership)
+        try journal.record(OperationReceipt(
+            id: intent.id, account: account, epoch: journal.epoch, intentDigest: "digest",
+            revision: 2, phase: .terminal, outcome: .failedUnchanged
+        ), ownership: ownership)
+        XCTAssertEqual(try journal.read(intent.id).receipt?.outcome, .failedUnchanged)
+        XCTAssertEqual(try journal.read(intent.id).revision, 3)
+    }
+
     private func temporaryRoot() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
