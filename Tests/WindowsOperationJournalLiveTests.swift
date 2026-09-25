@@ -21,11 +21,11 @@ final class WindowsOperationJournalLiveTests: XCTestCase {
     }
 
     func testWindowsJournalPersistsExcludesAndRetainsTerminalEvidence() async throws {
-        let control = FileManager.default.temporaryDirectory
+        let controlDirectory = URL(fileURLWithPath: "/tmp", isDirectory: true)
             .appendingPathComponent("j-" + UUID().uuidString.prefix(6), isDirectory: true)
-        try FileManager.default.createDirectory(at: control, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
-        defer { try? FileManager.default.removeItem(at: control) }
-        let channel = PowerShellChannel(hostID: UUID(), sshTarget: "detours-windows", controlDirectory: control)
+        try FileManager.default.createDirectory(at: controlDirectory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: controlDirectory) }
+        let channel = PowerShellChannel(hostID: UUID(), sshTarget: "detours-windows", controlDirectory: controlDirectory)
         let account = OperationAccount(hostIdentity: "journal-fixture", accountIdentity: "journal-fixture-account")
         let intent = OperationIntent(
             id: .init(operation: UUID(), item: UUID()), action: .copy,

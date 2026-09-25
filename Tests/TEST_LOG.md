@@ -1,5 +1,12 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, Windows operation journal)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux helper checks and signed no-install Foundry build | `99a58df` | PASS: 18 process tests in 12.093 seconds and 14 archive tests in 1.885 seconds; static Linux helper, universal macOS helper and signed app build passed. |
+| Shared contract, Unix journal and Windows provider/journal checks | `99a58df` | FAIL: 27 of 28 tests passed in 0.564 seconds. The live Windows journal case failed with `unexpectedEOF`: its temporary SSH control path exceeded the macOS Unix socket limit, so SSH exited before reaching Windows. A Foundry connection probe reproduced the explicit path-length error and exit 255. |
+
 ## 2026-09-25 (Foundry and devtest, Unix operation journal)
 
 | Check | Commit | Result |
