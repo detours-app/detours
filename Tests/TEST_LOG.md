@@ -12,6 +12,7 @@
 | Signed Foundry accepted permanent deletion | `1dd436b` | PASS: both helper builds, signed no-install app build and 112 tests, zero failures or skips, 3.550 seconds. Accepted deletion, lost-result uncertainty, preserved outside link targets and replacement occupants passed with the host and live Windows journal regressions. |
 | Linux deletion regression build | `9a83d24` | PASS: 18 process tests in 11.988 seconds and 90 operation/archive tests in 6.787 seconds, zero failures or skips. Both helper builds and signed Foundry app build passed; the new permission-failure case runs on Foundry because the Linux helper build container runs as root. |
 | Signed Foundry partial permanent deletion | `9a83d24` | PASS: 113 tests, zero failures or skips, 3.518 seconds. A real later permission denial restores the remaining source tree, retains the confirmed earlier removal as partial, preserves outside link targets, cleans only empty owned scratch and returns the same result on duplicate execution. |
+| Foundry archive owned-output capability probe | `9a83d24` | FAIL: installed 7-Zip 26.02 rejects 7z creation through stdout with exit 2, E_NOTIMPL. ZIP creation through the same pre-opened output route and subsequent archive validation both returned 0. The probe cleaned its generated files. This is an archive-integration limitation; no archive implementation or format was changed. |
 
 ## 2026-09-25 (Foundry and devtest, accepted Unix uploads)
 
