@@ -1,5 +1,6 @@
 import DetoursProcess
 import Foundation
+import RemoteOperationSupport
 
 enum ServerRPCError: Error, Equatable {
     case unsupportedCommand(String)
@@ -74,6 +75,8 @@ struct RPCHandler: @unchecked Sendable {
     /// requests before or after it.
     private static func mutatesRemoteState(_ message: ServerRPCMessage) -> Bool {
         switch message {
+        case .operation:
+            return false
         case .protocolVersion, .list, .stat, .readSymlink, .folderSize, .gitStatus, .fileVersion, .download, .find:
             return false
         case .copy, .move, .rename, .delete, .trash, .restoreFromTrash, .mkDir, .symlink,
@@ -137,6 +140,8 @@ struct RPCHandler: @unchecked Sendable {
 
     func handleChunks(message: ServerRPCMessage) throws -> [Data] {
         switch message {
+        case .operation:
+            return [try OperationReply.incompatible(.missingCapabilities(Set(OperationCapability.allCases))).encoded()]
         case .protocolVersion:
             var writer = ServerRPCBinaryWriter()
             writer.writeInt64(1)

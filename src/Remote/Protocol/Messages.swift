@@ -1,4 +1,5 @@
 import Foundation
+import RemoteOperationSupport
 
 struct RemotePath: Equatable, Hashable, Sendable {
     let bytes: Data
@@ -26,6 +27,7 @@ enum RemoteWatchEventKind: UInt8, Equatable, Sendable {
 }
 
 enum RPCMessage: Equatable, Sendable {
+    case operation(OperationRequest)
     case protocolVersion(Int)
     case list(path: RemotePath, showHidden: Bool)
     case stat(path: RemotePath)
@@ -54,6 +56,9 @@ enum RPCMessage: Equatable, Sendable {
         var writer = RPCBinaryWriter()
 
         switch self {
+        case .operation(let request):
+            writer.writeUInt8(24)
+            writer.writeData(try request.encoded())
         case .protocolVersion(let version):
             writer.writeUInt8(1)
             writer.writeInt64(Int64(version))
@@ -151,6 +156,8 @@ enum RPCMessage: Equatable, Sendable {
         let tag = try reader.readUInt8()
 
         switch tag {
+        case 24:
+            self = .operation(try OperationRequest.decode(reader.readData()))
         case 1:
             self = .protocolVersion(Int(try reader.readInt64()))
         case 2:

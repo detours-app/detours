@@ -1,4 +1,5 @@
 import Foundation
+import RemoteOperationSupport
 
 enum ServerRPCProtocolError: Error {
     case invalidFrame
@@ -27,6 +28,7 @@ struct ServerRemotePath: Equatable, Hashable {
 }
 
 enum ServerRPCMessage {
+    case operation(OperationRequest)
     case protocolVersion(Int)
     case list(path: ServerRemotePath, showHidden: Bool)
     case stat(path: ServerRemotePath)
@@ -55,6 +57,8 @@ enum ServerRPCMessage {
         let tag = try reader.readUInt8()
 
         switch tag {
+        case 24:
+            self = .operation(try OperationRequest.decode(reader.readData()))
         case 1:
             self = .protocolVersion(Int(try reader.readInt64()))
         case 2:
