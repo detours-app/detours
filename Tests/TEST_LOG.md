@@ -1,5 +1,11 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, owned ZIP preparation)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux ZIP adapter compilation | `c00a458` | FAIL: compilation reached linking, which found missing upstream OffsetStream and MemBlocks implementations. Their headers were included, but the source dependency list omitted both implementation files. No tests ran; adding the two upstream files before rerunning the same checks. |
+
 ## 2026-09-25 (Foundry, archive compatibility)
 
 | Check | Commit | Result |
