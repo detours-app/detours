@@ -5,6 +5,8 @@
 | Check | Commit | Result |
 | --- | --- | --- |
 | Linux compressed TAR adapter compilation | `b5e98fe` | FAIL: linking found the missing upstream DummyOutStream implementation required by the added format handlers. Its header was included but its implementation was omitted. No tests ran; adding that source before rerunning the same checks. |
+| Linux compressed TAR dependency correction | `e7b81b3` | PASS: compilation and 18 process tests, zero failures, 12.088 seconds. |
+| Linux compressed TAR round trips | `e7b81b3` | FAIL: 105 of 107 tests passed in 14.325 seconds. Gzip TAR compatibility, symbolic links and hard links passed; bzip2 extraction stopped because the build container lacks the bzip2 executable used by the existing tar extractor. Adding bzip2 and xz-utils to the ephemeral Linux test-container dependencies before rerunning all format checks. |
 
 ## 2026-09-25 (Foundry and devtest, owned ZIP preparation)
 
