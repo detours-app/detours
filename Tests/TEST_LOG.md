@@ -18,6 +18,8 @@
 | Linux accepted streaming entry checks | `6b6f64d` | PASS: 18 process tests in 11.886 seconds and 36 service/content/filesystem/publication/archive tests in 2.747 seconds, zero failures or skips. The transfer entry returns a framed ready receipt without publishing; both helpers built and signed Foundry app build passed. |
 | Signed Foundry streaming entry and protocol checks | `6b6f64d` | PASS: signed no-install app build and 40 tests, zero failures or skips, 1.234 seconds. Versioned stream preparation, separate publication, protocol compatibility and existing transfer checks passed. |
 | Linux native-action checks | `1d0933a` | FAIL: 18 process tests passed in 11.886 seconds; 39 of 40 operation/archive checks passed in 3.103 seconds. The competing-file fixture used Foundation atomic writing, whose temporary-file path is rejected by the helper's static-Linux guard. Fixture creation failed before the operation ran; use a direct fixture write to exercise the intended changed-source/conflict conditions. |
+| Corrected Linux native-action and source-proof checks | `b6a130d` | PASS: 18 process tests in 11.886 seconds and 42 service/content/filesystem/publication/archive tests in 3.186 seconds, zero failures or skips. Native conflicts preserve both files, source hashes are checked before moving, and unrecorded folder identity stays unknown. Both helpers built. |
+| Signed Foundry native-action and source-proof checks | `b6a130d` | PASS: signed no-install app build and 56 tests, zero failures or skips, 1.343 seconds. Native actions, preserved conflicts, source proofs, incomplete-folder uncertainty, stream entry and the live Windows journal passed. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 

@@ -104,4 +104,14 @@ extension OperationDirectory {
                                     byteCount: proof.byteCount, sha256: proof.sha256, linkTarget: nil,
                                     contentVersion: before.contentVersion)
     }
+
+    public func openObservedFile(_ name: Data, expected: OperationObservation) throws -> FileHandle {
+        let handle = try openFile(name)
+        var info = stat()
+        guard fstat(handle.fileDescriptor, &info) == 0 else { throw Self.systemError() }
+        let observed = try observe(name)
+        guard Self.identity(info) == expected.identity, observed.identity == expected.identity,
+              observed.version == expected.version else { throw OperationFilesystemError.identityChanged }
+        return handle
+    }
 }

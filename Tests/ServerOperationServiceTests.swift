@@ -67,6 +67,60 @@ final class ServerOperationServiceTests: XCTestCase {
         }
     }
 
+    func testSameHostCopyVerifiesBothReadsAndRequiresSeparatePublication() async throws {
+        for size in [0, 1_048_577] {
+            let fixture = try await Fixture(size: size, localSource: true)
+            defer { fixture.cleanup() }
+            _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+            let ready = try await fixture.service.prepareCopy(fixture.identity)
+            XCTAssertEqual(ready.phase, .readyToCommit)
+            XCTAssertEqual(ready.measuredBytes, UInt64(size * 3))
+            XCTAssertEqual(ready.preparedPayload?.observation.sha256, try OperationContentProof.data(fixture.bytes).sha256)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+            let result = try await fixture.service.commit(fixture.identity)
+            XCTAssertEqual(result.outcome, .committed)
+            XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+            XCTAssertEqual(try Data(contentsOf: fixture.root.appendingPathComponent("source")), fixture.bytes)
+            let attributes = try FileManager.default.attributesOfItem(atPath: fixture.destination.path)
+            XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o751)
+            #if canImport(Darwin)
+            XCTAssertEqual(attributes[.modificationDate] as? Date, Date(timeIntervalSince1970: 1_600_000_000))
+            #endif
+        }
+    }
+
+    func testSameHostCopyRejectsChangedSourceBeforeAllocatingPayload() async throws {
+        let fixture = try await Fixture(size: 32, localSource: true)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        let source = fixture.root.appendingPathComponent("source")
+        try Data("new content".utf8).write(to: source)
+        do {
+            _ = try await fixture.service.prepareCopy(fixture.identity)
+            XCTFail("Changed source was copied")
+        } catch { XCTAssertEqual(error as? OperationFilesystemError, .identityChanged) }
+        XCTAssertEqual(try fixture.service.status(fixture.identity).receipt?.outcome, .failedUnchanged)
+        XCTAssertNil(try fixture.service.status(fixture.identity).workspace)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+        XCTAssertEqual(try Data(contentsOf: source), Data("new content".utf8))
+    }
+
+    func testCopyInputRejectsSourceChangedAfterReading() async throws {
+        let fixture = try await Fixture(size: 32, localSource: true)
+        defer { fixture.cleanup() }
+        let directory = try OperationDirectory(path: Data(fixture.root.path.utf8))
+        let name = Data("source".utf8)
+        let observation = try directory.observe(name)
+        let handle = try directory.openObservedFile(name, expected: observation)
+        defer { try? handle.close() }
+        let input = ServerOperationInput.sourceFile(handle, directory, name, observation)
+        XCTAssertEqual(try input.next(offset: 0, expected: 32, cancelled: { false }), fixture.bytes)
+        try Data("changed after read".utf8).write(to: fixture.root.appendingPathComponent("source"))
+        XCTAssertThrowsError(try input.validateSource()) { error in
+            XCTAssertEqual(error as? OperationFilesystemError, .identityChanged)
+        }
+    }
+
     func testNativeConflictAndChangedSourceLeaveUserFilesUntouched() async throws {
         for changedSource in [false, true] {
             let fixture = try await Fixture(size: 32, action: .move)
@@ -364,7 +418,7 @@ final class ServerOperationServiceTests: XCTestCase {
         let identity: OperationRequestIdentity
         let intent: OperationIntent
 
-        init(size: Int, action: OperationIntent.Action = .copy, sourceHash: String? = nil) async throws {
+        init(size: Int, action: OperationIntent.Action = .copy, sourceHash: String? = nil, localSource: Bool = false) async throws {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
             self.root = root
@@ -375,9 +429,15 @@ final class ServerOperationServiceTests: XCTestCase {
             self.service = service
             var sources: [OperationLocation] = []
             var observations: [OperationObservation] = []
-            if [.rename, .move].contains(action) {
+            if localSource || [.rename, .move].contains(action) {
                 let source = root.appendingPathComponent("source")
                 try bytes.write(to: source)
+                if localSource {
+                    try FileManager.default.setAttributes([
+                        .posixPermissions: 0o751,
+                        .modificationDate: Date(timeIntervalSince1970: 1_600_000_000),
+                    ], ofItemAtPath: source.path)
+                }
                 sources = [OperationLocation(account: account, path: .unix(Data(source.path.utf8)))]
                 let observed = try OperationDirectory(path: Data(root.path.utf8)).observe(Data("source".utf8))
                 observations = [OperationObservation(identity: observed.identity, kind: observed.kind, version: observed.version,
@@ -388,7 +448,7 @@ final class ServerOperationServiceTests: XCTestCase {
                 id: .init(operation: UUID(), item: UUID()), action: action, sources: sources,
                 destination: OperationLocation(account: account, path: .unix(Data(destination.path.utf8))),
                 sourceObservations: observations, conflict: .createNew,
-                payloadProof: action == .copy ? try OperationContentProof.data(bytes) : nil
+                payloadProof: action == .copy && !localSource ? try OperationContentProof.data(bytes) : nil
             )
             self.intent = intent
             self.identity = OperationRequestIdentity(id: intent.id, account: account, epoch: service.journal.epoch,

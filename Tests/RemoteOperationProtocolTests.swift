@@ -15,6 +15,7 @@ final class RemoteOperationProtocolTests: XCTestCase {
         let requests: [OperationRequest] = [
             .handshake, .accept(identity: identity, intent: intent), .status(identity),
             .prepareUpload(identity: identity, contents: Data([0, 255])), .commit(identity), .execute(identity),
+            .prepareCopy(identity),
             .cancel(identity), .acknowledge(identity: identity, retainingUndo: true),
         ]
         for request in requests {

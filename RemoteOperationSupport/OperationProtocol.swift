@@ -66,6 +66,7 @@ public enum OperationRequest: Codable, Equatable, Sendable {
     case handshake(version: Int, schemaVersion: Int, requiredCapabilities: Set<OperationCapability>)
     case accept(identity: OperationRequestIdentity, intent: OperationIntent)
     case prepareUpload(identity: OperationRequestIdentity, contents: Data)
+    case prepareCopy(OperationRequestIdentity)
     case commit(OperationRequestIdentity)
     case execute(OperationRequestIdentity)
     case status(OperationRequestIdentity)

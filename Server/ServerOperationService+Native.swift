@@ -104,8 +104,13 @@ extension ServerOperationService {
 
     private func validateSourceContent(_ intent: OperationIntent, ownership: OperationJournal.Ownership) async throws {
         guard [.rename, .move].contains(intent.action), intent.sources.count == 1,
-              intent.sourceObservations.count == 1, let expectedHash = intent.sourceObservations[0].sha256 else { return }
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+              intent.sourceObservations.count == 1, intent.sourceObservations[0].sha256 != nil else { return }
+        _ = try await proveSource(intent, ownership: ownership)
+    }
+
+    func proveSource(_ intent: OperationIntent, ownership: OperationJournal.Ownership) async throws -> OperationObservation {
+        guard intent.sources.count == 1, intent.sourceObservations.count == 1 else { throw OperationContractError.invalidReceipt }
+        return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let source = try self.resolve(intent.sources[0])
@@ -124,16 +129,23 @@ extension ServerOperationService {
                         }
                     }
                     guard proved.identity == intent.sourceObservations[0].identity,
-                          proved.version == intent.sourceObservations[0].version, proved.sha256 == expectedHash else {
+                          proved.version == intent.sourceObservations[0].version,
+                          intent.sourceObservations[0].sha256 == nil || proved.sha256 == intent.sourceObservations[0].sha256 else {
                         throw OperationFilesystemError.identityChanged
                     }
-                    continuation.resume()
+                    let current = try self.journal.read(intent.id)
+                    try self.journal.record(OperationReceipt(
+                        id: intent.id, account: self.journal.account, epoch: self.journal.epoch,
+                        intentDigest: current.intentDigest, revision: (current.receipt?.revision ?? 0) + 1,
+                        phase: .preparing, outcome: .running, measuredBytes: proved.byteCount
+                    ), ownership: ownership)
+                    continuation.resume(returning: proved)
                 } catch { continuation.resume(throwing: error) }
             }
         }
     }
 
-    private func resolve(_ location: OperationLocation) throws -> (directory: OperationDirectory, name: Data) {
+    func resolve(_ location: OperationLocation) throws -> (directory: OperationDirectory, name: Data) {
         guard location.account == journal.account, case .unix(let bytes) = location.path,
               bytes.first == 47, let slash = bytes.lastIndex(of: 47), slash < bytes.index(before: bytes.endIndex) else {
             throw OperationFilesystemError.invalidPath

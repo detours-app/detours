@@ -53,6 +53,8 @@ extension ServerOperationService {
             return .accepted(try await accept(identity, intent: intent))
         case .prepareUpload(let identity, let contents):
             return .receipt(try await prepareUpload(identity, contents: contents))
+        case .prepareCopy(let identity):
+            return .receipt(try await prepareCopy(identity))
         case .commit(let identity):
             return .receipt(try await commit(identity))
         case .execute(let identity):
