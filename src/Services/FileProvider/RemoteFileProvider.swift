@@ -647,6 +647,7 @@ actor RemoteFileProvider: FileProvider {
 extension RPCMessage {
     var messageType: String {
         switch self {
+        case .operation: return "Operation"
         case .protocolVersion: return "ProtocolVersion"
         case .list: return "List"
         case .stat: return "Stat"

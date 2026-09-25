@@ -1,5 +1,12 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, version-2 operation protocol)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux helper container regressions on devtest | `9e6dc62` | PASS: 18 process tests in 11.884 seconds and 14 archive tests in 1.725 seconds, zero failures or skips. |
+| Required Foundry build | `9e6dc62` | FAIL: both helpers built; app compilation reported a non-exhaustive message-name switch in `RemoteFileProvider` because the new operation request case was missing. No focused tests ran. |
+
 ## 2026-09-25 (Foundry and devtest, Windows operation journal)
 
 | Check | Commit | Result |
