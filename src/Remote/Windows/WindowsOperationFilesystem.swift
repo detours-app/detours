@@ -1,7 +1,7 @@
 import Foundation
 
 extension WindowsOperationScripts {
-    // Native structures and rename semantics: learn.microsoft.com/windows/win32/api/winbase/ns-winbase-file_rename_info
+    // Native rename contract: learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information
     static let filesystemHelpers = #"""
     if (-not ('DetoursOperationFiles' -as [type])) {
     Add-Type -TypeDefinition @'
@@ -24,14 +24,18 @@ extension WindowsOperationScripts {
         [StructLayout(LayoutKind.Sequential)]
         public struct RenameInfo { public uint flags; public IntPtr root; public uint length; public ushort name; }
         [StructLayout(LayoutKind.Sequential)]
+        private struct IoStatus { public IntPtr status; public UIntPtr information; }
+        [StructLayout(LayoutKind.Sequential)]
         private struct SecurityAttributes { public int length; public IntPtr descriptor; public int inherit; }
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern SafeFileHandle CreateFileW(string path, uint access, uint share, IntPtr security,
             uint disposition, uint flags, IntPtr template);
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int kind, [Out] byte[] data, uint size);
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool SetFileInformationByHandle(SafeFileHandle file, int kind, IntPtr data, uint size);
+        [DllImport("ntdll.dll")]
+        private static extern int NtSetInformationFile(SafeFileHandle file, out IoStatus result, IntPtr data, uint size, int kind);
+        [DllImport("ntdll.dll")]
+        private static extern uint RtlNtStatusToDosError(int status);
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool DeviceIoControl(SafeFileHandle file, uint code, IntPtr input, uint inputSize,
             [Out] byte[] output, uint outputSize, out uint returned, IntPtr overlapped);
@@ -132,8 +136,10 @@ extension WindowsOperationScripts {
                     Marshal.WriteIntPtr(buffer, Marshal.OffsetOf(typeof(RenameInfo), "root").ToInt32(), parent.DangerousGetHandle());
                     Marshal.WriteInt32(buffer, Marshal.OffsetOf(typeof(RenameInfo), "length").ToInt32(), text.Length);
                     Marshal.Copy(text, 0, IntPtr.Add(buffer, offset), text.Length);
-                    // FileRenameInfo with ReplaceIfExists false cannot replace a competing destination.
-                    if (!SetFileInformationByHandle(handle, 3, buffer, (uint)size)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                    // The NT entry point supports a pinned RootDirectory; the Win32 wrapper rejects it.
+                    IoStatus result;
+                    int status = NtSetInformationFile(handle, out result, buffer, (uint)size, 10);
+                    if (status != 0) throw new Win32Exception((int)RtlNtStatusToDosError(status));
                 } finally {
                     if (retained) parent.DangerousRelease();
                     Marshal.FreeHGlobal(buffer);
