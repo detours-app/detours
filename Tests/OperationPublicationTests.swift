@@ -1,8 +1,45 @@
 import Foundation
 @testable import RemoteOperationSupport
 import XCTest
+@testable import detours_server
 
 final class OperationPublicationTests: XCTestCase {
+    func testLostReplacementResultIsObservedWithoutRepeatingMutation() async throws {
+        for locateBackup in [false, true] {
+            let fixture = try await Fixture(replacing: true)
+            defer { fixture.cleanup() }
+            let preserved = fixture.root.appendingPathComponent("preserved-original")
+            do {
+                let ownership = try await fixture.prepare()
+                let commit = try await fixture.journal.acquireCommit()
+                defer { withExtendedLifetime(commit) {} }
+                _ = try OperationReplacement.displace(journal: fixture.journal, snapshot: fixture.journal.read(fixture.id), ownership: ownership)
+                let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
+                _ = try fixture.workspace.directory.moveExclusive(Data("payload".utf8), to: parent, named: Data("final".utf8),
+                                                                  expected: fixture.payload.observation)
+                if !locateBackup { try FileManager.default.moveItem(at: fixture.holdingURL, to: preserved) }
+                withExtendedLifetime(ownership) {}
+            }
+            let service = try await ServerOperationService(root: fixture.root.appendingPathComponent("journal"), account: fixture.journal.account)
+            let identity = OperationRequestIdentity(id: fixture.id, account: fixture.journal.account,
+                                                    epoch: fixture.journal.epoch, intentDigest: "digest")
+            let result = try XCTUnwrap(service.status(identity).receipt)
+            XCTAssertEqual(result.outcome, .committed)
+            XCTAssertEqual(result.effects.first?.observation.identity, fixture.payload.observation.identity)
+            XCTAssertEqual(try Data(contentsOf: fixture.destination), Data())
+            let reference = try XCTUnwrap(result.recovery.first { $0.purpose == .displacedOriginal })
+            XCTAssertEqual(reference.knownLocation != nil, locateBackup)
+            if !locateBackup {
+                XCTAssertNotNil(result.failure)
+                XCTAssertEqual(try Data(contentsOf: preserved), Data("original".utf8))
+                try FileManager.default.moveItem(at: preserved, to: fixture.holdingURL)
+                let located = try XCTUnwrap(service.status(identity).receipt)
+                XCTAssertEqual(located.effects, result.effects)
+                XCTAssertNotNil(located.recovery.first { $0.purpose == .displacedOriginal }?.knownLocation)
+            }
+        }
+    }
+
     func testReplacementRetainsOriginalOutsideScratchOwnership() async throws {
         let fixture = try await Fixture(replacing: true)
         defer { fixture.cleanup() }
@@ -72,6 +109,27 @@ final class OperationPublicationTests: XCTestCase {
         let result = try XCTUnwrap(fixture.journal.read(fixture.id).receipt)
         XCTAssertEqual(result.outcome, .partial)
         XCTAssertFalse(result.recovery.contains { $0.purpose == .displacedOriginal })
+    }
+
+    func testRestorationRejectsAReplacedHoldingDirectory() async throws {
+        let fixture = try await Fixture(replacing: true)
+        defer { fixture.cleanup() }
+        let ownership = try await fixture.prepare()
+        let commit = try await fixture.journal.acquireCommit()
+        defer { withExtendedLifetime(commit) {} }
+        _ = try OperationReplacement.displace(journal: fixture.journal, snapshot: fixture.journal.read(fixture.id), ownership: ownership)
+        let holdingDirectory = fixture.holdingURL.deletingLastPathComponent()
+        let preserved = fixture.root.appendingPathComponent("preserved-holding")
+        try FileManager.default.moveItem(at: holdingDirectory, to: preserved)
+        try FileManager.default.createDirectory(at: holdingDirectory, withIntermediateDirectories: false)
+        try Data("unowned content".utf8).write(to: fixture.holdingURL)
+        XCTAssertThrowsError(try OperationReplacement.restore(journal: fixture.journal, id: fixture.id,
+                                                              ownership: ownership, failure: "interrupted")) { error in
+            XCTAssertEqual(error as? OperationFilesystemError, .identityChanged)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+        XCTAssertEqual(try Data(contentsOf: fixture.holdingURL), Data("unowned content".utf8))
+        XCTAssertEqual(try Data(contentsOf: preserved.appendingPathComponent("displaced")), Data("original".utf8))
     }
 
     func testPublicationRecordsActualIdentityAndCannotBeRepeated() async throws {

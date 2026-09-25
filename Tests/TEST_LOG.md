@@ -22,6 +22,8 @@
 | Signed Foundry native-action and source-proof checks | `b6a130d` | PASS: signed no-install app build and 56 tests, zero failures or skips, 1.343 seconds. Native actions, preserved conflicts, source proofs, incomplete-folder uncertainty, stream entry and the live Windows journal passed. |
 | Linux same-host copy preparation | `2302c29` | PASS: 18 process tests in 11.886 seconds and 45 operation/archive checks in 3.490 seconds, zero failures or skips. Empty and streamed-size copies preserve permissions, require separate publication and reject changed sources before preparation and after reading. |
 | Signed Foundry same-host copy preparation | `2302c29` | PASS: both helper builds, signed no-install app build and 59 tests, zero failures or skips, 1.303 seconds. Copy permissions and macOS modification dates survive publication; changed sources are rejected, and stream, native-action, protocol and live Windows journal regressions passed. |
+| Linux replacement and rollback | `75e6d68` | PASS: 18 process tests in 12.186 seconds and 49 operation/archive tests in 4.357 seconds, zero failures or skips. Approved replacements retain originals outside scratch ownership, changed destinations are refused, failed publication restores the original and competing occupants remain untouched. |
+| Signed Foundry replacement and rollback | `75e6d68` | PASS: both helper builds, signed no-install app build and 63 tests, zero failures or skips, 1.304 seconds. Replacement retention, changed-destination refusal and non-overwriting restoration passed with service, protocol and live Windows journal regressions. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 

@@ -47,8 +47,11 @@ enum OperationReplacement {
         }
         let source = try OperationPublication.split(holding)
         let target = try OperationPublication.split(original)
-        let sourceDirectory = try OperationDirectory(path: source.parent)
         let targetDirectory = try OperationDirectory(path: target.parent)
+        guard let record = snapshot.workspace else { throw OperationContractError.invalidReceipt }
+        let workspace = try OperationWorkspace(parent: targetDirectory, record: record)
+        guard workspace.directory.path == source.parent else { throw OperationContractError.invalidReceipt }
+        let sourceDirectory = workspace.directory
         let rollback = replacing(receipt, recovery: receipt.recovery, phase: .rollingBack)
         try journal.record(rollback, ownership: ownership)
         var recovery = rollback.recovery

@@ -4,12 +4,31 @@ import RemoteOperationSupport
 extension ServerOperationService {
     func reconcile(_ snapshot: OperationJournal.Snapshot) throws -> OperationJournal.Snapshot {
         guard let receipt = snapshot.receipt,
-              [.preparing, .committing].contains(receipt.phase) || receipt.outcome == .unknown,
+              [.preparing, .committing, .rollingBack].contains(receipt.phase) || receipt.outcome == .unknown
+                || receipt.recovery.contains(where: { $0.purpose == .displacedOriginal && $0.knownLocation == nil }),
               let ownership = try journal.tryAcquireItem(snapshot.id) else { return snapshot }
         defer { withExtendedLifetime(ownership) {} }
         let current = try journal.read(snapshot.id)
         guard current == snapshot else { return current }
-        guard let intent = current.intent, intent.conflict == .createNew,
+        if receipt.outcome == .committed {
+            let recovery = locateOriginals(receipt.recovery)
+            guard recovery != receipt.recovery else { return current }
+            try journal.record(OperationReceipt(
+                id: receipt.id, account: receipt.account, epoch: receipt.epoch, intentDigest: receipt.intentDigest,
+                revision: receipt.revision + 1, phase: receipt.phase, outcome: receipt.outcome, effects: receipt.effects,
+                sourceDisposition: receipt.sourceDisposition, contentVerified: receipt.contentVerified,
+                recovery: recovery, children: receipt.children,
+                failure: recovery.contains { $0.purpose == .displacedOriginal && $0.knownLocation == nil }
+                    ? "The displaced original's current location could not be confirmed." : nil
+            ), ownership: ownership)
+            return try journal.read(current.id)
+        }
+        let supportsPublication: Bool
+        switch current.intent?.conflict {
+        case .some(.createNew), .some(.replace): supportsPublication = true
+        default: supportsPublication = false
+        }
+        guard let intent = current.intent, supportsPublication,
               let destination = intent.destination, let payload = receipt.preparedPayload else {
             if receipt.outcome == .unknown { return current }
             try journal.record(OperationReceipt(
@@ -24,9 +43,10 @@ extension ServerOperationService {
         }
         let sourceMutation = receipt.recovery.contains { $0.purpose == .source && $0.identity == payload.observation.identity }
         var effects = receipt.effects
-        var recovery = receipt.recovery
+        var recovery = locateOriginals(receipt.recovery)
         var confirmed = false
-        var failure: String?
+        var failure: String? = recovery.contains { $0.purpose == .displacedOriginal && $0.knownLocation == nil }
+            ? "The displaced original's current location could not be confirmed." : nil
         do {
             let source = try inspect(payload.location, expected: nil)
             let target = try inspect(destination, expected: payload.observation)
@@ -55,6 +75,24 @@ extension ServerOperationService {
         )
         try journal.record(result, ownership: ownership)
         return try journal.read(current.id)
+    }
+
+    private func locateOriginals(_ references: [OperationRecoveryReference]) -> [OperationRecoveryReference] {
+        references.map { reference in
+            guard reference.purpose == .displacedOriginal else { return reference }
+            var known: OperationLocation?
+            for location in reference.possibleLocations {
+                do {
+                    if case .found(let observed) = try inspect(location, expected: nil), observed.identity == reference.identity {
+                        known = location
+                        break
+                    }
+                } catch { continue }
+            }
+            return OperationRecoveryReference(identity: reference.identity, purpose: reference.purpose,
+                                              original: reference.original, knownLocation: known,
+                                              possibleLocations: reference.possibleLocations)
+        }
     }
 
     private func inspect(_ location: OperationLocation,
