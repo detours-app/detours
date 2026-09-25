@@ -43,6 +43,7 @@ COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     Tests/OperationContentProofTests.swift \
     Tests/ServerOperationServiceTests.swift \
     Tests/ServerOperationTrashTests.swift \
+    Tests/ServerOperationBackupTests.swift \
     | ssh "$REMOTE_HOST" "tar -xzf - -C $REMOTE_TMP_Q"
 # shellcheck disable=SC2029
 ssh "$REMOTE_HOST" "cat > $REMOTE_TMP_Q/Package.swift" <<'EOF'
@@ -88,7 +89,8 @@ let package = Package(
             exclude: ["DetoursProcessTests"],
             sources: [
                 "ServerArchiveOperationsTests.swift", "OperationFilesystemTests.swift", "OperationPublicationTests.swift",
-                "OperationContentProofTests.swift", "ServerOperationServiceTests.swift", "ServerOperationTrashTests.swift"
+                "OperationContentProofTests.swift", "ServerOperationServiceTests.swift", "ServerOperationTrashTests.swift",
+                "ServerOperationBackupTests.swift"
             ]
         ),
     ]

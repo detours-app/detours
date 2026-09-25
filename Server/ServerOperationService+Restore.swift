@@ -90,37 +90,67 @@ extension ServerOperationService {
 
     private func validateRestore(_ intent: OperationIntent,
                                  previous: OperationJournal.Snapshot) throws -> OperationRecoveryReference {
-        guard previous.intent?.action == .trash, let receipt = previous.receipt, receipt.outcome == .committed,
+        guard let priorIntent = previous.intent, let receipt = previous.receipt, receipt.outcome == .committed,
               intent.conflict == .createNew, intent.sources.count == 1, intent.sourceObservations.count == 1,
-              let retained = receipt.recovery.first(where: { $0.purpose == .sourceTrash }),
-              let source = retained.knownLocation, source == intent.sources[0], retained.original == intent.destination,
-              let effect = receipt.effects.first(where: { $0.location == source && $0.observation.identity == retained.identity }),
-              effect.observation == intent.sourceObservations[0] else { throw OperationContractError.invalidReceipt }
+              let retained = receipt.recovery.first(where: {
+                  [.sourceTrash, .displacedOriginal].contains($0.purpose) && $0.knownLocation == intent.sources[0]
+              }), retained.original == intent.destination,
+              retained.identity == intent.sourceObservations[0].identity else { throw OperationContractError.invalidReceipt }
+        let observed = intent.sourceObservations[0]
+        switch retained.purpose {
+        case .sourceTrash:
+            guard priorIntent.action == .trash,
+                  receipt.effects.contains(where: { $0.location == intent.sources[0] && $0.observation == observed }) else {
+                throw OperationContractError.invalidReceipt
+            }
+        case .displacedOriginal:
+            guard case .replace(let approved) = priorIntent.conflict,
+                  approved.identity == observed.identity, approved.kind == observed.kind,
+                  approved.linkTarget == observed.linkTarget, let version = approved.contentVersion,
+                  version == observed.contentVersion, approved.sha256 == nil || approved.sha256 == observed.sha256 else {
+                throw OperationFilesystemError.identityChanged
+            }
+        default: throw OperationContractError.invalidReceipt
+        }
         return retained
     }
 
     private func finishRestore(previous: OperationJournal.Snapshot, retained: OperationRecoveryReference,
                                ownership: OperationJournal.Ownership) throws {
-        guard let receipt = previous.receipt, let source = retained.knownLocation, let original = retained.original,
-              let information = receipt.plannedPaths?.last,
-              let metadata = receipt.recovery.first(where: { $0.purpose == .scratch && $0.knownLocation == information }) else {
+        guard let receipt = previous.receipt, let original = retained.original else {
             throw OperationContractError.invalidReceipt
         }
-        let resolved = try resolve(information)
-        switch try resolved.directory.lookup(resolved.name) {
-        case .missing: break
-        case .found(let observation):
-            guard observation.identity == metadata.identity else { throw OperationFilesystemError.identityChanged }
-            try trashStore.removeInformation(OperationEffect(location: information, observation: observation),
-                                              reservation: .init(original: original, item: source, information: information))
-        case .denied, .disconnected, .unsupported: throw OperationFilesystemError.unsupported
+        var recovery = receipt.recovery.filter { $0 != retained }
+        let reservation = try trashStore.plan(id: receipt.id, original: original)
+        if let metadata = recovery.first(where: { $0.purpose == .scratch && $0.knownLocation == reservation.information }) {
+            let resolved = try resolve(reservation.information)
+            switch try resolved.directory.lookup(resolved.name) {
+            case .missing: break
+            case .found(let observation):
+                guard observation.identity == metadata.identity else { throw OperationFilesystemError.identityChanged }
+                try trashStore.removeInformation(OperationEffect(location: reservation.information, observation: observation),
+                                                  reservation: reservation)
+            case .denied, .disconnected, .unsupported: throw OperationFilesystemError.unsupported
+            }
+            recovery.removeAll { $0 == metadata }
+        }
+        if let record = previous.workspace,
+           recovery.contains(where: { $0.purpose == .scratch && $0.identity == record.root.identity }) {
+            let parent = try OperationDirectory(path: Self.parentPath(original))
+            switch try parent.lookup(record.root.name) {
+            case .missing: break
+            case .found:
+                try OperationWorkspace(parent: parent, record: record).removeScratch()
+            case .denied, .disconnected, .unsupported: throw OperationFilesystemError.unsupported
+            }
+            recovery.removeAll { $0.purpose == .scratch && $0.identity == record.root.identity }
         }
         let completed = OperationReceipt(
             id: receipt.id, account: receipt.account, epoch: receipt.epoch, intentDigest: receipt.intentDigest,
             revision: receipt.revision + 1, phase: receipt.phase, outcome: receipt.outcome, effects: receipt.effects,
             sourceDisposition: receipt.sourceDisposition, contentVerified: receipt.contentVerified,
             plannedPaths: receipt.plannedPaths,
-            recovery: receipt.recovery.filter { $0 != retained && $0 != metadata }, children: receipt.children
+            recovery: recovery, children: receipt.children
         )
         try journal.record(completed, ownership: ownership)
     }
