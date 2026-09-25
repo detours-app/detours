@@ -461,7 +461,9 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
             try startProcess(dispatcherBase64: dispatcherBase64)
         }
         let (_, stdinPipe) = try processForWriting()
-        stdinPipe.fileHandleForWriting.write(frame)
+        try await Task.detached(priority: .userInitiated) {
+            try Self.writeFramePayload(frame, to: stdinPipe.fileHandleForWriting)
+        }.value
         if executionMode == .oneShot {
             stdinPipe.fileHandleForWriting.closeFile()
             clearStdinPipeIfCurrent(stdinPipe)
