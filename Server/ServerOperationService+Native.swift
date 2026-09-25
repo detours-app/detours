@@ -11,6 +11,10 @@ extension ServerOperationService {
         let accepted = try status(identity)
         if accepted.intent?.action == .trash { return try await executeTrash(identity) }
         if accepted.intent?.action == .restore { return try await executeRestore(identity) }
+        if let intent = accepted.intent, [.rename, .move].contains(intent.action), case .replace = intent.conflict {
+            try await prepareNativeReplacement(identity)
+            return try await commit(identity)
+        }
         let ownership = try await journal.acquireItem(identity.id)
         defer { withExtendedLifetime(ownership) {} }
         let snapshot = try journal.read(identity.id)

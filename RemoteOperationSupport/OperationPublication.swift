@@ -6,13 +6,21 @@ public enum OperationPublication {
         let accepted = try journal.read(id)
         guard let intent = accepted.intent, let destination = intent.destination,
               destination.account == journal.account,
-              var ready = accepted.receipt, ready.phase == .readyToCommit, ready.contentVerified,
+              var ready = accepted.receipt, ready.phase == .readyToCommit,
               let payload = ready.preparedPayload, payload.location.account == journal.account,
-              ready.recovery.contains(where: { $0.purpose == .scratch && $0.identity == payload.observation.identity
+              ready.recovery.contains(where: { [.scratch, .source].contains($0.purpose) && $0.identity == payload.observation.identity
                   && $0.knownLocation == payload.location }) else {
             throw OperationContractError.invalidReceipt
         }
-        if payload.observation.kind == .file, payload.observation.sha256 == nil {
+        let native = ready.recovery.contains { $0.purpose == .source && $0.identity == payload.observation.identity }
+        if native {
+            guard [.rename, .move].contains(intent.action), intent.sources == [payload.location],
+                  intent.sourceObservations.count == 1,
+                  intent.sourceObservations[0].identity == payload.observation.identity else {
+                throw OperationContractError.invalidReceipt
+            }
+        } else if !ready.contentVerified { throw OperationContractError.invalidReceipt }
+        if !native, payload.observation.kind == .file, payload.observation.sha256 == nil {
             throw OperationContractError.invalidReceipt
         }
         switch intent.conflict {
@@ -35,14 +43,15 @@ public enum OperationPublication {
         }
 
         let uncertain = OperationRecoveryReference(
-            identity: payload.observation.identity, purpose: .scratch, original: nil, knownLocation: nil,
+            identity: payload.observation.identity, purpose: native ? .source : .scratch,
+            original: native ? payload.location : nil, knownLocation: nil,
             possibleLocations: [payload.location, destination]
         )
         let recovery = ready.recovery.filter { $0.identity != payload.observation.identity } + [uncertain]
         let committing = OperationReceipt(
             id: id, account: journal.account, epoch: journal.epoch, intentDigest: accepted.intentDigest,
             revision: ready.revision + 1, phase: .committing, outcome: .running, effects: ready.effects,
-            sourceDisposition: ready.sourceDisposition, contentVerified: true, preparedPayload: payload,
+            sourceDisposition: native ? .unknown : ready.sourceDisposition, contentVerified: ready.contentVerified, preparedPayload: payload,
             recovery: recovery, children: ready.children
         )
         try journal.record(committing, ownership: ownership)
@@ -65,10 +74,10 @@ public enum OperationPublication {
         let committed = OperationReceipt(
             id: id, account: journal.account, epoch: journal.epoch, intentDigest: accepted.intentDigest,
             revision: committing.revision + 1, phase: .committed,
-            outcome: intent.action == .move ? .running : .committed,
+            outcome: intent.action == .move && !native ? .running : .committed,
             effects: ready.effects + [OperationEffect(location: destination, observation: confirmed)],
-            sourceDisposition: intent.action == .move ? .present : ready.sourceDisposition,
-            contentVerified: true, preparedPayload: nil,
+            sourceDisposition: native ? .confirmed : (intent.action == .move ? .present : ready.sourceDisposition),
+            contentVerified: ready.contentVerified, preparedPayload: nil,
             recovery: ready.recovery.filter { $0.identity != payload.observation.identity }, children: ready.children
         )
         try journal.record(committed, ownership: ownership)

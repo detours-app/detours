@@ -92,7 +92,13 @@ struct ServerOperationService: Sendable {
         let ownership = try await journal.acquireItem(identity.id)
         let snapshot = try status(identity)
         if let result = snapshot.receipt, [.committed, .terminal].contains(result.phase) { return result }
-        let publication = try await OperationPublication.publish(journal: journal, id: identity.id, ownership: ownership)
+        let publication: OperationReceipt
+        do {
+            publication = try await OperationPublication.publish(journal: journal, id: identity.id, ownership: ownership)
+        } catch {
+            try await recordUnstartedCommitFailure(identity, ownership: ownership, failure: error)
+            throw error
+        }
         let published = try await handoffReplacement(publication, ownership: ownership)
         guard let record = snapshot.workspace, let destination = snapshot.intent?.destination else { return published }
         var recovery = published.recovery

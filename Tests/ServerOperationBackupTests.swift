@@ -160,6 +160,62 @@ final class ServerOperationBackupTests: XCTestCase {
         }
     }
 
+    func testNativeReplacementRetainsOriginalAndConfirmsSourceDisposition() async throws {
+        for action in [OperationIntent.Action.rename, .move] {
+            let fixture = try Fixture()
+            defer { fixture.cleanup() }
+            let destination = try fixture.url(fixture.original)
+            try Data("old destination".utf8).write(to: destination)
+            let service = try await fixture.service()
+            let incoming = Data("native source".utf8)
+            let (request, intent) = try fixture.replacement(epoch: service.journal.epoch, contents: incoming, action: action)
+            _ = try await service.accept(request, intent: intent)
+            let result = try await service.execute(request)
+            XCTAssertEqual(result.outcome, .committed)
+            XCTAssertEqual(result.sourceDisposition, .confirmed)
+            XCTAssertTrue(result.contentVerified)
+            XCTAssertEqual(result.effects.first?.observation.identity, intent.sourceObservations.first?.identity)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("incoming").path))
+            XCTAssertEqual(try Data(contentsOf: destination), incoming)
+            let retained = try XCTUnwrap(result.recovery.first { $0.purpose == .displacedOriginal })
+            XCTAssertEqual(try Data(contentsOf: fixture.url(XCTUnwrap(retained.knownLocation))), Data("old destination".utf8))
+            XCTAssertFalse(result.recovery.contains { $0.purpose == .source })
+            let duplicate = try await service.execute(request)
+            XCTAssertEqual(duplicate, result)
+        }
+    }
+
+    func testNativeReplacementRejectsChangedSourceDestinationAndCancellation() async throws {
+        for failure in ["source", "destination", "cancel"] {
+            let fixture = try Fixture()
+            defer { fixture.cleanup() }
+            let destination = try fixture.url(fixture.original)
+            let source = fixture.root.appendingPathComponent("incoming")
+            try Data("old destination".utf8).write(to: destination)
+            let service = try await fixture.service()
+            let (request, intent) = try fixture.replacement(epoch: service.journal.epoch, contents: Data("source".utf8), action: .move)
+            _ = try await service.accept(request, intent: intent)
+            if failure == "source" { try Data("changed source".utf8).write(to: source) }
+            if failure == "destination" { try Data("changed destination".utf8).write(to: destination) }
+            if failure == "cancel" { try service.cancel(request) }
+            do {
+                _ = try await service.execute(request)
+                XCTFail("Native replacement accepted a changed or cancelled intent")
+            } catch {
+                XCTAssertTrue(error is OperationFilesystemError || error is OperationContractError)
+            }
+            XCTAssertEqual(try Data(contentsOf: source), Data((failure == "source" ? "changed source" : "source").utf8))
+            XCTAssertEqual(try Data(contentsOf: destination), Data((failure == "destination" ? "changed destination" : "old destination").utf8))
+            let result = try service.status(request)
+            XCTAssertFalse(result.receipt?.outcome == .committed)
+            XCTAssertFalse(result.receipt?.recovery.contains { $0.purpose == .displacedOriginal } ?? false)
+            XCTAssertEqual(result.receipt?.outcome, .failedUnchanged)
+            let repeated = try await service.execute(request)
+            XCTAssertEqual(repeated, result.receipt)
+            XCTAssertTrue(repeated.recovery.isEmpty)
+        }
+    }
+
     private struct Fixture {
         let root: URL
         let account = OperationAccount(hostIdentity: "fixture", accountIdentity: "fixture-user")
@@ -184,7 +240,7 @@ final class ServerOperationBackupTests: XCTestCase {
             let observed = try OperationDirectory(path: Data(root.path.utf8)).observe(Data("source".utf8))
             var sources: [OperationLocation] = []
             var observations: [OperationObservation] = []
-            if action == .move {
+            if action != .copy {
                 let source = root.appendingPathComponent("incoming")
                 try contents.write(to: source)
                 sources = [OperationLocation(account: account, path: .unix(Data(source.path.utf8)))]
