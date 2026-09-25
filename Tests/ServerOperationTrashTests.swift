@@ -4,6 +4,80 @@ import XCTest
 @testable import detours_server
 
 final class ServerOperationTrashTests: XCTestCase {
+    func testJournaledRestoreNeverOverwritesAndKeepsOneResult() async throws {
+        for occupied in [false, true] {
+            let fixture = try Fixture()
+            defer { fixture.cleanup() }
+            let source = try fixture.url(fixture.original)
+            try Data("original".utf8).write(to: source)
+            let service = try await fixture.service()
+            let (trashRequest, trashIntent) = try fixture.intent(epoch: service.journal.epoch)
+            _ = try await service.accept(trashRequest, intent: trashIntent)
+            let trashed = try await service.execute(trashRequest)
+            let information = try fixture.url(XCTUnwrap(trashed.plannedPaths?.last))
+            if occupied { try Data("new occupant".utf8).write(to: source) }
+            let (request, intent) = try fixture.restore(trashed, destination: fixture.original)
+            _ = try await service.accept(request, intent: intent)
+            let result = try await service.execute(request)
+            let duplicate = try await service.execute(request)
+            XCTAssertEqual(duplicate, result)
+            if occupied {
+                XCTAssertEqual(result.outcome, .failedUnchanged)
+                XCTAssertEqual(try Data(contentsOf: source), Data("new occupant".utf8))
+                XCTAssertEqual(try Data(contentsOf: fixture.url(XCTUnwrap(trashed.effects.first?.location))), Data("original".utf8))
+                XCTAssertTrue(FileManager.default.fileExists(atPath: information.path))
+            } else {
+                XCTAssertEqual(result.outcome, .committed)
+                XCTAssertEqual(try Data(contentsOf: source), Data("original".utf8))
+                XCTAssertFalse(FileManager.default.fileExists(atPath: information.path))
+                XCTAssertEqual(try service.status(trashRequest).receipt?.recovery, [])
+            }
+        }
+    }
+
+    func testRestoreRejectsChangedContentAndAnUnrecordedDestination() async throws {
+        for changed in [false, true] {
+            let fixture = try Fixture()
+            defer { fixture.cleanup() }
+            try Data("original".utf8).write(to: fixture.url(fixture.original))
+            let service = try await fixture.service()
+            let (trashRequest, trashIntent) = try fixture.intent(epoch: service.journal.epoch)
+            _ = try await service.accept(trashRequest, intent: trashIntent)
+            let trashed = try await service.execute(trashRequest)
+            let trashURL = try fixture.url(XCTUnwrap(trashed.effects.first?.location))
+            let destination = changed ? fixture.original
+                : OperationLocation(account: fixture.account, path: .unix(Data(fixture.root.appendingPathComponent("other").path.utf8)))
+            let (request, intent) = try fixture.restore(trashed, destination: destination)
+            _ = try await service.accept(request, intent: intent)
+            if changed { try Data("edited in Trash".utf8).write(to: trashURL) }
+            let result = try await service.execute(request)
+            XCTAssertEqual(result.outcome, .failedUnchanged)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: try fixture.url(destination).path))
+            XCTAssertEqual(try Data(contentsOf: trashURL), Data((changed ? "edited in Trash" : "original").utf8))
+        }
+    }
+
+    func testRestoreCleanupFailureRetainsTheConfirmedRestoration() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        try Data("original".utf8).write(to: fixture.url(fixture.original))
+        let service = try await fixture.service()
+        let (trashRequest, trashIntent) = try fixture.intent(epoch: service.journal.epoch)
+        _ = try await service.accept(trashRequest, intent: trashIntent)
+        let trashed = try await service.execute(trashRequest)
+        let information = try fixture.url(XCTUnwrap(trashed.plannedPaths?.last))
+        try FileManager.default.moveItem(at: information, to: fixture.root.appendingPathComponent("preserved-metadata"))
+        try Data("unowned metadata".utf8).write(to: information)
+        let (request, intent) = try fixture.restore(trashed, destination: fixture.original)
+        _ = try await service.accept(request, intent: intent)
+        let result = try await service.execute(request)
+        XCTAssertEqual(result.outcome, .committed)
+        XCTAssertNotNil(result.failure)
+        XCTAssertFalse(result.recovery.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: fixture.url(fixture.original)), Data("original".utf8))
+        XCTAssertEqual(try Data(contentsOf: information), Data("unowned metadata".utf8))
+    }
+
     func testLostTrashResultIsReconciledWithoutRepeatingTheMove() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanup() }
@@ -179,6 +253,15 @@ final class ServerOperationTrashTests: XCTestCase {
             let intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .trash, sources: [original],
                                          destination: nil, sourceObservations: [observation], conflict: .createNew)
             return (OperationRequestIdentity(id: intent.id, account: account, epoch: epoch,
+                                              intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256), intent)
+        }
+
+        func restore(_ receipt: OperationReceipt, destination: OperationLocation) throws -> (OperationRequestIdentity, OperationIntent) {
+            let effect = try XCTUnwrap(receipt.effects.first)
+            let intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .restore, sources: [effect.location],
+                                         destination: destination, sourceObservations: [effect.observation], conflict: .createNew,
+                                         reverses: receipt.id)
+            return (OperationRequestIdentity(id: intent.id, account: account, epoch: receipt.epoch,
                                               intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256), intent)
         }
 
