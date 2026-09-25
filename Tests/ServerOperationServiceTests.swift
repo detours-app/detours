@@ -41,6 +41,77 @@ final class ServerOperationServiceTests: XCTestCase {
         }
     }
 
+    func testLargeStreamUsesVerifiedPreparationBeforeSeparateCommit() async throws {
+        let fixture = try await Fixture(size: 1_048_577)
+        defer { fixture.cleanup() }
+        let source = fixture.root.appendingPathComponent("source")
+        try fixture.bytes.write(to: source)
+        let input = try FileHandle(forReadingFrom: source)
+        defer { try? input.close() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        let ready = try await fixture.service.prepareStream(fixture.identity, input: input)
+        XCTAssertEqual(ready.phase, .readyToCommit)
+        XCTAssertEqual(ready.preparedPayload?.observation.sha256, fixture.intent.payloadProof?.sha256)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+        let committed = try await fixture.service.commit(fixture.identity)
+        XCTAssertEqual(committed.outcome, .committed)
+        XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+    }
+
+    func testStalledStreamReleasesAccountLockAndHonoursIndependentCancellation() async throws {
+        let fixture = try await Fixture(size: 32)
+        defer { fixture.cleanup() }
+        let pipe = Pipe()
+        defer {
+            try? fixture.service.cancel(fixture.identity)
+            try? pipe.fileHandleForWriting.close()
+            try? pipe.fileHandleForReading.close()
+        }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        let worker = Task { try await fixture.service.prepareStream(fixture.identity, input: pipe.fileHandleForReading) }
+        let clock = ContinuousClock()
+        let started = clock.now
+        while try fixture.service.status(fixture.identity).workspace == nil {
+            guard clock.now - started < .seconds(5) else {
+                try fixture.service.cancel(fixture.identity)
+                _ = try? await worker.value
+                return XCTFail("Stream did not reach private preparation")
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        do {
+            let otherCommit = try await fixture.service.journal.acquireCommit()
+            XCTAssertEqual(try fixture.service.status(fixture.identity).receipt?.phase, .preparing)
+            withExtendedLifetime(otherCommit) {}
+        }
+        let cancelling = clock.now
+        try fixture.service.cancel(fixture.identity)
+        do {
+            _ = try await worker.value
+            XCTFail("Stalled stream ignored cancellation")
+        } catch { XCTAssertEqual(error as? OperationContractError, .cancelled) }
+        XCTAssertLessThan(clock.now - cancelling, .seconds(3))
+        XCTAssertEqual(try fixture.service.status(fixture.identity).receipt?.outcome, .failedUnchanged)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.root.path), ["journal"])
+    }
+
+    func testShortStreamLeavesDestinationUntouched() async throws {
+        let fixture = try await Fixture(size: 32)
+        defer { fixture.cleanup() }
+        let pipe = Pipe()
+        try pipe.fileHandleForWriting.write(contentsOf: Data([42]))
+        try pipe.fileHandleForWriting.close()
+        defer { try? pipe.fileHandleForReading.close() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        do {
+            _ = try await fixture.service.prepareStream(fixture.identity, input: pipe.fileHandleForReading)
+            XCTFail("Short stream was accepted")
+        } catch { XCTAssertEqual(error as? OperationContractError, .invalidReceipt) }
+        XCTAssertEqual(try fixture.service.status(fixture.identity).receipt?.outcome, .failedUnchanged)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+    }
+
     func testStatusAndCancellationDoNotNeedWorkerOwnership() async throws {
         let fixture = try await Fixture(size: 32)
         defer { fixture.cleanup() }

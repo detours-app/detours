@@ -42,6 +42,14 @@ struct ServerOperationService: Sendable {
 
     func prepareUpload(_ identity: OperationRequestIdentity, contents: Data) async throws -> OperationReceipt {
         guard contents.count <= 1_048_576 else { throw OperationFilesystemError.unsupported }
+        return try await prepare(identity, input: .contents(contents))
+    }
+
+    func prepareStream(_ identity: OperationRequestIdentity, input: FileHandle) async throws -> OperationReceipt {
+        try await prepare(identity, input: .stream(input))
+    }
+
+    private func prepare(_ identity: OperationRequestIdentity, input: ServerOperationInput) async throws -> OperationReceipt {
         let accepted = try status(identity)
         let ownership = try await journal.acquireItem(identity.id)
         defer { withExtendedLifetime(ownership) {} }
@@ -50,13 +58,7 @@ struct ServerOperationService: Sendable {
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
                     do {
-                        var offset = 0
-                        let result = try self.receiveUpload(preparation, ownership: ownership) { maximum in
-                            guard offset < contents.count else { return Data() }
-                            let end = min(contents.count, offset + maximum)
-                            defer { offset = end }
-                            return contents.subdata(in: offset..<end)
-                        }
+                        let result = try self.receiveUpload(preparation, ownership: ownership, input: input)
                         continuation.resume(returning: result)
                     } catch { continuation.resume(throwing: error) }
                 }
@@ -138,7 +140,7 @@ struct ServerOperationService: Sendable {
     }
 
     private func receiveUpload(_ preparation: UploadPreparation, ownership: OperationJournal.Ownership,
-                               read: (Int) throws -> Data) throws -> OperationReceipt {
+                               input: ServerOperationInput) throws -> OperationReceipt {
         let accepted = preparation.accepted
         guard let intent = accepted.intent, let expected = intent.payloadProof,
               let planned = preparation.receipt.plannedPaths?.first else { throw OperationContractError.invalidReceipt }
@@ -164,7 +166,9 @@ struct ServerOperationService: Sendable {
         do {
             while true {
                 guard try !journal.cancellationRequested(intent.id) else { throw OperationContractError.cancelled }
-                let chunk = try read(64 * 1024)
+                let chunk = try input.next(offset: received, expected: expected.byteCount) {
+                    try journal.cancellationRequested(intent.id)
+                }
                 if chunk.isEmpty { break }
                 received += UInt64(chunk.count)
                 guard received <= expected.byteCount else { throw OperationContractError.invalidReceipt }

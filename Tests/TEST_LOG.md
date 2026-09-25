@@ -9,6 +9,8 @@
 | Linux account-lock and journal-replacement checks | `00dd4c5` | PASS: 18 process tests in 12.087 seconds and 29 service/content/filesystem/publication/archive tests in 3.111 seconds, zero failures or skips. Both helper builds succeeded. |
 | Signed Foundry build and account-lock/journal regressions | `00dd4c5` | PASS: signed no-install app build and 13 tests, zero failures or skips, 0.923 seconds. An open worker rejects a replaced journal directory; upload preparation and live Windows journal checks remain green. |
 | Interrupted-publication recovery build | `d5a8056` | FAIL: Linux helper compilation rejected the recovery hash call because its required progress callback was omitted. No tests ran; the call now supplies the callback. |
+| Corrected Linux interrupted-publication recovery checks | `31ff863` | PASS: 18 process tests in 11.885 seconds and 31 service/content/filesystem/publication/archive tests in 2.420 seconds, zero failures or skips. Lost publication is proved without replay; identical competing content stays unknown. Both helper builds succeeded. |
+| Signed Foundry recovery and outcome regressions | `31ff863` | PASS: signed no-install app build and 26 tests, zero failures or skips, 0.926 seconds. Read-only reconciliation, stable committed effects, journal ownership and the live Windows journal passed. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 
