@@ -54,6 +54,8 @@
 | Signed Foundry typed host lookup | `dec0287` | PASS: both helper builds, signed no-install app build and 95 tests, zero failures or skips, 3.210 seconds. Protocol lookup returns exact observed identity/version, preserves typed missing and actual permission-denied results, and rejects the wrong account without changing user files. |
 | Linux manifest-persistence build | `8c00083` | PASS: 18 process tests in 11.986 seconds and 74 operation/archive tests in 6.457 seconds, zero failures or skips. Existing host operations and filesystem checks pass with manifest fields retained in journal snapshots; explicit persistence/immutability checks run on Foundry. |
 | Signed Foundry manifest persistence | `8c00083` | PASS: both helper builds, signed no-install app build and 96 tests, zero failures or skips, 3.251 seconds. Source/payload manifests survive workspace updates, receipts and reopening; changed/cleared evidence and post-preparation writes are rejected, while eligible acknowledged compaction retains the terminal receipt. |
+| Linux native tree-content proof | `e0a2945` | PASS: 18 process tests in 11.887 seconds and 76 operation/archive tests in 5.789 seconds, zero failures or skips. Native replacements verify selected link/directory manifests, reject changed nested content despite an unchanged root version, and reconcile a lost directory-move result without replay. |
+| Signed Foundry native tree-content proof | `e0a2945` | PASS: both helper builds, signed no-install app build and 98 tests, zero failures or skips, 3.250 seconds. Declared link/directory proofs are measured, changed nested content is refused, and read-only recovery proves lost native directory moves without replay. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 

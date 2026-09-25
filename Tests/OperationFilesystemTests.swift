@@ -135,11 +135,15 @@ final class OperationFilesystemTests: XCTestCase {
         let workspaceURL = URL(fileURLWithPath: try XCTUnwrap(String(data: workspace.directory.path, encoding: .utf8)))
         let foreign = workspaceURL.appendingPathComponent("tree/foreign")
         try Data("keep foreign".utf8).write(to: foreign)
+        let tree = foreign.deletingLastPathComponent()
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: tree.path)
+        defer { XCTAssertNoThrow(try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: tree.path)) }
         XCTAssertThrowsError(try workspace.removeScratch()) {
             XCTAssertEqual($0 as? OperationFilesystemError, .unexpectedContents)
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: workspaceURL.appendingPathComponent("tree/owned").path))
         XCTAssertEqual(try Data(contentsOf: foreign), Data("keep foreign".utf8))
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: tree.path)[.posixPermissions] as? NSNumber)?.intValue, 0o555)
     }
 
     func testReplacedNestedDirectoryIsNeverAdoptedForCreationOrCleanup() throws {
@@ -164,6 +168,29 @@ final class OperationFilesystemTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: preserved.appendingPathComponent("owned").path))
         XCTAssertEqual(try Data(contentsOf: tree.appendingPathComponent("owned")), Data("replacement".utf8))
         XCTAssertFalse(FileManager.default.fileExists(atPath: tree.appendingPathComponent("new").path))
+    }
+
+    func testDirectoryMetadataIsPreservedAndOwnedReadOnlyScratchCanBeCleaned() throws {
+        let root = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let original = root.appendingPathComponent("original")
+        try FileManager.default.createDirectory(at: original, withIntermediateDirectories: false)
+        let modified = Date(timeIntervalSince1970: 1_600_000_000)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555, .modificationDate: modified], ofItemAtPath: original.path)
+        let parent = try OperationDirectory(path: Data(root.path.utf8))
+        let source = try OperationDirectory(path: Data(original.path.utf8))
+        let workspace = try OperationWorkspace(parent: parent, id: .init(operation: UUID(), item: UUID()))
+        try workspace.createDirectory(named: Data("tree".utf8))
+        try workspace.createFile(named: Data("tree/file".utf8)).close()
+        let destination = try OperationDirectory(path: workspace.directory.childPath(Data("tree".utf8)))
+        try source.copyMetadata(to: destination)
+        let path = try XCTUnwrap(String(data: destination.path, encoding: .utf8))
+        let attributes = try FileManager.default.attributesOfItem(atPath: path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o555)
+        XCTAssertEqual(attributes[.modificationDate] as? Date, modified)
+        try workspace.removeScratch()
+        XCTAssertEqual(try parent.names(), [Data("original".utf8)])
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: original.path)[.posixPermissions] as? NSNumber)?.intValue, 0o555)
     }
 
     private func fixture() throws -> URL {

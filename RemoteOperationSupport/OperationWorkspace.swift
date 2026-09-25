@@ -136,6 +136,11 @@ public final class OperationWorkspace {
             guard observation.identity == object.identity, observation.kind == object.kind else {
                 throw OperationFilesystemError.identityChanged
             }
+            var parentInformation = stat()
+            guard fstat(target.directory.descriptor, &parentInformation) == 0,
+                  fchmod(target.directory.descriptor, (parentInformation.st_mode & ~mode_t(S_IFMT)) | mode_t(0o700)) == 0 else {
+                throw OperationDirectory.systemError()
+            }
             let flags = object.kind == .directory ? AT_REMOVEDIR : 0
             let result = try OperationDirectory.withBytes(target.name) { unlinkat(target.directory.descriptor, $0, flags) }
             guard result == 0 else { throw OperationDirectory.systemError() }
