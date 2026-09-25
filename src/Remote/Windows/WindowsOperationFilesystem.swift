@@ -1,0 +1,167 @@
+import Foundation
+
+extension WindowsOperationScripts {
+    // Native structures and rename semantics: learn.microsoft.com/windows/win32/api/winbase/ns-winbase-file_rename_info
+    static let filesystemHelpers = #"""
+    if (-not ('DetoursOperationFiles' -as [type])) {
+    Add-Type -TypeDefinition @'
+    using System;
+    using System.IO;
+    using System.Text;
+    using System.ComponentModel;
+    using System.Runtime.InteropServices;
+    using System.Security.AccessControl;
+    using System.Security.Principal;
+    using System.Security.Cryptography;
+    using Microsoft.Win32.SafeHandles;
+
+    public static class DetoursOperationFiles {
+        public sealed class Identity { public string volume; public string @object; }
+        public sealed class Observation {
+            public Identity identity; public string kind; public string version;
+            public ulong byteCount; public string sha256; public string linkTarget; public string contentVersion;
+        }
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RenameInfo { public uint flags; public IntPtr root; public uint length; public ushort name; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SecurityAttributes { public int length; public IntPtr descriptor; public int inherit; }
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeFileHandle CreateFileW(string path, uint access, uint share, IntPtr security,
+            uint disposition, uint flags, IntPtr template);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int kind, [Out] byte[] data, uint size);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetFileInformationByHandle(SafeFileHandle file, int kind, IntPtr data, uint size);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool DeviceIoControl(SafeFileHandle file, uint code, IntPtr input, uint inputSize,
+            [Out] byte[] output, uint outputSize, out uint returned, IntPtr overlapped);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool CreateDirectoryW(string path, ref SecurityAttributes security);
+
+        private static SafeFileHandle Open(string path, uint access, uint share) {
+            SafeFileHandle handle = CreateFileW(path, access, share, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero);
+            if (handle.IsInvalid) {
+                int error = Marshal.GetLastWin32Error(); handle.Dispose(); throw new Win32Exception(error);
+            }
+            return handle;
+        }
+        private static byte[] Info(SafeFileHandle handle, int kind, int size) {
+            byte[] data = new byte[size];
+            if (!GetFileInformationByHandleEx(handle, kind, data, (uint)size)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            return data;
+        }
+        private static byte[] Slice(byte[] bytes, int offset, int count) {
+            byte[] value = new byte[count]; Buffer.BlockCopy(bytes, offset, value, 0, count); return value;
+        }
+        private static string Version(byte[] basic, byte[] standard, bool changed) {
+            using (MemoryStream bytes = new MemoryStream()) {
+                bytes.Write(basic, 0, 8);
+                bytes.Write(basic, 16, changed ? 16 : 8);
+                bytes.Write(basic, 32, 4);
+                bytes.Write(standard, 8, 8);
+                return Convert.ToBase64String(bytes.ToArray());
+            }
+        }
+        private static string LinkTarget(SafeFileHandle handle) {
+            byte[] data = new byte[16384]; uint count;
+            if (!DeviceIoControl(handle, 0x000900A8, IntPtr.Zero, 0, data, (uint)data.Length, out count, IntPtr.Zero))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            if (count < 16) throw new IOException("Incomplete reparse data.");
+            uint tag = BitConverter.ToUInt32(data, 0);
+            int start = tag == 0xA000000C ? 20 : tag == 0xA0000003 ? 16 : 0;
+            if (start == 0) throw new NotSupportedException("Unsupported reparse point.");
+            int offset = BitConverter.ToUInt16(data, 12), length = BitConverter.ToUInt16(data, 14);
+            if (length == 0) { offset = BitConverter.ToUInt16(data, 8); length = BitConverter.ToUInt16(data, 10); }
+            if ((length & 1) != 0 || (offset & 1) != 0 || start + offset + length > count)
+                throw new IOException("Invalid reparse target.");
+            string target = Encoding.Unicode.GetString(data, start + offset, length);
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(target));
+        }
+        private static Observation Observe(SafeFileHandle handle) {
+            byte[] id = Info(handle, 18, 24), basic = Info(handle, 0, 40), standard = Info(handle, 1, 24);
+            uint attributes = BitConverter.ToUInt32(basic, 32);
+            bool link = (attributes & 0x400) != 0;
+            return new Observation {
+                identity = new Identity { volume = Convert.ToBase64String(Slice(id, 0, 8)),
+                    @object = Convert.ToBase64String(Slice(id, 8, 16)) },
+                kind = link ? "symbolicLink" : (attributes & 0x10) != 0 ? "directory" : "file",
+                byteCount = (ulong)Math.Max(0, BitConverter.ToInt64(standard, 8)),
+                version = Version(basic, standard, true), contentVersion = Version(basic, standard, false),
+                linkTarget = link ? LinkTarget(handle) : null
+            };
+        }
+        public static Observation Observe(string path) {
+            using (SafeFileHandle handle = Open(path, 0x80, 7)) { return Observe(handle); }
+        }
+        public static Observation Prove(string path) {
+            using (SafeFileHandle handle = Open(path, 0x80000000, 7)) {
+                Observation before = Observe(handle);
+                if (before.kind != "file") throw new NotSupportedException("Content proof requires a regular file.");
+                using (FileStream stream = new FileStream(handle, FileAccess.Read))
+                using (SHA256 hash = SHA256.Create()) {
+                    string digest = BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
+                    Observation after = Observe(handle);
+                    Require(after, before.identity.volume, before.identity.@object, before.version);
+                    after.sha256 = digest;
+                    return after;
+                }
+            }
+        }
+        private static void Require(Observation actual, string volume, string id, string version) {
+            if (actual.identity.volume != volume || actual.identity.@object != id || actual.version != version)
+                throw new IOException("Operation object changed.");
+        }
+        public static Observation MoveExclusive(string source, string target, string volume, string id, string version) {
+            string parentPath = Path.GetDirectoryName(target), name = Path.GetFileName(target);
+            if (String.IsNullOrEmpty(parentPath) || String.IsNullOrEmpty(name) || name == "." || name == "..")
+                throw new IOException("Invalid operation destination.");
+            using (SafeFileHandle parent = Open(parentPath, 0x80, 3))
+            using (SafeFileHandle handle = Open(source, 0x10080, 7)) {
+                Observation directory = Observe(parent), before = Observe(handle);
+                if (directory.kind != "directory") throw new IOException("Operation destination parent is not a directory.");
+                Require(before, volume, id, version);
+                if (directory.identity.volume != volume) throw new IOException("Operation move requires the same volume.");
+                byte[] text = Encoding.Unicode.GetBytes(name);
+                int offset = Marshal.OffsetOf(typeof(RenameInfo), "name").ToInt32();
+                int size = offset + text.Length + 2;
+                IntPtr buffer = Marshal.AllocHGlobal(size);
+                bool retained = false;
+                try {
+                    Marshal.Copy(new byte[size], 0, buffer, size);
+                    parent.DangerousAddRef(ref retained);
+                    Marshal.WriteIntPtr(buffer, Marshal.OffsetOf(typeof(RenameInfo), "root").ToInt32(), parent.DangerousGetHandle());
+                    Marshal.WriteInt32(buffer, Marshal.OffsetOf(typeof(RenameInfo), "length").ToInt32(), text.Length);
+                    Marshal.Copy(text, 0, IntPtr.Add(buffer, offset), text.Length);
+                    // FileRenameInfo with ReplaceIfExists false cannot replace a competing destination.
+                    if (!SetFileInformationByHandle(handle, 3, buffer, (uint)size)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                } finally {
+                    if (retained) parent.DangerousRelease();
+                    Marshal.FreeHGlobal(buffer);
+                }
+                Observation after = Observe(handle);
+                if (after.identity.volume != before.identity.volume || after.identity.@object != before.identity.@object ||
+                    after.kind != before.kind || after.contentVersion != before.contentVersion || after.linkTarget != before.linkTarget)
+                    throw new IOException("Operation object changed during move.");
+                return after;
+            }
+        }
+        public static Observation CreatePrivateDirectory(string path) {
+            SecurityIdentifier sid = WindowsIdentity.GetCurrent().User;
+            DirectorySecurity security = new DirectorySecurity();
+            security.SetOwner(sid); security.SetAccessRuleProtection(true, false);
+            security.AddAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+            byte[] descriptor = security.GetSecurityDescriptorBinaryForm();
+            IntPtr buffer = Marshal.AllocHGlobal(descriptor.Length);
+            try {
+                Marshal.Copy(descriptor, 0, buffer, descriptor.Length);
+                SecurityAttributes attributes = new SecurityAttributes { length = Marshal.SizeOf(typeof(SecurityAttributes)), descriptor = buffer, inherit = 0 };
+                if (!CreateDirectoryW(path, ref attributes)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                return Observe(path);
+            } finally { Marshal.FreeHGlobal(buffer); }
+        }
+    }
+    '@
+    }
+    """#
+}
