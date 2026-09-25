@@ -24,7 +24,7 @@ final class ServerLegacyMutationTests: XCTestCase {
         let handler = RPCHandler(operationService: fixture.service)
         let names = try FileManager.default.contentsOfDirectory(atPath: fixture.root.path).sorted()
         for message in messages {
-            XCTAssertThrowsError(try handler.handleChunks(message: message)) { error in
+            try XCTAssertThrowsError(try handler.handleChunks(message: message)) { error in
                 XCTAssertEqual(error as? ServerRPCError, .acceptedOperationRequired)
                 var reader = ServerRPCBinaryReader(data: RPCHandler.encodeError(error))
                 XCTAssertEqual(try reader.readString(), "Remote helper compatibility error: changes require an accepted operation using protocol version 2.")

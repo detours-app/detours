@@ -1,5 +1,9 @@
 # Test Log
 
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux legacy mutation refusal compilation | `dd590cd` | FAIL: the new RPC refusal test omitted try on a throwing assertion; compilation stopped before tests. Correcting the assertion before rerunning verification. |
+
 ## 2026-09-25 (Foundry and devtest, owned compressed TAR preparation)
 
 | Check | Commit | Result |
