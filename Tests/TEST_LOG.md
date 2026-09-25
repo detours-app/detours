@@ -16,6 +16,8 @@
 | devtest forced-UTF-8 ZIP probe | `7cba5db` | PASS: the host 7z forced-UTF-8 output extracts with exact names under both C and C.UTF-8. This host-tool case does not reproduce the build-container failure. Probe fixtures removed. |
 | Linux corrected header diagnostic process checks | `7cba5db` | PASS: compilation and 18 process tests, zero failures, 11.785 seconds. |
 | Linux ZIP header evidence and extraction | `7cba5db` | FAIL: 104 of 105 tests passed in 11.039 seconds. Generated ZIP local and central names and flags match, including UTF-8 flags; plain extraction still reports escaped central names. Testing an explicit UTF-8 locale for Linux archive commands. |
+| Linux UTF-8 archive command process checks | `da66f7d` | PASS: compilation and 18 process tests, zero failures, 11.887 seconds. |
+| Linux UTF-8 ZIP extraction and encryption | `da66f7d` | FAIL: 104 of 105 tests passed in 10.392 seconds. Plain ZIP now passes exact Unicode extraction and comparison with existing output. Encrypted ZIP preparation rejects the fixture's Unicode password with E_INVALIDARG; the upstream ZIP handler requires a simple ASCII password. Correcting that fixture and checking the existing 80-byte password limit before allocation. |
 
 ## 2026-09-25 (Foundry, archive compatibility)
 

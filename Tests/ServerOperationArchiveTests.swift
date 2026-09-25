@@ -192,6 +192,21 @@ final class ServerOperationArchiveTests: XCTestCase {
         try fixture.assertSourcesUnchanged()
     }
 
+    func testZIPPasswordLengthLimitIsCheckedBeforeAllocation() async throws {
+        let fixture = try await Fixture(encrypted: true, format: .zip)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        do {
+            _ = try await fixture.service.prepareArchive(fixture.identity, password: String(repeating: "a", count: 81))
+            XCTFail("ZIP password limit was bypassed")
+        } catch {
+            XCTAssertEqual(error as? ArchiveOperationsError, .invalidPassword("ZIP passwords are limited to 80 UTF-8 bytes"))
+        }
+        XCTAssertNil(try fixture.service.status(fixture.identity).workspace)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+        try fixture.assertSourcesUnchanged()
+    }
+
     private func assertZIPHeaders(_ archive: URL, encrypted: Bool) throws {
         let bytes = [UInt8](try Data(contentsOf: archive))
         func integer(_ offset: Int, _ count: Int) throws -> Int {
@@ -252,7 +267,7 @@ final class ServerOperationArchiveTests: XCTestCase {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             file = root.appendingPathComponent("first/nested/émoji 📁.txt")
             destination = root.appendingPathComponent((inside ? "first/result." : "result.") + format.fileExtension)
-            password = encrypted ? "transient fixture secret 🗝" : nil
+            password = encrypted ? (format == .zip ? "transient fixture secret" : "transient fixture secret 🗝") : nil
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try FileManager.default.createDirectory(at: root.appendingPathComponent("first/empty"), withIntermediateDirectories: false)
             try FileManager.default.createDirectory(at: root.appendingPathComponent("second"), withIntermediateDirectories: false)

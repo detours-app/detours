@@ -23,6 +23,9 @@ extension ServerOperationService {
                 throw OperationContractError.intentMismatch
             }
             guard password?.contains("\0") != true else { throw SevenZipArchiveError.invalidEntry }
+            if format == .zip, let password, password.utf8.count > 80 {
+                throw ArchiveOperationsError.invalidPassword("ZIP passwords are limited to 80 UTF-8 bytes")
+            }
             try requirePreparationDestination(intent)
             let source = try await archiveSources(intent, identity: identity, ownership: ownership, measuredBefore: 0)
             let target = try resolve(destination)
