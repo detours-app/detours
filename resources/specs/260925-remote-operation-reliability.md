@@ -225,11 +225,13 @@ Testing, filesystem-safety and UI specialists reviewed the same design. Their co
 
 ### Implementation Plan
 
+Execution order approved by Marco on 2026-09-25: complete C1-C3, then host mutation support C7-C9, then connection readiness C4-C6, then C10 onward. Readiness depends on the capabilities implemented by C7-C9; task identifiers remain unchanged.
+
 **Phase 1: Establish the shared contract**
 
 - [x] **C1** Add RemoteOperationSupport record, intent, receipt, typed lookup and outcome-reducer types; wire the shared target in Package.swift.
 - [x] **C2** Add private atomic journal snapshots, epochs, item locks, cancellation records and acknowledged terminal tombstones in RemoteOperationSupport, with Windows equivalents in a new src/Remote/Windows/WindowsOperationScripts.swift that takes over the mutation scripts from WindowsRemoteProvider+Scripts.swift; read-only scripts stay there.
-- [ ] **C3** Extend src/Remote/Protocol/Messages.swift and Server/ServerRPCProtocol.swift with version-2 handshake, accepted-operation, status, cancel and receipt payloads, including explicit compatibility errors.
+- [x] **C3** Extend src/Remote/Protocol/Messages.swift and Server/ServerRPCProtocol.swift with version-2 handshake, accepted-operation, status, cancel and receipt payloads, including explicit compatibility errors.
 
 **Phase 2: Make readiness and lifetime authoritative**
 
@@ -311,6 +313,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **C3** Shared version-2 requests/replies carry handshake, acceptance, status, cancellation, acknowledgement and receipt data. Both RPC codecs preserve byte-exact paths and reject trailing bytes; compatibility checks cover protocol, schema, capabilities, account and epoch. Host dispatch explicitly refuses capabilities until C8 connects the commit implementation. At `0efdec1`, signed Foundry build and 18 protocol/contract/helper tests passed; Linux helper checks at `9e6dc62` passed 32 tests.
 
 - **C1** Added the shared intent, receipt, typed lookup, operation record and outcome reducer, with package and Linux helper build wiring. At `4674819`, Foundry's required signed build passed, including Linux compilation and 32 helper tests on devtest. Foundry then passed all 17 selected tests: ten new `RemoteOperationContractTests` cases and seven `BuildCacheTests`. These prove the shared contract; migration of actual operation callers remains in C4-C16.
 - **C2** Added private Unix journals with atomic snapshots, epochs, item/account locks, separate cancellation records and retained terminal tombstones. At `2f86fb0`, Linux/macOS builds, 32 Linux helper tests and 16 Foundry contract/filesystem tests passed. Added equivalent Windows journal functions, moved mutation scripts into `WindowsOperationScripts.swift` and renamed the private Trash helper. At `99a58df`, all 17 shared contract/journal cases and 10 Windows provider regressions passed, including stopped-unknown reconciliation. Fixed the live test's SSH socket length and PowerShell null-string conversion; at `db9814b`, the signed Foundry build and live Windows journal regression passed with no skips.

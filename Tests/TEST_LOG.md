@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | Linux helper container regressions on devtest | `9e6dc62` | PASS: 18 process tests in 11.884 seconds and 14 archive tests in 1.725 seconds, zero failures or skips. |
 | Required Foundry build | `9e6dc62` | FAIL: both helpers built; app compilation reported a non-exhaustive message-name switch in `RemoteFileProvider` because the new operation request case was missing. No focused tests ran. |
+| Corrected signed Foundry build and protocol regressions | `0efdec1` | PASS: required signed no-install build passed; 18 tests, zero failures or skips, 0.084 seconds. Includes byte-exact cross-codec requests, named compatibility rejection, receipt encoding, the shared outcome contract and real macOS helper smoke tests. |
 
 ## 2026-09-25 (Foundry and devtest, Windows operation journal)
 
