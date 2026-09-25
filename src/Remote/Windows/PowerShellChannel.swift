@@ -440,7 +440,7 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         process.arguments = sshArguments(dispatcherBase64: dispatcherBase64)
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        process.standardError = FileHandle.nullDevice
+        process.standardError = FileHandle.standardError
         do {
             try process.run()
         } catch {

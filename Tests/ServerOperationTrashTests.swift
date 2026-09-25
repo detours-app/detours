@@ -4,6 +4,56 @@ import XCTest
 @testable import detours_server
 
 final class ServerOperationTrashTests: XCTestCase {
+    func testChangedTrashedObjectIsRestoredOrRetainedWithoutOverwriting() async throws {
+        for (occupied, replaced) in [(false, false), (true, false), (false, true)] {
+            let fixture = try Fixture()
+            defer { fixture.cleanup() }
+            let source = try fixture.url(fixture.original)
+            try Data("approved source".utf8).write(to: source)
+            let service = try await fixture.service()
+            let (request, intent) = try fixture.intent(epoch: service.journal.epoch)
+            _ = try await service.accept(request, intent: intent)
+            let ownership = try await service.journal.acquireItem(request.id)
+            defer { withExtendedLifetime(ownership) {} }
+            let reservation = try fixture.store.plan(id: request.id, original: fixture.original)
+            let information = try fixture.store.prepare(reservation)
+            let expected = try XCTUnwrap(intent.sourceObservations.first)
+            try service.journal.record(OperationReceipt(
+                id: request.id, account: request.account, epoch: request.epoch, intentDigest: request.intentDigest,
+                revision: 1, phase: .committing, outcome: .running, sourceDisposition: .unknown,
+                preparedPayload: OperationEffect(location: fixture.original, observation: expected),
+                plannedPaths: [reservation.item, reservation.information], recovery: [
+                    OperationRecoveryReference(identity: expected.identity, purpose: .source, original: fixture.original,
+                                               knownLocation: nil, possibleLocations: [fixture.original, reservation.item]),
+                    OperationRecoveryReference(identity: information.observation.identity, purpose: .scratch, original: nil,
+                                               knownLocation: information.location, possibleLocations: [information.location]),
+                ]
+            ), ownership: ownership)
+            let preserved = fixture.root.appendingPathComponent("preserved-source")
+            if replaced {
+                try FileManager.default.moveItem(at: source, to: preserved)
+                try Data("replacement".utf8).write(to: source)
+            }
+            let trash = try fixture.url(reservation.item)
+            try FileManager.default.moveItem(at: source, to: trash)
+            try Data("changed at the move boundary".utf8).write(to: trash)
+            if occupied { try Data("new occupant".utf8).write(to: source) }
+            let result = try await service.restoreChangedTrash(request, reservation: reservation, ownership: ownership)
+            XCTAssertEqual(result.outcome, .partial)
+            XCTAssertEqual(result.sourceDisposition, occupied || replaced ? .unknown : .present)
+            if occupied {
+                XCTAssertEqual(try Data(contentsOf: source), Data("new occupant".utf8))
+                XCTAssertEqual(try Data(contentsOf: trash), Data("changed at the move boundary".utf8))
+                XCTAssertEqual(result.recovery.first { $0.purpose == .sourceTrash }?.knownLocation, reservation.item)
+            } else {
+                XCTAssertEqual(try Data(contentsOf: source), Data("changed at the move boundary".utf8))
+                XCTAssertFalse(FileManager.default.fileExists(atPath: trash.path))
+                XCTAssertFalse(FileManager.default.fileExists(atPath: try fixture.url(reservation.information).path))
+            }
+            if replaced { XCTAssertEqual(try Data(contentsOf: preserved), Data("approved source".utf8)) }
+        }
+    }
+
     func testJournaledRestoreNeverOverwritesAndKeepsOneResult() async throws {
         for occupied in [false, true] {
             let fixture = try Fixture()

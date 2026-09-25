@@ -70,6 +70,9 @@ extension ServerOperationService {
             try journal.record(result, ownership: ownership)
             return result
         } catch {
+            if moveAttempted, error as? OperationFilesystemError == .identityChanged {
+                return try await restoreChangedTrash(identity, reservation: reservation, ownership: ownership)
+            }
             let current = try journal.read(identity.id)
             if current.receipt?.outcome == .committed { throw error }
             var failure = String(describing: error)
