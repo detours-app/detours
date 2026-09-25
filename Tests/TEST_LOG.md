@@ -37,6 +37,7 @@
 | Signed Foundry changed-source rollback and Windows diagnostics | `df274c4` | PASS: both helper builds, signed no-install app build and 82 tests, zero failures or skips, 3.305 seconds. Changed-object rollback, restore, PowerShell channel and live Windows journal checks passed. Windows SSH stderr is retained. The earlier EOF did not reproduce; Windows execution policy rejected the separate host-log script, and its cause remains unproved. |
 | Linux replacement-backup handoff | `d7de7c1` | PASS: 18 process tests in 11.772 seconds and 63 operation/archive tests in 6.123 seconds, zero failures or skips. Successful and refused backup handoffs preserve the new destination; restore metadata names the original destination; lost handoff results are located without replay. |
 | Signed Foundry replacement-backup handoff | `d7de7c1` | PASS: both helper builds, signed no-install app build and 84 tests, zero failures or skips, 3.836 seconds. Successful, refused and interrupted backup handoffs retain the original without changing the confirmed destination; live Windows journal checks passed. |
+| Replacement-backup restore build | `60f5935` | FAIL: Linux compilation rejected a private helper call from the new restoration extension; no tests ran. The cleanup now uses the existing accessible location resolver. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 

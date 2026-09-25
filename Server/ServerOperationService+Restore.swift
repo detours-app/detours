@@ -136,7 +136,7 @@ extension ServerOperationService {
         }
         if let record = previous.workspace,
            recovery.contains(where: { $0.purpose == .scratch && $0.identity == record.root.identity }) {
-            let parent = try OperationDirectory(path: Self.parentPath(original))
+            let parent = try resolve(original).directory
             switch try parent.lookup(record.root.name) {
             case .missing: break
             case .found:
