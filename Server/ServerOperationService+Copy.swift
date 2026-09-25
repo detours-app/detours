@@ -3,7 +3,10 @@ import RemoteOperationSupport
 
 extension ServerOperationService {
     func prepareCopy(_ identity: OperationRequestIdentity) async throws -> OperationReceipt {
-        _ = try status(identity)
+        let initial = try status(identity)
+        if let kind = initial.intent?.sourceObservations.first?.kind, [.directory, .symbolicLink].contains(kind) {
+            return try await prepareTreeCopy(identity)
+        }
         let ownership = try await journal.acquireItem(identity.id)
         defer { withExtendedLifetime(ownership) {} }
         let accepted = try journal.read(identity.id)

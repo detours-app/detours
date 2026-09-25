@@ -32,11 +32,21 @@ public enum OperationPublication {
         let target = try split(destination)
         let sourceDirectory = try OperationDirectory(path: source.parent)
         let targetDirectory = try OperationDirectory(path: target.parent)
+        if let manifest = accepted.payloadManifest {
+            let current = try sourceDirectory.manifest(source.name) { _ in
+                guard try !journal.cancellationRequested(id) else { throw OperationContractError.cancelled }
+            }
+            guard current == manifest else { throw OperationFilesystemError.identityChanged }
+        }
         let commit = try await journal.acquireCommit()
         defer { withExtendedLifetime(commit) {} }
         guard try journal.read(id) == accepted else { throw OperationContractError.conflictingRevision }
         guard try !journal.cancellationRequested(id) else { throw OperationContractError.cancelled }
         try Task.checkCancellation()
+        if let manifest = accepted.payloadManifest, let record = accepted.workspace {
+            let workspace = try OperationWorkspace(parent: targetDirectory, record: record)
+            try workspace.validateManifest(manifest, root: source.name)
+        }
 
         if case .replace = intent.conflict {
             ready = try OperationReplacement.displace(journal: journal, snapshot: accepted, ownership: ownership)

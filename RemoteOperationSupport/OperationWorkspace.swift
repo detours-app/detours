@@ -123,6 +123,29 @@ public final class OperationWorkspace {
         try target.directory.synchronize()
     }
 
+    public func validateManifest(_ manifest: OperationManifest, root: Data) throws {
+        try requireRoot()
+        try directory.requireCurrentPath()
+        try OperationDirectory.validateName(root)
+        var paths = Set<Data>()
+        for entry in manifest.entries {
+            let name = entry.relativePath.isEmpty ? root : root + Data([47]) + entry.relativePath
+            guard paths.insert(name).inserted,
+                  let object = record.objects.first(where: { $0.name == name }),
+                  object.identity == entry.observation.identity, object.kind == entry.observation.kind else {
+                throw OperationFilesystemError.identityChanged
+            }
+            let target = try parentForObject(name)
+            let current = try target.directory.observe(target.name)
+            guard current.identity == object.identity, current.kind == object.kind,
+                  current.version == entry.observation.version, current.linkTarget == entry.observation.linkTarget else {
+                throw OperationFilesystemError.identityChanged
+            }
+        }
+        let expected = Set(record.objects.filter { $0.name == root || $0.name.starts(with: root + Data([47])) }.map(\.name))
+        guard paths == expected, paths.contains(root) else { throw OperationFilesystemError.unexpectedContents }
+    }
+
     public func removeScratch() throws {
         try requireRoot()
         var order: [Data] = []
