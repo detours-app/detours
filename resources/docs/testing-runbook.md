@@ -232,6 +232,8 @@ Remote change recovery is covered by `ServerWatchRecoveryTests` for missed event
 
 `RestoredRemoteConnectionTests` proves that a restored tab keeps its connection alive beyond the idle deadline and releases that ownership on close. `QualificationRefreshUITests/testRefreshProviderBoundary` verifies external creation through the real provider watcher before manual refresh and retains a screenshot of that state. `BuildCacheTests` covers selection of the current build's executable and inclusion of all three seeded geometry cases in whole-target qualification.
 
+`RemoteIntegrationTests/testRepeatedGitRefreshReleasesHelperDescriptors` checks the Linux helper's process cleanup on one persistent SSH connection. After one warm-up Git refresh, it counts `/proc/self/fd`, runs 32 more Git refreshes, allows at most two additional handles, and verifies that the repository can still be listed. The unfixed helper grew from 20 to 84 handles; the fixed helper passes the same assertion. Foundry verification on 2026-09-24 also passed the Git checks, full SSH suite and installed Linux refresh check; 14 Windows live cases skipped because their host was unreachable. See `Tests/TEST_LOG.md` for results. This proves the reproduced leak is caught and fixed, not multi-day endurance or cleanup of a child that ignores termination.
+
 The capability matrix remains the contract for what must be proved. The test layer is chosen separately from the capability.
 
 For refresh, the combination model includes:

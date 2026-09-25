@@ -1,22 +1,28 @@
 # Activity Bar
 
 ## Meta
+
 - Status: Implemented
 - Branch: feature/activity-bar
+
+The activity-button design below is a historical implementation record. It was replaced by [status-bar progress](260401-status-bar-progress.md); the current progress view is `src/Panes/StatusBarView.swift`, and the deleted activity-button tests were replaced by `Tests/StatusBarProgressTests.swift`.
 
 ---
 
 ## Business
 
 ### Goal
+
 Fix the beachball during archive operations and add a persistent, non-modal way to see file operation progress without blocking interaction.
 
 ### Proposal
+
 Replace the blocking process execution and modal progress sheet with per-pane activity buttons and an async process runner, so users always see what's happening and can keep working.
 
 ### Behaviors
 
 **Activity button (appears during operations):**
+
 - Circular button appears at trailing edge of each pane's path control row
 - Shows accent-colored rotating arrow icon during indeterminate operations (archive, extract)
 - Shows circular progress ring for determinate operations (copy, move, delete)
@@ -26,9 +32,11 @@ Replace the blocking process execution and modal progress sheet with per-pane ac
 - Respects reduced motion: no rotation animation when the accessibility setting is on
 
 **Keyboard:**
+
 - Escape closes the popover without cancelling
 
 ### Out of scope
+
 - Parallel operations (queue stays serial)
 - Per-pane operation attribution (operations are window-level)
 - Pause/resume functionality
@@ -54,7 +62,7 @@ The button connects to `FileOperationQueue` callbacks (`onOperationStart`, `onPr
 ### Risks
 
 | Risk | Mitigation |
-|------|------------|
+| ------ | ------------ |
 | `terminationHandler` fires on a background thread — updating `@MainActor` state requires dispatch | Use `withCheckedContinuation` wrapping `terminationHandler` to bridge back to structured concurrency |
 | Button animation on hidden layer — Core Animation drops animations added to hidden views | Unhide the button before adding the spin animation |
 | Archive operations have unknown total count (single process compressing many files) | Stay in indeterminate mode (spinner, no bar) when `totalCount == 0` |
@@ -64,23 +72,27 @@ The button connects to `FileOperationQueue` callbacks (`onOperationStart`, `onPr
 ### Implementation Plan
 
 **Phase 1: Fix async process execution**
+
 - [x] Replace `process.waitUntilExit()` in `runProcess` with an async wrapper using `Process.terminationHandler` and `withCheckedContinuation` (`FileOperationQueue.swift`)
 - [x] Verify cancellation monitoring still works with the new async approach
 - [x] Add 16Hz throttle to `updateProgress` calls — buffer updates and deliver at most once per 60ms
 
 **Phase 2: ActivityToolbarButton view**
+
 - [x] Create `ActivityToolbarButton` NSView with accent-colored arrow icon and circular progress ring (`src/Operations/ActivityToolbarButton.swift`)
 - [x] Implement states: idle → indeterminate (rotating icon) → active (progress ring) → completing (full ring) → error (red exclamation)
 - [x] Implement fade in/out animation via `NSAnimationContext`; skip animation when `accessibilityDisplayShouldReduceMotion` is true
 - [x] Wire to `ThemeManager.themeDidChange` for accent color
 
 **Phase 3: Detail popover**
+
 - [x] Create `OperationDetailPopover` using NSPopover + NSHostingView with SwiftUI content: full file path (wrappable), count fraction, full-width progress bar with percentage, "Cancel Operation" button (`src/Operations/OperationDetailPopover.swift`)
 - [x] Open popover on button click, anchored to the activity button
 - [x] Close popover automatically when operation ends
 - [x] Wire Cancel button to `FileOperationQueue.cancelCurrentOperation()`
 
 **Phase 4: Integration**
+
 - [x] Add `ActivityToolbarButton` to each pane's path control row at trailing edge (`PaneViewController.swift`)
 - [x] Connect `FileOperationQueue` callbacks (`onOperationStart`, `onProgressUpdate`, `onOperationFinish`) to drive both panes' buttons (`MainSplitViewController.swift`)
 - [x] Add completion callback to trigger button hide + Done flash
@@ -88,6 +100,7 @@ The button connects to `FileOperationQueue` callbacks (`onOperationStart`, `onPr
 - [x] Remove `ProgressWindowController` modal sheet and its 1-second delay scheduling
 
 **Phase 5: Accessibility**
+
 - [x] Set `NSAccessibilityProgressIndicatorRole` on the button with value attribute for fraction
 - [x] Post `NSAccessibilityAnnouncement` when operation completes ("Operation complete") and fails ("Operation failed")
 - [x] Escape closes popover without cancelling

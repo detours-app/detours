@@ -14,7 +14,7 @@ Detours shows two file panes side-by-side, each with independent tabs. One pane 
 
 - **Switch pane**: Press `Tab` (without modifiers)
 - **Active pane**: Has accent-colored underline on selected tab
-- **Inactive pane**: Has gray underline, no selection highlight shown
+- **Inactive pane**: Has a dimmed accent underline and a subdued selection highlight
 
 ### Tabs
 
@@ -72,7 +72,7 @@ The sidebar shows remote hosts, mounted volumes, network shares, and favorite fo
 
 **Remote hosts:** The sidebar has a dedicated Remote Hosts section for SSH targets added in Detours. Selecting a connected host opens that host in the active pane. Unreachable hosts remain visible with a reconnect state.
 
-**Network shares:** The sidebar has a dedicated NETWORK section showing servers discovered via Bonjour. Servers group their mounted volumes underneath. Offline servers appear dimmed. Use File → Connect to Network Share... to connect to a server manually (SMB/AFP). Connecting runs in the background, so the window stays usable while the server answers, and a failed attempt shows one message. When a sidebar server asks for a name and password, macOS shows its share picker after the login so you can choose the share to mount.
+**Network shares:** The sidebar has a dedicated FILE SERVERS section showing servers discovered via Bonjour. Servers group their mounted volumes underneath. Offline servers appear dimmed. Use File → Connect to Network Share... to connect to a server manually (SMB/AFP). Connecting runs in the background, so the window stays usable while the server answers, and a failed attempt shows one message. When a sidebar server asks for a name and password, macOS shows its share picker after the login so you can choose the share to mount.
 
 ---
 
@@ -97,7 +97,7 @@ The sidebar shows remote hosts, mounted volumes, network shares, and favorite fo
 Quick Open follows the active tab:
 
 - Local tabs search the Mac with Spotlight plus Detours' active-pane folder search.
-- Remote tabs search the active SSH host by file and folder name through the Detours helper.
+- Remote tabs search the active SSH host by file and folder name through the Detours helper on macOS and Linux, or PowerShell on Windows.
 - Disconnected remote tabs show a Reconnect action instead of silently searching the Mac.
 
 1. Press **Cmd-P** to open

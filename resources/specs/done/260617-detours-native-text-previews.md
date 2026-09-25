@@ -5,6 +5,8 @@
 - Status: Implemented
 - Branch: feature/detours-native-text-previews
 
+The completed tasks below retain the original design and test names. Current preview behavior is documented in [Text Previews](../../docs/text-previews.md): PDFs use system Quick Look, and the responder tests live in `Tests/FileListResponderTests+QuickLook.swift` with live helper coverage in `Tests/RemoteIntegrationTests.swift`.
+
 ---
 
 ## Business
@@ -154,7 +156,7 @@ Tests are implementation tasks. Numbering continues from the Implementation Plan
 
 - [x] **T35** `testBuildScriptCopiesPreviewAssetsAndChecksRequiredFiles` - `resources/scripts/build.sh` copies `resources/PreviewAssets/` into `Contents/Resources/PreviewAssets/` and fails when the manifest, vendor libraries, Markdown renderer, Detours runtime, styles, or license files are missing.
 
-### Integration Tests (`Tests/FileListResponderTests.swift`, `Tests/RemoteFileProviderTests.swift`)
+### Integration Tests (current files: `Tests/FileListResponderTests+QuickLook.swift`, `Tests/RemoteIntegrationTests.swift`)
 
 - [x] **T36** `testLocalQuickLookUsesGeneratedPreviewForSupportedTextFile` - local supported text files produce generated HTML preview URLs before the Detours preview window presents them.
 - [x] **T37** `testLocalQuickLookKeepsOriginalURLForUnsupportedFile` - unsupported local files keep the system Quick Look URL path.
