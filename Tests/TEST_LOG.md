@@ -46,6 +46,8 @@
 | Signed Foundry native replacement integration | `bdce5c4` | PASS: both helper builds, signed no-install app build and 87 tests, zero failures or skips, 3.155 seconds. Native replacement, retained originals, source disposition, refusal/cancellation and terminal duplicate failures passed with live Windows journal checks. |
 | Linux native link and directory replacement | `a86dc44` | PASS: 18 process tests in 11.886 seconds and 67 operation/archive tests in 4.982 seconds, zero failures or skips. Native replacements preserve selected link/directory identities, link targets, nested contents and displaced originals. |
 | Signed Foundry native link and directory replacement | `a86dc44` | PASS: both helper builds, signed no-install app build and 88 tests, zero failures or skips, 3.216 seconds. Selected links and directories move with their identities intact while link targets, nested contents and displaced originals are preserved; live Windows journal checks passed. |
+| Linux tree manifests | `a9e7c89` | PASS: 18 process tests in 12.088 seconds and 71 operation/archive tests in 5.786 seconds, zero failures or skips. Sorted manifests preserve raw path bytes, empty directories and links; payload proofs match across different object identities, and cancellation or source changes stop inspection. |
+| Signed Foundry tree manifests | `a9e7c89` | PASS: both helper builds, signed no-install app build and 91 tests, zero failures or skips, 3.176 seconds. Manifest content/shape, empty directories, unfollowed links, cancellation and mutation checks passed with existing host and live Windows journal regressions. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 
