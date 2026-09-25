@@ -21,7 +21,9 @@ typedef int (*detours_archive_input)(void *context, uint32_t index);
 /* Entry storage and output are borrowed for this synchronous call.
    open_input transfers a readable descriptor, closed after that member.
    Output must be an empty regular file exclusively created by the caller. */
-int32_t detours_sevenzip_create(int output, const detours_archive_entry *entries,
+enum detours_archive_format { DETOURS_ARCHIVE_SEVEN_Z = 0, DETOURS_ARCHIVE_ZIP = 1 };
+
+int32_t detours_archive_create(int32_t format, int output, const detours_archive_entry *entries,
                                uint32_t count, const char *password,
                                detours_archive_input open_input,
                                detours_archive_progress progress, void *context);

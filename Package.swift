@@ -34,8 +34,8 @@ let package = Package(
         .target(
             name: "SevenZip", path: "SevenZip",
             exclude: ["README.md", "License.txt", "copying.txt", "unRarLicense.txt"],
-            cSettings: [.define("Z7_DEFLATE_EXTRACT_ONLY"), .define("Z7_BZIP2_EXTRACT_ONLY")],
-            cxxSettings: [.define("Z7_DEFLATE_EXTRACT_ONLY"), .define("Z7_BZIP2_EXTRACT_ONLY")]
+            cSettings: [.define("Z7_BZIP2_EXTRACT_ONLY")],
+            cxxSettings: [.define("Z7_BZIP2_EXTRACT_ONLY")]
         ),
         .target(name: "ArchiveStreamBridge", dependencies: ["SevenZip"], path: "ArchiveStreamBridge"),
         .target(name: "FilesystemPrimitives", path: "FilesystemPrimitives"),

@@ -5,8 +5,8 @@ import XCTest
 
 final class ServerOperationArchiveTests: XCTestCase {
     func testAcceptedArchivePreparesPrivatelyAndCommitsOnceWithoutPersistingPassword() async throws {
-        for encrypted in [false, true] {
-            let fixture = try await Fixture(encrypted: encrypted, overlap: true)
+        for (format, encrypted) in [(ServerArchiveFormat.sevenZ, false), (.sevenZ, true), (.zip, false), (.zip, true)] {
+            let fixture = try await Fixture(encrypted: encrypted, overlap: true, format: format)
             defer { fixture.cleanup() }
             _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
             let response = try await fixture.service.reply(to: .prepareArchive(identity: fixture.identity, password: fixture.password))
@@ -29,14 +29,17 @@ final class ServerOperationArchiveTests: XCTestCase {
             XCTAssertNil(committed.failure)
             let extracted = URL(fileURLWithPath: try ArchiveOperations().extractArchive(archive: fixture.destination.path, password: fixture.password))
             XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent("first/nested/émoji 📁.txt")), fixture.contents)
-            XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent("notes")), Data("second file".utf8))
-            XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent("émoji 📁.txt")), fixture.contents)
+            let notes = format == .sevenZ ? "notes" : "second/notes"
+            XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent(notes)), Data("second file".utf8))
+            if format == .sevenZ {
+                XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent("émoji 📁.txt")), fixture.contents)
+            }
             XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: extracted.appendingPathComponent("first/empty").path), [])
             let link = extracted.appendingPathComponent("first/link")
             XCTAssertEqual(try Data(contentsOf: link), fixture.contents)
             XCTAssertEqual(try link.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink, false)
             XCTAssertEqual(snapshot.archiveInputManifest?.entries.first { $0.relativePath == Data("first/link".utf8) }?.observation.kind, .file)
-            let legacy = try ArchiveOperations().createArchive(items: fixture.originals.map { $0.0.path }, format: "sevenZ",
+            let legacy = try ArchiveOperations().createArchive(items: fixture.originals.map { $0.0.path }, format: format.rawValue,
                                                                archiveName: "legacy", password: fixture.password)
             let legacyExtracted = URL(fileURLWithPath: try ArchiveOperations().extractArchive(archive: legacy, password: fixture.password))
             let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
@@ -45,6 +48,11 @@ final class ServerOperationArchiveTests: XCTestCase {
             let attributes = try FileManager.default.attributesOfItem(atPath: extracted.appendingPathComponent("first/nested/émoji 📁.txt").path)
             XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o640)
             XCTAssertEqual(attributes[.modificationDate] as? Date, fixture.modified)
+            if encrypted {
+                XCTAssertThrowsError(try ArchiveOperations().extractArchive(archive: fixture.destination.path, password: "wrong fixture password")) {
+                    XCTAssertEqual($0 as? ArchiveOperationsError, .wrongPassword)
+                }
+            }
             try fixture.assertSourcesUnchanged()
             try fixture.assertNoSavedPassword()
             try FileManager.default.moveItem(at: fixture.destination, to: fixture.root.appendingPathComponent("saved.7z"))
@@ -193,10 +201,11 @@ final class ServerOperationArchiveTests: XCTestCase {
         let contents = Data(repeating: 42, count: 131_073)
         let modified = Date(timeIntervalSince1970: 1_600_000_000)
 
-        init(encrypted: Bool = false, overlap: Bool = false, replace: Bool = false, inside: Bool = false) async throws {
+        init(encrypted: Bool = false, overlap: Bool = false, replace: Bool = false, inside: Bool = false,
+             format: ServerArchiveFormat = .sevenZ) async throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             file = root.appendingPathComponent("first/nested/émoji 📁.txt")
-            destination = root.appendingPathComponent(inside ? "first/result.7z" : "result.7z")
+            destination = root.appendingPathComponent((inside ? "first/result." : "result.") + format.fileExtension)
             password = encrypted ? "transient fixture secret 🗝" : nil
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try FileManager.default.createDirectory(at: root.appendingPathComponent("first/empty"), withIntermediateDirectories: false)
@@ -220,12 +229,12 @@ final class ServerOperationArchiveTests: XCTestCase {
             }
             let conflict: OperationIntent.Conflict
             if replace {
-                conflict = .replace(try OperationDirectory(path: Data(root.path.utf8)).observe(Data("result.7z".utf8)))
+                conflict = .replace(try OperationDirectory(path: Data(root.path.utf8)).observe(Data(destination.lastPathComponent.utf8)))
             } else { conflict = .createNew }
             intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .archiveCreate,
                                      sources: sources.map { .init(account: account, path: .unix(Data($0.path.utf8))) },
                                      destination: .init(account: account, path: .unix(Data(destination.path.utf8))),
-                                     sourceObservations: observations, conflict: conflict, archiveFormat: "sevenZ", archiveEncrypted: encrypted)
+                                     sourceObservations: observations, conflict: conflict, archiveFormat: format.rawValue, archiveEncrypted: encrypted)
             identity = OperationRequestIdentity(id: intent.id, account: account, epoch: service.journal.epoch,
                                                 intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256)
         }

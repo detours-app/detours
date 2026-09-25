@@ -1,5 +1,6 @@
 #include "include/ArchiveStreamBridge.h"
 #include "../SevenZip/CPP/7zip/Archive/7z/7zHandler.h"
+#include "../SevenZip/CPP/7zip/Archive/Zip/ZipHandler.h"
 #include "../SevenZip/CPP/7zip/IPassword.h"
 #include "../SevenZip/CPP/Common/UTFConvert.h"
 #include "../SevenZip/CPP/Windows/PropVariant.h"
@@ -200,7 +201,7 @@ Z7_COM7F_IMF(Update::CryptoGetTextPassword2(Int32 *defined, BSTR *value)) {
 }
 }
 
-extern "C" int32_t detours_sevenzip_create(int output, const detours_archive_entry *entries,
+extern "C" int32_t detours_archive_create(int32_t format, int output, const detours_archive_entry *entries,
                                            uint32_t count, const char *password,
                                            detours_archive_input open_input,
                                            detours_archive_progress callback, void *context) {
@@ -214,12 +215,18 @@ extern "C" int32_t detours_sevenzip_create(int output, const detours_archive_ent
             if (!entry.is_directory && !entry.link_bytes && entry.descriptor < 0 && !open_input) return E_INVALIDARG;
         }
         Progress progress{callback, context};
-        auto *handler = new NArchive::N7z::CHandler;
-        CMyComPtr<IOutArchive> archive = handler;
+        CMyComPtr<IOutArchive> archive;
+        if (format == DETOURS_ARCHIVE_SEVEN_Z) archive = new NArchive::N7z::CHandler;
+        else if (format == DETOURS_ARCHIVE_ZIP) archive = new NArchive::NZip::CHandler;
+        else return E_INVALIDARG;
         if (password && *password) {
-            const wchar_t *names[] = {L"he"};
-            NWindows::NCOM::CPropVariant encrypted(true);
-            RINOK(static_cast<ISetProperties *>(handler)->SetProperties(names, &encrypted, 1))
+            CMyComPtr<ISetProperties> properties;
+            RINOK(archive.QueryInterface(IID_ISetProperties, &properties))
+            const wchar_t *names[] = {format == DETOURS_ARCHIVE_ZIP ? L"em" : L"he"};
+            NWindows::NCOM::CPropVariant encrypted;
+            if (format == DETOURS_ARCHIVE_ZIP) encrypted = L"AES256";
+            else encrypted = true;
+            RINOK(properties->SetProperties(names, &encrypted, 1))
         }
         CMyComPtr<IOutStream> stream = new Output(output, progress);
         CMyComPtr<IArchiveUpdateCallback> update = new Update(entries, count, password, open_input, progress);

@@ -14,6 +14,8 @@ public enum SevenZipArchiveError: Error, Equatable {
 }
 
 public enum SevenZipArchiveWriter {
+    public enum Format: Int32, Sendable { case sevenZ = 0, zip = 1 }
+
     public struct Entry: Sendable {
         public let name: String
         public let input: FileHandle?
@@ -39,7 +41,7 @@ public enum SevenZipArchiveWriter {
         }
     }
 
-    public static func create(entries: [Entry], output: FileHandle, password: String?,
+    public static func create(entries: [Entry], output: FileHandle, password: String?, format: Format = .sevenZ,
                               progress: @escaping @Sendable (UInt64) throws -> Void) throws {
         guard entries.count <= Int(UInt32.max), password?.contains("\0") != true else { throw SevenZipArchiveError.invalidEntry }
         var names: [UnsafeMutablePointer<CChar>] = []
@@ -77,7 +79,7 @@ public enum SevenZipArchiveWriter {
         let reporter = Reporter(entries: entries, progress: progress)
         let result = native.withUnsafeBufferPointer { items in
             func invoke(_ secret: UnsafePointer<CChar>?) -> Int32 {
-                detours_sevenzip_create(output.fileDescriptor, items.baseAddress, UInt32(items.count), secret, { context, index in
+                detours_archive_create(format.rawValue, output.fileDescriptor, items.baseAddress, UInt32(items.count), secret, { context, index in
                     guard let context else { return -1 }
                     return Unmanaged<Reporter>.fromOpaque(context).takeUnretainedValue().open(Int(index))
                 }, { context, bytes in

@@ -13,7 +13,12 @@ extension ServerOperationService {
               let destination = intent.destination else { throw OperationContractError.invalidReceipt }
         var preparation: ServerPayloadPreparation?
         do {
-            guard intent.archiveFormat == ServerArchiveFormat.sevenZ.rawValue else { throw OperationFilesystemError.unsupported }
+            let format: SevenZipArchiveWriter.Format
+            switch intent.archiveFormat {
+            case ServerArchiveFormat.sevenZ.rawValue: format = .sevenZ
+            case ServerArchiveFormat.zip.rawValue: format = .zip
+            default: throw OperationFilesystemError.unsupported
+            }
             guard let encrypted = intent.archiveEncrypted, encrypted == (password?.isEmpty == false) else {
                 throw OperationContractError.intentMismatch
             }
@@ -32,7 +37,7 @@ extension ServerOperationService {
             let progress = ServerArchiveProgress(service: self, identity: identity, ownership: ownership,
                                                  measuredBefore: source.measuredBytes)
             do {
-                try await writeArchive(entries, output: output, password: password, progress: progress)
+                try await writeArchive(entries, output: output, password: password, format: format, progress: progress)
                 try output.close()
             } catch {
                 try output.close()
@@ -90,12 +95,12 @@ extension ServerOperationService {
         }
     }
 
-    private func writeArchive(_ entries: [SevenZipArchiveWriter.Entry], output: FileHandle, password: String?,
+    private func writeArchive(_ entries: [SevenZipArchiveWriter.Entry], output: FileHandle, password: String?, format: SevenZipArchiveWriter.Format,
                               progress: ServerArchiveProgress) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    try SevenZipArchiveWriter.create(entries: entries, output: output, password: password) { try progress.report($0) }
+                    try SevenZipArchiveWriter.create(entries: entries, output: output, password: password, format: format) { try progress.report($0) }
                     continuation.resume()
                 } catch { continuation.resume(throwing: error) }
             }
