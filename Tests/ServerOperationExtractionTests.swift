@@ -28,6 +28,9 @@ final class ServerOperationExtractionTests: XCTestCase {
                 let directory = try OperationDirectory(path: Data(fixture.root.path.utf8))
                 let actual = try directory.manifest(Data(fixture.destination.lastPathComponent.utf8), progress: { _ in })
                 let expected = try directory.manifest(Data(fixture.existing.lastPathComponent.utf8), progress: { _ in })
+                let actualNames = actual.entries.map { String(decoding: $0.relativePath, as: UTF8.self) }
+                let expectedNames = expected.entries.map { String(decoding: $0.relativePath, as: UTF8.self) }
+                XCTAssertEqual(actualNames, expectedNames)
                 XCTAssertEqual(actual.proof, expected.proof)
                 let prefix = wrapped ? "source/" : ""
                 let file = fixture.destination.appendingPathComponent(prefix + "nested/émoji 📁.txt")

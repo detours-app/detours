@@ -19,6 +19,7 @@
 | Linux extraction ownership compilation | `e06ea36` | FAIL: Swift cannot import the platform UTIME_OMIT macro, so compilation stopped before tests. Exposing the actual platform value through the C bridge before rerunning the same checks. |
 | Linux extraction ownership and metadata | `c42afa6` | PASS: 18 process tests in 11.888 seconds and 112 archive/operation tests in 12.531 seconds, zero failures. Recorded empty outputs reopen safely, hard links retain identity/content/metadata, symbolic-link timestamps leave targets unchanged, and substituted objects are refused. |
 | Signed Foundry extraction ownership and metadata | `c42afa6` | PASS: both helpers, signed no-install app build and 149 focused tests, zero failures, 9.961 seconds. Recorded hard links preserve content, permissions and timestamps; symbolic-link timestamp restoration leaves targets unchanged; substituted and nonempty outputs are refused. Archive, publication/recovery and live Windows journal regressions passed. |
+| Linux accepted extraction comparison | `d10dfa9` | FAIL: 18 process tests passed in 11.988 seconds; 116 archive/operation tests completed in 16.426 seconds with two failures in the plain ZIP extraction comparison. Plain/encrypted 7z layouts passed, but ZIP produced different member names and the expected Unicode file was absent. Cancellation, conflicts, changed inputs/payloads and wrong-password checks passed. Inspecting actual decoded names and ZIP encoding before changing extraction. |
 
 ## 2026-09-25 (Foundry and devtest, owned ZIP preparation)
 
