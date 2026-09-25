@@ -10,6 +10,10 @@
 | Linux native archive process regressions | `084ff27` | PASS: 18 process tests, zero failures, 11.993 seconds. |
 | Linux owned archive streams and operation regressions | `084ff27` | PASS: 94 tests, zero failures, 10.019 seconds. Native 7z round trips preserve owned output identity, encrypted trees, Unicode names, empty folders and internal links. Cancellation, unsafe-name refusal, unchanged sources and existing external-link extraction refusal passed. |
 | Native archive helper builds | `084ff27` | FAIL: static Swift Linux helper built, but the macOS helper stopped in upstream AesOpt.c because __m128i was used without a visible emmintrin.h declaration. Foundry tests did not run. |
+| Linux native archive header correction | `51a035f` | PASS: compilation and 18 process tests, zero failures, 11.890 seconds. |
+| Linux archive and operation regressions after header correction | `51a035f` | PASS: 94 tests, zero failures, 42.214 seconds. Owned encrypted archive round trips, cancellation and existing host-operation regressions passed. |
+| Signed Foundry owned archive stream checks | `51a035f` | FAIL: both helper builds and signed no-install app build passed; 130 of 131 checks passed in 21.988 seconds. External-link extraction returned processFailed as required, but its text did not contain the Linux diagnostic expected by the new test. The actual diagnostic needs inspection; the target-preservation assertion passed. |
+| Foundry unsafe-link diagnostic probe | `51a035f` | FAIL: 7-Zip 26.02 confirmed exit 2 with "Dangerous link path was ignored" and preserved the outside target. Probe cleanup missed the extractor's empty placeholder file. A subsequent inspection confirmed that regular file, removed the exact fixture and confirmed the temporary root was gone. The test now accepts both observed 7-Zip diagnostics. |
 
 ## 2026-09-25 (Foundry and devtest, complete folder preparation)
 

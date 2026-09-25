@@ -51,7 +51,8 @@ final class ServerArchiveStreamTests: XCTestCase {
             guard case .processFailed(let detail) = $0 as? ArchiveOperationsError else {
                 return XCTFail("Expected existing unsafe-link extraction refusal, got \($0)")
             }
-            XCTAssertTrue(detail.contains("Dangerous symbolic link"))
+            XCTAssertTrue(detail.contains("Dangerous link path was ignored") ||
+                          detail.contains("Dangerous symbolic link path was ignored"), detail)
         }
         XCTAssertEqual(try Data(contentsOf: fixture.root.appendingPathComponent("outside")), Data("outside survives".utf8))
     }
