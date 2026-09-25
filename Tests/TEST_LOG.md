@@ -6,6 +6,8 @@
 | Linux legacy refusal compilation correction | `44cb0fe` | PASS: compilation and 18 process tests, zero failures, 11.888 seconds. |
 | Linux legacy mutation refusal and regressions | `44cb0fe` | PASS: 118 archive/operation tests, zero failures, 17.923 seconds. Legacy RPC mutations and stream uploads refuse before changing files or consuming an upload body; read-only downloads remain available. Static Linux helper built. |
 | Foundry legacy refusal test compilation | `44cb0fe` | FAIL: both helpers and the signed no-install app built, but macOS XCTest rejects the throwing error callback accepted by Linux XCTest. No focused Foundry tests ran. Replace that callback with explicit do/catch and rerun the same checks. |
+| Linux portable legacy refusal checks | `67cb22d` | PASS: 18 process tests in 12.086 seconds and 118 archive/operation tests in 18.396 seconds, zero failures. Both refusal checks and accepted-operation regressions passed with explicit error handling. |
+| Signed Foundry portable legacy refusal checks | `67cb22d` | PASS: both helpers, signed no-install app build and 177 focused tests, zero failures, 13.939 seconds. Legacy RPC/upload refusal preserves originals and partial files; read-only download, helper smoke, archive, publication/recovery and live Windows journal regressions passed. |
 
 ## 2026-09-25 (Foundry and devtest, owned compressed TAR preparation)
 
