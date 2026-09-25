@@ -7,6 +7,7 @@ final class PowerShellFrameWriterTests: XCTestCase {
         let pipe = Pipe()
         let descriptor = pipe.fileHandleForWriting.fileDescriptor
         let flags = fcntl(descriptor, F_GETFL)
+        let noSignal = fcntl(descriptor, F_GETNOSIGPIPE)
         let started = ProcessInfo.processInfo.systemUptime
         do {
             try PowerShellProcessTransport.writeFramePayload(Data(repeating: 42, count: 1_048_576),
@@ -16,7 +17,10 @@ final class PowerShellFrameWriterTests: XCTestCase {
             guard case PowerShellChannelError.timeout = error else { return XCTFail("Unexpected error: \(error)") }
         }
         XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - started, 2)
-        XCTAssertEqual(fcntl(descriptor, F_GETFL), flags)
+        // Darwin adds its read-only FWASWRITTEN bit after the first write.
+        let restoredFlags = O_NONBLOCK | O_APPEND | O_ASYNC | O_ACCMODE
+        XCTAssertEqual(fcntl(descriptor, F_GETFL) & restoredFlags, flags & restoredFlags)
+        XCTAssertEqual(fcntl(descriptor, F_GETNOSIGPIPE), noSignal)
     }
 
     func testLargeFrameSurvivesPartialWrites() async throws {
