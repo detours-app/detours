@@ -45,6 +45,7 @@ COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     Tests/ServerOperationServiceTests.swift \
     Tests/ServerOperationTreeCopyTests.swift \
     Tests/ServerOperationPreparationTests.swift \
+    Tests/ServerOperationPermanentDeleteTests.swift \
     Tests/ServerOperationTrashTests.swift \
     Tests/ServerOperationBackupTests.swift \
     | ssh "$REMOTE_HOST" "tar -xzf - -C $REMOTE_TMP_Q"
@@ -93,7 +94,8 @@ let package = Package(
             sources: [
                 "ServerArchiveOperationsTests.swift", "OperationFilesystemTests.swift", "OperationPublicationTests.swift",
                 "OperationContentProofTests.swift", "OperationManifestTests.swift", "ServerOperationServiceTests.swift", "ServerOperationTrashTests.swift",
-                "ServerOperationBackupTests.swift", "ServerOperationTreeCopyTests.swift", "ServerOperationPreparationTests.swift"
+                "ServerOperationBackupTests.swift", "ServerOperationTreeCopyTests.swift", "ServerOperationPreparationTests.swift",
+                "ServerOperationPermanentDeleteTests.swift"
             ]
         ),
     ]

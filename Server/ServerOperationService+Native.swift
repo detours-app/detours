@@ -9,6 +9,7 @@ import Glibc
 extension ServerOperationService {
     func execute(_ identity: OperationRequestIdentity) async throws -> OperationReceipt {
         let accepted = try status(identity)
+        if accepted.intent?.action == .permanentDelete { return try await executePermanentDelete(identity) }
         if accepted.intent?.action == .trash { return try await executeTrash(identity) }
         if accepted.intent?.action == .restore { return try await executeRestore(identity) }
         if let intent = accepted.intent, [.rename, .move].contains(intent.action), case .replace = intent.conflict {

@@ -17,6 +17,7 @@ cd "$(dirname "$0")/../.."
     shasum -a 256 Tests/ServerOperationServiceTests.swift
     shasum -a 256 Tests/ServerOperationTreeCopyTests.swift
     shasum -a 256 Tests/ServerOperationPreparationTests.swift
+    shasum -a 256 Tests/ServerOperationPermanentDeleteTests.swift
     shasum -a 256 Tests/ServerOperationTrashTests.swift
     shasum -a 256 Tests/ServerOperationBackupTests.swift
     shasum -a 256 resources/scripts/build-server-linux.sh

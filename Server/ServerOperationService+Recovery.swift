@@ -32,14 +32,15 @@ extension ServerOperationService {
             ?? (current.intent?.action == .trash ? receipt.plannedPaths?.first : nil)
         guard let intent = current.intent, supportsPublication,
               let destination = recordedDestination, let payload = receipt.preparedPayload else {
-            if receipt.outcome == .unknown { return current }
+            let recovery = locateOriginals(receipt.recovery)
+            if receipt.outcome == .unknown, recovery == receipt.recovery { return current }
             try journal.record(OperationReceipt(
                 id: current.id, account: journal.account, epoch: journal.epoch, intentDigest: current.intentDigest,
                 revision: receipt.revision + 1, phase: .terminal, outcome: .unknown,
                 effects: receipt.effects, sourceDisposition: receipt.sourceDisposition,
                 preparedPayload: receipt.preparedPayload, plannedPaths: receipt.plannedPaths,
-                recovery: receipt.recovery, children: receipt.children,
-                failure: "The worker stopped without enough recorded object evidence to prove its result."
+                recovery: recovery, children: receipt.children,
+                failure: receipt.failure ?? "The worker stopped without enough recorded object evidence to prove its result."
             ), ownership: ownership)
             return try journal.read(current.id)
         }
@@ -86,7 +87,7 @@ extension ServerOperationService {
 
     private func locateOriginals(_ references: [OperationRecoveryReference]) -> [OperationRecoveryReference] {
         references.map { reference in
-            guard reference.purpose == .displacedOriginal else { return reference }
+            guard [.displacedOriginal, .source].contains(reference.purpose) else { return reference }
             var known: OperationLocation?
             for location in reference.possibleLocations {
                 do {
