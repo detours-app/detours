@@ -14,6 +14,8 @@
 | Linux test-tool packaging correction | `4c75c7b` | PASS: archive dependencies installed without the manual-page alternatives warnings; compilation and 18 process tests passed with zero failures in 11.886 seconds. |
 | Linux compressed TAR final regression | `4c75c7b` | PASS: 107 archive/operation tests, zero failures, 13.097 seconds. All supported creation formats round-trip against the existing tools; TAR link preservation and owned intermediate preparation passed. Static Linux helper built without the packaging warnings. |
 | Signed Foundry compressed TAR final regression | `4c75c7b` | PASS: both helper builds, signed no-install app build and 144 focused tests, zero failures, 9.773 seconds. ZIP, 7z and all three compressed TAR formats preserve existing extracted contents, metadata and format-specific links. Encryption, cancellation, publication, recovery, protocol and live Windows journal checks passed. The complete run log contains no warning or error lines. |
+| Linux native archive reader | `c608b5b` | PASS: 18 process tests in 11.888 seconds and 109 archive/operation tests in 11.880 seconds, zero failures. Reader round trips cover 7z, ZIP, TAR, gzip, bzip2 and xz, encrypted ZIP/7z, unchanged input offsets, nonempty-output refusal, cancellation and truncated inputs. |
+| Signed Foundry native archive reader | `c608b5b` | PASS: both helpers, signed no-install app build and 146 focused tests, zero failures, 9.988 seconds. Native listing/decompression, encrypted formats, owned output refusal, cancellation and damaged inputs passed alongside archive creation, publication/recovery and live Windows journal regressions. Accepted extraction integration remains unfinished. |
 
 ## 2026-09-25 (Foundry and devtest, owned ZIP preparation)
 
