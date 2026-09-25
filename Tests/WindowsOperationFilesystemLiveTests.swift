@@ -4,6 +4,50 @@ import XCTest
 @testable import Detours
 
 final class WindowsOperationFilesystemLiveTests: XCTestCase {
+    private struct ReplacementMetadata: Decodable {
+        let before: OperationObservation
+        let after: OperationObservation
+        let failure: String?
+    }
+
+    func testNativeReplacementPreservesContentWhenNTFSTunnelsCreationTime() async throws {
+        let control = URL(fileURLWithPath: "/tmp").appendingPathComponent("m-" + UUID().uuidString.prefix(6))
+        try FileManager.default.createDirectory(at: control, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { XCTAssertNoThrow(try FileManager.default.removeItem(at: control)) }
+        let channel = PowerShellChannel(hostID: UUID(), sshTarget: "detours-windows", controlDirectory: control)
+        let script = PowerShellScript(source: PowerShellScript.prelude(operationBody: #"""
+            \#(WindowsOperationScripts.filesystemHelpers)
+            $root = Join-Path ([System.IO.Path]::GetTempPath()) ('DetoursFilesystem-' + [guid]::NewGuid().ToString('D'))
+            [DetoursOperationFiles]::CreatePrivateDirectory($root) | Out-Null
+            try {
+                $original = Join-Path $root 'original'
+                $payload = Join-Path $root 'payload'
+                $held = Join-Path $root 'held'
+                [System.IO.File]::WriteAllText($original, 'original')
+                [System.IO.File]::SetCreationTimeUtc($original, [datetime]'2000-01-01T00:00:00Z')
+                [System.IO.File]::WriteAllText($payload, 'incoming')
+                [System.IO.File]::SetCreationTimeUtc($payload, [datetime]'2001-01-01T00:00:00Z')
+                $approved = [DetoursOperationFiles]::Observe($original)
+                [DetoursOperationFiles]::MoveExclusive($original, $held, $approved.identity.volume, $approved.identity.object, $approved.version) | Out-Null
+                $before = [DetoursOperationFiles]::Prove($payload)
+                $failure = $null
+                try { [DetoursOperationFiles]::MoveExclusive($payload, $original, $before.identity.volume, $before.identity.object, $before.version) | Out-Null }
+                catch { $failure = $_.Exception.GetBaseException().Message }
+                @{ before = $before; after = [DetoursOperationFiles]::Prove($original); failure = $failure }
+            } finally { [System.IO.Directory]::Delete($root, $true) }
+            """#))
+        let data: Data
+        do {
+            data = try await channel.run(script, operation: "ReplacementMetadataProof")
+            await channel.disconnect()
+        } catch { await channel.disconnect(); throw error }
+        let result = try JSONDecoder().decode(ReplacementMetadata.self, from: data)
+        XCTAssertNil(result.failure)
+        XCTAssertEqual(result.after.identity, result.before.identity)
+        XCTAssertEqual(result.after.sha256, result.before.sha256)
+        XCTAssertEqual(result.after.contentVersion, result.before.contentVersion)
+    }
+
     private struct Arguments: Encodable { let fixtureID: UUID }
     private struct Result: Decodable {
         let before: OperationObservation

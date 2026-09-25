@@ -185,7 +185,7 @@ extension WindowsOperationScripts {
                 Observation after = Observe(handle);
                 if (after.identity.volume != before.identity.volume || after.identity.@object != before.identity.@object ||
                     after.kind != before.kind || after.contentVersion != before.contentVersion || after.linkTarget != before.linkTarget)
-                    throw new IOException("Operation object changed during move.");
+                    throw new IOException("Operation object changed during move: before=" + before.contentVersion + "; after=" + after.contentVersion);
                 return after;
             }
         }
