@@ -51,7 +51,11 @@ extension ServerOperationService {
         let lookup = try directory.lookup(name)
         if let expected, case .found(let observation) = lookup,
            observation.identity == expected.identity, observation.kind == .file {
-            return .found(try directory.proveFile(name))
+            let clock = ContinuousClock()
+            let deadline = clock.now.advanced(by: .seconds(10))
+            return .found(try directory.proveFile(name) { _ in
+                guard clock.now < deadline else { throw OperationJournalError.busy }
+            })
         }
         return lookup
     }

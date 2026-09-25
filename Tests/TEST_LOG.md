@@ -8,6 +8,7 @@
 | Signed Foundry build and upload/journal checks | `0313d60` | PASS: signed no-install app build and 12 tests, zero failures or skips, 0.879 seconds. Small upload boundaries, separate publication, duplicate commit, rejected content, epoch reset and live Windows journal checks passed. |
 | Linux account-lock and journal-replacement checks | `00dd4c5` | PASS: 18 process tests in 12.087 seconds and 29 service/content/filesystem/publication/archive tests in 3.111 seconds, zero failures or skips. Both helper builds succeeded. |
 | Signed Foundry build and account-lock/journal regressions | `00dd4c5` | PASS: signed no-install app build and 13 tests, zero failures or skips, 0.923 seconds. An open worker rejects a replaced journal directory; upload preparation and live Windows journal checks remain green. |
+| Interrupted-publication recovery build | `d5a8056` | FAIL: Linux helper compilation rejected the recovery hash call because its required progress callback was omitted. No tests ran; the call now supplies the callback. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 
