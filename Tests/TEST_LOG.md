@@ -1,5 +1,14 @@
 # Test Log
 
+## 2026-09-25 (Foundry, remote reliability review)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Guarded installed Linux connection, `remote-review-linux-260925` | `410f826` | PASS: signed Foundry build and one XCUI case, zero failures or skips; result bundle confirmed, cleanup passed and all prompt counters were zero. This case attached no screenshot and does not qualify interrupted operations. |
+| Guarded installed Linux refresh, `remote-review-refresh-260925` | `410f826` | PASS: one XCUI case, zero failures or skips; result bundle confirmed, cleanup passed and all prompt counters were zero. Exported screenshot inspected: provider-created.txt is visible before manual refresh, rows are readable, selection is preserved and no error banner is shown. |
+| Focused remote operation and channel baseline | `410f826` | PASS: 26 tests, zero failures or skips, 24.317 seconds. Nine live devtest cases cover upload/download, move, rename, Trash/restore, folders, editor save, same-host operations and large uploads with spaces. Seventeen channel tests use fakes or local fixtures; these do not establish live cancellation or Windows acceptance. |
+| Windows reachability before live qualification | `410f826` | BLOCKED: two bounded SSH attempts from Foundry to detours-windows timed out on port 22. No Windows tests ran. |
+
 ## 2026-09-24 (Foundry, Linux helper descriptors after Git refresh)
 
 | Check | Commit | Result |
