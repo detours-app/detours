@@ -12,6 +12,7 @@
 | devtest host ZIP encoding comparisons | `a9670af` | FAIL: three probes completed, but local-encoding and Info-ZIP output extracted under C with escaped Unicode names; C.UTF-8 preserved names. Default 7z ZIP names survived both locales. Single-file and overlapping multi-source probes did not reproduce the build-container header mismatch. These host-tool results do not identify the failing test extraction; adding phase diagnostics to the actual test. Probe fixtures removed. |
 | Linux ZIP diagnostic process checks | `dffb47c` | PASS: 18 tests, zero failures, 11.888 seconds. |
 | Linux ZIP extraction diagnosis | `dffb47c` | FAIL: 104 of 105 tests passed in 10.744 seconds. Phase diagnostics identify the new plain ZIP output as the failing extraction, before comparison with existing ZIP output. Both plain/encrypted 7z comparisons passed. Adding direct header checks to distinguish archive header mismatch from extractor decoding. |
+| Linux ZIP header diagnostic compilation | `f792697` | FAIL: the new assertion placed a throwing UTF-8 unwrap inside XCTest's nonthrowing message autoclosure. Moving the unwrap before the assertion; no tests ran. |
 
 ## 2026-09-25 (Foundry, archive compatibility)
 

@@ -212,7 +212,8 @@ final class ServerOperationArchiveTests: XCTestCase {
             let localName = Array(bytes[(local + 30)..<(local + 30 + localLength)])
             XCTAssertEqual(localName, name)
             let flags = try integer(central + 8, 2)
-            XCTAssertEqual(try integer(local + 6, 2), flags, try XCTUnwrap(String(bytes: name, encoding: .utf8)))
+            let decodedName = try XCTUnwrap(String(bytes: name, encoding: .utf8))
+            XCTAssertEqual(try integer(local + 6, 2), flags, decodedName)
             if name.contains(where: { $0 >= 128 }) { XCTAssertNotEqual(flags & 0x800, 0) }
             if encrypted, name.last != 47 {
                 XCTAssertEqual(try integer(central + 10, 2), 99)
