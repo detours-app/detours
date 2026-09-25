@@ -1,5 +1,11 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, owned compressed TAR preparation)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux compressed TAR adapter compilation | `b5e98fe` | FAIL: linking found the missing upstream DummyOutStream implementation required by the added format handlers. Its header was included but its implementation was omitted. No tests ran; adding that source before rerunning the same checks. |
+
 ## 2026-09-25 (Foundry and devtest, owned ZIP preparation)
 
 | Check | Commit | Result |
