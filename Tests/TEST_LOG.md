@@ -24,6 +24,8 @@
 | Signed Foundry same-host copy preparation | `2302c29` | PASS: both helper builds, signed no-install app build and 59 tests, zero failures or skips, 1.303 seconds. Copy permissions and macOS modification dates survive publication; changed sources are rejected, and stream, native-action, protocol and live Windows journal regressions passed. |
 | Linux replacement and rollback | `75e6d68` | PASS: 18 process tests in 12.186 seconds and 49 operation/archive tests in 4.357 seconds, zero failures or skips. Approved replacements retain originals outside scratch ownership, changed destinations are refused, failed publication restores the original and competing occupants remain untouched. |
 | Signed Foundry replacement and rollback | `75e6d68` | PASS: both helper builds, signed no-install app build and 63 tests, zero failures or skips, 1.304 seconds. Replacement retention, changed-destination refusal and non-overwriting restoration passed with service, protocol and live Windows journal regressions. |
+| Linux replacement recovery | `389bce8` | PASS: 18 process tests in 11.889 seconds and 51 operation/archive tests in 4.216 seconds, zero failures or skips. Restoration refuses a replaced holding directory; read-only status proves lost publication, preserves an unlocated original as uncertain and locates it when it returns to a recorded path. |
+| Signed Foundry replacement recovery | `389bce8` | PASS: both helper builds, signed no-install app build and 65 tests, zero failures or skips, 1.273 seconds. Replaced holding directories are rejected, lost replacement results are reconciled read-only, and missing-original uncertainty clears only after identity is found at a recorded location. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 
