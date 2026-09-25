@@ -101,6 +101,27 @@ public final class OperationJournal: Sendable {
         return Ownership(descriptor: descriptor, journal: self, id: nil)
     }
 
+    public func tryAcquireItem(_ id: OperationItemID) throws -> Ownership? {
+        try validateEpoch()
+        let descriptor = openat(directory, name(id) + ".lock", O_RDWR | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw OperationJournalError.system(errno) }
+        do {
+            try Self.requirePrivate(descriptor, directory: false)
+            if flock(descriptor, LOCK_EX | LOCK_NB) == 0 {
+                return Ownership(descriptor: descriptor, journal: self, id: id)
+            }
+            let code = errno
+            if code == EWOULDBLOCK || code == EAGAIN {
+                _ = close(descriptor)
+                return nil
+            }
+            throw OperationJournalError.system(code)
+        } catch {
+            _ = close(descriptor)
+            throw error
+        }
+    }
+
     private static func acquire(directory: Int32, name: String) async throws -> Int32 {
         let descriptor = openat(directory, name, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
         guard descriptor >= 0 else { throw OperationJournalError.system(errno) }

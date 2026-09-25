@@ -65,9 +65,10 @@ public struct OperationOutcomeReducer: Codable, Equatable, Sendable {
                 guard incoming == receipt else { throw OperationContractError.conflictingRevision }
                 return
             }
-            if receipt.phase == .terminal, [.committed, .failedUnchanged].contains(receipt.outcome),
-               incoming.outcome != receipt.outcome {
-                throw OperationContractError.invalidReceipt
+            if [.committed, .failedUnchanged].contains(receipt.outcome) {
+                guard incoming.outcome == receipt.outcome, incoming.effects == receipt.effects else {
+                    throw OperationContractError.invalidReceipt
+                }
             }
         }
         try validate(incoming)

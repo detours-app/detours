@@ -94,6 +94,29 @@ final class RemoteOperationContractTests: XCTestCase {
         XCTAssertEqual(reducer.outcome, .committed)
     }
 
+    func testCommittedEffectCannotRegressWhileCleanupIsOutstanding() throws {
+        var reducer = makeReducer()
+        let effect = makeEffect()
+        let committed = OperationReceipt(
+            id: reducer.intent.id, account: account, epoch: epoch, intentDigest: reducer.intentDigest,
+            revision: 1, phase: .committed, outcome: .committed, effects: [effect]
+        )
+        try reducer.receive(committed)
+        for outcome in [OperationOutcome.running, .unknown, .failedUnchanged] {
+            let changed = OperationReceipt(
+                id: reducer.intent.id, account: account, epoch: epoch, intentDigest: reducer.intentDigest,
+                revision: 2, phase: .terminal, outcome: outcome
+            )
+            XCTAssertThrowsError(try reducer.receive(changed))
+        }
+        let erased = OperationReceipt(
+            id: reducer.intent.id, account: account, epoch: epoch, intentDigest: reducer.intentDigest,
+            revision: 2, phase: .terminal, outcome: .committed
+        )
+        XCTAssertThrowsError(try reducer.receive(erased))
+        XCTAssertEqual(reducer.receipt, committed)
+    }
+
     func testUnlocatedBackupKeepsCommittedEffectButDisablesUndo() throws {
         var reducer = makeReducer()
         let effect = makeEffect()

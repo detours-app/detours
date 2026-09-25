@@ -83,6 +83,44 @@ final class ServerOperationServiceTests: XCTestCase {
         } catch { XCTAssertEqual(error as? OperationContractError, .epochMismatch) }
     }
 
+    func testStatusProvesLostPublicationWithoutRepeatingOrCleaningIt() async throws {
+        let fixture = try await Fixture(size: 32)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        let ready = try await fixture.service.prepareUpload(fixture.identity, contents: fixture.bytes)
+        let payload = try XCTUnwrap(ready.preparedPayload)
+        let uncertain = try await fixture.stageInterruptedPublication(ready)
+        XCTAssertEqual(uncertain.phase, .committing)
+        guard case .unix(let bytes) = payload.location.path else { return XCTFail("Expected Unix payload") }
+        let payloadURL = URL(fileURLWithPath: try XCTUnwrap(String(data: bytes, encoding: .utf8)))
+        let source = try OperationDirectory(path: Data(payloadURL.deletingLastPathComponent().path.utf8))
+        let destination = try OperationDirectory(path: Data(fixture.root.path.utf8))
+        _ = try source.moveExclusive(Data(payloadURL.lastPathComponent.utf8), to: destination,
+                                     named: Data("destination".utf8), expected: payload.observation)
+        let result = try XCTUnwrap(fixture.service.status(fixture.identity).receipt)
+        XCTAssertEqual(result.outcome, .committed)
+        XCTAssertEqual(result.effects.first?.observation.identity, payload.observation.identity)
+        XCTAssertEqual(result.recovery.count, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: payloadURL.deletingLastPathComponent().path))
+        XCTAssertEqual(try fixture.service.status(fixture.identity).receipt, result)
+        XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+    }
+
+    func testStatusKeepsIdenticalCompetingContentUnknownAndDoesNotResumeUpload() async throws {
+        let fixture = try await Fixture(size: 32)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        let ready = try await fixture.service.prepareUpload(fixture.identity, contents: fixture.bytes)
+        _ = try await fixture.stageInterruptedPublication(ready)
+        try fixture.bytes.write(to: fixture.destination)
+        let result = try XCTUnwrap(fixture.service.status(fixture.identity).receipt)
+        XCTAssertEqual(result.outcome, .unknown)
+        XCTAssertTrue(result.effects.isEmpty)
+        XCTAssertEqual(result.recovery.count, ready.recovery.count)
+        XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+        XCTAssertNotNil(try fixture.service.status(fixture.identity).workspace)
+    }
+
     private struct Fixture {
         let root: URL
         let destination: URL
@@ -111,5 +149,24 @@ final class ServerOperationServiceTests: XCTestCase {
         }
 
         func cleanup() { try? FileManager.default.removeItem(at: root) }
+
+        func stageInterruptedPublication(_ ready: OperationReceipt) async throws -> OperationReceipt {
+            let ownership = try await service.journal.acquireItem(identity.id)
+            let payload = try XCTUnwrap(ready.preparedPayload)
+            let uncertain = OperationRecoveryReference(
+                identity: payload.observation.identity, purpose: .scratch, original: nil, knownLocation: nil,
+                possibleLocations: [payload.location, try XCTUnwrap(intent.destination)]
+            )
+            let receipt = OperationReceipt(
+                id: identity.id, account: identity.account, epoch: identity.epoch, intentDigest: identity.intentDigest,
+                revision: ready.revision + 1, phase: .committing, outcome: .running,
+                contentVerified: true, preparedPayload: payload,
+                recovery: ready.recovery.filter { $0.identity != payload.observation.identity } + [uncertain]
+            )
+            try service.journal.record(receipt, ownership: ownership)
+            XCTAssertEqual(try service.status(identity).receipt, receipt)
+            withExtendedLifetime(ownership) {}
+            return receipt
+        }
     }
 }

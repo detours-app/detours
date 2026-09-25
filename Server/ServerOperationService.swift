@@ -19,6 +19,10 @@ struct ServerOperationService: Sendable {
     }
 
     func status(_ identity: OperationRequestIdentity) throws -> OperationJournal.Snapshot {
+        try reconcile(readSnapshot(identity))
+    }
+
+    private func readSnapshot(_ identity: OperationRequestIdentity) throws -> OperationJournal.Snapshot {
         try validate(identity)
         let snapshot = try journal.read(identity.id)
         guard snapshot.intentDigest == identity.intentDigest else { throw OperationContractError.intentMismatch }
@@ -26,7 +30,7 @@ struct ServerOperationService: Sendable {
     }
 
     func cancel(_ identity: OperationRequestIdentity) throws {
-        _ = try status(identity)
+        _ = try readSnapshot(identity)
         try journal.requestCancellation(identity.id)
     }
 
