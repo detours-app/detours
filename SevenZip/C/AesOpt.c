@@ -53,6 +53,7 @@ Igor Pavlov : Public domain */
 
 #ifdef USE_INTEL_AES
 
+#include <emmintrin.h>
 #include <wmmintrin.h>
 
 #if !defined(USE_INTEL_VAES) && defined(Z7_USE_VAES_HW_STUB)
