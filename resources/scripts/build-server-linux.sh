@@ -33,11 +33,14 @@ ssh "$REMOTE_HOST" "rm -rf $REMOTE_TMP_Q && mkdir -p $REMOTE_TMP_Q"
 COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     Server \
     Shared \
+    SevenZip \
+    ArchiveStreamBridge \
     RemoteOperationSupport \
     FilesystemPrimitives \
     LinuxStaticFoundationGuard \
     Tests/DetoursProcessTests \
     Tests/ServerArchiveOperationsTests.swift \
+    Tests/ServerArchiveStreamTests.swift \
     Tests/OperationFilesystemTests.swift \
     Tests/OperationPublicationTests.swift \
     Tests/OperationContentProofTests.swift \
@@ -61,6 +64,13 @@ let package = Package(
         .executable(name: "detours-server", targets: ["detours-server"]),
     ],
     targets: [
+        .target(
+            name: "SevenZip", path: "SevenZip",
+            exclude: ["README.md", "License.txt", "copying.txt", "unRarLicense.txt"],
+            cSettings: [.define("Z7_DEFLATE_EXTRACT_ONLY"), .define("Z7_BZIP2_EXTRACT_ONLY")],
+            cxxSettings: [.define("Z7_DEFLATE_EXTRACT_ONLY"), .define("Z7_BZIP2_EXTRACT_ONLY")]
+        ),
+        .target(name: "ArchiveStreamBridge", dependencies: ["SevenZip"], path: "ArchiveStreamBridge"),
         .target(name: "FilesystemPrimitives", path: "FilesystemPrimitives"),
         .target(
             name: "RemoteOperationSupport",
@@ -69,6 +79,7 @@ let package = Package(
         ),
         .target(
             name: "DetoursProcess",
+            dependencies: ["ArchiveStreamBridge"],
             path: "Shared",
             linkerSettings: [.linkedLibrary("util")]
         ),
@@ -92,13 +103,14 @@ let package = Package(
             path: "Tests",
             exclude: ["DetoursProcessTests"],
             sources: [
-                "ServerArchiveOperationsTests.swift", "OperationFilesystemTests.swift", "OperationPublicationTests.swift",
+                "ServerArchiveOperationsTests.swift", "ServerArchiveStreamTests.swift", "OperationFilesystemTests.swift", "OperationPublicationTests.swift",
                 "OperationContentProofTests.swift", "OperationManifestTests.swift", "ServerOperationServiceTests.swift", "ServerOperationTrashTests.swift",
                 "ServerOperationBackupTests.swift", "ServerOperationTreeCopyTests.swift", "ServerOperationPreparationTests.swift",
                 "ServerOperationPermanentDeleteTests.swift"
             ]
         ),
-    ]
+    ],
+    cxxLanguageStandard: .cxx17
 )
 EOF
 # shellcheck disable=SC2029

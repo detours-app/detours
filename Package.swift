@@ -31,6 +31,13 @@ let package = Package(
         ),
     ],
     targets: [
+        .target(
+            name: "SevenZip", path: "SevenZip",
+            exclude: ["README.md", "License.txt", "copying.txt", "unRarLicense.txt"],
+            cSettings: [.define("Z7_DEFLATE_EXTRACT_ONLY"), .define("Z7_BZIP2_EXTRACT_ONLY")],
+            cxxSettings: [.define("Z7_DEFLATE_EXTRACT_ONLY"), .define("Z7_BZIP2_EXTRACT_ONLY")]
+        ),
+        .target(name: "ArchiveStreamBridge", dependencies: ["SevenZip"], path: "ArchiveStreamBridge"),
         .target(name: "FilesystemPrimitives", path: "FilesystemPrimitives"),
         .target(
             name: "RemoteOperationSupport",
@@ -39,6 +46,7 @@ let package = Package(
         ),
         .target(
             name: "DetoursProcess",
+            dependencies: ["ArchiveStreamBridge"],
             path: "Shared",
             linkerSettings: [
                 .linkedLibrary("util", .when(platforms: [.linux]))
@@ -79,5 +87,6 @@ let package = Package(
             dependencies: ["DetoursProcess"],
             path: "Tests/DetoursProcessTests"
         ),
-    ]
+    ],
+    cxxLanguageStandard: .cxx17
 )

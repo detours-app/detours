@@ -1,0 +1,103 @@
+import DetoursProcess
+import Foundation
+import RemoteOperationSupport
+import XCTest
+@testable import detours_server
+
+final class ServerArchiveStreamTests: XCTestCase {
+    func testNativeSevenZipRoundTripRetainsOwnedOutputAndTreeContents() throws {
+        for password in [nil, "fixture password 🗝"] as [String?] {
+            let fixture = try Fixture()
+            defer { fixture.cleanup() }
+            let source = try FileHandle(forReadingFrom: fixture.source)
+            defer { try? source.close() }
+            let output = try SafeFileWriter.createHandle(at: fixture.archive)
+            defer { try? output.close() }
+            let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
+            let before = try parent.observe(Data("owned.7z".utf8))
+            let entries = [
+                fixture.entry("folder", directory: true),
+                fixture.entry("folder/empty", directory: true),
+                fixture.entry("folder/émoji 📁.txt", input: source, size: UInt64(fixture.bytes.count)),
+                fixture.entry("folder/link", target: Data("../outside".utf8)),
+            ]
+            try SevenZipArchiveWriter.create(entries: entries, output: output, password: password, progress: { _ in })
+            XCTAssertEqual(try parent.observe(Data("owned.7z".utf8)).identity, before.identity)
+            XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+            let extracted = try ArchiveOperations().extractArchive(archive: fixture.archive.path, password: password)
+            let folder = URL(fileURLWithPath: extracted)
+            XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("émoji 📁.txt")), fixture.bytes)
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: folder.appendingPathComponent("empty").path), [])
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: folder.appendingPathComponent("link").path), "../outside")
+            XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("link")), Data("outside survives".utf8))
+            if password != nil {
+                XCTAssertThrowsError(try ArchiveOperations().extractArchive(archive: fixture.archive.path, password: "wrong fixture password")) {
+                    XCTAssertEqual($0 as? ArchiveOperationsError, .wrongPassword)
+                }
+            }
+        }
+    }
+
+    func testCancellationStopsNativeCompressionWithoutReplacingOutputOrSource() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let source = try FileHandle(forReadingFrom: fixture.source)
+        let output = try SafeFileWriter.createHandle(at: fixture.archive)
+        defer {
+            try? source.close()
+            try? output.close()
+        }
+        let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
+        let before = try parent.observe(Data("owned.7z".utf8))
+        enum Cancelled: Error { case requested }
+        XCTAssertThrowsError(try SevenZipArchiveWriter.create(
+            entries: [fixture.entry("file", input: source, size: UInt64(fixture.bytes.count))],
+            output: output, password: nil, progress: { count in
+                if count > 0 { throw Cancelled.requested }
+            }
+        )) { XCTAssertTrue($0 is Cancelled) }
+        XCTAssertEqual(try parent.observe(Data("owned.7z".utf8)).identity, before.identity)
+        XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+    }
+
+    func testNonemptyOutputAndUnsafeMemberNamesAreRefused() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let output = try SafeFileWriter.createHandle(at: fixture.archive)
+        defer { try? output.close() }
+        try output.write(contentsOf: Data("keep".utf8))
+        XCTAssertThrowsError(try SevenZipArchiveWriter.create(entries: [], output: output, password: nil, progress: { _ in }))
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), Data("keep".utf8))
+        for name in ["../escape", "/absolute", "folder//empty", "folder/../escape", "a\0b"] {
+            XCTAssertThrowsError(try SevenZipArchiveWriter.create(
+                entries: [fixture.entry(name, directory: true)], output: output, password: nil, progress: { _ in }
+            )) { XCTAssertEqual($0 as? SevenZipArchiveError, .invalidEntry) }
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), Data("keep".utf8))
+    }
+
+    private struct Fixture {
+        let root: URL
+        let source: URL
+        let archive: URL
+        let bytes = Data(repeating: 42, count: 131_073)
+
+        init() throws {
+            root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            source = root.appendingPathComponent("source")
+            archive = root.appendingPathComponent("owned.7z")
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+            try bytes.write(to: source)
+            try Data("outside survives".utf8).write(to: root.appendingPathComponent("outside"))
+        }
+
+        func entry(_ name: String, input: FileHandle? = nil, size: UInt64 = 0,
+                   directory: Bool = false, target: Data? = nil) -> SevenZipArchiveWriter.Entry {
+            .init(name: name, input: input, size: size, directory: directory,
+                  mode: directory ? 0o40755 : (target != nil ? 0o120777 : 0o100640),
+                  modified: Date(timeIntervalSince1970: 1_600_000_000), linkTarget: target)
+        }
+
+        func cleanup() { XCTAssertNoThrow(try FileManager.default.removeItem(at: root)) }
+    }
+}
