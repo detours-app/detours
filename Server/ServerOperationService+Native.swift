@@ -8,7 +8,8 @@ import Glibc
 
 extension ServerOperationService {
     func execute(_ identity: OperationRequestIdentity) async throws -> OperationReceipt {
-        _ = try status(identity)
+        let accepted = try status(identity)
+        if accepted.intent?.action == .trash { return try await executeTrash(identity) }
         let ownership = try await journal.acquireItem(identity.id)
         defer { withExtendedLifetime(ownership) {} }
         let snapshot = try journal.read(identity.id)

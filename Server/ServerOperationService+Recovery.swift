@@ -28,8 +28,10 @@ extension ServerOperationService {
         case .some(.createNew), .some(.replace): supportsPublication = true
         default: supportsPublication = false
         }
+        let recordedDestination = current.intent?.destination
+            ?? (current.intent?.action == .trash ? receipt.plannedPaths?.first : nil)
         guard let intent = current.intent, supportsPublication,
-              let destination = intent.destination, let payload = receipt.preparedPayload else {
+              let destination = recordedDestination, let payload = receipt.preparedPayload else {
             if receipt.outcome == .unknown { return current }
             try journal.record(OperationReceipt(
                 id: current.id, account: journal.account, epoch: journal.epoch, intentDigest: current.intentDigest,
@@ -60,6 +62,11 @@ extension ServerOperationService {
                 || (!sourceMutation && payload.observation.sha256 != nil && observed.sha256 == payload.observation.sha256) {
                 effects.append(OperationEffect(location: destination, observation: observed))
                 recovery.removeAll { [.scratch, .source].contains($0.purpose) && $0.identity == payload.observation.identity }
+                if intent.action == .trash {
+                    recovery.append(OperationRecoveryReference(identity: observed.identity, purpose: .sourceTrash,
+                                                               original: payload.location, knownLocation: destination,
+                                                               possibleLocations: [destination]))
+                }
                 confirmed = true
             }
         } catch { failure = String(describing: error) }
@@ -70,7 +77,7 @@ extension ServerOperationService {
             effects: effects, sourceDisposition: sourceMutation && confirmed ? .confirmed
                 : (intent.action == .move ? .unknown : receipt.sourceDisposition),
             contentVerified: confirmed && payload.observation.sha256 != nil, preparedPayload: confirmed ? nil : payload,
-            recovery: recovery, children: receipt.children,
+            plannedPaths: receipt.plannedPaths, recovery: recovery, children: receipt.children,
             failure: failure ?? (confirmed ? nil : "Recorded object identity and content do not prove publication.")
         )
         try journal.record(result, ownership: ownership)
