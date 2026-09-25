@@ -40,6 +40,7 @@ COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     Tests/ServerArchiveOperationsTests.swift \
     Tests/OperationFilesystemTests.swift \
     Tests/OperationPublicationTests.swift \
+    Tests/OperationContentProofTests.swift \
     | ssh "$REMOTE_HOST" "tar -xzf - -C $REMOTE_TMP_Q"
 # shellcheck disable=SC2029
 ssh "$REMOTE_HOST" "cat > $REMOTE_TMP_Q/Package.swift" <<'EOF'
@@ -83,7 +84,7 @@ let package = Package(
             dependencies: ["detours-server", "DetoursProcess", "RemoteOperationSupport"],
             path: "Tests",
             exclude: ["DetoursProcessTests"],
-            sources: ["ServerArchiveOperationsTests.swift", "OperationFilesystemTests.swift", "OperationPublicationTests.swift"]
+            sources: ["ServerArchiveOperationsTests.swift", "OperationFilesystemTests.swift", "OperationPublicationTests.swift", "OperationContentProofTests.swift"]
         ),
     ]
 )
