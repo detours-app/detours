@@ -11,6 +11,9 @@
 | Linux TAR comparison-tool process checks | `3dbc249` | PASS: 18 process tests, zero failures, 11.988 seconds. |
 | Linux compressed TAR compatibility and operation checks | `3dbc249` | PASS: 107 tests, zero failures, 11.689 seconds. All five formats match existing extracted output, with symbolic/hard-link preservation for TAR and unsupported encryption refused before allocation. Static Linux and macOS helpers built. The separately recorded packaging warnings still require correction. |
 | Signed Foundry compressed TAR compatibility | `3dbc249` | PASS: both helper builds, signed no-install app build and 144 focused tests, zero failures, 9.827 seconds. All five formats match existing extracted contents; TAR preserves symbolic and hard links, permissions and timestamps, with encryption refused before allocation. Live Windows journal and operation regressions passed. |
+| Linux test-tool packaging correction | `4c75c7b` | PASS: archive dependencies installed without the manual-page alternatives warnings; compilation and 18 process tests passed with zero failures in 11.886 seconds. |
+| Linux compressed TAR final regression | `4c75c7b` | PASS: 107 archive/operation tests, zero failures, 13.097 seconds. All supported creation formats round-trip against the existing tools; TAR link preservation and owned intermediate preparation passed. Static Linux helper built without the packaging warnings. |
+| Signed Foundry compressed TAR final regression | `4c75c7b` | PASS: both helper builds, signed no-install app build and 144 focused tests, zero failures, 9.773 seconds. ZIP, 7z and all three compressed TAR formats preserve existing extracted contents, metadata and format-specific links. Encryption, cancellation, publication, recovery, protocol and live Windows journal checks passed. The complete run log contains no warning or error lines. |
 
 ## 2026-09-25 (Foundry and devtest, owned ZIP preparation)
 
