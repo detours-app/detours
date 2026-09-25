@@ -6,5 +6,6 @@ int detours_rename_exclusive(int source_directory, const char *source,
                              int destination_directory, const char *destination);
 int detours_open_symlink(int directory, const char *name);
 int detours_set_symlink_times(int descriptor, const struct timespec times[2]);
+long detours_utime_omit(void);
 
 #endif

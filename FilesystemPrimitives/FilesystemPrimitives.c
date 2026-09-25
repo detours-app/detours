@@ -5,6 +5,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+long detours_utime_omit(void) { return UTIME_OMIT; }
+
 int detours_rename_exclusive(int source_directory, const char *source,
                              int destination_directory, const char *destination) {
 #if defined(__APPLE__)

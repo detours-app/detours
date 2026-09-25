@@ -149,7 +149,7 @@ public final class OperationWorkspace {
                 throw OperationFilesystemError.unsupported
             }
             let nanos = Int((modified.timeIntervalSince1970 - seconds) * 1_000_000_000)
-            times = [timespec(tv_sec: 0, tv_nsec: Int(UTIME_OMIT)), timespec(tv_sec: Int(seconds), tv_nsec: nanos)]
+            times = [timespec(tv_sec: 0, tv_nsec: detours_utime_omit()), timespec(tv_sec: Int(seconds), tv_nsec: nanos)]
         }
         if owned.kind == .symbolicLink {
             if !times.isEmpty {
