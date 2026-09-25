@@ -374,7 +374,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
             $script = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String($request.script))
             $arguments = $request.argumentsJSON | ConvertFrom-Json
             $result = & ([scriptblock]::Create($script)) $arguments
-            $resultJson = $result | ConvertTo-Json -Compress -Depth 8
+            $resultJson = $result | ConvertTo-Json -Compress -Depth 100
             if ($null -eq $resultJson) {
                 $resultJson = 'null'
             } else {

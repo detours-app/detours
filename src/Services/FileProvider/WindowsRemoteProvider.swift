@@ -1,4 +1,5 @@
 import Foundation
+import RemoteOperationSupport
 
 actor WindowsRemoteProvider: FileProvider {
     let hostID: UUID
@@ -8,6 +9,11 @@ actor WindowsRemoteProvider: FileProvider {
     private let watchChannel: WindowsWatchChannel?
     private var rawPaths: [Location: String] = [:]
     private var archiveToolAvailability: WindowsArchiveToolAvailability?
+
+    func operationRequest(_ request: OperationRequest) async throws -> OperationReply {
+        let script = try PowerShellScript(source: WindowsOperationScripts.protocolScript, arguments: WindowsOperationArguments(request))
+        return try OperationReply.decode(await channel.run(script, operation: "AcceptedOperation"))
+    }
 
     init(
         hostID: UUID,

@@ -97,6 +97,44 @@ extension WindowsOperationScripts {
         public static Observation Observe(string path) {
             using (SafeFileHandle handle = Open(path, 0x80, 7)) { return Observe(handle); }
         }
+        public static Observation ObserveStream(FileStream stream) { return Observe(stream.SafeFileHandle); }
+        public static FileStream CreateNewFile(string path) {
+            SafeFileHandle handle = CreateFileW(path, 0xC0000000, 7, IntPtr.Zero, 1, 0x00200000, IntPtr.Zero);
+            if (handle.IsInvalid) {
+                int error = Marshal.GetLastWin32Error(); handle.Dispose(); throw new Win32Exception(error);
+            }
+            try { return new FileStream(handle, FileAccess.ReadWrite, 65536, false); }
+            catch { handle.Dispose(); throw; }
+        }
+        public static void RemoveOwned(string path, string volume, string id) {
+            using (SafeFileHandle handle = Open(path, 0x10180, 0)) {
+                Observation observed = Observe(handle);
+                if (observed.identity.volume != volume || observed.identity.@object != id)
+                    throw new IOException("Operation cleanup object changed.");
+                byte[] basic = Info(handle, 0, 40);
+                uint attributes = BitConverter.ToUInt32(basic, 32);
+                IntPtr buffer = Marshal.AllocHGlobal(40);
+                try {
+                    IoStatus result;
+                    if ((attributes & 1) != 0) {
+                        Marshal.Copy(new byte[40], 0, buffer, 40);
+                        attributes &= ~1u;
+                        Marshal.WriteInt32(buffer, 32, (int)(attributes == 0 ? 0x80 : attributes));
+                        int update = NtSetInformationFile(handle, out result, buffer, 40, 4);
+                        if (update != 0) throw new Win32Exception((int)RtlNtStatusToDosError(update));
+                    }
+                    Marshal.WriteByte(buffer, 1);
+                    int status = NtSetInformationFile(handle, out result, buffer, 1, 13);
+                    if (status != 0) throw new Win32Exception((int)RtlNtStatusToDosError(status));
+                } finally { Marshal.FreeHGlobal(buffer); }
+            }
+        }
+        public static Observation CreateDirectoryExclusive(string path) {
+            SecurityAttributes attributes = new SecurityAttributes {
+                length = Marshal.SizeOf(typeof(SecurityAttributes)), descriptor = IntPtr.Zero, inherit = 0 };
+            if (!CreateDirectoryW(path, ref attributes)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            return Observe(path);
+        }
         public static Observation Prove(string path) {
             using (SafeFileHandle handle = Open(path, 0x80000000, 7)) {
                 Observation before = Observe(handle);
