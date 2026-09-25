@@ -5,6 +5,9 @@
 | Check | Commit | Result |
 | --- | --- | --- |
 | Existing archiver link and multi-source output probes | `564e6ac` | FAIL: comparison exposed a compatibility defect in accepted archive preparation. Existing 7z and ZIP creation follow symbolic links; TAR preserves links. Existing 7z creation stores absolute selected roots by basename. The new preparation instead preserved links and common-ancestor paths. Both Foundry probes completed and removed their own fixtures; correcting the input representation before further format work. |
+| Linux archive compatibility compilation and process regressions | `c7f0a50` | PASS: corrected archive input traversal compiled; 18 process tests passed with zero failures in 11.987 seconds. |
+| Linux archive compatibility and operation regressions | `c7f0a50` | PASS: 105 tests, zero failures, 10.002 seconds. Plain/encrypted accepted 7z archives match existing creation output after extraction, including followed links and selected basenames; changed referents, cycles and immutable archive input evidence passed. Static Linux helper built. |
+| Signed Foundry archive compatibility and operation regressions | `c7f0a50` | PASS: both helper builds, signed no-install app build and 142 focused tests, zero failures, 8.889 seconds. Plain/encrypted extracted output matches the existing creation path; linked inputs preserve selected sources, reject cycles and changed referents, and retain immutable evidence. Existing publication, recovery, protocol and live Windows journal checks passed. |
 
 ## 2026-09-25 (Foundry and devtest, accepted archive preparation)
 
