@@ -81,6 +81,7 @@ public enum OperationLookup<Value: Sendable>: Sendable {
 }
 
 extension OperationLookup: Equatable where Value: Equatable {}
+extension OperationLookup: Codable where Value: Codable {}
 
 public struct OperationIntent: Codable, Equatable, Sendable {
     public enum Action: String, Codable, Sendable {

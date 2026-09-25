@@ -13,7 +13,7 @@ final class RemoteOperationProtocolTests: XCTestCase {
         let intent = OperationIntent(id: id, action: .copy, sources: [location], destination: nil,
                                      sourceObservations: [], conflict: .createNew)
         let requests: [OperationRequest] = [
-            .handshake, .accept(identity: identity, intent: intent), .status(identity),
+            .handshake, .lookup(location), .accept(identity: identity, intent: intent), .status(identity),
             .prepareUpload(identity: identity, contents: Data([0, 255])), .commit(identity), .execute(identity),
             .prepareCopy(identity),
             .cancel(identity), .acknowledge(identity: identity, retainingUndo: true),
@@ -66,6 +66,7 @@ final class RemoteOperationProtocolTests: XCTestCase {
                                        revision: 4, phase: .terminal, outcome: .unknown)
         let replies: [OperationReply] = [
             .receipt(receipt), .cancellationRecorded(identity), .acknowledged(identity),
+            .lookup(.missing), .lookup(.denied), .lookup(.disconnected), .lookup(.unsupported),
             .incompatible(.protocolVersion(expected: 2, actual: 1)),
             .incompatible(.journalSchema(expected: 1, actual: 2)),
             .incompatible(.missingCapabilities([.nonReplacingCommit])),
@@ -84,6 +85,39 @@ final class RemoteOperationProtocolTests: XCTestCase {
         XCTAssertThrowsError(try OperationStreamHandshake.decode(JSONSerialization.data(withJSONObject: object))) {
             XCTAssertEqual($0 as? OperationCompatibilityError, .protocolVersion(expected: 2, actual: 1))
         }
+    }
+
+    func testHelperLookupReturnsBoundObjectEvidenceAndTypedAbsence() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        let service = try await ServerOperationService(root: root.appendingPathComponent("journal"), account: account, homeDirectory: root)
+        let handler = RPCHandler(operationService: service)
+        let file = root.appendingPathComponent("file")
+        try Data("contents".utf8).write(to: file)
+        let directory = try OperationDirectory(path: Data(root.path.utf8))
+        let expected = try directory.observe(Data("file".utf8))
+        let location = OperationLocation(account: account, path: .unix(Data(file.path.utf8)))
+        let response = try handler.handle(message: .operation(.lookup(location)))
+        let result = try OperationReply.decode(response)
+        XCTAssertEqual(result, .lookup(.found(expected)))
+        XCTAssertEqual(try OperationReply.decode(result.encoded()), result)
+        for name in ["missing", "missing-parent/child"] {
+            let missing = OperationLocation(account: account, path: .unix(Data(root.appendingPathComponent(name).path.utf8)))
+            let response = try handler.handle(message: .operation(.lookup(missing)))
+            XCTAssertEqual(try OperationReply.decode(response), .lookup(.missing))
+        }
+        let denied = root.appendingPathComponent("denied")
+        try FileManager.default.createDirectory(at: denied, withIntermediateDirectories: false)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: denied.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: denied.path) }
+        let deniedLocation = OperationLocation(account: account, path: .unix(Data(denied.appendingPathComponent("child").path.utf8)))
+        let deniedResponse = try handler.handle(message: .operation(.lookup(deniedLocation)))
+        XCTAssertEqual(try OperationReply.decode(deniedResponse), .lookup(.denied))
+        let wrong = OperationLocation(account: .init(hostIdentity: "other", accountIdentity: "other"), path: location.path)
+        let rejected = try handler.handle(message: .operation(.lookup(wrong)))
+        XCTAssertEqual(try OperationReply.decode(rejected), .incompatible(.accountMismatch))
+        XCTAssertEqual(try Data(contentsOf: file), Data("contents".utf8))
     }
 
     func testHelperNegotiatesTheJournaledOperationService() async throws {

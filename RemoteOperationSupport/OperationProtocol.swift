@@ -64,6 +64,7 @@ public struct OperationRequestIdentity: Codable, Equatable, Sendable {
 
 public enum OperationRequest: Codable, Equatable, Sendable {
     case handshake(version: Int, schemaVersion: Int, requiredCapabilities: Set<OperationCapability>)
+    case lookup(OperationLocation)
     case accept(identity: OperationRequestIdentity, intent: OperationIntent)
     case prepareUpload(identity: OperationRequestIdentity, contents: Data)
     case prepareCopy(OperationRequestIdentity)
@@ -84,6 +85,7 @@ public enum OperationRequest: Codable, Equatable, Sendable {
 
 public enum OperationReply: Codable, Equatable, Sendable {
     case handshake(OperationHandshake)
+    case lookup(OperationLookup<OperationObservation>)
     case accepted(OperationJournal.Snapshot)
     case status(OperationJournal.Snapshot)
     case cancellationRecorded(OperationRequestIdentity)

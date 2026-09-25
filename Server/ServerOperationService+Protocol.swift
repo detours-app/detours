@@ -49,6 +49,20 @@ extension ServerOperationService {
             guard missing.isEmpty else { return .incompatible(.missingCapabilities(missing)) }
             return .handshake(OperationHandshake(version: version, schemaVersion: schema, capabilities: capabilities,
                                                 account: journal.account, epoch: journal.epoch))
+        case .lookup(let location):
+            try journal.validateEpoch()
+            guard location.account == journal.account else { return .incompatible(.accountMismatch) }
+            do {
+                let resolved = try resolve(location)
+                return .lookup(try resolved.directory.lookup(resolved.name))
+            } catch OperationFilesystemError.system(let code) {
+                switch code {
+                case ENOENT: return .lookup(.missing)
+                case EACCES, EPERM: return .lookup(.denied)
+                case ENOTCONN: return .lookup(.disconnected)
+                default: throw OperationFilesystemError.system(code)
+                }
+            } catch OperationFilesystemError.unsupported { return .lookup(.unsupported) }
         case .accept(let identity, let intent):
             return .accepted(try await accept(identity, intent: intent))
         case .prepareUpload(let identity, let contents):

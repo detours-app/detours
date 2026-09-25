@@ -48,6 +48,8 @@
 | Signed Foundry native link and directory replacement | `a86dc44` | PASS: both helper builds, signed no-install app build and 88 tests, zero failures or skips, 3.216 seconds. Selected links and directories move with their identities intact while link targets, nested contents and displaced originals are preserved; live Windows journal checks passed. |
 | Linux tree manifests | `a9e7c89` | PASS: 18 process tests in 12.088 seconds and 71 operation/archive tests in 5.786 seconds, zero failures or skips. Sorted manifests preserve raw path bytes, empty directories and links; payload proofs match across different object identities, and cancellation or source changes stop inspection. |
 | Signed Foundry tree manifests | `a9e7c89` | PASS: both helper builds, signed no-install app build and 91 tests, zero failures or skips, 3.176 seconds. Manifest content/shape, empty directories, unfollowed links, cancellation and mutation checks passed with existing host and live Windows journal regressions. |
+| Linux nested scratch ownership | `e3c6419` | PASS: 18 process tests in 11.991 seconds and 74 operation/archive tests in 5.761 seconds, zero failures or skips. Recorded nested files/directories/links survive ledger reopening; cleanup preserves external link targets, rejects substituted parents and refuses all cleanup when any unknown descendant is found. |
+| Signed Foundry nested scratch ownership | `e3c6419` | PASS: both helper builds, signed no-install app build and 94 tests, zero failures or skips, 3.123 seconds. Nested cleanup, saved ownership, substituted parents and external link targets passed with service, protocol and live Windows journal regressions. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 
