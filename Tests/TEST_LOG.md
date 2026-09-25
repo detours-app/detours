@@ -5,6 +5,11 @@
 | Check | Commit | Result |
 | --- | --- | --- |
 | Linux ZIP adapter compilation | `c00a458` | FAIL: compilation reached linking, which found missing upstream OffsetStream and MemBlocks implementations. Their headers were included, but the source dependency list omitted both implementation files. No tests ran; adding the two upstream files before rerunning the same checks. |
+| Linux ZIP dependency correction and process checks | `a9670af` | PASS: compilation/linking and 18 process tests, zero failures, 11.885 seconds. |
+| Linux ZIP compatibility checks | `a9670af` | FAIL: 104 of 105 archive/operation tests passed in 11.254 seconds. The multi-format archive round trip threw an existing-extractor error reporting different local and central Unicode filenames. Investigating which archive and encoding caused the mismatch; helper/app builds stopped at this failure. |
+| Foundry ZIP encoding probe launcher | `a9670af` | FAIL: the first probe stopped on an empty Bash array under nounset before archive creation; corrected the probe and its trap cleaned the fixture. |
+| Foundry ZIP encoding comparison | `a9670af` | PASS: the installed 7zz and unzip round-tripped normal and local-encoding Unicode archives under the C locale, with exact filenames. Probe fixtures removed. |
+| devtest host ZIP encoding comparisons | `a9670af` | FAIL: three probes completed, but local-encoding and Info-ZIP output extracted under C with escaped Unicode names; C.UTF-8 preserved names. Default 7z ZIP names survived both locales. Single-file and overlapping multi-source probes did not reproduce the build-container header mismatch. These host-tool results do not identify the failing test extraction; adding phase diagnostics to the actual test. Probe fixtures removed. |
 
 ## 2026-09-25 (Foundry, archive compatibility)
 

@@ -27,6 +27,7 @@ final class ServerOperationArchiveTests: XCTestCase {
             XCTAssertEqual(committed.effects.first?.observation.identity, ready.preparedPayload?.observation.identity)
             XCTAssertTrue(committed.recovery.isEmpty)
             XCTAssertNil(committed.failure)
+            print("Archive compatibility: \(format.rawValue), encrypted=\(encrypted), prepared output extraction")
             let extracted = URL(fileURLWithPath: try ArchiveOperations().extractArchive(archive: fixture.destination.path, password: fixture.password))
             XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent("first/nested/émoji 📁.txt")), fixture.contents)
             let notes = format == .sevenZ ? "notes" : "second/notes"
@@ -41,6 +42,7 @@ final class ServerOperationArchiveTests: XCTestCase {
             XCTAssertEqual(snapshot.archiveInputManifest?.entries.first { $0.relativePath == Data("first/link".utf8) }?.observation.kind, .file)
             let legacy = try ArchiveOperations().createArchive(items: fixture.originals.map { $0.0.path }, format: format.rawValue,
                                                                archiveName: "legacy", password: fixture.password)
+            print("Archive compatibility: \(format.rawValue), encrypted=\(encrypted), existing output extraction")
             let legacyExtracted = URL(fileURLWithPath: try ArchiveOperations().extractArchive(archive: legacy, password: fixture.password))
             let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
             XCTAssertEqual(try parent.manifest(Data(extracted.lastPathComponent.utf8), progress: { _ in }).proof,
