@@ -14,10 +14,11 @@ extension ServerOperationService {
         let snapshot = try journal.read(identity.id)
         if let receipt = snapshot.receipt, receipt.phase == .terminal { return receipt }
         guard snapshot.receipt == nil, let intent = snapshot.intent else { throw OperationContractError.invalidReceipt }
-        let commit = try await journal.acquireCommit()
-        defer { withExtendedLifetime(commit) {} }
         var mutationStarted = false
         do {
+            try await validateSourceContent(intent, ownership: ownership)
+            let commit = try await journal.acquireCommit()
+            defer { withExtendedLifetime(commit) {} }
             guard try !journal.cancellationRequested(identity.id) else { throw OperationContractError.cancelled }
             guard [.rename, .move, .createFolder].contains(intent.action), intent.conflict == .createNew,
                   let destination = intent.destination else { throw OperationFilesystemError.unsupported }
@@ -59,7 +60,7 @@ extension ServerOperationService {
             }
             let committing = OperationReceipt(
                 id: identity.id, account: journal.account, epoch: journal.epoch, intentDigest: identity.intentDigest,
-                revision: 1, phase: .committing, outcome: .running,
+                revision: (try journal.read(identity.id).receipt?.revision ?? 0) + 1, phase: .committing, outcome: .running,
                 sourceDisposition: source == nil ? .notRequired : .unknown, preparedPayload: payload,
                 plannedPaths: [destination], recovery: recovery
             )
@@ -68,22 +69,26 @@ extension ServerOperationService {
             let observed: OperationObservation
             mutationStarted = true
             if let source, let payload {
-                observed = try source.directory.moveExclusive(source.name, to: target.directory, named: target.name,
-                                                               expected: payload.observation)
+                let moved = try source.directory.moveExclusive(source.name, to: target.directory, named: target.name,
+                                                                expected: payload.observation)
+                observed = OperationObservation(identity: moved.identity, kind: moved.kind, version: moved.version,
+                                                byteCount: moved.byteCount, sha256: payload.observation.sha256,
+                                                linkTarget: moved.linkTarget, contentVersion: moved.contentVersion)
             } else {
                 observed = try target.directory.createDirectory(target.name)
             }
             let result = OperationReceipt(
                 id: identity.id, account: journal.account, epoch: journal.epoch, intentDigest: identity.intentDigest,
-                revision: 2, phase: .terminal, outcome: .committed,
+                revision: committing.revision + 1, phase: .terminal, outcome: .committed,
                 effects: [OperationEffect(location: destination, observation: observed)],
-                sourceDisposition: source == nil ? .notRequired : .confirmed
+                sourceDisposition: source == nil ? .notRequired : .confirmed,
+                contentVerified: payload?.observation.sha256 != nil
             )
             try journal.record(result, ownership: ownership)
             return result
         } catch {
             let current = try journal.read(identity.id)
-            if let receipt = current.receipt, receipt.outcome == .committed { return receipt }
+            if let receipt = current.receipt, receipt.outcome == .committed { throw error }
             let result = OperationReceipt(
                 id: identity.id, account: journal.account, epoch: journal.epoch, intentDigest: identity.intentDigest,
                 revision: (current.receipt?.revision ?? 0) + 1, phase: .terminal,
@@ -94,6 +99,37 @@ extension ServerOperationService {
             )
             try journal.record(result, ownership: ownership)
             return result
+        }
+    }
+
+    private func validateSourceContent(_ intent: OperationIntent, ownership: OperationJournal.Ownership) async throws {
+        guard [.rename, .move].contains(intent.action), intent.sources.count == 1,
+              intent.sourceObservations.count == 1, let expectedHash = intent.sourceObservations[0].sha256 else { return }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let source = try self.resolve(intent.sources[0])
+                    let clock = ContinuousClock()
+                    var reported = clock.now
+                    let proved = try source.directory.proveFile(source.name) { measured in
+                        guard try !self.journal.cancellationRequested(intent.id) else { throw OperationContractError.cancelled }
+                        if clock.now - reported >= .seconds(5) {
+                            let current = try self.journal.read(intent.id)
+                            try self.journal.record(OperationReceipt(
+                                id: intent.id, account: self.journal.account, epoch: self.journal.epoch,
+                                intentDigest: current.intentDigest, revision: (current.receipt?.revision ?? 0) + 1,
+                                phase: .preparing, outcome: .running, measuredBytes: measured
+                            ), ownership: ownership)
+                            reported = clock.now
+                        }
+                    }
+                    guard proved.identity == intent.sourceObservations[0].identity,
+                          proved.version == intent.sourceObservations[0].version, proved.sha256 == expectedHash else {
+                        throw OperationFilesystemError.identityChanged
+                    }
+                    continuation.resume()
+                } catch { continuation.resume(throwing: error) }
+            }
         }
     }
 

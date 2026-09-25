@@ -74,7 +74,7 @@ final class ServerOperationServiceTests: XCTestCase {
             _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
             let source = fixture.root.appendingPathComponent("source")
             let competitor = Data("other writer".utf8)
-            try competitor.write(to: changedSource ? source : fixture.destination, options: .atomic)
+            try competitor.write(to: changedSource ? source : fixture.destination)
             let result = try await fixture.service.execute(fixture.identity)
             XCTAssertEqual(result.outcome, .failedUnchanged)
             XCTAssertTrue(result.effects.isEmpty)
@@ -93,6 +93,41 @@ final class ServerOperationServiceTests: XCTestCase {
         XCTAssertEqual(result.outcome, .failedUnchanged)
         XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("source").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+    }
+
+    func testNativeMoveChecksDeclaredSourceContentBeforeMutation() async throws {
+        for valid in [false, true] {
+            let hash = try OperationContentProof.data(Data(repeating: valid ? 42 : 7, count: 32)).sha256
+            let fixture = try await Fixture(size: 32, action: .move, sourceHash: hash)
+            defer { fixture.cleanup() }
+            _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+            let result = try await fixture.service.execute(fixture.identity)
+            XCTAssertEqual(result.outcome, valid ? .committed : .failedUnchanged)
+            XCTAssertEqual(FileManager.default.fileExists(atPath: fixture.destination.path), valid)
+            XCTAssertEqual(FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("source").path), !valid)
+            if valid { XCTAssertEqual(result.effects.first?.observation.sha256, hash) }
+        }
+    }
+
+    func testStoppedFolderCreationCannotClaimAnUnrecordedDirectory() async throws {
+        let fixture = try await Fixture(size: 0, action: .createFolder)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        do {
+            let ownership = try await fixture.service.journal.acquireItem(fixture.identity.id)
+            try fixture.service.journal.record(OperationReceipt(
+                id: fixture.identity.id, account: fixture.identity.account, epoch: fixture.identity.epoch,
+                intentDigest: fixture.identity.intentDigest, revision: 1, phase: .committing, outcome: .running,
+                plannedPaths: [try XCTUnwrap(fixture.intent.destination)]
+            ), ownership: ownership)
+        }
+        try FileManager.default.createDirectory(at: fixture.destination, withIntermediateDirectories: false)
+        let result = try XCTUnwrap(fixture.service.status(fixture.identity).receipt)
+        XCTAssertEqual(result.outcome, .unknown)
+        XCTAssertTrue(result.effects.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.destination.path))
+        XCTAssertEqual(result.plannedPaths, [try XCTUnwrap(fixture.intent.destination)])
+        XCTAssertEqual(try fixture.service.status(fixture.identity).receipt, result)
     }
 
     func testLostNativeMoveConclusionIsReconciledWithoutAnotherMove() async throws {
@@ -329,7 +364,7 @@ final class ServerOperationServiceTests: XCTestCase {
         let identity: OperationRequestIdentity
         let intent: OperationIntent
 
-        init(size: Int, action: OperationIntent.Action = .copy) async throws {
+        init(size: Int, action: OperationIntent.Action = .copy, sourceHash: String? = nil) async throws {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
             self.root = root
@@ -344,7 +379,10 @@ final class ServerOperationServiceTests: XCTestCase {
                 let source = root.appendingPathComponent("source")
                 try bytes.write(to: source)
                 sources = [OperationLocation(account: account, path: .unix(Data(source.path.utf8)))]
-                observations = [try OperationDirectory(path: Data(root.path.utf8)).observe(Data("source".utf8))]
+                let observed = try OperationDirectory(path: Data(root.path.utf8)).observe(Data("source".utf8))
+                observations = [OperationObservation(identity: observed.identity, kind: observed.kind, version: observed.version,
+                                                     byteCount: observed.byteCount, sha256: sourceHash, linkTarget: observed.linkTarget,
+                                                     contentVersion: observed.contentVersion)]
             }
             let intent = OperationIntent(
                 id: .init(operation: UUID(), item: UUID()), action: action, sources: sources,

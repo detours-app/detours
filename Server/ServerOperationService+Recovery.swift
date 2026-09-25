@@ -4,12 +4,24 @@ import RemoteOperationSupport
 extension ServerOperationService {
     func reconcile(_ snapshot: OperationJournal.Snapshot) throws -> OperationJournal.Snapshot {
         guard let receipt = snapshot.receipt,
-              receipt.phase == .committing || receipt.outcome == .unknown,
+              [.preparing, .committing].contains(receipt.phase) || receipt.outcome == .unknown,
               let ownership = try journal.tryAcquireItem(snapshot.id) else { return snapshot }
         defer { withExtendedLifetime(ownership) {} }
         let current = try journal.read(snapshot.id)
-        guard current == snapshot, let intent = current.intent, intent.conflict == .createNew,
-              let destination = intent.destination, let payload = receipt.preparedPayload else { return current }
+        guard current == snapshot else { return current }
+        guard let intent = current.intent, intent.conflict == .createNew,
+              let destination = intent.destination, let payload = receipt.preparedPayload else {
+            if receipt.outcome == .unknown { return current }
+            try journal.record(OperationReceipt(
+                id: current.id, account: journal.account, epoch: journal.epoch, intentDigest: current.intentDigest,
+                revision: receipt.revision + 1, phase: .terminal, outcome: .unknown,
+                effects: receipt.effects, sourceDisposition: receipt.sourceDisposition,
+                preparedPayload: receipt.preparedPayload, plannedPaths: receipt.plannedPaths,
+                recovery: receipt.recovery, children: receipt.children,
+                failure: "The worker stopped without enough recorded object evidence to prove its result."
+            ), ownership: ownership)
+            return try journal.read(current.id)
+        }
         let sourceMutation = receipt.recovery.contains { $0.purpose == .source && $0.identity == payload.observation.identity }
         var effects = receipt.effects
         var recovery = receipt.recovery

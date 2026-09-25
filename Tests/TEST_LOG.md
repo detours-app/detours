@@ -17,6 +17,7 @@
 | Signed Foundry operation RPC and protocol checks | `110c012` | PASS: signed no-install app build and 34 tests, zero failures or skips, 1.218 seconds. The helper negotiates account/epoch/capabilities and serves the complete small-upload lifecycle with stable duplicate results. |
 | Linux accepted streaming entry checks | `6b6f64d` | PASS: 18 process tests in 11.886 seconds and 36 service/content/filesystem/publication/archive tests in 2.747 seconds, zero failures or skips. The transfer entry returns a framed ready receipt without publishing; both helpers built and signed Foundry app build passed. |
 | Signed Foundry streaming entry and protocol checks | `6b6f64d` | PASS: signed no-install app build and 40 tests, zero failures or skips, 1.234 seconds. Versioned stream preparation, separate publication, protocol compatibility and existing transfer checks passed. |
+| Linux native-action checks | `1d0933a` | FAIL: 18 process tests passed in 11.886 seconds; 39 of 40 operation/archive checks passed in 3.103 seconds. The competing-file fixture used Foundation atomic writing, whose temporary-file path is rejected by the helper's static-Linux guard. Fixture creation failed before the operation ran; use a direct fixture write to exercise the intended changed-source/conflict conditions. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 
