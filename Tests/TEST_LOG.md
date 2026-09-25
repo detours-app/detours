@@ -7,6 +7,10 @@
 | Linux compressed TAR adapter compilation | `b5e98fe` | FAIL: linking found the missing upstream DummyOutStream implementation required by the added format handlers. Its header was included but its implementation was omitted. No tests ran; adding that source before rerunning the same checks. |
 | Linux compressed TAR dependency correction | `e7b81b3` | PASS: compilation and 18 process tests, zero failures, 12.088 seconds. |
 | Linux compressed TAR round trips | `e7b81b3` | FAIL: 105 of 107 tests passed in 14.325 seconds. Gzip TAR compatibility, symbolic links and hard links passed; bzip2 extraction stopped because the build container lacks the bzip2 executable used by the existing tar extractor. Adding bzip2 and xz-utils to the ephemeral Linux test-container dependencies before rerunning all format checks. |
+| Linux TAR comparison-tool packaging | `3dbc249` | FAIL: xz-utils installation warned about missing manual-page alternative targets. A read-only check of the actual swift:6.2-noble image confirmed its dpkg configuration excludes all manual pages. Include manual pages for the test dependency installation so those alternatives have real targets. |
+| Linux TAR comparison-tool process checks | `3dbc249` | PASS: 18 process tests, zero failures, 11.988 seconds. |
+| Linux compressed TAR compatibility and operation checks | `3dbc249` | PASS: 107 tests, zero failures, 11.689 seconds. All five formats match existing extracted output, with symbolic/hard-link preservation for TAR and unsupported encryption refused before allocation. Static Linux and macOS helpers built. The separately recorded packaging warnings still require correction. |
+| Signed Foundry compressed TAR compatibility | `3dbc249` | PASS: both helper builds, signed no-install app build and 144 focused tests, zero failures, 9.827 seconds. All five formats match existing extracted contents; TAR preserves symbolic and hard links, permissions and timestamps, with encryption refused before allocation. Live Windows journal and operation regressions passed. |
 
 ## 2026-09-25 (Foundry and devtest, owned ZIP preparation)
 
