@@ -75,6 +75,57 @@ final class OperationManifestTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: tree.appendingPathComponent("later")), Data("new child".utf8))
     }
 
+    func testArchiveInputsFollowFileAndDirectoryLinksWithoutChangingSources() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let tree = fixture.root.appendingPathComponent("tree")
+        let outside = fixture.root.appendingPathComponent("outside")
+        try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: false)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: false)
+        try Data("referent".utf8).write(to: outside.appendingPathComponent("file"))
+        try FileManager.default.createSymbolicLink(atPath: tree.appendingPathComponent("file-link").path, withDestinationPath: "../outside/file")
+        try FileManager.default.createSymbolicLink(atPath: tree.appendingPathComponent("folder-link").path, withDestinationPath: "../outside")
+        let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
+        let name = Data("tree".utf8)
+        let original = try parent.manifest(name, progress: { _ in })
+        let preserved = try parent.archiveInputs(name, followingLinks: false, progress: { _ in })
+        XCTAssertEqual(preserved.manifest, original)
+        var measured: [UInt64] = []
+        let followed = try parent.archiveInputs(name, followingLinks: true) { measured.append($0) }
+        XCTAssertEqual(followed.manifest.entries.map(\.relativePath), ["", "file-link", "folder-link", "folder-link/file"].map { Data($0.utf8) })
+        XCTAssertEqual(followed.manifest.entries.map { $0.observation.kind }, [.directory, .file, .directory, .file])
+        XCTAssertEqual(followed.manifest.proof.byteCount, 16)
+        XCTAssertEqual(measured, measured.sorted())
+        XCTAssertEqual(measured.last, 16)
+        XCTAssertEqual(followed.locations[Data("file-link".utf8)], followed.locations[Data("folder-link/file".utf8)])
+        XCTAssertEqual(try parent.manifest(name, progress: { _ in }), original)
+    }
+
+    func testArchiveInputsRejectCyclesDanglingLinksAndChangedReferents() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
+        for target in [".", "missing", "loop"] {
+            let tree = fixture.root.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: false)
+            try FileManager.default.createSymbolicLink(atPath: tree.appendingPathComponent("loop").path, withDestinationPath: target)
+            XCTAssertThrowsError(try parent.archiveInputs(Data(tree.lastPathComponent.utf8), followingLinks: true, progress: { _ in }))
+        }
+        let file = fixture.root.appendingPathComponent("file")
+        try Data(repeating: 42, count: 131_072).write(to: file)
+        try FileManager.default.createSymbolicLink(atPath: fixture.root.appendingPathComponent("alias").path, withDestinationPath: "file")
+        var changed = false
+        XCTAssertThrowsError(try parent.archiveInputs(Data("alias".utf8), followingLinks: true) { count in
+            if count > 0, !changed {
+                changed = true
+                try Data("changed".utf8).write(to: file)
+            }
+        }) { error in
+            XCTAssertEqual(error as? OperationFilesystemError, .identityChanged)
+        }
+        XCTAssertEqual(try Data(contentsOf: file), Data("changed".utf8))
+    }
+
     #if os(Linux)
     func testManifestPreservesNonUTF8PathBytes() throws {
         let fixture = try Fixture()

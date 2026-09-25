@@ -1,5 +1,11 @@
 # Test Log
 
+## 2026-09-25 (Foundry, archive compatibility)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Existing archiver link and multi-source output probes | `564e6ac` | FAIL: comparison exposed a compatibility defect in accepted archive preparation. Existing 7z and ZIP creation follow symbolic links; TAR preserves links. Existing 7z creation stores absolute selected roots by basename. The new preparation instead preserved links and common-ancestor paths. Both Foundry probes completed and removed their own fixtures; correcting the input representation before further format work. |
+
 ## 2026-09-25 (Foundry and devtest, accepted archive preparation)
 
 | Check | Commit | Result |

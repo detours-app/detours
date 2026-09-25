@@ -27,6 +27,7 @@ public final class OperationJournal: Sendable {
         public let workspace: OperationWorkspace.Record?
         public let sourceManifest: OperationManifest?
         public let payloadManifest: OperationManifest?
+        public let archiveInputManifest: OperationManifest?
     }
 
     public final class Ownership: Sendable {
@@ -171,7 +172,7 @@ public final class OperationJournal: Sendable {
         guard try !cancellationRequested(intent.id) else { throw OperationContractError.cancelled }
         let snapshot = Snapshot(
             schemaVersion: 1, epoch: epoch, account: account, id: intent.id,
-            intentDigest: digest, revision: 1, intent: intent, receipt: nil, acknowledged: false, workspace: nil, sourceManifest: nil, payloadManifest: nil
+            intentDigest: digest, revision: 1, intent: intent, receipt: nil, acknowledged: false, workspace: nil, sourceManifest: nil, payloadManifest: nil, archiveInputManifest: nil
         )
         try write(snapshot, name: name(intent.id) + ".json")
         return snapshot
@@ -191,7 +192,7 @@ public final class OperationJournal: Sendable {
             schemaVersion: 1, epoch: epoch, account: account, id: receipt.id,
             intentDigest: previous.intentDigest, revision: previous.revision + 1,
             intent: intent, receipt: receipt, acknowledged: false, workspace: previous.workspace,
-            sourceManifest: previous.sourceManifest, payloadManifest: previous.payloadManifest
+            sourceManifest: previous.sourceManifest, payloadManifest: previous.payloadManifest, archiveInputManifest: previous.archiveInputManifest
         )
         try write(snapshot, name: name(receipt.id) + ".json")
     }
@@ -206,7 +207,7 @@ public final class OperationJournal: Sendable {
         let tombstone = Snapshot(
             schemaVersion: 1, epoch: epoch, account: account, id: id,
             intentDigest: previous.intentDigest, revision: previous.revision + 1,
-            intent: nil, receipt: receipt, acknowledged: true, workspace: nil, sourceManifest: nil, payloadManifest: nil
+            intent: nil, receipt: receipt, acknowledged: true, workspace: nil, sourceManifest: nil, payloadManifest: nil, archiveInputManifest: nil
         )
         try write(tombstone, name: name(id) + ".json")
     }
@@ -228,24 +229,25 @@ public final class OperationJournal: Sendable {
             schemaVersion: 1, epoch: epoch, account: account, id: workspace.id, intentDigest: previous.intentDigest,
             revision: previous.revision + 1, intent: previous.intent, receipt: previous.receipt,
             acknowledged: false, workspace: workspace,
-            sourceManifest: previous.sourceManifest, payloadManifest: previous.payloadManifest
+            sourceManifest: previous.sourceManifest, payloadManifest: previous.payloadManifest, archiveInputManifest: previous.archiveInputManifest
         ), name: name(workspace.id) + ".json")
     }
 
     public func recordManifests(_ id: OperationItemID, source: OperationManifest,
-                                payload: OperationManifest?, ownership: Ownership) throws {
+                                payload: OperationManifest?, archiveInputs: OperationManifest? = nil, ownership: Ownership) throws {
         try requireOwnership(ownership, id: id)
         let previous = try read(id)
         guard !previous.acknowledged, previous.receipt == nil || previous.receipt?.phase == .preparing,
               previous.sourceManifest == nil || previous.sourceManifest == source,
-              previous.payloadManifest == nil || previous.payloadManifest == payload else {
+              previous.payloadManifest == nil || previous.payloadManifest == payload,
+              previous.archiveInputManifest == nil || previous.archiveInputManifest == archiveInputs else {
             throw OperationContractError.identityMismatch
         }
-        if previous.sourceManifest == source, previous.payloadManifest == payload { return }
+        if previous.sourceManifest == source, previous.payloadManifest == payload, previous.archiveInputManifest == archiveInputs { return }
         try write(Snapshot(
             schemaVersion: 1, epoch: epoch, account: account, id: id, intentDigest: previous.intentDigest,
             revision: previous.revision + 1, intent: previous.intent, receipt: previous.receipt,
-            acknowledged: false, workspace: previous.workspace, sourceManifest: source, payloadManifest: payload
+            acknowledged: false, workspace: previous.workspace, sourceManifest: source, payloadManifest: payload, archiveInputManifest: archiveInputs
         ), name: name(id) + ".json")
     }
 

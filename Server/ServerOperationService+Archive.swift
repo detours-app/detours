@@ -21,11 +21,11 @@ extension ServerOperationService {
             try requirePreparationDestination(intent)
             let source = try await archiveSources(intent, identity: identity, ownership: ownership, measuredBefore: 0)
             let target = try resolve(destination)
-            guard !source.manifest.entries.contains(where: {
+            guard !(source.manifest.entries + source.inputs.entries).contains(where: {
                 $0.observation.kind == .directory && $0.observation.identity == target.directory.identity
             }) else { throw OperationFilesystemError.unsupported }
             let entries = try archiveEntries(source, id: identity.id)
-            try journal.recordManifests(identity.id, source: source.manifest, payload: nil, ownership: ownership)
+            try journal.recordManifests(identity.id, source: source.manifest, payload: nil, archiveInputs: source.inputs, ownership: ownership)
             let allocated = try await allocatePreparation(identity, target: target.directory, ownership: ownership)
             preparation = allocated
             let output = try await createArchiveOutput(allocated, identity: identity, ownership: ownership)
@@ -44,6 +44,7 @@ extension ServerOperationService {
             guard !overflow else { throw OperationFilesystemError.unsupported }
             let finalSource = try await archiveSources(intent, identity: identity, ownership: ownership, measuredBefore: hashed)
             guard source.manifest == finalSource.manifest, source.root == finalSource.root,
+                  source.inputs == finalSource.inputs, source.locations == finalSource.locations,
                   let observed = payload.entries.first?.observation, observed.kind == .file,
                   let hash = observed.sha256 else { throw OperationFilesystemError.identityChanged }
             if let expected = intent.payloadProof {
@@ -52,7 +53,7 @@ extension ServerOperationService {
                 }
             }
             try allocated.workspace.validateManifest(payload, root: Data("payload".utf8))
-            try journal.recordManifests(identity.id, source: source.manifest, payload: payload, ownership: ownership)
+            try journal.recordManifests(identity.id, source: source.manifest, payload: payload, archiveInputs: source.inputs, ownership: ownership)
             let (measured, finalOverflow) = hashed.addingReportingOverflow(finalSource.measuredBytes)
             guard !finalOverflow else { throw OperationFilesystemError.unsupported }
             let ready = OperationReceipt(

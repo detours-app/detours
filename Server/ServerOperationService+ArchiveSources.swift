@@ -5,6 +5,8 @@ import RemoteOperationSupport
 struct ServerArchiveSources: Sendable {
     let root: OperationLocation
     let manifest: OperationManifest
+    let inputs: OperationManifest
+    let locations: [Data: Data]
     let measuredBytes: UInt64
 }
 
@@ -49,11 +51,33 @@ extension ServerOperationService {
             measured = next
             trees.append((Data(paths[index].dropFirst(common.count).joined(separator: Data([47]))), manifest))
         }
-        return ServerArchiveSources(root: root, manifest: try OperationManifest.combining(trees), measuredBytes: measured - measuredBefore)
+        var inputTrees: [(prefix: Data, manifest: OperationManifest)] = []
+        var locations: [Data: Data] = [:]
+        let followingLinks = intent.archiveFormat == ServerArchiveFormat.sevenZ.rawValue || intent.archiveFormat == ServerArchiveFormat.zip.rawValue
+        for (index, source) in intent.sources.enumerated() {
+            let input = try await archiveInputManifest(source, followingLinks: followingLinks, identity: identity,
+                                                       ownership: ownership, measuredBefore: measured)
+            let prefix: Data
+            if intent.archiveFormat == ServerArchiveFormat.sevenZ.rawValue {
+                guard let name = paths[index].last else { throw OperationFilesystemError.invalidPath }
+                prefix = name
+            } else { prefix = trees[index].prefix }
+            inputTrees.append((prefix, input.manifest))
+            for (relative, physical) in input.locations {
+                let name = relative.isEmpty ? prefix : prefix + Data([47]) + relative
+                locations[name] = physical
+            }
+            let (next, overflow) = measured.addingReportingOverflow(input.manifest.proof.byteCount)
+            guard !overflow else { throw OperationFilesystemError.unsupported }
+            measured = next
+        }
+        return ServerArchiveSources(root: root, manifest: try OperationManifest.combining(trees),
+                                    inputs: try OperationManifest.combining(inputTrees), locations: locations,
+                                    measuredBytes: measured - measuredBefore)
     }
 
     func archiveEntries(_ sources: ServerArchiveSources, id: OperationItemID) throws -> [SevenZipArchiveWriter.Entry] {
-        try sources.manifest.entries.map { entry in
+        try sources.inputs.entries.map { entry in
             let observation = entry.observation
             guard let name = String(data: entry.relativePath, encoding: .utf8),
                   let metadata = observation.contentVersion.flatMap({ String(data: $0, encoding: .utf8) }) else {
@@ -62,7 +86,8 @@ extension ServerOperationService {
             let fields = metadata.split(separator: ":", omittingEmptySubsequences: false)
             guard fields.count == 6, let seconds = Int64(fields[1]), let nanos = UInt32(fields[2]), nanos < 1_000_000_000,
                   let mode = UInt32(fields[3]) else { throw OperationFilesystemError.unsupported }
-            let location = try treeMemberLocation(sources.root, relative: entry.relativePath)
+            guard let path = sources.locations[entry.relativePath] else { throw OperationFilesystemError.invalidPath }
+            let location = OperationLocation(account: journal.account, path: .unix(path))
             let opener: (@Sendable () throws -> FileHandle)?
             if observation.kind == .file {
                 opener = {
@@ -77,6 +102,29 @@ extension ServerOperationService {
                 modified: Date(timeIntervalSince1970: Double(seconds) + Double(nanos) / 1_000_000_000),
                 linkTarget: observation.linkTarget, openInput: opener
             )
+        }
+    }
+
+    private func archiveInputManifest(_ location: OperationLocation, followingLinks: Bool, identity: OperationRequestIdentity,
+                                      ownership: OperationJournal.Ownership, measuredBefore: UInt64) async throws -> OperationArchiveInputs {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let source = try self.resolve(location)
+                    let clock = ContinuousClock()
+                    var reported = clock.now
+                    let inputs = try source.directory.archiveInputs(source.name, followingLinks: followingLinks) { bytes in
+                        guard try !self.journal.cancellationRequested(identity.id) else { throw OperationContractError.cancelled }
+                        if clock.now - reported >= .seconds(5) {
+                            let (total, overflow) = measuredBefore.addingReportingOverflow(bytes)
+                            guard !overflow else { throw OperationFilesystemError.unsupported }
+                            try self.recordTreeProgress(identity, measured: total, ownership: ownership)
+                            reported = clock.now
+                        }
+                    }
+                    continuation.resume(returning: inputs)
+                } catch { continuation.resume(throwing: error) }
+            }
         }
     }
 }
