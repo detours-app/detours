@@ -33,6 +33,7 @@ ssh "$REMOTE_HOST" "rm -rf $REMOTE_TMP_Q && mkdir -p $REMOTE_TMP_Q"
 COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     Server \
     Shared \
+    RemoteOperationSupport \
     LinuxStaticFoundationGuard \
     Tests/DetoursProcessTests \
     Tests/ServerArchiveOperationsTests.swift \
@@ -50,6 +51,10 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "RemoteOperationSupport",
+            path: "RemoteOperationSupport"
+        ),
+        .target(
             name: "DetoursProcess",
             path: "Shared",
             linkerSettings: [.linkedLibrary("util")]
@@ -60,7 +65,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "detours-server",
-            dependencies: ["DetoursProcess", "LinuxStaticFoundationGuard"],
+            dependencies: ["DetoursProcess", "RemoteOperationSupport", "LinuxStaticFoundationGuard"],
             path: "Server"
         ),
         .testTarget(

@@ -32,6 +32,10 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "RemoteOperationSupport",
+            path: "RemoteOperationSupport"
+        ),
+        .target(
             name: "DetoursProcess",
             path: "Shared",
             linkerSettings: [
@@ -53,18 +57,18 @@ let package = Package(
         ),
         .executableTarget(
             name: "Detours",
-            dependencies: ["DetoursProcess"],
+            dependencies: ["DetoursProcess", "RemoteOperationSupport"],
             path: "src",
             swiftSettings: detoursSwiftSettings
         ),
         .executableTarget(
             name: "detours-server",
-            dependencies: ["DetoursProcess"],
+            dependencies: ["DetoursProcess", "RemoteOperationSupport"],
             path: "Server"
         ),
         .testTarget(
             name: "DetoursTests",
-            dependencies: ["Detours", "DetoursProcess", "QualificationSupport", "detours-server"],
+            dependencies: ["Detours", "DetoursProcess", "RemoteOperationSupport", "QualificationSupport", "detours-server"],
             path: "Tests",
             exclude: ["TEST_LOG.md", "UITests", "DetoursProcessTests"]
         ),

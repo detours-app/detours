@@ -311,3 +311,5 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **C1** Added the shared intent, receipt, typed lookup, operation record and outcome reducer, with package and Linux helper build wiring. Added focused contract regressions; Foundry build and test verification is pending.

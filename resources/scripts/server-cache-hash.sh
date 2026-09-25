@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 {
-    for path in Server Shared LinuxStaticFoundationGuard Tests/DetoursProcessTests; do
+    for path in Server Shared RemoteOperationSupport LinuxStaticFoundationGuard Tests/DetoursProcessTests; do
         if [ -d "$path" ]; then
             find "$path" -type f -print0 | sort -z | xargs -0 shasum -a 256
         fi
