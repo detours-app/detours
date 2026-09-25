@@ -18,6 +18,9 @@
 | Linux ZIP header evidence and extraction | `7cba5db` | FAIL: 104 of 105 tests passed in 11.039 seconds. Generated ZIP local and central names and flags match, including UTF-8 flags; plain extraction still reports escaped central names. Testing an explicit UTF-8 locale for Linux archive commands. |
 | Linux UTF-8 archive command process checks | `da66f7d` | PASS: compilation and 18 process tests, zero failures, 11.887 seconds. |
 | Linux UTF-8 ZIP extraction and encryption | `da66f7d` | FAIL: 104 of 105 tests passed in 10.392 seconds. Plain ZIP now passes exact Unicode extraction and comparison with existing output. Encrypted ZIP preparation rejects the fixture's Unicode password with E_INVALIDARG; the upstream ZIP handler requires a simple ASCII password. Correcting that fixture and checking the existing 80-byte password limit before allocation. |
+| Linux ZIP password correction process checks | `6a9d1f6` | PASS: compilation and 18 process tests, zero failures, 11.887 seconds. |
+| Linux owned ZIP and operation checks | `6a9d1f6` | PASS: 106 tests, zero failures, 11.474 seconds. Plain/encrypted ZIP and 7z output matches existing creation after extraction; Unicode names, matching headers, AES-256 metadata, wrong-password refusal and ZIP's pre-allocation password length limit passed. Static Linux helper built. |
+| Signed Foundry owned ZIP and operation checks | `6a9d1f6` | PASS: both helper builds, signed no-install app build and 143 focused tests, zero failures, 9.463 seconds. Plain/encrypted ZIP and 7z match existing extracted output, preserve metadata and source files, reject wrong passwords and validate matching ZIP headers with AES-256. Existing publication, recovery, protocol and live Windows journal checks passed. |
 
 ## 2026-09-25 (Foundry, archive compatibility)
 
