@@ -337,8 +337,25 @@ actor PowerShellChannel: RemoteConnectionHandle {
     $ErrorActionPreference = 'Stop'
     [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
     $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-    $stdinStream = [Console]::OpenStandardInput()
-    $stdoutStream = [Console]::OpenStandardOutput()
+    # Use file streams for SSH pipes, as PowerShell's SSHProcessMediator does.
+    # https://github.com/PowerShell/PowerShell/issues/14478
+    Add-Type -TypeDefinition @'
+    using System;
+    using System.IO;
+    using System.Runtime.InteropServices;
+    using Microsoft.Win32.SafeHandles;
+    public static class DetoursStandardStreams {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr GetStdHandle(int kind);
+        public static FileStream Open(int kind, FileAccess access) {
+            var handle = new SafeFileHandle(GetStdHandle(kind), false);
+            if (handle.IsInvalid) { throw new IOException("SSH standard stream is unavailable."); }
+            return new FileStream(handle, access, 4096, false);
+        }
+    }
+    '@
+    $stdinStream = [DetoursStandardStreams]::Open(-10, [System.IO.FileAccess]::Read)
+    $stdoutStream = [DetoursStandardStreams]::Open(-11, [System.IO.FileAccess]::Write)
 
     function Read-Exact([int]$Count) {
         $buffer = [byte[]]::new($Count)
