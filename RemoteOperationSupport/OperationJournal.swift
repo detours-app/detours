@@ -270,7 +270,7 @@ public final class OperationJournal: Sendable {
         try Self.write(value, directory: directory, name: name)
     }
 
-    private func validateEpoch() throws {
+    public func validateEpoch() throws {
         let currentDirectory = open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard currentDirectory >= 0 else { throw OperationContractError.epochMismatch }
         defer { _ = close(currentDirectory) }

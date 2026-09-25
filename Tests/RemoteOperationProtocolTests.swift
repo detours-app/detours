@@ -14,6 +14,7 @@ final class RemoteOperationProtocolTests: XCTestCase {
                                      sourceObservations: [], conflict: .createNew)
         let requests: [OperationRequest] = [
             .handshake, .accept(identity: identity, intent: intent), .status(identity),
+            .prepareUpload(identity: identity, contents: Data([0, 255])), .commit(identity),
             .cancel(identity), .acknowledge(identity: identity, retainingUndo: true),
         ]
         for request in requests {
@@ -72,9 +73,17 @@ final class RemoteOperationProtocolTests: XCTestCase {
         for reply in replies { XCTAssertEqual(try OperationReply.decode(reply.encoded()), reply) }
     }
 
-    func testHelperDoesNotAdvertiseUnimplementedCommitCapabilities() throws {
+    func testHelperNegotiatesTheJournaledOperationService() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try await ServerOperationService(root: root, account: account)
+        let handler = RPCHandler(operationService: service)
         let bytes = try RPCMessage.operation(.handshake).binaryEncoded()
-        let reply = try RPCHandler().handle(message: ServerRPCMessage(binaryEncoded: bytes))
-        XCTAssertEqual(try OperationReply.decode(reply), .incompatible(.missingCapabilities(Set(OperationCapability.allCases))))
+        let reply = try handler.handle(message: ServerRPCMessage(binaryEncoded: bytes))
+        guard case .handshake(let handshake) = try OperationReply.decode(reply) else { return XCTFail("Missing handshake") }
+        XCTAssertNoThrow(try handshake.validate(expectedAccount: account, expectedEpoch: service.journal.epoch))
+        let legacy = OperationRequest.handshake(version: 1, schemaVersion: 1, requiredCapabilities: [])
+        let rejected = try handler.handle(message: .operation(legacy))
+        XCTAssertEqual(try OperationReply.decode(rejected), .incompatible(.protocolVersion(expected: 2, actual: 1)))
     }
 }

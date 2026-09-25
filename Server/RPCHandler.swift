@@ -11,6 +11,11 @@ enum ServerRPCError: Error, Equatable {
 struct RPCHandler: @unchecked Sendable {
     private let fileOperations = FileOperations()
     private let watcher = Watcher()
+    private let operationService: ServerOperationService?
+
+    init(operationService: ServerOperationService? = nil) {
+        self.operationService = operationService
+    }
 
     func run() throws {
         let outputLock = NSLock()
@@ -140,8 +145,8 @@ struct RPCHandler: @unchecked Sendable {
 
     func handleChunks(message: ServerRPCMessage) throws -> [Data] {
         switch message {
-        case .operation:
-            return [try OperationReply.incompatible(.missingCapabilities(Set(OperationCapability.allCases))).encoded()]
+        case .operation(let request):
+            return [try ServerOperationReplyBridge.reply(to: request, service: operationService).encoded()]
         case .protocolVersion:
             var writer = ServerRPCBinaryWriter()
             writer.writeInt64(1)

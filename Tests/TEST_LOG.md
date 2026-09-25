@@ -11,6 +11,8 @@
 | Interrupted-publication recovery build | `d5a8056` | FAIL: Linux helper compilation rejected the recovery hash call because its required progress callback was omitted. No tests ran; the call now supplies the callback. |
 | Corrected Linux interrupted-publication recovery checks | `31ff863` | PASS: 18 process tests in 11.885 seconds and 31 service/content/filesystem/publication/archive tests in 2.420 seconds, zero failures or skips. Lost publication is proved without replay; identical competing content stays unknown. Both helper builds succeeded. |
 | Signed Foundry recovery and outcome regressions | `31ff863` | PASS: signed no-install app build and 26 tests, zero failures or skips, 0.926 seconds. Read-only reconciliation, stable committed effects, journal ownership and the live Windows journal passed. |
+| Linux streamed preparation and cancellation checks | `bed92c3` | PASS: 18 process tests in 11.787 seconds and 34 service/content/filesystem/publication/archive tests in 3.500 seconds, zero failures or skips. The stalled-stream cancellation case passed in 0.250 seconds; both helpers built. |
+| Signed Foundry streamed preparation and cancellation checks | `bed92c3` | PASS: signed no-install app build and 29 tests, zero failures or skips, 1.203 seconds. Large uploads require separate publication; truncated and stalled streams preserve the destination, cancellation cleans owned scratch, and another item can acquire the account lock during a stalled read. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 

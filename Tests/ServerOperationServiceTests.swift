@@ -26,6 +26,29 @@ final class ServerOperationServiceTests: XCTestCase {
         }
     }
 
+    func testRPCDispatchAcceptsPreparesCommitsAndReturnsTheSameResult() async throws {
+        let fixture = try await Fixture(size: 32)
+        defer { fixture.cleanup() }
+        let handler = RPCHandler(operationService: fixture.service)
+        func send(_ request: OperationRequest) throws -> OperationReply {
+            let decoded = try OperationRequest.decode(request.encoded())
+            return try OperationReply.decode(handler.handle(message: .operation(decoded)))
+        }
+        guard case .accepted = try send(.accept(identity: fixture.identity, intent: fixture.intent)) else {
+            return XCTFail("RPC did not durably accept upload")
+        }
+        guard case .receipt(let ready) = try send(.prepareUpload(identity: fixture.identity, contents: fixture.bytes)) else {
+            return XCTFail("RPC did not prepare upload")
+        }
+        XCTAssertEqual(ready.phase, .readyToCommit)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+        let committed = try send(.commit(fixture.identity))
+        guard case .receipt(let receipt) = committed else { return XCTFail("RPC did not return a receipt") }
+        XCTAssertEqual(receipt.outcome, .committed)
+        XCTAssertEqual(try send(.commit(fixture.identity)), committed)
+        XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+    }
+
     func testWrongByteCountOrHashLeavesDestinationUntouched() async throws {
         for bad in [Data([1]), Data(repeating: 7, count: 32)] {
             let fixture = try await Fixture(size: 32)

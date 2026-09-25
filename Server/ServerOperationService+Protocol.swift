@@ -1,0 +1,108 @@
+import Foundation
+import RemoteOperationSupport
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
+
+extension ServerOperationService {
+    static func live() async throws -> ServerOperationService {
+        let hostIdentity: String
+        #if canImport(Darwin)
+        var hostUUID = UUID().uuid
+        var timeout = timespec(tv_sec: 1, tv_nsec: 0)
+        guard gethostuuid(&hostUUID, &timeout) == 0 else { throw OperationFilesystemError.system(errno) }
+        hostIdentity = UUID(uuid: hostUUID).uuidString.lowercased()
+        #else
+        let machineID = try String(contentsOfFile: "/etc/machine-id", encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard machineID.count == 32, machineID.allSatisfy({ $0.isHexDigit }) else { throw OperationFilesystemError.unsupported }
+        hostIdentity = machineID.lowercased()
+        #endif
+        let account = OperationAccount(hostIdentity: hostIdentity, accountIdentity: "uid:\(getuid())")
+        let root = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".detours-server/operations")
+        return try await ServerOperationService(root: root, account: account)
+    }
+
+    func reply(to request: OperationRequest) async throws -> OperationReply {
+        do {
+            return try await dispatch(request)
+        } catch OperationContractError.epochMismatch {
+            return .incompatible(.epochChanged)
+        } catch OperationContractError.identityMismatch {
+            return .incompatible(.accountMismatch)
+        }
+    }
+
+    private func dispatch(_ request: OperationRequest) async throws -> OperationReply {
+        switch request {
+        case .handshake(let version, let schema, let required):
+            try journal.validateEpoch()
+            guard version == OperationHandshake.protocolVersion else {
+                return .incompatible(.protocolVersion(expected: OperationHandshake.protocolVersion, actual: version))
+            }
+            guard schema == OperationHandshake.journalSchema else {
+                return .incompatible(.journalSchema(expected: OperationHandshake.journalSchema, actual: schema))
+            }
+            let capabilities = Set(OperationCapability.allCases)
+            let missing = required.subtracting(capabilities)
+            guard missing.isEmpty else { return .incompatible(.missingCapabilities(missing)) }
+            return .handshake(OperationHandshake(version: version, schemaVersion: schema, capabilities: capabilities,
+                                                account: journal.account, epoch: journal.epoch))
+        case .accept(let identity, let intent):
+            return .accepted(try await accept(identity, intent: intent))
+        case .prepareUpload(let identity, let contents):
+            return .receipt(try await prepareUpload(identity, contents: contents))
+        case .commit(let identity):
+            return .receipt(try await commit(identity))
+        case .status(let identity):
+            return try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        continuation.resume(returning: .status(try self.status(identity)))
+                    } catch { continuation.resume(throwing: error) }
+                }
+            }
+        case .cancel(let identity):
+            try cancel(identity)
+            return .cancellationRecorded(identity)
+        case .acknowledge(let identity, let retainingUndo):
+            try await acknowledge(identity, retainingUndo: retainingUndo)
+            return .acknowledged(identity)
+        }
+    }
+}
+
+// RPC dispatch runs on a blocking worker queue, outside the Swift executor.
+final class ServerOperationReplyBridge: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Result<OperationReply, Error>?
+
+    static func reply(to request: OperationRequest, service: ServerOperationService?) throws -> OperationReply {
+        let bridge = ServerOperationReplyBridge()
+        let completed = DispatchSemaphore(value: 0)
+        Task.detached {
+            do {
+                let active: ServerOperationService
+                if let service { active = service } else { active = try await ServerOperationService.live() }
+                bridge.store(.success(try await active.reply(to: request)))
+            } catch { bridge.store(.failure(error)) }
+            completed.signal()
+        }
+        completed.wait()
+        return try bridge.take().get()
+    }
+
+    private func store(_ value: Result<OperationReply, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        result = value
+    }
+
+    private func take() throws -> Result<OperationReply, Error> {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let result else { throw OperationContractError.invalidReceipt }
+        return result
+    }
+}
